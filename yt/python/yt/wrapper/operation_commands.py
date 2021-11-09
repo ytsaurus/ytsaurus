@@ -1,6 +1,6 @@
 from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated
 from .config import get_config
-from .errors import YtOperationFailedError, YtResponseError, YtOperationProgressOutdated
+from .errors import YtOperationFailedError, YtResponseError, YtRetriableArchiveError
 from .driver import make_request, make_formatted_request, get_api_version
 from .http_helpers import get_proxy_url, get_retriable_errors
 from .exceptions_catcher import ExceptionCatcher
@@ -37,7 +37,7 @@ class OperationInfoRetrier(Retrier):
         super(OperationInfoRetrier, self).__init__(
             retry_config=retry_config,
             timeout=timeout,
-            exceptions=get_retriable_errors() + (YtOperationProgressOutdated,))
+            exceptions=get_retriable_errors() + (YtRetriableArchiveError,))
 
         self.command = command
         self.params = params

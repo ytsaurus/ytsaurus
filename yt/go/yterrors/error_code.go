@@ -189,7 +189,7 @@ const (
 	CodeShellManagerShutDown                   ErrorCode = 1801
 	CodeTooManyConcurrentRequests              ErrorCode = 1900
 	CodeJobArchiveUnavailable                  ErrorCode = 1910
-	CodeOperationProgressOutdated              ErrorCode = 1911
+	CodeRetriableArchiveError                  ErrorCode = 1911
 	CodeAPINoSuchOperation                     ErrorCode = 1915
 	CodeAPINoSuchJob                           ErrorCode = 1916
 	CodeNoSuchAttribute                        ErrorCode = 1920
@@ -600,8 +600,8 @@ func (e ErrorCode) String() string {
 		return "TooManyConcurrentRequests"
 	case CodeJobArchiveUnavailable:
 		return "JobArchiveUnavailable"
-	case CodeOperationProgressOutdated:
-		return "OperationProgressOutdated"
+	case CodeRetriableArchiveError:
+		return "RetriableArchiveError"
 	case CodeAPINoSuchOperation:
 		return "APINoSuchOperation"
 	case CodeAPINoSuchJob:

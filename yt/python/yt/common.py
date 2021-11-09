@@ -191,8 +191,11 @@ class YtError(Exception):
         return YtError._cached_fqdn
 
     # Error differentiation methods.
-    def is_operation_progress_outdated(self):
-        """ Operation progress in Cypress is outdated while archive request failed """
+    def is_retriable_archive_error(self):
+        """
+            Operation progress in Cypress is outdated or some attributes are archive only
+            while archive request failed
+        """
         return self.contains_code(1911)
 
     def is_resolve_error(self):

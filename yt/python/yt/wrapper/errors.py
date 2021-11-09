@@ -71,8 +71,8 @@ def create_response_error(underlying_error):
         error = YtAllTargetNodesFailed(underlying_error)
     elif sample_error.is_transport_error():
         error = YtTransportError(underlying_error)
-    elif sample_error.is_operation_progress_outdated():
-        error = YtOperationProgressOutdated(underlying_error)
+    elif sample_error.is_retriable_archive_error():
+        error = YtRetriableArchiveError(underlying_error)
     elif sample_error.is_resolve_error():
         error = YtResolveError(underlying_error)
     elif sample_error.is_row_is_blocked():
@@ -225,7 +225,7 @@ class YtAllTargetNodesFailed(YtResponseError):
     """Failed to write chunk since all target nodes have failed."""
     pass
 
-class YtOperationProgressOutdated(YtResponseError):
+class YtRetriableArchiveError(YtResponseError):
     """Operation progress in Cypress is outdated while archive request failed."""
     pass
 

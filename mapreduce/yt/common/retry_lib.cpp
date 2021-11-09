@@ -218,7 +218,7 @@ static TMaybe<TDuration> TryGetBackoffDuration(const TErrorResponse& errorRespon
     for (auto code : TVector<int>{
         NRpc::TransportError,
         NRpc::Unavailable,
-        NApi::OperationProgressOutdated,
+        NApi::RetriableArchiveError,
         Canceled,
     }) {
         if (allCodes.contains(code)) {
