@@ -252,7 +252,7 @@ struct TGetInSyncReplicasOptions
 struct TGetTabletInfosOptions
     : public TTimeoutOptions
 {
-    bool RequestErrors;
+    bool RequestErrors = false;
 };
 
 struct TTabletInfo
