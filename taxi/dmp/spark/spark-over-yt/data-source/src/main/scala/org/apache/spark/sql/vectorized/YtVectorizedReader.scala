@@ -2,6 +2,7 @@ package org.apache.spark.sql.vectorized
 
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format.YtInputSplit
 import ru.yandex.spark.yt.format.batch.{ArrowBatchReader, BatchReader, EmptyColumnsBatchReader, WireRowBatchReader}
 import ru.yandex.spark.yt.serializers.ArrayAnyDeserializer
@@ -17,12 +18,14 @@ class YtVectorizedReader(split: YtInputSplit,
                          timeout: Duration,
                          reportBytesRead: Long => Unit)
                         (implicit yt: CompoundClient) extends RecordReader[Void, Object] {
+  private val log = LoggerFactory.getLogger(getClass)
   private var _batchIdx = 0
 
   private val batchReader: BatchReader = {
     val totalRowCount = split.getLength
     if (split.schema.nonEmpty) {
       val path = split.ytPathWithFilters
+      log.info(s"Reading $totalRowCount rows from $path")
       if (arrowEnabled) {
         val stream = YtWrapper.readTableArrowStream(path, timeout, None, reportBytesRead)
         new ArrowBatchReader(stream, totalRowCount, split.schema)
@@ -33,6 +36,7 @@ class YtVectorizedReader(split: YtInputSplit,
         new WireRowBatchReader(rowIterator, batchMaxSize, totalRowCount, schema)
       }
     } else {
+      log.info(s"Reading $totalRowCount empty rows")
       new EmptyColumnsBatchReader(totalRowCount)
     }
   }
