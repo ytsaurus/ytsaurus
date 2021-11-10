@@ -955,10 +955,11 @@ IJobPtr TJobController::TImpl::CreateSchedulerJob(
         controllerAgentDescriptor,
         sendJobInfoToAgent);
 
-    YT_LOG_INFO("Scheduler job created (JobId: %v, OperationId: %v, JobType: %v)",
+    YT_LOG_INFO("Scheduler job created (JobId: %v, OperationId: %v, JobType: %v, SentJobInfoToAgent: %v)",
         jobId,
         operationId,
-        type);
+        type,
+        sendJobInfoToAgent);
 
     RegisterAndStartJob(jobId, job, waitingJobTimeout);
 
