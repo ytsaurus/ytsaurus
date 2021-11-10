@@ -63,7 +63,7 @@ class TestSchedulerUpdate(YTEnvSetup):
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             scheduler_path = os.path.join(self.bin_path, "ytserver-scheduler")
-            ytserver_all_trunk_path = yatest.common.binary_path("yt/yt/server/all/ytserver-all")
+            ytserver_all_trunk_path = yatest.common.binary_path("yt/yt/packages/tests_package/ytserver-all")
             print_debug("Removing {}".format(scheduler_path))
             os.remove(scheduler_path)
             print_debug("Symlinking {} to {}".format(ytserver_all_trunk_path, scheduler_path))
@@ -125,7 +125,7 @@ class TestSchedulerUpdateWithOperationsCleaner(YTEnvSetup):
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             scheduler_path = os.path.join(self.bin_path, "ytserver-scheduler")
-            ytserver_all_trunk_path = yatest.common.binary_path("yt/yt/server/all/ytserver-all")
+            ytserver_all_trunk_path = yatest.common.binary_path("yt/yt/packages/tests_package/ytserver-all")
             print_debug("Removing {}".format(scheduler_path))
             os.remove(scheduler_path)
             print_debug("Symlinking {} to {}".format(ytserver_all_trunk_path, scheduler_path))
