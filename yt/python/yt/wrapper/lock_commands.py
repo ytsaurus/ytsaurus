@@ -22,7 +22,7 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
     :param bool waitable: wait for lock if node is under blocking.
     :param int wait_for: wait interval in milliseconds. If timeout occurred, \
     :class:`YtError <yt.common.YtError>` is raised.
-    :return: taken lock id (as :class:`YsonString <yt.yson.yson_types.YsonString>`) or throws \
+    :return: map with lock information (as dict) or throws \
     :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` with 40* code if lock conflict detected.
 
     .. seealso:: `lock in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions#locks>`_
