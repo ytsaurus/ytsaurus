@@ -50,6 +50,10 @@ private:
     };
     union TData
     {
+        TData() {
+            Zero(*this);
+        }
+
         bool Boolean;
         i64 Int64;
         ui64 Uint64;
@@ -179,7 +183,7 @@ public:
     // Returns |true| iff the next item is '#'.
     // NOTE: it does NOT move the cursor.
     Y_FORCE_INLINE bool IsEntity();
-    
+
     void StartRecording(IOutputStream* out);
     void CancelRecording();
     void FinishRecording();
