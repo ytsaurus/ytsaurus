@@ -55,6 +55,11 @@ public:
         Underlying_->Stop();
     }
 
+    void SetPathMatcher(const IRequestPathMatcherPtr& matcher) override
+    {
+        Underlying_->SetPathMatcher(matcher);
+    }
+
 private:
     const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_;
     const IServerPtr Underlying_;

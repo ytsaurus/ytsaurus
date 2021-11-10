@@ -60,6 +60,13 @@ struct IServer
      */
     virtual void Stop() = 0;
 
+    //! Sets path matcher
+    /*!
+     *  Must be called before adding callbacks.
+     *  @see IRequestPathMatcher
+     */
+    virtual void SetPathMatcher(const IRequestPathMatcherPtr& matcher) = 0;
+
 
     // Extension methods
     void AddHandler(
@@ -100,12 +107,29 @@ IServerPtr CreateServer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRequestPathMatcher
+//! IRequestPathMatcher is responsible for storing handlers and giving them back by path
+class IRequestPathMatcher
+    : public virtual TRefCounted
 {
 public:
-    void Add(const TString& pattern, const IHttpHandlerPtr& handler);
+    virtual void Add(const TString& pattern, const IHttpHandlerPtr& handler) = 0;
+    virtual IHttpHandlerPtr Match(TStringBuf path) = 0;
+    virtual bool IsEmpty() const = 0;
 
-    IHttpHandlerPtr Match(TStringBuf path);
+};
+
+DEFINE_REFCOUNTED_TYPE(IRequestPathMatcher)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRequestPathMatcher
+    : public IRequestPathMatcher
+{
+public:
+    void Add(const TString& pattern, const IHttpHandlerPtr& handler) override;
+    IHttpHandlerPtr Match(TStringBuf path) override;
+    bool IsEmpty() const override;
+
 
 private:
     THashMap<TString, IHttpHandlerPtr> Exact_;

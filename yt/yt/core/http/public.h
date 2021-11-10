@@ -20,6 +20,7 @@ DECLARE_REFCOUNTED_STRUCT(IHttpHandler)
 DECLARE_REFCOUNTED_CLASS(THttpIOConfig)
 DECLARE_REFCOUNTED_CLASS(TServerConfig)
 DECLARE_REFCOUNTED_CLASS(TClientConfig)
+DECLARE_REFCOUNTED_CLASS(IRequestPathMatcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
