@@ -1024,16 +1024,6 @@ void TNode::SetHost(THost* host)
     }
 }
 
-void TNode::SetBanned(bool value)
-{
-    Banned_ = value;
-}
-
-void TNode::SetDecommissioned(bool value)
-{
-    Decommissioned_ = value;
-}
-
 bool TNode::GetEffectiveDisableWriteSessions() const
 {
     return DisableWriteSessions_ || DisableWriteSessionsSentToNode_ || DisableWriteSessionsReportedByNode_;

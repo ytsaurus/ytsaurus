@@ -71,15 +71,24 @@ message TCellarNode
 {
     required int32 node_id = 1;
 
-    repeated TCellar cellars = 2;
+    required NYT.NNodeTrackerClient.NProto.TNodeAddressMap node_addresses = 2;
+
+    required bool is_node_can_host_cells = 3;
+
+    required bool decommissioned = 4;
+    required bool banned = 5;
+    required bool disable_tablet_cells = 6;
+
+    repeated TCellar cellars = 7;
 }
 
 message TPeer
 {
     optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor assigned_node_descriptor = 1;
     optional int32 last_seen_node_id = 2;
-    optional int64 last_seen_time = 3; // TInstant
-    optional int32 last_peer_state = 4; // EPeerState
+    required int64 last_seen_time = 3; // TInstant
+    required int32 last_peer_state = 4; // EPeerState
+    required bool is_alien = 5;
 }
 
 message TCell
@@ -90,9 +99,11 @@ message TCell
 
     required int32 leading_peer_id = 3;
 
-    optional int32 peer_count_override = 4;
+    required int64 last_peer_count_update = 4;
 
-    optional int64 last_leader_change_time = 5; // TInstant
+    optional int32 peer_count_override = 5;
+
+    optional int64 last_leader_change_time = 6; // TInstant
 }
 
 message TArea
@@ -114,7 +125,9 @@ message TCellBundle
 
     required bool independent_peers = 3;
 
-    repeated TArea areas = 4;
+    required string cell_balancer_config = 4; // YSON-serialized
+
+    repeated TArea areas = 5;
 }
 
 message TReqGetClusterState
