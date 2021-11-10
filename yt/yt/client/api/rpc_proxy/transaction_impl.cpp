@@ -145,7 +145,7 @@ void TTransaction::RegisterAlienTransaction(const ITransactionPtr& transaction)
                 transaction->GetId());
         }
 
-        AlienTransactions_.push_back(std::move(transaction));
+        AlienTransactions_.push_back(transaction);
     }
 
     YT_LOG_DEBUG("Alien transaction registered (AlienConnection: {%v})",
