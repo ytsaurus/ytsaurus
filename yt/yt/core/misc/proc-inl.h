@@ -15,7 +15,7 @@ template <class F,  class... Args>
 auto HandleEintr(F f, Args&&... args) -> decltype(f(args...))
 {
     while (true) {
-        auto x = f(std::forward<Args>(args)...);
+        auto x = f(args...);
         if (x != -1 || errno != EINTR) {
             return x;
         }
@@ -25,7 +25,7 @@ auto HandleEintr(F f, Args&&... args) -> decltype(f(args...))
 template <class F,  class... Args>
 auto HandleEintr(F f, Args&&... args) -> decltype(f(args...))
 {
-     return f(std::forward<Args>(args)...);
+     return f(args...);
 }
 #endif
 
