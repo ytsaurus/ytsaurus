@@ -904,7 +904,7 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
         }
 
         if (lowerBound && upperBound) {
-            YT_VERIFY(!comparator.IsRangeEmpty(lowerBound, upperBound));
+            YT_VERIFY(comparator.CompareKeyBounds(lowerBound, upperBound) <= 0);
         }
         AddBoundConditionToJoinedSubquery(lowerBound, upperBound);
     }
