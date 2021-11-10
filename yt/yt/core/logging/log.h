@@ -74,7 +74,7 @@ struct TLogEvent
 
     static constexpr int ThreadNameBufferSize = 16 ; // including zero terminator
     using TThreadName = std::array<char, ThreadNameBufferSize>;
-    TThreadName ThreadName; // zero-terminated
+    TThreadName ThreadName = {}; // zero-terminated
     int ThreadNameLength = 0; // not including zero terminator
 
     NConcurrency::TFiberId FiberId = NConcurrency::InvalidFiberId;
