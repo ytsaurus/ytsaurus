@@ -9,7 +9,7 @@ from yt.wrapper.config import get_config, get_option, set_option
 from yt.wrapper.http_helpers import get_token, format_logging_params, raise_for_token
 from yt.wrapper.http_driver import HeavyProxyProvider, HeavyProxyProviderState, TokenAuth
 from yt.wrapper.common import get_version, get_started_by_short, generate_uuid, YtError
-from yt.wrapper.errors import YtHttpResponseError
+from yt.wrapper.errors import create_http_response_error
 from yt.wrapper.common import hide_auth_headers
 import yt.packages.requests as requests
 import yt.logger as logger
@@ -103,7 +103,7 @@ def execute(query, alias=None, raw=None, format=None, settings=None, client=None
                  url,
                  format_logging_params(logging_params))
 
-    request_info = {"headers": headers, "url": url, "params": params}
+    request_info = {"request_headers": headers, "url": url, "params": params}
 
     response_line_count = 0
 
@@ -130,13 +130,13 @@ def execute(query, alias=None, raw=None, format=None, settings=None, client=None
         elif response.status_code != 200:
             if "X-Yt-Error" in response.headers:
                 # This case corresponds to situation when error is initiated by out proxy code.
-                error = YtHttpResponseError(YtError(**json.loads(response.headers["X-Yt-Error"])), **request_info)
+                error = create_http_response_error(YtError(**json.loads(response.headers["X-Yt-Error"])), response_headers=response.headers, **request_info)
             else:
                 # This case corresponds to situation when error is forwarded from ClickHouse.
-                error = YtHttpResponseError(YtError("ClickHouse error: " + response.text.strip(), attributes={
+                error = create_http_response_error(YtError("ClickHouse error: " + response.text.strip(), attributes={
                     "trace_id": response.headers.get("X-YT-Trace-Id"),
                     "span_id": response.headers.get("X-YT-Span-Id"),
-                }), **request_info)
+                }), response_headers=response.headers, **request_info)
             raise error
 
         for line in response.iter_lines():
