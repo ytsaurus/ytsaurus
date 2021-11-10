@@ -219,6 +219,7 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidNestedPortals)                                          (1815))  // gritukan
     ((CRP)                                                          (1816))  // shakurov
     // 22.1 starts here.
+    ((EnableCellBalancerInConfig)                                   (1900))  //alexkolodezny
 );
 
 ////////////////////////////////////////////////////////////////////////////////

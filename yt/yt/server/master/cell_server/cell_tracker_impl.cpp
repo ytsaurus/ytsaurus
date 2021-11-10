@@ -179,6 +179,13 @@ void TCellTrackerImpl::ScanCells()
         return;
     }
 
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+
+    if (!config->TabletManager->EnableCellTracker) {
+        YT_LOG_DEBUG("Cell tracker is disabled; skipping iteration");
+        return;
+    }
+
     for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
         ScanCellarCells(cellarType);
     }

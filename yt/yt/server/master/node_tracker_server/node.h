@@ -144,10 +144,10 @@ public:
         NNodeTrackerClient::NProto::TDataNodeStatistics&& statistics,
         const NChunkServer::TChunkManagerPtr& chunkManager);
 
-    DEFINE_BYVAL_RO_PROPERTY(bool, Banned);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     void ValidateNotBanned();
 
-    DEFINE_BYVAL_RO_PROPERTY(bool, Decommissioned);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned);
 
     using TFillFactorIterator = std::optional<NChunkServer::TFillFactorToNodeIterator>;
     using TFillFactorIterators = TMediumMap<TFillFactorIterator>;
@@ -430,8 +430,6 @@ private:
     friend class TNodeTracker;
 
     void SetHost(THost* host);
-    void SetBanned(bool value);
-    void SetDecommissioned(bool value);
     void SetDisableWriteSessions(bool value);
 
     void SetNodeTags(const std::vector<TString>& tags);

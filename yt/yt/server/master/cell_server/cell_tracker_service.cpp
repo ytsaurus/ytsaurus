@@ -2,6 +2,7 @@
 
 #include "area.h"
 #include "bundle_node_tracker.h"
+#include "config.h"
 #include "private.h"
 #include "tamed_cell_manager.h"
 
@@ -72,19 +73,24 @@ private:
 
         SyncWithUpstream();
 
+        TBundleNodeTracker::TNodeSet allNodes;
+
         auto fillPeer = [&] (
             NCellBalancerClient::NProto::TPeer* protoPeer,
-            const TCellBase::TPeer& peer)
+            const TCellBase::TPeer& peer,
+            const TCellBase& cell,
+            TPeerId peerId)
         {
             if (!peer.Descriptor.IsNull()) {
                 ToProto(protoPeer->mutable_assigned_node_descriptor(), peer.Descriptor);
             }
             if (peer.Node) {
                 protoPeer->set_last_seen_node_id(peer.Node->GetId());
-                protoPeer->set_last_peer_state(::NYT::ToProto<i32>(peer.LastSeenState));
-                protoPeer->set_last_seen_time(::NYT::ToProto<i64>(peer.LastSeenTime));
-
+                allNodes.insert(peer.Node);
             }
+            protoPeer->set_last_peer_state(::NYT::ToProto<i32>(peer.LastSeenState));
+            protoPeer->set_last_seen_time(::NYT::ToProto<i64>(peer.LastSeenTime));
+            protoPeer->set_is_alien(cell.IsAlienPeer(peerId));
         };
 
         int cellCount = 0;
@@ -95,20 +101,19 @@ private:
         {
             ++cellCount;
             ToProto(protoCell->mutable_cell_id(), cell.GetId());
-            for (const auto& peer : cell.Peers()) {
-                fillPeer(protoCell->add_peers(), peer);
+            for (int index = 0; index < std::ssize(cell.Peers()); ++index) {
+                fillPeer(protoCell->add_peers(), cell.Peers()[index], cell, index);
             }
             protoCell->set_leading_peer_id(cell.GetLeadingPeerId());
             if (auto peerCountOverride = cell.PeerCount()) {
                 protoCell->set_peer_count_override(*peerCountOverride);
             }
             protoCell->set_last_leader_change_time(::NYT::ToProto<i64>(cell.LastLeaderChangeTime()));
+            protoCell->set_last_peer_count_update(::NYT::ToProto<i64>(cell.LastPeerCountUpdateTime()));
         };
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         const auto& bundleTracker = cellManager->GetBundleNodeTracker();
-
-        TBundleNodeTracker::TNodeSet allNodes;
 
         auto fillArea = [&] (
             NCellBalancerClient::NProto::TArea* protoArea,
@@ -137,6 +142,7 @@ private:
             ToProto(protoCellBundle->mutable_bundle_id(), cellBundle.GetId());
             protoCellBundle->set_name(cellBundle.GetName());
             protoCellBundle->set_independent_peers(cellBundle.GetOptions()->IndependentPeers);
+            protoCellBundle->set_cell_balancer_config(ConvertToYsonString(cellBundle.CellBalancerConfig()).ToString());
             for (const auto& [areaId, area] : cellBundle.Areas()) {
                 if (IsObjectAlive(area)) {
                     fillArea(protoCellBundle->add_areas(), *area);
@@ -173,6 +179,11 @@ private:
             const NNodeTrackerServer::TNode& node)
         {
             protoNode->set_node_id(::NYT::ToProto<i32>(node.GetId()));
+            protoNode->set_is_node_can_host_cells(CheckIfNodeCanHostCells(&node));
+            ToProto(protoNode->mutable_node_addresses(), node.GetNodeAddresses());
+            protoNode->set_decommissioned(node.GetDecommissioned());
+            protoNode->set_banned(node.GetBanned());
+            protoNode->set_disable_tablet_cells(node.GetDisableTabletCells());
             for (const auto& [type, cellar] : node.Cellars()) {
                 fillCellar(protoNode->add_cellars(), cellar, type);
             }

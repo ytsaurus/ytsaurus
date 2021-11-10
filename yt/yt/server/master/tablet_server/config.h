@@ -412,6 +412,8 @@ public:
     //! Internal between tablet cell examinations.
     TDuration CellScanPeriod;
 
+    bool EnableCellTracker;
+
     //! Additional number of bytes per tablet to charge each cell
     //! for balancing purposes.
     i64 TabletDataSizeFootprint;
@@ -507,6 +509,8 @@ public:
             .Default(0);
         RegisterParameter("cell_scan_period", CellScanPeriod)
             .Default(TDuration::Seconds(5));
+        RegisterParameter("enable_cell_tracker", EnableCellTracker)
+            .Default(true);
         RegisterParameter("tablet_data_size_footprint", TabletDataSizeFootprint)
             .GreaterThanOrEqual(0)
             .Default(64_MB);
