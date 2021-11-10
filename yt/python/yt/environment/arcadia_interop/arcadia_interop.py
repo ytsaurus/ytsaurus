@@ -25,22 +25,17 @@ def is_inside_arcadia(inside_arcadia):
         inside_arcadia = int(yatest_common.get_param("inside_arcadia", True))
     return inside_arcadia
 
-def search_binary_path(binary_name, build_path_dir=None, cwd_suffix=None):
+def search_binary_path(binary_name, build_path_dir=None):
     """
-    Search for binary with given name somewhere in file system depending on keyword arguments.
-    build_path_dir and cwd_suffix should not be specified simultaneously. If none
-    of them specified, search is performed in yatest_common.build_path().
+    Search for binary with given name in arcadia build_path.
+    If build_path_dir is specified search in this subdirectory.
     :param binary_name: name of the binary, e.g. ytserver-all or logrotate
     :param build_path_dir: if present, subtree is yatest.common.build_path() + build_path_dir
-    :param cwd_suffix: if present, subtree is <cwd> + cwd_suffix
     :return:
     """
-    assert build_path_dir is None or cwd_suffix is None
     binary_root = yatest_common.build_path()
-    if cwd_suffix is not None:
-        binary_root = cwd_suffix
     if build_path_dir is not None:
-        binary_root = os.path.join(yatest_common.build_path(), build_path_dir)
+        binary_root = os.path.join(binary_root, build_path_dir)
     binary_root = os.path.abspath(binary_root)
 
     for dirpath, _, filenames in os.walk(binary_root):
@@ -95,17 +90,13 @@ PROGRAMS = [("master", "master/bin"),
 
 def prepare_yt_binaries(destination,
                         source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=True,
-                        use_from_package=False, package_dir=None, binary_cwd_suffix=None, copy_ytserver_all=False, ytserver_all_suffix=None,
+                        use_from_package=False, package_dir=None, copy_ytserver_all=False, ytserver_all_suffix=None,
                         need_suid=False, component_whitelist=None):
     if use_ytserver_all:
         if use_from_package:
-            if binary_cwd_suffix is not None:
-                assert package_dir is None
-                ytserver_all = search_binary_path("ytserver-all", cwd_suffix=binary_cwd_suffix)
-            else:
-                if package_dir is None:
-                    package_dir = "yt/yt"
-                ytserver_all = search_binary_path("ytserver-all", build_path_dir=package_dir)
+            if package_dir is None:
+                package_dir = "yt/yt"
+            ytserver_all = search_binary_path("ytserver-all", build_path_dir=package_dir)
         else:
             ytserver_all = get_binary_path("ytserver-all", arcadia_root, build_path_dir="yt")
         if copy_ytserver_all:
@@ -144,7 +135,11 @@ def copy_misc_binaries(destination, arcadia_root=None):
     logrotate_path = get_binary_path("logrotate", arcadia_root)
     shutil.copy(logrotate_path, os.path.join(destination, "logrotate"))
 
+# Supposed to be used in core YT components only.
 def prepare_yt_environment(destination, artifact_components=None, **kwargs):
+    if "package_dir" in kwargs:
+        assert artifact_components is None
+
     artifact_components = artifact_components or {}
     bin_dir = os.path.join(destination, "bin")
     lock_path = os.path.join(destination, "lock")
@@ -176,14 +171,25 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
         os.makedirs(bin_dir)
 
         if trunk_components:
-            prepare_yt_binaries(bin_dir, component_whitelist=trunk_components, ytserver_all_suffix="trunk", **kwargs)
+            if "package_dir" not in kwargs:
+                prepare_yt_binaries(bin_dir,
+                                    component_whitelist=trunk_components,
+                                    use_from_package=True,
+                                    package_dir="yt/yt/packages/tests_package",
+                                    ytserver_all_suffix="trunk",
+                                    **kwargs)
+            else:
+                prepare_yt_binaries(bin_dir,
+                                    component_whitelist=trunk_components,
+                                    ytserver_all_suffix="trunk",
+                                    **kwargs)
 
-        for artifact_name, components in artifact_components.items():
+        for version, components in artifact_components.items():
             prepare_yt_binaries(bin_dir,
                                 component_whitelist=components,
                                 use_from_package=True,
-                                binary_cwd_suffix=os.path.join("artifact_bin", artifact_name, "result"),
-                                ytserver_all_suffix=artifact_name,
+                                package_dir="yt/packages/{}".format(version),
+                                ytserver_all_suffix=version,
                                 **kwargs)
 
     copy_misc_binaries(bin_dir, arcadia_root=kwargs.get("arcadia_root"))
