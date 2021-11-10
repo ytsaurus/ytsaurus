@@ -14,7 +14,6 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 class TTableTraverser
 {
 using FilterByNameFunction = std::function<bool(const std::string &)>;
@@ -34,7 +33,7 @@ private:
     const FilterByNameFunction& FilterByTableName_;
 
     void TraverseTablesFromRoots();
-    void TraverseTablesFromNode(NYTree::INodePtr node);
+    void TraverseTablesFromNode(NYTree::INodePtr node, const TString& dirName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
