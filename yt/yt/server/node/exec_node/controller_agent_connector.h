@@ -58,7 +58,7 @@ private:
 
     IBootstrap* const Bootstrap_;
 
-    bool HeartbeatsEnabled_ = false;
+    bool HeartbeatsEnabled_ = true;
     TDuration TestHeartbeatDelay_{};
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
