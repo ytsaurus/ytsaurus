@@ -27,6 +27,10 @@ b"""
         hard_backoff_time = 100;
     };
 
+    object_service = {
+        enable_local_read_executor = %true;
+    };
+
     timestamp_manager = {
         commit_advance = 2000;
         request_backoff_time = 100;

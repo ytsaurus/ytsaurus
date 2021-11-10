@@ -43,7 +43,7 @@ public:
         Queue_->Shutdown();
 
         FinalizerInvoker_->Invoke(BIND([graceful, thread = Thread_, queue = Queue_] {
-            thread->Stop(graceful);
+            thread->Shutdown(graceful);
             queue->Drain();
         }));
         FinalizerInvoker_.Reset();
