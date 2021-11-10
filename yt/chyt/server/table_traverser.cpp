@@ -23,10 +23,12 @@ namespace NDetail {
 
 std::vector<NYTree::INodePtr> GetNodes(NObjectClient::TObjectServiceProxy proxy, const std::vector<TString>& paths)
 {
+    std::vector<TString> attributeKeys = {"type", "path", "opaque"};
+
     auto batchRequest = proxy.ExecuteBatch();
     for (const auto& path : paths) {
         auto request = TYPathProxy::Get(path);
-        ToProto(request->mutable_attributes()->mutable_keys(), std::vector<TString>({TString("type"), TString("path")}));
+        ToProto(request->mutable_attributes()->mutable_keys(), attributeKeys);
         batchRequest->AddRequest(request, path);
     }
 
@@ -68,13 +70,27 @@ void TTableTraverser::TraverseTablesFromRoots()
 
     auto nodes = NDetail::GetNodes(NObjectClient::TObjectServiceProxy(channel), Roots_);
 
-    for (const auto& node : nodes) {
-        TraverseTablesFromNode(node);
+    YT_VERIFY(nodes.size() == Roots_.size());
+    for (size_t index = 0; index < Roots_.size(); ++index) {
+        TraverseTablesFromNode(nodes[index], Roots_[index]);
     }
 }
 
-void TTableTraverser::TraverseTablesFromNode(NYTree::INodePtr node)
+void TTableTraverser::TraverseTablesFromNode(NYTree::INodePtr node, const TString& dirName)
 {
+    if (node->GetType() == ENodeType::Entity) {
+        bool opaque = node->Attributes().Get<bool>("opaque", false);
+        if (opaque) {
+            // If node is marked as opaque, entity value is expected.
+            // Ignore such nodes.
+            return;
+        } else {
+            THROW_ERROR_EXCEPTION("Object count limit exceeded while getting directory %Qv; "
+                "consider specifying smaller dirs or exclude unused subdirs via setting opaque attribute",
+                dirName);
+        }
+    }
+
     for (const auto& [path, child] : node->AsMap()->GetChildren()) {
         auto type = child->Attributes().Get<EObjectType>("type");
         if (type == EObjectType::Table) {
@@ -83,7 +99,7 @@ void TTableTraverser::TraverseTablesFromNode(NYTree::INodePtr node)
                 Tables_.emplace_back(std::move(path));
             }
         } else if (type == EObjectType::MapNode) {
-            TraverseTablesFromNode(child);
+            TraverseTablesFromNode(child, dirName);
         }
     }
 }

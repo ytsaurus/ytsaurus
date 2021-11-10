@@ -34,7 +34,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         }
     }
 
-    @authors("evgenstf")
+    @authors("evgenstf", "dakovalkov")
     def test_show_tables(self):
         tables = ["/t11", "/t12", "/n1/t3", "/n1/t4"]
 
@@ -47,6 +47,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
         roots = ["//tmp/root1", "//tmp/root2"]
         for root in roots:
             create_subtrees(root)
+
+        # Dirs with opaque attribute are 'hidden', they should not be shown in 'show tables'
+        create("map_node", "//tmp/root1/opaque_subdir")
+        create("table", "//tmp/root1/opaque_subdir/t0", attributes={"schema": [{"name": "a", "type": "string"}]})
+        set("//tmp/root1/opaque_subdir/@opaque", True)
 
         with Clique(1, config_patch={"yt": {"show_tables": {"roots": roots}}}) as clique:
             shown_tables = {table["name"] for table in clique.make_query("show tables")}
