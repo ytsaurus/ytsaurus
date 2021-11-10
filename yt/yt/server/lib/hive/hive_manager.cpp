@@ -1081,6 +1081,10 @@ private:
             return;
         }
 
+        if (!IsLeader()) {
+            return;
+        }
+
         NTracing::TNullTraceContextGuard guard;
 
         mailbox->SetPostBatchingCookie(TDelayedExecutor::Submit(
