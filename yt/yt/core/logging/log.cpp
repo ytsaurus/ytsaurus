@@ -208,7 +208,7 @@ void TLogger::Load(TStreamLoadContext& context)
 
     TString categoryName;
 
-    bool categoryPresent;
+    bool categoryPresent = false;
     Load(context, categoryPresent);
     if (categoryPresent) {
         Load(context, categoryName);
