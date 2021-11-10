@@ -8,7 +8,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/variant.h>
 
 namespace NYT::NConcurrency {
@@ -31,15 +30,8 @@ public:
         , ControlInvoker_(ControlQueue_->GetInvoker())
         , CallbackProvider_(std::move(callbackProvider))
         , DesiredWorkerCount_(workerCount)
-        , ShutdownCookie_(RegisterShutdownCallback(
-            Format("QuantizedExecutor(%v)", Name_),
-            BIND(&TQuantizedExecutor::Shutdown, MakeWeak(this)),
-            /*priority*/ 200))
-    { }
-
-    ~TQuantizedExecutor()
     {
-        Shutdown();
+        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
     }
 
     void Initialize(TCallback<void()> workerInitializer) override
@@ -57,13 +49,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        BIND(&TQuantizedExecutor::StartQuantum, MakeStrong(this), timeout)
+        return BIND(&TQuantizedExecutor::StartQuantum, MakeStrong(this), timeout)
             .AsyncVia(ControlInvoker_)
-            .Run()
-            .Get()
-            .ThrowOnError();
-
-        return QuantumFinished_.ToFuture();
+            .Run();
     }
 
     void Reconfigure(int workerCount) override
@@ -98,20 +86,11 @@ private:
     bool Running_ = false;
     TPromise<void> QuantumFinished_;
 
-    const TShutdownCookie ShutdownCookie_;
-
-    void Shutdown()
-    {
-        if (!Running_) {
-            for (const auto& worker : Workers_) {
-                worker->Resume();
-            }
-        }
-    }
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void DoReconfigure()
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(!Running_);
 
         int desiredWorkerCount = DesiredWorkerCount_.load();
@@ -151,9 +130,9 @@ private:
         ActiveWorkerCount_ = desiredWorkerCount;
     }
 
-    void StartQuantum(TDuration timeout)
+    TFuture<void> StartQuantum(TDuration timeout)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         DoReconfigure();
 
@@ -169,7 +148,7 @@ private:
         QuantumFinished_ = NewPromise<void>();
         QuantumFinished_
             .ToFuture()
-            .Subscribe(BIND(&TQuantizedExecutor::OnQuantumFinished, MakeWeak(this), QuantumIndex_)
+            .Apply(BIND(&TQuantizedExecutor::OnQuantumFinished, MakeWeak(this), QuantumIndex_)
                 .Via(ControlInvoker_));
 
         TDelayedExecutor::Submit(
@@ -180,23 +159,28 @@ private:
         ResumeWorkers();
 
         for (int index = 0; index < std::ssize(Workers_); ++index) {
-            OnWorkerReady(index);
+            OnWorkerReady(index, QuantumIndex_);
         }
+
+        return QuantumFinished_.ToFuture();
     }
 
-    void FinishQuantum(bool immediately)
+    void FinishQuantum(int quantumIndex, bool immediately)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!Running_ || quantumIndex != QuantumIndex_) {
+            return;
+        }
 
         if (FinishingQuantum_ && !immediately) {
             return;
         }
 
         YT_LOG_TRACE("Finishing quantum (Index: %v, Immediately: %v)",
-            QuantumIndex_,
+            quantumIndex,
             immediately);
 
-        Running_ = false;
         FinishingQuantum_ = true;
 
         QuantumFinished_.TrySetFrom(SuspendWorkers(immediately));
@@ -204,7 +188,7 @@ private:
 
     TFuture<void> SuspendWorkers(bool immediately)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TFuture<void>> futures;
         futures.reserve(Workers_.size());
@@ -217,16 +201,20 @@ private:
 
     void ResumeWorkers()
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         for (const auto& worker : Workers_) {
             worker->Resume();
         }
     }
 
-    void OnWorkerReady(int workerIndex)
+    void OnWorkerReady(int workerIndex, int quantumIndex)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!Running_ || quantumIndex != QuantumIndex_) {
+            return;
+        }
 
         // Worker is disabled, do not schedule new callbacks to it.
         if (workerIndex >= ActiveWorkerCount_) {
@@ -245,7 +233,7 @@ private:
 
         if (!callback) {
             ControlInvoker_->Invoke(
-                BIND(&TQuantizedExecutor::FinishQuantum, MakeStrong(this), /*immediate*/ false));
+                BIND(&TQuantizedExecutor::FinishQuantum, MakeStrong(this), quantumIndex, /*immediate*/ false));
             return;
         }
 
@@ -253,13 +241,13 @@ private:
         invoker->Invoke(BIND([=, this_ = MakeStrong(this)] {
             callback.Run();
 
-            OnWorkerReady(workerIndex);
+            OnWorkerReady(workerIndex, quantumIndex);
         }));
     }
 
     void OnTimeoutReached(int quantumIndex)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (quantumIndex != QuantumIndex_) {
             return;
@@ -268,17 +256,18 @@ private:
         YT_LOG_TRACE("Quantum timeout reached (Index: %v)",
             quantumIndex);
 
-        FinishQuantum(/*immediate*/ true);
+        FinishQuantum(quantumIndex, /*immediate*/ true);
     }
 
-    void OnQuantumFinished(int quantumIndex, const TError& /*error*/)
+    void OnQuantumFinished(int quantumIndex)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-        FinishingQuantum_ = false;
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_TRACE("Quantum finished (Index: %v)",
             quantumIndex);
+
+        FinishingQuantum_ = false;
+        Running_ = false;
     }
 };
 

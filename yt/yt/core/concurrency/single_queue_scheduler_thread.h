@@ -49,6 +49,8 @@ public:
 
     void Resume();
 
+    void Shutdown(bool graceful);
+
 protected:
     const TInvokerQueuePtr<TQueueImpl> Queue_;
     typename TQueueImpl::TConsumerToken Token_;

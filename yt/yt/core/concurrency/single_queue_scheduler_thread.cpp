@@ -91,6 +91,21 @@ void TSuspendableSingleQueueSchedulerThread<TQueueImpl>::Resume()
 }
 
 template <class TQueueImpl>
+void TSuspendableSingleQueueSchedulerThread<TQueueImpl>::Shutdown(bool graceful)
+{
+    auto guard = Guard(Lock_);
+
+    if (Suspending_) {
+        Suspending_ = false;
+        SuspendImmediately_ = false;
+
+        ResumeEvent_->NotifyAll();
+    }
+
+    Stop(graceful);
+}
+
+template <class TQueueImpl>
 TClosure TSuspendableSingleQueueSchedulerThread<TQueueImpl>::BeginExecute()
 {
     if (Suspending_ && (SuspendImmediately_ || Queue_->IsEmpty())) {
