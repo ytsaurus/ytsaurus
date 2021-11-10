@@ -1190,34 +1190,36 @@ TEST(THttpHandlerMatchingTest, Simple)
     auto h2 = New<TOKHttpHandler>();
     auto h3 = New<TOKHttpHandler>();
 
-    TRequestPathMatcher handlers;
-    handlers.Add("/", h1);
-    handlers.Add("/a", h2);
-    handlers.Add("/a/b", h3);
+    auto handlers = New<TRequestPathMatcher>();
+    ASSERT_TRUE(handlers->IsEmpty());
+    handlers->Add("/", h1);
+    handlers->Add("/a", h2);
+    handlers->Add("/a/b", h3);
+    ASSERT_FALSE(handlers->IsEmpty());
 
-    EXPECT_EQ(h1.Get(), handlers.Match(TStringBuf("/")).Get());
-    EXPECT_EQ(h1.Get(), handlers.Match(TStringBuf("/c")).Get());
+    EXPECT_EQ(h1.Get(), handlers->Match(TStringBuf("/")).Get());
+    EXPECT_EQ(h1.Get(), handlers->Match(TStringBuf("/c")).Get());
 
-    EXPECT_EQ(h2.Get(), handlers.Match(TStringBuf("/a")).Get());
-    EXPECT_EQ(h1.Get(), handlers.Match(TStringBuf("/a/")).Get());
+    EXPECT_EQ(h2.Get(), handlers->Match(TStringBuf("/a")).Get());
+    EXPECT_EQ(h1.Get(), handlers->Match(TStringBuf("/a/")).Get());
 
-    EXPECT_EQ(h3.Get(), handlers.Match(TStringBuf("/a/b")).Get());
-    EXPECT_EQ(h1.Get(), handlers.Match(TStringBuf("/a/b/")).Get());
+    EXPECT_EQ(h3.Get(), handlers->Match(TStringBuf("/a/b")).Get());
+    EXPECT_EQ(h1.Get(), handlers->Match(TStringBuf("/a/b/")).Get());
 
-    TRequestPathMatcher handlers2;
-    handlers2.Add("/a/", h2);
-    EXPECT_FALSE(handlers2.Match(TStringBuf("/")).Get());
-    EXPECT_EQ(h2.Get(), handlers2.Match(TStringBuf("/a")).Get());
-    EXPECT_EQ(h2.Get(), handlers2.Match(TStringBuf("/a/")).Get());
-    EXPECT_EQ(h2.Get(), handlers2.Match(TStringBuf("/a/b")).Get());
+    auto handlers2 = New<TRequestPathMatcher>();
+    handlers2->Add("/a/", h2);
+    EXPECT_FALSE(handlers2->Match(TStringBuf("/")).Get());
+    EXPECT_EQ(h2.Get(), handlers2->Match(TStringBuf("/a")).Get());
+    EXPECT_EQ(h2.Get(), handlers2->Match(TStringBuf("/a/")).Get());
+    EXPECT_EQ(h2.Get(), handlers2->Match(TStringBuf("/a/b")).Get());
 
-    TRequestPathMatcher handlers3;
-    handlers3.Add("/a/", h2);
-    handlers3.Add("/a", h3);
+    auto handlers3 = New<TRequestPathMatcher>();
+    handlers3->Add("/a/", h2);
+    handlers3->Add("/a", h3);
 
-    EXPECT_EQ(h3.Get(), handlers3.Match(TStringBuf("/a")).Get());
-    EXPECT_EQ(h2.Get(), handlers3.Match(TStringBuf("/a/")).Get());
-    EXPECT_EQ(h2.Get(), handlers3.Match(TStringBuf("/a/b")).Get());
+    EXPECT_EQ(h3.Get(), handlers3->Match(TStringBuf("/a")).Get());
+    EXPECT_EQ(h2.Get(), handlers3->Match(TStringBuf("/a/")).Get());
+    EXPECT_EQ(h2.Get(), handlers3->Match(TStringBuf("/a/b")).Get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

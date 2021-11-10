@@ -59,19 +59,21 @@ public:
         const IPollerPtr& poller,
         const IPollerPtr& acceptor,
         const IInvokerPtr& invoker,
+        const IRequestPathMatcherPtr& handlers,
         bool ownPoller = false)
         : Config_(config)
         , Listener_(listener)
         , Poller_(poller)
         , Acceptor_(acceptor)
         , Invoker_(invoker)
+        , Handlers_(handlers)
         , OwnPoller_(ownPoller)
     { }
 
     void AddHandler(const TString& path, const IHttpHandlerPtr& handler) override
     {
         YT_VERIFY(!Started_);
-        Handlers_.Add(path, handler);
+        Handlers_->Add(path, handler);
     }
 
     const TNetworkAddress& GetAddress() const override
@@ -100,18 +102,25 @@ public:
         YT_LOG_INFO("Server stopped");
     }
 
+    void SetPathMatcher(const IRequestPathMatcherPtr& matcher) override
+    {
+        YT_VERIFY(Handlers_->IsEmpty());
+        Handlers_ = matcher;
+        YT_LOG_INFO("Changed path matcher");
+    }
+
 private:
     const TServerConfigPtr Config_;
     const IListenerPtr Listener_;
     const IPollerPtr Poller_;
     const IPollerPtr Acceptor_;
     const IInvokerPtr Invoker_;
+    IRequestPathMatcherPtr Handlers_;
     bool OwnPoller_ = false;
 
     bool Started_ = false;
     std::atomic<bool> Stopped_ = {false};
 
-    TRequestPathMatcher Handlers_;
 
     std::atomic<ui64> ActiveConnections_{0};
     TGauge ConnectionsActive_ = HttpProfiler.Gauge("/connections_active");
@@ -190,7 +199,7 @@ private:
                 GetBalancerRealIP(request),
                 GetUserAgent(request));
 
-            auto handler = Handlers_.Match(path);
+            auto handler = Handlers_->Match(path);
             if (handler) {
                 closeResponse = false;
 
@@ -356,6 +365,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IServerPtr CreateServer(
     const TServerConfigPtr& config,
     const IListenerPtr& listener,
@@ -364,7 +375,8 @@ IServerPtr CreateServer(
     const IInvokerPtr& invoker,
     bool ownPoller)
 {
-    return New<TServer>(config, listener, poller, acceptor, invoker, ownPoller);
+    auto handlers = New<TRequestPathMatcher>();
+    return New<TServer>(config, listener, poller, acceptor, invoker, handlers, ownPoller);
 }
 
 IServerPtr CreateServer(
@@ -486,6 +498,11 @@ IHttpHandlerPtr TRequestPathMatcher::Match(TStringBuf path)
     }
 
     return nullptr;
+}
+
+bool TRequestPathMatcher::IsEmpty() const
+{
+    return Exact_.empty() && Subtrees_.empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
