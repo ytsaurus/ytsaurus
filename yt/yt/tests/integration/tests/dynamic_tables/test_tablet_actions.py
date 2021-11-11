@@ -551,6 +551,8 @@ class TestTabletActions(TabletActionsBase):
 
 
 class TestTabletBalancer(TabletActionsBase):
+    NUM_TEST_PARTITIONS = 3
+
     @authors("savrus")
     @pytest.mark.parametrize("freeze", [False, True])
     def test_cells_balance(self, freeze):
@@ -1315,3 +1317,25 @@ class TestTabletBalancerMulticell(TestTabletBalancer):
 class TestTabletBalancerRpcProxy(TestTabletBalancer):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+
+##################################################################
+
+
+class TestTabletBalancerWithCellBalancer(TestTabletBalancer):
+    NUM_CELL_BALANCERS = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "enable_cell_tracker": False,
+            "leader_reassignment_timeout": 2000,
+            "peer_revocation_timeout": 3000,
+            "tablet_balancer": {
+                "config_check_period": 100,
+                "balance_period": 100,
+            },
+            "tablet_action_manager": {
+                "tablet_actions_cleanup_period": 100,
+            },
+        }
+    }

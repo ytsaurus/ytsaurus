@@ -232,6 +232,7 @@ class YTEnvSetup(object):
     }
     DELTA_PROXY_CONFIG = {}
     DELTA_RPC_PROXY_CONFIG = {}
+    DELTA_CELL_BALANCER_CONFIG = {}
 
     USE_PORTO = False
     USE_CUSTOM_ROOTFS = False
@@ -274,6 +275,10 @@ class YTEnvSetup(object):
 
     @classmethod
     def modify_rpc_proxy_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_cell_balancer_config(cls, config):
         pass
 
     @classmethod
@@ -528,6 +533,9 @@ class YTEnvSetup(object):
         for index, config in enumerate(configs["scheduler"]):
             configs["scheduler"][index] = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
             cls.modify_scheduler_config(configs["scheduler"][index])
+        for index, config in enumerate(configs["cell_balancer"]):
+            configs["cell_balancer"][index] = update_inplace(config, cls.get_param("DELTA_CELL_BALANCER_CONFIG", cluster_index))
+            cls.modify_cell_balancer_config(configs["cell_balancer"][index])
         for index, config in enumerate(configs["controller_agent"]):
             delta_config = cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             configs["controller_agent"][index] = update_inplace(

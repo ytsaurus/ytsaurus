@@ -15,7 +15,10 @@ DECLARE_REFCOUNTED_CLASS(TCellBalancerMasterConnectorConfig)
 struct IBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(IMasterConnector)
-DECLARE_REFCOUNTED_CLASS(ICellBalancer)
+DECLARE_REFCOUNTED_CLASS(ICellTracker)
+DECLARE_REFCOUNTED_CLASS(TCellTrackerImpl)
+
+DECLARE_REFCOUNTED_CLASS(TClusterStateProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 

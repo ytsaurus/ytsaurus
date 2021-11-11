@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/master/tablet_server/config.h>
+
 #include <yt/yt/server/lib/cypress_election/config.h>
 
 #include <yt/yt/server/lib/misc/config.h>
@@ -19,6 +21,8 @@ class TCellBalancerConfig
 {
 public:
     TCellBalancerConfig();
+
+    NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellBalancerConfig)

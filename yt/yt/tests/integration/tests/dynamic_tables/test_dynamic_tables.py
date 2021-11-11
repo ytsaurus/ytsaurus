@@ -2955,3 +2955,33 @@ class TestTabletSnapshotsOrchid(DynamicTablesBase):
         assert len(tablet_snapshots) != 0
         # ensure orchid returns something sane for tablet snapshot
         assert tablet_snapshots[0]["table_path"] == "//tmp/t"
+
+
+##################################################################
+
+
+class TestDynamicTablesSingleCellWithCellBalancer(TestDynamicTablesSingleCell):
+    NUM_CELL_BALANCERS = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "enable_cell_tracker": False,
+            "leader_reassignment_timeout": 2000,
+            "peer_revocation_timeout": 3000,
+        }
+    }
+
+
+##################################################################
+
+
+class TestDynamicTablesMulticellWithCellBalancer(TestDynamicTablesMulticell):
+    NUM_CELL_BALANCERS = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "enable_cell_tracker": False,
+            "leader_reassignment_timeout": 2000,
+            "peer_revocation_timeout": 3000,
+        }
+    }

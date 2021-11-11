@@ -217,6 +217,15 @@ b"""
     election_manager = {
         lock_path = "//sys/cell_balancers/lock";
     };
+
+    cell_balancer = {
+        tablet_manager = {
+            cell_scan_period = 100;
+            tablet_cell_balancer = {
+                enable_verbose_logging = %true;
+            };
+        };
+    };
 }
 """
 )

@@ -10,6 +10,13 @@ class TestCellBalancer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_CELL_BALANCERS = 3
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "enable_cell_tracker": False
+        },
+    }
 
     @authors("alexkolodezny")
     def test_sys_cell_balancer(self):
