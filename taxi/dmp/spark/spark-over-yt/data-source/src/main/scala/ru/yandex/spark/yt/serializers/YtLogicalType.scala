@@ -7,8 +7,8 @@ import ru.yandex.yt.ytclient.tables.ColumnValueType
 sealed abstract class YtLogicalType(val name: String,
                                     val value: Int,
                                     val columnValueType: ColumnValueType,
-                                    val sparkType: DataType) {
-}
+                                    val sparkType: DataType,
+                                    val aliases: Seq[String] = Seq.empty)
 
 object YtLogicalType {
   case object Null extends YtLogicalType("null", 0x02, ColumnValueType.NULL, NullType)
@@ -17,11 +17,11 @@ object YtLogicalType {
   case object Uint64 extends YtLogicalType("uint64", 0x04, ColumnValueType.UINT64, UInt64Type)
   case object Float extends YtLogicalType("float", 0x05, ColumnValueType.DOUBLE, FloatType)
   case object Double extends YtLogicalType("double", 0x05, ColumnValueType.DOUBLE, DoubleType)
-  case object Boolean extends YtLogicalType("bool", 0x06, ColumnValueType.BOOLEAN, BooleanType)
+  case object Boolean extends YtLogicalType("boolean", 0x06, ColumnValueType.BOOLEAN, BooleanType, Seq("bool"))
 
   case object String extends YtLogicalType("string", 0x10, ColumnValueType.STRING, StringType)
   case object Any extends YtLogicalType("any", 0x11, ColumnValueType.ANY, YsonType)
-//  case object Any extends YtLogicalType("yson", 0x11, ColumnValueType.ANY, YsonType)
+  //  case object Any extends YtLogicalType("yson", 0x11, ColumnValueType.ANY, YsonType)
 
   case object Int8 extends YtLogicalType("int8", 0x1000, ColumnValueType.INT64, ByteType)
   case object Uint8 extends YtLogicalType("uint8", 0x1001, ColumnValueType.INT64, ShortType)
@@ -41,10 +41,12 @@ object YtLogicalType {
 
   case object Void extends YtLogicalType("void", 0x100c, ColumnValueType.NULL, NullType) //?
 
-  private val values = Seq(Null, Int64, Uint64, Float, Double, Boolean, String, Any, Int8, Uint8,
+  private lazy val values = Seq(Null, Int64, Uint64, Float, Double, Boolean, String, Any, Int8, Uint8,
     Int16, Uint16, Int32, Uint32, Utf8, Date, Datetime, Timestamp, Interval, Void)
 
   def fromName(name: String): YtLogicalType = {
-    values.find(_.name == name).getOrElse(throw new IllegalArgumentException(s"Unknown logical yt type: $name"))
+    values
+      .find { v => v.name == name || v.aliases.contains(name) }
+      .getOrElse(throw new IllegalArgumentException(s"Unknown logical yt type: $name"))
   }
 }
