@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
@@ -45,10 +46,17 @@ public abstract class RetryPolicy {
     }
 
     /**
+     * Recommended default retry policy
+     */
+    public static RetryPolicy defaultPolicy() {
+        return new DefaultRetryPolicy();
+    }
+
+    /**
      * Create retry policy that will retry all errors.
      */
     public static RetryPolicy retryAll(int attemptLimit) {
-        return new AttemptLimitedRetryPolicy(attemptLimit, new RetryAllPolicy());
+        return RetryPolicy.attemptLimited(attemptLimit, new RetryAllPolicy());
     }
 
     /**
@@ -63,6 +71,13 @@ public abstract class RetryPolicy {
      */
     public static RetryPolicy forCodes(Integer... errorCodes) {
         return forCodes(Arrays.asList(errorCodes));
+    }
+
+    /**
+     * Create retry policy that will retry `code`: isCodeForRetry(`code`) == true
+     */
+    public static RetryPolicy forCodes(Predicate<Integer> isCodeForRetry) {
+        return new YtErrorRetryPolicy(isCodeForRetry);
     }
 
     /**
@@ -117,12 +132,66 @@ public abstract class RetryPolicy {
 
     @NonNullApi
     @NonNullFields
+    static class DefaultRetryPolicy extends RetryPolicy {
+        private static final HashSet CODES_FOR_RETRY = new HashSet<>(Arrays.asList(
+                RpcErrorCode.TransactionLockConflict.getCode(),
+                RpcErrorCode.AllWritesDisabled.getCode(),
+                RpcErrorCode.TableMountInfoNotReady.getCode(),
+                RpcErrorCode.TooManyRequests.getCode(),
+                RpcErrorCode.RequestQueueSizeLimitExceeded.getCode(),
+                RpcErrorCode.RpcRequestQueueSizeLimitExceeded.getCode(),
+                RpcErrorCode.TooManyOperations.getCode(),
+                RpcErrorCode.TransportError.getCode(),
+                RpcErrorCode.OperationProgressOutdated.getCode(),
+                RpcErrorCode.Canceled.getCode()
+        ));
+
+        private static final HashSet CHUNK_NOT_RETRIABLE_CODES = new HashSet<>(Arrays.asList(
+                RpcErrorCode.SessionAlreadyExists.getCode(),
+                RpcErrorCode.ChunkAlreadyExists.getCode(),
+                RpcErrorCode.WindowError.getCode(),
+                RpcErrorCode.BlockContentMismatch.getCode(),
+                RpcErrorCode.InvalidBlockChecksum.getCode(),
+                RpcErrorCode.BlockOutOfRange.getCode(),
+                RpcErrorCode.MissingExtension.getCode(),
+                RpcErrorCode.NoSuchBlock.getCode(),
+                RpcErrorCode.NoSuchChunk.getCode(),
+                RpcErrorCode.NoSuchChunkList.getCode(),
+                RpcErrorCode.NoSuchChunkTree.getCode(),
+                RpcErrorCode.NoSuchChunkView.getCode(),
+                RpcErrorCode.NoSuchMedium.getCode()
+        ));
+
+        private final RetryPolicy inner = attemptLimited(3, RetryPolicy.forCodes(
+                code -> CODES_FOR_RETRY.contains(code) || isChunkRetriableError(code)
+        ));
+
+        @Override
+        public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
+            return inner.getBackoffDuration(error, options);
+        }
+
+        private boolean isChunkRetriableError(Integer code) {
+            if (CHUNK_NOT_RETRIABLE_CODES.contains(code)) {
+                return false;
+            }
+            return code / 100 == 7;
+        }
+    }
+
+    @NonNullApi
+    @NonNullFields
     static class YtErrorRetryPolicy extends RetryPolicy {
-        private final Set<Integer> errorCodesToRetry;
+        private final Predicate<Integer> isCodeForRetry;
         private final BackoffProvider backoffProvider = new BackoffProvider();
 
         YtErrorRetryPolicy(Collection<Integer> codesToRetry) {
-            this.errorCodesToRetry = new HashSet<>(codesToRetry);
+            HashSet errorCodesToRetry = new HashSet<>(codesToRetry);
+            this.isCodeForRetry = errorCodesToRetry::contains;
+        }
+
+        YtErrorRetryPolicy(Predicate<Integer> isCodeForRetry) {
+            this.isCodeForRetry = isCodeForRetry;
         }
 
         @Override
@@ -142,7 +211,7 @@ public abstract class RetryPolicy {
             }
 
             if (rpcError != null) {
-                if (rpcError.matches(errorCodesToRetry::contains)) {
+                if (rpcError.matches(isCodeForRetry)) {
                     return Optional.of(backoffProvider.getBackoffTime(rpcError, options));
                 } else {
                     return Optional.empty();
