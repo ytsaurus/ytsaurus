@@ -32,6 +32,9 @@ message TDataSource
 
     optional int32 virtual_key_prefix_length = 14;
     optional NTableClient.NProto.TVirtualValueDirectory virtual_value_directory = 15;
+
+    optional string object_id = 16;
+    optional string account = 17;
 }
 
 message TDataSourceDirectoryExt

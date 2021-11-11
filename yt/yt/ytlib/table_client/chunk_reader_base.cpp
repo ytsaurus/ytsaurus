@@ -17,6 +17,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCompression;
 using namespace NTableClient::NProto;
+using namespace NTracing;
 using NConcurrency::TAsyncSemaphore;
 
 using NYT::FromProto;
@@ -35,6 +36,8 @@ TChunkReaderBase::TChunkReaderBase(
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
     , ChunkReadOptions_(chunkReadOptions)
+    , TraceContext_(CreateTraceContextFromCurrent("ChunkReader"))
+    , FinishGuard_(TraceContext_)
     , Logger(TableClientLogger.WithTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
 {
     if (memoryManager) {
@@ -60,6 +63,8 @@ TFuture<void> TChunkReaderBase::DoOpen(
     std::vector<TBlockFetcher::TBlockInfo> blockSequence,
     const TMiscExt& miscExt)
 {
+    TCurrentTraceContextGuard traceGuard(TraceContext_);
+
     if (blockSequence.empty()) {
         // NB(psushin): typically memory manager is finalized by block fetcher.
         // When block fetcher is not created, we should do it explicitly.
@@ -110,6 +115,8 @@ bool TChunkReaderBase::BeginRead()
 
 bool TChunkReaderBase::OnBlockEnded()
 {
+    TCurrentTraceContextGuard traceGuard(TraceContext_);
+
     BlockEnded_ = false;
 
     if (!SequentialBlockFetcher_->HasMoreBlocks()) {

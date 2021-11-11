@@ -904,6 +904,9 @@ def _build_rpc_proxy_configs(logs_dir,
             "dynamic_config_manager": {
                 "update_period": 100,
             },
+            "rpc_server": {
+                "tracing_mode": "force",
+            }
         }
         init_singletons(config, yt_config.fqdn, "rpc_proxy", {"rpc_proxy_index": str(rpc_proxy_index)})
         config["cluster_connection"] = _build_cluster_connection_config(

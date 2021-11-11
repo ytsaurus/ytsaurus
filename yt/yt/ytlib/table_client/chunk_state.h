@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
 namespace NYT::NTableClient {
 
@@ -32,6 +33,7 @@ struct TChunkState
     TKeyComparer KeyComparer;
     TVirtualValueDirectoryPtr VirtualValueDirectory;
     TTableSchemaPtr TableSchema;
+    std::optional<NChunkClient::TDataSource> DataSource;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkState)

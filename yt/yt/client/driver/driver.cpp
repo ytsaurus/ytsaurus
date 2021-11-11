@@ -42,6 +42,7 @@ using namespace NHiveClient;
 using namespace NTabletClient;
 using namespace NApi;
 using namespace NNodeTrackerClient;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,6 +314,8 @@ public:
 
     TFuture<void> Execute(const TDriverRequest& request) override
     {
+        TTraceContextGuard guard(TTraceContext::NewRoot("Driver"));
+
         auto it = CommandNameToEntry_.find(request.CommandName);
         if (it == CommandNameToEntry_.end()) {
             return MakeFuture(TError(

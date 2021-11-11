@@ -71,6 +71,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NRpc;
 using namespace NApi;
+using namespace NTracing;
 
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TLegacyReadLimit;
@@ -448,7 +449,11 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     , PartitionTag_(partitionTag)
     , SortColumns_(sortColumns)
     , Comparator_(GetComparator(SortColumns_))
-{ }
+{
+    if (chunkState->DataSource) {
+        PackBaggageFromDataSource(TraceContext_, *chunkState->DataSource);
+    }
+}
 
 TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 {
@@ -746,6 +751,7 @@ void THorizontalSchemalessRangeChunkReader::InitNextBlock()
 
 IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBatchReadOptions& options)
 {
+    TCurrentTraceContextGuard traceGuard(TraceContext_);
     auto readGuard = AcquireReadGuard();
 
     MemoryPool_.Clear();
@@ -948,6 +954,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
 
 IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowBatchReadOptions& options)
 {
+    TCurrentTraceContextGuard traceGuard(TraceContext_);
     auto readGuard = AcquireReadGuard();
 
     MemoryPool_.Clear();
@@ -1094,6 +1101,7 @@ public:
             virtualRowIndex)
         , TColumnarRangeChunkReaderBase(
             chunkMeta,
+            chunkState->DataSource,
             config,
             underlyingReader,
             sortColumns,
@@ -1103,6 +1111,8 @@ public:
             memoryManager)
         , InterruptDescriptorKeyLength_(interruptDescriptorKeyLength)
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         YT_LOG_DEBUG("Reading range of a chunk (Range: %v)", readRange);
 
         LowerLimit_ = readRange.LowerLimit();
@@ -1122,6 +1132,7 @@ public:
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
         auto readGuard = AcquireReadGuard();
 
         if (PendingUnmaterializedRowCount_ > 0) {
@@ -1733,6 +1744,7 @@ public:
             omittedInaccessibleColumns)
         , TColumnarLookupChunkReaderBase(
             chunkMeta,
+            chunkState->DataSource,
             config,
             underlyingReader,
             sortColumns,
@@ -1742,6 +1754,8 @@ public:
             memoryManager)
         , PerformanceCounters_(std::move(performanceCounters))
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         Keys_ = keys;
 
         SetReadyEvent(BIND(&TColumnarSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
@@ -1751,6 +1765,7 @@ public:
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
         auto readGuard = AcquireReadGuard();
 
         Pool_.Clear();

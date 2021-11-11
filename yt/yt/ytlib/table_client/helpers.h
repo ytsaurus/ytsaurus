@@ -18,6 +18,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/ytlib/cypress_client/public.h>
 
@@ -179,6 +180,10 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
     const std::function<TString(int index)>& getNameByIndex,
     int columnCount,
     int maxHeavyColumns);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSource& dataSource);
 
 ////////////////////////////////////////////////////////////////////////////////
 

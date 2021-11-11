@@ -7,6 +7,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 
+#include <yt/yt/ytlib/table_client/helpers.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
@@ -21,6 +23,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
+using namespace NTracing;
 
 using NChunkClient::TLegacyReadLimit;
 
@@ -28,6 +31,7 @@ using NChunkClient::TLegacyReadLimit;
 
 TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     TColumnarChunkMetaPtr chunkMeta,
+    const std::optional<NChunkClient::TDataSource>& dataSource,
     TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     const TSortColumns& sortColumns,
@@ -46,6 +50,8 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     , Comparator_(GetComparator(sortColumns))
     , Sampler_(Config_->SamplingRate, std::random_device()())
     , OnRowsSkipped_(onRowsSkipped)
+    , TraceContext_(CreateTraceContextFromCurrent("ChunkReader"))
+    , FinishGuard_(TraceContext_)
 {
     if (memoryManager) {
         MemoryManager_ = memoryManager;
@@ -66,6 +72,10 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
         seed ^= FarmFingerprint(chunkId.Parts64[0]);
         seed ^= FarmFingerprint(chunkId.Parts64[1]);
         Sampler_ = TBernoulliSampler(Config_->SamplingRate, seed);
+    }
+
+    if (dataSource) {
+        PackBaggageFromDataSource(TraceContext_, *dataSource);
     }
 }
 
@@ -431,6 +441,8 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
 
 TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
 {
+    TCurrentTraceContextGuard guard(TraceContext_);
+
     PendingBlocks_.clear();
 
     std::vector<TFuture<void>> blockFetchResult;
@@ -589,6 +601,8 @@ bool TColumnarLookupChunkReaderBase::TryFetchNextRow()
 
 TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
 {
+    TCurrentTraceContextGuard guard(TraceContext_);
+
     if (RowIndexes_[NextKeyIndex_] >= ChunkMeta_->Misc().row_count()) {
         return VoidFuture;
     }

@@ -1390,12 +1390,13 @@ private:
             auto chunkState = New<TChunkState>(
                 Bootstrap_->GetBlockCache(),
                 GetChunkSpec(JobSpecExt_.input_chunks()[i]),
-                nullptr,
-                NullTimestamp,
-                nullptr,
-                nullptr,
-                nullptr,
-                nullptr);
+                /*chunkMeta*/ nullptr,
+                /*chunkTimestamp*/ NullTimestamp,
+                /*lookupHashTable*/ nullptr,
+                /*performanceCounters*/ nullptr,
+                /*keyComparer*/ nullptr,
+                /*virtualValueDirectory*/ nullptr,
+                /*tableSchema*/ nullptr);
 
             const auto& chunkInfo = InputChunkInfos_[i];
 
