@@ -215,12 +215,6 @@ bool TConsistentHashingRing<S, F, P, H, N>::TServerToken::operator<(const TServe
     return Index < rhs.Index;
 }
 
-template <class S, class F, class P, class H, int N>
-bool TConsistentHashingRing<S, F, P, H, N>::TServerToken::operator==(const TServerToken& rhs) const
-{
-    return !(*this < rhs) && !(rhs < *this);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class S, class F, class P, class H, int N>

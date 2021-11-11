@@ -409,6 +409,7 @@ class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
         "chunk_manager": {
             "consistent_replica_placement": {
                 "enable": True,
+                "token_redistribution_period": 500,
             },
         },
     }
@@ -444,7 +445,9 @@ class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
             get("#{}/@consistent_replica_placement_hash".format(chunk_ids[1]))
 
     def _disable_token_redistribution(self):
+        old_period = get("//sys/@config/chunk_manager/consistent_replica_placement/token_redistribution_period")
         remove("//sys/@config/chunk_manager/consistent_replica_placement/token_redistribution_period")
+        sleep(old_period / 1000.0)
 
     def _are_chunk_replicas_collocated(self, *stored_replicas):
         def by_index_then_node_address(replica):
@@ -582,6 +585,10 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         chunk_ids = get("//tmp/t7/@chunk_ids")
         wait(lambda: self._are_chunks_collocated(chunk_ids))
 
+        wait(lambda: self._are_chunk_replicas_collocated(
+            get("#{}/@stored_replicas".format(chunk_ids[0])),
+            get("#{}/@consistent_replica_placement".format(chunk_ids[0]))))
+
         replicas_before = get("#{}/@stored_replicas".format(chunk_ids[0]))
 
         set("//tmp/t7/@replication_factor", 7)
@@ -591,6 +598,10 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         set("//tmp/t7/@replication_factor", 3)
         wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 3)
         wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        wait(lambda: self._are_chunk_replicas_collocated(
+            get("#{}/@stored_replicas".format(chunk_ids[0])),
+            get("#{}/@consistent_replica_placement".format(chunk_ids[0]))))
 
         replicas_after = get("#{}/@stored_replicas".format(chunk_ids[0]))
 

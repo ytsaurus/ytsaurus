@@ -195,6 +195,9 @@ private:
             .SetPresent(chunk->IsBlob()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ConsistentReplicaPlacementHash)
             .SetPresent(chunk->HasConsistentReplicaPlacementHash()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ConsistentReplicaPlacement)
+            .SetPresent(chunk->HasConsistentReplicaPlacementHash() && !isForeign)
+            .SetOpaque(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -327,7 +330,7 @@ private:
                     [&] (TFluentMap fluent, TMediumMap<EChunkStatus>::iterator it) {
                         auto mediumIndex = it->first;
                         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                        if (!medium || medium->GetCache()) {
+                        if (!IsObjectAlive(medium) || medium->GetCache()) {
                             return;
                         }
 
@@ -362,7 +365,7 @@ private:
                     break;
                 }
 
-                auto replication = chunk->GetAggregatedReplication(chunkManager->GetChunkRequisitionRegistry());
+                const auto& replication = chunk->GetAggregatedReplication(chunkManager->GetChunkRequisitionRegistry());
 
                 if (key == EInternedAttributeKey::Vital) {
                     BuildYsonFluently(consumer)
@@ -826,6 +829,20 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetConsistentReplicaPlacementHash());
                 return true;
+
+            case EInternedAttributeKey::ConsistentReplicaPlacement: {
+                if (isForeign) {
+                    break;
+                }
+
+                if (!chunk->HasConsistentReplicaPlacementHash()) {
+                    break;
+                }
+
+                auto replicas = chunkManager->GetConsistentChunkReplicas(chunk);
+                serializePhysicalReplicas(consumer, replicas);
+                return true;
+            }
 
             default:
                 break;

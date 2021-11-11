@@ -48,6 +48,7 @@ void TConsistentChunkPlacement::TChunkPlacementGroup::AddChunk(TChunk *chunk)
     auto [it, ite] = std::equal_range(Chunks_.begin(), Chunks_.end(), chunk, TObjectIdComparer());
     YT_VERIFY(it == ite); // Should not be adding same chunk twice.
     Chunks_.insert(it, chunk);
+    YT_ASSERT(std::is_sorted(Chunks_.begin(), Chunks_.end(), TObjectIdComparer()));
 }
 
 void TConsistentChunkPlacement::TChunkPlacementGroup::RemoveChunk(TChunk *chunk, bool missingOk)
@@ -55,6 +56,7 @@ void TConsistentChunkPlacement::TChunkPlacementGroup::RemoveChunk(TChunk *chunk,
     auto [it, ite] = std::equal_range(Chunks_.begin(), Chunks_.end(), chunk, TObjectIdComparer());
     YT_VERIFY(missingOk || it != ite);
     Chunks_.erase(it, ite);
+    YT_ASSERT(std::is_sorted(Chunks_.begin(), Chunks_.end(), TObjectIdComparer()));
 }
 
 bool TConsistentChunkPlacement::TChunkPlacementGroup::ContainsChunk(TChunk* chunk) const
@@ -148,19 +150,21 @@ void TConsistentChunkPlacement::AddChunk(TChunk* chunk) noexcept
 
             Rings_[mediumIndex].AddFile(&placementGroup, SufficientlyLargeReplicaCount_);
 
-            YT_LOG_DEBUG("Chunk placement group created (ChunkId: %v, ConsistentReplicaPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v, PlacementGroupCount: %v)",
+            YT_LOG_DEBUG("Chunk placement group created (ChunkId: %v, ConsistentReplicaPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
+                mediumPolicy.GetReplicationFactor(),
                 SufficientlyLargeReplicaCount_,
                 PlacementGroups_.size());
         } else {
             placementGroup.AddChunk(chunk);
 
-            YT_LOG_DEBUG("Chunk added to placement group (ChunkId: %v, ConsistentReplicaPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v, PlacementGroupCount: %v)",
+            YT_LOG_DEBUG("Chunk added to placement group (ChunkId: %v, ConsistentReplicaPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
+                mediumPolicy.GetReplicationFactor(),
                 SufficientlyLargeReplicaCount_,
                 PlacementGroups_.size());
         }
@@ -192,10 +196,11 @@ void TConsistentChunkPlacement::RemoveChunk(
 
         if (it == PlacementGroups_.end()) {
             if (!missingOk) {
-                YT_LOG_ALERT("Placement group not found for the chunk (ChunkId: %v, ConsistentChunkPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v)",
+                YT_LOG_ALERT("Placement group not found for the chunk (ChunkId: %v, ConsistentChunkPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v(%v))",
                     chunk->GetId(),
                     chunk->GetConsistentReplicaPlacementHash(),
                     mediumIndex,
+                    mediumPolicy.GetReplicationFactor(),
                     SufficientlyLargeReplicaCount_);
             }
             continue;
@@ -215,17 +220,19 @@ void TConsistentChunkPlacement::RemoveChunk(
             YT_VERIFY(placementGroup.Chunks().empty());
             PlacementGroups_.erase(it);
 
-            YT_LOG_DEBUG("Chunk placement group destroyed (ChunkId: %v, ConsistentChunkPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v, PlacementGroupCount: %v)",
+            YT_LOG_DEBUG("Chunk placement group destroyed (ChunkId: %v, ConsistentChunkPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
+                mediumPolicy.GetReplicationFactor(),
                 SufficientlyLargeReplicaCount_,
                 PlacementGroups_.size());
         } else {
-            YT_LOG_DEBUG("Chunk removed from placement group (ChunkId: %v, ConsistentChunkPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v, PlacementGroupCount: %v)",
+            YT_LOG_DEBUG("Chunk removed from placement group (ChunkId: %v, ConsistentChunkPlacementHash: %llx, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
+                mediumPolicy.GetReplicationFactor(),
                 SufficientlyLargeReplicaCount_,
                 PlacementGroups_.size());
         }
@@ -447,6 +454,15 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
     auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
     auto replicationFactor = chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry);
 
+    if (replicationFactor > SufficientlyLargeReplicaCount_) {
+        YT_LOG_ALERT("CRP's \"replicas_per_chunk\" parameter is less than a chunk's replication factor "
+            "(ReplicasPerChunk: %v, ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v)",
+            SufficientlyLargeReplicaCount_,
+            chunk->GetId(),
+            mediumIndex,
+            replicationFactor);
+    }
+
     TNodeList result;
     TRackAwareness rackAwareness;
     for (auto* node : nodeCandidates) {
@@ -464,10 +480,11 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
         return result;
     }
 
-    YT_LOG_WARNING("CRP nodes do not satisfy rack awareness constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v)",
+    YT_LOG_WARNING("CRP nodes do not satisfy rack awareness constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v))",
         chunk->GetId(),
         mediumIndex,
-        replicationFactor);
+        replicationFactor,
+        SufficientlyLargeReplicaCount_);
 
     result.clear();
     TClashAwareness clashAwareness;
@@ -486,16 +503,20 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
         return result;
     }
 
-    YT_LOG_ALERT("CRP nodes do not satisfy clash constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v)",
+    YT_LOG_ALERT("CRP nodes do not satisfy clash constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v))",
         chunk->GetId(),
         mediumIndex,
-        replicationFactor);
+        replicationFactor,
+        SufficientlyLargeReplicaCount_);
 
     result.clear();
-    for (auto* node : nodeCandidates) {
-        result.push_back(node);
-        if (std::ssize(result) == replicationFactor) {
-            break;
+    auto it = nodeCandidates.begin();
+    while (std::ssize(result) < replicationFactor) {
+        result.push_back(*it++);
+        if (it == nodeCandidates.end()) {
+            // NB: this cyclic repetition is just for the rare case of misconfiguration,
+            // when CRP's replicas per chunk is less then RF. It has been log-alerted above.
+            it = nodeCandidates.begin();
         }
     }
 

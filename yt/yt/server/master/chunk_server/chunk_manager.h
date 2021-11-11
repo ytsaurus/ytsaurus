@@ -282,6 +282,10 @@ public:
     //! Returns the medium with a given name (throws if none).
     TMedium* GetMediumByNameOrThrow(const TString& name) const;
 
+    //! Returns chunk replicas "ideal" from CRP point of view.
+    //! This reflects the target chunk placement, not the actual one.
+    TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const;
+
 private:
     class TImpl;
     class TChunkTypeHandler;
