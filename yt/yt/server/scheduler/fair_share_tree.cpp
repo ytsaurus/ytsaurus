@@ -661,7 +661,7 @@ public:
 
         return {LastPoolsNodeUpdateError_, true};
     }
-    
+
     TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
         if (!Config_->UseUserDefaultParentPoolMap) {
@@ -869,11 +869,17 @@ public:
         return TreeProfiler_.Get();
     }
 
-    void SetResourceUsageSnapshot(THashMap<TOperationId, TJobResources> snapshot)
+    void SetResourceUsageSnapshot(TResourceUsageSnapshotPtr snapshot)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        ResourceUsageSnapshot_.Store(std::make_shared<THashMap<TOperationId, TJobResources>>(std::move(snapshot)));
+        if (snapshot != nullptr) {
+            ResourceUsageSnapshot_.Store(std::move(snapshot));
+        } else {
+            if (ResourceUsageSnapshot_.Acquire()) {
+                ResourceUsageSnapshot_.Store(nullptr);
+            }
+        }
     }
 
 private:
@@ -908,7 +914,7 @@ private:
     THashMap<TOperationId, TInstant> OperationIdToActivationTime_;
     THashMap<TOperationId, TInstant> OperationIdToFirstFoundLimitingAncestorTime_;
 
-    TAtomicObject<std::shared_ptr<THashMap<TOperationId, TJobResources>>> ResourceUsageSnapshot_;
+    TAtomicPtr<TResourceUsageSnapshot> ResourceUsageSnapshot_;
 
     std::vector<TOperationId> ActivatableOperationIds_;
 
@@ -1105,20 +1111,41 @@ private:
         void UpdateResourceUsageSnapshot() override
         {
             if (!GetConfig()->EnableResourceUsageSnapshot) {
+                Tree_->SetResourceUsageSnapshot(nullptr);
+
                 YT_LOG_DEBUG("Resource usage snapshot is disabled; skipping update");
                 return;
             }
 
-            auto result = THashMap<TOperationId, TJobResources>(TreeSnapshotImpl_->EnabledOperationMap().size());
+            auto resourceUsageMap = THashMap<TOperationId, TJobResources>(TreeSnapshotImpl_->EnabledOperationMap().size());
             for (const auto& [operationId, element] : TreeSnapshotImpl_->EnabledOperationMap()) {
                 if (element->IsAlive()) {
-                   result[operationId] = element->GetInstantResourceUsage();
+                   resourceUsageMap[operationId] = element->GetInstantResourceUsage();
                 }
             }
 
-            Tree_->SetResourceUsageSnapshot(std::move(result));
-            
+            auto resourceUsageSnapshot = New<TResourceUsageSnapshot>();
+            resourceUsageSnapshot->OperationIdToResourceUsage = std::move(resourceUsageMap);
+
+            Tree_->SetResourceUsageSnapshot(resourceUsageSnapshot);
+
+            UpdateDynamicAttributesSnapshot(resourceUsageSnapshot);
+
             YT_LOG_DEBUG("Resource usage snapshot updated");
+        }
+
+        void UpdateDynamicAttributesSnapshot(const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
+        {
+            if (!resourceUsageSnapshot) {
+                TreeSnapshotImpl_->SetDynamicAttributesListSnapshot(nullptr);
+                return;
+            }
+            auto attributesSnapshot = New<TDynamicAttributesListSnapshot>();
+            attributesSnapshot->Value.InitializeResourceUsage(
+                TreeSnapshotImpl_->RootElement().Get(),
+                resourceUsageSnapshot,
+                NProfiling::GetCpuInstant());
+            TreeSnapshotImpl_->SetDynamicAttributesListSnapshot(attributesSnapshot);
         }
 
     private:
@@ -1247,17 +1274,22 @@ private:
             ControllerConfig_,
             std::move(manageSegmentsContext.SchedulingSegmentsState));
 
-        YT_LOG_DEBUG("Fair share tree snapshot created (TreeSnapshotId: %v)", treeSnapshotId);
-
-        TreeSnapshotImplPrecommit_ = treeSnapshotImpl;
-        LastFairShareUpdateTime_ = now;
-
         auto treeSnapshot = New<TFairShareTreeSnapshot>(
             this,
-            std::move(treeSnapshotImpl),
+            treeSnapshotImpl,
             GetNodesFilter(),
             StrategyHost_->GetResourceLimits(GetNodesFilter()),
             Logger);
+
+        if (Config_->EnableResourceUsageSnapshot) {
+            treeSnapshot->UpdateDynamicAttributesSnapshot(ResourceUsageSnapshot_.Acquire());
+        }
+
+        YT_LOG_DEBUG("Fair share tree snapshot created (TreeSnapshotId: %v)", treeSnapshotId);
+
+        TreeSnapshotImplPrecommit_ = std::move(treeSnapshotImpl);
+        LastFairShareUpdateTime_ = now;
+
         return std::make_pair(treeSnapshot, error);
     }
 
@@ -1281,7 +1313,6 @@ private:
 
         TScheduleJobsContext context(
             schedulingContext,
-            treeSnapshotImpl->RootElement()->GetSchedulableElementCount(),
             std::move(registeredSchedulingTagFilters),
             enableSchedulingInfoLogging,
             Logger);
@@ -1290,10 +1321,10 @@ private:
         context.SchedulingStatistics().ResourceLimits = schedulingContext->ResourceLimits();
 
         if (config->EnableResourceUsageSnapshot) {
-            if (enableSchedulingInfoLogging) {
-                YT_LOG_DEBUG("Using resource usage snapshot for job scheduling");
+            if (auto snapshot = treeSnapshotImpl->GetDynamicAttributesListSnapshot()) {
+                YT_LOG_DEBUG_IF(enableSchedulingInfoLogging, "Using dynamic attributes snapshot for job scheduling");
+                context.DynamicAttributesListSnapshot() = std::move(snapshot);
             }
-            context.ResourceUsageSnapshot() = ResourceUsageSnapshot_.Load();
         }
 
         bool needPackingFallback;

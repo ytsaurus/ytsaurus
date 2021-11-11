@@ -10,7 +10,6 @@
 #include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
 #include "fair_share_tree_snapshot.h"
-#include "fair_share_tree_snapshot_impl.h"
 #include "packing.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -107,13 +106,53 @@ struct TDynamicAttributes
     int HeapIndex = InvalidHeapIndex;
 };
 
-using TDynamicAttributesList = std::vector<TDynamicAttributes>;
+////////////////////////////////////////////////////////////////////////////////
+
+struct TResourceUsageSnapshot final
+{
+    static constexpr bool EnableHazard = true;
+
+    THashMap<TOperationId, TJobResources> OperationIdToResourceUsage;
+};
+
+using TResourceUsageSnapshotPtr = TIntrusivePtr<TResourceUsageSnapshot>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicAttributesList
+{
+public:
+    explicit TDynamicAttributesList(int size = 0);
+
+    TDynamicAttributes& AttributesOf(const TSchedulerElement* element);
+    const TDynamicAttributes& AttributesOf(const TSchedulerElement* element) const;
+
+    void DeactivateAll();
+
+    void InitializeResourceUsage(
+        TSchedulerRootElement* rootElement,
+        const TResourceUsageSnapshotPtr& resourceUsageSnapshot,
+        NProfiling::TCpuInstant now);
+
+private:
+    std::vector<TDynamicAttributes> Value_;
+};
 
 using TChildHeapMap = THashMap<int, TChildHeap>;
 using TJobResourcesMap = THashMap<int, TJobResources>;
 using TNonOwningJobSet = THashSet<TJob*>;
 using TJobSetMap = THashMap<int, TNonOwningJobSet>;
-using TResourceUsageSnapshot = THashMap<TOperationId, TJobResources>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicAttributesListSnapshot final
+{
+    static constexpr bool EnableHazard = true;
+
+    TDynamicAttributesList Value;
+};
+
+using TDynamicAttributesListSnapshotPtr = TIntrusivePtr<TDynamicAttributesListSnapshot>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,13 +278,12 @@ private:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSchedulerOperationElementPtr>, BadPackingOperations);
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<TStageState>, StageState);
-    
-    DEFINE_BYREF_RW_PROPERTY(std::shared_ptr<TResourceUsageSnapshot>, ResourceUsageSnapshot);
+
+    DEFINE_BYREF_RW_PROPERTY(TDynamicAttributesListSnapshotPtr, DynamicAttributesListSnapshot);
 
 public:
     TScheduleJobsContext(
         ISchedulingContextPtr schedulingContext,
-        int treeSize,
         std::vector<TSchedulingTagFilter> registeredSchedulingTagFilters,
         bool enableSchedulingInfoLogging,
         const NLogging::TLogger& logger);
@@ -271,8 +309,6 @@ public:
     void FinishStage();
 
 private:
-    const int SchedulableElementCount_;
-
     const std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
 
     const bool EnableSchedulingInfoLogging_;
@@ -453,7 +489,9 @@ public:
     virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const = 0;
     bool IsEligibleForPreemptiveScheduling(bool isAggressive) const;
 
-    virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) = 0;
+    virtual const TJobResources& FillResourceUsageInDynamicAttributes(
+        TDynamicAttributesList* attributesList,
+        const TResourceUsageSnapshotPtr& resourceUsageSnapshot) = 0;
 
     int GetTreeIndex() const;
 
@@ -661,7 +699,9 @@ public:
 
     TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) final;
 
-    const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) final;
+    const TJobResources& FillResourceUsageInDynamicAttributes(
+        TDynamicAttributesList* attributesList,
+        const TResourceUsageSnapshotPtr& resourceUsageSnapshot) final;
 
     bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const override;
 
@@ -1184,8 +1224,12 @@ public:
         const TChildHeapMap& childHeapMap,
         bool checkLiveness) final;
 
-    const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) final;
-    
+    void ActualizeResourceUsageInDynamicAttributes(TDynamicAttributesList* attributesList);
+
+    const TJobResources& FillResourceUsageInDynamicAttributes(
+        TDynamicAttributesList* attributesList,
+        const TResourceUsageSnapshotPtr& resourceUsageSnapshot) final;
+
     void CheckForDeactivation(TScheduleJobsContext* context, EPrescheduleJobOperationCriterion operationCriterion);
 
     void UpdateCurrentResourceUsage(TScheduleJobsContext* context);

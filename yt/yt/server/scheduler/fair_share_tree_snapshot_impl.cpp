@@ -43,6 +43,16 @@ TSchedulerOperationElement* TFairShareTreeSnapshotImpl::FindDisabledOperationEle
     return it != DisabledOperationMap_.end() ? it->second : nullptr;
 }
 
+TDynamicAttributesListSnapshotPtr TFairShareTreeSnapshotImpl::GetDynamicAttributesListSnapshot() const
+{
+    return DynamicAttributesListSnapshot_.Acquire();
+}
+
+void TFairShareTreeSnapshotImpl::SetDynamicAttributesListSnapshot(TDynamicAttributesListSnapshotPtr value)
+{
+    DynamicAttributesListSnapshot_.Store(value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

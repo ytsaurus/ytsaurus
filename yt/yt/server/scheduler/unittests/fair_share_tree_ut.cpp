@@ -120,7 +120,7 @@ public:
     TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         TMemoryDistribution result;
-        for (const auto& execNode : ExecNodes_) 
+        for (const auto& execNode : ExecNodes_)
             if (execNode->CanSchedule(filter)) {
                 ++result[execNode->GetResourceLimits().GetMemory()];
             }
@@ -218,7 +218,7 @@ public:
 
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */) override
     { }
-    
+
     TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override
     {
         return VoidFuture;
@@ -606,7 +606,7 @@ protected:
             jobResources,
             /*interruptible*/ false,
             /*preemptionMode*/ EPreemptionMode::Normal,
-            /*treeId*/ "", 
+            /*treeId*/ "",
             /*schedulingStage*/ EJobSchedulingStage::Unknown,
             /*schedulingIndex*/ UndefinedSchedulingIndex);
     }
@@ -628,14 +628,13 @@ protected:
 
         TScheduleJobsContext context(
             schedulingContext,
-            rootElement->GetTreeSize(),
             /* registeredSchedulingTagFilters */ {},
             /* enableSchedulingInfoLogging */ true,
             SchedulerLogger);
         context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
 
         context.PrepareForScheduling(rootElement);
-        rootElement->CalculateCurrentResourceUsage(&context);
+        rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
         rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
 
         operationElement->ScheduleJob(&context, /* ignorePacking */ true);
@@ -1033,7 +1032,7 @@ TEST_F(TFairShareTreeTest, TestSchedulingTagFilterResourceLimits)
             operationElementX->GetSchedulingTagFilterResourceLimits());
         EXPECT_EQ(nodeResources1 + nodeResources2 + nodeResources3 + nodeResources134,
             operationElementY->GetSchedulingTagFilterResourceLimits());
-    }    
+    }
 }
 
 
@@ -1920,7 +1919,6 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
 
     TScheduleJobsContext context(
         schedulingContext,
-        rootElement->GetTreeSize(),
         /*registeredSchedulingTagFilters*/ {},
         /*enableSchedulingInfoLogging*/ true,
         SchedulerLogger);
@@ -2806,13 +2804,12 @@ TEST_F(TFairShareTreeTest, ChildHeap)
 
     TScheduleJobsContext context(
         schedulingContext,
-        rootElement->GetTreeSize(),
         /* registeredSchedulingTagFilters */ {},
         /* enableSchedulingInfoLogging */ true,
         SchedulerLogger);
     context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
     context.PrepareForScheduling(rootElement);
-    rootElement->CalculateCurrentResourceUsage(&context);
+    rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
     rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
 
     for (auto operationElement : operationElements) {
@@ -2843,7 +2840,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
     context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
     context.PrepareForScheduling(rootElement);
-    rootElement->CalculateCurrentResourceUsage(&context);
+    rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
     rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
 
     for (auto operationElement : operationElements) {
