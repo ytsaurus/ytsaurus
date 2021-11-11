@@ -78,7 +78,8 @@ CONTROLLER_AGENT_CONFIG_PATCH = {
 
         "map_reduce_operation_options": {
             "spec_template": {
-                "partition_data_size": 512 * MB
+                "partition_data_size": 512 * MB,
+                "enable_table_index_if_has_trivial_mapper": True,
             }
         },
     }
@@ -253,7 +254,7 @@ def modify_cluster_configuration(yt_config, cluster_configuration):
     for config in cluster_configuration["rpc_proxy"]:
         if yt_config.delta_rpc_proxy_config:
             update_inplace(config, yt_config.delta_rpc_proxy_config)
-    
+
     if config in cluster_configuration["master_cache"]:
         if yt_config.delta_master_cache_config:
             update_inplace(config, yt_config.delta_master_cache_config)
