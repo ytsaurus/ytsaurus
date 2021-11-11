@@ -185,6 +185,33 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     spark.read.yt(tmpPath).as[Long].collect() should contain theSameElementsAs (1 to 80)
   }
 
+  it should "write all atomic datatypes" in {
+    val data = Seq(
+      (Some(true), Some(1.toByte), Some(1.0), Some(1.0f), Some(1), Some(1L), Some(1.toShort), Some("a")),
+      (None, None, None, None, None, None, None, None)
+    )
+
+    data.toDF().write.yt(tmpPath)
+
+    spark.read.yt(tmpPath).collect() should contain theSameElementsAs Seq(
+      Row(true, 1.toByte, 1.0, 1.0f, 1, 1L, 1.toShort, "a"),
+      Row(null, null, null, null, null, null, null, null)
+    )
+  }
+
+  it should "write binary type" in {
+    val data = Seq(
+      Array[Byte](1, 2, 3),
+      Array[Byte](4, 5, 6),
+      null
+    )
+
+    data.toDF().write.yt(tmpPath)
+
+    val result = spark.read.schemaHint("value" -> BinaryType).yt(tmpPath).as[Array[Byte]].collect()
+    result should contain theSameElementsAs data
+  }
+
   it should "clean all temporary files if job failed" in {
     import spark.implicits._
 
