@@ -621,7 +621,7 @@ private:
         // That's why we do it here and not in GetNodesToDistribute.
         if (settings->MinDataWeightPerSecondaryQuery > 0) {
             i64 nodeLimit = DivCeil(InputStripeList_->TotalDataWeight, settings->MinDataWeightPerSecondaryQuery);
-            nodeLimit = std::clamp<i64>(1, nodes.size(), nodeLimit);
+            nodeLimit = std::clamp<i64>(nodeLimit, 1, nodes.size());
             nodes.resize(nodeLimit);
         }
 
