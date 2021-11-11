@@ -39,7 +39,8 @@ struct IFairShareTreeSnapshot
     virtual void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) = 0;
     virtual void ApplyScheduledAndPreemptedResourcesDelta(
         const TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources>& scheduledJobResources,
-        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources) = 0;
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes) = 0;
     virtual const TFairShareStrategyTreeConfigPtr& GetConfig() const = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
     virtual TJobResources GetTotalResourceLimits() const = 0;

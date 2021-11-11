@@ -1048,12 +1048,14 @@ private:
 
         void ApplyScheduledAndPreemptedResourcesDelta(
             const TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources>& scheduledJobResources,
-            const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources) override
+            const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
+            const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes) override
         {
             Tree_->GetProfiler()->ApplyScheduledAndPreemptedResourcesDelta(
                 TreeSnapshotImpl_,
                 scheduledJobResources,
-                preemptedJobResources);
+                preemptedJobResources,
+                preemptedJobResourceTimes);
         }
 
         const TFairShareStrategyTreeConfigPtr& GetConfig() const override

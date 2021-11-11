@@ -296,15 +296,21 @@ void TFairShareTreeProfileManager::ProfileElement(
         const auto& scheduledResourcesMap = ScheduledResourcesByStageMap_[schedulingStage];
         auto scheduledResourcesIt = scheduledResourcesMap.find(element->GetId());
         if (scheduledResourcesIt != scheduledResourcesMap.end()) {
-            ProfileResources(writer, scheduledResourcesIt->second, "/scheduled_job_resources/" + FormatEnum(schedulingStage), EMetricType::Counter);
+            TWithTagGuard guard(writer, TTag{"scheduling_stage", FormatEnum(schedulingStage)});
+            ProfileResources(writer, scheduledResourcesIt->second, "/scheduled_job_resources", EMetricType::Counter);
         }
     }
 
     for (auto preemptionReason : TEnumTraits<EJobPreemptionReason>::GetDomainValues()) {
-        const auto& preemptedResourcesMap = PreemptedResourcesByReasonMap_[preemptionReason];
-        auto preemptedResourcesIt = preemptedResourcesMap.find(element->GetId());
-        if (preemptedResourcesIt != preemptedResourcesMap.end()) {
-            ProfileResources(writer, preemptedResourcesIt->second, "/preempted_job_resources/" + FormatEnum(preemptionReason), EMetricType::Counter);
+        auto preemptedResourcesIt = PreemptedResourcesByReasonMap_[preemptionReason].find(element->GetId());
+        auto preemptedResourceTimesIt = PreemptedResourceTimesByReasonMap_[preemptionReason].find(element->GetId());
+
+        TWithTagGuard guard(writer, TTag{"preemption_reason", FormatEnum(preemptionReason)});
+        if (preemptedResourcesIt != PreemptedResourcesByReasonMap_[preemptionReason].end()) {
+            ProfileResources(writer, preemptedResourcesIt->second, "/preempted_job_resources", EMetricType::Counter);
+        }
+        if (preemptedResourceTimesIt != PreemptedResourceTimesByReasonMap_[preemptionReason].end()) {
+            ProfileResources(writer, preemptedResourceTimesIt->second, "/preempted_job_resource_times", EMetricType::Counter);
         }
     }
 
@@ -518,38 +524,33 @@ void TFairShareTreeProfileManager::ApplyJobMetricsDelta(
 void TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
     const TFairShareTreeSnapshotImplPtr& treeSnapshot,
     const TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources>& scheduledJobResources,
-    const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources)
+    const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
+    const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
-    for (auto schedulingStage : TEnumTraits<EJobSchedulingStage>::GetDomainValues()) {
-        const auto& operationIdToScheduledJobResourcesDeltas = scheduledJobResources[schedulingStage];
-        for (const auto& [operationId, scheduledResourcesDelta]: operationIdToScheduledJobResourcesDeltas) {
+    auto applyDeltas = [&] (const auto& operationIdToDeltas, auto& operationIdToValues) {
+        for (const auto& [operationId, delta]: operationIdToDeltas) {
             const TSchedulerElement* currentElement = treeSnapshot->FindEnabledOperationElement(operationId);
             if (!currentElement) {
                 currentElement = treeSnapshot->FindDisabledOperationElement(operationId);
             }
+
             currentElement = currentElement->GetParent();
             while (currentElement) {
-                ScheduledResourcesByStageMap_[schedulingStage][currentElement->GetId()] += scheduledResourcesDelta;
+                operationIdToValues[currentElement->GetId()] += delta;
                 currentElement = currentElement->GetParent();
             }
         }
+    };
+
+    for (auto schedulingStage : TEnumTraits<EJobSchedulingStage>::GetDomainValues()) {
+        applyDeltas(scheduledJobResources[schedulingStage], ScheduledResourcesByStageMap_[schedulingStage]);
     }
 
     for (auto preemptionReason : TEnumTraits<EJobPreemptionReason>::GetDomainValues()) {
-        const auto& operationIdToPreemptedJobResourcesDeltas = preemptedJobResources[preemptionReason];
-        for (const auto& [operationId, preemptedResourcesDelta]: operationIdToPreemptedJobResourcesDeltas) {
-            const TSchedulerElement* currentElement = treeSnapshot->FindEnabledOperationElement(operationId);
-            if (!currentElement) {
-                currentElement = treeSnapshot->FindDisabledOperationElement(operationId);
-            }
-            currentElement = currentElement->GetParent();
-            while (currentElement) {
-                PreemptedResourcesByReasonMap_[preemptionReason][currentElement->GetId()] += preemptedResourcesDelta;
-                currentElement = currentElement->GetParent();
-            }
-        }
+        applyDeltas(preemptedJobResources[preemptionReason], PreemptedResourcesByReasonMap_[preemptionReason]);
+        applyDeltas(preemptedJobResourceTimes[preemptionReason], PreemptedResourceTimesByReasonMap_[preemptionReason]);
     }
 }
 
