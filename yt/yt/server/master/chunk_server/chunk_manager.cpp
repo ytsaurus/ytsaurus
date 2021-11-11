@@ -2050,6 +2050,37 @@ public:
         return &ChunkRequisitionRegistry_;
     }
 
+    const TChunkRequisitionRegistry* GetChunkRequisitionRegistry() const
+    {
+        return &ChunkRequisitionRegistry_;
+    }
+
+    TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const
+    {
+        YT_ASSERT(!chunk->IsForeign());
+        YT_ASSERT(chunk->HasConsistentReplicaPlacementHash());
+
+        TNodePtrWithIndexesList result;
+
+        const auto& replication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
+        for (auto entry : replication) {
+            auto mediumIndex = entry.GetMediumIndex();
+            auto mediumPolicy = entry.Policy();
+            YT_VERIFY(mediumPolicy);
+            auto mediumReplicationFactor = mediumPolicy.GetReplicationFactor();
+
+            auto mediumWriteTargets = ConsistentChunkPlacement_->GetWriteTargets(chunk, mediumIndex);
+            YT_VERIFY(std::ssize(mediumWriteTargets) == mediumReplicationFactor);
+
+            for (auto replicaIndex = 0; replicaIndex < mediumReplicationFactor; ++replicaIndex) {
+                auto* node = mediumWriteTargets[replicaIndex];
+                result.emplace_back(node, replicaIndex, mediumIndex);
+            }
+        }
+
+        return result;
+    }
+
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkView, TChunkView);
     DECLARE_ENTITY_MAP_ACCESSORS(DynamicStore, TDynamicStore);
@@ -2948,6 +2979,9 @@ private:
     void OnChunkUpdated(TChunk* chunk, const TChunkReplication& oldReplication)
     {
         if (chunk->HasConsistentReplicaPlacementHash()) {
+            // NB: reacting on RF change is actually not necessary (CRP does not
+            // rely on the actual RF of the chunk - instead, it uses a universal
+            // upper bound). But enabling/disabling a medium still needs to be handled.
             ConsistentChunkPlacement_->RemoveChunk(chunk, oldReplication, /*missingOk*/ true);
             ConsistentChunkPlacement_->AddChunk(chunk);
         }
@@ -5293,6 +5327,11 @@ TMedium* TChunkManager::GetMediumByNameOrThrow(const TString& name) const
 TChunkRequisitionRegistry* TChunkManager::GetChunkRequisitionRegistry()
 {
     return Impl_->GetChunkRequisitionRegistry();
+}
+
+TNodePtrWithIndexesList TChunkManager::GetConsistentChunkReplicas(TChunk* chunk) const
+{
+    return Impl_->GetConsistentChunkReplicas(chunk);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)

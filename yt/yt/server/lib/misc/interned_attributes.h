@@ -90,6 +90,7 @@
     XX(ConfigPreset, config_preset) \
     XX(ConfigVersion, config_version) \
     XX(Confirmed, confirmed) \
+    XX(ConsistentReplicaPlacement, consistent_replica_placement) \
     XX(ConsistentReplicaPlacementHash, consistent_replica_placement_hash) \
     XX(ConsistentReplicaPlacementTokenCount, consistent_replica_placement_token_count) \
     XX(ContentRevision, content_revision) \
@@ -124,6 +125,7 @@
     XX(EffectiveAcl, effective_acl) \
     XX(EnableAggressiveStarvation, enable_aggressive_starvation) \
     XX(EnableByUserProfiling, enable_by_user_profiling) \
+    XX(EnableConsistentChunkReplicaPlacement, enable_consistent_chunk_replica_placement) \
     XX(EnableDetailedLogs, enable_detailed_logs) \
     XX(EnableDetailedProfiling, enable_detailed_profiling) \
     XX(EnableFairShareTruncationInFifoPool, enable_fair_share_truncation_in_fifo_pool) \

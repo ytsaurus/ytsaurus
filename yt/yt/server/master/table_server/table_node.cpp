@@ -86,6 +86,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, ProfilingMode);
     Save(context, ProfilingTag);
     Save(context, EnableDetailedProfiling);
+    Save(context, EnableConsistentChunkReplicaPlacement);
     Save(context, BackupState);
     Save(context, TabletCountByBackupState);
     Save(context, AggregatedTabletBackupState);
@@ -137,6 +138,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     if (context.GetVersion() >= EMasterReign::FlagForDetailedProfiling) {
         Load(context, EnableDetailedProfiling);
     }
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= EMasterReign::EnableCrpBuiltinAttribute) {
+        Load(context, EnableConsistentChunkReplicaPlacement);
+    }
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BackupsInitial) {
         Load(context, BackupState);
@@ -156,6 +161,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     XX(ProfilingMode) \
     XX(ProfilingTag) \
     XX(EnableDetailedProfiling) \
+    XX(EnableConsistentChunkReplicaPlacement) \
 
 
 void TTableNode::TDynamicTableAttributes::CopyFrom(const TDynamicTableAttributes* other)

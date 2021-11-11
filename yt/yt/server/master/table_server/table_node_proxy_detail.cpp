@@ -359,6 +359,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletBackupState)
         .SetExternal(isExternal)
         .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableConsistentChunkReplicaPlacement)
+        .SetWritable(true)
+        .SetReplicated(true)
+        .SetPresent(isDynamic));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -906,6 +910,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(trunkTable->GetAggregatedTabletBackupState());
             return true;
 
+        case EInternedAttributeKey::EnableConsistentChunkReplicaPlacement:
+            if (!isDynamic || isExternal) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(table->GetEnableConsistentChunkReplicaPlacement());
+            return true;
+
         default:
             break;
     }
@@ -1289,6 +1302,18 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
                 lockedTable,
                 collocation);
 
+            return true;
+        }
+
+        case EInternedAttributeKey::EnableConsistentChunkReplicaPlacement: {
+            ValidateNoTransaction();
+
+            if (!table->IsDynamic() || table->IsExternal()) {
+                break;
+            }
+
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetEnableConsistentChunkReplicaPlacement(ConvertTo<bool>(value));
             return true;
         }
 

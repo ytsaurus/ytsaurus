@@ -101,7 +101,6 @@ private:
         int Index;
 
         bool operator<(const TServerToken& rhs) const;
-        bool operator==(const TServerToken& rhs) const;
     };
 
     struct TFileReplica

@@ -81,6 +81,7 @@ private:
         std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
         std::optional<TString> ProfilingTag;
         bool EnableDetailedProfiling = false;
+        bool EnableConsistentChunkReplicaPlacement = false;
 
         NTabletClient::ETableBackupState BackupState = NTabletClient::ETableBackupState::None;
         TEnumIndexedVector<NTabletClient::ETabletBackupState, int> TabletCountByBackupState;
@@ -136,6 +137,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingMode);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingTag);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableDetailedProfiling);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableConsistentChunkReplicaPlacement);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByBackupState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, AggregatedTabletBackupState);
