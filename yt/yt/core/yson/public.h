@@ -2,19 +2,13 @@
 
 #include <yt/yt/core/misc/public.h>
 
-#include <library/cpp/yson/public.h>
+#include <library/cpp/yt/yson_string/public.h>
 
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using ::NYson::EYsonFormat;
-using ::NYson::EYsonType;
-
 enum class ETokenType;
-
-class TYsonString;
-class TYsonStringBuf;
 
 class TYsonProducer;
 
