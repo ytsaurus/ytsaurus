@@ -98,7 +98,8 @@ struct ISchedulingContext
         TControllerEpoch controllerEpoch,
         const TJobStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode,
-        EJobSchedulingStage schedulingStage) = 0;
+        EJobSchedulingStage schedulingStage,
+        int schedulingIndex) = 0;
 
     virtual void PreemptJob(const TJobPtr& job, TDuration interruptTimeout, EJobPreemptionReason preemptionReason) = 0;
 

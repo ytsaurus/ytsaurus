@@ -1,6 +1,7 @@
 #include "operation_controller.h"
 #include "bootstrap.h"
 #include "private.h"
+#include "fair_share_tree_element.h"
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
@@ -90,6 +91,7 @@ void FromProto(
             preemptionMode,
             jobProto.tree_id(),
             EJobSchedulingStage::Unknown,
+            UndefinedSchedulingIndex,
             jobProto.node_id(),
             jobProto.node_address());
         job->SetState(EJobState::Running);

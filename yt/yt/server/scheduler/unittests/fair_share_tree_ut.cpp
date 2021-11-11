@@ -607,7 +607,8 @@ protected:
             /*interruptible*/ false,
             /*preemptionMode*/ EPreemptionMode::Normal,
             /*treeId*/ "", 
-            /*schedulingStage*/ EJobSchedulingStage::Unknown);
+            /*schedulingStage*/ EJobSchedulingStage::Unknown,
+            /*schedulingIndex*/ UndefinedSchedulingIndex);
     }
 
     void DoTestSchedule(
