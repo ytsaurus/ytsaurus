@@ -60,6 +60,7 @@ public class UnversionedRowSerializer implements WireRowSerializer<UnversionedRo
                     writeable.onBoolean((Boolean) v);
                     break;
                 case STRING:
+                case COMPOSITE:
                 case ANY:
                     writeable.onBytes(value.bytesValue());
                     break;

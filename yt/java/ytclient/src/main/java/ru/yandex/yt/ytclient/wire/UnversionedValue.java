@@ -49,6 +49,7 @@ public class UnversionedValue implements YTreeConvertible {
                 }
                 break;
             case STRING:
+            case COMPOSITE:
             case ANY:
                 if (!(value instanceof byte[])) {
                     throw illegalValue(type, value);
@@ -173,6 +174,7 @@ public class UnversionedValue implements YTreeConvertible {
     public int getLength() {
         switch (type) {
             case STRING:
+            case COMPOSITE:
             case ANY:
                 return ((byte[]) value).length;
             default:
@@ -207,6 +209,7 @@ public class UnversionedValue implements YTreeConvertible {
     public byte[] bytesValue() {
         switch (type) {
             case STRING:
+            case COMPOSITE:
             case ANY:
                 return (byte[]) value;
             default:
@@ -313,6 +316,7 @@ public class UnversionedValue implements YTreeConvertible {
                 consumer.onString(bytes, 0, bytes.length);
                 break;
             }
+            case COMPOSITE:
             case ANY: {
                 YTreeBinarySerializer.deserialize(new ByteArrayInputStream(bytesValue()), consumer);
                 break;

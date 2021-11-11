@@ -11,6 +11,8 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.base.Charsets;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -35,9 +37,12 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.reflection.ClassX;
+import ru.yandex.type_info.TiType;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
+import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
+import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
@@ -349,6 +354,67 @@ public class YtClientTest {
                     .join();
 
             reader.close().join();
+        }
+    }
+
+    private byte[] codeList(List<Long> list) {
+        YTreeBuilder builder = new YTreeBuilder();
+        builder.onBeginList();
+        for (int i = 0; i < list.size(); i++) {
+            UnversionedValue key = new UnversionedValue(
+                    i,
+                    ColumnValueType.INT64,
+                    false,
+                    list.get(i));
+            builder.onListItem();
+            key.writeTo(builder);
+        }
+        builder.onEndList();
+        return builder.build().toBinary();
+    }
+
+    @Test
+    public void writeUnversionedRow() throws Exception {
+        String table = path + "/table";
+        TableSchema schema = new TableSchema.Builder()
+                .setUniqueKeys(false)
+                .addValue("array", TiType.list(TiType.int64()))
+                .build();
+
+        client.createNode(new CreateNode(table, ObjectType.Table, Map.of(
+                "schema", schema.toYTree()
+        )).setRecursive(true)).join();
+
+        List<UnversionedRow> data =
+                Stream.of(List.of(0L, 1L), List.of(2L))
+                        .map(row -> new UnversionedRow(List.of(new UnversionedValue(
+                                0,
+                                ColumnValueType.COMPOSITE,
+                                false,
+                                codeList(row)))))
+                        .collect(Collectors.toList());
+
+        {
+            TableWriter<UnversionedRow> writer =
+                    client.writeTable(
+                            new WriteTable<>(table, new UnversionedRowSerializer(schema))
+                    ).join();
+
+            while (!writer.write(data, schema)) {
+                writer.readyEvent().join();
+            }
+            writer.close().join();
+        }
+
+        {
+            TableReader<UnversionedRow> reader =
+                    client.readTable(new ReadTable<>(table, new UnversionedRowDeserializer())).join();
+            List<UnversionedRow> result;
+            while ((result = reader.read()) == null) {
+                reader.readyEvent().join();
+            }
+
+            Assert.assertEquals(data, result);
         }
     }
 
