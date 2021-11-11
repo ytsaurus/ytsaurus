@@ -517,6 +517,7 @@ private:
     void ProcessSampleV2(const TQueuedSample& queuedSample)
     {
         TStoredSample storedSample;
+        storedSample.Id = 0;
         storedSample.Time = CpuInstantToInstant(queuedSample.Time);
         storedSample.Value = queuedSample.Value;
         storedSample.TagIds = queuedSample.TagIds;
