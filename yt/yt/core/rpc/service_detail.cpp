@@ -1927,10 +1927,13 @@ TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCoun
 
     // Fast path.
     if (userTag == RootUserName && requestQueue == &runtimeInfo->DefaultRequestQueue) {
-        return runtimeInfo->RootPerformanceCounters.Get();
+        if (EnablePerUserProfiling_.load(std::memory_order_relaxed)) {
+            return runtimeInfo->RootPerformanceCounters.Get();
+        } else {
+            return runtimeInfo->BasePerformanceCounters.Get();
+        }
     }
 
-    // Also fast path.
     if (!EnablePerUserProfiling_.load(std::memory_order_relaxed)) {
         userTag = {};
     }
@@ -2093,6 +2096,9 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 
     auto runtimeInfo = New<TRuntimeMethodInfo>(ServiceId_, descriptor, Profiler_);
 
+    runtimeInfo->BasePerformanceCounters = CreateMethodPerformanceCounters(
+        runtimeInfo.Get(),
+        {{}, &runtimeInfo->DefaultRequestQueue});
     runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(
         runtimeInfo.Get(),
         {RootUserName, &runtimeInfo->DefaultRequestQueue});

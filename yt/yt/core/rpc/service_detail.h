@@ -690,6 +690,7 @@ protected:
             TPerformanceCountersKeyEquals
         >;
         TPerformanceCountersMap PerformanceCountersMap;
+        TMethodPerformanceCountersPtr BasePerformanceCounters;
         TMethodPerformanceCountersPtr RootPerformanceCounters;
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr LoggingSuppressionFailedRequestThrottler;
