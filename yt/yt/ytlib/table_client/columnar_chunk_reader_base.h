@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 
@@ -29,6 +30,7 @@ class TColumnarChunkReaderBase
 public:
     TColumnarChunkReaderBase(
         TColumnarChunkMetaPtr chunkMeta,
+        const std::optional<NChunkClient::TDataSource>& dataSource,
         TChunkReaderConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
         const TSortColumns& sortColumns,
@@ -92,6 +94,9 @@ protected:
     bool SampledRangeIndexChanged_ = false;
 
     bool IsSamplingCompleted_ = false;
+
+    NTracing::TTraceContextPtr TraceContext_;
+    NTracing::TTraceContextFinishGuard FinishGuard_;
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
     NChunkClient::TCodecStatistics GetDecompressionStatistics() const override;

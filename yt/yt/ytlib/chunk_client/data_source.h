@@ -29,6 +29,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(EDataSourceType, Type, EDataSourceType::UnversionedTable);
     DEFINE_BYVAL_RW_PROPERTY(bool, Foreign, false);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NYPath::TYPath>, Path);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NObjectClient::TObjectId>, ObjectId);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchemaPtr, Schema);
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<TString>>, Columns);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, OmittedInaccessibleColumns);
@@ -37,6 +38,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TColumnRenameDescriptors, ColumnRenameDescriptors);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TVirtualValueDirectoryPtr, VirtualValueDirectory);
     DEFINE_BYVAL_RW_PROPERTY(int, VirtualKeyPrefixLength, 0);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Account);
 
     //! Returns comparator built from data source schema. Crashes in case if data source is not sorted.
     NTableClient::TComparator GetComparator() const;

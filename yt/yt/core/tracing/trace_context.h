@@ -231,6 +231,10 @@ TString ToString(const TTraceContextPtr& context);
 TTraceContext* GetCurrentTraceContext();
 void FlushCurrentTraceContextTime();
 
+//! Creates a new trace context. If the current trace context exists, it becomes the parent of the
+//! created trace context.
+TTraceContextPtr CreateTraceContextFromCurrent(TString spanName);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Installs the given trace into the current fiber implicit trace slot.

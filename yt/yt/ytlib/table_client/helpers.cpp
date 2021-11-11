@@ -701,4 +701,21 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSource& dataSource)
+{
+    auto baggage = context->UnpackOrCreateBaggage();
+    if (dataSource.GetPath()) {
+        baggage->Set("object_path", dataSource.GetPath());
+    }
+    if (dataSource.GetObjectId()) {
+        baggage->Set("object_id", dataSource.GetObjectId());
+    }
+    if (dataSource.GetAccount()) {
+        baggage->Set("account@", *dataSource.GetAccount());
+    }
+    context->PackBaggage(baggage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

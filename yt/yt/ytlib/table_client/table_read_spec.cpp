@@ -51,6 +51,7 @@ TTableReadSpec FetchRegularTableReadSpec(
     bool dynamic;
     TTableSchemaPtr schema;
     bool fetchFromTablets;
+    TString account;
     {
         YT_LOG_INFO("Requesting extended table attributes");
 
@@ -76,6 +77,7 @@ TTableReadSpec FetchRegularTableReadSpec(
             "unflushed_timestamp",
             "enable_dynamic_store_read",
             "fetch_from_tablets",
+            "account",
         });
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -89,6 +91,7 @@ TTableReadSpec FetchRegularTableReadSpec(
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchemaPtr>("schema");
         fetchFromTablets = attributes->Get<bool>("fetch_from_tablets", false);
+        account = attributes->Get<TString>("account", "");
 
         ValidateDynamicTableTimestamp(options.RichPath, dynamic, *schema, *attributes);
     }
@@ -142,14 +145,20 @@ TTableReadSpec FetchRegularTableReadSpec(
             options.RichPath.GetColumns(),
             userObject->OmittedInaccessibleColumns,
             options.RichPath.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
-            options.RichPath.GetRetentionTimestamp().value_or(NullTimestamp));
+            options.RichPath.GetRetentionTimestamp().value_or(NullTimestamp),
+            /*columnRenameDescriptors*/ {});
+        dataSource.SetObjectId(userObject->ObjectId);
+        dataSource.SetAccount(account);
         dataSliceDescriptors.emplace_back(std::move(chunkSpecs));
     } else {
         dataSource = MakeUnversionedDataSource(
             path,
             schema,
             options.RichPath.GetColumns(),
-            userObject->OmittedInaccessibleColumns);
+            userObject->OmittedInaccessibleColumns,
+            /*columnRenameDescriptors*/ {});
+        dataSource.SetObjectId(userObject->ObjectId);
+        dataSource.SetAccount(account);
         for (auto& chunkSpec : chunkSpecs) {
             dataSliceDescriptors.emplace_back(std::move(chunkSpec));
         }

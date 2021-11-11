@@ -43,6 +43,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
+using namespace NTracing;
 
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
@@ -172,6 +173,7 @@ public:
     TSimpleVersionedChunkReaderBase(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
+        const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
@@ -218,6 +220,7 @@ protected:
 TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
+    const std::optional<NChunkClient::TDataSource>& dataSource,
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
@@ -245,6 +248,10 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
     YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedSimple);
     YT_VERIFY(PerformanceCounters_);
+
+    if (dataSource) {
+        PackBaggageFromDataSource(TraceContext_, *dataSource);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,6 +263,7 @@ public:
     TSimpleVersionedRangeChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
+        const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
@@ -269,6 +277,7 @@ public:
         : TSimpleVersionedChunkReaderBase(
             std::move(config),
             std::move(chunkMeta),
+            dataSource,
             std::move(underlyingReader),
             std::move(blockCache),
             chunkReadOptions,
@@ -285,6 +294,8 @@ public:
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
+        TCurrentTraceContextGuard guard(TraceContext_);
+
         YT_VERIFY(options.MaxRowsPerRead > 0);
 
         std::vector<TVersionedRow> rows;
@@ -501,6 +512,7 @@ public:
     TSimpleVersionedLookupChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
+        const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
@@ -514,6 +526,7 @@ public:
         : TSimpleVersionedChunkReaderBase(
             std::move(config),
             std::move(chunkMeta),
+            dataSource,
             std::move(underlyingReader),
             std::move(blockCache),
             chunkReadOptions,
@@ -531,6 +544,8 @@ public:
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
+        TCurrentTraceContextGuard guard(TraceContext_);
+
         auto readGuard = AcquireReadGuard();
 
         YT_VERIFY(options.MaxRowsPerRead > 0);
@@ -712,6 +727,7 @@ public:
     TColumnarVersionedChunkReaderBase(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
+        const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
         const TSortColumns& sortColumns,
         IBlockCachePtr blockCache,
@@ -722,6 +738,7 @@ public:
         const TChunkReaderMemoryManagerPtr& memoryManager)
         : TBase(
             chunkMeta,
+            dataSource,
             std::move(config),
             std::move(underlyingReader),
             sortColumns,
@@ -1126,6 +1143,7 @@ public:
     TColumnarVersionedRangeChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
+        const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
         const TSortColumns& sortColumns,
         IBlockCachePtr blockCache,
@@ -1138,6 +1156,7 @@ public:
         : TColumnarVersionedChunkReaderBase(
             std::move(config),
             chunkMeta,
+            dataSource,
             std::move(underlyingReader),
             sortColumns,
             std::move(blockCache),
@@ -1181,6 +1200,8 @@ public:
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
+        TCurrentTraceContextGuard guard(TraceContext_);
+
         auto readGuard = AcquireReadGuard();
 
         YT_VERIFY(options.MaxRowsPerRead > 0);
@@ -1481,6 +1502,7 @@ public:
     TColumnarVersionedLookupChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
+        const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
         const TSortColumns& sortColumns,
         IBlockCachePtr blockCache,
@@ -1493,6 +1515,7 @@ public:
         : TColumnarVersionedChunkReaderBase(
             std::move(config),
             chunkMeta,
+            dataSource,
             std::move(underlyingReader),
             sortColumns,
             std::move(blockCache),
@@ -1521,6 +1544,8 @@ public:
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
+        TCurrentTraceContextGuard guard(TraceContext_);
+
         auto readGuard = AcquireReadGuard();
 
         std::vector<TVersionedRow> rows;
@@ -1787,6 +1812,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             reader = New<TSimpleVersionedRangeChunkReader>(
                 std::move(config),
                 chunkMeta,
+                chunkState->DataSource,
                 std::move(chunkReader),
                 blockCache,
                 chunkReadOptions,
@@ -1807,6 +1833,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 unwrappedReader = New<TColumnarVersionedRangeChunkReader<TCompactionColumnarRowBuilder>>(
                     std::move(config),
                     chunkMeta,
+                    chunkState->DataSource,
                     std::move(chunkReader),
                     chunkState->TableSchema->GetSortColumns(),
                     blockCache,
@@ -1820,6 +1847,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 unwrappedReader  = New<TColumnarVersionedRangeChunkReader<TScanColumnarRowBuilder>>(
                     std::move(config),
                     chunkMeta,
+                    chunkState->DataSource,
                     std::move(chunkReader),
                     chunkState->TableSchema->GetSortColumns(),
                     blockCache,
@@ -1965,6 +1993,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             reader = New<TSimpleVersionedLookupChunkReader>(
                 std::move(config),
                 chunkMeta,
+                chunkState->DataSource,
                 std::move(chunkReader),
                 blockCache,
                 chunkReadOptions,
@@ -1985,6 +2014,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 reader = New<TColumnarVersionedLookupChunkReader<TLookupAllVersionsColumnarRowBuilder>>(
                     std::move(config),
                     chunkMeta,
+                    chunkState->DataSource,
                     std::move(chunkReader),
                     chunkState->TableSchema->GetSortColumns(),
                     blockCache,
@@ -1998,6 +2028,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 reader = New<TColumnarVersionedLookupChunkReader<TLookupSingleVersionColumnarRowBuilder>>(
                     std::move(config),
                     chunkMeta,
+                    chunkState->DataSource,
                     std::move(chunkReader),
                     chunkState->TableSchema->GetSortColumns(),
                     blockCache,

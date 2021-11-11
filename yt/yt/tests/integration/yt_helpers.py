@@ -106,8 +106,10 @@ def skip_if_no_descending(env):
         pytest.skip("Rpc proxies do not support descending yet")
 
 
-def write_log_barrier(address, category="Barrier"):
-    return get_driver().write_log_barrier(address=address, category=category)
+def write_log_barrier(address, category="Barrier", driver=None):
+    if driver is None:
+        driver = get_driver()
+    return driver.write_log_barrier(address=address, category=category)
 
 
 def read_structured_log(path, from_barrier=None, to_barrier=None, format=None, category_filter=None, filter=None):

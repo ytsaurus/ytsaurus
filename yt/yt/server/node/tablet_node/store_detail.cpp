@@ -978,7 +978,7 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         chunkData->LookupHashTable,
         PerformanceCounters_,
         GetKeyComparer(),
-        nullptr,
+        /*virtualValueDirectory*/ nullptr,
         Schema_);
 }
 

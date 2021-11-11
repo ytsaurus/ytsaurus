@@ -617,10 +617,10 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
         std::move(chunkSpec),
         std::move(chunkMeta),
         ChunkTimestamp_,
-        nullptr,
+        /*lookupHashTable*/ nullptr,
         PerformanceCounters_,
         GetKeyComparer(),
-        nullptr,
+        /*virtualValueDirectory*/ nullptr,
         Schema_);
 }
 

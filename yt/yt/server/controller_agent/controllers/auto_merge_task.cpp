@@ -478,7 +478,9 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
             GetIntermediatePath(tableIndex),
             TaskHost_->GetOutputTable(tableIndex)->TableUploadOptions.TableSchema,
             /*columns*/ std::nullopt,
-            /*omittedInaccessibleColumns*/ {}));
+            /*omittedInaccessibleColumns*/ {},
+            /*columnRenameDescriptors*/ {}));
+        dataSourceDirectory->DataSources().back().SetObjectId(TaskHost_->GetOutputTable(tableIndex)->ObjectId);
 
         NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
         ToProto(&dataSourceDirectoryExt, dataSourceDirectory);

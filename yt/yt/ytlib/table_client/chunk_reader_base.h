@@ -56,6 +56,9 @@ protected:
 
     TChunkedMemoryPool MemoryPool_;
 
+    NTracing::TTraceContextPtr TraceContext_;
+    NTracing::TTraceContextFinishGuard FinishGuard_;
+
     bool BeginRead();
     bool OnBlockEnded();
 

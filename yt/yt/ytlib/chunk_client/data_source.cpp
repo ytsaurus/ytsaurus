@@ -95,6 +95,14 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     if (dataSource.GetVirtualValueDirectory()) {
         ToProto(protoDataSource->mutable_virtual_value_directory(), dataSource.GetVirtualValueDirectory());
     }
+
+    if (dataSource.GetObjectId()) {
+        ToProto(protoDataSource->mutable_object_id(), *dataSource.GetObjectId());
+    }
+
+    if (dataSource.GetAccount()) {
+        protoDataSource->set_account(*dataSource.GetAccount());
+    }
 }
 
 void FromProto(
@@ -160,6 +168,14 @@ void FromProto(
     if (protoDataSource.has_virtual_value_directory()) {
         dataSource->SetVirtualValueDirectory(FromProto<TVirtualValueDirectoryPtr>(protoDataSource.virtual_value_directory()));
     }
+
+    if (protoDataSource.has_object_id()) {
+        dataSource->SetObjectId(FromProto<NObjectClient::TObjectId>(protoDataSource.object_id()));
+    }
+
+    if (protoDataSource.has_account()) {
+        dataSource->SetAccount(protoDataSource.account());
+    }
 }
 
 TDataSource MakeVersionedDataSource(
@@ -175,7 +191,7 @@ TDataSource MakeVersionedDataSource(
         EDataSourceType::VersionedTable,
         path,
         schema,
-        /* virtualKeyPrefixLength */ 0,
+        /*virtualKeyPrefixLength*/ 0,
         columns,
         omittedInaccessibleColumns,
         timestamp,
@@ -194,11 +210,11 @@ TDataSource MakeUnversionedDataSource(
         EDataSourceType::UnversionedTable,
         path,
         schema,
-        /* virtualKeyPrefixLength */ 0,
+        /*virtualKeyPrefixLength*/ 0,
         columns,
         omittedInaccessibleColumns,
-        NullTimestamp,
-        NullTimestamp,
+        /*timestamp*/ NullTimestamp,
+        /*retentionTimestamp*/ NullTimestamp,
         columnRenameDescriptors);
 }
 
@@ -208,13 +224,13 @@ TDataSource MakeFileDataSource(const std::optional<TYPath>& path)
     return TDataSource(
         EDataSourceType::File,
         path,
-        nullptr,
-        0,
-        std::nullopt,
-        {},
-        NullTimestamp,
-        NullTimestamp,
-        {});
+        /*schema*/ nullptr,
+        /*virtualPrefixLength*/ 0,
+        /*columns*/ std::nullopt,
+        /*omittedInaccessibleColumns*/ {},
+        /*timestamp*/ NullTimestamp,
+        /*retentionTimestamp*/ NullTimestamp,
+        /*columnRenameDescriptors*/ {});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

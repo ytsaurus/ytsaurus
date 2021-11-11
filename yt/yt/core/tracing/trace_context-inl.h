@@ -202,6 +202,12 @@ Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
     return CurrentTraceContext;
 }
 
+Y_FORCE_INLINE TTraceContextPtr CreateTraceContextFromCurrent(TString spanName)
+{
+    auto context = GetCurrentTraceContext();
+    return context ? context->CreateChild(std::move(spanName)) : TTraceContext::NewRoot(std::move(spanName));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TFn>

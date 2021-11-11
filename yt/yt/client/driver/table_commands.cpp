@@ -33,6 +33,7 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +85,14 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
     if (StartRowIndexOnly) {
         Options.Config->WindowSize = 1;
         Options.Config->GroupSize = 1;
+    }
+
+    // TODO(gepardo): move this code into a helper shared across different HTTP proxy methods.
+    if (auto traceContext = GetCurrentTraceContext()) {
+        auto baggage = traceContext->UnpackOrCreateBaggage();
+        baggage->Set("api_method@", "read_table");
+        baggage->Set("proxy_type@", "http");
+        traceContext->PackBaggage(baggage);
     }
 
     auto reader = WaitFor(context->GetClient()->CreateTableReader(

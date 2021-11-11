@@ -230,10 +230,10 @@ TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
         std::move(chunkSpec),
         std::move(chunkMeta),
         ChunkTimestamp_,
-        nullptr /* lookupHashTable */,
+        /*lookupHashTable*/ nullptr,
         New<TChunkReaderPerformanceCounters>(),
         TableSchema_->RowKeyComparer,
-        nullptr /* virtualValueDirectory */,
+        /*virtualValueDirectory*/ nullptr,
         TableSchema_->TableSchema);
 
     TWireProtocolWriter writer;

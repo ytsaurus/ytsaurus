@@ -98,6 +98,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NProfiling;
 using namespace NLogging;
+using namespace NTracing;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -4001,6 +4002,15 @@ private:
             options.Unordered,
             options.OmitInaccessibleColumns,
             NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat));
+
+        // TODO(gepardo): move this code into a helper shared across different RPC proxy methods.
+        const auto& traceContext = GetCurrentTraceContext();
+        if (traceContext) {
+            auto baggage = traceContext->UnpackOrCreateBaggage();
+            baggage->Set("api_method@", "read_table");
+            baggage->Set("proxy_type@", "rpc");
+            traceContext->PackBaggage(baggage);
+        }
 
         auto tableReader = WaitFor(client->CreateTableReader(path, options))
             .ValueOrThrow();

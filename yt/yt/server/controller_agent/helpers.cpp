@@ -112,6 +112,7 @@ void BuildFileSpecs(
                 file.Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
                 file.Path.GetRetentionTimestamp().value_or(NullTimestamp),
                 file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
+            dataSource.SetObjectId(file.ObjectId);
 
             ToProto(descriptor->mutable_data_source(), dataSource);
         } else {
@@ -123,6 +124,7 @@ void BuildFileSpecs(
                     file.Path.GetColumns(),
                     file.OmittedInaccessibleColumns,
                     file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
+            dataSource.SetObjectId(file.ObjectId);
 
             ToProto(descriptor->mutable_data_source(), dataSource);
         }
@@ -164,16 +166,18 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     if (schemas.empty()) {
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
             GetIntermediatePath(0),
-            /* schema */ nullptr,
-            /* columns */ std::nullopt,
-            /* omittedInaccessibleColumns */ {}));
+            /*schema*/ nullptr,
+            /*columns*/ std::nullopt,
+            /*omittedInaccessibleColumns*/ {},
+            /*columnRenameDescriptors*/ {}));
     } else {
         for (int i = 0; i < std::ssize(schemas); ++i) {
             dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
                 GetIntermediatePath(i),
                 schemas[i],
-                /* columns */ std::nullopt,
-                /* omittedInaccessibleColumns */ {}));
+                /*columns*/ std::nullopt,
+                /*omittedInaccessibleColumns*/ {},
+                /*columnRenameDescriptors*/ {}));
         }
     }
 

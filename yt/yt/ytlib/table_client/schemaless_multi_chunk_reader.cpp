@@ -219,12 +219,14 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         auto chunkState = New<TChunkState>(
                             blockCache,
                             chunkSpec,
-                            nullptr,
+                            /*chunkMeta*/ nullptr,
                             NullTimestamp,
-                            nullptr,
-                            nullptr,
-                            nullptr,
-                            dataSource.GetVirtualValueDirectory());
+                            /*lookupHashTable*/ nullptr,
+                            /*performanceCounters*/ nullptr,
+                            /*keyComparer*/ nullptr,
+                            dataSource.GetVirtualValueDirectory(),
+                            /*tableSchema*/ nullptr);
+                        chunkState->DataSource = dataSource;
 
                         return CreateSchemalessRangeChunkReader(
                             std::move(chunkState),
@@ -1134,6 +1136,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         rpsThrottler,
         renameDescriptors,
         multiReaderMemoryManager,
+        dataSource,
         Logger
     ] (
         const TChunkSpec& chunkSpec,
@@ -1194,13 +1197,14 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         auto chunkState = New<TChunkState>(
             blockCache,
             chunkSpec,
-            nullptr,
+            /*chunkMeta*/ nullptr,
             chunkSpec.has_override_timestamp() ? chunkSpec.override_timestamp() : NullTimestamp,
-            nullptr,
+            /*lookupHashTable*/ nullptr,
             performanceCounters,
-            nullptr,
-            nullptr,
+            /*keyComparer*/ nullptr,
+            /*virtualValueDirectory*/ nullptr,
             versionedReadSchema);
+        chunkState->DataSource = dataSource;
 
         return CreateVersionedChunkReader(
             config,

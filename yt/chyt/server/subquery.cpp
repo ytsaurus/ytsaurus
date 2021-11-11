@@ -635,20 +635,22 @@ private:
             auto& dataSource = TableReadSpecs_[tableIndex].DataSourceDirectory->DataSources().emplace_back();
             if (table->Dynamic) {
                 dataSource = MakeVersionedDataSource(
-                    std::nullopt /* path */,
+                    /*path*/ std::nullopt,
                     table->Schema,
-                    std::nullopt /* columns */,
+                    /*columns*/ std::nullopt,
                     // TODO(max42): YT-10402, omitted inaccessible columns
-                    {},
+                    /*omittedInaccessibleColumns*/ {},
                     table->Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
-                    table->Path.GetRetentionTimestamp().value_or(NullTimestamp));
+                    table->Path.GetRetentionTimestamp().value_or(NullTimestamp),
+                    /*columnRenameDescriptors*/ {});
             } else {
                 dataSource = MakeUnversionedDataSource(
                     std::nullopt /* path */,
                     table->Schema,
                     std::nullopt /* columns */,
                     // TODO(max42): YT-10402, omitted inaccessible columns
-                    {});
+                    /*omittedInaccessibleColumns*/ {},
+                    /*columnRenameDescriptors*/ {});
             }
 
             // We do not need to fetch anything if table was filtered by index.
