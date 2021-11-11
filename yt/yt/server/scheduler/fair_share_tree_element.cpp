@@ -279,7 +279,7 @@ void TScheduleJobsContext::LogStageStatistics()
 
     YT_LOG_DEBUG(
         "%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, TotalHeapElementCount: %v, "
-        "DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v, SchedulingSegment: %v)",
+        "DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v, SchedulingSegment: %v, MaxSchedulingIndex: %v)",
         StageState_->SchedulingStage->LoggingName,
         StageState_->ActiveTreeSize,
         StageState_->ActiveOperationCount,
@@ -287,7 +287,8 @@ void TScheduleJobsContext::LogStageStatistics()
         StageState_->DeactivationReasons,
         SchedulingContext_->CanStartMoreJobs(),
         SchedulingContext_->GetNodeDescriptor().Address,
-        SchedulingContext_->GetSchedulingSegment());
+        SchedulingContext_->GetSchedulingSegment(),
+        StageState_->MaxSchedulingIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3130,7 +3131,8 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
         scheduleJobResult->ControllerEpoch,
         startDescriptor,
         Spec_->PreemptionMode,
-        context->GetStageType());
+        context->GetStageType(),
+        schedulingIndex);
 
     UpdateCurrentResourceUsage(context);
 

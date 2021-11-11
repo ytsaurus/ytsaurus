@@ -2597,12 +2597,13 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
     YT_VERIFY(node->IdToJob().emplace(job->GetId(), job).second);
     ++ActiveJobCount_;
 
-    YT_LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v)",
+    YT_LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v, SchedulingIndex: %v)",
         job->GetId(),
         job->GetType(),
         job->IsRevived(),
         job->GetOperationId(),
-        job->GetControllerEpoch());
+        job->GetControllerEpoch(),
+        job->GetSchedulingIndex());
 }
 
 void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)

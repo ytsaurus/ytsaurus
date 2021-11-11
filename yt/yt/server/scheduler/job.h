@@ -81,7 +81,10 @@ class TJob
     DEFINE_BYVAL_RO_PROPERTY(EPreemptionMode, PreemptionMode);
 
     //! Stage job was scheduled at.
-    DEFINE_BYVAL_RW_PROPERTY(EJobSchedulingStage, SchedulingStage);
+    DEFINE_BYVAL_RO_PROPERTY(EJobSchedulingStage, SchedulingStage);
+
+    //! Index of operation when job was scheduled.
+    DEFINE_BYVAL_RO_PROPERTY(int , SchedulingIndex);
 
     //! Flag that marks job as preempted by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted, false);
@@ -124,6 +127,7 @@ public:
         EPreemptionMode preemptionMode,
         TString treeId,
         EJobSchedulingStage schedulingStage,
+        int schedulingIndex,
         NNodeTrackerClient::TNodeId revivalNodeId = NNodeTrackerClient::InvalidNodeId,
         TString revivalNodeAddress = TString());
 
