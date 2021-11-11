@@ -6,7 +6,7 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ICellBalancer
+class ICellTracker
     : public TRefCounted
 {
 public:
@@ -15,11 +15,11 @@ public:
     virtual NYTree::IYPathServicePtr CreateOrchidService() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ICellBalancer)
+DEFINE_REFCOUNTED_TYPE(ICellTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICellBalancerPtr CreateCellBalancer(IBootstrap* bootstrap, TCellBalancerConfigPtr config);
+ICellTrackerPtr CreateCellTracker(IBootstrap* bootstrap, TCellBalancerConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

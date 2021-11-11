@@ -1,6 +1,6 @@
 #include "bootstrap.h"
 
-#include "cell_balancer.h"
+#include "cell_tracker.h"
 #include "config.h"
 #include "master_connector.h"
 
@@ -137,7 +137,7 @@ private:
 
     ICypressElectionManagerPtr ElectionManager_;
     IMasterConnectorPtr MasterConnector_;
-    ICellBalancerPtr CellBalancer_;
+    ICellTrackerPtr CellTracker_;
 
     void DoInitialize()
     {
@@ -165,7 +165,7 @@ private:
             options);
 
         MasterConnector_ = CreateMasterConnector(this, Config_->MasterConnector);
-        CellBalancer_ = CreateCellBalancer(this, Config_->CellBalancer);
+        CellTracker_ = CreateCellTracker(this, Config_->CellBalancer);
 
         NMonitoring::Initialize(
             HttpServer_,
@@ -180,7 +180,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/cell_balancer",
-            CreateVirtualNode(CellBalancer_->CreateOrchidService()->Via(GetControlInvoker())));
+            CreateVirtualNode(CellTracker_->CreateOrchidService()->Via(GetControlInvoker())));
         SetBuildAttributes(
             OrchidRoot_,
             "cell_balancer");
@@ -205,7 +205,7 @@ private:
 
         ElectionManager_->Start();
 
-        CellBalancer_->Start();
+        CellTracker_->Start();
     }
 };
 
