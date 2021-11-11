@@ -55,7 +55,46 @@ inline const TString& TSchedulerElement::GetLoggingTags() const
 
 inline bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
 {
-    return dynamicAttributesList[GetTreeIndex()].Active;
+    return dynamicAttributesList.AttributesOf(this).Active;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TDynamicAttributesList::TDynamicAttributesList(int size)
+    : Value_(static_cast<size_t>(size))
+{ }
+
+inline TDynamicAttributes& TDynamicAttributesList::AttributesOf(const TSchedulerElement* element)
+{
+    int index = element->GetTreeIndex();
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(Value_));
+    return Value_[index];
+}
+
+inline const TDynamicAttributes& TDynamicAttributesList::AttributesOf(const TSchedulerElement* element) const
+{
+    int index = element->GetTreeIndex();
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(Value_));
+    return Value_[index];
+}
+
+inline void TDynamicAttributesList::InitializeResourceUsage(
+    TSchedulerRootElement* rootElement,
+    const TResourceUsageSnapshotPtr& resourceUsageSnapshot,
+    NProfiling::TCpuInstant now)
+{
+    Value_.resize(rootElement->GetSchedulableElementCount());
+    rootElement->FillResourceUsageInDynamicAttributes(this, resourceUsageSnapshot);
+    for (auto& attributes : Value_) {
+        attributes.ResourceUsageUpdateTime = now;
+    }
+}
+
+inline void TDynamicAttributesList::DeactivateAll()
+{
+    for (auto& attributes : Value_) {
+        attributes.Active = false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,18 +103,14 @@ inline TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSch
 {
     YT_ASSERT(Initialized_);
 
-    int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
-    return DynamicAttributesList_[index];
+    return DynamicAttributesList_.AttributesOf(element);
 }
 
 inline const TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSchedulerElement* element) const
 {
     YT_ASSERT(Initialized_);
 
-    int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
-    return DynamicAttributesList_[index];
+    return DynamicAttributesList_.AttributesOf(element);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

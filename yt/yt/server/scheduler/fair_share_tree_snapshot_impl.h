@@ -3,6 +3,8 @@
 #include "private.h"
 #include "fair_share_tree_element.h"
 
+#include <yt/yt/core/misc/atomic_ptr.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,6 +42,12 @@ public:
     TSchedulerPoolElement* FindPool(const TString& poolName) const;
     TSchedulerOperationElement* FindEnabledOperationElement(TOperationId operationId) const;
     TSchedulerOperationElement* FindDisabledOperationElement(TOperationId operationId) const;
+
+    TDynamicAttributesListSnapshotPtr GetDynamicAttributesListSnapshot() const;
+    void SetDynamicAttributesListSnapshot(TDynamicAttributesListSnapshotPtr value);
+
+private:
+    TAtomicPtr<TDynamicAttributesListSnapshot> DynamicAttributesListSnapshot_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeSnapshotImpl)

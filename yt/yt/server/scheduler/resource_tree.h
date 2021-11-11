@@ -48,7 +48,7 @@ public:
     void ChangeParent(
         const TResourceTreeElementPtr& element,
         const TResourceTreeElementPtr& newParent,
-        // NB: this argument indicates that resource usage of the element must be explicitly calculated 
+        // NB: this argument indicates that resource usage of the element must be explicitly calculated
         // for correct transfer of ancestor's resource usage.
         const std::optional<std::vector<TResourceTreeElementPtr>>& descendantOperationElements);
     void ScheduleDetachParent(const TResourceTreeElementPtr& element);
@@ -66,14 +66,12 @@ public:
     void InitializeResourceUsageFor(
         const TResourceTreeElementPtr& targetElement,
         const std::vector<TResourceTreeElementPtr>& operationElements);
-    
+
 private:
     std::vector<IInvokerPtr> FeasibleInvokers_;
 
     std::atomic<bool> EnableStructureLockProfiling = false;
     std::atomic<bool> EnableUsageLockProfiling = false;
-    
-    TAtomicObject<std::shared_ptr<THashMap<TOperationId, TJobResources>>> ResourceUsageSnapshot_;
 
     THashSet<TResourceTreeElementPtr> AliveElements_;
 
