@@ -98,6 +98,9 @@ public:
     // Alert can be set only if number of jobs less than or equal to this threshold.
     std::optional<int> MemoryUsageAlertMaxJobCount;
 
+    // Alert can be set when memory reserve factor equals 1 and unused memory ratio greater than this threshold.
+    double MemoryReserveFactorAlertMaxUnusedRatio;
+
     // Maximum allowed aborted jobs time. If it is violated
     // then operation alert will be set.
     i64 AbortedJobsAlertMaxAbortedTime;

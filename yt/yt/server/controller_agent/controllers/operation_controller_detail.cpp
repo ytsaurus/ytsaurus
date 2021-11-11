@@ -3977,6 +3977,17 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
                     << TErrorAttribute("memory_usage", memoryUsage));
             }
 
+            if (memoryInfo.JobSpec->MemoryReserveFactor &&
+                *memoryInfo.JobSpec->MemoryReserveFactor >= 1 &&
+                memoryUsageRatio < 1.0 - Config->OperationAlerts->MemoryReserveFactorAlertMaxUnusedRatio) {
+                memoryErrors.push_back(TError(
+                    "Jobs of type %Qlv use less than %.1f%% of requested memory with memory reserve factor set to 1",
+                    task->GetVertexDescriptor(),
+                    100.0 * (1.0 - Config->OperationAlerts->MemoryReserveFactorAlertMaxUnusedRatio))
+                    << TErrorAttribute("memory_reserve", memoryInfo.MemoryReserve)
+                    << TErrorAttribute("memory_usage", memoryUsage));
+            }
+
             if (memoryUsageRatio > Config->OperationAlerts->TmpfsAlertMemoryUsageMuteRatio) {
                 skipTmpfsCheck = true;
             }

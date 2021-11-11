@@ -52,6 +52,10 @@ void TOperationAlertsConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThan(0);
 
+    registrar.Parameter("memory_reserve_factor_alert_max_unused_ratio", &TThis::MemoryReserveFactorAlertMaxUnusedRatio)
+        .InRange(0.0, 1.0)
+        .Default(0.8);
+
     registrar.Parameter("aborted_jobs_alert_max_aborted_time", &TThis::AbortedJobsAlertMaxAbortedTime)
         .Default((i64) 10 * 60 * 1000)
         .GreaterThan(0);
