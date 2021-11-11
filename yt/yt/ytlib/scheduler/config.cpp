@@ -1420,7 +1420,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_table_index_if_has_trivial_mapper", &TThis::EnableTableIndexIfHasTrivialMapper)
-        .Default(true);
+        .Default(false);
 
     // The following settings are inherited from base but make no sense for map-reduce:
     //   SimpleSortLocalityTimeout

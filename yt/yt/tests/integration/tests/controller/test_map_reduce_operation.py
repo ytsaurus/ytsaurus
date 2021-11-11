@@ -52,6 +52,7 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
             "operation_options": {
                 "spec_template": {
                     "use_new_sorted_pool": False,
+                    "enable_table_index_if_has_trivial_mapper": True,
                 }
             },
         }
@@ -2822,6 +2823,7 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
             "operation_options": {
                 "spec_template": {
                     "use_new_sorted_pool": True,
+                    "enable_table_index_if_has_trivial_mapper": True,
                 },
             },
         }
