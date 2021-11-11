@@ -730,6 +730,7 @@ public:
 
         TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources> scheduledJobResources;
         TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources;
+        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResourceTimes;
 
         for (const auto& job : startedJobs) {
             TOperationId operationId = job->GetOperationId();
@@ -743,13 +744,15 @@ public:
             const TJobResources& preemptedResourcesDelta = job->ResourceLimits();
             EJobPreemptionReason preemptionReason = preemptedJob.PreemptionReason;
             preemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;
+            preemptedJobResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(job->GetExecDuration().Seconds());
         }
 
         Host->GetFairShareProfilingInvoker()->Invoke(BIND(
             &IFairShareTreeSnapshot::ApplyScheduledAndPreemptedResourcesDelta,
             snapshot,
             Passed(std::move(scheduledJobResources)),
-            Passed(std::move(preemptedJobResources))));
+            Passed(std::move(preemptedJobResources)),
+            Passed(std::move(preemptedJobResourceTimes))));
     }
 
     TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation) override

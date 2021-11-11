@@ -218,13 +218,14 @@ class TestPoolMetrics(YTEnvSetup):
         create_pool("child2", parent_name="parent")
 
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
-        scheduled_cpu_non_preemptive_child1_counter = profiler.counter("scheduler/pools/scheduled_job_resources/non_preemptive/cpu", {"pool": "child1"})
-        preempted_cpu_preemption_child1_counter = profiler.counter("scheduler/pools/preempted_job_resources/preemption/cpu", {"pool": "child1"})
-        scheduled_cpu_preemptive_child2_counter = profiler.counter("scheduler/pools/scheduled_job_resources/preemptive/cpu", {"pool": "child2"})
-        scheduled_cpu_non_preemptive_parent_counter = profiler.counter("scheduler/pools/scheduled_job_resources/non_preemptive/cpu", {"pool": "parent"})
-        preempted_cpu_preemption_parent_counter = profiler.counter("scheduler/pools/preempted_job_resources/preemption/cpu", {"pool": "parent"})
-        scheduled_cpu_preemptive_parent_counter = profiler.counter("scheduler/pools/scheduled_job_resources/preemptive/cpu", {"pool": "parent"})
-        preempted_cpu_overcommit_child1_counter = profiler.counter("scheduler/pools/preempted_job_resources/resource_overcommit/cpu", {"pool": "child1"})
+        scheduled_cpu_non_preemptive_child1_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "child1", "scheduling_stage": "non_preemptive"})
+        scheduled_cpu_preemptive_child2_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "child2", "scheduling_stage": "preemptive"})
+        scheduled_cpu_non_preemptive_parent_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "parent", "scheduling_stage": "non_preemptive"})
+        scheduled_cpu_preemptive_parent_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "parent", "scheduling_stage": "preemptive"})
+        preempted_cpu_preemption_child1_counter = profiler.counter("scheduler/pools/preempted_job_resources/cpu", {"pool": "child1", "preemption_reason": "preemption"})
+        preempted_cpu_preemption_parent_counter = profiler.counter("scheduler/pools/preempted_job_resources/cpu", {"pool": "parent", "preemption_reason": "preemption"})
+        preempted_cpu_overcommit_child1_counter = profiler.counter("scheduler/pools/preempted_job_resources/cpu", {"pool": "child1", "preemption_reason": "resource_overcommit"})
+        preempted_cpu_time_preemption_child1_counter = profiler.counter("scheduler/pools/preempted_job_resource_times/cpu", {"pool": "child1", "preemption_reason": "preemption"})
 
         op1 = run_sleeping_vanilla(
             job_count=3,
@@ -235,6 +236,9 @@ class TestPoolMetrics(YTEnvSetup):
         )
         wait(lambda: exists(scheduler_orchid_operation_path(op1.id)))
         wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/resource_usage/cpu") == 3.0)
+
+        # To ensure some exec time for op1's jobs.
+        time.sleep(3.0)
 
         op2 = run_sleeping_vanilla(
             job_count=1,
@@ -252,6 +256,9 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: scheduled_cpu_non_preemptive_parent_counter.get_delta() == 3)
         wait(lambda: preempted_cpu_preemption_parent_counter.get_delta() == 1)
         wait(lambda: scheduled_cpu_preemptive_parent_counter.get_delta() == 1)
+
+        # 1 preempted job * 3 CPU-seconds.
+        wait(lambda: preempted_cpu_time_preemption_child1_counter.get_delta() >= 3)
 
         wait(lambda: len(op1.list_jobs()) == 2)
         job = op1.list_jobs()[0]

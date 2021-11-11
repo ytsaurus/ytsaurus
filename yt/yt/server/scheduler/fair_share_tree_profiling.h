@@ -40,7 +40,8 @@ public:
     void ApplyScheduledAndPreemptedResourcesDelta(
         const TFairShareTreeSnapshotImplPtr& treeSnapshot,
         const TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources>& operationIdWithStageToScheduledJobResourcesDeltas,
-        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourcesDeltas);
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourcesDeltas,
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourceTimeDeltas);
 
 private:
     const NProfiling::TProfiler Profiler_;
@@ -92,6 +93,7 @@ private:
     THashMap<TString, TJobMetrics> JobMetricsMap_;
     TEnumIndexedVector<EJobSchedulingStage, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
     TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
+    TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
 
     THashMap<TOperationId, TOperationProfilingEntry> OperationIdToProfilingEntry_;
     
