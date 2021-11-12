@@ -297,6 +297,19 @@ TConcatTablesSettings::TConcatTablesSettings()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TQueryRegistryConfig::TQueryRegistryConfig()
+{
+    RegisterParameter("process_list_snapshot_update_period", ProcessListSnapshotUpdatePeriod)
+        .Default(TDuration::Seconds(1));
+
+    RegisterParameter("save_running_queries", SaveRunningQueries)
+        .Default(true);
+    RegisterParameter("save_users", SaveUsers)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TYtConfig::TYtConfig()
 {
     RegisterParameter("clique_id", CliqueId)
@@ -343,9 +356,6 @@ TYtConfig::TYtConfig()
 
     RegisterParameter("permission_cache", PermissionCache)
         .DefaultNew();
-
-    RegisterParameter("process_list_snapshot_update_period", ProcessListSnapshotUpdatePeriod)
-        .Default(TDuration::Seconds(1));
 
     RegisterParameter("worker_thread_count", WorkerThreadCount)
         .Default(8);
@@ -394,6 +404,9 @@ TYtConfig::TYtConfig()
         .DefaultNew();
 
     RegisterParameter("query_statistics_reporter", QueryStatisticsReporter)
+        .DefaultNew();
+
+    RegisterParameter("query_registry", QueryRegistry)
         .DefaultNew();
 
     RegisterPreprocessor([&] {

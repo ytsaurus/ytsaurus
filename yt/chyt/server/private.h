@@ -88,6 +88,7 @@ DECLARE_REFCOUNTED_CLASS(TQueryStatisticsReporter);
 DECLARE_REFCOUNTED_CLASS(TQueryStatisticsReporterConfig);
 DECLARE_REFCOUNTED_CLASS(TGossipConfig);
 DECLARE_REFCOUNTED_CLASS(TInvokerLivenessCheckerConfig);
+DECLARE_REFCOUNTED_CLASS(TQueryRegistryConfig);
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryHeader);
 DECLARE_REFCOUNTED_CLASS(TInvokerLivenessChecker);
 DECLARE_REFCOUNTED_CLASS(TConcatTablesSettings);
