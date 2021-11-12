@@ -12,6 +12,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/dynamic_store.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
@@ -569,6 +570,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, UnconfirmedDynamicTableLocks_);
     Save(context, EdenStoreIds_);
     Save(context, BackupState_);
+    Save(context, DynamicStores_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -601,6 +603,10 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BackupsInitial) {
         Load(context, BackupState_);
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::RefFromTabletToDynamicStore) {
+        Load(context, DynamicStores_);
     }
 }
 

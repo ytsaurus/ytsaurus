@@ -13,6 +13,7 @@ namespace NYT::NChunkServer {
 using namespace NTabletClient;
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,12 +93,35 @@ TChunkTreeStatistics TDynamicStore::GetStatistics() const
     return statistics;
 }
 
+void TDynamicStore::SetTablet(TTablet* tablet)
+{
+    if (Tablet_) {
+        EraseOrCrash(Tablet_->DynamicStores(), this);
+    }
+
+    Tablet_ = tablet;
+
+    if (Tablet_) {
+        InsertOrCrash(Tablet_->DynamicStores(), this);
+    }
+}
+
+TTablet* TDynamicStore::GetTablet() const
+{
+    return Tablet_;
+}
+
+void TDynamicStore::ResetTabletCompat()
+{
+    Tablet_ = nullptr;
+}
+
 void TDynamicStore::SetFlushedChunk(TChunk* chunk)
 {
     YT_VERIFY(!IsFlushed());
     Flushed_ = true;
     FlushedChunk_ = chunk;
-    Tablet_ = nullptr;
+    SetTablet(nullptr);
     if (chunk) {
         chunk->RefObject();
     }
@@ -110,7 +134,7 @@ bool TDynamicStore::IsFlushed() const
 
 void TDynamicStore::Abandon()
 {
-    Tablet_ = nullptr;
+    SetTablet(nullptr);
 }
 
 bool TDynamicStore::IsAbandoned() const
