@@ -127,22 +127,11 @@ DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerManager)
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
 
-union TDynamicValueData;
-struct TDynamicValue;
-
-struct TEditListHeader;
-template <class T>
-class TEditList;
-using TValueList = TEditList<TDynamicValue>;
-using TRevisionList = TEditList<ui32>;
-
 struct ITabletContext;
 
 struct TWriteContext;
 
 using TSyncReplicaIdList = SmallVector<TTableReplicaId, 2>;
-
-DECLARE_REFCOUNTED_STRUCT(IRowComparerProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 

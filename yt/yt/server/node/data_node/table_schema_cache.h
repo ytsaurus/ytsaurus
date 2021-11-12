@@ -2,9 +2,11 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
+#include <yt/yt/client/hydra/public.h>
 
 #include <yt/yt/client/object_client/public.h>
+
+#include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/misc/sync_cache.h>
 
@@ -17,19 +19,6 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TSchemaCacheKey = std::pair<NObjectClient::TObjectId, NHydra::TRevision>;
-
-struct TCachedTableSchema
-    : public TRefCounted
-{
-    TCachedTableSchema(
-        NTableClient::TTableSchemaPtr tableSchema,
-        NTabletNode::TSortedDynamicRowKeyComparer rowKeyComparer);
-
-    NTableClient::TTableSchemaPtr TableSchema;
-    NTabletNode::TSortedDynamicRowKeyComparer RowKeyComparer;
-};
-
-DEFINE_REFCOUNTED_TYPE(TCachedTableSchema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,9 +35,9 @@ public:
 
     bool TryRequestSchema();
 
-    TCachedTableSchemaPtr GetValue();
+    NTableClient::TTableSchemaPtr GetValue();
 
-    void SetValue(TCachedTableSchemaPtr cachedTableSchema);
+    void SetValue(NTableClient::TTableSchemaPtr cachedTableSchema);
 
     i64 GetWeight() const;
 
@@ -60,7 +49,7 @@ private:
 
     // NB: For concurrent access of CachedTableSchema_.
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
-    TCachedTableSchemaPtr CachedTableSchema_;
+    NTableClient::TTableSchemaPtr TableSchema_;
 
     bool CheckSchemaSet();
 };

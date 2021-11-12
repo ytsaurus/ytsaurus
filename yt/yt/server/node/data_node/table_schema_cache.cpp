@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/node/data_node/config.h>
 
-#include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
-
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/misc/sync_cache.h>
@@ -18,15 +16,6 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NHydra;
 using namespace NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCachedTableSchema::TCachedTableSchema(
-    NTableClient::TTableSchemaPtr tableSchema,
-    NTabletNode::TSortedDynamicRowKeyComparer rowKeyComparer)
-    : TableSchema(std::move(tableSchema))
-    , RowKeyComparer(std::move(rowKeyComparer))
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,22 +54,22 @@ bool TCachedTableSchemaWrapper::TryRequestSchema()
     return NextRequestTime_.compare_exchange_strong(allowedRequestTime, curTime + RequestTimeout_);
 }
 
-TCachedTableSchemaPtr TCachedTableSchemaWrapper::GetValue()
+NTableClient::TTableSchemaPtr TCachedTableSchemaWrapper::GetValue()
 {
     auto guard = ReaderGuard(SpinLock_);
     YT_VERIFY(CheckSchemaSet());
-    return CachedTableSchema_;
+    return TableSchema_;
 }
 
-void TCachedTableSchemaWrapper::SetValue(TCachedTableSchemaPtr cachedTableSchema)
+void TCachedTableSchemaWrapper::SetValue(NTableClient::TTableSchemaPtr tableSchema)
 {
     auto guard = WriterGuard(SpinLock_);
     if (CheckSchemaSet()) {
-        YT_VERIFY(*CachedTableSchema_->TableSchema == *cachedTableSchema->TableSchema);
+        YT_VERIFY(*TableSchema_ == *tableSchema);
         return;
     }
 
-    CachedTableSchema_ = std::move(cachedTableSchema);
+    TableSchema_ = std::move(tableSchema);
 }
 
 i64 TCachedTableSchemaWrapper::GetWeight() const
@@ -92,7 +81,7 @@ bool TCachedTableSchemaWrapper::CheckSchemaSet()
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
-    return static_cast<bool>(CachedTableSchema_);
+    return static_cast<bool>(TableSchema_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

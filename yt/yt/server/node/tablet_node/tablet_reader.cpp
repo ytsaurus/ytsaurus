@@ -339,7 +339,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
             const TUnversionedValue* lhsEnd,
             const TUnversionedValue* rhsBegin,
             const TUnversionedValue* rhsEnd) {
-            return keyComparer(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
+            return keyComparer(MakeRange(lhsBegin, lhsEnd), MakeRange(rhsBegin, rhsEnd));
         });
 
     return WrapSchemafulTabletReader(
@@ -766,7 +766,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
             const TUnversionedValue* rhsBegin,
             const TUnversionedValue* rhsEnd)
         {
-            return keyComparer(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
+            return keyComparer(MakeRange(lhsBegin, lhsEnd), MakeRange(rhsBegin, rhsEnd));
         },
         minConcurrency);
 

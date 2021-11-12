@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dynamic_store_bits.h"
+#include "dynamic_value.h"
 
 #include <yt/yt/library/codegen/type_builder.h>
 
@@ -11,7 +11,7 @@ namespace NYT::NCodegen {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-struct TTypeBuilder<NYT::NTabletNode::TDynamicString>
+struct TTypeBuilder<NYT::NTabletClient::TDynamicString>
 {
 public:
     typedef TTypeBuilder<i32> TLength;
@@ -31,30 +31,30 @@ public:
     }
 
     static_assert(
-        std::is_standard_layout<NYT::NTabletNode::TDynamicString>::value,
+        std::is_standard_layout<NYT::NTabletClient::TDynamicString>::value,
         "TDynamicString must be of standart layout type");
     static_assert(
-        sizeof(NYT::NTabletNode::TDynamicString) <= 8,
+        sizeof(NYT::NTabletClient::TDynamicString) <= 8,
         "TDynamicString must be of type {i32, i8}");
     static_assert(
-        offsetof(NYT::NTabletNode::TDynamicString, Length) == 0
-            && sizeof(NYT::NTabletNode::TDynamicString::Length) == 4,
+        offsetof(NYT::NTabletClient::TDynamicString, Length) == 0
+            && sizeof(NYT::NTabletClient::TDynamicString::Length) == 4,
         "TDynamicString must be of type {i32, i8}");
     static_assert(
-        offsetof(NYT::NTabletNode::TDynamicString, Data) == 4
-            && sizeof(NYT::NTabletNode::TDynamicString::Data) == 1,
+        offsetof(NYT::NTabletClient::TDynamicString, Data) == 4
+            && sizeof(NYT::NTabletClient::TDynamicString::Data) == 1,
         "TDynamicString must be of type {i32, i8}");
 };
 
 template <>
-struct TTypeBuilder<NYT::NTabletNode::TDynamicValueData>
+struct TTypeBuilder<NYT::NTabletClient::TDynamicValueData>
 {
 public:
     typedef TTypeBuilder<char> TBoolean;
     typedef TTypeBuilder<i64> TInt64;
     typedef TTypeBuilder<ui64> TUint64;
     typedef TTypeBuilder<double> TDouble;
-    typedef TTypeBuilder<NYT::NTabletNode::TDynamicString*> TStringType;
+    typedef TTypeBuilder<NYT::NTabletClient::TDynamicString*> TStringType;
 
     enum Fields
     {
@@ -72,10 +72,10 @@ public:
     }
 
     static_assert(
-        std::is_union<NYT::NTabletNode::TDynamicValueData>::value,
+        std::is_union<NYT::NTabletClient::TDynamicValueData>::value,
         "TDynamicValueData must be a union");
     static_assert(
-        sizeof(NYT::NTabletNode::TDynamicValueData) == 8,
+        sizeof(NYT::NTabletClient::TDynamicValueData) == 8,
         "TDynamicValueData size must be 64bit");
 };
 

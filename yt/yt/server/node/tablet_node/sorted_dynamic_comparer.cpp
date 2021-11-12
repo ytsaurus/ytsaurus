@@ -1,136 +1,49 @@
 #include "sorted_dynamic_comparer.h"
 #include "private.h"
-#include "dynamic_store_bits.h"
-#include "row_comparer_generator.h"
-
-#include <yt/yt/core/misc/sync_cache.h>
 
 namespace NYT::NTabletNode {
 
-using namespace NCodegen;
-using namespace NTableClient;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortedDynamicRowKeyComparer::TSortedDynamicRowKeyComparer(
-    int keyColumnCount,
-    TCGFunction<TDDComparerSignature> ddComparer,
-    TCGFunction<TDUComparerSignature> duComparer,
-    TCGFunction<TUUComparerSignature> uuComparer)
-    : KeyColumnCount_(keyColumnCount)
-    , DDComparer_(std::move(ddComparer))
-    , DUComparer_(std::move(duComparer))
-    , UUComparer_(std::move(uuComparer))
-{ }
-
-TSortedDynamicRowKeyComparer TSortedDynamicRowKeyComparer::Create(
-    TRange<EValueType> keyColumnTypes)
+TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row)
 {
-    TCGFunction<TDDComparerSignature> ddComparer;
-    TCGFunction<TDUComparerSignature> duComparer;
-    TCGFunction<TUUComparerSignature> uuComparer;
-    std::tie(ddComparer, duComparer, uuComparer) = GenerateComparers(keyColumnTypes);
-    return TSortedDynamicRowKeyComparer(
-        keyColumnTypes.Size(),
-        std::move(ddComparer),
-        std::move(duComparer),
-        std::move(uuComparer));
+    return MakeRange(row.Begin(), row.End());
 }
+
+TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row, int prefix)
+{
+    YT_VERIFY(prefix <= static_cast<int>(row.GetCount()));
+    return MakeRange(row.Begin(), prefix);
+}
+
+TRange<TUnversionedValue> ToKeyRef(TVersionedRow row)
+{
+    return MakeRange(row.BeginKeys(), row.EndKeys());
+}
+
+TSortedDynamicRowKeyComparer::TSortedDynamicRowKeyComparer(NTabletClient::TCGKeyComparers comparers)
+    : NTabletClient::TCGKeyComparers(std::move(comparers))
+{ }
 
 int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TSortedDynamicRow rhs) const
 {
-    return DDComparer_(
-        lhs.GetNullKeyMask(),
-        lhs.BeginKeys(),
-        rhs.GetNullKeyMask(),
-        rhs.BeginKeys());
+    return DDComparer(lhs.GetNullKeyMask(), lhs.BeginKeys(), rhs.GetNullKeyMask(), rhs.BeginKeys());
 }
 
-int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TUnversionedRowWrapper rhs) const
+int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TRange<TUnversionedValue> rhs) const
 {
-    YT_ASSERT(static_cast<int>(rhs.Row.GetCount()) >= KeyColumnCount_);
-    return DUComparer_(
-        lhs.GetNullKeyMask(),
-        lhs.BeginKeys(),
-        rhs.Row.Begin(),
-        KeyColumnCount_);
+    return DUComparer(lhs.GetNullKeyMask(), lhs.BeginKeys(), rhs.Begin(), rhs.Size());
 }
 
-int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TVersionedRowWrapper rhs) const
+int TSortedDynamicRowKeyComparer::operator()(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs) const
 {
-    YT_ASSERT(rhs.Row.GetKeyCount() == KeyColumnCount_);
-    return DUComparer_(
-        lhs.GetNullKeyMask(),
-        lhs.BeginKeys(),
-        rhs.Row.BeginKeys(),
-        KeyColumnCount_);
-}
-
-int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TKeyWrapper rhs) const
-{
-    return DUComparer_(
-        lhs.GetNullKeyMask(),
-        lhs.BeginKeys(),
-        rhs.Row.Begin(),
-        rhs.Row.GetCount());
+    return UUComparer(lhs.Begin(), lhs.Size(), rhs.Begin(), rhs.Size());
 }
 
 int TSortedDynamicRowKeyComparer::operator()(TUnversionedRow lhs, TUnversionedRow rhs) const
 {
-    return operator()(lhs.Begin(), lhs.End(), rhs.Begin(), rhs.End());
+    return UUComparer(lhs.Begin(), lhs.GetCount(), rhs.Begin(), rhs.GetCount());
 }
-
-int TSortedDynamicRowKeyComparer::operator()(
-    const TUnversionedValue* lhsBegin,
-    const TUnversionedValue* lhsEnd,
-    const TUnversionedValue* rhsBegin,
-    const TUnversionedValue* rhsEnd) const
-{
-    return UUComparer_(lhsBegin, lhsEnd - lhsBegin, rhsBegin, rhsEnd - rhsBegin);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCachedRowComparer
-    : public TSyncCacheValueBase<TKeyColumnTypes, TCachedRowComparer, THash<TRange<EValueType>>>
-    , public TSortedDynamicRowKeyComparer
-{
-public:
-    TCachedRowComparer(
-        TKeyColumnTypes keyColumnTypes,
-        TSortedDynamicRowKeyComparer comparer)
-        : TSyncCacheValueBase(keyColumnTypes)
-        , TSortedDynamicRowKeyComparer(std::move(comparer))
-    { }
-};
-
-class TRowComparerCache
-    : public TSyncSlruCacheBase<TKeyColumnTypes, TCachedRowComparer, THash<TRange<EValueType>>>
-    , public IRowComparerProvider
-{
-public:
-    using TSyncSlruCacheBase::TSyncSlruCacheBase;
-
-    TSortedDynamicRowKeyComparer Get(TKeyColumnTypes keyColumnTypes) override
-    {
-        auto cachedEvaluator = TSyncSlruCacheBase::Find(keyColumnTypes);
-        if (!cachedEvaluator) {
-            cachedEvaluator = New<TCachedRowComparer>(
-                keyColumnTypes,
-                TSortedDynamicRowKeyComparer::Create(keyColumnTypes));
-
-            TryInsert(cachedEvaluator, &cachedEvaluator);
-        }
-
-        return *cachedEvaluator;
-    }
-
-};
-
-IRowComparerProviderPtr CreateRowComparerProvider(TSlruCacheConfigPtr config)
-{
-    return New<TRowComparerCache>(config);
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -136,7 +136,7 @@ public:
         HashTable_.Find(fingerprint, &items);
         for (auto item : items) {
             auto dynamicRow = TSortedDynamicRow(reinterpret_cast<TSortedDynamicRowHeader*>(item));
-            if (KeyComparer_(dynamicRow, TKeyWrapper{key}) == 0) {
+            if (KeyComparer_(dynamicRow, ToKeyRef(key)) == 0) {
                 return dynamicRow;
             }
         }
@@ -610,7 +610,7 @@ public:
 
         i64 dataWeight = 0;
         while (Iterator_.IsValid() && rows.size() < rows.capacity()) {
-            if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperBound_}) >= 0) {
+            if (keyComparer(Iterator_.GetCurrent(), ToKeyRef(UpperBound_)) >= 0) {
                 UpdateLimits();
                 if (!Iterator_.IsValid()) {
                     break;
@@ -683,15 +683,15 @@ private:
             LowerBound_ = Ranges_[RangeIndex_].first;
             UpperBound_ = Ranges_[RangeIndex_].second;
 
-            Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{LowerBound_});
+            Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(ToKeyRef(LowerBound_));
 
-            if (Iterator_.IsValid() && keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperBound_}) >= 0) {
+            if (Iterator_.IsValid() && keyComparer(Iterator_.GetCurrent(), ToKeyRef(UpperBound_)) >= 0) {
                 auto newBoundIt = std::upper_bound(
                     Ranges_.begin() + RangeIndex_,
                     Ranges_.end(),
                     Iterator_.GetCurrent(),
                     [&] (const TSortedDynamicRow& lhs, const TRowRange& rhs) {
-                        return keyComparer(lhs, TKeyWrapper{rhs.second}) < 0;
+                        return keyComparer(lhs, ToKeyRef(rhs.second)) < 0;
                     });
 
                 RangeIndex_ = std::distance(Ranges_.begin(), newBoundIt);
@@ -772,7 +772,7 @@ public:
                     row = ProduceRow(dynamicRow);
                 }
             } else {
-                auto iterator = Store_->Rows_->FindEqualTo(TKeyWrapper{Keys_[RowCount_]});
+                auto iterator = Store_->Rows_->FindEqualTo(ToKeyRef(Keys_[RowCount_]));
                 if (iterator.IsValid()) {
                     row = ProduceRow(iterator.GetCurrent());
                 }
@@ -1025,7 +1025,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
         result = dynamicRow;
     };
 
-    Rows_->Insert(TUnversionedRowWrapper{row}, newKeyProvider, existingKeyConsumer);
+    Rows_->Insert(ToKeyRef(row, KeyColumnCount_), newKeyProvider, existingKeyConsumer);
 
     if (!result) {
         return TSortedDynamicRow();
@@ -1081,7 +1081,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
         result = dynamicRow;
     };
 
-    Rows_->Insert(TVersionedRowWrapper{row}, newKeyProvider, existingKeyConsumer);
+    Rows_->Insert(ToKeyRef(row), newKeyProvider, existingKeyConsumer);
 
     WriteRevisions_.clear();
     for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
@@ -1365,14 +1365,14 @@ void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow 
 
 TSortedDynamicRow TSortedDynamicStore::FindRow(TLegacyKey key)
 {
-    auto it = Rows_->FindEqualTo(TKeyWrapper{key});
+    auto it = Rows_->FindEqualTo(ToKeyRef(key));
     return it.IsValid() ? it.GetCurrent() : TSortedDynamicRow();
 }
 
 std::vector<TSortedDynamicRow> TSortedDynamicStore::GetAllRows()
 {
     std::vector<TSortedDynamicRow> rows;
-    for (auto it = Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{MinKey()});
+    for (auto it = Rows_->FindGreaterThanOrEqualTo(ToKeyRef(MinKey()));
          it.IsValid();
          it.MoveNext())
     {
@@ -1902,7 +1902,7 @@ bool TSortedDynamicStore::CheckRowLocks(
     TLockMask lockMask,
     TWriteContext* context)
 {
-    auto it = Rows_->FindEqualTo(TUnversionedRowWrapper{row});
+    auto it = Rows_->FindEqualTo(ToKeyRef(row, KeyColumnCount_));
     if (!it.IsValid()) {
         return true;
     }

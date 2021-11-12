@@ -314,7 +314,10 @@ protected:
         EndReserializeStore(BeginReserializeStore());
     }
 
+    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(
+        New<TColumnEvaluatorCacheConfig>());
 
+    const NTabletClient::IRowComparerProviderPtr RowComparerProvider_ = CreateRowComparerProvider(New<TSlruCacheConfig>());
 
     TNameTablePtr NameTable_;
     TNameTablePtr QueryNameTable_;

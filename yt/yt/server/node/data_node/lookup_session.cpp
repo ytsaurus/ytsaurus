@@ -52,7 +52,7 @@ TLookupSession::TLookupSession(
     TColumnFilter columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    TCachedTableSchemaPtr tableSchema,
+    TTableSchemaPtr tableSchema,
     const std::vector<TSharedRef>& serializedKeys,
     NCompression::ECodec codecId,
     TTimestamp chunkTimestamp,
@@ -77,12 +77,12 @@ TLookupSession::TLookupSession(
     YT_ASSERT(CheckKeyColumnCompatibility());
 
     // NB: TableSchema is assumed to be fetched upon calling LookupSession.
-    YT_VERIFY(TableSchema_->TableSchema);
-    if (!TableSchema_->TableSchema->GetUniqueKeys()) {
+    YT_VERIFY(TableSchema_);
+    if (!TableSchema_->GetUniqueKeys()) {
         THROW_ERROR_EXCEPTION("Table schema for chunk %v must have unique keys", ChunkId_)
             << TErrorAttribute("read_session_id", ReadSessionId_);
     }
-    if (!TableSchema_->TableSchema->GetStrict()) {
+    if (!TableSchema_->GetStrict()) {
         THROW_ERROR_EXCEPTION("Table schema for chunk %v must be strict", ChunkId_)
             << TErrorAttribute("read_session_id", ReadSessionId_);
     }
@@ -113,7 +113,7 @@ TFuture<TSharedRef> TLookupSession::Run()
     const auto& chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager();
 
     return
-        chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_->TableSchema, Options_)
+        chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_, Options_)
             .Apply(BIND(
                 [=, this_ = MakeStrong(this), metaWaitTimer = std::move(metaWaitTimer)]
                 (const TVersionedChunkMetaCacheEntryPtr& chunkMeta)
@@ -129,7 +129,7 @@ const TChunkReaderStatisticsPtr& TLookupSession::GetChunkReaderStatistics()
     return ChunkReaderStatistics_;
 }
 
-std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
+std::tuple<TTableSchemaPtr, bool> TLookupSession::FindTableSchema(
     TChunkId chunkId,
     TReadSessionId readSessionId,
     const TReqLookupRows::TTableSchemaData& schemaData,
@@ -161,10 +161,7 @@ std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
     }
 
     auto tableSchema = FromProto<TTableSchemaPtr>(schemaData.schema());
-    auto rowKeyComparer = TSortedDynamicRowKeyComparer::Create(tableSchema->GetKeyColumnTypes());
-
-    auto cachedTableSchema = New<TCachedTableSchema>(std::move(tableSchema), std::move(rowKeyComparer));
-    tableSchemaWrapper->SetValue(cachedTableSchema);
+    tableSchemaWrapper->SetValue(tableSchema);
 
     YT_LOG_DEBUG("Inserted schema to schema cache for lookup request"
         "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %llx, SchemaSize: %v)",
@@ -174,7 +171,7 @@ std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
         revision,
         schemaSize);
 
-    return {cachedTableSchema, false};
+    return {tableSchema, false};
 }
 
 bool TLookupSession::CheckKeyColumnCompatibility()
@@ -189,7 +186,7 @@ bool TLookupSession::CheckKeyColumnCompatibility()
             << TErrorAttribute("chunk_type", type);
     }
 
-    const auto& tableKeyColumns = TableSchema_->TableSchema->GetKeyColumns();
+    const auto& tableKeyColumns = TableSchema_->GetKeyColumns();
     for (auto key : RequestedKeys_) {
         YT_VERIFY(key.GetCount() == tableKeyColumns.size());
     }
@@ -232,9 +229,9 @@ TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
         ChunkTimestamp_,
         /*lookupHashTable*/ nullptr,
         New<TChunkReaderPerformanceCounters>(),
-        TableSchema_->RowKeyComparer,
+        Bootstrap_->GetRowComparerProvider()->Get(TableSchema_->GetKeyColumnTypes()),
         /*virtualValueDirectory*/ nullptr,
-        TableSchema_->TableSchema);
+        TableSchema_);
 
     TWireProtocolWriter writer;
     auto onRow = [&] (TVersionedRow row) {

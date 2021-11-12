@@ -18,7 +18,7 @@ public:
     const TString& GetTabletCellBundleName() override;
     NHydra::EPeerState GetAutomatonState() override;
     NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override;
-    NTabletNode::IRowComparerProviderPtr GetRowComparerProvider() override;
+    NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() override;
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) override;
     IStorePtr CreateStore(
         TTablet* tablet,
@@ -39,8 +39,8 @@ private:
     const NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_ =
         NQueryClient::CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>());
 
-    const NTabletNode::IRowComparerProviderPtr RowComparerProvider_ =
-        CreateRowComparerProvider(New<TSlruCacheConfig>());
+    const NTabletClient::IRowComparerProviderPtr RowComparerProvider_ =
+        NTabletClient::CreateRowComparerProvider(New<TSlruCacheConfig>());
 };
 
 ////////////////////////////////////////////////////////////////////////////////

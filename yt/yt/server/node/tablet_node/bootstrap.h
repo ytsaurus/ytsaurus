@@ -52,7 +52,7 @@ struct IBootstrap
 
     // QL stuff.
     virtual const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const = 0;
-    virtual const NTabletNode::IRowComparerProviderPtr& GetRowComparerProvider() const = 0;
+    virtual const NTabletClient::IRowComparerProviderPtr& GetRowComparerProvider() const = 0;
 
     // Master connection stuff.
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
