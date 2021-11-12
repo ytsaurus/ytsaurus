@@ -2418,8 +2418,10 @@ private:
             ChunkPlacement_->OnNodeUnregistered(node);
         }
 
-        auto affectedChunks = ConsistentChunkPlacement_->RemoveNode(node);
-        ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
+        YT_VERIFY(!node->ReportedDataNodeHeartbeat());
+        OnMaybeNodeWriteTargetValidityChanged(
+            node,
+            EWriteTargetValidityChange::ReportedDataNodeHeartbeat);
 
         auto jobs = node->IdToJob();
         for (const auto& [jobId, job] : jobs) {
@@ -2432,28 +2434,18 @@ private:
 
     void OnNodeDecommissionChanged(TNode* node)
     {
-        std::vector<TChunk*> affectedChunks;
-        if (node->GetDecommissioned()) {
-            affectedChunks = ConsistentChunkPlacement_->RemoveNode(node);
-        } else if (node->IsValidWriteTarget()) {
-            affectedChunks = ConsistentChunkPlacement_->AddNode(node);
-        }
-
-        ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
+        OnMaybeNodeWriteTargetValidityChanged(
+            node,
+            EWriteTargetValidityChange::Decommissioned);
 
         OnNodeChanged(node);
     }
 
     void OnNodeDisableWriteSessionsChanged(TNode* node)
     {
-        std::vector<TChunk*> affectedChunks;
-        if (node->GetDisableWriteSessions()) {
-            affectedChunks = ConsistentChunkPlacement_->RemoveNode(node);
-        } else if (node->IsValidWriteTarget()) {
-            affectedChunks = ConsistentChunkPlacement_->AddNode(node);
-        }
-
-        ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
+        OnMaybeNodeWriteTargetValidityChanged(
+            node,
+            EWriteTargetValidityChange::WriteSessionsDisabled);
     }
 
     void OnNodeDisposed(TNode* node)
@@ -2509,6 +2501,23 @@ private:
     void OnNodeDataCenterChanged(TNode* node, TDataCenter* /*oldDataCenter*/)
     {
         OnNodeChanged(node);
+    }
+
+    void OnMaybeNodeWriteTargetValidityChanged(TNode* node, EWriteTargetValidityChange change)
+    {
+        auto isValidWriteTarget = node->IsValidWriteTarget();
+        auto wasValidWriteTarget = node->WasValidWriteTarget(change);
+        if (isValidWriteTarget == wasValidWriteTarget) {
+            return;
+        }
+
+        std::vector<TChunk*> affectedChunks;
+        if (isValidWriteTarget) {
+            affectedChunks = ConsistentChunkPlacement_->AddNode(node);
+        } else {
+            affectedChunks = ConsistentChunkPlacement_->RemoveNode(node);
+        }
+        ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
     }
 
     bool IsExactlyReplicatedByApprovedReplicas(const TChunk* chunk)
@@ -2652,10 +2661,10 @@ private:
             ChunkPlacement_->OnNodeUpdated(node);
         }
 
-        if (node->IsValidWriteTarget()) {
-            auto affectedChunks = ConsistentChunkPlacement_->AddNode(node);
-            ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
-        }
+        YT_VERIFY(node->ReportedDataNodeHeartbeat());
+        OnMaybeNodeWriteTargetValidityChanged(
+            node,
+            EWriteTargetValidityChange::ReportedDataNodeHeartbeat);
     }
 
     void ScheduleEndorsement(TChunk* chunk)
