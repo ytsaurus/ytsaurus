@@ -121,6 +121,12 @@ TNode::TNode(TObjectId objectId)
     ClearSessionHints();
 }
 
+int TNode::GetConsistentReplicaPlacementTokenCount(int mediumIndex) const
+{
+    auto it = ConsistentReplicaPlacementTokenCount_.find(mediumIndex);
+    return it == ConsistentReplicaPlacementTokenCount_.end() ? 0 : it->second;
+}
+
 void TNode::ComputeAggregatedState()
 {
     std::optional<ENodeState> result;
@@ -1047,10 +1053,40 @@ void TNode::SetDisableWriteSessionsReportedByNode(bool value)
 bool TNode::IsValidWriteTarget() const
 {
     // NB: this may be called in mutations so be sure to only rely on persistent state.
+    return WasValidWriteTarget(EWriteTargetValidityChange::None);
+}
+
+bool TNode::WasValidWriteTarget(EWriteTargetValidityChange reason) const
+{
+    // NB: this may be called in mutations so be sure to only rely on persistent state.
+    auto reportedDataNodeHeartbeat = ReportedDataNodeHeartbeat();
+    auto decommissioned = GetDecommissioned();
+    auto disableWriteSessions = GetDisableWriteSessions();
+
+    switch (reason) {
+        case EWriteTargetValidityChange::None:
+            break;
+
+        case EWriteTargetValidityChange::ReportedDataNodeHeartbeat:
+            reportedDataNodeHeartbeat = !reportedDataNodeHeartbeat;
+            break;
+
+        case EWriteTargetValidityChange::Decommissioned:
+            decommissioned = !decommissioned;
+            break;
+
+        case EWriteTargetValidityChange::WriteSessionsDisabled:
+            disableWriteSessions = !disableWriteSessions;
+            break;
+
+        default:
+            YT_ABORT();
+    }
+
     return
-        ReportedDataNodeHeartbeat() &&
-        !GetDecommissioned() &&
-        !GetDisableWriteSessions();
+        reportedDataNodeHeartbeat &&
+        !decommissioned &&
+        !disableWriteSessions;
 }
 
 void TNode::SetNodeTags(const std::vector<TString>& tags)

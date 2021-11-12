@@ -52,6 +52,17 @@ struct TCellNodeDescriptor
 void ToProto(NProto::TReqSetCellNodeDescriptors::TNodeDescriptor* protoDescriptor, const TCellNodeDescriptor& descriptor);
 void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDescriptors::TNodeDescriptor& protoDescriptor);
 
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EWriteTargetValidityChange,
+    ((None)                      (0))
+    ((ReportedDataNodeHeartbeat) (1))
+    ((Decommissioned)            (2))
+    ((WriteSessionsDisabled)     (3))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNode
     : public NObjectServer::TObject
     , public TRefTracked<TNode>
@@ -71,6 +82,11 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TMediumMap<double>, IOWeights);
     DEFINE_BYREF_RO_PROPERTY(TMediumMap<i64>, TotalSpace);
     DEFINE_BYREF_RW_PROPERTY(TMediumMap<int>, ConsistentReplicaPlacementTokenCount);
+
+    // Returns the number of tokens for this node that should be placed on the
+    // consistent replica placement ring. For media that are absent on the node,
+    // returns zero.
+    int GetConsistentReplicaPlacementTokenCount(int mediumIndex) const;
 
     // Transient property.
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
@@ -176,6 +192,7 @@ public:
     void SetDisableWriteSessionsReportedByNode(bool value);
 
     bool IsValidWriteTarget() const;
+    bool WasValidWriteTarget(EWriteTargetValidityChange change) const;
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TMediumReplicaSet = THashSet<TChunkPtrWithIndexes>;

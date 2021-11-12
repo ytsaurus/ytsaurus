@@ -503,11 +503,16 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
         return result;
     }
 
-    YT_LOG_ALERT("CRP nodes do not satisfy clash constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v))",
-        chunk->GetId(),
-        mediumIndex,
-        replicationFactor,
-        SufficientlyLargeReplicaCount_);
+    // Don't raise alert when there's only one node.
+    if (mediumRing.GetTokenCount() !=
+        nodeCandidates.front()->GetConsistentReplicaPlacementTokenCount(mediumIndex))
+    {
+        YT_LOG_ALERT("CRP nodes do not satisfy clash constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v))",
+            chunk->GetId(),
+            mediumIndex,
+            replicationFactor,
+            SufficientlyLargeReplicaCount_);
+    }
 
     result.clear();
     auto it = nodeCandidates.begin();
