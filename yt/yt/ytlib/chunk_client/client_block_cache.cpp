@@ -117,7 +117,7 @@ public:
 
     void PutBlock(const TBlockId& id, const TBlock& block, bool p2p)
     {
-        if (Capacity_.load() == 0) {
+        if (GetCapacity() == 0) {
             // Shortcut when cache is disabled.
             return;
         }
@@ -141,7 +141,7 @@ public:
 
     TCachedBlock FindBlock(const TBlockId& id)
     {
-        if (Capacity_.load() == 0) {
+        if (GetCapacity() == 0) {
             // Shortcut when cache is disabled.
             return {};
         }
@@ -167,7 +167,7 @@ public:
     {
         YT_VERIFY(type == Type_);
 
-        if (Capacity_.load() == 0) {
+        if (GetCapacity() == 0) {
             // Shortcut when cache is disabled.
             return CreateActiveCachedBlockCookie();
         }

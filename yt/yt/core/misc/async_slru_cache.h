@@ -48,6 +48,63 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TItem, class TDerived>
+class TAsyncSlruCacheListManager
+{
+public:
+    void PushToYounger(TItem* item, i64 weight);
+
+    void MoveToYounger(TItem* item);
+    void MoveToOlder(TItem* item);
+
+    void PopFromLists(TItem* item);
+
+    void UpdateWeight(TItem* item, i64 weightDelta);
+
+    TIntrusiveListWithAutoDelete<TItem, TDelete> TrimNoDelete();
+
+    bool Touch(TItem* item);
+    void DrainTouchBuffer();
+
+    void Reconfigure(i64 capacity, double youngerSizeFraction);
+
+    void SetTouchBufferCapacity(i64 touchBufferCapacity);
+
+    //! Clears the lists and releases the guard.
+    template <typename TGuard>
+    void Clear(TGuard& guard);
+
+protected:
+    TDerived* AsDerived()
+    {
+        return static_cast<TDerived*>(this);
+    }
+
+    const TDerived* AsDerived() const
+    {
+        return static_cast<const TDerived*>(this);
+    }
+
+    // Callbacks to be overloaded in derived classes.
+    void OnYoungerUpdated(i64 deltaCount, i64 deltaWeight);
+    void OnOlderUpdated(i64 deltaCount, i64 deltaWeight);
+
+private:
+    TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList;
+    TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList;
+
+    std::vector<TItem*> TouchBuffer;
+    std::atomic<int> TouchBufferPosition = 0;
+
+    size_t YoungerWeightCounter = 0;
+    size_t OlderWeightCounter = 0;
+
+    std::atomic<i64> Capacity;
+    std::atomic<double> YoungerSizeFraction;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TKey, class TValue, class THash = THash<TKey>>
 class TAsyncSlruCacheBase
     : public virtual TRefCounted
@@ -93,6 +150,12 @@ public:
         void Abort();
     };
 
+    // NB: Shards store reference to the cache, so the cache cannot be simply copied or moved.
+    TAsyncSlruCacheBase(const TAsyncSlruCacheBase&) = delete;
+    TAsyncSlruCacheBase(TAsyncSlruCacheBase&&) = delete;
+    TAsyncSlruCacheBase& operator=(const TAsyncSlruCacheBase&) = delete;
+    TAsyncSlruCacheBase& operator=(TAsyncSlruCacheBase&&) = delete;
+
     int GetSize() const;
     i64 GetCapacity() const;
 
@@ -114,9 +177,6 @@ public:
 
 protected:
     const TSlruCacheConfigPtr Config_;
-
-    std::atomic<i64> Capacity_;
-    std::atomic<double> YoungerSizeFraction_;
 
     explicit TAsyncSlruCacheBase(
         TSlruCacheConfigPtr config,
@@ -151,27 +211,33 @@ private:
         bool Younger = false;
     };
 
-    struct TShard
+    class TShard : public TAsyncSlruCacheListManager<TItem, TShard>
     {
+    public:
         YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock);
 
-        TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList;
-        TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList;
-
         THashMap<TKey, TValue*, THash> ValueMap;
-
         THashMap<TKey, TItem*, THash> ItemMap;
 
-        std::vector<TItem*> TouchBuffer;
-        std::atomic<int> TouchBufferPosition = 0;
+        TAsyncSlruCacheBase* Parent;
 
-        size_t YoungerWeightCounter = 0;
-        size_t OlderWeightCounter = 0;
+        //! Trims the lists and releases the guard. Returns the list of evicted items.
+        std::vector<TValuePtr> Trim(
+            NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
+
+    protected:
+        void OnYoungerUpdated(i64 deltaCount, i64 deltaWeight);
+        void OnOlderUpdated(i64 deltaCount, i64 deltaWeight);
+
+        friend class TAsyncSlruCacheListManager<TItem, TShard>;
     };
+
+    friend class TShard;
 
     std::unique_ptr<TShard[]> Shards_;
 
     std::atomic<int> Size_ = 0;
+    std::atomic<i64> Capacity_;
 
     /*
      * Every request counts to one of the following metric types:
@@ -200,27 +266,17 @@ private:
 
     TShard* GetShardByKey(const TKey& key) const;
 
-    bool Touch(TShard* shard, TItem* item);
-    void DrainTouchBuffer(TShard* shard);
-
     TValueFuture DoLookup(TShard* shard, const TKey& key);
 
     void DoTryRemove(const TKey& key, const TValuePtr& value, bool forbidResurrection);
 
-    std::vector<TValuePtr> DoTrim(TShard* shard);
-    void FinishInsertAndTrim(
-        TShard* shard,
-        NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard,
-        const TValuePtr& insertedItem);
-    void Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
+    //! Calls OnAdded on OnRemoved for the values evicted with Trim(). If the trim was caused by insertion, then
+    //! insertedValue must be the value, insertion of which caused trim. Otherwise, insertedValue must be nullptr.
+    void NotifyOnTrim(const std::vector<TValuePtr>& evictedValues, const TValuePtr& insertedValue);
 
     void EndInsert(TValuePtr value);
     void CancelInsert(const TKey& key, const TError& error);
     void Unregister(const TKey& key);
-    i64 PushToYounger(TShard* shard, TItem* item);
-    void MoveToYounger(TShard* shard, TItem* item);
-    void MoveToOlder(TShard* shard, TItem* item);
-    void Pop(TShard* shard, TItem* item);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
