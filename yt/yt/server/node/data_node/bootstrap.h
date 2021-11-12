@@ -52,6 +52,7 @@ struct IBootstrap
 
     // Caches.
     virtual const TTableSchemaCachePtr& GetTableSchemaCache() const = 0;
+    virtual const NTabletClient::IRowComparerProviderPtr& GetRowComparerProvider() const = 0;
 
     // IO tracker.
     virtual const NIO::IIOTrackerPtr& GetIOTracker() const = 0;

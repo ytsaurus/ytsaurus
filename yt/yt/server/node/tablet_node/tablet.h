@@ -245,7 +245,7 @@ struct ITabletContext
     virtual const TString& GetTabletCellBundleName() = 0;
     virtual NHydra::EPeerState GetAutomatonState() = 0;
     virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
-    virtual NTabletNode::IRowComparerProviderPtr GetRowComparerProvider() = 0;
+    virtual NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() = 0;
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
     virtual IStorePtr CreateStore(
         TTablet* tablet,

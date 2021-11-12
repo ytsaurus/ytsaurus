@@ -131,7 +131,7 @@ public:
 
         ColumnEvaluatorCache_ = NQueryClient::CreateColumnEvaluatorCache(GetConfig()->TabletNode->ColumnEvaluatorCache);
 
-        RowComparerProvider_ = CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
+        RowComparerProvider_ = NTabletClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
         StoreCompactor_ = CreateStoreCompactor(this);
         StoreFlusher_ = CreateStoreFlusher(this);
@@ -281,7 +281,7 @@ public:
         return ColumnEvaluatorCache_;
     }
 
-    const IRowComparerProviderPtr& GetRowComparerProvider() const override
+    const NTabletClient::IRowComparerProviderPtr& GetRowComparerProvider() const override
     {
         return RowComparerProvider_;
     }
@@ -340,7 +340,7 @@ private:
     TEnumIndexedVector<ETabletNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
     NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    IRowComparerProviderPtr RowComparerProvider_;
+    NTabletClient::IRowComparerProviderPtr RowComparerProvider_;
 
     IStoreCompactorPtr StoreCompactor_;
     IStoreFlusherPtr StoreFlusher_;

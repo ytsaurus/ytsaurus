@@ -28,7 +28,7 @@ public:
         NTableClient::TColumnFilter columnFilter,
         NTransactionClient::TTimestamp timestamp,
         bool produceAllVersions,
-        TCachedTableSchemaPtr tableSchema,
+        NTableClient::TTableSchemaPtr tableSchema,
         const std::vector<TSharedRef>& serializedKeys,
         NCompression::ECodec codecId,
         NTransactionClient::TTimestamp chunkTimestamp,
@@ -39,7 +39,7 @@ public:
     const NChunkClient::TChunkReaderStatisticsPtr& GetChunkReaderStatistics();
 
     //! Second value in tuple indicates whether we request schema from remote node.
-    static std::tuple<TCachedTableSchemaPtr, bool> FindTableSchema(
+    static std::tuple<NTableClient::TTableSchemaPtr, bool> FindTableSchema(
         TChunkId chunkId,
         NChunkClient::TReadSessionId readSessionId,
         const NChunkClient::NProto::TReqLookupRows::TTableSchemaData& schemaData,
@@ -55,7 +55,7 @@ private:
     const NTableClient::TColumnFilter ColumnFilter_;
     const NTransactionClient::TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
-    const TCachedTableSchemaPtr TableSchema_;
+    const NTableClient::TTableSchemaPtr TableSchema_;
     NCompression::ICodec* const Codec_;
     const NTransactionClient::TTimestamp ChunkTimestamp_;
 

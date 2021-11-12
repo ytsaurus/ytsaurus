@@ -455,7 +455,7 @@ private:
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
         }
 
-        NTabletNode::IRowComparerProviderPtr GetRowComparerProvider() override
+        NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() override
         {
             return Owner_->Bootstrap_->GetRowComparerProvider();
         }

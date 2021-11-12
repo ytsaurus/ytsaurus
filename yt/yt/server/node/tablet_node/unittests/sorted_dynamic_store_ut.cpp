@@ -355,9 +355,8 @@ public:
 
         auto schema = GetSchema();
 
-
         StaticComparer_ = TStaticComparer(*schema);
-        LlvmComparer_ = TSortedDynamicRowKeyComparer::Create(schema->GetKeyColumnTypes());
+        LlvmComparer_ = TSortedDynamicRowKeyComparer(GenerateComparers(schema->GetKeyColumnTypes()));
     }
 
     TSortedDynamicRow BuildDynamicRow(
@@ -388,24 +387,15 @@ private:
             return Compare(lhs, rhs);
         }
 
-        int operator()(TSortedDynamicRow lhs, TUnversionedRowWrapper rhs) const
+        int operator()(TSortedDynamicRow lhs, TRange<TUnversionedValue> rhs) const
         {
-            YT_ASSERT(static_cast<int>(rhs.Row.GetCount()) >= KeyColumnCount_);
-            return Compare(lhs, rhs.Row.Begin(), KeyColumnCount_);
+            YT_ASSERT(static_cast<int>(rhs.Size()) >= KeyColumnCount_);
+            return Compare(lhs, rhs.Begin(), KeyColumnCount_);
         }
 
-        int operator()(TSortedDynamicRow lhs, TKeyWrapper rhs) const
+        int operator()(TUnversionedRow lhs, TUnversionedRow rhs) const
         {
-            return Compare(lhs, rhs.Row.Begin(), rhs.Row.GetCount());
-        }
-
-        int operator()(
-            const TUnversionedValue* lhsBegin,
-            const TUnversionedValue* lhsEnd,
-            const TUnversionedValue* rhsBegin,
-            const TUnversionedValue* rhsEnd) const
-        {
-            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
+            return CompareRows(lhs, rhs);
         }
 
     private:
@@ -637,8 +627,8 @@ TEST_P(TSortedDynamicRowKeyComparerTest, Test)
     auto urow2 = BuildRow(str2, false);
 
     EXPECT_EQ(
-        Sign(StaticComparer_(urow1.Begin(), urow1.End(), urow2.Begin(), urow2.End())),
-        Sign(LlvmComparer_(urow1.Begin(), urow1.End(), urow2.Begin(), urow2.End())))
+        Sign(StaticComparer_(urow1, urow2)),
+        Sign(LlvmComparer_(urow1, urow2)))
         << "row1: " << ToString(urow1) << std::endl
         << "row2: " << ToString(urow2);
 
@@ -647,8 +637,8 @@ TEST_P(TSortedDynamicRowKeyComparerTest, Test)
     if (urow1.GetCount() == keyColumnCount && !HasSentinels(urow1) && !HasSentinels(urow2)) {
         auto drow1 = BuildDynamicRow(urow1);
         EXPECT_EQ(
-            StaticComparer_(drow1, TKeyWrapper{urow2}),
-            LlvmComparer_(drow1, TKeyWrapper{urow2}))
+            StaticComparer_(drow1, ToKeyRef(urow2)),
+            LlvmComparer_(drow1, ToKeyRef(urow2)))
             << "row1: " << ToString(urow1) << std::endl
             << "row2: " << ToString(urow2);
 
@@ -688,8 +678,8 @@ TEST_F(TSortedDynamicRowKeyComparerTest, DifferentLength)
     auto row2 = BuildKey("1;<\"type\"=\"min\">#");
 
     EXPECT_EQ(
-        Sign(StaticComparer_(row1.Begin(), row1.End(), row2.Begin(), row2.End())),
-        Sign(LlvmComparer_(row1.Begin(), row1.End(), row2.Begin(), row2.End())))
+        Sign(StaticComparer_(row1, row2)),
+        Sign(LlvmComparer_(row1, row2)))
         << "row1: " << ToString(row1) << std::endl
         << "row2: " << ToString(row2);
 }

@@ -28,6 +28,8 @@
 
 #include <yt/yt/server/lib/io/config.h>
 
+#include <yt/yt/ytlib/tablet_client/row_comparer_generator.h>
+
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
@@ -192,6 +194,8 @@ public:
             this);
 
         TableSchemaCache_ = New<TTableSchemaCache>(GetConfig()->DataNode->TableSchemaCache);
+
+        RowComparerProvider_ = NTabletClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
         GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
 
@@ -359,6 +363,11 @@ public:
         return TableSchemaCache_;
     }
 
+    const NTabletClient::IRowComparerProviderPtr& GetRowComparerProvider() const override
+    {
+        return RowComparerProvider_;
+    }
+
     const NIO::IIOTrackerPtr& GetIOTracker() const override
     {
         return IOTracker_;
@@ -394,6 +403,8 @@ private:
     TP2PDistributorPtr P2PDistributor_;
 
     TTableSchemaCachePtr TableSchemaCache_;
+
+    NTabletClient::IRowComparerProviderPtr RowComparerProvider_;
 
     NHttp::IServerPtr SkynetHttpServer_;
 

@@ -5,6 +5,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/ytlib/tablet_client/dynamic_value.h>
+
 #include <yt/yt/core/misc/chunked_memory_pool.h>
 
 #include <atomic>
@@ -15,46 +17,17 @@ namespace NYT::NTabletNode {
 
 using NTableClient::TLockMask;
 
+using NTabletClient::TDynamicString;
+using NTabletClient::TDynamicValueData;
+using NTabletClient::TDynamicValue;
+
+struct TEditListHeader;
+template <class T>
+class TEditList;
+using TValueList = TEditList<TDynamicValue>;
+using TRevisionList = TEditList<ui32>;
+
 ////////////////////////////////////////////////////////////////////////////////
-
-// NB: 4-aligned.
-struct TDynamicString
-{
-    ui32 Length;
-    char Data[1]; // the actual length is above
-};
-
-// NB: TDynamicValueData must be binary compatible with TUnversionedValueData for all simple types.
-union TDynamicValueData
-{
-    //! |Int64| value.
-    i64 Int64;
-    //! |Uint64| value.
-    ui64 Uint64;
-    //! |Double| value.
-    double Double;
-    //! |Boolean| value.
-    bool Boolean;
-    //! String value for |String| type or YSON-encoded value for |Any| type.
-    TDynamicString* String;
-};
-
-static_assert(
-    sizeof(TDynamicValueData) == sizeof(NTableClient::TUnversionedValueData),
-    "TDynamicValueData and TUnversionedValueData must be of the same size.");
-
-struct TDynamicValue
-{
-    TDynamicValueData Data;
-    ui32 Revision;
-    bool Null;
-    NTableClient::EValueFlags Flags;
-    char Padding[2];
-};
-
-static_assert(
-    sizeof(TDynamicValue) == 16,
-    "Wrong TDynamicValue size.");
 
 struct TLockDescriptor
 {

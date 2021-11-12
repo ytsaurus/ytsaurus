@@ -39,7 +39,7 @@ IColumnEvaluatorCachePtr TTabletContextMock::GetColumnEvaluatorCache()
     return ColumnEvaluatorCache_;
 }
 
-IRowComparerProviderPtr TTabletContextMock::GetRowComparerProvider()
+NTabletClient::IRowComparerProviderPtr TTabletContextMock::GetRowComparerProvider()
 {
     return RowComparerProvider_;
 }

@@ -1,8 +1,5 @@
 #include "row_comparer_generator.h"
-#include "dynamic_store_bits.h"
-#include "sorted_dynamic_comparer.h"
 #include "llvm_types.h"
-
 
 #include <yt/yt/client/table_client/llvm_types.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -23,7 +20,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT::NTabletNode {
+namespace NYT::NTabletClient {
 
 using namespace NTableClient;
 using namespace NCodegen;
@@ -243,7 +240,7 @@ private:
 
     // NB: Here we assume that TDynamicValueData is a union.
     static_assert(
-        std::is_union<NYT::NTabletNode::TDynamicValueData>::value,
+        std::is_union<NYT::NTabletClient::TDynamicValueData>::value,
         "TDynamicValueData must be a union");
 };
 
@@ -519,11 +516,7 @@ void TComparerBuilder::BuildMainLoop(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::tuple<
-    NCodegen::TCGFunction<TDDComparerSignature>,
-    NCodegen::TCGFunction<TDUComparerSignature>,
-    NCodegen::TCGFunction<TUUComparerSignature>>
-GenerateComparers(TRange<EValueType> keyColumnTypes)
+TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes)
 {
     auto module = TCGModule::Create(GetComparerRoutineRegistry());
     auto builder = TComparerBuilder(module, keyColumnTypes);
@@ -543,9 +536,52 @@ GenerateComparers(TRange<EValueType> keyColumnTypes)
     auto duComparer = module->GetCompiledFunction<TDUComparerSignature>(duComparerName);
     auto uuComparer = module->GetCompiledFunction<TUUComparerSignature>(uuComparerName);
 
-    return std::tie(ddComparer, duComparer, uuComparer);
+    return TCGKeyComparers{ddComparer, duComparer, uuComparer};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletNode
+class TCachedRowComparer
+    : public TSyncCacheValueBase<TKeyColumnTypes, TCachedRowComparer, THash<TRange<EValueType>>>
+    , public TCGKeyComparers
+{
+public:
+    TCachedRowComparer(
+        TKeyColumnTypes keyColumnTypes,
+        TCGKeyComparers comparers)
+        : TSyncCacheValueBase(keyColumnTypes)
+        , TCGKeyComparers(std::move(comparers))
+    { }
+};
+
+class TRowComparerCache
+    : public TSyncSlruCacheBase<TKeyColumnTypes, TCachedRowComparer, THash<TRange<EValueType>>>
+    , public IRowComparerProvider
+{
+public:
+    using TSyncSlruCacheBase::TSyncSlruCacheBase;
+
+    TCGKeyComparers Get(TKeyColumnTypes keyColumnTypes) override
+    {
+        auto cachedEvaluator = TSyncSlruCacheBase::Find(keyColumnTypes);
+        if (!cachedEvaluator) {
+            cachedEvaluator = New<TCachedRowComparer>(
+                keyColumnTypes,
+                TCGKeyComparers(NTabletClient::GenerateComparers(keyColumnTypes)));
+
+            TryInsert(cachedEvaluator, &cachedEvaluator);
+        }
+
+        return *cachedEvaluator;
+    }
+
+};
+
+IRowComparerProviderPtr CreateRowComparerProvider(TSlruCacheConfigPtr config)
+{
+    return New<TRowComparerCache>(config);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletClient
