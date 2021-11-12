@@ -364,6 +364,22 @@ DEFINE_REFCOUNTED_TYPE(TInvokerLivenessCheckerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQueryRegistryConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration ProcessListSnapshotUpdatePeriod;
+
+    bool SaveRunningQueries;
+    bool SaveUsers;
+
+    TQueryRegistryConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryRegistryConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYtConfig
     : public NYTree::TYsonSerializable
 {
@@ -408,8 +424,6 @@ public:
     //! Config for cache which is used for WHERE to PREWHERE optimizator.
     NTableClient::TTableColumnarStatisticsCacheConfigPtr TableColumnarStatisticsCache;
 
-    TDuration ProcessListSnapshotUpdatePeriod;
-
     int WorkerThreadCount;
     int FetcherThreadCount;
 
@@ -439,6 +453,8 @@ public:
     NTableClient::TTableReaderConfigPtr TableReader;
 
     TQueryStatisticsReporterConfigPtr QueryStatisticsReporter;
+
+    TQueryRegistryConfigPtr QueryRegistry;
 
     TYtConfig();
 };

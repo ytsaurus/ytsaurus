@@ -229,16 +229,17 @@ class TQueryRegistry::TImpl
 public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, OrchidService);
 
-    TImpl(IInvokerPtr invoker, DB::ContextPtr context, TDuration processListSnapshotUpdatePeriod)
-        : DB::WithContext(context)
+    TImpl(IInvokerPtr invoker, DB::ContextPtr context, TQueryRegistryConfigPtr config)
+        : DB::WithContext(std::move(context))
         , OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this))))
+        , Config_(std::move(config))
         , Invoker_(std::move(invoker))
         , QueryRegistryProfiler_(ClickHouseYtProfiler.WithPrefix("/query_registry"))
         , IdlePromise_(MakePromise<void>(TError()))
         , ProcessListSnapshotExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TImpl::UpdateProcessListSnapshot, MakeWeak(this)),
-            processListSnapshotUpdatePeriod))
+            Config_->ProcessListSnapshotUpdatePeriod))
     {
         TotalDurationTimer_ = QueryRegistryProfiler_.Timer("/total_duration");
         for (auto queryPhase : {EQueryPhase::Preparation, EQueryPhase::Execution}) {
@@ -415,6 +416,8 @@ public:
     }
 
 private:
+    TQueryRegistryConfigPtr Config_;
+
     IInvokerPtr Invoker_;
     THashSet<TQueryContextPtr> QueryContexts_;
 
@@ -440,15 +443,17 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-            .Item("running_queries").DoMapFor(QueryContexts_, [&] (TFluentMap fluent, const TQueryContextPtr queryContext) {
-                const auto& queryId = queryContext->QueryId;
-                fluent
-                    .Item(ToString(queryId)).Value(*queryContext, ProcessListSnapshot_.FindQueryStatusInfoByQueryId(queryId));
+            .DoIf(Config_->SaveRunningQueries, [&] (TFluentMap fluent) {
+                fluent.Item("running_queries").DoMapFor(QueryContexts_, [&] (TFluentMap fluent, const TQueryContextPtr queryContext) {
+                    const auto& queryId = queryContext->QueryId;
+                    fluent.Item(ToString(queryId)).Value(*queryContext, ProcessListSnapshot_.FindQueryStatusInfoByQueryId(queryId));
+                });
             })
-            .Item("users").DoMapFor(UserToUserProfilingEntry_, [&] (TFluentMap fluent, const auto& pair) {
-                const auto& [user, userProfilingEntry] = pair;
-                fluent
-                    .Item(user).Value(*userProfilingEntry, ProcessListSnapshot_.FindProcessListForUserInfoByUser(user));
+            .DoIf(Config_->SaveUsers, [&] (TFluentMap fluent) {
+                fluent.Item("users").DoMapFor(UserToUserProfilingEntry_, [&] (TFluentMap fluent, const auto& pair) {
+                    const auto& [user, userProfilingEntry] = pair;
+                    fluent.Item(user).Value(*userProfilingEntry, ProcessListSnapshot_.FindProcessListForUserInfoByUser(user));
+                });
             })
             .EndMap();
     }
@@ -471,8 +476,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryRegistry::TQueryRegistry(IInvokerPtr invoker, DB::ContextPtr context, TDuration processListSnapshotUpdatePeriod)
-    : Impl_(New<TImpl>(std::move(invoker), context, processListSnapshotUpdatePeriod))
+TQueryRegistry::TQueryRegistry(IInvokerPtr invoker, DB::ContextPtr context, TQueryRegistryConfigPtr config)
+    : Impl_(New<TImpl>(std::move(invoker), std::move(context), std::move(config)))
 { }
 
 TQueryRegistry::~TQueryRegistry()

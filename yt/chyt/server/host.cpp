@@ -187,7 +187,7 @@ public:
         QueryRegistry_ = New<TQueryRegistry>(
             ControlInvoker_,
             context_,
-            Config_->ProcessListSnapshotUpdatePeriod);
+            Config_->QueryRegistry);
         MemoryWatchdog_ = New<TMemoryWatchdog>(
             Config_->MemoryWatchdog,
             BIND(&TQueryRegistry::WriteStateToStderr, QueryRegistry_),
