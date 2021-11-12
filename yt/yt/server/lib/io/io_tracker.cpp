@@ -209,7 +209,9 @@ public:
         , AggregateEventsWritten_(profiler.Counter("/aggregate_events_written"))
         , AggregateEventsDropped_(profiler.Counter("/aggregate_events_dropped"))
         , Enabled_(enabled)
-    { }
+    {
+        ResetTimerWithSplay();
+    }
 
     DEFINE_SIGNAL(void(const TIOCounters&, const TIOTagList&), OnAggregateEventLogged);
 
@@ -220,7 +222,7 @@ public:
         }
         Enabled_ = value;
         if (value) {
-            LastFlushed_ = Now();
+            ResetTimerWithSplay();
         } else {
             FlushEvents();
         }
@@ -264,10 +266,18 @@ protected:
 
 private:
     THashMap<TSortedIOTagList, TIOCounters> AggregateEvents_;
-    TInstant LastFlushed_ = Now();
+    TInstant LastFlushed_;
     NProfiling::TCounter AggregateEventsWritten_;
     NProfiling::TCounter AggregateEventsDropped_;
     bool Enabled_;
+
+    void ResetTimerWithSplay()
+    {
+        TDuration splay = Period_.MicroSeconds() == 0
+            ? TDuration::Zero()
+            : TDuration::MicroSeconds(RandomNumber<ui64>(Period_.MicroSeconds()));
+        LastFlushed_ = Now() - splay;
+    }
 
     void FlushEvents()
     {
