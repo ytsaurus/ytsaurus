@@ -1,14 +1,12 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
@@ -31,8 +29,6 @@ import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
 /**
  * Interface of transactional YT client.
@@ -43,28 +39,7 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
  *
  * @see YtClient
  */
-public interface TransactionalClient {
-    CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request);
-
-    <T> CompletableFuture<List<T>> lookupRows(
-            AbstractLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer
-    );
-
-    CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?> request);
-
-    <T> CompletableFuture<List<T>> versionedLookupRows(
-            AbstractLookupRowsRequest<?> request,
-            YTreeObjectSerializer<T> serializer
-    );
-
-    CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request);
-
-    <T> CompletableFuture<List<T>> selectRows(
-            SelectRowsRequest request,
-            YTreeObjectSerializer<T> serializer
-    );
-
+public interface TransactionalClient extends ImmutableTransactionalClient {
     CompletableFuture<GUID> createNode(CreateNode req);
 
     CompletableFuture<Void> removeNode(RemoveNode req);

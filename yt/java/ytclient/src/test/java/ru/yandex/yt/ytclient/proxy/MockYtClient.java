@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+
+import io.netty.channel.nio.NioEventLoopGroup;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
@@ -33,9 +36,15 @@ import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
-public class MockYtClient implements TransactionalClient {
+public class MockYtClient implements TransactionalClient, BaseYtClient {
     private Map<String, Deque<Callable<CompletableFuture<?>>>> mocks = new HashMap<>();
     private Map<String, Long> timesCalled = new HashMap<>();
+    private YtCluster cluster;
+    private ScheduledExecutorService executor = new NioEventLoopGroup(1);
+
+    public MockYtClient(String clusterName) {
+        this.cluster = new YtCluster(YtCluster.normalizeName(clusterName));
+    }
 
     public void mockMethod(String methodName, Callable<CompletableFuture<?>> callback) {
         synchronized (this) {
@@ -65,20 +74,12 @@ public class MockYtClient implements TransactionalClient {
         }
     }
 
-    private CompletableFuture<?> callMethod(String methodName) {
-        synchronized (this) {
-            timesCalled.put(methodName, Long.valueOf(timesCalled.getOrDefault(methodName, Long.valueOf(0)) + 1));
+    public List<YtCluster> getClusters() {
+        return List.of(cluster);
+    }
 
-            if (!mocks.containsKey(methodName) || mocks.get(methodName).isEmpty()) {
-                return CompletableFuture.failedFuture(new InternalError("Method " + methodName + " wasn't mocked"));
-            }
-
-            try {
-                return mocks.get(methodName).pollFirst().call();
-            } catch (Exception ex) {
-                return CompletableFuture.failedFuture(ex);
-            }
-        }
+    public ScheduledExecutorService getExecutor() {
+        return executor;
     }
 
     public CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request) {
@@ -180,5 +181,21 @@ public class MockYtClient implements TransactionalClient {
 
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         return (CompletableFuture<TCheckPermissionResult>) callMethod("checkPermission");
+    }
+
+    private CompletableFuture<?> callMethod(String methodName) {
+        synchronized (this) {
+            timesCalled.put(methodName, Long.valueOf(timesCalled.getOrDefault(methodName, Long.valueOf(0)) + 1));
+
+            if (!mocks.containsKey(methodName) || mocks.get(methodName).isEmpty()) {
+                return CompletableFuture.failedFuture(new InternalError("Method " + methodName + " wasn't mocked"));
+            }
+
+            try {
+                return mocks.get(methodName).pollFirst().call();
+            } catch (Exception ex) {
+                return CompletableFuture.failedFuture(ex);
+            }
+        }
     }
 }

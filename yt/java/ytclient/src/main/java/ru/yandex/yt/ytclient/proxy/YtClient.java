@@ -56,13 +56,15 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
  *      When all internal threads of YtClient are blocked by such callbacks
  *      YtClient becomes unable to send requests and receive responses.
  */
-public class YtClient extends CompoundClientImpl {
+public class YtClient extends CompoundClientImpl implements BaseYtClient {
     private static final Object KEY = new Object();
 
     private final BusConnector busConnector;
     private final boolean isBusConnectorOwner;
     private final ScheduledExecutorService executor;
     private final ClientPoolProvider poolProvider;
+
+    private final List<YtCluster> clusters;
 
     /**
      * @deprecated prefer to use {@link #builder()}
@@ -140,6 +142,7 @@ public class YtClient extends CompoundClientImpl {
         this.busConnector = builder.busConnector;
         this.isBusConnectorOwner = builder.builder.isBusConnectorOwner;
         this.executor = busConnector.executorService();
+        this.clusters = builder.builder.clusters;
 
         OutageController outageController =
                 builder.builder.options.getTestingOptions().getOutageController();
@@ -170,6 +173,10 @@ public class YtClient extends CompoundClientImpl {
      */
     public static Builder builder() {
         return new Builder();
+    }
+
+    public List<YtCluster> getClusters() {
+        return clusters;
     }
 
     public ScheduledExecutorService getExecutor() {
@@ -439,21 +446,85 @@ public class YtClient extends CompoundClientImpl {
         }
     }
 
-    @NonNullFields
     @NonNullApi
-    public static class Builder {
-        @Nullable BusConnector busConnector;
-        boolean isBusConnectorOwner = true;
-        List<YtCluster> clusters = new ArrayList<>();
-        @Nullable String preferredClusterName;
-        @Nullable String proxyRole;
+    @NonNullFields
+    public static class BaseBuilder<T extends BaseBuilder<T>> {
         @Nullable RpcCredentials credentials;
         RpcCompression compression = new RpcCompression();
         RpcOptions options = new RpcOptions();
+
+        /**
+         * Set authentication information i.e. user name and user token.
+         *
+         * <p>
+         * When no rpc credentials is set they are loaded from environment.
+         * @see RpcCredentials#loadFromEnvironment()
+         */
+        public T setRpcCredentials(RpcCredentials rpcCredentials) {
+            this.credentials = rpcCredentials;
+            return (T) this;
+        }
+
+        /**
+         * Set compression to be used for requests and responses.
+         *
+         * <p>
+         * If it's not specified no compression will be used.
+         */
+        public T setRpcCompression(RpcCompression rpcCompression) {
+            this.compression = rpcCompression;
+            return (T) this;
+        }
+
+        /**
+         * Set miscellaneous options.
+         */
+        public T setRpcOptions(RpcOptions rpcOptions) {
+            this.options = rpcOptions;
+            return (T) this;
+        }
+    }
+
+    @NonNullFields
+    @NonNullApi
+    public static class Builder extends BaseBuilder<Builder> {
+        @Nullable BusConnector busConnector;
+        boolean isBusConnectorOwner = true;
+        @Nullable String preferredClusterName;
+        @Nullable String proxyRole;
+        @Nullable List<YtCluster> clusters = new ArrayList<>();
+
         boolean enableValidation = true;
         Executor heavyExecutor = ForkJoinPool.commonPool();
 
         Builder() {
+        }
+
+        /**
+         * Set YT cluster to use.
+         *
+         * <p>
+         * Similar to {@link #setCluster(String)} but allows to create connections to several clusters.
+         * YtClient will chose cluster to send requests based on cluster availability and their ping.
+         */
+        public Builder setClusters(String firstCluster, String... rest) {
+            List<YtCluster> ytClusters = new ArrayList<>();
+            ytClusters.add(new YtCluster(YtCluster.normalizeName(firstCluster)));
+            for (String clusterName : rest) {
+                ytClusters.add(new YtCluster(YtCluster.normalizeName(clusterName)));
+            }
+            return setClusters(ytClusters);
+        }
+
+        /**
+         * Set YT clusters to use.
+         *
+         * <p>
+         * Similar to {@link #setClusters(String, String...)} but allows finer configuration.
+         */
+        public Builder setClusters(List<YtCluster> clusters) {
+            this.clusters = clusters;
+            return this;
         }
 
         /**
@@ -488,6 +559,19 @@ public class YtClient extends CompoundClientImpl {
         }
 
         /**
+         * Set YT cluster to use.
+         *
+         * @param cluster address of YT cluster http balancer, examples:
+         *                "hahn"
+         *                "arnold.yt.yandex.net"
+         *                "localhost:8054"
+         */
+        public Builder setCluster(String cluster) {
+            setClusters(cluster);
+            return this;
+        }
+
+        /**
          * Set heavy executor for YT client. This is used for deserialization of lookup/select response.
          * By default, ForkJoinPool.commonPool().
          * @param heavyExecutor
@@ -504,45 +588,6 @@ public class YtClient extends CompoundClientImpl {
         public Builder setDefaultBusConnectorWithThreadCount(int threadCount) {
             setOwnBusConnector(new DefaultBusConnector(new NioEventLoopGroup(threadCount), true));
             isBusConnectorOwner = true;
-            return this;
-        }
-
-        /**
-         * Set YT cluster to use.
-         *
-         * @param cluster address of YT cluster http balancer, examples:
-         *                "hahn"
-         *                "arnold.yt.yandex.net"
-         *                "localhost:8054"
-         */
-        public Builder setCluster(String cluster) {
-            return setClusters(cluster);
-        }
-
-        /**
-         * Set YT cluster to use.
-         *
-         * <p>
-         * Similar to {@link #setCluster(String)} but allows to create connections to several clusters.
-         * YtClient will chose cluster to send requests based on cluster availability and their ping.
-         */
-        public Builder setClusters(String firstCluster, String... rest) {
-            List<YtCluster> ytClusters = new ArrayList<>();
-            ytClusters.add(new YtCluster(YtCluster.normalizeName(firstCluster)));
-            for (String clusterName : rest) {
-                ytClusters.add(new YtCluster(YtCluster.normalizeName(clusterName)));
-            }
-            return setClusters(ytClusters);
-        }
-
-        /**
-         * Set YT clusters to use.
-         *
-         * <p>
-         * Similar to {@link #setClusters(String, String...)} but allows finer configuration.
-         */
-        public Builder setClusters(List<YtCluster> clusters) {
-            this.clusters = clusters;
             return this;
         }
 
@@ -571,37 +616,6 @@ public class YtClient extends CompoundClientImpl {
          */
         public Builder setProxyRole(@Nullable String proxyRole) {
             this.proxyRole = proxyRole;
-            return this;
-        }
-
-        /**
-         * Set authentication information i.e. user name and user token.
-         *
-         * <p>
-         * When no rpc credentials is set they are loaded from environment.
-         * @see RpcCredentials#loadFromEnvironment()
-         */
-        public Builder setRpcCredentials(RpcCredentials rpcCredentials) {
-            this.credentials = rpcCredentials;
-            return this;
-        }
-
-        /**
-         * Set compression to be used for requests and responses.
-         *
-         * <p>
-         * If it's not specified no compression will be used.
-         */
-        public Builder setRpcCompression(RpcCompression rpcCompression) {
-            this.compression = rpcCompression;
-            return this;
-        }
-
-        /**
-         * Set miscellaneous options.
-         */
-        public Builder setRpcOptions(RpcOptions rpcOptions) {
-            this.options = rpcOptions;
             return this;
         }
 

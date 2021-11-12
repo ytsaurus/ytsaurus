@@ -22,7 +22,7 @@ public class MockYtClientTest {
 
     @Test
     public void testOk() {
-        MockYtClient mockClient = new MockYtClient();
+        MockYtClient mockClient = new MockYtClient("tmp");
         List<Row> firstExpectedResult = List.of(Row.of("1"), Row.of("2"), Row.of("3"));
         List<Row> secondExpectedResult = List.of(Row.of("4"), Row.of("5"));
 
@@ -61,7 +61,7 @@ public class MockYtClientTest {
 
     @Test
     public void testNoMockedValue() {
-        MockYtClient mockClient = new MockYtClient();
+        MockYtClient mockClient = new MockYtClient("tmp");
 
         List<Row> expectedResult = List.of(Row.of("1"), Row.of("2"), Row.of("3"));
         mockClient.mockMethod("lookupRows", () -> CompletableFuture.completedFuture(expectedResult));
@@ -80,13 +80,13 @@ public class MockYtClientTest {
         }
     }
 
-    CompletableFuture<List<Row>> doLookup(MockYtClient mockClient) {
+    private CompletableFuture<List<Row>> doLookup(MockYtClient mockClient) {
         return mockClient.lookupRows(
                 new LookupRowsRequest(path, schema.toLookup()),
                 (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class));
     }
 
-    CompletableFuture<List<Row>> doSelect(MockYtClient mockClient) {
+    private CompletableFuture<List<Row>> doSelect(MockYtClient mockClient) {
         return mockClient.selectRows(
                 SelectRowsRequest.of("select something"),
                 (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class));
