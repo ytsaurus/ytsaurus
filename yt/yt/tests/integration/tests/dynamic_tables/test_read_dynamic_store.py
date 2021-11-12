@@ -10,7 +10,7 @@ from yt_commands import (
     commit_transaction, lock, insert_rows, read_table, write_table, map, reduce, map_reduce, merge, sort,
     unmount_table, remount_table,
     generate_timestamp, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
-    sync_freeze_table, sync_unfreeze_table, sync_flush_table,
+    sync_freeze_table, sync_unfreeze_table, sync_flush_table, sync_reshard_table,
     get_singular_chunk_id)
 
 from yt.common import YtError
@@ -282,6 +282,41 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         assert get("//tmp/copy/@enable_dynamic_store_read")
         sync_mount_table("//tmp/copy")
         assert_items_equal(read_table("//tmp/copy"), [{"key": 2, "value": "b"}])
+
+    def test_tablet_removed_from_abandoned_chunk(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", dynamic_store_auto_flush_period=yson.YsonEntity())
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+        create("table", "//tmp/p")
+        write_table("//tmp/p", [{"key": 2, "value": "b"}])
+
+        tx = start_transaction(timeout=60000)
+        lock("//tmp/t", mode="snapshot", tx=tx)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        tablet_chunk_list_id = get("#{}/@child_ids/0".format(root_chunk_list_id))
+        dynamic_store_ids = get("#{}/@child_ids".format(tablet_chunk_list_id))
+
+        for ds in dynamic_store_ids:
+            assert get("#{}/@tablet_id".format(ds)) == tablet_id
+
+        assert read_table("//tmp/t", tx=tx) == [{"key": 1, "value": "a"}]
+        merge(in_="//tmp/p", out="//tmp/t", mode="ordered")
+        assert read_table("//tmp/t") == [{"key": 2, "value": "b"}]
+
+        for ds in dynamic_store_ids:
+            assert get("#{}/@tablet_id".format(ds)) == "0-0-0-0"
+
+        # Destroy the tablet. Simply removing the table wouldn't help since someone still holds
+        # the lock and prevents unmounting the tablet.
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+
+        for ds in dynamic_store_ids:
+            assert get("#{}/@tablet_id".format(ds)) == "0-0-0-0"
 
     def test_accounting(self):
         cell_id = sync_create_cells(1)[0]

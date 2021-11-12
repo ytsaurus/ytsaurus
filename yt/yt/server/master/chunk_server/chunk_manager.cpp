@@ -1034,7 +1034,7 @@ public:
         return CreateChunkView(chunkView->GetUnderlyingTree(), readRange, chunkView->GetTransactionId());
     }
 
-    TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, const TTablet* tablet)
+    TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, TTablet* tablet)
     {
         auto* dynamicStore = DoCreateDynamicStore(storeId, tablet);
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store created (StoreId: %v, TabletId: %v)",
@@ -2389,7 +2389,7 @@ private:
         ++ChunkViewsDestroyed_;
     }
 
-    TDynamicStore* DoCreateDynamicStore(TDynamicStoreId storeId, const TTablet* tablet)
+    TDynamicStore* DoCreateDynamicStore(TDynamicStoreId storeId, TTablet* tablet)
     {
         auto holder = TPoolAllocator::New<TDynamicStore>(storeId);
         auto* dynamicStore = DynamicStoreMap_.Insert(storeId, std::move(holder));
@@ -5165,7 +5165,7 @@ TChunkView* TChunkManager::CloneChunkView(
     return Impl_->CloneChunkView(chunkView, std::move(readRange));
 }
 
-TDynamicStore* TChunkManager::CreateDynamicStore(TDynamicStoreId storeId, const TTablet* tablet)
+TDynamicStore* TChunkManager::CreateDynamicStore(TDynamicStoreId storeId, TTablet* tablet)
 {
     return Impl_->CreateDynamicStore(storeId, tablet);
 }

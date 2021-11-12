@@ -192,7 +192,7 @@ public:
         NChunkClient::TConsistentReplicaPlacementHash consistentReplicaPlacementHash = NChunkClient::NullConsistentReplicaPlacementHash,
         i64 replicaLagLimit = 0);
 
-    TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, const NTabletServer::TTablet* tablet);
+    TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, NTabletServer::TTablet* tablet);
 
     void RebalanceChunkTree(TChunkList* chunkList);
 

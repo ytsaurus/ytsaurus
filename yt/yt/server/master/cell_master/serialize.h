@@ -220,7 +220,8 @@ DEFINE_ENUM(EMasterReign,
     ((CRP)                                                          (1816))  // shakurov
     ((EnableCrpBuiltinAttribute)                                    (1817))  // shakurov
     // 22.1 starts here.
-    ((EnableCellBalancerInConfig)                                   (1900))  //alexkolodezny
+    ((EnableCellBalancerInConfig)                                   (1900))  // alexkolodezny
+    ((RefFromTabletToDynamicStore)                                  (1901))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

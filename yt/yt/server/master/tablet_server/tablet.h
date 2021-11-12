@@ -286,6 +286,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TUnconfirmedDynamicTableLocksSet, UnconfirmedDynamicTableLocks);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TStoreId>, EdenStoreIds);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NChunkServer::TDynamicStore*>, DynamicStores);
 
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, State);
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);

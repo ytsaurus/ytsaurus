@@ -354,6 +354,14 @@ public:
                 THashSet<TTablet*>{tablet},
                 TError("Tablet %v has been removed", tablet->GetId()));
         }
+
+        if (!tablet->DynamicStores().empty()) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                "Tablet has dynamic stores upon destruction "
+                "(TabletId: %v, StoreCount: %v)",
+                tablet->GetId(),
+                ssize(tablet->DynamicStores()));
+        }
     }
 
 
@@ -2586,6 +2594,8 @@ private:
     bool RecomputeHunkResourceUsage_ = false;
     // COMPAT(shakurov)
     bool FixTablesWithNullTabletCellBundle_ = false;
+    // COMPAT(ifsmirnov)
+    bool RecomputeRefsFromTabletsToDynamicStores_ = true;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -4355,6 +4365,9 @@ private:
 
         // COMPAT(shakurov)
         FixTablesWithNullTabletCellBundle_ = context.GetVersion() < EMasterReign::FixTablesWithNullTabletCellBundle;
+
+        // COMPAT(ifsmirnov)
+        RecomputeRefsFromTabletsToDynamicStores_ = context.GetVersion() < EMasterReign::RefFromTabletToDynamicStore;
     }
 
     void RecomputeBundleResourceUsage()
@@ -4438,6 +4451,7 @@ private:
 
         RecomputeAggregateTabletStatistics_ = false;
         FixTablesWithNullTabletCellBundle_ = false;
+        RecomputeRefsFromTabletsToDynamicStores_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -4500,6 +4514,34 @@ private:
                     tablesFixed,
                     resourcesAdded);
             }
+        }
+
+        if (RecomputeRefsFromTabletsToDynamicStores_) {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            for (auto [id, dynamicStore] : chunkManager->DynamicStores()) {
+                dynamicStore->ResetTabletCompat();
+            }
+
+            int relationCount = 0;
+
+            for (auto [id, tablet] : Tablets()) {
+                if (!IsObjectAlive(tablet) || !tablet->GetTable()) {
+                    continue;
+                }
+
+                for (auto* child : tablet->GetChunkList()->Children()) {
+                    if (child->GetType() == EObjectType::SortedDynamicTabletStore ||
+                        child->GetType() == EObjectType::OrderedDynamicTabletStore)
+                    {
+                        child->AsDynamicStore()->SetTablet(tablet);
+                        ++relationCount;
+                    }
+                }
+            }
+
+            YT_LOG_INFO("Fixed relations between tablets and dynamic stores "
+                "(RelationCount: %v)",
+                relationCount);
         }
     }
 
@@ -5300,13 +5342,11 @@ private:
 
     void AbandonDynamicStores(TTablet* tablet)
     {
-        auto stores = EnumerateStoresInChunkTree(tablet->GetChunkList());
-        std::vector<TChunkTree*> dynamicStores;
+        // Making a copy since store->Abandon() will remove elements from tablet->DynamicStores().
+        auto stores = tablet->DynamicStores();
+
         for (auto* store : stores) {
-            if (IsDynamicTabletStoreType(store->GetType())) {
-                dynamicStores.push_back(store);
-                store->AsDynamicStore()->Abandon();
-            }
+            store->Abandon();
         }
     }
 
@@ -5403,7 +5443,7 @@ private:
         return objectManager->GenerateId(type, hintId);
     }
 
-    TDynamicStore* CreateDynamicStore(const TTablet* tablet, TDynamicStoreId hintId = NullObjectId)
+    TDynamicStore* CreateDynamicStore(TTablet* tablet, TDynamicStoreId hintId = NullObjectId)
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto id = GenerateDynamicStoreId(tablet, hintId);
