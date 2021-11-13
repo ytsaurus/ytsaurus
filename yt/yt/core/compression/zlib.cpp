@@ -21,7 +21,7 @@ static constexpr size_t MaxZlibUInt = std::numeric_limits<uInt>::max();
 
 void ZlibCompress(int level, StreamSource* source, TBlob* output)
 {
-    z_stream stream;
+    z_stream stream{};
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
@@ -95,7 +95,7 @@ void ZlibDecompress(StreamSource* source, TBlob* output)
     // We add one additional byte to process correctly last inflate.
     output->Reserve(totalUncompressedSize + 1);
 
-    z_stream stream;
+    z_stream stream{};
     stream.zalloc = Z_NULL;
     stream.zfree = Z_NULL;
     stream.opaque = Z_NULL;
