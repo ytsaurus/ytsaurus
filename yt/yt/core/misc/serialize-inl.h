@@ -437,7 +437,7 @@ void Load(C& context, T& value, TArgs&&... args)
 template <class T, class C, class... TArgs>
 T Load(C& context, TArgs&&... args)
 {
-    T value;
+    T value{};
     Load(context, value, std::forward<TArgs>(args)...);
     return value;
 }
@@ -641,7 +641,7 @@ struct TSizeSerializer
     template <class C>
     static void Load(C& context, size_t& value)
     {
-        ui32 fixedValue;
+        ui32 fixedValue = 0;
         TPodSerializer::Load(context, fixedValue);
         value = static_cast<size_t>(fixedValue);
     }
@@ -651,7 +651,7 @@ struct TSizeSerializer
     template <class C>
     static size_t Load(C& context)
     {
-        size_t value;
+        size_t value = 0;
         Load(context, value);
         return value;
     }
@@ -793,7 +793,7 @@ struct TOptionalSerializer
         bool hasValue = LoadSuspended<bool>(context);
 
         if (hasValue) {
-            T temp;
+            T temp{};
             TUnderlyingSerializer::Load(context, temp);
             optional = temp;
         } else {
@@ -1530,17 +1530,17 @@ struct TMapSerializer
 
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index < size; ++index) {
-                typename TMapType::key_type key;
+                typename TMapType::key_type key{};
                 TKeySerializer::Load(context, key);
 
                 SERIALIZATION_DUMP_WRITE(context, "=>");
 
-                typename TMapType::mapped_type value;
+                typename TMapType::mapped_type value{};
                 SERIALIZATION_DUMP_INDENT(context) {
                     TValueSerializer::Load(context, value);
                 }
 
-                YT_VERIFY(map.emplace(key, std::move(value)).second);
+                YT_VERIFY(map.emplace(std::move(key), std::move(value)).second);
             }
         }
     }
@@ -1573,17 +1573,17 @@ struct TMultiMapSerializer
         map.clear();
 
         for (size_t index = 0; index < size; ++index) {
-            typename TMapType::key_type key;
+            typename TMapType::key_type key{};
             TKeySerializer::Load(context, key);
 
             SERIALIZATION_DUMP_WRITE(context, "=>");
 
-            typename TMapType::mapped_type value;
+            typename TMapType::mapped_type value{};
             SERIALIZATION_DUMP_INDENT(context) {
                 TValueSerializer::Load(context, value);
             }
 
-            map.emplace(key, value);
+            map.emplace(std::move(key), std::move(value));
         }
     }
 };
