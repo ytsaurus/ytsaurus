@@ -50,7 +50,7 @@ public:
     TSharedRef Feed(const TSharedRef& buf);
 
 private:
-    http_parser Parser_;
+    http_parser Parser_{};
 
     TStringBuilder FirstLine_;
     TStringBuilder NextField_;
