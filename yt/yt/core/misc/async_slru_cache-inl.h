@@ -81,6 +81,8 @@ void TAsyncSlruCacheListManager<TItem, TDerived>::PopFromLists(TItem* item)
         return;
     }
 
+    YT_VERIFY(TouchBufferPosition.load() == 0);
+
     i64 weight = item->CachedWeight;
     if (item->Younger) {
         YoungerWeightCounter -= weight;
@@ -291,6 +293,16 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
         auto writerGuard = WriterGuard(shard->SpinLock);
         Size_ -= std::ssize(shard.ItemMap);
         shard.ItemMap.clear();
+
+        if (!IsResurrectionSupported()) {
+            for (const auto& [key, rawValue] : shard.ValueMap) {
+                if (auto value = DangerousGetPtr<TValue>(rawValue)) {
+                    value->Cache_.Reset();
+                }
+            }
+            shard.ValueMap.clear();
+        }
+
         shard.Clear(writerGuard);
     }
 }
