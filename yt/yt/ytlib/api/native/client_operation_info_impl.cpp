@@ -73,6 +73,11 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "alerts",
     "task_names",
     "controller_features",
+    "alert_events",
+};
+
+static const THashSet<TString> ArchiveOnlyAttributes = {
+    "alert_events",
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -509,6 +514,7 @@ TOperation TClient::DoGetOperationImpl(
         if (auto briefProgress = GetLatestProgress((*cypressResult)->BriefProgress, archiveResult->BriefProgress)) {
             (*cypressResult)->BriefProgress = std::move(briefProgress);
         }
+        (*cypressResult)->AlertEvents = archiveResult->AlertEvents;
     };
 
     if (cypressResult && archiveResultOrError.IsOK()) {
@@ -528,17 +534,35 @@ TOperation TClient::DoGetOperationImpl(
     };
 
     if (cypressResult) {
+        auto needArchiveResult = false;
+        if (options.Attributes) {
+            for (const auto& attribute : ArchiveOnlyAttributes) {
+                if (options.Attributes->contains(attribute)) {
+                    needArchiveResult = true;
+                    break;
+                }
+            }
+        }
+
         auto cypressProgressAge = operationNodeModificationTime - getOldestBuildTime(*cypressResult);
-        if (cypressProgressAge <= options.MaximumCypressProgressAge) {
+        if (cypressProgressAge <= options.MaximumCypressProgressAge && !needArchiveResult) {
             return *cypressResult;
         }
 
-        YT_LOG_DEBUG(archiveResultOrError,
-            "Operation progress in Cypress is outdated, while archive request failed "
-            "(OperationId: %v, CypressProgressAge: %v, MaximumCypressProgressAge: %v)",
-            operationId,
-            cypressProgressAge,
-            options.MaximumCypressProgressAge);
+        if (cypressProgressAge > options.MaximumCypressProgressAge) {
+            YT_LOG_DEBUG(archiveResultOrError,
+                "Operation progress in Cypress is outdated, while archive request failed "
+                "(OperationId: %v, CypressProgressAge: %v, MaximumCypressProgressAge: %v)",
+                operationId,
+                cypressProgressAge,
+                options.MaximumCypressProgressAge);
+        } else {
+            YT_LOG_DEBUG(archiveResultOrError,
+                "Some attributes are archive only, while archive request failed "
+                "(OperationId: %v, RequestedAttributes: %v)",
+                operationId,
+                options.Attributes);
+        }
 
         // Archive request timeouted but the cypress result is outdated.
         // We need to repeat the archive request without timeout.
@@ -553,8 +577,9 @@ TOperation TClient::DoGetOperationImpl(
         if (!archiveResultOrError.IsOK()) {
             if (IsErrorRetriable(archiveResultOrError)) {
                 THROW_ERROR_EXCEPTION(
-                    EErrorCode::OperationProgressOutdated,
-                    "Operation progress in Cypress is outdated while archive request failed")
+                    EErrorCode::RetriableArchiveError,
+                    "Operation progress in Cypress is outdated or some attributes "
+                    "are archive only while archive request failed")
                     << archiveResultOrError;
             } else {
                 THROW_ERROR_EXCEPTION(
@@ -645,7 +670,7 @@ TOperation TClient::DoGetOperation(
         } catch (const TErrorException& error) {
             YT_LOG_DEBUG(error, "Failed to get operation (OperationId: %v)",
                 operationId);
-            if (!error.Error().FindMatching(EErrorCode::OperationProgressOutdated)) {
+            if (!error.Error().FindMatching(EErrorCode::RetriableArchiveError)) {
                 throw;
             }
             if (TInstant::Now() + retryInterval > deadline) {
@@ -929,6 +954,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     auto alertsIndex = columnFilter.FindPosition(tableIndex.Alerts);
     auto taskNamesIndex = columnFilter.FindPosition(tableIndex.TaskNames);
     auto controllerFeaturesIndex = columnFilter.FindPosition(tableIndex.ControllerFeatures);
+    auto alertEventsIndex = columnFilter.FindPosition(tableIndex.AlertEvents);
 
     YT_LOG_DEBUG("Parsing operations from archive (OperationCount: %v)", ids.size());
 
@@ -974,6 +1000,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
         TryFromUnversionedValue(operation.ExperimentAssignments, row, experimentAssignments);
         TryFromUnversionedValue(operation.ExperimentAssignmentNames, row, experimentAssignmentNames);
         TryFromUnversionedValue(operation.ControllerFeatures, row, controllerFeaturesIndex);
+        TryFromUnversionedValue(operation.AlertEvents, row, alertEventsIndex);
 
         idToOperation.emplace(operationId, std::move(operation));
     }
@@ -1276,7 +1303,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         result.Incomplete = true;
     }
 
-    // Fetching progress for operations with mentioned ids.
+    // Fetching progress and alert_events for operations with mentioned ids.
     if (DoesOperationsArchiveExist()) {
         std::vector<TOperationId> ids;
         for (const auto& operation: result.Operations) {
@@ -1285,6 +1312,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
 
         bool needBriefProgress = !options.Attributes || options.Attributes->contains("brief_progress");
         bool needProgress = options.Attributes && options.Attributes->contains("progress");
+        bool needAlertEvents = options.Attributes && options.Attributes->contains("alert_events");
 
         TOrderedByIdTableDescriptor tableDescriptor;
         std::vector<int> columnIndices;
@@ -1293,6 +1321,9 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         }
         if (needProgress) {
             columnIndices.push_back(tableDescriptor.Index.Progress);
+        }
+        if (needAlertEvents) {
+            columnIndices.push_back(tableDescriptor.Index.AlertEvents);
         }
 
         auto columnFilter = NTableClient::TColumnFilter(columnIndices);
@@ -1303,10 +1334,11 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
             options.ArchiveFetchingTimeout);
 
         if (!rowsetOrError.IsOK()) {
-            YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' progress and brief_progress from Archive");
+            YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' progress, brief_progress and alert_events from Archive");
         } else {
             auto briefProgressPosition = columnFilter.FindPosition(tableDescriptor.Index.BriefProgress);
             auto progressPosition = columnFilter.FindPosition(tableDescriptor.Index.Progress);
+            auto alertEventsPosition = columnFilter.FindPosition(tableDescriptor.Index.AlertEvents);
 
             const auto& rows = rowsetOrError.Value()->GetRows();
 
@@ -1329,6 +1361,12 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
                     if (progressValue.Type != EValueType::Null) {
                         auto progressYsonString = FromUnversionedValue<TYsonString>(progressValue);
                         operation.Progress = GetLatestProgress(operation.Progress, progressYsonString);
+                    }
+                }
+                if (alertEventsPosition) {
+                    auto alertEventsValue = row[*alertEventsPosition];
+                    if (alertEventsValue.Type != EValueType::Null) {
+                        operation.AlertEvents = FromUnversionedValue<TYsonString>(alertEventsValue);
                     }
                 }
             }
