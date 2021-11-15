@@ -19,8 +19,10 @@
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
+using namespace NChunkClient;
 using namespace NHydra;
 using namespace NObjectServer;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -480,11 +482,19 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
         return result;
     }
 
-    YT_LOG_WARNING("CRP nodes do not satisfy rack awareness constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v))",
-        chunk->GetId(),
-        mediumIndex,
-        replicationFactor,
-        SufficientlyLargeReplicaCount_);
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    auto dataNodeCount = std::ssize(nodeTracker->GetNodesWithFlavor(ENodeFlavor::Data));
+
+    if (dataNodeCount >= replicationFactor &&
+        dataNodeCount >= ChunkReplicaIndexBound)
+    {
+        YT_LOG_WARNING("CRP nodes do not satisfy rack awareness constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v), DataNodeCount: %v)",
+            chunk->GetId(),
+            mediumIndex,
+            replicationFactor,
+            SufficientlyLargeReplicaCount_,
+            dataNodeCount);
+    }
 
     result.clear();
     TClashAwareness clashAwareness;
@@ -503,15 +513,13 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
         return result;
     }
 
-    // Don't raise alert when there's only one node.
-    if (mediumRing.GetTokenCount() !=
-        nodeCandidates.front()->GetConsistentReplicaPlacementTokenCount(mediumIndex))
-    {
-        YT_LOG_ALERT("CRP nodes do not satisfy clash constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v))",
+    if (dataNodeCount >= replicationFactor) {
+        YT_LOG_ALERT("CRP nodes do not satisfy clash constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v), DataNodeCount: %v)",
             chunk->GetId(),
             mediumIndex,
             replicationFactor,
-            SufficientlyLargeReplicaCount_);
+            SufficientlyLargeReplicaCount_,
+            dataNodeCount);
     }
 
     result.clear();
