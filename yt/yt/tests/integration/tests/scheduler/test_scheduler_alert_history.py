@@ -4,13 +4,15 @@ from yt_commands import (
     authors, wait, get,
     lookup_rows,
     map, get_singular_chunk_id, update_scheduler_config, set_banned_flag,
-    create_test_tables, sync_create_cells)
+    create_test_tables, sync_create_cells,
+    list_operations, get_operation)
 
 import yt.environment.init_operation_archive as init_operation_archive
 
-from yt.common import uuid_to_parts, YtError
+from yt.common import datetime_to_string, uuid_to_parts, YtError
 
 import time
+from datetime import datetime
 
 import pytest
 
@@ -194,3 +196,48 @@ class TestUpdateAlertEventsSenderPeriodOnDisabledCleaner(YTEnvSetup):
     def test_update_period_on_disabled_cleaner(self):
         # There was a bug when cleaner crashed on such update when it was disabled.
         update_scheduler_config("operations_cleaner/operation_alert_event_send_period", 1000)
+
+
+class TestAlertsHistoryInApi(TestSchedulerAlertHistoryBase):
+    def setup(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
+
+    @authors("egor-gutrov")
+    def test_get_operation(self):
+        op = _run_op_with_input_chunks_alert(return_events=False, min_events=2)
+        alert_events = get_operation(op.id, attributes=["alert_events"])["alert_events"]
+
+        assert len(alert_events) == 2
+        assert alert_events[0]["alert_type"] == "lost_input_chunks"
+        assert alert_events[0]["error"]["code"] != 0
+        assert alert_events[1]["alert_type"] == "lost_input_chunks"
+        assert alert_events[1]["error"]["code"] == 0
+
+    @authors("egor-gutrov")
+    def test_list_operations(self):
+        _run_op_with_input_chunks_alert(return_events=False, min_events=2)
+        _run_op_with_input_chunks_alert(return_events=False, min_events=2)
+        operations = list_operations(
+            attributes=["id", "alert_events"],
+            include_archive=True,
+            from_time=datetime_to_string(datetime.utcfromtimestamp(0)),
+            to_time=datetime_to_string(datetime.utcnow()),
+        )["operations"]
+
+        for op_desc in operations:
+            alert_events = op_desc["alert_events"]
+            assert len(alert_events) == 2
+            assert alert_events[0]["alert_type"] == "lost_input_chunks"
+            assert alert_events[0]["error"]["code"] != 0
+            assert alert_events[1]["alert_type"] == "lost_input_chunks"
+            assert alert_events[1]["error"]["code"] == 0
+
+
+class TestAlertsHistoryInApiRpcProxy(TestAlertsHistoryInApi):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True

@@ -33,7 +33,7 @@ DEFINE_ENUM(EUserWorkloadCategory,
 DEFINE_ENUM(EErrorCode,
     ((TooManyConcurrentRequests)                         (1900))
     ((JobArchiveUnavailable)                             (1910))
-    ((OperationProgressOutdated)                         (1911))
+    ((RetriableArchiveError)                             (1911))
     ((NoSuchOperation)                                   (1915))
     ((NoSuchJob)                                         (1916))
     ((UncertainOperationControllerState)                 (1917))
