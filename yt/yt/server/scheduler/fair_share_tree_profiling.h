@@ -39,7 +39,7 @@ public:
     // Thread affinity: Profiler thread.
     void ApplyScheduledAndPreemptedResourcesDelta(
         const TFairShareTreeSnapshotImplPtr& treeSnapshot,
-        const TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources>& operationIdWithStageToScheduledJobResourcesDeltas,
+        const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& operationIdWithStageToScheduledJobResourcesDeltas,
         const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourcesDeltas,
         const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourceTimeDeltas);
 
@@ -91,7 +91,7 @@ private:
     NProfiling::TGauge SchedulableElementCountGauge_;
 
     THashMap<TString, TJobMetrics> JobMetricsMap_;
-    TEnumIndexedVector<EJobSchedulingStage, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
+    THashMap<std::optional<EJobSchedulingStage>, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
     TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
     TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
 

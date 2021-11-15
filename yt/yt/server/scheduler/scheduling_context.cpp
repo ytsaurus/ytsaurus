@@ -41,9 +41,7 @@ void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consume
         .Item("unconditionally_preemptable_job_count").Value(statistics.UnconditionallyPreemptableJobCount)
         .Item("controller_schedule_job_count").Value(statistics.ControllerScheduleJobCount)
         .Item("controller_schedule_job_timed_out_count").Value(statistics.ControllerScheduleJobTimedOutCount)
-        .Item("non_preemptive_schedule_job_attempts").Value(statistics.NonPreemptiveScheduleJobAttempts)
-        .Item("aggressively_preemptive_schedule_job_attempts").Value(statistics.AggressivelyPreemptiveScheduleJobAttempts)
-        .Item("preemptive_schedule_job_attempts").Value(statistics.PreemptiveScheduleJobAttempts)
+        .Item("schedule_job_attempt_count_per_stage").Value(statistics.ScheduleJobAttemptCountPerStage)
         .Item("has_aggressively_starving_elements").Value(statistics.HasAggressivelyStarvingElements)
         .Item("unconditional_resource_usage_discount").Value(statistics.UnconditionalResourceUsageDiscount)
         .Item("resource_usage").Value(statistics.ResourceUsage)
@@ -64,9 +62,9 @@ TString FormatPreemptableInfoCompact(const TScheduleJobsStatistics& statistics)
 TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics)
 {
     return Format("{NP: %v, AP: %v, P: %v, C: %v, TO: %v, MNPSI: %v}",
-        statistics.NonPreemptiveScheduleJobAttempts,
-        statistics.AggressivelyPreemptiveScheduleJobAttempts,
-        statistics.PreemptiveScheduleJobAttempts,
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::NonPreemptive],
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::AggressivelyPreemptive],
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::Preemptive],
         statistics.ControllerScheduleJobCount,
         statistics.ControllerScheduleJobTimedOutCount,
         statistics.MaxNonPreemptiveSchedulingIndex);

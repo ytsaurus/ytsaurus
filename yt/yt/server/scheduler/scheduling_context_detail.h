@@ -53,8 +53,8 @@ public:
         TControllerEpoch controllerEpoch,
         const TJobStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode,
-        EJobSchedulingStage schedulingStage,
-        int schedulingIndex) override;
+        int schedulingIndex,
+        EJobSchedulingStage schedulingStage) override;
 
     void PreemptJob(const TJobPtr& job, TDuration interruptTimeout, EJobPreemptionReason preemptionReason) override;
 

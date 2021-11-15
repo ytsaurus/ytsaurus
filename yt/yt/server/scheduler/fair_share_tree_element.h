@@ -186,7 +186,8 @@ struct TResourceDistributionInfo
 
 struct TScheduleJobsProfilingCounters
 {
-    TScheduleJobsProfilingCounters(const NProfiling::TProfiler& profiler);
+    TScheduleJobsProfilingCounters() = default;
+    explicit TScheduleJobsProfilingCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter PrescheduleJobCount;
     NProfiling::TCounter UselessPrescheduleJobCount;
@@ -218,9 +219,7 @@ struct TFairShareScheduleJobResult
 
 struct TScheduleJobsStage
 {
-    TScheduleJobsStage(TString loggingName, TScheduleJobsProfilingCounters profilingCounters);
-
-    const TString LoggingName;
+    EJobSchedulingStage Type;
     TScheduleJobsProfilingCounters ProfilingCounters;
 };
 
@@ -231,11 +230,9 @@ class TScheduleJobsContext
 private:
     struct TStageState
     {
-        TStageState(TScheduleJobsStage* schedulingStage, EJobSchedulingStage type);
+        explicit TStageState(TScheduleJobsStage* schedulingStage);
 
         TScheduleJobsStage* const SchedulingStage;
-
-        EJobSchedulingStage Type;
 
         bool PrescheduleExecuted = false;
 
@@ -300,7 +297,7 @@ public:
     const TNonOwningJobSet& GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const;
     TJobResources GetLocalUnconditionalUsageDiscountFor(const TSchedulerElement* element) const;
 
-    void StartStage(TScheduleJobsStage* schedulingStage, EJobSchedulingStage stageType);
+    void StartStage(TScheduleJobsStage* schedulingStage);
 
     EJobSchedulingStage GetStageType();
 

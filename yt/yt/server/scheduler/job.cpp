@@ -22,8 +22,8 @@ TJob::TJob(
     bool interruptible,
     EPreemptionMode preemptionMode,
     TString treeId,
-    EJobSchedulingStage schedulingStage,
     int schedulingIndex,
+    std::optional<EJobSchedulingStage> schedulingStage,
     NNodeTrackerClient::TNodeId revivalNodeId,
     TString revivalNodeAddress)
     : Id_(id)
@@ -40,8 +40,8 @@ TJob::TJob(
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
     , PreemptionMode_(preemptionMode)
-    , SchedulingStage_(schedulingStage)
     , SchedulingIndex_(schedulingIndex)
+    , SchedulingStage_(schedulingStage)
 { }
 
 TDuration TJob::GetDuration() const
