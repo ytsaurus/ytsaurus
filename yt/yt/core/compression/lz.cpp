@@ -309,7 +309,7 @@ void QuickLzCompress(StreamSource* source, TBlob* sink) {
             return size + 400; // See QuickLZ implementation.
         },
         [] (const char *input, char *output, size_t inputSize) {
-            qlz_state_compress state;
+            qlz_state_compress state{};
             return qlz_compress(input, output, inputSize, &state);
         });
 }
