@@ -24,7 +24,10 @@ import io
 import pytest
 import random
 import gzip
-import zstd
+try:
+    import zstd
+except ImportError:
+    import zstandard as zstd
 import time
 
 ##################################################################
@@ -496,14 +499,14 @@ class TestSchedulerResourceUsageStrategySwitches(YTEnvSetup):
         OP_COUNT = 20
 
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(3)])
+        write_table("//tmp/t_in", [{"foo": "bar"} for _ in range(3)])
 
-        for index in xrange(OP_COUNT):
+        for index in range(OP_COUNT):
             create("table", "//tmp/t_out" + str(index))
             create_pool("pool_" + str(index))
 
         ops = []
-        for index in xrange(OP_COUNT):
+        for index in range(OP_COUNT):
             op = map(
                 track=False,
                 command="sleep 1; echo 'AAA' >&2; cat",
@@ -513,7 +516,7 @@ class TestSchedulerResourceUsageStrategySwitches(YTEnvSetup):
             )
             ops.append(op)
 
-        for index in xrange(40):
+        for index in range(40):
             set("//sys/pool_trees/default/@config/use_recent_resource_usage_for_local_satisfaction", index % 2 == 0)
             if random.randint(0, 1):
                 set("//sys/pools/pool_{}/@resource_limits".format(random.randint(0, OP_COUNT - 1)), {})
@@ -586,14 +589,14 @@ class TestOperationDetailedLogs(YTEnvSetup):
         scheduler_debug_logs_filename = self.Env.configs["scheduler"][0]["logging"]["writers"]["debug"]["file_name"]
 
         if scheduler_debug_logs_filename.endswith(".zst"):
-            compressed_file = open(scheduler_debug_logs_filename, "r")
+            compressed_file = open(scheduler_debug_logs_filename, "rb")
             decompressor = zstd.ZstdDecompressor()
             binary_reader = decompressor.stream_reader(compressed_file, read_size=8192)
-            logfile = io.TextIOWrapper(binary_reader, encoding='utf-8')
+            logfile = io.TextIOWrapper(binary_reader, encoding="utf-8", errors="ignore")
         elif scheduler_debug_logs_filename.endswith(".gz"):
-            logfile = gzip.open(scheduler_debug_logs_filename, "r")
+            logfile = gzip.open(scheduler_debug_logs_filename, "b")
         else:
-            logfile = open(scheduler_debug_logs_filename, "r")
+            logfile = open(scheduler_debug_logs_filename, "b")
 
         return [line for line in logfile if "Scheduled a job" in line]
 

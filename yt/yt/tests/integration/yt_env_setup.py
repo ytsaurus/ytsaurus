@@ -22,7 +22,7 @@ from yt.environment.helpers import (  # noqa
 from yt.test_helpers import wait, WaitFailed
 import yt.test_helpers.cleanup as test_cleanup
 
-
+from yt.packages.six import iteritems
 from yt.packages.six.moves import xrange
 from yt.common import YtResponseError, format_error, update_inplace
 import yt.logger
@@ -518,9 +518,9 @@ class YTEnvSetup(object):
             yt_commands.create("map_node", "//layers")
 
             yt_commands.create("file", "//layers/exec.tar.gz", attributes={"replication_factor": 1})
-            yt_commands.write_file("//layers/exec.tar.gz", open("rootfs/exec.tar.gz").read())
+            yt_commands.write_file("//layers/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
             yt_commands.create("file", "//layers/rootfs.tar.gz", attributes={"replication_factor": 1})
-            yt_commands.write_file("//layers/rootfs.tar.gz", open("rootfs/rootfs.tar.gz").read())
+            yt_commands.write_file("//layers/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
 
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
@@ -562,7 +562,7 @@ class YTEnvSetup(object):
             configs["rpc_proxy"][index] = update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
             cls.modify_rpc_proxy_config(configs["rpc_proxy"])
 
-        for key, config in configs["driver"].iteritems():
+        for key, config in iteritems(configs["driver"]):
             configs["driver"][key] = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
 
         configs["rpc_driver"] = update_inplace(

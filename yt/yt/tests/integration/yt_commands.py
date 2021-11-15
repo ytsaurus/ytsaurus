@@ -16,6 +16,7 @@ from yt.common import (
     uuid_to_parts,
 )
 
+from yt.packages.six import itervalues, iteritems, iterkeys
 from yt.packages.six.moves import xrange, builtins
 
 from yt.test_helpers import wait, WaitFailed
@@ -33,9 +34,12 @@ import tempfile
 import time
 import traceback
 import logging
-import __builtin__
 from datetime import datetime, timedelta
-from cStringIO import StringIO, OutputType
+try:
+    from cStringIO import StringIO as BytesIO, OutputType
+except ImportError:  # Python 3
+    from io import BytesIO
+    OutputType = BytesIO
 
 ###########################################################################
 
@@ -178,11 +182,15 @@ def wait_assert(check_fn, *args, **kwargs):
 
 
 def wait_drivers():
-    for cluster in clusters_drivers.values():
+    for cluster in list(clusters_drivers.values()):
         cell_tag = 0
 
         def driver_is_ready():
-            return get("//@", driver=cluster[cell_tag][default_api_version])
+            try:
+                return get("//@", driver=cluster[cell_tag][default_api_version])
+            except:
+                root_logger.exception("Checking driver is ready failed")
+                return False
 
         wait(driver_is_ready, ignore_exceptions=True)
 
@@ -190,7 +198,7 @@ def wait_drivers():
 def terminate_drivers():
     for cluster in clusters_drivers:
         for drivers_by_cell_tag in clusters_drivers[cluster]:
-            for driver in drivers_by_cell_tag.itervalues():
+            for driver in list(itervalues(drivers_by_cell_tag)):
                 driver.terminate()
     clusters_drivers.clear()
 
@@ -364,7 +372,7 @@ def execute_command(
         parameters["path"] = prepare_path(parameters["path"])
 
     if "paths" in parameters:
-        parameters["paths"] = yson.loads(parameters["paths"])
+        parameters["paths"] = yson.loads(parameters["paths"].encode("ascii"))
         for index in range(len(parameters["paths"])):
             parameters["paths"][index] = prepare_path(parameters["paths"][index])
 
@@ -379,7 +387,7 @@ def execute_command(
         if parameters.get("output_format") is None:
             parameters["output_format"] = yson_format
         if output_stream is None:
-            output_stream = StringIO()
+            output_stream = BytesIO()
 
     parameters = prepare_parameters(parameters)
 
@@ -436,9 +444,9 @@ def execute_command(
                 unwrap_v4_result
                 and driver.get_config()["api_version"] == 4
                 and isinstance(result, dict)
-                and len(result.keys()) == 1
+                and len(list(iterkeys(result))) == 1
             ):
-                result = result.values()[0]
+                result = list(result.values())[0]
             if driver.get_config()["api_version"] == 3 and command_name == "lock":
                 result = {"lock_id": result}
         return result
@@ -448,8 +456,8 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
     has_output_format = "output_format" in kwargs
     return_response = "return_response" in kwargs
     if not has_output_format:
-        kwargs["output_format"] = yson.loads("<format=text>yson")
-    output = kwargs.pop("output_stream", StringIO())
+        kwargs["output_format"] = yson.loads(b"<format=text>yson")
+    output = kwargs.pop("output_stream", BytesIO())
     response = execute_command(command_name, kwargs, input_stream=input_stream, output_stream=output)
     if return_response:
         return response
@@ -629,14 +637,14 @@ def set(path, value, is_raw=False, **kwargs):
     if not is_raw:
         value = yson.dumps(value)
     kwargs["path"] = path
-    execute_command("set", kwargs, input_stream=StringIO(value))
+    execute_command("set", kwargs, input_stream=BytesIO(value))
 
 
 def multiset_attributes(path, subrequests, is_raw=False, **kwargs):
     if not is_raw:
         subrequests = yson.dumps(subrequests)
     kwargs["path"] = path
-    execute_command("multiset_attributes", kwargs, input_stream=StringIO(subrequests))
+    execute_command("multiset_attributes", kwargs, input_stream=BytesIO(subrequests))
 
 
 def create(object_type, path, **kwargs):
@@ -697,7 +705,7 @@ def read_table(path, **kwargs):
 
 def read_blob_table(path, **kwargs):
     kwargs["path"] = path
-    output = StringIO()
+    output = BytesIO()
     execute_command("read_blob_table", kwargs, output_stream=output)
     return output.getvalue()
 
@@ -711,7 +719,7 @@ def write_table(path, value=None, is_raw=False, **kwargs):
             if not isinstance(value, list):
                 value = [value]
             value = yson.dumps(value, yson_type="list_fragment")
-        input_stream = StringIO(value)
+        input_stream = BytesIO(value)
 
     attributes = {}
     if "sorted_by" in kwargs:
@@ -723,7 +731,7 @@ def write_table(path, value=None, is_raw=False, **kwargs):
 def locate_skynet_share(path, **kwargs):
     kwargs["path"] = path
 
-    output = StringIO()
+    output = BytesIO()
     execute_command("locate_skynet_share", kwargs, output_stream=output)
     return yson.loads(output.getvalue())
 
@@ -743,7 +751,7 @@ def _prepare_rows_stream(data, is_raw=False):
     # remove surrounding [ ]
     if not is_raw:
         data = yson.dumps(data, yson_type="list_fragment")
-    return StringIO(data)
+    return BytesIO(data)
 
 
 def insert_rows(path, data, is_raw=False, **kwargs):
@@ -751,7 +759,7 @@ def insert_rows(path, data, is_raw=False, **kwargs):
     if not is_raw:
         return execute_command("insert_rows", kwargs, input_stream=_prepare_rows_stream(data))
     else:
-        return execute_command("insert_rows", kwargs, input_stream=StringIO(data))
+        return execute_command("insert_rows", kwargs, input_stream=BytesIO(data))
 
 
 def lock_rows(path, data, **kwargs):
@@ -906,15 +914,15 @@ def _parse_backup_manifest(*args):
     if type(args[0]) == list:
         return {
             "clusters": {
-                "primary": __builtin__.map(_make_table_manifest, args),
+                "primary": builtins.map(_make_table_manifest, args),
             }
         }
     else:
         return {
             "clusters": {
-                cluster: __builtin__.map(_make_table_manifest, tables)
+                cluster: builtins.map(_make_table_manifest, tables)
                 for cluster, tables
-                in args.iteritems()
+                in list(iteritems(args))
             }
         }
 
@@ -935,7 +943,7 @@ def write_file(path, data, **kwargs):
         input_stream = kwargs["input_stream"]
         del kwargs["input_stream"]
     else:
-        input_stream = StringIO(data)
+        input_stream = BytesIO(data)
 
     return execute_command("write_file", kwargs, input_stream=input_stream)
 
@@ -947,15 +955,15 @@ def write_local_file(path, file_name, **kwargs):
 
 def read_file(path, **kwargs):
     kwargs["path"] = path
-    output = StringIO()
+    output = BytesIO()
     execute_command("read_file", kwargs, output_stream=output)
     return output.getvalue()
 
 
 def read_journal(path, **kwargs):
     kwargs["path"] = path
-    kwargs["output_format"] = yson.loads("yson")
-    output = StringIO()
+    kwargs["output_format"] = yson.to_yson_type("yson")
+    output = BytesIO()
     execute_command("read_journal", kwargs, output_stream=output)
     return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
 
@@ -968,7 +976,7 @@ def write_journal(path, rows=None, input_stream=None, is_raw=False, **kwargs):
     elif rows is not None:
         assert input_stream is None
         yson_rows = yson.dumps(rows, yson_type="list_fragment")
-        input_stream = StringIO(yson_rows)
+        input_stream = BytesIO(yson_rows)
     else:
         assert False
 
@@ -2004,8 +2012,8 @@ def cluster_resources_equal(a, b):
             or a.get("tablet_static_memory", 0) != b.get("tablet_static_memory", 0)):
         return False
 
-    media = builtins.set(a.get("disk_space_per_medium", {}).keys())
-    media.union(builtins.set(b.get("disk_space_per_medium", {}).keys()))
+    media = builtins.set(iterkeys(a.get("disk_space_per_medium", {})))
+    media.union(builtins.set(iterkeys(b.get("disk_space_per_medium", {}))))
     return all(
         a.get("disk_space_per_medium", {}).get(medium, 0) == b.get("disk_space_per_medium", {}).get(medium, 0)
         for medium in media
@@ -2476,7 +2484,7 @@ def update_pool_tree_config_option(pool_tree, option, value):
 
 
 def update_pool_tree_config(pool_tree, config):
-    for option, value in config.iteritems():
+    for option, value in list(iteritems(config)):
         update_pool_tree_config_option(pool_tree, option, value)
 
 

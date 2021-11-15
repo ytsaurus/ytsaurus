@@ -116,7 +116,7 @@ class TestPoolMetrics(YTEnvSetup):
 
         # create directory backed by block device and accessible to job
         os.makedirs(self.default_disk_path)
-        os.chmod(self.default_disk_path, 0777)
+        os.chmod(self.default_disk_path, 0o777)
 
         # our command does the following
         # - writes (and syncs) something to disk
