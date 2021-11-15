@@ -22,7 +22,7 @@ def make_schema(columns, **attributes):
     for column_schema in columns:
         column_schema = column_schema.copy()
         schema.append(column_schema)
-    for attr, value in attributes.items():
+    for attr, value in list(attributes.items()):
         schema.attributes[attr] = value
     return schema
 

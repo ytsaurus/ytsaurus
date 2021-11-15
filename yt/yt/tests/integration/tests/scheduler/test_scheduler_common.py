@@ -35,7 +35,10 @@ import json
 import io
 import os
 import time
-import zstd
+try:
+    import zstd
+except ImportError:
+    import zstandard as zstd
 
 import __builtin__
 

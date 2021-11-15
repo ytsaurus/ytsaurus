@@ -1198,7 +1198,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
     def modify_controller_agent_config(cls, config):
         cls.core_path = os.path.join(cls.path_to_run, "_cores")
         os.mkdir(cls.core_path)
-        os.chmod(cls.core_path, 0777)
+        os.chmod(cls.core_path, 0o777)
         config["core_dumper"] = {
             "path": cls.core_path,
             # Pattern starts with the underscore to trick teamcity; we do not want it to

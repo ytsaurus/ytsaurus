@@ -112,7 +112,7 @@ def write_log_barrier(address, category="Barrier", driver=None):
     return driver.write_log_barrier(address=address, category=category)
 
 
-def read_structured_log(path, from_barrier=None, to_barrier=None, format=None, category_filter=None, filter=None):
+def read_structured_log(path, from_barrier=None, to_barrier=None, format=None, category_filter=None, row_filter=None):
     if format is None:
         if path.endswith(".json.log"):
             format = "json"
@@ -149,7 +149,7 @@ def read_structured_log(path, from_barrier=None, to_barrier=None, format=None, c
                 continue
             if category_filter is not None and parsed_line.get("category") not in category_filter:
                 continue
-            if filter is not None and not filter(parsed_line):
+            if row_filter is not None and not row_filter(parsed_line):
                 continue
             lines.append(parsed_line)
 

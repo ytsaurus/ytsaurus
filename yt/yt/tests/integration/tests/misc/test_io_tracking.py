@@ -53,10 +53,10 @@ class TestNodeIOTrackingBase(YTEnvSetup):
         real_filter = lambda event: self._default_filter(event) and filter(event)
         raw_events = read_structured_log(
             self.get_structured_log_path(node_id), from_barrier, to_barrier,
-            category_filter={"IORaw"}, filter=real_filter)
+            category_filter={"IORaw"}, row_filter=real_filter)
         aggregate_events = read_structured_log(
             self.get_structured_log_path(node_id), from_barrier, to_barrier,
-            category_filter={"IOAggregate"}, filter=real_filter)
+            category_filter={"IOAggregate"}, row_filter=real_filter)
         return raw_events, aggregate_events
 
     def wait_for_events(self, raw_count=None, aggregate_count=None, from_barrier=None, node_id=0,

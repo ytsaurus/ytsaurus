@@ -498,7 +498,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert res["pool_counts"] == {"user3": 2, "some_pool": 1}
         assert res["user_counts"] == {"user3": 2, "user1": 1, "user2": 1, "user4": 1}
         assert res["state_counts"] == {"failed": 1, "aborted": 1}
-        assert res["type_counts"] == {"map_reduce": 1L, "reduce": 1L}
+        assert res["type_counts"] == {"map_reduce": 1, "reduce": 1}
         if self.check_failed_jobs_count:
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id]
