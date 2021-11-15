@@ -1,3 +1,5 @@
+#pragma once
+
 //===- llvm/ADT/DenseMap.h - Dense probed hash table ------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
@@ -10,8 +12,6 @@
 // This file defines the DenseMap class.
 //
 //===----------------------------------------------------------------------===//
-
-#pragma once
 
 #include "public.h"
 #include "align_of.h"
@@ -1016,10 +1016,10 @@ class DenseMap : public DenseMapBase<DenseMap<KeyT, ValueT, KeyInfoT, BucketT>,
   // simplicity of referring to them.
   using BaseT = DenseMapBase<DenseMap, KeyT, ValueT, KeyInfoT, BucketT>;
 
-  BucketT *Buckets;
-  unsigned NumEntries;
-  unsigned NumTombstones;
-  unsigned NumBuckets;
+  BucketT *Buckets = nullptr;
+  unsigned NumEntries = 0;
+  unsigned NumTombstones = 0;
+  unsigned NumBuckets = 0;
 
 public:
   /// Create a DenseMap wth an optional \p InitialReserve that guarantee that
@@ -1179,7 +1179,7 @@ class SmallDenseMap
 
   unsigned Small : 1;
   unsigned NumEntries : 31;
-  unsigned NumTombstones;
+  unsigned NumTombstones = 0;
 
   struct LargeRep {
     BucketT *Buckets;
