@@ -156,8 +156,8 @@ void TSchedulingContextBase::StartJob(
     TControllerEpoch controllerEpoch,
     const TJobStartDescriptor& startDescriptor,
     EPreemptionMode preemptionMode,
-    EJobSchedulingStage schedulingStage,
-    int schedulingIndex)
+    int schedulingIndex,
+    EJobSchedulingStage schedulingStage)
 {
     ResourceUsage_ += startDescriptor.ResourceLimits.ToJobResources();
     if (startDescriptor.ResourceLimits.GetDiskQuota()) {
@@ -176,8 +176,8 @@ void TSchedulingContextBase::StartJob(
         startDescriptor.Interruptible,
         preemptionMode,
         treeId,
-        schedulingStage,
-        schedulingIndex);
+        schedulingIndex,
+        schedulingStage);
     StartedJobs_.push_back(job);
 }
 

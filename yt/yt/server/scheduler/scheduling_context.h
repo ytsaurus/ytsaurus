@@ -24,10 +24,7 @@ struct TScheduleJobsStatistics
 {
     int ControllerScheduleJobCount = 0;
     int ControllerScheduleJobTimedOutCount = 0;
-    int AggressivelyPreemptiveScheduleJobAttempts = 0;
-    int PreemptiveScheduleJobAttempts = 0;
-    int NonPreemptiveScheduleJobAttempts = 0;
-    int PackingFallbackScheduleJobAttempts = 0;
+    TEnumIndexedVector<EJobSchedulingStage, int> ScheduleJobAttemptCountPerStage;
     int MaxNonPreemptiveSchedulingIndex = -1;
     int ScheduledDuringPreemption = 0;
     int UnconditionallyPreemptableJobCount = 0;
@@ -98,8 +95,8 @@ struct ISchedulingContext
         TControllerEpoch controllerEpoch,
         const TJobStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode,
-        EJobSchedulingStage schedulingStage,
-        int schedulingIndex) = 0;
+        int schedulingIndex,
+        EJobSchedulingStage schedulingStage) = 0;
 
     virtual void PreemptJob(const TJobPtr& job, TDuration interruptTimeout, EJobPreemptionReason preemptionReason) = 0;
 

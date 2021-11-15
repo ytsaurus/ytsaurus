@@ -989,7 +989,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
 
-        tags = {"scheduling_index": "0", "schedule_jobs_stage": "no_preemption"}
+        tags = {"scheduling_index": "0", "scheduling_stage": "non_preemptive"}
         operation_scheduling_index_attempt_count = profiler.counter(
             "scheduler/operation_scheduling_index_attempt_count",
             tags=tags)

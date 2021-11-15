@@ -443,9 +443,12 @@ protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
     TIntrusivePtr<TFairShareTreeHostMock> FairShareTreeHostMock_ = New<TFairShareTreeHostMock>(TreeConfig_);
-    TScheduleJobsStage SchedulingStageMock_ = TScheduleJobsStage(
-        /* nameInLogs */ "Test scheduling stage",
-        TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/test_scheduling_stage"}));
+    TScheduleJobsStage NonPreemptiveSchedulingStage_{
+        .Type = EJobSchedulingStage::NonPreemptive,
+        .ProfilingCounters = TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/non_preemptive_test_scheduling_stage"})};
+    TScheduleJobsStage PreemptiveSchedulingStage_{
+        .Type = EJobSchedulingStage::Preemptive,
+        .ProfilingCounters = TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/preemptive_test_scheduling_stage"})};
 
     int SlotIndex_ = 0;
     NNodeTrackerClient::TNodeId ExecNodeId_ = 0;
@@ -607,7 +610,6 @@ protected:
             /*interruptible*/ false,
             /*preemptionMode*/ EPreemptionMode::Normal,
             /*treeId*/ "",
-            /*schedulingStage*/ EJobSchedulingStage::Unknown,
             /*schedulingIndex*/ UndefinedSchedulingIndex);
     }
 
@@ -631,7 +633,7 @@ protected:
             /* registeredSchedulingTagFilters */ {},
             /* enableSchedulingInfoLogging */ true,
             SchedulerLogger);
-        context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
+        context.StartStage(&NonPreemptiveSchedulingStage_);
 
         context.PrepareForScheduling(rootElement);
         rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
@@ -1922,7 +1924,7 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
         /*registeredSchedulingTagFilters*/ {},
         /*enableSchedulingInfoLogging*/ true,
         SchedulerLogger);
-    context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
+    context.StartStage(&PreemptiveSchedulingStage_);
     context.PrepareForScheduling(rootElement);
 
     for (int jobIndex = 0; jobIndex < 10; ++jobIndex) {
@@ -2807,7 +2809,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         /* registeredSchedulingTagFilters */ {},
         /* enableSchedulingInfoLogging */ true,
         SchedulerLogger);
-    context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
+    context.StartStage(&NonPreemptiveSchedulingStage_);
     context.PrepareForScheduling(rootElement);
     rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
     rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
@@ -2838,7 +2840,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
 
     // NB(eshcherbin): It is impossible to have two consecutive non-preemptive scheduling stages, however
     // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
-    context.StartStage(&SchedulingStageMock_, EJobSchedulingStage::Unknown);
+    context.StartStage(&NonPreemptiveSchedulingStage_);
     context.PrepareForScheduling(rootElement);
     rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
     rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);

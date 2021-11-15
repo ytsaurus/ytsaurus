@@ -292,11 +292,13 @@ void TFairShareTreeProfileManager::ProfileElement(
         jobMetricsIt->second.Profile(writer);
     }
 
-    for (auto schedulingStage : TEnumTraits<EJobSchedulingStage>::GetDomainValues()) {
-        const auto& scheduledResourcesMap = ScheduledResourcesByStageMap_[schedulingStage];
+    for (const auto& [schedulingStage, scheduledResourcesMap] : ScheduledResourcesByStageMap_) {
         auto scheduledResourcesIt = scheduledResourcesMap.find(element->GetId());
         if (scheduledResourcesIt != scheduledResourcesMap.end()) {
-            TWithTagGuard guard(writer, TTag{"scheduling_stage", FormatEnum(schedulingStage)});
+            auto tag = TTag{"scheduling_stage", schedulingStage
+                ? FormatEnum(*schedulingStage)
+                : ToString(schedulingStage)};
+            TWithTagGuard guard(writer, tag);
             ProfileResources(writer, scheduledResourcesIt->second, "/scheduled_job_resources", EMetricType::Counter);
         }
     }
@@ -523,7 +525,7 @@ void TFairShareTreeProfileManager::ApplyJobMetricsDelta(
 
 void TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
     const TFairShareTreeSnapshotImplPtr& treeSnapshot,
-    const TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources>& scheduledJobResources,
+    const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& scheduledJobResources,
     const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
     const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes)
 {
@@ -544,8 +546,8 @@ void TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
         }
     };
 
-    for (auto schedulingStage : TEnumTraits<EJobSchedulingStage>::GetDomainValues()) {
-        applyDeltas(scheduledJobResources[schedulingStage], ScheduledResourcesByStageMap_[schedulingStage]);
+    for (const auto& [schedulingStage, scheduledJobResourcesDeltas] : scheduledJobResources) {
+        applyDeltas(scheduledJobResourcesDeltas, ScheduledResourcesByStageMap_[schedulingStage]);
     }
 
     for (auto preemptionReason : TEnumTraits<EJobPreemptionReason>::GetDomainValues()) {

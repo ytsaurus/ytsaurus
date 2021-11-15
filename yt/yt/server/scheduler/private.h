@@ -81,11 +81,10 @@ DEFINE_ENUM(EJobPreemptionStatus,
 );
 
 DEFINE_ENUM(EJobSchedulingStage,
-    (NonPreemptive)
-    (Preemptive)
-    (AggressivelyPreemptive)
-    (PackingFallback)
-    (Unknown)
+    ((NonPreemptive)          (0))
+    ((PackingFallback)        (1))
+    ((Preemptive)             (100))
+    ((AggressivelyPreemptive) (101))
 );
 
 DEFINE_ENUM(EJobPreemptionReason,

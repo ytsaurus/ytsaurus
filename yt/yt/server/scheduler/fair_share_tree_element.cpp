@@ -105,13 +105,6 @@ void TPersistentAttributes::ResetOnElementEnabled()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TScheduleJobsStage::TScheduleJobsStage(TString loggingName, TScheduleJobsProfilingCounters profilingCounters)
-    : LoggingName(std::move(loggingName))
-    , ProfilingCounters(std::move(profilingCounters))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TScheduleJobsContext::TScheduleJobsContext(
     ISchedulingContextPtr schedulingContext,
     std::vector<TSchedulingTagFilter> registeredSchedulingTagFilters,
@@ -182,23 +175,22 @@ TJobResources TScheduleJobsContext::GetLocalUnconditionalUsageDiscountFor(const 
     return it != LocalUnconditionalUsageDiscountMap_.end() ? it->second : TJobResources{};
 }
 
-TScheduleJobsContext::TStageState::TStageState(TScheduleJobsStage* schedulingStage, EJobSchedulingStage type)
+TScheduleJobsContext::TStageState::TStageState(TScheduleJobsStage* schedulingStage)
     : SchedulingStage(schedulingStage)
-    , Type(type)
 { }
 
-void TScheduleJobsContext::StartStage(TScheduleJobsStage* schedulingStage, EJobSchedulingStage stageType)
+void TScheduleJobsContext::StartStage(TScheduleJobsStage* schedulingStage)
 {
     YT_VERIFY(!StageState_);
 
-    StageState_.emplace(TStageState(schedulingStage, stageType));
+    StageState_.emplace(schedulingStage);
 
     Timer_ = TWallTimer();
 }
 
 EJobSchedulingStage TScheduleJobsContext::GetStageType()
 {
-    return StageState()->Type;
+    return StageState()->SchedulingStage->Type;
 }
 
 void TScheduleJobsContext::ProfileAndLogStatisticsOfStage()
@@ -218,6 +210,7 @@ void TScheduleJobsContext::FinishStage()
 {
     YT_VERIFY(StageState_);
 
+    SchedulingStatistics_.ScheduleJobAttemptCountPerStage[GetStageType()] = StageState_->ScheduleJobAttemptCount;
     ProfileAndLogStatisticsOfStage();
 
     StageState_ = std::nullopt;
@@ -279,9 +272,9 @@ void TScheduleJobsContext::LogStageStatistics()
     YT_VERIFY(StageState_);
 
     YT_LOG_DEBUG(
-        "%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, TotalHeapElementCount: %v, "
+        "Scheduling statistics (SchedulingStage: %v, ActiveTreeSize: %v, ActiveOperationCount: %v, TotalHeapElementCount: %v, "
         "DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v, SchedulingSegment: %v, MaxSchedulingIndex: %v)",
-        StageState_->SchedulingStage->LoggingName,
+        StageState_->SchedulingStage->Type,
         StageState_->ActiveTreeSize,
         StageState_->ActiveOperationCount,
         StageState_->TotalHeapElementCount,
@@ -3007,7 +3000,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
             context->SchedulingContext()->GetConditionalDiscountForOperation(OperationId_)),
         FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount()),
         FormatResources(context->SchedulingContext()->GetConditionalDiscountForOperation(OperationId_)),
-        context->StageState()->Type);
+        context->GetStageType());
 
     auto deactivateOperationElement = [&] (EDeactivationReason reason) {
         YT_ELEMENT_LOG_DETAILED(this,
@@ -3141,8 +3134,8 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
         scheduleJobResult->ControllerEpoch,
         startDescriptor,
         Spec_->PreemptionMode,
-        context->GetStageType(),
-        schedulingIndex);
+        schedulingIndex,
+        context->GetStageType());
 
     UpdateCurrentResourceUsage(context);
 

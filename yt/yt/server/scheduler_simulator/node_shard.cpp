@@ -239,8 +239,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         "StartedJobs: %v, PreemptedJobs: %v, "
         "JobsScheduledDuringPreemption: %v, UnconditionallyPreemptableJobCount: %v, UnconditionalDiscount: %v, "
         "TotalConditionalJobCount: %v, MaxConditionalJobCountPerPool: %v, MaxConditionalDiscount: %v, "
-        "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
-        "AggressivelyPreemptiveScheduleJobAttempts: %v, PreemptiveScheduleJobAttempts: %v, "
+        "ControllerScheduleJobCount: %v, ScheduleJobAttemptCountPerStage: %v, "
         "HasAggressivelyStarvingElements: %v)",
         event.Time,
         event.NodeId,
@@ -254,9 +253,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         statistics.MaxConditionallyPreemptableJobCountInPool,
         FormatResources(statistics.MaxConditionalResourceUsageDiscount),
         statistics.ControllerScheduleJobCount,
-        statistics.NonPreemptiveScheduleJobAttempts,
-        statistics.AggressivelyPreemptiveScheduleJobAttempts,
-        statistics.PreemptiveScheduleJobAttempts,
+        statistics.ScheduleJobAttemptCountPerStage,
         statistics.HasAggressivelyStarvingElements);
 
 }

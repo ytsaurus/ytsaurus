@@ -728,15 +728,14 @@ public:
             return;
         }
 
-        TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources> scheduledJobResources;
+        THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources> scheduledJobResources;
         TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources;
         TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResourceTimes;
 
         for (const auto& job : startedJobs) {
             TOperationId operationId = job->GetOperationId();
             const TJobResources& scheduledResourcesDelta = job->ResourceLimits();
-            EJobSchedulingStage schedulingStage = job->GetSchedulingStage();
-            scheduledJobResources[schedulingStage][operationId] += scheduledResourcesDelta;
+            scheduledJobResources[job->GetSchedulingStage()][operationId] += scheduledResourcesDelta;
         }
         for (const auto& preemptedJob : preemptedJobs) {
             const TJobPtr& job = preemptedJob.Job;

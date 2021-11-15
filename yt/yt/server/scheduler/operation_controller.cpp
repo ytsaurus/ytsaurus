@@ -90,8 +90,8 @@ void FromProto(
             jobProto.interruptible(),
             preemptionMode,
             jobProto.tree_id(),
-            EJobSchedulingStage::Unknown,
             UndefinedSchedulingIndex,
+            /*schedulingStage*/ std::nullopt,
             jobProto.node_id(),
             jobProto.node_address());
         job->SetState(EJobState::Running);

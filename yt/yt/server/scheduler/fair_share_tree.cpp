@@ -131,24 +131,14 @@ public:
         , FeasibleInvokers_(feasibleInvokers)
         , TreeId_(std::move(treeId))
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
-        , NonPreemptiveSchedulingStage_(
-            /* nameInLogs */ "Non preemptive",
-            TreeProfiler_->GetProfiler().WithTag("schedule_jobs_stage", "no_preemption"))
-        , AggressivelyPreemptiveSchedulingStage_(
-            /* nameInLogs */ "Aggressively preemptive",
-            TreeProfiler_->GetProfiler().WithTag("schedule_jobs_stage", "aggressive_preemption"))
-        , PreemptiveSchedulingStage_(
-            /* nameInLogs */ "Preemptive",
-            TreeProfiler_->GetProfiler().WithTag("schedule_jobs_stage", "preemption"))
-        , PackingFallbackSchedulingStage_(
-            /* nameInLogs */ "Packing fallback",
-            TreeProfiler_->GetProfiler().WithTag("schedule_jobs_stage", "packing_fallback"))
         , FairSharePreUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_preupdate_time"))
         , FairShareUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_fluent_log_time"))
         , FairShareTextLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_text_log_time"))
     {
         RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, TreeId_, Logger);
+
+        InitSchedulingStages();
 
         TreeProfiler_->RegisterPool(RootElement_);
 
@@ -1047,7 +1037,7 @@ private:
         }
 
         void ApplyScheduledAndPreemptedResourcesDelta(
-            const TEnumIndexedVector<EJobSchedulingStage, TOperationIdToJobResources>& scheduledJobResources,
+            const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& scheduledJobResources,
             const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
             const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes) override
         {
@@ -1161,10 +1151,7 @@ private:
     TFairShareTreeSnapshotImplPtr TreeSnapshotImpl_;
     TFairShareTreeSnapshotImplPtr TreeSnapshotImplPrecommit_;
 
-    TScheduleJobsStage NonPreemptiveSchedulingStage_;
-    TScheduleJobsStage AggressivelyPreemptiveSchedulingStage_;
-    TScheduleJobsStage PreemptiveSchedulingStage_;
-    TScheduleJobsStage PackingFallbackSchedulingStage_;
+    TEnumIndexedVector<EJobSchedulingStage, TScheduleJobsStage> SchedulingStages_;
 
     TEventTimer FairSharePreUpdateTimer_;
     TEventTimer FairShareUpdateTimer_;
@@ -1175,6 +1162,17 @@ private:
 
     // NB: Used only in fair share logging invoker.
     mutable TTreeSnapshotId LastLoggedTreeSnapshotId_;
+
+    void InitSchedulingStages()
+    {
+        for (auto stage : TEnumTraits<EJobSchedulingStage>::GetDomainValues()) {
+            SchedulingStages_[stage] = TScheduleJobsStage{
+                .Type = stage,
+                .ProfilingCounters = TScheduleJobsProfilingCounters(
+                    TreeProfiler_->GetProfiler().WithTag("scheduling_stage", FormatEnum(stage))),
+            };
+        }
+    }
 
     std::pair<IFairShareTreeSnapshotPtr, TError> DoFairShareUpdateAt(TInstant now)
     {
@@ -1331,9 +1329,8 @@ private:
 
         bool needPackingFallback;
         {
-            context.StartStage(&NonPreemptiveSchedulingStage_, EJobSchedulingStage::NonPreemptive);
+            context.StartStage(&SchedulingStages_[EJobSchedulingStage::NonPreemptive]);
             DoScheduleJobsWithoutPreemption(treeSnapshotImpl, &context, now);
-            context.SchedulingStatistics().NonPreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
             needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations().empty();
             ReactivateBadPackingOperations(&context);
             context.SchedulingStatistics().MaxNonPreemptiveSchedulingIndex = context.StageState()->MaxSchedulingIndex;
@@ -1366,17 +1363,15 @@ private:
         if (scheduleJobsWithPreemption) {
             // First try to schedule a job with aggressive preemption for aggressively starving operations only.
             {
-                context.StartStage(&AggressivelyPreemptiveSchedulingStage_, EJobSchedulingStage::AggressivelyPreemptive);
+                context.StartStage(&SchedulingStages_[EJobSchedulingStage::AggressivelyPreemptive]);
                 DoScheduleJobsWithAggressivePreemption(treeSnapshotImpl, &context, now);
-                context.SchedulingStatistics().AggressivelyPreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
                 context.FinishStage();
             }
 
             // If no jobs were scheduled in the previous stage, try to schedule a job with regular preemption.
             if (context.SchedulingStatistics().ScheduledDuringPreemption == 0) {
-                context.StartStage(&PreemptiveSchedulingStage_, EJobSchedulingStage::Preemptive);
+                context.StartStage(&SchedulingStages_[EJobSchedulingStage::Preemptive]);
                 DoScheduleJobsWithPreemption(treeSnapshotImpl, &context, now);
-                context.SchedulingStatistics().PreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
                 context.FinishStage();
             }
         } else {
@@ -1384,9 +1379,8 @@ private:
         }
 
         if (needPackingFallback) {
-            context.StartStage(&PackingFallbackSchedulingStage_, EJobSchedulingStage::PackingFallback);
+            context.StartStage(&SchedulingStages_[EJobSchedulingStage::PackingFallback]);
             DoScheduleJobsPackingFallback(treeSnapshotImpl, &context, now);
-            context.SchedulingStatistics().PackingFallbackScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
             context.FinishStage();
         }
 
@@ -1789,6 +1783,12 @@ private:
             PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext(), preemptionReason);
         }
 
+        // NB(eshcherbin): Specified resource limits can be violated in two cases:
+        // 1. A job has just been scheduled with preemption over the limit.
+        // 2. The limit has been reduced in the config.
+        // Note that in the second case any job, which is considered preemptable at least in some stage,
+        // may be preempted (e.g. an aggressively preemptable job can be preempted without scheduling any new jobs).
+        // This is one of the reasons why we advise against specified resource limits.
         for (; currentJobIndex < std::ssize(preemptableJobs); ++currentJobIndex) {
             const auto& job = preemptableJobs[currentJobIndex];
             if (conditionallyPreemptableJobs.contains(job.Get())) {
