@@ -451,7 +451,7 @@ int TCube<T>::ReadSensors(
 
             writeLabels(tagIds, nameLabel, true);
 
-            rangeValues([&, window=&window] (auto value, auto time, const auto& /* indices */) {
+            rangeValues([&] (auto value, auto time, const auto& /* indices */) {
                 size_t n = value.Times.size();
                 auto hist = NMonitoring::TExplicitHistogramSnapshot::New(n + 1);
                 for (size_t i = 0; i != n; ++i) {
