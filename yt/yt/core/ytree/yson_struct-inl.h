@@ -62,7 +62,7 @@ void TYsonStructRegistry::Initialize(TStruct* target)
         return;
     }
 
-    auto metaConstructor = [this] {
+    auto metaConstructor = [] {
         auto result = new TYsonStructMeta<TStruct>();
         NSan::MarkAsIntentionallyLeaked(result);
 
