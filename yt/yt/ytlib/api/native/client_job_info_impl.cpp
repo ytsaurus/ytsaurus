@@ -559,7 +559,8 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 
     if (!locateChunksResult.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to locate chunks used in job input")
-            << TErrorAttribute("job_id", jobId);
+            << TErrorAttribute("job_id", jobId)
+            << locateChunksResult;
     }
 
     auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
@@ -1599,7 +1600,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto type = ConvertTo<EJobType>(jobMap->GetChildOrThrow("job_type"));
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildOrThrow("stderr_size")->GetValue<i64>();
-        
+
         auto failContextSizeNode = jobMap->FindChild("fail_context_size");
         auto failContextSize = failContextSizeNode
             ? failContextSizeNode->GetValue<i64>()
