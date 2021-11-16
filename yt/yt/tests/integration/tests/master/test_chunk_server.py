@@ -301,7 +301,7 @@ class TestChunkServer(YTEnvSetup):
 
     @authors("gritukan")
     def test_disable_store_location(self):
-        update_nodes_dynamic_config({"data_node": {"terminate_on_location_disabled": False}})
+        update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
 

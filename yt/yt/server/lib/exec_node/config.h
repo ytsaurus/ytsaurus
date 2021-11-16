@@ -52,11 +52,7 @@ DEFINE_REFCOUNTED_TYPE(TJobEnvironmentConfig)
 
 class TSimpleJobEnvironmentConfig
     : public TJobEnvironmentConfig
-{
-public:
-    TSimpleJobEnvironmentConfig()
-    { }
-};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleJobEnvironmentConfig)
 
@@ -291,7 +287,6 @@ public:
     TDuration TestHeartbeatDelay;
 
     TControllerAgentConnectorDynamicConfig()
-        : THeartbeatReporterDynamicConfigBase()
     {
         RegisterParameter("enable_heartbeats", EnableHeartbeats)
             .Default(true);
@@ -691,6 +686,8 @@ public:
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
 
+    bool AbortOnJobsDisabled;
+
     TExecNodeDynamicConfig()
     {
         RegisterParameter("master_connector", MasterConnector)
@@ -704,12 +701,15 @@ public:
 
         RegisterParameter("job_controller", JobController)
             .DefaultNew();
-        
+
         RegisterParameter("scheduler_connector", SchedulerConnector)
             .Default();
-        
+
         RegisterParameter("controller_agent_connector", ControllerAgentConnector)
             .Default();
+
+        RegisterParameter("abort_on_jobs_disabled", AbortOnJobsDisabled)
+            .Default(false);
     }
 };
 

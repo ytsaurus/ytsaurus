@@ -639,8 +639,8 @@ def _build_node_configs(node_dirs,
         }
 
         if yt_config.node_io_engine_type:
-            store_location_config["io_engine_type"] = yt_config.node_io_engine_type 
-        
+            store_location_config["io_engine_type"] = yt_config.node_io_engine_type
+
         layer_location_config = {
             "low_watermark": 1,
             "location_is_absolute": False,

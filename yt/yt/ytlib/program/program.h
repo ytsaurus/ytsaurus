@@ -31,6 +31,12 @@ public:
     //! Handles --version/--yt-version/--build [--yson] if they are present.
     void HandleVersionAndBuild();
 
+    [[noreturn]]
+    static void Exit(EProgramExitCode code) noexcept;
+
+    [[noreturn]]
+    static void Exit(int code) noexcept;
+
 protected:
     NLastGetopt::TOpts Opts_;
     TString Argv0_;
@@ -38,12 +44,6 @@ protected:
     bool PrintVersion_ = false;
     bool PrintBuild_ = false;
     bool UseYson_ = false;
-
-    [[noreturn]]
-    void Exit(EProgramExitCode code) noexcept;
-
-    [[noreturn]]
-    void Exit(int code) noexcept;
 
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) = 0;
 

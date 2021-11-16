@@ -1348,8 +1348,8 @@ public:
     //! Reader configuration used to download chunks into cache.
     TArtifactCacheReaderConfigPtr ArtifactCacheReader;
 
-    //! If |true|, node will be terminated when location becomes disabled.
-    bool TerminateOnLocationDisabled;
+    //! If |true|, node will abort when location becomes disabled.
+    bool AbortOnLocationDisabled;
 
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
@@ -1404,7 +1404,7 @@ public:
         RegisterParameter("artifact_cache_reader", ArtifactCacheReader)
             .DefaultNew();
 
-        RegisterParameter("terminate_on_location_disabled", TerminateOnLocationDisabled)
+        RegisterParameter("abort_on_location_disabled", AbortOnLocationDisabled)
             .Default(true);
 
         RegisterParameter("io_tracker", IOTracker)
