@@ -319,7 +319,7 @@ TEST(TAsyncSlruCacheTest, Touch)
     EXPECT_EQ(cache->Find(2), values[2]);
 }
 
-TEST(TAsyncSrluCacheTest, AddRemoveWithResurrection)
+TEST(TAsyncSlruCacheTest, AddRemoveWithResurrection)
 {
     constexpr int cacheSize = 2;
     constexpr int valueCount = 10;
@@ -358,7 +358,7 @@ TEST(TAsyncSrluCacheTest, AddRemoveWithResurrection)
     }
 }
 
-TEST(TAsyncSrluCacheTest, AddThenImmediatelyRemove)
+TEST(TAsyncSlruCacheTest, AddThenImmediatelyRemove)
 {
     constexpr int cacheSize = 1;
     auto config = CreateCacheConfig(cacheSize);
