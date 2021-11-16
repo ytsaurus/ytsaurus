@@ -60,6 +60,8 @@ public:
     { }
 
     DEFINE_BYVAL_RO_PROPERTY(int, ItemCount, 0);
+    DEFINE_BYVAL_RO_PROPERTY(int, TotalAdded, 0);
+    DEFINE_BYVAL_RO_PROPERTY(int, TotalRemoved, 0);
 
 protected:
     i64 GetWeight(const TSimpleCachedValuePtr& value) const override
@@ -70,11 +72,13 @@ protected:
     void OnAdded(const TSimpleCachedValuePtr& /*value*/) override
     {
         ++ItemCount_;
+        ++TotalAdded_;
     }
 
     void OnRemoved(const TSimpleCachedValuePtr& /*value*/) override
     {
         --ItemCount_;
+        ++TotalRemoved_;
         EXPECT_GE(ItemCount_, 0);
     }
 };
@@ -369,6 +373,8 @@ TEST(TAsyncSrluCacheTest, AddThenImmediatelyRemove)
         auto cookie = cache->BeginInsert(0);
         cookie.EndInsert(persistentValue);
         EXPECT_EQ(cache->GetItemCount(), 0);
+        EXPECT_EQ(cache->GetTotalAdded(), 1);
+        EXPECT_EQ(cache->GetTotalRemoved(), 1);
     }
 
     {
@@ -380,6 +386,8 @@ TEST(TAsyncSrluCacheTest, AddThenImmediatelyRemove)
         cookie.EndInsert(temporaryValue);
         temporaryValue.Reset();
         EXPECT_EQ(cache->GetItemCount(), 0);
+        EXPECT_EQ(cache->GetTotalAdded(), 2);
+        EXPECT_EQ(cache->GetTotalRemoved(), 2);
     }
 
     {

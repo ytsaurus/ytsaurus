@@ -877,8 +877,10 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::NotifyOnTrim(
         }
         OnRemoved(value);
     }
-    if (!immediatelyRemoved) {
-        OnAdded(insertedValue);
+
+    OnAdded(insertedValue);
+    if (immediatelyRemoved) {
+        OnRemoved(insertedValue);
     }
 }
 
