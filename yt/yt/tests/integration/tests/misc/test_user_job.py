@@ -2013,14 +2013,11 @@ class TestRepairExecNode(YTEnvSetup):
                 "check_period": 1000,
             },
         },
-        "logging": {
-            "abort_on_alert": False,
-        },
     }
 
     @authors("alexkolodezny")
     def test_repair_exec_node(self):
-        update_nodes_dynamic_config({"data_node": {"terminate_on_location_disable": False}})
+        update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
 
         node_id = list(get("//sys/cluster_nodes"))[0]
 

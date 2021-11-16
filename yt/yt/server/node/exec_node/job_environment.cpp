@@ -7,6 +7,7 @@
 #include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/config.h>
@@ -25,6 +26,8 @@
 
 #include <yt/yt/ytlib/tools/tools.h>
 #include <yt/yt/ytlib/tools/proc.h>
+
+#include <yt/yt/ytlib/program/program.h>
 
 #include <yt/yt/library/process/process.h>
 
@@ -221,11 +224,15 @@ protected:
         Enabled_ = false;
 
         auto alert = TError("Job environment is disabled") << error;
-
         YT_LOG_ERROR(alert);
-        YT_VERIFY(!Logger.GetAbortOnAlert());
 
         Alert_.Store(alert);
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode;
+        if (dynamicConfig->AbortOnJobsDisabled) {
+            TProgram::Exit(EProgramExitCode::ProgramError);
+        }
     }
 
     virtual void AddArguments(TProcessBasePtr /*process*/, int /*slotIndex*/)
@@ -493,13 +500,13 @@ private:
 
         WaitFor(PortoExecutor_->CreateContainer(metaInstanceName))
             .ThrowOnError();
-        
+
         MetaInstance_ = GetPortoInstance(
             PortoExecutor_,
             metaInstanceName);
         MetaInstance_->SetIOWeight(Config_->JobsIOWeight);
         MetaInstance_->SetCpuLimit(CpuLimit_);
-       
+
         try {
             for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
                 auto slotContainer = GetFullSlotMetaContainerName(MetaInstance_->GetName(), slotIndex);

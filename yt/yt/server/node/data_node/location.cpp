@@ -31,6 +31,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/program/program.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -328,32 +330,27 @@ void TLocation::Disable(const TError& reason)
         TUnbufferedFileOutput fileOutput(file);
         fileOutput << ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).AsStringBuf();
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error creating location lock file; terminating");
-        NLogging::TLogManager::Get()->Shutdown();
-        _exit(1);
+        YT_LOG_ERROR(ex, "Error creating location lock file; aborting");
+        TProgram::Exit(EProgramExitCode::ProgramError);
     }
 
     const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
     const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
-    bool terminate = dynamicConfig->TerminateOnLocationDisabled;
+    if (dynamicConfig->AbortOnLocationDisabled) {
+        TProgram::Exit(EProgramExitCode::ProgramError);
+    }
 
-    if (terminate) {
-        YT_LOG_ERROR("Location is disabled; terminating");
-        NLogging::TLogManager::Get()->Shutdown();
-        _exit(1);
-    } else {
-        Disabled_.Fire();
+    Disabled_.Fire();
 
-        // Notify masters about disaster as soon as possible via out-of-order heartbeat.
-        // NB: Heartbeat should be reported after all the signal subscribers completed.
-        if (Bootstrap_->IsDataNode()) {
-            if (Bootstrap_->UseNewHeartbeats()) {
-                const auto& masterConnector = Bootstrap_->GetDataNodeBootstrap()->GetMasterConnector();
-                masterConnector->ScheduleHeartbeat(/*immediately*/ true);
-            } else {
-                const auto& masterConnector = Bootstrap_->GetLegacyMasterConnector();
-                masterConnector->ScheduleNodeHeartbeat(/*immediately*/ true);
-            }
+    // Notify masters about disaster as soon as possible via out-of-order heartbeat.
+    // NB: Heartbeat should be reported after all the signal subscribers completed.
+    if (Bootstrap_->IsDataNode()) {
+        if (Bootstrap_->UseNewHeartbeats()) {
+            const auto& masterConnector = Bootstrap_->GetDataNodeBootstrap()->GetMasterConnector();
+            masterConnector->ScheduleHeartbeat(/*immediately*/ true);
+        } else {
+            const auto& masterConnector = Bootstrap_->GetLegacyMasterConnector();
+            masterConnector->ScheduleNodeHeartbeat(/*immediately*/ true);
         }
     }
 }

@@ -9,8 +9,10 @@
 #include <yt/yt/server/lib/exec_node/slot_location_builder.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
@@ -19,6 +21,8 @@
 
 #include <yt/yt/ytlib/tools/tools.h>
 #include <yt/yt/ytlib/tools/proc.h>
+
+#include <yt/yt/ytlib/program/program.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -778,12 +782,16 @@ void TSlotLocation::Disable(const TError& error)
             << error;
 
         YT_LOG_ERROR(alert);
-        YT_VERIFY(!Logger.GetAbortOnAlert());
-
         Alert_.Store(alert);
 
         DiskResourcesUpdateExecutor_->Stop();
         SlotLocationStatisticsUpdateExecutor_->Stop();
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
+        if (dynamicConfig->AbortOnLocationDisabled) {
+            TProgram::Exit(EProgramExitCode::ProgramError);
+        }
     })
     .AsyncVia(SerializedHeavyInvoker_)
     .Run())

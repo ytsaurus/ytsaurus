@@ -68,7 +68,8 @@ class TestSnapshotValidation(YTEnvSetup):
             config = " ".join(fh.read().splitlines())
             config = yson.loads(config)
 
-        config["data_node"]["store_locations"][0]["path"] = "."
+        config["data_node"]["store_locations"] = []
+        config["exec_agent"]["slot_manager"]["locations"] = []
 
         with open(config_path, "w") as fh:
             fh.write(yson.dumps(config, yson_format="pretty"))

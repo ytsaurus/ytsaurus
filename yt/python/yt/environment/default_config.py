@@ -444,8 +444,6 @@ b"""
                 type = simple;
                 use_short_container_names = %true;
             };
-
-            slot_initialization_failure_is_fatal = %true;
         };
 
         node_directory_prepare_backoff_time = 100;
@@ -647,6 +645,9 @@ b"""
 {
     "%true" = {
         config_annotation = "default";
+        exec_agent = {
+            abort_on_jobs_disabled = %true;
+        };
     };
 }
 """)
