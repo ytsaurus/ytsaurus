@@ -815,7 +815,7 @@ std::optional<TString> TJob::GetStderr()
         "Stderr is unset for job that has been started and has not been aborted (JobState: %v, JobPhase: %v)",
         JobState_,
         JobPhase_);
-    
+
     return std::nullopt;
 }
 
@@ -943,7 +943,7 @@ void TJob::Interrupt()
 void TJob::Fail()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
-    
+
     if (JobPhase_ != EJobPhase::Running) {
         return;
     }
@@ -1369,6 +1369,10 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     ExtraGpuCheckFinishTime_ = TInstant::Now();
+
+    if (HandleFinishingPhase()) {
+        return;
+    }
 
     ValidateJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
     if (!error.IsOK()) {
