@@ -862,25 +862,11 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::NotifyOnTrim(
     const std::vector<TValuePtr>& evictedValues,
     const TValuePtr& insertedValue)
 {
-    if (!insertedValue) {
-        for (const auto& value : evictedValues) {
-            OnRemoved(value);
-        }
-        return;
+    if (insertedValue) {
+        OnAdded(insertedValue);
     }
-
-    bool immediatelyRemoved = false;
     for (const auto& value : evictedValues) {
-        if (value == insertedValue) {
-            immediatelyRemoved = true;
-            continue;
-        }
         OnRemoved(value);
-    }
-
-    OnAdded(insertedValue);
-    if (immediatelyRemoved) {
-        OnRemoved(insertedValue);
     }
 }
 
