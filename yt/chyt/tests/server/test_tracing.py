@@ -28,7 +28,7 @@ class TestTracing(ClickHouseTestBase):
             if trace_method == "x-yt-sampled":
                 headers["X-Yt-Sampled"] = "1"
             elif trace_method == "traceparent":
-                headers["traceparent"] = "11111111222222223333333344444444-5555555566666666-01"
+                headers["traceparent"] = "00-11111111222222223333333344444444-5555555566666666-01"
             else:
                 settings = {"chyt.enable_tracing": 1}
 
