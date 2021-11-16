@@ -190,7 +190,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
         set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
-        wait(lambda: get("//tmp/t/@is_being_merged"))
+        wait(lambda: get("//tmp/t/@is_being_merged") or get("//tmp/t/@resource_usage/chunk_count") == 1)
 
         for i in range(10):
             write_table("<append=true>//tmp/t", {"a": "b"})
