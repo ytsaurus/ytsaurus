@@ -73,9 +73,9 @@ struct TLocationPerformanceCounters
     NProfiling::TEventTimer BlobChunkWriterAbortTime;
     NProfiling::TEventTimer BlobChunkWriterCloseTime;
 
-    NProfiling::TSummary BlobBlockReadSize;
+    TEnumIndexedVector<EWorkloadCategory, NProfiling::TSummary> BlobBlockReadSize;
 
-    NProfiling::TEventTimer BlobBlockReadTime;
+    TEnumIndexedVector<EWorkloadCategory, NProfiling::TEventTimer> BlobBlockReadTime;
     NProfiling::TCounter BlobBlockReadBytes;
 
     TEnumIndexedVector<EWorkloadCategory, NProfiling::TEventTimer> BlobBlockReadLatencies;
