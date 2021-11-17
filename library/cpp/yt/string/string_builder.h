@@ -11,8 +11,8 @@ class TStringBuilderBase;
 class TStringBuilder;
 class TDelimitedStringBuilderWrapper;
 
-template <class... TArgs, size_t FormatLength>
-void Format(TStringBuilderBase* builder, const char (&format)[FormatLength], TArgs&&... args);
+template <size_t Length, class... TArgs>
+void Format(TStringBuilderBase* builder, const char (&format)[Length], TArgs&&... args);
 template <class... TArgs>
 void Format(TStringBuilderBase* builder, TStringBuf format, TArgs&&... args);
 
@@ -36,8 +36,8 @@ public:
     void AppendString(TStringBuf str);
     void AppendString(const char* str);
 
-    template <class... TArgs, size_t FormatLength>
-    void AppendFormat(const char (&format)[FormatLength], TArgs&&... args);
+    template <size_t Length, class... TArgs>
+    void AppendFormat(const char (&format)[Length], TArgs&&... args);
     template <class... TArgs>
     void AppendFormat(TStringBuf format, TArgs&&... args);
 

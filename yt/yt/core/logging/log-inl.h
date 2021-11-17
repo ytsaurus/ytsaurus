@@ -149,8 +149,7 @@ inline void AppendMessageTags(
     }
 }
 
-template <class... TArgs>
-void AppendLogMessage(
+inline void AppendLogMessage(
     TStringBuilderBase* builder,
     const TLoggingContext& loggingContext,
     const TLogger& logger,
@@ -200,11 +199,11 @@ struct TLogMessage
     TStringBuf Anchor;
 };
 
-template <class... TArgs>
+template <size_t Length, class... TArgs>
 TLogMessage BuildLogMessage(
     const TLoggingContext& loggingContext,
     const TLogger& logger,
-    TStringBuf format,
+    const char (&format)[Length],
     TArgs&&... args)
 {
     TMessageStringBuilder builder;
@@ -212,12 +211,12 @@ TLogMessage BuildLogMessage(
     return {builder.Flush(), format};
 }
 
-template <class... TArgs>
+template <size_t Length, class... TArgs>
 TLogMessage BuildLogMessage(
     const TLoggingContext& loggingContext,
     const TLogger& logger,
     const TError& error,
-    TStringBuf format,
+    const char (&format)[Length],
     TArgs&&... args)
 {
     TMessageStringBuilder builder;
@@ -241,6 +240,33 @@ TLogMessage BuildLogMessage(
         builder.AppendChar(')');
     }
     return {builder.Flush(), TStringBuf()};
+}
+
+inline TLogMessage BuildLogMessage(
+    const TLoggingContext& loggingContext,
+    const TLogger& logger,
+    TStringBuf message)
+{
+    TMessageStringBuilder builder;
+    builder.AppendString(message);
+    if (HasMessageTags(loggingContext, logger)) {
+        builder.AppendString(TStringBuf(" ("));
+        AppendMessageTags(&builder, loggingContext, logger);
+        builder.AppendChar(')');
+    }
+    return {builder.Flush(), message};
+}
+
+template <size_t Length>
+TLogMessage BuildLogMessage(
+    const TLoggingContext& loggingContext,
+    const TLogger& logger,
+    const char (&message)[Length])
+{
+    return BuildLogMessage(
+        loggingContext,
+        logger,
+        TStringBuf(message));
 }
 
 inline TLogMessage BuildLogMessage(

@@ -76,12 +76,18 @@ public:
     TErrorOr(const std::exception& ex);
 
     explicit TErrorOr(TString message);
-    template <class... TArgs>
-    explicit TErrorOr(const char* format, const TArgs&... args);
-
     TErrorOr(TErrorCode code, TString message);
-    template <class... TArgs>
-    TErrorOr(TErrorCode code, const char* format, const TArgs&... args);
+
+    template <size_t Length, class... TArgs>
+    explicit TErrorOr(
+        const char (&messageOrFormat)[Length],
+        TArgs&&... arg);
+
+    template <size_t Length, class... TArgs>
+    TErrorOr(
+        TErrorCode code,
+        const char (&messageOrFormat)[Length],
+        TArgs&&... args);
 
     TError& operator = (const TError& other);
     TError& operator = (TError&& other) noexcept;

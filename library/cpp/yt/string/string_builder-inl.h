@@ -77,8 +77,8 @@ void TStringBuilderBase::AppendFormat(TStringBuf format, TArgs&& ... args)
     Format(this, format, std::forward<TArgs>(args)...);
 }
 
-template <class... TArgs, size_t FormatLength>
-void TStringBuilderBase::AppendFormat(const char (&format)[FormatLength], TArgs&& ... args)
+template <size_t Length, class... TArgs>
+void TStringBuilderBase::AppendFormat(const char (&format)[Length], TArgs&& ... args)
 {
     Format(this, format, std::forward<TArgs>(args)...);
 }
