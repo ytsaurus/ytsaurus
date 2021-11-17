@@ -333,7 +333,7 @@ void TAdaptiveRepairingErasureReader::UpdateBannedPartIndices()
 {
     TPartIndexList failedReaderIndices;
     {
-        auto now = NProfiling::GetInstant();
+        auto now = GetInstant();
         auto guard = ReaderGuard(IndicesLock_);
         for (size_t index = 0; index < Readers_.size(); ++index) {
             if (CheckReaderRecentlyFailed(now, index) && !BannedPartIndices_.test(index)) {
@@ -364,7 +364,7 @@ void TAdaptiveRepairingErasureReader::MaybeUnbanReaders()
 {
     auto guard = WriterGuard(IndicesLock_);
 
-    auto now = NProfiling::GetInstant();
+    auto now = GetInstant();
     for (size_t index = 0; index < SlowReaderBanTimes_.size(); ++index) {
         if (!BannedPartIndices_.test(index)) {
             continue;
@@ -421,7 +421,7 @@ TRefCountedChunkMetaPtr TAdaptiveRepairingErasureReader::DoGetMeta(
     std::iota(indices.begin(), indices.end(), 0);
     Shuffle(indices.begin(), indices.end());
 
-    auto now = NProfiling::GetInstant();
+    auto now = GetInstant();
     for (auto index : indices) {
         if (CheckReaderRecentlyFailed(now, index)) {
             continue;

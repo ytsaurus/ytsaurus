@@ -14,6 +14,8 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/fs.h>
 
+#include <util/system/thread.h>
+
 #include <sys/ioctl.h>
 
 #ifdef _unix_

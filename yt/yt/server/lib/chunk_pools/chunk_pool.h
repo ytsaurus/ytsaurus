@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/misc/small_vector.h>
 
+#include <yt/yt/core/logging/logger_owner.h>
+
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////

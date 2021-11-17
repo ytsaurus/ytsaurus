@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/concurrency/spinlock.h>
 
+#include <yt/yt/core/actions/callback.h>
+
 namespace NYT::NDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////

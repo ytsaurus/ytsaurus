@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;

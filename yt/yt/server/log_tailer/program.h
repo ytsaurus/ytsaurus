@@ -5,6 +5,8 @@
 #include <yt/yt/ytlib/program/program.h>
 #include <yt/yt/ytlib/program/program_config_mixin.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NLogTailer {
 
 ////////////////////////////////////////////////////////////////////////////////

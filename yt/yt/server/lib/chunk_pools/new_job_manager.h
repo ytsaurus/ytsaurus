@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/misc/hash_helpers.h>
 
+#include <yt/yt/core/logging/serializable_logger.h>
+
 #include <random>
 
 namespace NYT::NChunkPools {
@@ -231,7 +233,7 @@ private:
 
     std::vector<TJob> Jobs_;
 
-    NLogging::TLogger Logger;
+    NLogging::TSerializableLogger Logger;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNewJobManager);

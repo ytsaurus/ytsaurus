@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/core/logging/serializable_logger.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +70,7 @@ private:
     TInstant LastLogTime_;
     int ConsecutiveViolationCount_ = 0;
 
-    NLogging::TLogger Logger;
+    NLogging::TSerializableLogger Logger;
 
     TNode& GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId);
     TNode& GetOrRegisterNode(const TJobNodeDescriptor& descriptor);

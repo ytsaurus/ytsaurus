@@ -4,6 +4,8 @@
 #include <yt/yt/core/actions/invoker_detail.h>
 #include <yt/yt/core/actions/invoker_util.h>
 
+#include <yt/yt/core/profiling/tscp.h>
+
 namespace NYT::NConcurrency {
 
 using namespace NProfiling;

@@ -1,6 +1,7 @@
 #include "fair_share_invoker_queue.h"
 
 #include "invoker_queue.h"
+#include "event_count.h"
 
 namespace NYT::NConcurrency {
 

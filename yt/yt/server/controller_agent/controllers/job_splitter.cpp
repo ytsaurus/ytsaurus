@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
+#include <yt/yt/core/logging/serializable_logger.h>
+
 #include <util/generic/cast.h>
 
 #include <algorithm>
@@ -484,7 +486,7 @@ private:
     TDuration SuccessJobPrepareDurationSum_;
     int SuccessJobCount_ = 0;
     IChunkPoolJobSplittingHost* ChunkPool_;
-    NLogging::TLogger Logger;
+    NLogging::TSerializableLogger Logger;
 
     void OnJobFinished(const TJobSummary& summary)
     {

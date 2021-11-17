@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/yt/core/logging/serializable_logger.h>
+
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +26,7 @@ struct TOrderedChunkPoolOptions
     bool EnablePeriodicYielder = false;
     bool KeepOutputOrder = false;
     bool ShouldSliceByRowIndices = false;
-    NLogging::TLogger Logger;
+    NLogging::TSerializableLogger Logger;
 
     void Persist(const TPersistenceContext& context);
 };

@@ -5,7 +5,7 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/logging/logger_owner.h>
 
 #include <yt/yt/core/misc/error.h>
 

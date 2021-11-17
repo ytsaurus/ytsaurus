@@ -7,8 +7,9 @@
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 
 #include <yt/yt/core/misc/serialize.h>
-
 #include <yt/yt/core/misc/statistics.h>
+
+#include <yt/yt/core/logging/serializable_logger.h>
 
 namespace NYT::NControllerAgent {
 
@@ -75,7 +76,7 @@ private:
 
     bool Disabled_ = false;
 
-    NLogging::TLogger Logger;
+    NLogging::TSerializableLogger Logger;
 
     // For documentation on the meaning of parameters, see
     // TTentativeTreeEligibilityConfig::{SampleJobCount,MaxTentativeJobDurationRatio,MinJobDuration} respectively.

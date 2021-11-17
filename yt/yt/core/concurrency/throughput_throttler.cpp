@@ -244,7 +244,7 @@ private:
         Limit_ = limit.value_or(-1);
         Period_ = period;
         TDelayedExecutor::CancelAndClear(UpdateCookie_);
-        auto now = NProfiling::GetInstant();
+        auto now = GetInstant();
         if (limit && *limit > 0) {
             auto lastUpdated = LastUpdated_.load();
             auto millisecondsPassed = (now - lastUpdated).MilliSeconds();
@@ -292,7 +292,7 @@ private:
         }
 
         auto period = Period_.load();
-        auto current = NProfiling::GetInstant();
+        auto current = GetInstant();
         auto lastUpdated = LastUpdated_.load();
 
         auto millisecondsPassed = (current - lastUpdated).MilliSeconds();

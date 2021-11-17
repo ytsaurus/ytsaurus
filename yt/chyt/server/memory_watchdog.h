@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/actions/callback.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,18 +14,22 @@ class TMemoryWatchdog
     : public TRefCounted
 {
 public:
-    TMemoryWatchdog(TMemoryWatchdogConfigPtr config, TCallback<void()> exitCallback, TCallback<void()> interruptCallback);
+    TMemoryWatchdog(
+        TMemoryWatchdogConfigPtr config,
+        TCallback<void()> exitCallback,
+        TCallback<void()> interruptCallback);
 
     void Start();
     void Stop();
 
 private:
-    TMemoryWatchdogConfigPtr Config_;
-    TCallback<void()> ExitCallback_;
-    TCallback<void()> InterruptCallback_;
+    const TMemoryWatchdogConfigPtr Config_;
+    const TCallback<void()> ExitCallback_;
+    const TCallback<void()> InterruptCallback_;
     NConcurrency::TActionQueuePtr ActionQueue_;
-    IInvokerPtr Invoker_;
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+    const IInvokerPtr Invoker_;
+    const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+
     std::deque<std::pair<TInstant, size_t>> WindowRssValues_;
 
     void CheckMemoryUsage();

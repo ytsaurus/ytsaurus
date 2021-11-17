@@ -25,6 +25,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <atomic>

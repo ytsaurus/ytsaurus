@@ -14,6 +14,8 @@
 #include <yt/yt/core/misc/intrusive_linked_list.h>
 #include <yt/yt/core/misc/proc.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <util/generic/size_literals.h>
 #include <util/generic/xrange.h>
 

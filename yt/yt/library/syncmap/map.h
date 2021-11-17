@@ -1,7 +1,5 @@
 #pragma once
 
-#include <atomic>
-
 #include <util/generic/hash.h>
 #include <util/generic/noncopyable.h>
 #include <util/system/spinlock.h>
@@ -9,6 +7,10 @@
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/hazard_ptr.h>
 #include <yt/yt/core/misc/ref_counted.h>
+
+#include <yt/yt/core/concurrency/spinlock.h>
+
+#include <atomic>
 
 namespace NYT::NConcurrency {
 

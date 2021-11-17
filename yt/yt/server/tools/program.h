@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/cgroup/cgroup.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////

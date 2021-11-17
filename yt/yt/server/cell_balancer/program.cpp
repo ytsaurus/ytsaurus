@@ -19,6 +19,8 @@
 
 #include <library/cpp/yt/mlock/mlock.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////

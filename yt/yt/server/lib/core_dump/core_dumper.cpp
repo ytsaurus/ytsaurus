@@ -15,6 +15,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <util/system/mutex.h>
+#include <util/system/thread.h>
 
 #ifdef _linux_
     #include <yt/yt/contrib/coredumper/coredumper.h>

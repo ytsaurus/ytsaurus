@@ -3,6 +3,8 @@
 #include "private.h"
 #include "spinlock.h"
 
+#include <yt/yt/core/actions/invoker.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NConcurrency {

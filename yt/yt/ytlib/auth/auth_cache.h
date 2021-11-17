@@ -43,8 +43,8 @@ private:
         TEntry(const TKey& key, const TContext& context)
             : Key(key)
             , Context(context)
-            , LastAccessTime(NProfiling::GetCpuInstant())
-            , LastUpdateTime(NProfiling::GetCpuInstant())
+            , LastAccessTime(GetCpuInstant())
+            , LastUpdateTime(GetCpuInstant())
         { }
     };
     typedef TIntrusivePtr<TEntry> TEntryPtr;

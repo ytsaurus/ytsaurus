@@ -24,6 +24,9 @@
 #include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 
+#include <yt/yt/core/logging/logger_owner.h>
+#include <yt/yt/core/logging/serializable_logger.h>
+
 namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
@@ -299,7 +302,7 @@ private:
 
     bool IsCompleted_ = false;
 
-    TLogger StructuredLogger;
+    TSerializableLogger StructuredLogger;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is

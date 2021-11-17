@@ -20,6 +20,7 @@
 #include <yt/yt/core/net/address.h>
 
 #include <util/system/error.h>
+#include <util/system/thread.h>
 
 namespace NYT {
 

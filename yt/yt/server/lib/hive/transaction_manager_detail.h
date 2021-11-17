@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 
+#include <yt/yt/core/logging/logger_owner.h>
+
 namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////

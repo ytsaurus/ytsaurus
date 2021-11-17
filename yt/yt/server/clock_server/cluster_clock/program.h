@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////

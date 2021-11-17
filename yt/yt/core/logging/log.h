@@ -2,17 +2,20 @@
 
 #include "public.h"
 
-#include <yt/yt/core/concurrency/scheduler.h>
+// TODO(babenko): break this dependency before moving to library
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/format.h>
-#include <yt/yt/core/misc/ref.h>
+// TODO(babenko): break this dependency before moving to library
+#include <yt/yt/core/tracing/public.h>
 
-#include <yt/yt/core/tracing/trace_context.h>
+#include <library/cpp/yt/string/format.h>
 
-#include <yt/yt/core/profiling/public.h>
+#include <library/cpp/yt/memory/ref.h>
 
-#include <util/system/thread.h>
+#include <library/cpp/yt/cpu_clock/clock.h>
+
+#include <library/cpp/yt/yson_string/string.h>
+
 #include <util/system/src_location.h>
 
 #include <atomic>
@@ -58,6 +61,15 @@ struct TLoggingAnchor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLoggingThreadName
+{
+    static constexpr int BufferCapacity = 16; // including zero terminator
+    std::array<char, BufferCapacity> Buffer; // zero-terminated
+    int Length; // not including zero terminator
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TLogEvent
 {
     const TLoggingCategory* Category = nullptr;
@@ -68,23 +80,43 @@ struct TLogEvent
     TSharedRef Message;
     NYson::TYsonString StructuredMessage;
 
-    NProfiling::TCpuInstant Instant = 0;
+    TCpuInstant Instant = 0;
 
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
 
-    static constexpr int ThreadNameBufferSize = 16 ; // including zero terminator
-    using TThreadName = std::array<char, ThreadNameBufferSize>;
-    TThreadName ThreadName = {}; // zero-terminated
-    int ThreadNameLength = 0; // not including zero terminator
+    TLoggingThreadName ThreadName = {};
 
     NConcurrency::TFiberId FiberId = NConcurrency::InvalidFiberId;
 
     NTracing::TTraceId TraceId = NTracing::InvalidTraceId;
 
     NTracing::TRequestId RequestId = NTracing::InvalidRequestId;
+
     TStringBuf SourceFile;
     int SourceLine = -1;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ILogManager
+{
+    virtual ~ILogManager() = default;
+
+    virtual void RegisterStaticAnchor(
+        TLoggingAnchor* position,
+        ::TSourceLocation sourceLocation,
+        TStringBuf anchorMessage) = 0;
+    virtual void UpdateAnchor(TLoggingAnchor* position) = 0;
+
+    virtual void Enqueue(TLogEvent&& event) = 0;
+
+    virtual const TLoggingCategory* GetCategory(TStringBuf categoryName) = 0;
+    virtual void UpdateCategory(TLoggingCategory* category) = 0;
+
+    virtual bool GetAbortOnAlert() const = 0;
+};
+
+ILogManager* GetDefaultLogManager();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,6 +142,8 @@ public:
 
     TLogger() = default;
     TLogger(const TLogger& other) = default;
+
+    TLogger(ILogManager* logManager, TStringBuf categoryName);
     explicit TLogger(TStringBuf categoryName);
 
     explicit operator bool() const;
@@ -151,19 +185,17 @@ public:
     const TString& GetTag() const;
     const TStructuredTags& GetStructuredTags() const;
 
-    void Save(TStreamSaveContext& context) const;
-    void Load(TStreamLoadContext& context);
-
-private:
+protected:
     // These fields are set only during logger creation, so they are effectively const
     // and accessing them is thread-safe.
-    TLogManager* LogManager_ = nullptr;
+    ILogManager* LogManager_ = nullptr;
     const TLoggingCategory* Category_ = nullptr;
     bool Essential_ = false;
     ELogLevel MinLevel_ = NullLoggerMinLevel;
     TString Tag_;
     TStructuredTags StructuredTags_;
 
+private:
     //! This method checks level against category's min level.
     //! Refer to comment in TLogger::IsLevelEnabled for more details.
     bool IsLevelEnabledHeavy(ELogLevel level) const;
@@ -171,22 +203,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Typically serves as a virtual base for classes that need a member logger.
-class TLoggerOwner
-{
-protected:
-    TLogger Logger;
-
-    TLoggerOwner() = default;
-
-    void Save(TStreamSaveContext& context) const;
-    void Load(TStreamLoadContext& context);
-    void Persist(const TStreamPersistenceContext& context);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-void LogStructuredEvent(const TLogger& logger,
+void LogStructuredEvent(
+    const TLogger& logger,
     NYson::TYsonString message,
     ELogLevel level);
 
@@ -260,8 +278,8 @@ void LogStructuredEvent(const TLogger& logger,
             break; \
         } \
         \
-        const auto* traceContext__##__LINE__ = ::NYT::NTracing::GetCurrentTraceContext(); \
-        auto message__##__LINE__ = ::NYT::NLogging::NDetail::BuildLogMessage(traceContext__##__LINE__, logger__##__LINE__, __VA_ARGS__); \
+        auto loggingContext__##__LINE__ = ::NYT::NLogging::NDetail::GetLoggingContext(); \
+        auto message__##__LINE__ = ::NYT::NLogging::NDetail::BuildLogMessage(loggingContext__##__LINE__, logger__##__LINE__, __VA_ARGS__); \
         \
         if (!anchorUpToDate__##__LINE__) { \
             logger__##__LINE__.RegisterStaticAnchor(anchor__##__LINE__, location__##__LINE__, message__##__LINE__.Anchor); \
@@ -283,7 +301,7 @@ void LogStructuredEvent(const TLogger& logger,
         } \
         \
         ::NYT::NLogging::NDetail::LogEventImpl( \
-            traceContext__##__LINE__, \
+            loggingContext__##__LINE__, \
             logger__##__LINE__, \
             level__##__LINE__, \
             location__##__LINE__, \

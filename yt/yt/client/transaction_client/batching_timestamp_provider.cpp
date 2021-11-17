@@ -80,7 +80,7 @@ public:
             return;
         }
 
-        auto now = NProfiling::GetInstant();
+        auto now = GetInstant();
 
         if (LastRequestTime_ + BatchPeriod_ < now) {
             SendGenerateRequest(guard);
@@ -103,7 +103,7 @@ public:
 
         YT_VERIFY(!GenerateInProgress_);
         GenerateInProgress_ = true;
-        LastRequestTime_ = NProfiling::GetInstant();
+        LastRequestTime_ = GetInstant();
 
         std::vector<TRequest> requests;
         requests.swap(PendingRequests_);

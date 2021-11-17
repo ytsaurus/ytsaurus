@@ -15,7 +15,7 @@ void SubrequestExample()
     traceContext->SetSampled();
     traceContext->AddTag("user", "prime");
 
-    traceContext->AddLogEntry(NProfiling::GetCpuInstant(), "Request started");
+    traceContext->AddLogEntry(GetCpuInstant(), "Request started");
 
     Sleep(TDuration::MilliSeconds(10));
     auto childTraceContext = traceContext->CreateChild("Subrequest");
@@ -25,7 +25,7 @@ void SubrequestExample()
     childTraceContext->Finish();
 
     Sleep(TDuration::MilliSeconds(2));
-    traceContext->AddLogEntry(NProfiling::GetCpuInstant(), "Request finished");
+    traceContext->AddLogEntry(GetCpuInstant(), "Request finished");
     traceContext->Finish();
 
     Cout << ToString(traceContext->GetTraceId()) << Endl;
