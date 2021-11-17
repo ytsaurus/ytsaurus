@@ -271,6 +271,8 @@ private:
         // TCompletionQueueTag overrides
         void Run(bool success, int /*cookie*/) override
         {
+            const auto guard = TraceContext_.GetTraceContextGuard();
+
             switch (Stage_) {
                 case EClientCallStage::SendingRequest:
                     OnRequestSent(success);
@@ -324,6 +326,8 @@ private:
         const NLogging::TLogger& Logger;
 
         NProfiling::TWallTimer Timer_;
+
+        NYT::NTracing::TTraceContextHandler TraceContext_;
 
         TGrpcCallPtr Call_;
         TSharedRefArray RequestBody_;

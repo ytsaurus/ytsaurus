@@ -337,6 +337,24 @@ void AnnotateTraceContext(const TFn& fn);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTraceContextHandler
+{
+public:
+    TTraceContextHandler()
+        : TraceContext_(NTracing::GetCurrentTraceContext())
+    { }
+
+    NTracing::TCurrentTraceContextGuard GetTraceContextGuard()
+    {
+        return NTracing::TCurrentTraceContextGuard(TraceContext_);
+    }
+
+private:
+    const NTracing::TTraceContextPtr TraceContext_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTracing
 
 #define TRACE_CONTEXT_INL_H_

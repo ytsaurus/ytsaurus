@@ -426,21 +426,12 @@ struct TSplitHelper<N, TR (TA0, TAs...)>
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool CaptureTraceContext>
-class TTraceContextMixin
-{
-public:
-    TTraceContextMixin()
-        : TraceContext_(NTracing::GetCurrentTraceContext())
-    { }
+class TTraceContextMixin;
 
-    NTracing::TCurrentTraceContextGuard GetTraceContextGuard()
-    {
-        return NTracing::TCurrentTraceContextGuard(TraceContext_);
-    }
-
-private:
-    const NTracing::TTraceContextPtr TraceContext_;
-};
+template <>
+class TTraceContextMixin<true>
+    : public NYT::NTracing::TTraceContextHandler
+{ };
 
 template <>
 class TTraceContextMixin<false>
