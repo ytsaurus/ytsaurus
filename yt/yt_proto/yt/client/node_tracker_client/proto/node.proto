@@ -175,6 +175,7 @@ message TNodeDescriptor
     optional string rack = 2;
     optional string data_center = 3;
     repeated string tags = 4;
+    optional int64 last_seen_time = 6;
 }
 
 message TClusterNodeStatistics
