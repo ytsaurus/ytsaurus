@@ -111,7 +111,7 @@ public:
     TNodeList AllocateWriteTargets(
         TMedium* medium,
         TChunk* chunk,
-        int replicaIndex,
+        const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -172,7 +172,7 @@ private:
     TNodeList GetWriteTargets(
         TMedium* medium,
         TChunk* chunk,
-        int replicaIndex,
+        const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
         int minCount,
         bool forceRackAwareness,
@@ -183,7 +183,7 @@ private:
     std::optional<TNodeList> FindConsistentPlacementWriteTargets(
         TMedium* medium,
         TChunk* chunk,
-        int replicaIndex,
+        const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
         int minCount,
         const TNodeList* forbiddenNodes,

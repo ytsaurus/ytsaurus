@@ -188,7 +188,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     auto targetNodes = GetWriteTargets(
         medium,
         chunk,
-        GenericChunkReplicaIndex,
+        /* replicaIndexes */ {},
         desiredCount,
         minCount,
         sessionType == ESessionType::Replication,
@@ -305,7 +305,7 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
 TNodeList TChunkPlacement::GetWriteTargets(
     TMedium* medium,
     TChunk* chunk,
-    int replicaIndex,
+    const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
     bool forceRackAwareness,
@@ -318,7 +318,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     auto consistentPlacementWriteTargets = FindConsistentPlacementWriteTargets(
         medium,
         chunk,
-        replicaIndex,
+        replicaIndexes,
         desiredCount,
         minCount,
         forbiddenNodes,
@@ -433,12 +433,16 @@ TNode* TChunkPlacement::FindPreferredNode(
 std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
     TMedium* medium,
     TChunk* chunk,
-    int replicaIndex,
+    const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
     const TNodeList* forbiddenNodes,
     TNode* preferredNode)
 {
+    YT_ASSERT(replicaIndexes.empty() || std::ssize(replicaIndexes) == minCount);
+    YT_ASSERT(std::find(replicaIndexes.begin(), replicaIndexes.end(), GenericChunkReplicaIndex) == replicaIndexes.end());
+    YT_ASSERT(replicaIndexes.empty() || chunk->IsErasure());
+
     if (!chunk->HasConsistentReplicaPlacementHash()) {
         return std::nullopt;
     }
@@ -450,15 +454,20 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
     auto mediumIndex = medium->GetIndex();
     auto result = GetConsistentPlacementWriteTargets(chunk, mediumIndex);
 
-    if (desiredCount > std::ssize(result)) {
+    if (result.empty()) {
+        return std::nullopt; // No online nodes.
+    }
+
+    if (minCount > std::ssize(result) || desiredCount > std::ssize(result)) {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& dataNodeStatistics = nodeTracker->GetFlavoredNodeStatistics(ENodeFlavor::Data);
         if (desiredCount > dataNodeStatistics.OnlineNodeCount) {
             YT_LOG_WARNING("Requested to allocate too many consistently placed chunk replica targets "
-                "(ChunkId: %v, ReplicaIndex: %v, MediumIndex: %v, DesiredReplicaCount: %v, ConsistentPlacementReplicaCount: %v, OnlineDataNodeCount: %v)",
+                "(ChunkId: %v, ReplicaIndexes: %v, MediumIndex: %v, MinReplicaCount: %v, DesiredReplicaCount: %v, ConsistentPlacementReplicaCount: %v, OnlineDataNodeCount: %v)",
                 chunk->GetId(),
-                replicaIndex,
+                replicaIndexes,
                 mediumIndex,
+                minCount,
                 desiredCount,
                 std::ssize(result),
                 dataNodeStatistics.OnlineNodeCount);
@@ -466,71 +475,102 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
         return std::nullopt;
     }
 
-    if (replicaIndex != GenericChunkReplicaIndex) {
-        YT_ASSERT(chunk->IsErasure());
-        if (replicaIndex >= std::ssize(result)) {
-            YT_LOG_ALERT("Target nodes dictated by consistent chunk placement are fewer than the specified replica index (ChunkId: %v, MediumIndex: %v, ConsistentPlacementTargetNodeCount: %v, ReplicaIndex: %v)",
-                chunk->GetId(),
-                mediumIndex,
-                std::ssize(result),
-                replicaIndex);
-            return std::nullopt;
-        }
-        result = TNodeList(1, result[replicaIndex]);
+    // NB: replicaIndexes may be empty.
+    if (std::find_if(
+        replicaIndexes.begin(),
+        replicaIndexes.end(),
+        [&] (int replicaIndex) {
+            return replicaIndex >= std::ssize(result);
+        })!= replicaIndexes.end())
+    {
+        YT_LOG_ALERT("Target nodes dictated by consistent chunk placement are fewer than the specified replica index (ChunkId: %v, MediumIndex: %v, ConsistentPlacementTargetNodeCount: %v, ReplicaIndexes: %v)",
+            chunk->GetId(),
+            mediumIndex,
+            std::ssize(result),
+            replicaIndexes);
+        return std::nullopt;
     }
 
-    TNodeList replicaNodes;
-    for (auto replica : chunk->StoredReplicas()) {
-        if (replicaIndex != GenericChunkReplicaIndex &&
-            replica.GetReplicaIndex() != replicaIndex)
-        {
-            continue;
+    if (!replicaIndexes.empty()) {
+        TNodeList filteredResult;
+        filteredResult.reserve(replicaIndexes.size());
+        for (auto replicaIndex : replicaIndexes) {
+            filteredResult.push_back(result[replicaIndex]);
         }
-
-        if (replica.GetMediumIndex() != mediumIndex) {
-            continue;
-        }
-
-        auto* node = replica.GetPtr();
-        replicaNodes.push_back(node);
+        result = std::move(filteredResult);
+        YT_ASSERT(std::ssize(replicaIndexes) == std::ssize(result));
     }
 
-    // Remove
-    //   - already consistently placed replicas;
-    //   - invalid nodes.
-    result.erase(
-        std::remove_if(
-            result.begin(),
-            result.end(),
-            [&] (TNode* node) {
-                if (std::find(replicaNodes.begin(), replicaNodes.end(), node) != replicaNodes.end()) {
+    YT_ASSERT(std::all_of(
+        result.begin(),
+        result.end(),
+        [&] (TNode* node) {
+            return IsValidWriteTargetCore(node);
+        }));
+
+    auto isNodeForbidden = [&] (TNode* node) {
+        return
+            forbiddenNodes &&
+            std::find(forbiddenNodes->begin(), forbiddenNodes->end(), node) != forbiddenNodes->end();
+    };
+
+    auto isNodeConsistent = [&] (TNode* node, int replicaIndex) {
+        for (auto replica : chunk->StoredReplicas()) {
+            if (replica.GetMediumIndex() != mediumIndex) {
+                continue;
+            }
+
+            if (replicaIndex == GenericChunkReplicaIndex) {
+                if (replica.GetPtr() == node) {
                     return true;
                 }
+            } else if (replica.GetReplicaIndex() == replicaIndex) {
+                return replica.GetPtr() == node;
+            }
+        }
 
-                if (forbiddenNodes &&
-                    std::find(forbiddenNodes->begin(), forbiddenNodes->end(), node) != forbiddenNodes->end())
-                {
-                    return true;
+        return false;
+    };
+
+    // Regular and erasure chunks are fundamentally different: for the former,
+    // it's ok to reorder replicas and therefore we're allowed to filter out
+    // some target nodes if necessary. For erasure chunks, a need to filter a
+    // target node out means failing to place replicas consistently.
+
+    // NB: the code below is quadratic, but all factors are small.
+    if (chunk->IsErasure()) {
+        for (auto* node : result) {
+            if (isNodeForbidden(node)) {
+                return std::nullopt;
+            }
+
+            if (replicaIndexes.empty()) {
+                for (auto replicaIndex = 0; replicaIndex < std::ssize(result); ++replicaIndex) {
+                    auto* node = result[replicaIndex];
+                    if (isNodeConsistent(node, replicaIndex)) {
+                        return std::nullopt;
+                    }
                 }
-
-                if (!IsValidWriteTargetCore(node)) {
-                    YT_LOG_WARNING("Target node dictated by consistent placement is not a valid write target "
-                        "(NodeId: %v, ChunkId: %v, ReportedDataNodeHeartbeat: %v, Decommissioned: %v, "
-                        "DisableWriteSessions: %v, EffectiveDisableWriteSessions: %v)",
-                        node->GetId(),
-                        chunk->GetId(),
-                        node->ReportedDataNodeHeartbeat(),
-                        node->GetDecommissioned(),
-                        node->GetDisableWriteSessions(),
-                        node->GetEffectiveDisableWriteSessions());
-                    return true;
+            } else {
+                for (auto i = 0; i < std::ssize(result); ++i) {
+                    auto* node = result[i];
+                    auto replicaIndex = replicaIndexes[i];
+                    if (isNodeConsistent(node, replicaIndex)) {
+                        return std::nullopt;
+                    }
                 }
-                return false;
-            }),
-        result.end());
-
-    // NB: this doesn't mean erasure chunk replicas are always allocated one by one.
-    YT_VERIFY(replicaIndex == GenericChunkReplicaIndex || std::ssize(result) <= 1);
+            }
+        }
+    } else {
+        result.erase(
+            std::remove_if(
+                result.begin(),
+                result.end(),
+                [&] (TNode* node) {
+                    return isNodeForbidden(node) || isNodeConsistent(node, GenericChunkReplicaIndex);
+                }),
+            result.end());
+    }
 
     if (std::ssize(result) < minCount) {
         return std::nullopt;
@@ -538,14 +578,12 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
 
     YT_VERIFY(!result.empty());
 
+    YT_ASSERT(desiredCount >= std::ssize(replicaIndexes));
     if (desiredCount < std::ssize(result)) {
         // Make sure the preferred node makes it to the result after trimming.
-        if (preferredNode) {
+        if (preferredNode && !chunk->IsErasure()) {
             auto it = std::find(result.begin(), result.end(), preferredNode);
             if (it != result.end()) {
-                // NB: reordering replicas should be avoided when allocating
-                // targets for an erasure chunk. However, replicationFactorOverride
-                // in never specified in that case, so this is safe.
                 std::swap(result.front(), *it);
             }
         }
@@ -555,13 +593,13 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
         result.erase(tailIt, result.end());
     }
 
-    return result;
+   return result;
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TMedium* medium,
     TChunk* chunk,
-    int replicaIndex,
+    const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
     std::optional<int> replicationFactorOverride,
@@ -570,7 +608,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     auto targetNodes = GetWriteTargets(
         medium,
         chunk,
-        replicaIndex,
+        replicaIndexes,
         desiredCount,
         minCount,
         sessionType == ESessionType::Replication,
@@ -623,6 +661,10 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
 
         if (!IsConsistentChunkPlacementEnabled()) {
             return false;
+        }
+
+        if (consistentPlacementNodes.empty()) {
+            return false; // No online nodes.
         }
 
         return replicaIndex == GenericChunkReplicaIndex
@@ -884,6 +926,9 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
             continue;
         }
         if (chunk->IsJournal() && replica.GetState() == EChunkReplicaState::Unsealed) {
+            continue;
+        }
+        if (chunk->HasConsistentReplicaPlacementHash()) {
             continue;
         }
         result.push_back(replica);

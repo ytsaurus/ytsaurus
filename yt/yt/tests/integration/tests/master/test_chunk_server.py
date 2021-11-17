@@ -541,9 +541,9 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
 
     @authors("shakurov")
     @pytest.mark.parametrize("trouble_mode", ["banned", "decommissioned", "disable_write_sessions"])
-    @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_3_3"])
-    def test_node_trouble(self, trouble_mode, erasure_codec):
-        self._create_table_with_two_consistently_placed_chunks("//tmp/t5", {"erasure_codec": erasure_codec})
+    # TODO(shakurov): @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_3_3"])
+    def test_node_trouble(self, trouble_mode):
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t5", {"erasure_codec": "none"})
         chunk_ids = get("//tmp/t5/@chunk_ids")
 
         troubled_node = get("#{}/@stored_replicas".format(chunk_ids[0]))[1]
@@ -551,9 +551,17 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
 
         def are_chunks_collocated():
             chunk0_replicas = get("#{}/@stored_replicas".format(chunk_ids[0]))
+            if len(chunk0_replicas) != 3:
+                return False
+
             if troubled_node in chunk0_replicas:
                 return False  # Wait for banning/decommissioning to take effect.
+
             chunk1_replicas = get("#{}/@stored_replicas".format(chunk_ids[1]))
+
+            if len(chunk1_replicas) != 3:
+                return False
+
             if troubled_node in chunk1_replicas:
                 return False  # Wait for banning/decommissioning to take effect.
 
@@ -571,23 +579,33 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         troubled_node = get("#{}/@stored_replicas".format(chunk_ids[0]))[1]
         set("//sys/cluster_nodes/" + troubled_node + "/@" + trouble_mode, True)
 
-        def are_chunks_collocated():
+        def are_chunks_collocated(troubled_node_ok):
             chunk0_replicas = get("#{}/@stored_replicas".format(chunk_ids[0]))
-            if troubled_node in chunk0_replicas:
+
+            if len(chunk0_replicas) != 3:
+                return False
+
+            if not troubled_node_ok and (troubled_node in chunk0_replicas):
                 return False  # Wait for banning/decommissioning to take effect.
+
             chunk1_replicas = get("#{}/@stored_replicas".format(chunk_ids[1]))
-            if troubled_node in chunk1_replicas:
+
+            if len(chunk1_replicas) != 3:
+                return False
+
+            if not troubled_node_ok and (troubled_node in chunk1_replicas):
                 return False  # Wait for banning/decommissioning to take effect.
 
             return self._are_chunk_replicas_collocated(chunk0_replicas, chunk1_replicas)
+
+        wait(lambda: are_chunks_collocated(False), iter=120, sleep_backoff=1.0)
 
         with Restarter(self.Env, NODES_SERVICE):
             if trouble_mode == "banned":
                 # Otherwise the node won't restart.
                 set("//sys/cluster_nodes/" + troubled_node + "/@" + trouble_mode, False)
 
-        # Decommissioning may take some time.
-        wait(are_chunks_collocated, iter=120, sleep_backoff=1.0)
+        wait(lambda: are_chunks_collocated(True), iter=120, sleep_backoff=1.0)
 
     @authors("shakurov")
     def test_rf_change(self):
