@@ -393,13 +393,11 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         queryContext->Host->GetConfig()->ReaderMemoryRequirement,
         {{"user", queryContext->User}});
 
-    auto defaultTableReaderConfig = queryContext->Host->GetConfig()->TableReader;
-    auto tableReaderConfig = storageContext->Settings->TableReader;
-    tableReaderConfig = UpdateYsonSerializable(defaultTableReaderConfig, ConvertToNode(tableReaderConfig));
-
+    auto tableReaderConfig = CloneYsonSerializable(storageContext->Settings->TableReader);
     tableReaderConfig->SamplingMode = subquerySpec.TableReaderConfig->SamplingMode;
     tableReaderConfig->SamplingRate = subquerySpec.TableReaderConfig->SamplingRate;
     tableReaderConfig->SamplingSeed = subquerySpec.TableReaderConfig->SamplingSeed;
+
     TLogger Logger(queryContext->Logger);
 
     if (!subquerySpec.DataSourceDirectory->DataSources().empty() &&

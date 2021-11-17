@@ -1015,7 +1015,7 @@ public:
                 path,
                 table->Schema,
                 dataTypes,
-                QueryContext_->Host->GetConfig()->TableWriter,
+                QueryContext_->Settings->TableWriter,
                 QueryContext_->Settings->Composite,
                 QueryContext_->Client(),
                 QueryContext_->Logger);
