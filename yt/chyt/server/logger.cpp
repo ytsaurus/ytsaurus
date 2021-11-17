@@ -5,6 +5,8 @@
 #include <yt/yt/core/logging/log.h>
 #include <yt/yt/core/profiling/timing.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NLogging;

@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////

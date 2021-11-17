@@ -11,6 +11,8 @@
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/weak_ptr.h>
 
+#include <yt/yt/core/profiling/tscp.h>
+
 #include <util/generic/xrange.h>
 
 namespace NYT::NConcurrency {

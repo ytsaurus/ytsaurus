@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/fs.h>
 
+#include <yt/yt/core/concurrency/scheduler.h>
+
 namespace NYT::NHydra {
 
 using namespace NIO;

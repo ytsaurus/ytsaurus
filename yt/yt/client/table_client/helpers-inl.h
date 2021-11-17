@@ -12,6 +12,8 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/string.h>
 
+#include <yt/yt/core/concurrency/scheduler.h>
+
 #include <array>
 
 namespace NYT::NTableClient {

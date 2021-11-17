@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
+#include <yt/yt/core/logging/serializable_logger.h>
+
 #include <algorithm>
 
 namespace NYT::NControllerAgent {
@@ -189,7 +191,7 @@ protected:
     i64 InputRowCount_ = -1;
     int MergeInputTableCount_ = -1;
     int MergePrimaryInputTableCount_ = -1;
-    TLogger Logger;
+    TSerializableLogger Logger;
 
     i64 GetSortedOperationInputSliceDataWeight() const
     {

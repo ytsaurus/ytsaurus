@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NTabletNode {
 namespace {
 

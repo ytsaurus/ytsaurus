@@ -1,4 +1,7 @@
 #include "column_block_manager.h"
+#include "memory_helpers.h"
+#include "dispatch_by_type.h"
+#include "prepared_meta.h"
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 
@@ -6,9 +9,7 @@
 
 #include <yt/yt/core/misc/algorithm_helpers.h>
 
-#include "memory_helpers.h"
-#include "dispatch_by_type.h"
-#include "prepared_meta.h"
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NNewTableClient {
 

@@ -1,7 +1,9 @@
 #include "log.h"
 #include "log_manager.h"
 
-#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <util/system/thread.h>
 
@@ -74,27 +76,47 @@ TMessageStringBuilder::TPerThreadCache::~TPerThreadCache()
 thread_local TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::Cache_;
 thread_local bool TMessageStringBuilder::CacheDestroyed_;
 
-thread_local bool CachedThreadNameInitialized;
-thread_local TLogEvent::TThreadName CachedThreadName;
-thread_local int CachedThreadNameLength;
+thread_local TLoggingThreadName CachedLoggingThreadName;
 
 void CacheThreadName()
 {
     if (auto name = TThread::CurrentThreadName()) {
-        CachedThreadNameLength = std::min(TLogEvent::ThreadNameBufferSize - 1, static_cast<int>(name.length()));
-        ::memcpy(CachedThreadName.data(), name.data(), CachedThreadNameLength);
+        auto length = std::min(TLoggingThreadName::BufferCapacity - 1, static_cast<int>(name.length()));
+        CachedLoggingThreadName.Length = length;
+        ::memcpy(CachedLoggingThreadName.Buffer.data(), name.data(), length);
     }
-    CachedThreadNameInitialized = true;
+}
+
+TLoggingContext GetLoggingContext()
+{
+    if (CachedLoggingThreadName.Length == 0) {
+        CacheThreadName();
+    }
+
+    auto* traceContext = NTracing::GetCurrentTraceContext();
+
+    return TLoggingContext{
+        .Instant = GetCpuInstant(),
+        .ThreadId = TThread::CurrentThreadId(),
+        .ThreadName = NDetail::CachedLoggingThreadName,
+        .FiberId = NConcurrency::GetCurrentFiberId(),
+        .RequestId = traceContext ? traceContext->GetRequestId() : NTracing::TRequestId(),
+        .TraceLoggingTag = traceContext ? traceContext->GetLoggingTag() : TStringBuf(),
+    };
 }
 
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger::TLogger(TStringBuf categoryName)
-    : LogManager_(TLogManager::Get())
-    , Category_(LogManager_->GetCategory(categoryName))
+TLogger::TLogger(ILogManager* logManager, TStringBuf categoryName)
+    : LogManager_(logManager)
+    , Category_(LogManager_ ? LogManager_->GetCategory(categoryName) : nullptr)
     , MinLevel_(LoggerDefaultMinLevel)
+{ }
+
+TLogger::TLogger(TStringBuf categoryName)
+    : TLogger(GetDefaultLogManager(), categoryName)
 { }
 
 TLogger::operator bool() const
@@ -185,70 +207,22 @@ const TLogger::TStructuredTags& TLogger::GetStructuredTags() const
     return StructuredTags_;
 }
 
-void TLogger::Save(TStreamSaveContext& context) const
-{
-    using NYT::Save;
-
-    if (Category_) {
-        Save(context, true);
-        Save(context, TString(Category_->Name));
-    } else {
-        Save(context, false);
-    }
-
-    Save(context, Essential_);
-    Save(context, MinLevel_);
-    Save(context, Tag_);
-    TVectorSerializer<TTupleSerializer<TStructuredTag, 2>>::Save(context, StructuredTags_);
-}
-
-void TLogger::Load(TStreamLoadContext& context)
-{
-    using NYT::Load;
-
-    TString categoryName;
-
-    bool categoryPresent = false;
-    Load(context, categoryPresent);
-    if (categoryPresent) {
-        Load(context, categoryName);
-        LogManager_ = TLogManager::Get();
-        Category_ = LogManager_->GetCategory(categoryName.data());
-    } else {
-        Category_ = nullptr;
-    }
-
-    Load(context, Essential_);
-    Load(context, MinLevel_);
-    Load(context, Tag_);
-
-    // COMPAT(max42); 300616 is a version for StructuredTagsInLogger in CA snapshot.
-    if (context.GetVersion() >= 300616) {
-        TVectorSerializer<TTupleSerializer<TStructuredTag, 2>>::Load(context, StructuredTags_);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLoggerOwner::Save(TStreamSaveContext& context) const
+void LogStructuredEvent(
+    const TLogger& logger,
+    NYson::TYsonString message,
+    ELogLevel level)
 {
-    using NYT::Save;
-
-    Save(context, Logger);
-}
-
-void TLoggerOwner::Load(TStreamLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, Logger);
-}
-
-void TLoggerOwner::Persist(const TStreamPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, Logger);
+    YT_VERIFY(message.GetType() == NYson::EYsonType::MapFragment);
+    auto loggingContext = NDetail::GetLoggingContext();
+    auto event = NDetail::CreateLogEvent(
+        loggingContext,
+        logger,
+        level);
+    event.StructuredMessage = std::move(message);
+    event.Family = ELogFamily::Structured;
+    logger.Write(std::move(event));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

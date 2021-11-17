@@ -1,7 +1,10 @@
 #pragma once
 
 #include <yt/yt/core/misc/format.h>
+
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 #include <yt/yt/library/vector_hdrf/public.h>

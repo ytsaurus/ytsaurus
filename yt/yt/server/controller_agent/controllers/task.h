@@ -28,8 +28,11 @@
 #include <yt/yt/client/table_client/key_bound.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
+
 #include <yt/yt/core/misc/digest.h>
 #include <yt/yt/core/misc/histogram.h>
+
+#include <yt/yt/core/logging/serializable_logger.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -216,7 +219,7 @@ public:
     void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
 
 protected:
-    NLogging::TLogger Logger;
+    NLogging::TSerializableLogger Logger;
 
     //! Raw pointer here avoids cyclic reference; task cannot live longer than its host.
     ITaskHost* TaskHost_;

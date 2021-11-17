@@ -2,6 +2,9 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/actions/future.h>
+
 #include <yt/yt/core/misc/slab_allocator.h>
 #include <yt/yt/core/misc/concurrent_cache.h>
 

@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/core/logging/logger_owner.h>
+
 namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,7 +18,7 @@ bool TSampler::TUserState::TrySampleByMinCount(ui64 minCount, TCpuDuration perio
     }
 
     auto lastReset = LastReset.load();
-    auto now = NProfiling::GetCpuInstant();
+    auto now = GetCpuInstant();
     if (now - lastReset > period) {
         if (LastReset.compare_exchange_strong(lastReset, now)) {
             Sampled.store(0);

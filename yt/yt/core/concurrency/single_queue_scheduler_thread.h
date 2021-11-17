@@ -4,6 +4,8 @@
 #include "scheduler_thread.h"
 #include "invoker_queue.h"
 
+#include <yt/yt/core/actions/future.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////

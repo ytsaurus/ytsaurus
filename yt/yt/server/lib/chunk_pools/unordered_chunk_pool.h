@@ -4,6 +4,8 @@
 #include "chunk_pool.h"
 #include "input_stream.h"
 
+#include <yt/yt/core/logging/serializable_logger.h>
+
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +27,7 @@ struct TUnorderedChunkPoolOptions
     bool SliceErasureChunksByParts = false;
     // TODO(max42): YT-13335.
     NTableClient::TRowBufferPtr RowBuffer;
-    NLogging::TLogger Logger;
+    NLogging::TSerializableLogger Logger;
 
     void Persist(const TPersistenceContext& context);
 };

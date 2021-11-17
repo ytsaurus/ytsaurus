@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "log.h"
 
 #include <yt/yt/core/misc/singleton.h>
 
@@ -24,6 +24,7 @@ bool operator == (const TLogWriterCacheKey& lhs, const TLogWriterCacheKey& rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogManager
+    : public ILogManager
 {
 public:
     friend struct TLocalQueueReclaimer;
@@ -39,17 +40,20 @@ public:
 
     void Shutdown();
 
-    const TLoggingCategory* GetCategory(TStringBuf categoryName);
-    void UpdateCategory(TLoggingCategory* category);
+    const TLoggingCategory* GetCategory(TStringBuf categoryName) override;
+    void UpdateCategory(TLoggingCategory* category) override;
 
-    void RegisterStaticAnchor(TLoggingAnchor* position, ::TSourceLocation sourceLocation, TStringBuf anchorMessage);
+    void RegisterStaticAnchor(
+        TLoggingAnchor* position,
+        ::TSourceLocation sourceLocation,
+        TStringBuf anchorMessage) override;
     TLoggingAnchor* RegisterDynamicAnchor(TString anchorMessage);
-    void UpdateAnchor(TLoggingAnchor* position);
+    void UpdateAnchor(TLoggingAnchor* position) override;
 
     int GetVersion() const;
-    bool GetAbortOnAlert() const;
+    bool GetAbortOnAlert() const override;
 
-    void Enqueue(TLogEvent&& event);
+    void Enqueue(TLogEvent&& event) override;
 
     void Reopen();
     void EnableReopenOnSighup();

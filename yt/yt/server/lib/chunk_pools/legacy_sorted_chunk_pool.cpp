@@ -24,6 +24,8 @@
 #include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 
+#include <yt/yt/core/logging/logger_owner.h>
+
 namespace NYT::NChunkPools {
 
 using namespace NChunkClient;

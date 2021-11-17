@@ -17,6 +17,8 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NHttp {
 
 using namespace NConcurrency;

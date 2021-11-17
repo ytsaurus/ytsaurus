@@ -1,8 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
-
+#include "http_authenticator.h"
 #include "api.h"
 
 #include <yt/yt/server/lib/misc/format_manager.h>
@@ -20,7 +19,9 @@
 
 #include <yt/yt/core/rpc/authenticator.h>
 
-#include <yt/yt/server/http_proxy/http_authenticator.h>
+#include <yt/yt/core/profiling/timing.h>
+
+#include <util/system/thread.h>
 
 namespace NYT::NHttpProxy {
 

@@ -441,7 +441,7 @@ private:
 #if defined(USE_TIMERFD) || defined(USE_KQUEUE)
             if (!ScheduledEntries_.empty()) {
                 auto deadline = (*ScheduledEntries_.begin())->Deadline;
-                auto delay = std::max(CoalescingInterval, deadline - NProfiling::GetInstant());
+                auto delay = std::max(CoalescingInterval, deadline - GetInstant());
                 ScheduleDelayedWakeup(delay);
             }
 #endif

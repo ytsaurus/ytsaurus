@@ -34,6 +34,7 @@
 #include <yt/yt/core/rpc/response_keeper.h>
 
 #include <yt/yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/logger_owner.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 

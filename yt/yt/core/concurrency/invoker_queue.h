@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
 
+#include <yt/yt/core/actions/invoker.h>
+
 #include <util/thread/lfqueue.h>
 
 #include <atomic>

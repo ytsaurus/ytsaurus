@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/actions/signal.h>
 
+#include <yt/yt/core/logging/serializable_logger.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +93,7 @@ private:
     //! Flag showing that the task has been completed.
     bool TaskCompleted_ = false;
 
-    NLogging::TLogger Logger;
+    NLogging::TSerializableLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

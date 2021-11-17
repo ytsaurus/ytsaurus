@@ -26,6 +26,8 @@
 
 #include <clickhouse/src/Common/config_version.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////

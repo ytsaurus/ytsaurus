@@ -12,6 +12,8 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <contrib/libs/c-ares/ares.h>
 
 #ifdef _linux_

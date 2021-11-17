@@ -22,6 +22,7 @@
 
 #include <util/system/fs.h>
 #include <util/system/tempfile.h>
+#include <util/system/thread.h>
 
 #include <util/stream/zlib.h>
 
@@ -607,15 +608,10 @@ TEST_P(TLoggingTagsTest, All)
     auto hasTraceContext = std::get<2>(GetParam());
     auto expected = std::get<3>(GetParam());
 
-    auto makeTraceContext = [] {
-        auto root = NTracing::TTraceContext::NewRoot("Test");
-        root->SetLoggingTag("TraceContextTag");
-        return root;
-    };
-
-    auto traceContext = hasTraceContext
-        ? makeTraceContext()
-        : NTracing::TTraceContextPtr();
+    auto loggingContext = NLogging::NDetail::GetLoggingContext();
+    if (hasTraceContext) {
+        loggingContext.TraceLoggingTag = TStringBuf("TraceContextTag");
+    }
 
     auto logger = TLogger("Test");
     if (hasLoggerTag) {
@@ -626,7 +622,7 @@ TEST_P(TLoggingTagsTest, All)
         EXPECT_EQ(
             expected,
             ToString(NLogging::NDetail::BuildLogMessage(
-                traceContext.Get(),
+                loggingContext,
                 logger,
                 "Log message (Value: %v)",
                 123).Message));
@@ -634,7 +630,7 @@ TEST_P(TLoggingTagsTest, All)
         EXPECT_EQ(
             expected,
             ToString(NLogging::NDetail::BuildLogMessage(
-                traceContext.Get(),
+                loggingContext,
                 logger,
                 "Log message").Message));
     }

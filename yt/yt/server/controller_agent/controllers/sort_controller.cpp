@@ -49,6 +49,8 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
+#include <yt/yt/core/logging/serializable_logger.h>
+
 #include <cmath>
 #include <algorithm>
 
@@ -317,7 +319,7 @@ protected:
         //! For non-root partitions it's an output of parent partition's shuffle pool.
         IChunkPoolOutputPtr ChunkPoolOutput;
 
-        TLogger Logger;
+        TSerializableLogger Logger;
 
         void SetAssignedNodeId(TNodeId nodeId)
         {

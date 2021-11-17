@@ -25,6 +25,8 @@
 
 #include <yt/yt/core/ytalloc/bindings.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////

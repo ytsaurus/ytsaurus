@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/concurrency/event_count.h>
 
+#include <util/system/thread.h>
+
 namespace NYT {
 namespace {
 

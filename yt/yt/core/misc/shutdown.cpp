@@ -10,6 +10,7 @@
 #include <util/generic/algorithm.h>
 
 #include <util/system/env.h>
+#include <util/system/thread.h>
 
 #include <thread>
 
