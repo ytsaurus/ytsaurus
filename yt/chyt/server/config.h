@@ -199,6 +199,7 @@ public:
     TConcatTablesSettingsPtr ConcatTables;
 
     NTableClient::TTableReaderConfigPtr TableReader;
+    NTableClient::TTableWriterConfigPtr TableWriter;
 
     bool EnableReaderTracing;
 
@@ -404,8 +405,6 @@ public:
     //! User for communication with YT.
     TString User;
 
-    NTableClient::TTableWriterConfigPtr TableWriter;
-
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
     //! Note that CliqueId will be added to Directory automatically.
@@ -449,8 +448,6 @@ public:
     TDuration TotalMemoryTrackerUpdatePeriod;
 
     TQuerySettingsPtr QuerySettings;
-
-    NTableClient::TTableReaderConfigPtr TableReader;
 
     TQueryStatisticsReporterConfigPtr QueryStatisticsReporter;
 

@@ -146,9 +146,20 @@ TQuerySettings::TQuerySettings()
 
     RegisterParameter("table_reader", TableReader)
         .DefaultNew();
+    RegisterParameter("table_writer", TableWriter)
+        .DefaultNew();
 
     RegisterParameter("enable_reader_tracing", EnableReaderTracing)
         .Default(false);
+
+    RegisterPreprocessor([&] {
+        TableReader->GroupSize = 20_MB;
+        TableReader->WindowSize = 70_MB;
+        TableReader->MaxBufferSize = 200_MB;
+        TableReader->BlockRpcHedgingDelay = TDuration::MilliSeconds(50);
+        TableReader->MetaRpcHedgingDelay = TDuration::MilliSeconds(10);
+        TableReader->CancelPrimaryBlockRpcRequestOnHedging = true;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,9 +353,6 @@ TYtConfig::TYtConfig()
     RegisterParameter("memory_watchdog", MemoryWatchdog)
         .Default(New<TMemoryWatchdogConfig>());
 
-    RegisterParameter("table_writer", TableWriter)
-        .DefaultNew();
-
     RegisterParameter("discovery", Discovery)
         .DefaultNew("//sys/clickhouse/cliques");
 
@@ -394,9 +402,6 @@ TYtConfig::TYtConfig()
         .Alias("settings")
         .DefaultNew();
 
-    RegisterParameter("table_reader", TableReader)
-        .DefaultNew();
-
     RegisterParameter("table_attribute_cache", TableAttributeCache)
         .DefaultNew();
 
@@ -418,13 +423,6 @@ TYtConfig::TYtConfig()
 
         PermissionCache->RefreshUser = CacheUserName;
         PermissionCache->AlwaysUseRefreshUser = false;
-
-        TableReader->GroupSize = 20_MB;
-        TableReader->WindowSize = 70_MB;
-        TableReader->MaxBufferSize = 200_MB;
-        TableReader->BlockRpcHedgingDelay = TDuration::MilliSeconds(50);
-        TableReader->MetaRpcHedgingDelay = TDuration::MilliSeconds(10);
-        TableReader->CancelPrimaryBlockRpcRequestOnHedging = true;
 
         // Disable background updates since we deal with consistency issues by checking cached table revision.
         TableColumnarStatisticsCache->RefreshTime = std::nullopt;
