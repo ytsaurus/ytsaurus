@@ -420,7 +420,7 @@ public:
         RegisterParameter("replicas_per_chunk", ReplicasPerChunk)
             .Default(DefaultConsistentReplicaPlacementReplicasPerChunk)
             .GreaterThanOrEqual(std::max(
-                NChunkClient::ChunkReplicaIndexBound,
+                ChunkReplicaIndexBound,
                 NChunkClient::MaxReplicationFactor));
     }
 };

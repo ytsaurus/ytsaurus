@@ -51,6 +51,7 @@ using NChunkClient::TMediumMap;
 using NChunkClient::TMediumIntMap;
 using NChunkClient::TConsistentReplicaPlacementHash;
 using NChunkClient::NullConsistentReplicaPlacementHash;
+using NChunkClient::ChunkReplicaIndexBound;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
@@ -101,6 +102,8 @@ using TNodePtrWithIndexesList = TCompactVector<TNodePtrWithIndexes, TypicalRepli
 
 using TChunkPtrWithIndexes = TPtrWithIndexes<TChunk>;
 using TChunkPtrWithIndex = NChunkServer::TPtrWithIndex<TChunk>;
+
+using TChunkReplicaIndexList = SmallVector<int, ChunkReplicaIndexBound>;
 
 struct TChunkTreeStatistics;
 struct TAggregatedNodeStatistics;

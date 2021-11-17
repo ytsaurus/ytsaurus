@@ -697,7 +697,9 @@ public:
         return ChunkPlacement_->AllocateWriteTargets(
             medium,
             chunk,
-            replicaIndex,
+            replicaIndex == GenericChunkReplicaIndex
+                ? TChunkReplicaIndexList()
+                : TChunkReplicaIndexList{replicaIndex},
             desiredCount,
             minCount,
             replicationFactorOverride,
@@ -2067,14 +2069,18 @@ public:
             auto mediumIndex = entry.GetMediumIndex();
             auto mediumPolicy = entry.Policy();
             YT_VERIFY(mediumPolicy);
-            auto mediumReplicationFactor = mediumPolicy.GetReplicationFactor();
 
             auto mediumWriteTargets = ConsistentChunkPlacement_->GetWriteTargets(chunk, mediumIndex);
-            YT_VERIFY(std::ssize(mediumWriteTargets) == mediumReplicationFactor);
+            YT_VERIFY(
+                mediumWriteTargets.empty() ||
+                std::ssize(mediumWriteTargets) == chunk->GetPhysicalReplicationFactor(mediumIndex, GetChunkRequisitionRegistry()));
 
-            for (auto replicaIndex = 0; replicaIndex < mediumReplicationFactor; ++replicaIndex) {
+            for (auto replicaIndex = 0; replicaIndex < std::ssize(mediumWriteTargets); ++replicaIndex) {
                 auto* node = mediumWriteTargets[replicaIndex];
-                result.emplace_back(node, replicaIndex, mediumIndex);
+                result.emplace_back(
+                    node,
+                    chunk->IsErasure() ? replicaIndex : GenericChunkReplicaIndex,
+                    mediumIndex);
             }
         }
 
@@ -4073,10 +4079,19 @@ private:
     {
         TMasterAutomatonPart::OnStopLeading();
 
+        // Reset replicator first so that aborting jobs below doesn't schedule
+        // chunk refresh.
+        if (ChunkReplicator_) {
+            ChunkReplicator_->Stop();
+            ChunkReplicator_.Reset();
+        }
+
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (const auto& node : nodeTracker->Nodes()) {
             auto jobMap = node.second->IdToJob();
             for (const auto& [jobId, job] : jobMap) {
+                // TODO(shakurov): make sure AbortAndRemoveJob does nothing that
+                // shouldn't be done outside of an epoch.
                 AbortAndRemoveJob(job);
             }
         }
@@ -4087,11 +4102,6 @@ private:
         }
 
         ChunkPlacement_.Reset();
-
-        if (ChunkReplicator_) {
-            ChunkReplicator_->Stop();
-            ChunkReplicator_.Reset();
-        }
 
         if (ChunkSealer_) {
             ChunkSealer_->Stop();
@@ -4357,8 +4367,8 @@ private:
             --DestroyedReplicaCount_;
         }
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "%v chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
-            isDestroyed ? "Destroyed" : "Unknown",
+            "%v replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
+            isDestroyed ? "Destroyed chunk" : "Chunk",
             chunkIdWithIndexes,
             node->GetDefaultAddress(),
             nodeId);

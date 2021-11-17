@@ -156,7 +156,7 @@ void TConsistentChunkPlacement::AddChunk(TChunk* chunk) noexcept
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
-                mediumPolicy.GetReplicationFactor(),
+                chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
                 SufficientlyLargeReplicaCount_,
                 PlacementGroups_.size());
         } else {
@@ -166,7 +166,7 @@ void TConsistentChunkPlacement::AddChunk(TChunk* chunk) noexcept
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
-                mediumPolicy.GetReplicationFactor(),
+                chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
                 SufficientlyLargeReplicaCount_,
                 PlacementGroups_.size());
         }
@@ -202,7 +202,7 @@ void TConsistentChunkPlacement::RemoveChunk(
                     chunk->GetId(),
                     chunk->GetConsistentReplicaPlacementHash(),
                     mediumIndex,
-                    mediumPolicy.GetReplicationFactor(),
+                    chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
                     SufficientlyLargeReplicaCount_);
             }
             continue;
@@ -226,7 +226,7 @@ void TConsistentChunkPlacement::RemoveChunk(
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
-                mediumPolicy.GetReplicationFactor(),
+                chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
                 SufficientlyLargeReplicaCount_,
                 PlacementGroups_.size());
         } else {
@@ -234,7 +234,7 @@ void TConsistentChunkPlacement::RemoveChunk(
                 chunk->GetId(),
                 chunk->GetConsistentReplicaPlacementHash(),
                 mediumIndex,
-                mediumPolicy.GetReplicationFactor(),
+                chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
                 SufficientlyLargeReplicaCount_,
                 PlacementGroups_.size());
         }
@@ -514,12 +514,13 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
     }
 
     if (dataNodeCount >= replicationFactor) {
-        YT_LOG_ALERT("CRP nodes do not satisfy clash constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v), DataNodeCount: %v)",
+        YT_LOG_WARNING("CRP nodes do not satisfy clash constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v), DataNodeCount: %v, AllocatedTargetNodeCount: %v)",
             chunk->GetId(),
             mediumIndex,
             replicationFactor,
             SufficientlyLargeReplicaCount_,
-            dataNodeCount);
+            dataNodeCount,
+            std::ssize(result));
     }
 
     result.clear();

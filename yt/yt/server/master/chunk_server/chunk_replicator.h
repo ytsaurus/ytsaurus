@@ -130,10 +130,10 @@ private:
         EChunkStatus Status;
 
         //! Number of active replicas, per each replica index.
-        int ReplicaCount[NChunkClient::ChunkReplicaIndexBound];
+        int ReplicaCount[ChunkReplicaIndexBound];
 
         //! Number of decommissioned replicas, per each replica index.
-        int DecommissionedReplicaCount[NChunkClient::ChunkReplicaIndexBound];
+        int DecommissionedReplicaCount[ChunkReplicaIndexBound];
 
         //! Indexes of replicas whose replication is advised.
         SmallVector<int, TypicalReplicaCount> ReplicationIndexes;
@@ -243,7 +243,7 @@ private:
         bool hasSealedReplica,
         bool totallySealed,
         bool hasUnsafelyPlacedReplica,
-        bool hasInconsistentlyPlacedReplica);
+        TNode* inconsistentlyPlacedReplica);
     void ComputeRegularChunkStatisticsCrossMedia(
         TChunkStatistics& result,
         const TChunk* chunk,
@@ -262,9 +262,9 @@ private:
         TPerMediumChunkStatistics& result,
         NErasure::ICodec* codec,
         TReplicationPolicy replicationPolicy,
-        std::array<TNodePtrWithIndexesList, NChunkClient::ChunkReplicaIndexBound>& decommissionedReplicas,
+        const std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>& decommissionedReplicas,
         int unsafelyPlacedSealedReplicaIndex,
-        int inconsistentlyPlacedSealedReplicaIndex,
+        const std::array<TNodePtrWithIndexes, ChunkReplicaIndexBound>& inconsistentlyPlacedSealedReplicas,
         NErasure::TPartIndexSet& erasedIndexes,
         bool totallySealed);
     void ComputeErasureChunkStatisticsCrossMedia(
