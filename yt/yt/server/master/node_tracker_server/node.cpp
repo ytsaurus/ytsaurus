@@ -304,7 +304,8 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
         host ? std::make_optional(host->GetName()) : std::nullopt,
         rack ? std::make_optional(rack->GetName()) : std::nullopt,
         dataCenter ? std::make_optional(dataCenter->GetName()) : std::nullopt,
-        std::vector<TString>(Tags_.begin(), Tags_.end()));
+        std::vector<TString>(Tags_.begin(), Tags_.end()),
+        (GetAggregatedState() == ENodeState::Online) ? std::make_optional(TInstant::Now()) : std::nullopt);
 }
 
 

@@ -158,3 +158,24 @@ class TestP2P(YTEnvSetup):
         update_nodes_dynamic_config({
             "data_node": {},
         })
+
+    @authors("prime")
+    def test_last_seen_online(self):
+        eligible_nodes = profiler_factory().at_node(self.seed).gauge("data_node/p2p/eligible_nodes")
+        assert eligible_nodes.get() > 0
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "p2p": {
+                    "enabled": True,
+                    "node_refresh_period": 1000,
+                    "node_staleness_timeout": 0,
+                },
+            },
+        })
+
+        wait(lambda: eligible_nodes.get() == 0)
+
+        update_nodes_dynamic_config({
+            "data_node": {},
+        })

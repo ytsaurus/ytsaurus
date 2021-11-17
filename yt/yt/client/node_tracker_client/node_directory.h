@@ -13,6 +13,7 @@
 #include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/copyable_atomic.h>
 
 namespace NYT::NNodeTrackerClient {
 
@@ -32,7 +33,8 @@ public:
         std::optional<TString> host = std::nullopt,
         std::optional<TString> rack = std::nullopt,
         std::optional<TString> dc = std::nullopt,
-        const std::vector<TString>& tags = {});
+        const std::vector<TString>& tags = {},
+        std::optional<TInstant> lastSeenTime = {});
 
     TNodeDescriptor& operator=(const TNodeDescriptor& other) = default;
     TNodeDescriptor& operator=(TNodeDescriptor&& other) = default;
@@ -54,6 +56,14 @@ public:
 
     const std::vector<TString>& GetTags() const;
 
+    //! GetLastSeenTime returns last instant when node was seen online on some master.
+    /*!
+     *  Might be used for cheap and dirty availability check.
+     *  This field is not persisted.
+     */
+    std::optional<TInstant> GetLastSeenTime() const;
+    void UpdateLastSeenTime(TInstant at) const;
+
     void Persist(const TStreamPersistenceContext& context);
 
 private:
@@ -63,6 +73,9 @@ private:
     std::optional<TString> Rack_;
     std::optional<TString> DataCenter_;
     std::vector<TString> Tags_;
+
+    // Not persisted.
+    mutable TCopyableAtomic<TCpuInstant> LastSeenTime_;
 };
 
 const TString& NullNodeAddress();
@@ -160,9 +173,9 @@ private:
     THashMap<TString, const TNodeDescriptor*> AddressToDescriptor_;
     THashSet<TNodeDescriptor> Descriptors_;
 
-    bool NeedToAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
+    bool CheckNodeDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
     void DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
-    bool NeedToAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& descriptor);
+    bool CheckNodeDescriptor(TNodeId id, const NProto::TNodeDescriptor& descriptor);
     void DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& protoDescriptor);
     void DoCaptureAndAddDescriptor(TNodeId id, TNodeDescriptor&& descriptorHolder);
 };

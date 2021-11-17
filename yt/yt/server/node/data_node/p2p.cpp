@@ -708,6 +708,8 @@ void TP2PDistributor::AllocateNodes()
     auto config = Config();
     std::vector<TNodeId> eligiblePeers;
 
+    auto now = TInstant::Now();
+
     auto nodes = Bootstrap_->GetNodeDirectory()->GetAllDescriptors();
     for (const auto& [nodeId, nodeDescriptor] : nodes) {
         if (nodeId == Bootstrap_->GetNodeId()) {
@@ -715,6 +717,10 @@ void TP2PDistributor::AllocateNodes()
         }
 
         if (!config->NodeTagFilter.IsSatisfiedBy(nodeDescriptor.GetTags())) {
+            continue;
+        }
+
+        if (auto lastSeenTime = nodeDescriptor.GetLastSeenTime(); lastSeenTime && (*lastSeenTime + config->NodeStalenessTimeout <= now)) {
             continue;
         }
 

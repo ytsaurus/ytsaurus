@@ -89,13 +89,15 @@ TNodeDescriptor::TNodeDescriptor(
     std::optional<TString> host,
     std::optional<TString> rack,
     std::optional<TString> dc,
-    const std::vector<TString>& tags)
+    const std::vector<TString>& tags,
+    std::optional<TInstant> lastSeenTime)
     : Addresses_(std::move(addresses))
     , DefaultAddress_(NNodeTrackerClient::GetDefaultAddress(Addresses_))
     , Host_(std::move(host))
     , Rack_(std::move(rack))
     , DataCenter_(std::move(dc))
     , Tags_(tags)
+    , LastSeenTime_(lastSeenTime ? InstantToCpuInstant(*lastSeenTime) : 0)
 { }
 
 bool TNodeDescriptor::IsNull() const
@@ -146,6 +148,24 @@ const std::optional<TString>& TNodeDescriptor::GetDataCenter() const
 const std::vector<TString>& TNodeDescriptor::GetTags() const
 {
     return Tags_;
+}
+
+std::optional<TInstant> TNodeDescriptor::GetLastSeenTime() const
+{
+    auto cpuTime = LastSeenTime_.Load();
+    if (cpuTime != 0) {
+        return CpuInstantToInstant(cpuTime);
+    } else {
+        return {};
+    }
+}
+
+void TNodeDescriptor::UpdateLastSeenTime(TInstant at) const
+{
+    auto cpuTime = InstantToCpuInstant(at);
+    if (auto currentTime = LastSeenTime_.Load(); cpuTime > currentTime) {
+        LastSeenTime_.Store(cpuTime);
+    }
 }
 
 void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
@@ -317,6 +337,12 @@ void ToProto(NNodeTrackerClient::NProto::TNodeDescriptor* protoDescriptor, const
     }
 
     ToProto(protoDescriptor->mutable_tags(), descriptor.GetTags());
+
+    if (auto lastHeartbeatTime = descriptor.GetLastSeenTime()) {
+        protoDescriptor->set_last_seen_time(ToProto<i64>(*lastHeartbeatTime));
+    } else {
+        protoDescriptor->clear_last_seen_time();
+    }
 }
 
 void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrackerClient::NProto::TNodeDescriptor& protoDescriptor)
@@ -328,7 +354,8 @@ void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrack
         protoDescriptor.has_host() ? std::make_optional(protoDescriptor.host()) : std::nullopt,
         protoDescriptor.has_rack() ? std::make_optional(protoDescriptor.rack()) : std::nullopt,
         protoDescriptor.has_data_center() ? std::make_optional(protoDescriptor.data_center()) : std::nullopt,
-        FromProto<std::vector<TString>>(protoDescriptor.tags()));
+        FromProto<std::vector<TString>>(protoDescriptor.tags()),
+        protoDescriptor.has_last_seen_time() ? std::make_optional(FromProto<TInstant>(protoDescriptor.last_seen_time())) : std::nullopt);
 }
 
 } // namespace NProto
@@ -408,11 +435,12 @@ void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
     {
         auto guard = ReaderGuard(SpinLock_);
         for (const auto& item : source.items()) {
-            if (NeedToAddDescriptor(item.node_id(), item.node_descriptor())) {
+            if (CheckNodeDescriptor(item.node_id(), item.node_descriptor())) {
                 items.push_back(&item);
             }
         }
     }
+
     {
         auto guard = WriterGuard(SpinLock_);
         for (const auto* item : items) {
@@ -433,7 +461,7 @@ void TNodeDirectory::MergeFrom(const TNodeDirectoryPtr& source)
         auto sourceGuard = ReaderGuard(source->SpinLock_);
         items.reserve(source->IdToDescriptor_.size());
         for (auto [id, descriptor] : source->IdToDescriptor_) {
-            if (NeedToAddDescriptor(id, *descriptor)) {
+            if (CheckNodeDescriptor(id, *descriptor)) {
                 items.emplace_back(id, *descriptor);
             }
         }
@@ -484,29 +512,45 @@ void TNodeDirectory::AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor
     DoAddDescriptor(id, descriptor);
 }
 
-bool TNodeDirectory::NeedToAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
+bool TNodeDirectory::CheckNodeDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
     auto it = IdToDescriptor_.find(id);
-    return it == IdToDescriptor_.end() || *it->second != descriptor;
+    if (it == IdToDescriptor_.end()) {
+        return true;
+    }
+
+    if (auto lastSeenOnline = descriptor.GetLastSeenTime()) {
+        it->second->UpdateLastSeenTime(*lastSeenOnline);
+    }
+
+    return *it->second != descriptor;
 }
 
 void TNodeDirectory::DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
-    if (!NeedToAddDescriptor(id, descriptor)) {
+    if (!CheckNodeDescriptor(id, descriptor)) {
         return;
     }
     DoCaptureAndAddDescriptor(id, TNodeDescriptor(descriptor));
 }
 
-bool TNodeDirectory::NeedToAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& descriptor)
+bool TNodeDirectory::CheckNodeDescriptor(TNodeId id, const NProto::TNodeDescriptor& descriptor)
 {
     auto it = IdToDescriptor_.find(id);
-    return it == IdToDescriptor_.end() || *it->second != descriptor;
+    if (it == IdToDescriptor_.end()) {
+        return true;
+    }
+
+    if (descriptor.has_last_seen_time()) {
+        it->second->UpdateLastSeenTime(FromProto<TInstant>(descriptor.last_seen_time()));
+    }
+
+    return *it->second != descriptor;
 }
 
 void TNodeDirectory::DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& protoDescriptor)
 {
-    if (!NeedToAddDescriptor(id, protoDescriptor)) {
+    if (!CheckNodeDescriptor(id, protoDescriptor)) {
         return;
     }
     DoCaptureAndAddDescriptor(id, FromProto<TNodeDescriptor>(protoDescriptor));

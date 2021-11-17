@@ -39,6 +39,7 @@ public:
     TDuration TickPeriod;
     TDuration NodeRefreshPeriod;
     TDuration RequestTimeout;
+    TDuration NodeStalenessTimeout;
 
     TDuration IterationWaitTimeout;
     int MaxWaitingRequests;
@@ -75,6 +76,8 @@ public:
             .Default(TDuration::Seconds(30));
         RegisterParameter("request_timeout", RequestTimeout)
             .Default(TDuration::Seconds(30));
+        RegisterParameter("node_staleness_timeout", NodeStalenessTimeout)
+            .Default(TDuration::Minutes(5));
 
         RegisterParameter("iteration_wait_timeout", IterationWaitTimeout)
             .Default(TDuration::Seconds(1));
