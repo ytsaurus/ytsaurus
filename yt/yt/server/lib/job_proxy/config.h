@@ -231,6 +231,8 @@ public:
     //! Enabled using porto kill for signalling instead of manual discovery of process pid.
     bool UsePortoKillForSignalling;
 
+    bool ForceIdleCpuPolicy;
+
     TJobProxyConfig()
     {
         RegisterParameter("slot_index", SlotIndex);
@@ -319,6 +321,9 @@ public:
         RegisterParameter("use_porto_kill_for_signalling", UsePortoKillForSignalling)
             .Default(false);
 
+        RegisterParameter("force_idle_cpu_policy", ForceIdleCpuPolicy)
+            .Default(false);
+
         RegisterPreprocessor([&] {
             SolomonExporter->EnableSelfProfiling = false;
             SolomonExporter->WindowSize = 1;
@@ -360,6 +365,8 @@ public:
 
     bool UsePortoKillForSignalling;
 
+    bool ForceIdleCpuPolicy;
+
     TJobProxyDynamicConfig()
     {
         RegisterParameter("jaeger", Jaeger)
@@ -369,6 +376,9 @@ public:
             .Default(true);
 
         RegisterParameter("use_porto_kill_for_signalling", UsePortoKillForSignalling)
+            .Default(false);
+
+        RegisterParameter("force_idle_cpu_policy", ForceIdleCpuPolicy)
             .Default(false);
     }
 };

@@ -507,6 +507,12 @@ public:
             .ThrowOnError();
     }
 
+    void SetCpuPolicy(const TString& policy) override
+    {
+        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_policy", policy))
+            .ThrowOnError();
+    }
+
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
         TGuid jobId, 
         const TUserJobEnvironmentOptions& options) override
@@ -650,6 +656,11 @@ public:
     void SetCpuLimit(double /* value */) override
     {
         YT_LOG_WARNING("Cpu limits are not supported in simple job environment");
+    }
+
+    void SetCpuPolicy(const TString& /* value */) override
+    {
+        YT_LOG_WARNING("Cpu policy is not supported in simple job environment");
     }
 
     TCpuStatistics GetCpuStatistics() const override

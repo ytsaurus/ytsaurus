@@ -650,6 +650,10 @@ TJobResult TJobProxy::DoRun()
                     : CpuGuarantee_.load();
                 environment->SetCpuLimit(limit);
             }
+            
+            if (Config_->ForceIdleCpuPolicy) {
+                environment->SetCpuPolicy("idle");
+            }
         }
 
         InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
