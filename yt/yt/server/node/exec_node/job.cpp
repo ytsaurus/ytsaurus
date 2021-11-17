@@ -1813,6 +1813,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
         proxyConfig->Jaeger = proxyConfig->Jaeger->ApplyDynamic(proxyDynamicConfig->Jaeger);
         proxyConfig->EnableJobShellSeccopm = proxyDynamicConfig->EnableJobShellSeccopm;
         proxyConfig->UsePortoKillForSignalling = proxyDynamicConfig->UsePortoKillForSignalling;
+        proxyConfig->ForceIdleCpuPolicy = proxyDynamicConfig->ForceIdleCpuPolicy;
     }
 
     return proxyConfig;

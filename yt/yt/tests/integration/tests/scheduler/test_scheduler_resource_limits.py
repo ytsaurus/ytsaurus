@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, is_asan_build
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get,
-    set, create_pool, write_file, read_table, write_table, map,
+    set, create_pool, write_file, read_table, write_table, map, vanilla,
     get_job, update_nodes_dynamic_config, set_node_resource_targets)
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path
@@ -187,7 +187,7 @@ time.sleep(5.0)
 ###############################################################################################
 
 
-class TestContainerCpuLimit(YTEnvSetup):
+class TestContainerCpuProperties(YTEnvSetup):
     USE_PORTO = True
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -202,7 +202,7 @@ class TestContainerCpuLimit(YTEnvSetup):
         }
     }
 
-    def get_job_container_cpu_limit(self):
+    def get_job_container_property(self, property):
         from porto import Connection
 
         conn = Connection()
@@ -213,7 +213,7 @@ class TestContainerCpuLimit(YTEnvSetup):
         # Strip last three symbols "/uj"
         slot_container = user_job_container[:-3]
 
-        return conn.GetProperty(slot_container, "cpu_limit")
+        return conn.GetProperty(slot_container, property)
 
     @authors("psushin", "max42")
     def test_container_cpu_limit_spec(self):
@@ -237,7 +237,7 @@ class TestContainerCpuLimit(YTEnvSetup):
         )
 
         wait_breakpoint()
-        assert self.get_job_container_cpu_limit() == "0.1c"
+        assert self.get_job_container_property("cpu_limit") == "0.1c"
         release_breakpoint()
         op.track()
 
@@ -258,7 +258,35 @@ class TestContainerCpuLimit(YTEnvSetup):
         )
         wait_breakpoint()
         # Cpu limit is set due to map_operation_options.
-        assert self.get_job_container_cpu_limit() == "0.25c"
+        assert self.get_job_container_property("cpu_limit") == "0.25c"
+        release_breakpoint()
+        op.track()
+
+    @authors("prime")
+    def test_force_idle_cpu_policy(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "force_idle_cpu_policy": True,
+                    }
+                }
+            },
+        })
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT ; exit 0"),
+                    }
+                }
+            })
+
+        wait_breakpoint()
+        assert self.get_job_container_property("cpu_policy") == "idle"
         release_breakpoint()
         op.track()
 

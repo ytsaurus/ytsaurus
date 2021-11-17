@@ -295,7 +295,7 @@ public:
         
         RegisterParameter("disable_job_proxy_profiling", DisableJobProxyProfiling)
             .Default();
-        
+
         RegisterParameter("job_proxy", JobProxy)
             .Default();
     }

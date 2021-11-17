@@ -95,6 +95,7 @@ struct IJobProxyEnvironment
 {
     virtual void SetCpuGuarantee(double value) = 0;
     virtual void SetCpuLimit(double value) = 0;
+    virtual void SetCpuPolicy(const TString& policy) = 0;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(
         TGuid jobId,
         const TUserJobEnvironmentOptions& options) = 0;
