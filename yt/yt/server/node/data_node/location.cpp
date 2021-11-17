@@ -85,8 +85,6 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
     BlobChunkWriterAbortTime = profiler.Timer("/blob_chunk_writer_abort_time");
     BlobChunkWriterCloseTime = profiler.Timer("/blob_chunk_writer_close_time");
 
-    BlobBlockReadSize = profiler.Summary("/blob_block_read_size");
-    BlobBlockReadTime = profiler.Timer("/blob_block_read_time");
     BlobBlockReadBytes = profiler.Counter("/blob_block_read_bytes");
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
@@ -95,6 +93,16 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
 
         BlobBlockReadLatencies[category] = categoryProfiler.Timer("/blob_block_read_latency");
         BlobChunkMetaReadLatencies[category] = categoryProfiler.Timer("/blob_chunk_meta_read_latency");
+
+        {
+            // Try to save Solomon resources making separate counters only for UserInteractive workload.
+            const auto& selectedProfiler = (category == EWorkloadCategory::UserInteractive) ? categoryProfiler : profiler;
+            BlobBlockReadSize[category] = selectedProfiler.Summary("/blob_block_read_size");
+            BlobBlockReadTime[category] = selectedProfiler.Histogram(
+                "/blob_block_read_time",
+                TDuration::MilliSeconds(1),
+                TDuration::Seconds(1));
+        }
     }
 
     BlobBlockWriteSize = profiler.Summary("/blob_block_write_size");

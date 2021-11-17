@@ -619,8 +619,9 @@ void TBlobChunkBase::OnBlocksRead(
         gapBlockCount);
 
     auto& performanceCounters = Location_->GetPerformanceCounters();
-    performanceCounters.BlobBlockReadSize.Record(bytesRead);
-    performanceCounters.BlobBlockReadTime.Record(readTime);
+    auto category = session->Options.WorkloadDescriptor.Category;
+    performanceCounters.BlobBlockReadSize[category].Record(bytesRead);
+    performanceCounters.BlobBlockReadTime[category].Record(readTime);
     performanceCounters.BlobBlockReadBytes.Increment(bytesRead);
 
     Location_->IncreaseCompletedIOSize(EIODirection::Read, session->Options.WorkloadDescriptor, bytesRead);
