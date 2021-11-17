@@ -64,14 +64,30 @@ inline bool operator != (TErrorCode lhs, TErrorCode rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class... TArgs>
-TError::TErrorOr(const char* format, const TArgs&... args)
-    : TErrorOr(NYT::EErrorCode::Generic, Format(format, args...))
+namespace NDetail {
+
+template <size_t Length, class... TArgs>
+TString FormatErrorMessage(const char (&format)[Length], TArgs&&... args)
+{
+    return Format(format, std::forward<TArgs>(args)...);
+}
+
+template <size_t Length>
+TString FormatErrorMessage(const char (&message)[Length])
+{
+    return TString(message);
+}
+
+} // namespace NDetail
+
+template <size_t Length, class... TArgs>
+TError::TErrorOr(const char (&messageOrFormat)[Length], TArgs&&... args)
+    : TErrorOr(NYT::EErrorCode::Generic, NDetail::FormatErrorMessage(messageOrFormat, std::forward<TArgs>(args)...))
 { }
 
-template <class... TArgs>
-TError::TErrorOr(TErrorCode code, const char* format, const TArgs&... args)
-    : TErrorOr(code, Format(format, args...))
+template <size_t Length, class... TArgs>
+TError::TErrorOr(TErrorCode code, const char (&messageOrFormat)[Length], TArgs&&... args)
+    : TErrorOr(code, NDetail::FormatErrorMessage(messageOrFormat, std::forward<TArgs>(args)...))
 { }
 
 template <class... TArgs>

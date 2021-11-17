@@ -727,6 +727,14 @@ TEST_F(TLongMessagesTest, WithoutPerThreadCache)
     CheckLongMessages(logFile.Name());
 }
 
+TEST_F(TLoggingTest, Anchors)
+{
+    NLogging::TLogger logger;
+    NLogging::NDetail::TLoggingContext context{};
+    EXPECT_EQ(NLogging::NDetail::BuildLogMessage(context, logger, "Simple message").Anchor, "Simple message");
+    EXPECT_EQ(NLogging::NDetail::BuildLogMessage(context, logger, "Simple message (Param: %v)", 1).Anchor, "Simple message (Param: %v)");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

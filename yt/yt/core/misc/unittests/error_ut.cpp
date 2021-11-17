@@ -57,6 +57,12 @@ TEST(TErrorTest, ErrorSkeletonStubImplementation)
     EXPECT_THROW(error.GetSkeleton(), std::exception);
 }
 
+TEST(TErrorTest, FormatCtor)
+{
+    EXPECT_EQ("Some error %v", TError("Some error %v").GetMessage());
+    EXPECT_EQ("Some error hello", TError("Some error %v", "hello").GetMessage());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 }

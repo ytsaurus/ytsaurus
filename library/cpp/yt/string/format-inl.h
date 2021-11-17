@@ -703,13 +703,13 @@ struct TArgFormatterImpl<IndexBase, THeadArg, TTailArgs...>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class... TArgs, size_t FormatLength>
+template <size_t Length, class... TArgs>
 void Format(
     TStringBuilderBase* builder,
-    const char (&format)[FormatLength],
+    const char (&format)[Length],
     TArgs&&... args)
 {
-    Format(builder, TStringBuf(format, FormatLength - 1), std::forward<TArgs>(args)...);
+    Format(builder, TStringBuf(format, Length - 1), std::forward<TArgs>(args)...);
 }
 
 template <class... TArgs>
@@ -722,9 +722,9 @@ void Format(
     FormatImpl(builder, format, argFormatter);
 }
 
-template <class... TArgs, size_t FormatLength>
+template <size_t Length, class... TArgs>
 TString Format(
-    const char (&format)[FormatLength],
+    const char (&format)[Length],
     TArgs&&... args)
 {
     TStringBuilder builder;
