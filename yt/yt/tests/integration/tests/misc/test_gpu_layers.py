@@ -5,7 +5,8 @@ from yt_commands import (
     start_transaction, commit_transaction,
     write_file, read_table, write_table,
     map, vanilla, update_nodes_dynamic_config,
-    sync_create_cells, get_job, create_pool)
+    sync_create_cells, get_job, create_pool,
+    run_test_vanilla)
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -1093,6 +1094,32 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         wait(lambda: len(op1.list_jobs()) == 0)
         wait(lambda: get_job(op2.id, job_id2)["state"] == "running")
+
+    @authors("eshcherbin")
+    def test_gpu_check_args(self):
+        self.setup_gpu_layer_and_reset_nodes()
+
+        op = run_test_vanilla(
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+            },
+            task_patch={
+                "layer_paths": ["//tmp/base_layer"],
+                "enable_gpu_layers": True,
+                "gpu_check_layer_name": "0",
+                "gpu_check_binary_path": "/gpu_check/gpu_check_args",
+                "gpu_check_binary_args": ["-Y"],
+            },
+            track=True,
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        res = op.read_stderr(job_id)
+        assert res == "AAA\n"
 
 
 @authors("ignat")

@@ -9026,6 +9026,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpecConfig->EnableGpuLayers)
     {
         jobSpec->set_gpu_check_binary_path(*jobSpecConfig->GpuCheckBinaryPath);
+        if (auto gpuCheckBinaryArgs = jobSpecConfig->GpuCheckBinaryArgs) {
+            for (const auto& argument : *gpuCheckBinaryArgs) {
+                ToProto(jobSpec->add_gpu_check_binary_args(), argument);
+            }
+        }
     }
 
     if (jobSpecConfig->NetworkProject) {

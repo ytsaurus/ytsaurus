@@ -1260,7 +1260,10 @@ void TJob::OnSetupCommandsFinished(const TError& error)
             // since Porto API is used and can cause context switch.
             BIND(&TJob::RunGpuCheckCommand, MakeStrong(this))
                 .AsyncVia(Invoker_)
-                .Run(UserJobSpec_->gpu_check_binary_path(), EGpuCheckType::Preliminary)
+                .Run(
+                    UserJobSpec_->gpu_check_binary_path(),
+                    FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
+                    EGpuCheckType::Preliminary)
                 .Subscribe(BIND(
                     &TJob::OnGpuCheckCommandFinished,
                     MakeWeak(this))
@@ -1271,7 +1274,10 @@ void TJob::OnSetupCommandsFinished(const TError& error)
     });
 }
 
-TFuture<void> TJob::RunGpuCheckCommand(const TString& gpuCheckBinaryPath, EGpuCheckType gpuCheckType)
+TFuture<void> TJob::RunGpuCheckCommand(
+    const TString& gpuCheckBinaryPath,
+    std::vector<TString> gpuCheckBinaryArgs,
+    EGpuCheckType gpuCheckType)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1313,6 +1319,7 @@ TFuture<void> TJob::RunGpuCheckCommand(const TString& gpuCheckBinaryPath, EGpuCh
 
     auto checkCommand = New<TShellCommandConfig>();
     checkCommand->Path = gpuCheckBinaryPath;
+    checkCommand->Args = std::move(gpuCheckBinaryArgs);
 
     std::vector<TDevice> devices;
     for (const auto& deviceName : Bootstrap_->GetGpuManager()->GetGpuDevices()) {
@@ -1479,7 +1486,10 @@ void TJob::OnJobProxyFinished(const TError& error)
 
         BIND(&TJob::RunGpuCheckCommand, MakeStrong(this))
             .AsyncVia(Invoker_)
-            .Run(UserJobSpec_->gpu_check_binary_path(), EGpuCheckType::Extra)
+            .Run(
+                UserJobSpec_->gpu_check_binary_path(),
+                FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
+                EGpuCheckType::Extra)
             .Subscribe(BIND(
                 &TJob::OnExtraGpuCheckCommandFinished,
                 MakeWeak(this))
