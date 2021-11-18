@@ -151,7 +151,10 @@ class StructuredKeySwitchGroup(object):
         return self
 
 def group_structured_rows_by_key_switch(structured_iterator):
-    first_row = next(structured_iterator)
+    try:
+        first_row = next(structured_iterator)
+    except StopIteration:
+        return
     while True:
         group = StructuredKeySwitchGroup(structured_iterator, first_row)
         yield (group,)

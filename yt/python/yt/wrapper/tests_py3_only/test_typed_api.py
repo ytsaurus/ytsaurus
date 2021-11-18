@@ -117,6 +117,18 @@ class IdentityReducer(TypedJob):
             yield row
 
 
+class EmptyInputReducer(TypedJob):
+    def prepare_operation(self, context, preparer):
+        preparer.input(0, type=TheRow).output(0, type=TheRow)
+
+    def __call__(self, rows):
+        assert len(list(rows)) == 0
+
+    def finish(self):
+        # Check that the job has actually been run.
+        yield ROWS[0]
+
+
 @yt.with_context
 class TwoOutputMapper(TypedJob):
     def __init__(self, for_map_reduce):
@@ -407,7 +419,7 @@ class TestTypedApi(object):
 
         assert sorted(read_rows, key=sort_key) == sorted(TWO_INPUT_REDUCER_OUTPUT_ROWS, key=sort_key)
 
-    
+
     def _do_test_grouping(self, input_rows, row_types, expected_output_rows, reducer):
         table_count = len(input_rows)
         input_tables = ["//tmp/input_{}".format(i) for i in range(table_count)]
@@ -419,7 +431,7 @@ class TestTypedApi(object):
 
         def sort_key(d):
             return d["key"]
-        
+
         yt.run_map_reduce(
             mapper=IdentityMapper(row_types),
             reducer=reducer,
@@ -467,7 +479,7 @@ class TestTypedApi(object):
                 {"int32_field": 10, "str_field": "a"},
             ],
         ]
-        
+
         expected_rows = [
             {"key": "a", "sum": 30},
             {"key": "b", "sum": 20},
@@ -494,7 +506,7 @@ class TestTypedApi(object):
                 {"int32_field": 100, "str_field": "a"},
             ],
         ]
-        
+
         expected_rows = [
             {"key": "a", "sum": 230},
             {"key": "b", "sum": 20},
@@ -502,6 +514,40 @@ class TestTypedApi(object):
         ]
 
         self._do_test_grouping(rows, [TheRow, Row1], expected_rows, TwoInputSummingReducer())
+
+    @authors("levysotsky")
+    def test_grouping_empty_input(self):
+        rows = [
+            {"int32_field": 100, "str_field": "a"},
+            {"int32_field": 100, "str_field": "a"},
+            {"int32_field": 100, "str_field": "z"},
+            {"int32_field": 100, "str_field": "z"},
+        ]
+
+        expected_rows = [
+            ROWS[0]
+        ]
+
+        input_table = "//tmp/input"
+        schema = TableSchema.from_row_type(TheRow).build_schema_sorted_by(["str_field"])
+        yt.create_table(input_table, attributes={"schema": schema})
+        yt.write_table(input_table, rows)
+        output_table = "//tmp/output"
+
+        # The range is crafted intentionally to result in empty set of rows.
+        range_ = {
+            "lower_limit": {"key": ["p"]},
+            "upper_limit": {"key": ["q"]},
+        }
+        yt.run_reduce(
+            EmptyInputReducer(),
+            source_table=yt.TablePath(input_table, ranges=[range_]),
+            destination_table=output_table,
+            spec={"max_failed_job_count": 1},
+            reduce_by=["str_field"],
+        )
+
+        assert list(yt.read_table(output_table)) == [ROW_DICTS[0]]
 
     @authors("levysotsky")
     @pytest.mark.parametrize("other_columns_as_bytes", [True, False])
@@ -627,7 +673,7 @@ class TestTypedApi(object):
         class Row2:
             a: Int64
             b: Int64
-        
+
         schema = TableSchema().add_column("b", ti.Int64)
         yt.remove(table, force=True)
         yt.create_table(table, attributes={"schema": schema})
@@ -711,15 +757,15 @@ class TestTypedApi(object):
         yt.create("table", table, attributes={"schema": schema_missing_b})
         with pytest.raises(yt.YtError, match=r'struct schema is missing field ".*\.Row2\.b"'):
             yt.write_table_structured(table, Row2, [row])
-        
+
         schema_with_required_extra = copy.deepcopy(schema)
         schema_with_required_extra.add_column("extra", ti.Int64)
-        
+
         yt.remove(table)
         yt.create("table", table, attributes={"schema": schema_with_required_extra})
         with pytest.raises(yt.YtError, match=r'yt_dataclass is missing non-nullable field ".*\.Row2\.extra"'):
             yt.write_table_structured(table, Row2, [row])
-        
+
         @yt_dataclass
         class Row3:
             a: typing.Optional[Int64]
@@ -880,25 +926,25 @@ class TestTypedApi(object):
 
         class TypedJobNotToBeCalled(TypedJob):
             pass
-    
+
         class MapperWithMissingInput(TypedJobNotToBeCalled):
             def prepare_operation(self, context, preparer):
                 preparer.inputs([0,2], type=TheRow).output(0, type=TheRow)
-        
+
         with pytest.raises(ValueError, match="Missing type for input table no. 1 \\(//tmp/in_1\\)"):
             yt.run_map(MapperWithMissingInput(), input_tables, output_tables)
 
         class MapperWithMissingOutput(TypedJobNotToBeCalled):
             def prepare_operation(self, context, preparer):
                 preparer.inputs(range(3), type=TheRow).outputs([0,1], type=TheRow)
-        
+
         with pytest.raises(ValueError, match="Missing type for output table no. 2 \\(//tmp/out_2\\)"):
             yt.run_map(MapperWithMissingOutput(), input_tables, output_tables)
-            
+
         class MapperWithOutOfRange(TypedJobNotToBeCalled):
             def prepare_operation(self, context, preparer):
                 preparer.inputs(range(100), type=TheRow).output(range(100), type=TheRow)
-        
+
         with pytest.raises(ValueError, match="Input type index 3 out of range \\[0, 3\\)"):
             yt.run_map(MapperWithOutOfRange(), input_tables, output_tables)
 
@@ -908,7 +954,7 @@ class TestTypedApi(object):
                 self._output_type = output_type
             def prepare_operation(self, context, preparer):
                 preparer.inputs(range(3), type=self._input_type).outputs(range(3), type=self._output_type)
-        
+
         with pytest.raises(TypeError, match="Input type must be a class marked with"):
             yt.run_map(MapperWithTypes(int, TheRow), input_tables, output_tables)
         with pytest.raises(TypeError, match="Output type must be a class marked with"):
@@ -917,6 +963,9 @@ class TestTypedApi(object):
         @yt_dataclass
         class Row2:
             list_field: typing.List[typing.List[int]]
-        
+
         with pytest.raises(yt.YtError, match=r'struct schema is missing non-nullable field ".*\.Row2\.list_field"'):
             yt.run_map(MapperWithTypes(Row2, TheRow), input_tables, output_tables)
+
+        with pytest.raises(yt.YtError, match=r'incompatible with "input_query"'):
+            yt.run_map(MapperWithTypes(Row2, TheRow), input_tables, output_tables, spec={"input_query": "*"})

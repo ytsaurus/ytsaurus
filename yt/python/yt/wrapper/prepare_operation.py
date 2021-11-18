@@ -52,7 +52,7 @@ class OperationPreparationContext:
     """
     Interface used to provide information on input and output tables.
     """
-    
+
     __metaclass__ = ABCMeta
 
     @abstractmethod
