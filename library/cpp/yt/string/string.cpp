@@ -239,4 +239,33 @@ bool TCaseInsensitiveStringEqualityComparer::operator()(TStringBuf lhs, TStringB
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TryParseBool(const TString& value, bool& result)
+{
+    if (value == "true" || value == "1") {
+        result = true;
+        return true;
+    } else if (value == "false" || value == "0") {
+        result = false;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool ParseBool(const TString& value)
+{
+    bool result;
+    if (!TryParseBool(value, result)) {
+        ythrow yexception() << Format("Error parsing boolean value %Qv", value);
+    }
+    return result;
+}
+
+TStringBuf FormatBool(bool value)
+{
+    return value ? TStringBuf("true") : TStringBuf("false");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

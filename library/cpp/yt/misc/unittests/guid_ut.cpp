@@ -1,14 +1,18 @@
 #include <library/cpp/testing/gtest/gtest.h>
 
-#include <yt/yt/core/misc/format.h>
-#include <yt/yt/core/misc/ref.h>
+#include <library/cpp/yt/misc/guid.h>
 
 namespace NYT {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static_assert(!TFormatTraits<TIntrusivePtr<TRefCounted>>::HasCustomFormatValue);
+TEST(TGuidTest, RandomGuids)
+{
+    auto guid = TGuid::Create();
+    auto otherGuid = TGuid::Create();
+    EXPECT_FALSE(guid == otherGuid);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
