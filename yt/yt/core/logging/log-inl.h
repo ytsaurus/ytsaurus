@@ -28,7 +28,7 @@ void TLogger::AddTag(const char* format, TArgs&&... args)
 template <class TType>
 void TLogger::AddStructuredTag(TStringBuf key, TType value)
 {
-    StructuredTags_.emplace_back(key, NYTree::ConvertToYsonString(value));
+    StructuredTags_.emplace_back(key, NYson::ConvertToYsonString(value));
 }
 
 template <class... TArgs>

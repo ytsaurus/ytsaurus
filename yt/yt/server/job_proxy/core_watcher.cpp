@@ -42,6 +42,7 @@ using namespace NNet;
 using namespace NPipes;
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

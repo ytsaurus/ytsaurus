@@ -52,6 +52,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NYson;
 
 using NNodeTrackerClient::TAddressMap;
 

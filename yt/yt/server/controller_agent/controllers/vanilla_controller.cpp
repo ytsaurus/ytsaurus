@@ -25,6 +25,7 @@ using namespace NChunkPools;
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NYPath;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

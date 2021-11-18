@@ -23,6 +23,40 @@
 #include <type_traits>
 #include <limits>
 
+namespace NYT::NYson {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TYsonString ConvertToYsonString(const T& value)
+{
+    return ConvertToYsonString(value, EYsonFormat::Binary);
+}
+
+template <class T>
+TYsonString ConvertToYsonString(const T& value, EYsonFormat format)
+{
+    auto type = NYTree::GetYsonType(value);
+    TString result;
+    TStringOutput stringOutput(result);
+    NYTree::WriteYson(&stringOutput, value, type, format);
+    return NYson::TYsonString(std::move(result), type);
+}
+
+template <class T>
+TYsonString ConvertToYsonString(const T& value, EYsonFormat format, int indent)
+{
+    auto type = NYTree::GetYsonType(value);
+    TString result;
+    TStringOutput stringOutput(result);
+    NYTree::WriteYson(&stringOutput, value, type, format, indent);
+    return NYson::TYsonString(std::move(result), type);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NYTree
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,32 +71,6 @@ NYson::TYsonProducer ConvertToProducer(T&& value)
         },
         std::forward<T>(value));
     return NYson::TYsonProducer(std::move(callback), type);
-}
-
-template <class T>
-NYson::TYsonString ConvertToYsonString(const T& value)
-{
-    return ConvertToYsonString(value, NYson::EYsonFormat::Binary);
-}
-
-template <class T>
-NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format)
-{
-    auto type = GetYsonType(value);
-    TString result;
-    TStringOutput stringOutput(result);
-    WriteYson(&stringOutput, value, type, format);
-    return NYson::TYsonString(std::move(result), type);
-}
-
-template <class T>
-NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format, int indent)
-{
-    auto type = GetYsonType(value);
-    TString result;
-    TStringOutput stringOutput(result);
-    WriteYson(&stringOutput, value, type, format, indent);
-    return NYson::TYsonString(std::move(result), type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

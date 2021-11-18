@@ -52,6 +52,7 @@ using namespace NConcurrency;
 using namespace NFileClient;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 
 using NObjectClient::TObjectServiceProxy;
 using NYT::FromProto;

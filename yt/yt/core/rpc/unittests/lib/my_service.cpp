@@ -307,7 +307,7 @@ public:
     {
         context->SetRequestInfo();
         auto traceContext = NTracing::GetCurrentTraceContext();
-        response->set_baggage(NYTree::ConvertToYsonString(traceContext->UnpackBaggage()).ToString());
+        response->set_baggage(NYson::ConvertToYsonString(traceContext->UnpackBaggage()).ToString());
         context->Reply();
     }
 

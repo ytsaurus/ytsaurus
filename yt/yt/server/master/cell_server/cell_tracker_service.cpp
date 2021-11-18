@@ -20,6 +20,7 @@ using namespace NCellMaster;
 using namespace NCellBalancerClient;
 using namespace NHydra;
 using namespace NRpc;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
