@@ -330,7 +330,10 @@ private:
 
     void OnSetupCommandsFinished(const TError& error);
 
-    TFuture<void> RunGpuCheckCommand(const TString& gpuCheckBinaryPath, EGpuCheckType gpuCheckType);
+    TFuture<void> RunGpuCheckCommand(
+        const TString& gpuCheckBinaryPath,
+        std::vector<TString> gpuCheckBinaryArgs,
+        EGpuCheckType gpuCheckType);
 
     void OnGpuCheckCommandFinished(const TError& error);
 

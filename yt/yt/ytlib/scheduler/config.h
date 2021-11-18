@@ -995,11 +995,14 @@ public:
 
     std::optional<TString> CudaToolkitVersion;
 
-    // Name of layer with GPU check.
+    //! Name of layer with GPU check.
     std::optional<TString> GpuCheckLayerName;
 
-    // Path to the file with GPU check binary inside layer.
+    //! Path to the file with GPU check binary inside layer.
     std::optional<TString> GpuCheckBinaryPath;
+
+    //! Command line arguments for the GPU check binary.
+    std::optional<std::vector<TString>> GpuCheckBinaryArgs;
 
     //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
     //! from TOperationBaseSpec.

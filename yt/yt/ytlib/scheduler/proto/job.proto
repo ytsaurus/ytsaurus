@@ -206,6 +206,8 @@ message TUserJobSpec
 
     optional double profiling_probability = 61;
     optional string enabled_profiler = 62;
+
+    repeated string gpu_check_binary_args = 63;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
