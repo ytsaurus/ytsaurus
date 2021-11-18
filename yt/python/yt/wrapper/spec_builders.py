@@ -614,7 +614,8 @@ class UserJobSpecBuilder(object):
             job_io_spec["control_attributes"] = {}
         job_io_spec["control_attributes"][key] = value
 
-    def build(self, operation_preparation_context, operation_type, requires_command, requires_format, job_io_spec,
+    def build(self, operation_preparation_context, operation_type, requires_command,
+              requires_format, job_io_spec, has_input_query,
               local_files_to_remove=None, uploaded_files=None, group_by=None, client=None):
         """Builds final spec."""
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
@@ -642,11 +643,16 @@ class UserJobSpecBuilder(object):
         elif isinstance(command, TypedJob):
             if "input_format" in spec or "output_format" in spec or "format" in spec:
                 raise YtError("Typed job {} must not be used with explicit format specification".format(type(command)))
+            if has_input_query:
+                raise YtError("Typed job {} is incompatible with \"input_query\" spec field".format(type(command)))
             assert operation_preparation_context is not None
+
             input_format, output_format, input_tables, output_tables = run_operation_preparation(
                 command,
                 operation_preparation_context,
             )
+
+
             should_process_key_switch = True
             if self._supports_row_index(operation_type):
                 self._set_control_attribute(job_io_spec, "enable_row_index", True)
@@ -939,6 +945,7 @@ class SpecBuilder(object):
                 requires_command=requires_command,
                 requires_format=requires_format,
                 job_io_spec=spec.get(job_io_type),
+                has_input_query="input_query" in spec,
                 client=client,
             )
             if spec[job_type] is None:
