@@ -40,6 +40,7 @@ using namespace NNodeTrackerClient;
 using namespace NScheduler;
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;

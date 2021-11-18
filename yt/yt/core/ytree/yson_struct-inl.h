@@ -161,7 +161,7 @@ void TYsonStructRegistrar<TStruct>::UnrecognizedStrategy(EUnrecognizedStrategy s
 template <class T>
 inline TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<T>& obj)
 {
-    return NYTree::ConvertTo<TIntrusivePtr<T>>(NYTree::ConvertToYsonString(*obj));
+    return NYTree::ConvertTo<TIntrusivePtr<T>>(NYson::ConvertToYsonString(*obj));
 }
 
 template <class T>

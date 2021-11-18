@@ -28,6 +28,7 @@ using namespace NHiveClient;
 using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NCellarNodeTrackerClient::NProto;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

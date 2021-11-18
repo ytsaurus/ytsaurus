@@ -1332,7 +1332,7 @@ TEST_F(TFutureTest, WithDeadlineFail)
     auto deadline = TInstant::Now() + SleepQuantum;
     auto f2 = f1.WithDeadline(deadline);
     EXPECT_EQ(NYT::EErrorCode::Timeout, f2.Get().GetCode());
-    EXPECT_EQ(NYTree::ConvertToYsonString(deadline), f2.Get().Attributes().FindYson("deadline"));
+    EXPECT_EQ(NYson::ConvertToYsonString(deadline), f2.Get().Attributes().FindYson("deadline"));
 }
 
 TEST_F(TFutureTest, WithTimeoutSuccess)
@@ -1361,7 +1361,7 @@ TEST_F(TFutureTest, WithTimeoutFail)
     auto f1 = p.ToFuture();
     auto f2 = f1.WithTimeout(SleepQuantum);
     EXPECT_EQ(NYT::EErrorCode::Timeout, f2.Get().GetCode());
-    EXPECT_EQ(NYTree::ConvertToYsonString(SleepQuantum), f2.Get().Attributes().FindYson("timeout"));
+    EXPECT_EQ(NYson::ConvertToYsonString(SleepQuantum), f2.Get().Attributes().FindYson("timeout"));
 }
 
 TEST_W(TFutureTest, Holder)

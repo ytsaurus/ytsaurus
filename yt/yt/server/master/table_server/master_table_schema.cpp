@@ -60,7 +60,7 @@ const TFuture<TYsonString>& TMasterTableSchema::AsYsonAsync() const
 {
     if (!MemoizedYson_) {
         MemoizedYson_ = BIND([schema = AsTableSchema()] {
-            return NYTree::ConvertToYsonString(schema);
+            return NYson::ConvertToYsonString(schema);
         })
         .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Run();
@@ -78,7 +78,7 @@ TYsonString TMasterTableSchema::AsYsonSync() const
     }
 
     // There's no escape - serialize it right here and now.
-    return NYTree::ConvertToYsonString(*AsTableSchema());
+    return NYson::ConvertToYsonString(*AsTableSchema());
 }
 
 bool TMasterTableSchema::RefBy(TAccount* account)

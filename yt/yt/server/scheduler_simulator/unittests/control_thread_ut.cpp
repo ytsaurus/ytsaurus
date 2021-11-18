@@ -178,7 +178,7 @@ protected:
 
         auto spec = New<TOperationSpecBase>();
         spec->Pool = std::move(pool);
-        operation.Spec = ConvertToYsonString(spec);
+        operation.Spec = NYson::ConvertToYsonString(spec);
 
         NextOperationId_ += 1;
         return operation;

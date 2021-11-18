@@ -605,7 +605,7 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
 template <class T>
 TIntrusivePtr<T> CloneYsonSerializable(const TIntrusivePtr<T>& obj)
 {
-    return NYTree::ConvertTo<TIntrusivePtr<T>>(NYTree::ConvertToYsonString(*obj));
+    return NYTree::ConvertTo<TIntrusivePtr<T>>(NYson::ConvertToYsonString(*obj));
 }
 
 template <class T>

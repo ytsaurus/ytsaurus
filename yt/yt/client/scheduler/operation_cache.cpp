@@ -31,7 +31,7 @@ TFuture<TYsonString> TOperationCache::DoGet(const TOperationIdOrAlias& key, bool
     };
 
     return Client_->GetOperation(key, options).Apply(BIND([] (const TOperation& operation) {
-        return NYTree::ConvertToYsonString(operation);
+        return NYson::ConvertToYsonString(operation);
     }));
 }
 

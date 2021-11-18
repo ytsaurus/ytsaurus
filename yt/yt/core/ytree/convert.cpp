@@ -2,9 +2,7 @@
 
 #include <yt/yt/core/yson/tokenizer.h>
 
-namespace NYT::NYTree {
-
-using namespace NYson;
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +24,16 @@ TYsonString ConvertToYsonString(TStringBuf value)
 {
     return ConvertToYsonString(TString(value));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NYson
+
+namespace NYT::NYTree {
+
+using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
 
 const TToken& SkipAttributes(TTokenizer* tokenizer)
 {

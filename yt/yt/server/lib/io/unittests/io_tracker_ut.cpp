@@ -267,7 +267,7 @@ TEST(TIOTrackerTest, Baggage)
     event.LocalTags.emplace("thirdKey", "thirdValue");
     event.LocalTags.emplace("fourthKey@", "fourthValue");
     event.LocalTags.emplace("sharedKey", "sharedValue");
-    event.Baggage = NYTree::ConvertToYsonString(attributes);
+    event.Baggage = NYson::ConvertToYsonString(attributes);
 
     ioTracker->Enqueue(std::move(event));
     NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(200));

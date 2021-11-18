@@ -10,7 +10,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 void TControllerFeatures::AddTag(TString name, auto value)
 {
-    Tags_[name] = NYTree::ConvertToYsonString(value);
+    Tags_[name] = NYson::ConvertToYsonString(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

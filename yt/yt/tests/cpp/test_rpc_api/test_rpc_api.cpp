@@ -35,6 +35,7 @@ using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

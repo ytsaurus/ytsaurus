@@ -221,7 +221,7 @@ struct TErrorTraits<TErrorOr<T>>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYTree {
+namespace NYson {
 
 // Avoid dependency on convert.h
 
@@ -230,14 +230,14 @@ NYson::TYsonString ConvertToYsonString(const T& value);
 NYson::TYsonString ConvertToYsonString(const char* value);
 NYson::TYsonString ConvertToYsonString(TStringBuf value);
 
-} // namespace NYTree
+} // namespace NYson
 
 struct TErrorAttribute
 {
     template <class T>
     TErrorAttribute(const TString& key, const T& value)
         : Key(key)
-        , Value(NYTree::ConvertToYsonString(value))
+        , Value(NYson::ConvertToYsonString(value))
     { }
 
     TErrorAttribute(const TString& key, const NYson::TYsonString& value)

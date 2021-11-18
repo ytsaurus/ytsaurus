@@ -22,6 +22,7 @@ using namespace NScheduler::NProto;
 using namespace NChunkPools;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
