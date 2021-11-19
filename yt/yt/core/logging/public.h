@@ -2,27 +2,11 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <library/cpp/yt/logging/public.h>
+
 namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Any change to this enum must be also propagated to FormatLevel.
-DEFINE_ENUM(ELogLevel,
-    (Minimum)
-    (Trace)
-    (Debug)
-    (Info)
-    (Warning)
-    (Error)
-    (Alert)
-    (Fatal)
-    (Maximum)
-);
-
-DEFINE_ENUM(ELogFamily,
-    (PlainText)
-    (Structured)
-);
 
 DEFINE_ENUM(ELogFormat,
     (PlainText)
@@ -52,10 +36,6 @@ DECLARE_REFCOUNTED_CLASS(TWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRuleConfig)
 DECLARE_REFCOUNTED_STRUCT(ILogWriter)
 
-struct TLoggingCategory;
-struct TLoggingAnchor;
-struct TLogEvent;
-class TLogger;
 class TLogManager;
 class TRandomAccessGZipFile;
 
