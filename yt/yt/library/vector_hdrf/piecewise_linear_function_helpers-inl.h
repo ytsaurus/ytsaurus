@@ -9,7 +9,7 @@ namespace NYT::NVectorHdrf::NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TPiecewiseFunction>
-void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const TString& loggingTags)
+void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const NLogging::TLogger& Logger)
 {
     using TValue = typename TPiecewiseFunction::TValueType;
 
@@ -26,13 +26,12 @@ void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const TString& loggi
             continue;
         }
 
-        YT_VECTOR_HDRF_LOG_ERROR(
+        YT_LOG_ERROR(
             "The vector function is decreasing at segment {%.16lf, %.16lf} (BoundValues: {%.16lf, %.16lf}, %s)",
             segment.LeftBound(),
             segment.RightBound(),
             segment.LeftValue(),
-            segment.RightValue(),
-            loggingTags.c_str());
+            segment.RightValue());
 
         Y_VERIFY_DEBUG(false);
     }
