@@ -384,20 +384,17 @@ public:
     { }
 
 private:
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         std::vector<TString> keys;
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& nodes = nodeTracker->Nodes();
-        keys.reserve(std::min<i64>(nodes.size(), sizeLimit));
+        keys.reserve(nodes.size());
         for (auto [nodeId, node] : nodes) {
             if (!IsObjectAlive(node)) {
                 continue;
             }
             keys.push_back(node->GetDefaultAddress());
-            if (std::ssize(keys) >= sizeLimit) {
-                break;
-            }
         }
 
         return keys;
@@ -442,20 +439,17 @@ public:
     { }
 
 private:
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         std::vector<TString> keys;
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& nodes = nodeTracker->GetNodesWithFlavor(*Flavor_);
-        keys.reserve(std::min<i64>(nodes.size(), sizeLimit));
+        keys.reserve(nodes.size());
         for (auto* node : nodes) {
             if (!IsObjectAlive(node)) {
                 continue;
             }
             keys.push_back(node->GetDefaultAddress());
-            if (std::ssize(keys) >= sizeLimit) {
-                break;
-            }
         }
 
         return keys;
@@ -513,18 +507,18 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& hostMap = nodeTracker->Hosts();
 
         std::vector<TString> keys;
-        keys.reserve(std::min<i64>(sizeLimit, hostMap.GetSize()));
+        keys.reserve(hostMap.GetSize());
         for (auto [hostId, host] : hostMap) {
-            keys.push_back(host->GetName());
-            if (std::ssize(keys) >= sizeLimit) {
-                break;
+            if (!IsObjectAlive(host)) {
+                continue;
             }
+            keys.push_back(host->GetName());
         }
 
         return keys;
