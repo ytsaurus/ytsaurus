@@ -554,6 +554,24 @@ protected:
         TMethodDescriptor SetPooled(bool value) const;
     };
 
+    struct TErrorCodesCounter
+    {
+        TErrorCodesCounter(const NProfiling::TProfiler& profiler) 
+            : Profiler_(profiler) 
+        { }
+
+        void RegisterCode(TErrorCode code)
+        {
+            ErrorCodes_.FindOrInsert(code, [&] () {
+                return Profiler_.WithTag("code", ToString(code)).Counter("/code_count");
+            }).first->Increment();
+        }
+
+    private:
+        NYT::NConcurrency::TSyncMap<TErrorCode, NProfiling::TCounter> ErrorCodes_;
+        NProfiling::TProfiler Profiler_;
+    };
+
     //! Per-user and per-method profiling counters.
     struct TMethodPerformanceCounters
         : public TRefCounted
@@ -599,7 +617,7 @@ protected:
         //! Counts the number of bytes in response message attachment.
         NProfiling::TCounter ResponseMessageAttachmentSizeCounter;
 
-        NYT::NConcurrency::TSyncMap<TErrorCode, NProfiling::TCounter> ErrorCodes;
+        TErrorCodesCounter ErrorCodes;
     };
 
     using TMethodPerformanceCountersPtr = TIntrusivePtr<TMethodPerformanceCounters>;
