@@ -192,6 +192,7 @@ TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(
     , RequestMessageAttachmentSizeCounter(profiler.Counter("/request_message_attachment_bytes"))
     , ResponseMessageBodySizeCounter(profiler.Counter("/response_message_body_bytes"))
     , ResponseMessageAttachmentSizeCounter(profiler.Counter("/response_message_attachment_bytes"))
+    , ErrorCodes(profiler)
 {
     if (histogramConfig && histogramConfig->CustomBounds) {
         const auto &customBounds = *histogramConfig->CustomBounds;
@@ -850,10 +851,7 @@ private:
             PerformanceCounters_->FailedRequestCounter.Increment();
         }
         if (Service_->EnableErrorCodeCounting.load()) {
-            const auto code = Error_.GetNonTrivialCode();
-            PerformanceCounters_->ErrorCodes.FindOrInsert(code, [&] () {
-                return RuntimeInfo_->Profiler.WithTag("code", ToString(code)).Counter("/code_count");
-            }).first->Increment();
+            PerformanceCounters_->ErrorCodes.RegisterCode(Error_.GetNonTrivialCode());
         }
         HandleLoggingSuppression();
 
