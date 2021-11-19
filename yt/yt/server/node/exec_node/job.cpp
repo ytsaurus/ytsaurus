@@ -793,6 +793,10 @@ std::optional<TString> TJob::GetStderr()
         return *Stderr_;
     }
 
+    if (!UserJobSpec_) {
+        return std::nullopt;
+    }
+
     if (JobPhase_ == EJobPhase::Running) {
         try {
             return GetJobProbeOrThrow()->GetStderr();
