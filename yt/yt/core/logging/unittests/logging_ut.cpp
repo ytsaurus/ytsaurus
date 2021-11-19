@@ -608,7 +608,7 @@ TEST_P(TLoggingTagsTest, All)
     auto hasTraceContext = std::get<2>(GetParam());
     auto expected = std::get<3>(GetParam());
 
-    auto loggingContext = NLogging::NDetail::GetLoggingContext();
+    auto loggingContext = NLogging::GetLoggingContext();
     if (hasTraceContext) {
         loggingContext.TraceLoggingTag = TStringBuf("TraceContextTag");
     }
@@ -730,7 +730,7 @@ TEST_F(TLongMessagesTest, WithoutPerThreadCache)
 TEST_F(TLoggingTest, Anchors)
 {
     NLogging::TLogger logger;
-    NLogging::NDetail::TLoggingContext context{};
+    NLogging::TLoggingContext context{};
     EXPECT_EQ(NLogging::NDetail::BuildLogMessage(context, logger, "Simple message").Anchor, "Simple message");
     EXPECT_EQ(NLogging::NDetail::BuildLogMessage(context, logger, "Simple message (Param: %v)", 1).Anchor, "Simple message (Param: %v)");
 }
