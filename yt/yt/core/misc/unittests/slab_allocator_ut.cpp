@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/slab_allocator.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/malloc/malloc.h>
 
 namespace NYT {
 namespace {

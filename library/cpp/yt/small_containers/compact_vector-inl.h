@@ -7,7 +7,7 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/malloc/malloc.h>
 
 #include <util/system/compiler.h>
 

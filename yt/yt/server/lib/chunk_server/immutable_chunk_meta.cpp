@@ -2,7 +2,7 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/malloc/malloc.h>
 
 namespace NYT::NChunkServer {
 
