@@ -43,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerMasterConnectorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerBootstrapConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;

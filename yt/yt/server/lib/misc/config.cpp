@@ -6,7 +6,45 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServerConfig::TServerConfig()
+void TServerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bus_server", &TThis::BusServer)
+        .DefaultNew();
+    registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
+    registrar.Parameter("core_dumper", &TThis::CoreDumper)
+        .Default();
+
+    registrar.Parameter("rpc_port", &TThis::RpcPort)
+        .Default(0)
+        .GreaterThanOrEqual(0)
+        .LessThan(65536);
+    registrar.Parameter("monitoring_port", &TThis::MonitoringPort)
+        .Default(0)
+        .GreaterThanOrEqual(0)
+        .LessThan(65536);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->RpcPort > 0) {
+            if (config->BusServer->Port || config->BusServer->UnixDomainSocketPath) {
+                THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
+            }
+            config->BusServer->Port = config->RpcPort;
+        }
+    });
+}
+
+NHttp::TServerConfigPtr TServerConfig::CreateMonitoringHttpServerConfig()
+{
+    auto config = New<NHttp::TServerConfig>();
+    config->Port = MonitoringPort;
+    config->BindRetryCount = BusServer->BindRetryCount;
+    config->BindRetryBackoff = BusServer->BindRetryBackoff;
+    config->ServerName = "HttpMon";
+    return config;
+}
+
+TDeprecatedServerConfig::TDeprecatedServerConfig()
 {
     RegisterParameter("bus_server", BusServer)
         .DefaultNew();
@@ -34,7 +72,7 @@ TServerConfig::TServerConfig()
     });
 }
 
-NHttp::TServerConfigPtr TServerConfig::CreateMonitoringHttpServerConfig()
+NHttp::TServerConfigPtr TDeprecatedServerConfig::CreateMonitoringHttpServerConfig()
 {
     auto config = New<NHttp::TServerConfig>();
     config->Port = MonitoringPort;

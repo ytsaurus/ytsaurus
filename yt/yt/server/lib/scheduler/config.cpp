@@ -845,26 +845,26 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerBootstrapConfig::TSchedulerBootstrapConfig()
+void TSchedulerBootstrapConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cluster_connection", ClusterConnection);
-    RegisterParameter("scheduler", Scheduler)
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
+    registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
-    RegisterParameter("response_keeper", ResponseKeeper)
+    registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
-    RegisterParameter("addresses", Addresses)
+    registrar.Parameter("addresses", &TThis::Addresses)
         .Default();
-    RegisterParameter("cypress_annotations", CypressAnnotations)
+    registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(NYTree::BuildYsonNodeFluently()
             .BeginMap()
             .EndMap()
             ->AsMap());
 
-    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
-    RegisterPreprocessor([&] () {
-        ResponseKeeper->EnableWarmup = false;
+    registrar.Preprocessor([&] (TThis* config) {
+        config->ResponseKeeper->EnableWarmup = false;
     });
 }
 

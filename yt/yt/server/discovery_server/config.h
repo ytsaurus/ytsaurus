@@ -13,7 +13,7 @@ namespace NYT::NClusterDiscoveryServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterDiscoveryServerConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;

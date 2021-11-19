@@ -443,7 +443,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
 {
 public:
     //! Interval between Orchid cache rebuilds.

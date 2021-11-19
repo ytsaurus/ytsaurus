@@ -49,7 +49,8 @@ void SpinlockHiccupHandler(const ::TSourceLocation& location, ESpinlockActivityK
 
 } // namespace
 
-void ConfigureSingletons(const TSingletonsConfigPtr& config)
+template <class TConfig>
+void ConfigureSingletonsImpl(const TConfig& config)
 {
     NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(config->SpinlockHiccupThreshold));
     NConcurrency::SetSpinlockHiccupHandler(&SpinlockHiccupHandler);
@@ -93,8 +94,18 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
     }
 }
 
-template <class T>
-void ReconfigureSingletonsImpl(const TSingletonsConfigPtr& config, const TIntrusivePtr<T>& dynamicConfig)
+void ConfigureSingletons(const TSingletonsConfigPtr& config)
+{
+    ConfigureSingletonsImpl(config);
+}
+
+void ConfigureSingletons(const TDeprecatedSingletonsConfigPtr& config)
+{
+    ConfigureSingletonsImpl(config);
+}
+
+template <class TStaticConfig, class TDynamicConfig>
+void ReconfigureSingletonsImpl(const TStaticConfig& config, const TDynamicConfig& dynamicConfig)
 {
     NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(
         dynamicConfig->SpinlockHiccupThreshold.value_or(config->SpinlockHiccupThreshold)));
@@ -127,7 +138,7 @@ void ReconfigureSingletonsImpl(const TSingletonsConfigPtr& config, const TIntrus
     }
 }
 
-void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TDeprecatedSingletonsDynamicConfigPtr& dynamicConfig)
+void ReconfigureSingletons(const TDeprecatedSingletonsConfigPtr& config, const TDeprecatedSingletonsDynamicConfigPtr& dynamicConfig)
 {
     ReconfigureSingletonsImpl(config, dynamicConfig);
 }
@@ -137,7 +148,8 @@ void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletons
     ReconfigureSingletonsImpl(config, dynamicConfig);
 }
 
-void StartDiagnosticDump(const TDiagnosticDumpConfigPtr& config)
+template <class TConfig>
+void StartDiagnosticDumpImpl(const TConfig& config)
 {
     static NLogging::TLogger Logger("DiagDump");
 
@@ -164,6 +176,16 @@ void StartDiagnosticDump(const TDiagnosticDumpConfigPtr& config)
             config->RefCountedTrackerDumpPeriod);
         RefCountedTrackerPeriodicExecutor->Start();
     }
+}
+
+void StartDiagnosticDump(const TDiagnosticDumpConfigPtr& config)
+{
+    StartDiagnosticDumpImpl(config);
+}
+
+void StartDiagnosticDump(const TDeprecatedDiagnosticDumpConfigPtr& config)
+{
+    StartDiagnosticDumpImpl(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

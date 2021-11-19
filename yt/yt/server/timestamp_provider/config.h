@@ -9,7 +9,7 @@ namespace NYT::NTimestampProvider {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampProviderConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;

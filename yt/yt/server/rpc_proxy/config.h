@@ -113,7 +113,7 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
     , public NAuth::TAuthenticationManagerConfig
 {
 public:

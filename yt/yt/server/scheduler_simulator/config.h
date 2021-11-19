@@ -122,7 +122,7 @@ public:
 };
 
 class TSchedulerSimulatorConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
 {
 public:
     int HeartbeatPeriod;

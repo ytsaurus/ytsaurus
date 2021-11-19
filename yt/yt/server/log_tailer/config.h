@@ -165,7 +165,7 @@ DEFINE_REFCOUNTED_TYPE(TLogTailerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogTailerBootstrapConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
 {
 public:
     TLogTailerConfigPtr LogTailer;

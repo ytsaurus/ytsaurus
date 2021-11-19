@@ -800,7 +800,7 @@ public:
 
     //! Duration of ScheduleJob call to log this result.
     TDuration ScheduleJobDurationLoggingThreshold;
-    
+
     //! Enables updating last metering log time.
     bool UpdateLastMeteringLogTime;
 
@@ -833,7 +833,9 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
-    TSchedulerBootstrapConfig();
+    REGISTER_YSON_STRUCT(TSchedulerBootstrapConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerBootstrapConfig)

@@ -45,7 +45,34 @@ DEFINE_REFCOUNTED_TYPE(TRpcConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// YsonStruct version.
 class TSingletonsConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    TDuration SpinlockHiccupThreshold;
+    NYTAlloc::TYTAllocConfigPtr YTAlloc;
+    THashMap<TString, int> FiberStackPoolSizes;
+    NNet::TAddressResolverConfigPtr AddressResolver;
+    NBus::TTcpDispatcherConfigPtr TcpDispatcher;
+    NRpc::TDispatcherConfigPtr RpcDispatcher;
+    NServiceDiscovery::NYP::TServiceDiscoveryConfigPtr YPServiceDiscovery;
+    NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
+    NProfiling::TProfileManagerConfigPtr ProfileManager;
+    NProfiling::TSolomonExporterConfigPtr SolomonExporter;
+    NLogging::TLogManagerConfigPtr Logging;
+    NTracing::TJaegerTracerConfigPtr Jaeger;
+    TRpcConfigPtr Rpc;
+
+    REGISTER_YSON_STRUCT(TSingletonsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSingletonsConfig)
+
+// YsonSerializable version. Keep it in sync with verstion above. Expected to die quite soon.
+class TDeprecatedSingletonsConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
@@ -63,31 +90,10 @@ public:
     NTracing::TJaegerTracerConfigPtr Jaeger;
     TRpcConfigPtr Rpc;
 
-    TSingletonsConfig();
+    TDeprecatedSingletonsConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TSingletonsConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-// YsonSerializable version. Expected to die quite soon.
-class TDeprecatedSingletonsDynamicConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    std::optional<TDuration> SpinlockHiccupThreshold;
-    NYTAlloc::TYTAllocConfigPtr YTAlloc;
-    NBus::TTcpDispatcherDynamicConfigPtr TcpDispatcher;
-    NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
-    NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
-    NLogging::TLogManagerDynamicConfigPtr Logging;
-    NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
-    TRpcConfigPtr Rpc;
-
-    TDeprecatedSingletonsDynamicConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TDeprecatedSingletonsDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TDeprecatedSingletonsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,19 +118,54 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TSingletonsDynamicConfig)
 
+// YsonSerializable version. Keep it in sync with verstion above. Expected to die quite soon.
+class TDeprecatedSingletonsDynamicConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    std::optional<TDuration> SpinlockHiccupThreshold;
+    NYTAlloc::TYTAllocConfigPtr YTAlloc;
+    NBus::TTcpDispatcherDynamicConfigPtr TcpDispatcher;
+    NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
+    NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
+    NLogging::TLogManagerDynamicConfigPtr Logging;
+    NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
+    TRpcConfigPtr Rpc;
+
+    TDeprecatedSingletonsDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDeprecatedSingletonsDynamicConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
+// YsonStruct version.
 class TDiagnosticDumpConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    std::optional<TDuration> YTAllocDumpPeriod;
+    std::optional<TDuration> RefCountedTrackerDumpPeriod;
+
+    REGISTER_YSON_STRUCT(TDiagnosticDumpConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiagnosticDumpConfig)
+
+// YsonSerializable version. Keep it in sync with verstion above. Expected to die quite soon.
+class TDeprecatedDiagnosticDumpConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
     std::optional<TDuration> YTAllocDumpPeriod;
     std::optional<TDuration> RefCountedTrackerDumpPeriod;
 
-    TDiagnosticDumpConfig();
+    TDeprecatedDiagnosticDumpConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TDiagnosticDumpConfig)
+DEFINE_REFCOUNTED_TYPE(TDeprecatedDiagnosticDumpConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,7 +173,15 @@ DEFINE_REFCOUNTED_TYPE(TDiagnosticDumpConfig)
 // config validator since logger is not set up yet.
 void WarnForUnrecognizedOptions(
     const NLogging::TLogger& logger,
+    const NYTree::TYsonStructPtr& config);
+
+void WarnForUnrecognizedOptions(
+    const NLogging::TLogger& logger,
     const NYTree::TYsonSerializablePtr& config);
+
+void AbortOnUnrecognizedOptions(
+    const NLogging::TLogger& logger,
+    const NYTree::TYsonStructPtr& config);
 
 void AbortOnUnrecognizedOptions(
     const NLogging::TLogger& logger,

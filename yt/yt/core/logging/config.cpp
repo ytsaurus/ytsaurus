@@ -128,13 +128,13 @@ TLogManagerConfig::TLogManagerConfig()
     RegisterParameter("check_space_period", CheckSpacePeriod)
         .Default();
     RegisterParameter("min_disk_space", MinDiskSpace)
-        .GreaterThanOrEqual(1_GB)
+        .GreaterThanOrEqual(0)
         .Default(5_GB);
     RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
-        .GreaterThan(0)
+        .GreaterThanOrEqual(0)
         .Default(10'000'000);
     RegisterParameter("low_backlog_watermark", LowBacklogWatermark)
-        .GreaterThan(0)
+        .GreaterThanOrEqual(0)
         .Default(1'000'000);
     RegisterParameter("shutdown_grace_timeout", ShutdownGraceTimeout)
         .Default(TDuration::Seconds(1));

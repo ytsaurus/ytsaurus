@@ -249,7 +249,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicMulticellManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
 {
 public:
     NNodeTrackerClient::TNetworkPreferenceList Networks;
