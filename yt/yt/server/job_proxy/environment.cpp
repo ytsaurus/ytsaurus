@@ -289,7 +289,7 @@ public:
     {
         auto containerName = Config_->UseShortContainerNames
             ? Format("%v/uj", SlotContainerName_)
-            : Format("%v/uj_%v-%v", SlotContainerName_, IntToString<16>(JobId_.Parts32[3]), IntToString<16>(JobId_.Parts32[2]));
+            : Format("%v/uj_%x-%x", SlotContainerName_, JobId_.Parts32[3], JobId_.Parts32[2]);
 
         auto launcher = CreatePortoInstanceLauncher(containerName, PortoExecutor_);
 
