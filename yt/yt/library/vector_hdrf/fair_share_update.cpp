@@ -373,6 +373,10 @@ void TCompositeElement::UpdateCumulativeAttributes(TFairShareUpdateContext* cont
 
 void TCompositeElement::PrepareFifoPool()
 {
+    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        YT_VERIFY(GetChild(childIndex)->IsOperation());
+    }
+
     SortedChildren_.clear();
     for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
         SortedChildren_.push_back(GetChild(childIndex));
