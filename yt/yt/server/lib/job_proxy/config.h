@@ -160,7 +160,7 @@ DEFINE_REFCOUNTED_TYPE(TMemoryTrackerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
 {
 public:
     // Job-specific parameters.

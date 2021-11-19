@@ -15,7 +15,7 @@ namespace NYT::NMasterCache {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterCacheConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;

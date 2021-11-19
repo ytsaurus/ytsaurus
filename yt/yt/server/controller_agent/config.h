@@ -1006,20 +1006,22 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
-    TControllerAgentBootstrapConfig()
+    REGISTER_YSON_STRUCT(TControllerAgentBootstrapConfig)
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("cluster_connection", ClusterConnection)
+        registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
             .Default();
-        RegisterParameter("controller_agent", ControllerAgent)
+        registrar.Parameter("controller_agent", &TThis::ControllerAgent)
             .DefaultNew();
-        RegisterParameter("addresses", Addresses)
+        registrar.Parameter("addresses", &TThis::Addresses)
             .Default();
-        RegisterParameter("cypress_annotations", CypressAnnotations)
+        registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
             .Default(NYTree::BuildYsonNodeFluently()
                 .BeginMap()
                 .EndMap()
             ->AsMap());
-        RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+        registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
             .Default(false);
     }
 };

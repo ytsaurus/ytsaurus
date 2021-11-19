@@ -43,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(TClockHydraManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterClockConfig
-    : public TServerConfig
+    : public TDeprecatedServerConfig
 {
 public:
     NElection::TCellConfigPtr ClockCell;
