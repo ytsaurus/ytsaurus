@@ -181,7 +181,7 @@ void TElement::PrepareFairShareFunctions(TFairShareUpdateContext* context)
         context->PrepareFairShareByFitFactorTotalTime += timer.GetElapsedCpuTime();
     }
     YT_VERIFY(FairShareByFitFactor_.has_value());
-    NDetail::VerifyNondecreasing(*FairShareByFitFactor_, GetLoggingTags());
+    NDetail::VerifyNondecreasing(*FairShareByFitFactor_, GetLogger());
     YT_VERIFY(FairShareByFitFactor_->IsTrimmed());
 
     {
@@ -192,7 +192,7 @@ void TElement::PrepareFairShareFunctions(TFairShareUpdateContext* context)
     YT_VERIFY(MaxFitFactorBySuggestion_.has_value());
     YT_VERIFY(MaxFitFactorBySuggestion_->LeftFunctionBound() == 0.0);
     YT_VERIFY(MaxFitFactorBySuggestion_->RightFunctionBound() == 1.0);
-    NDetail::VerifyNondecreasing(*MaxFitFactorBySuggestion_, GetLoggingTags());
+    NDetail::VerifyNondecreasing(*MaxFitFactorBySuggestion_, GetLogger());
     YT_VERIFY(MaxFitFactorBySuggestion_->IsTrimmed());
 
     {
@@ -203,7 +203,7 @@ void TElement::PrepareFairShareFunctions(TFairShareUpdateContext* context)
     YT_VERIFY(FairShareBySuggestion_.has_value());
     YT_VERIFY(FairShareBySuggestion_->LeftFunctionBound() == 0.0);
     YT_VERIFY(FairShareBySuggestion_->RightFunctionBound() == 1.0);
-    NDetail::VerifyNondecreasing(*FairShareBySuggestion_, GetLoggingTags());
+    NDetail::VerifyNondecreasing(*FairShareBySuggestion_, GetLogger());
     YT_VERIFY(FairShareBySuggestion_->IsTrimmed());
 
     {
@@ -211,7 +211,7 @@ void TElement::PrepareFairShareFunctions(TFairShareUpdateContext* context)
         *FairShareBySuggestion_ = NDetail::CompressFunction(*FairShareBySuggestion_, NDetail::CompressFunctionEpsilon);
         context->CompressFunctionTotalTime += timer.GetElapsedCpuTime();
     }
-    NDetail::VerifyNondecreasing(*FairShareBySuggestion_, GetLoggingTags());
+    NDetail::VerifyNondecreasing(*FairShareBySuggestion_, GetLogger());
 
     AreFairShareFunctionsPrepared_ = true;
 }

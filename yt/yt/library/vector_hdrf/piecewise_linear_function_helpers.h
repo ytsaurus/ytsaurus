@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "logging.h"
 
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
+
+#include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NVectorHdrf::NDetail {
 
@@ -24,7 +25,7 @@ TUnpackedVectorPiecewiseSegment UnpackVectorSegment(const NVectorHdrf::TVectorPi
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TPiecewiseFunction>
-void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const TString& loggingTags);
+void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const NLogging::TLogger& Logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

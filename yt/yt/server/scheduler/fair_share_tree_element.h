@@ -400,7 +400,6 @@ public:
     virtual TString GetTreeId() const;
 
     const NLogging::TLogger& GetLogger() const override;
-    const TString& GetLoggingTags() const override;
     bool AreDetailedLogsEnabled() const override;
 
     virtual TString GetLoggingString() const;
