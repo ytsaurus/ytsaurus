@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/malloc/malloc.h>
 
 namespace NYT {
 

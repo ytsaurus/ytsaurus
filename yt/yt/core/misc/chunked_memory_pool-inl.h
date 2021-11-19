@@ -6,7 +6,7 @@
 
 #include "serialize.h"
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/malloc/malloc.h>
 
 namespace NYT {
 
