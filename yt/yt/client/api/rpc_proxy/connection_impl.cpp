@@ -317,8 +317,10 @@ std::vector<TString> TConnection::DiscoverProxiesViaRpc()
 
 std::vector<TString> TConnection::DiscoverProxiesViaHttp()
 {
+    auto correlationId = TGuid::Create();
+
     try {
-        YT_LOG_DEBUG("Updating proxy list via HTTP");
+        YT_LOG_DEBUG("Updating proxy list via HTTP (CorrelationId: %v)", correlationId);
 
         auto poller = TTcpDispatcher::Get()->GetXferPoller();
         auto client = NHttp::CreateClient(Config_->HttpClient, std::move(poller));
@@ -326,8 +328,8 @@ std::vector<TString> TConnection::DiscoverProxiesViaHttp()
         if (auto token = DiscoveryToken_.Load()) {
             headers->Add("Authorization", "OAuth " + token);
         }
+        headers->Add("X-YT-Correlation-Id", ToString(correlationId));
         headers->Add("X-YT-Header-Format", "<format=text>yson");
-
         headers->Add(
             "X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
                 .BeginMap()
@@ -345,16 +347,20 @@ std::vector<TString> TConnection::DiscoverProxiesViaHttp()
 
         if (rsp->GetStatusCode() != EStatusCode::OK) {
             THROW_ERROR_EXCEPTION("HTTP proxy discovery request returned an error")
+                << TErrorAttribute("correlation_id", correlationId)
                 << TErrorAttribute("status_code", rsp->GetStatusCode())
                 << ParseYTError(rsp);
         }
 
         auto body = rsp->ReadAll();
+        YT_LOG_DEBUG("Received proxy list via HTTP (CorrelationId: %v)", correlationId);
+
         auto node = ConvertTo<INodePtr>(TYsonString(ToString(body)));
         node = node->AsMap()->FindChild("proxies");
         return ConvertTo<std::vector<TString>>(node);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error discovering RPC proxies via HTTP")
+            << TErrorAttribute("correlation_id", correlationId)
             << ex;
     }
 }
