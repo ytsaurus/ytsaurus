@@ -80,6 +80,9 @@ TDynamicCypressManagerConfig::TDynamicCypressManagerConfig()
         .Default(false)
         .DontSerializeDefault();
 
+    RegisterParameter("default_external_cell_bias", DefaultExternalCellBias)
+        .Default(1.0)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

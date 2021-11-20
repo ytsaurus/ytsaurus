@@ -335,7 +335,8 @@ public:
         ValidateCreateNonExternalNode(explicitAttributes);
         bool external = explicitAttributes->GetAndRemove<bool>("external", defaultExternal);
 
-        double externalCellBias = explicitAttributes->GetAndRemove<double>("external_cell_bias", 1.0);
+        const auto& dynamicConfig = GetDynamicConfig();
+        double externalCellBias = explicitAttributes->GetAndRemove<double>("external_cell_bias", dynamicConfig->DefaultExternalCellBias);
         if (externalCellBias < 0.0 || externalCellBias > 1.0) {
             THROW_ERROR_EXCEPTION("\"external_cell_bias\" must be in range [0, 1]");
         }
@@ -661,6 +662,12 @@ private:
             "Check for `external=%%false' in object attributes and do not specify "
             "this attribute",
             user->GetName());
+    }
+
+    const TDynamicCypressManagerConfigPtr& GetDynamicConfig()
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        return configManager->GetConfig()->CypressManager;
     }
 };
 

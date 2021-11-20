@@ -74,6 +74,8 @@ public:
     // COMPAT(shakurov)
     bool ClearPrerequisitesFromExternalizedRequests;
 
+    double DefaultExternalCellBias;
+
     TDynamicCypressManagerConfig();
 };
 
