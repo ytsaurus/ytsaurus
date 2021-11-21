@@ -82,7 +82,7 @@ class TestSchedulingSegments(YTEnvSetup):
     # NB(eshcherbin): This method always returns NO nodes for the default segment.
     def _get_nodes_for_segment_in_tree(self, segment, tree="default"):
         node_states = get("//sys/scheduler/segments_state/node_states", default={})
-        return [node_state["address"] for _, node_state in node_states.iteritems()
+        return [node_state["address"] for _, node_state in node_states.items()
                 if node_state["segment"] == segment and node_state["tree"] == tree]
 
     @classmethod
@@ -949,7 +949,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
         wait(lambda: len(op.get_running_jobs()) == 5)
         jobs = op.get_running_jobs()
-        for _, job in jobs.iteritems():
+        for _, job in jobs.items():
             assert get("//sys/cluster_nodes/" + job["address"] + "/@data_center", default="") == dc
 
     @authors("eshcherbin")

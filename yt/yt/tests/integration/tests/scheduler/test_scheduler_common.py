@@ -15,7 +15,7 @@ from yt_commands import (
     run_test_vanilla, run_sleeping_vanilla, get_job_fail_context, dump_job_context,
     get_singular_chunk_id, PrepareTables,
     raises_yt_error,
-    get_statistics)
+    get_statistics, sorted_dicts)
 
 from yt_type_helpers import make_schema
 
@@ -40,7 +40,7 @@ try:
 except ImportError:
     import zstandard as zstd
 
-import __builtin__
+import builtins
 
 
 ##################################################################
@@ -109,7 +109,7 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_failed_jobs_twice(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(200)])
+        write_table("//tmp/t1", [{"foo": "bar"} for _ in range(200)])
 
         op = map(
             track=False,
@@ -132,7 +132,7 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_job_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
+        write_table("//tmp/t1", [{"foo": "bar"} for _ in range(10)])
 
         op = map(
             track=False,
@@ -158,7 +158,7 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_job_stderr_size(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
+        write_table("//tmp/t1", [{"foo": "bar"} for _ in range(10)])
 
         op = map(
             track=False,
@@ -182,7 +182,7 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_estimated_statistics(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"key": i} for i in xrange(5)])
+        write_table("//tmp/t1", [{"key": i} for i in range(5)])
 
         sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
         op = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
@@ -332,7 +332,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        assert op.read_stderr(job_ids[0]) == "/bin/bash: /non_existed_command: No such file or directory\n"
+        assert op.read_stderr(job_ids[0]) == b"/bin/bash: /non_existed_command: No such file or directory\n"
 
     @authors("ignat")
     def test_pipe_statistics(self):
@@ -358,7 +358,7 @@ class TestSchedulerCommon(YTEnvSetup):
             },
         )
 
-        write_table("//tmp/t_in", [{"value": "A" * 1024} for _ in xrange(10)])
+        write_table("//tmp/t_in", [{"value": "A" * 1024} for _ in range(10)])
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 1})
 
@@ -423,7 +423,7 @@ class TestSchedulerCommon(YTEnvSetup):
             },
         )
 
-        for i in xrange(2):
+        for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
         command = 'cat >/dev/null; echo "{key=1; value=one}"'
@@ -619,7 +619,7 @@ class TestSchedulerCommon(YTEnvSetup):
         testing_options = {"scheduling_delay": 100}
 
         job_count = 20
-        original_data = [{"index": i} for i in xrange(job_count)]
+        original_data = [{"index": i} for i in range(job_count)]
         write_table("//tmp/input", original_data)
 
         operation_count = 5
@@ -663,7 +663,7 @@ class TestSchedulerCommon(YTEnvSetup):
         for index, op in enumerate(ops):
             output = "//tmp/output" + str(index)
             op.track()
-            assert sorted(read_table(output)) == original_data
+            assert sorted_dicts(read_table(output)) == original_data
 
         time.sleep(5)
         statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
@@ -683,7 +683,7 @@ class TestSchedulerCommon(YTEnvSetup):
         testing_options = {"scheduling_delay": 250}
 
         job_count = 1000
-        original_data = [{"index": i} for i in xrange(job_count)]
+        original_data = [{"index": i} for i in range(job_count)]
         write_table("//tmp/input", original_data)
 
         create("table", "//tmp/output")
@@ -704,7 +704,7 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
 
-        data = [{"a": i} for i in xrange(5)]
+        data = [{"a": i} for i in range(5)]
         write_table("//tmp/t1", data)
 
         map(in_="//tmp/t1", out="//tmp/t2", command="sleep 1; cat /proc/self/fd/0")
@@ -729,7 +729,7 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_complete_op(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        for i in xrange(5):
+        for i in range(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
         op = map(
@@ -898,7 +898,7 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_controller_throttling(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
-        for i in xrange(25):
+        for i in range(25):
             write_table("<append=%true>//tmp/t_in", [{"a": i}])
 
         def get_controller_throttling_schedule_job_fail_count():
@@ -1054,7 +1054,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
 
     @authors("ignat")
     def test_max_data_slices_per_job(self):
-        data = [{"foo": i} for i in xrange(5)]
+        data = [{"foo": i} for i in range(5)]
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
         create("table", "//tmp/out")
@@ -1143,7 +1143,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 
     @authors("ignat")
     def test_max_children_per_attach_request(self):
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         create("table", "//tmp/in")
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
@@ -1155,12 +1155,12 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        assert sorted(read_table("//tmp/out")) == sorted(data)
+        assert sorted_dicts(read_table("//tmp/out")) == sorted_dicts(data)
         assert get("//tmp/out/@row_count") == 3
 
     @authors("ignat")
     def test_max_children_per_attach_request_in_live_preview(self):
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         create("table", "//tmp/in")
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
@@ -1178,7 +1178,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         for job_id in jobs[:2]:
             release_breakpoint(job_id=job_id)
 
-        for iter in xrange(100):
+        for _ in range(100):
             jobs_exist = exists(op.get_path() + "/@progress/jobs")
             if jobs_exist:
                 completed_jobs = get(op.get_path() + "/@progress/jobs/completed/total")
@@ -1384,7 +1384,7 @@ class TestSchedulerOperationSnapshots(YTEnvSetup):
     @authors("ignat")
     def test_snapshots(self):
         create("table", "//tmp/in")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in range(5)])
         create("table", "//tmp/out")
 
         testing_options = {"scheduling_delay": 500}
@@ -1418,7 +1418,7 @@ class TestSchedulerOperationSnapshots(YTEnvSetup):
         testing_options = {"scheduling_delay": 100}
 
         job_count = 1
-        original_data = [{"index": i} for i in xrange(job_count)]
+        original_data = [{"index": i} for i in range(job_count)]
         write_table("//tmp/input", original_data)
 
         operation_count = 5
@@ -1453,7 +1453,7 @@ class TestSchedulerOperationSnapshots(YTEnvSetup):
     @authors("ignat")
     def test_suspend_time_limit(self):
         create("table", "//tmp/in")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in range(5)])
 
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
@@ -1514,7 +1514,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
 
     @authors("renadeen", "ignat")
     def test_job_count(self):
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         create("table", "//tmp/in")
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
@@ -1586,7 +1586,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
     def test_scheduler_job_by_id(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+        write_table("//tmp/in", [{"foo": i} for i in range(10)])
 
         op = map(
             track=False,
@@ -1598,8 +1598,8 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         wait_breakpoint()
         running_jobs = op.get_running_jobs()
-        job_id = running_jobs.keys()[0]
-        job_info = running_jobs.values()[0]
+        job_id = next(iter(running_jobs.keys()))
+        job_info = next(iter(running_jobs.values()))
 
         # Check that /jobs is accessible only with direct job id.
         with pytest.raises(YtError):
@@ -1620,7 +1620,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
     def test_scheduler_job_statistics(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+        write_table("//tmp/in", [{"foo": i} for i in range(10)])
 
         op = map(
             track=False,
@@ -1632,10 +1632,10 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         wait_breakpoint()
         running_jobs = op.get_running_jobs()
-        job_id = running_jobs.keys()[0]
+        job_id = next(iter(running_jobs.keys()))
 
         statistics_appeared = False
-        for iter in xrange(300):
+        for _ in range(300):
             statistics = get("//sys/scheduler/orchid/scheduler/jobs/{0}/statistics".format(job_id))
             data = statistics.get("data", {})
             _input = data.get("input", {})
@@ -1660,7 +1660,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
     def test_scheduler_operation_statistics(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+        write_table("//tmp/in", [{"foo": i} for i in range(10)])
 
         op = map(
             in_="//tmp/in",
@@ -1799,10 +1799,10 @@ class TestNewLivePreview(YTEnvSetup):
         # We try all possible combinations of chunk and row index ranges and check that everything works as expected.
         expected_all_ranges_data = []
         all_ranges = []
-        for lower_row_index in range(10) + [None]:
-            for upper_row_index in range(10) + [None]:
-                for lower_chunk_index in range(4) + [None]:
-                    for upper_chunk_index in range(4) + [None]:
+        for lower_row_index in list(range(10)) + [None]:
+            for upper_row_index in list(range(10)) + [None]:
+                for lower_chunk_index in list(range(4)) + [None]:
+                    for upper_chunk_index in list(range(4)) + [None]:
                         lower_limit = dict()
                         real_lower_index = 0
                         if lower_row_index is not None:
@@ -1825,10 +1825,10 @@ class TestNewLivePreview(YTEnvSetup):
                         expected_all_ranges_data += [live_preview_data[real_lower_index:real_upper_index]]
 
         all_ranges_path = (
-            "<"
+            b"<"
             + yson.dumps({"ranges": all_ranges}, yson_type="map_fragment", yson_format="text")
-            + ">"
-            + live_preview_path
+            + b">"
+            + live_preview_path.encode("ascii")
         )
 
         all_ranges_data = read_table(all_ranges_path, verbose=False)
@@ -1936,7 +1936,7 @@ class TestConnectToMaster(YTEnvSetup):
         wait(lambda: self.has_safe_mode_error_in_log())
 
     def has_safe_mode_error_in_log(self):
-        with open(self.path_to_run + "/logs/scheduler-0.log.zst") as file:
+        with open(self.path_to_run + "/logs/scheduler-0.log.zst", "rb") as file:
             decompressor = zstd.ZstdDecompressor()
             binary_reader = decompressor.stream_reader(file, read_size=8192)
             text_stream = io.TextIOWrapper(binary_reader, encoding='utf-8')
@@ -2011,7 +2011,7 @@ class TestEventLog(YTEnvSetup):
         # wait for scheduler to dump the event log
         def check():
             res = read_table("//sys/scheduler/event_log")
-            event_types = __builtin__.set()
+            event_types = builtins.set()
             for item in res:
                 event_types.add(item["event_type"])
                 if item["event_type"] == "job_completed":
@@ -2057,7 +2057,7 @@ class TestEventLog(YTEnvSetup):
                 res = read_table("//sys/scheduler/event_log")
             except YtError:
                 return False
-            event_types = __builtin__.set([item["event_type"] for item in res])
+            event_types = builtins.set([item["event_type"] for item in res])
             for event in [
                 "scheduler_started",
                 "operation_started",

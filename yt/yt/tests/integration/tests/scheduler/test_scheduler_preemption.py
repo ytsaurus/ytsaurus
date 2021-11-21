@@ -12,7 +12,7 @@ from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
     scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path)
 
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import range
 
 from yt.test_helpers import are_almost_equal
 
@@ -103,7 +103,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     def test_preemption(self):
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
-        for i in xrange(3):
+        for i in range(3):
             write_table("<append=true>//tmp/t_in", {"foo": "bar"})
 
         create("table", "//tmp/t_out1")
@@ -158,7 +158,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         }
         if interruptible:
             data_size_per_job = get("//tmp/t_in/@uncompressed_data_size")
-            spec["data_size_per_job"] = data_size_per_job / 3 + 1
+            spec["data_size_per_job"] = data_size_per_job // 3 + 1
         else:
             spec["job_count"] = 3
 
@@ -314,7 +314,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     @authors("asaitgalin", "ignat")
     def test_preemption_of_jobs_excessing_resource_limits(self):
         create("table", "//tmp/t_in")
-        for i in xrange(3):
+        for i in range(3):
             write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
 
         create("table", "//tmp/t_out")
@@ -353,7 +353,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("table", "//tmp/t_out0")
         create("table", "//tmp/t_out1")
 
-        for i in xrange(3):
+        for i in range(3):
             write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
 
         op0 = map(
@@ -661,7 +661,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
         wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 0.0)
 
         create("table", "//tmp/t_in")
-        for i in xrange(1):
+        for i in range(1):
             write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
 
         create("table", "//tmp/t_out1")
@@ -718,7 +718,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
         )
 
         create("table", "//tmp/t_in")
-        for i in xrange(1):
+        for i in range(1):
             write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
 
         create("table", "//tmp/t_out1")
@@ -801,7 +801,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
             return op.get_runtime_progress("scheduling_info_per_pool_tree/default/usage_ratio", 0.0)
 
         ops = []
-        for index in xrange(2):
+        for index in range(2):
             create("table", "//tmp/t_out" + str(index))
             op = run_sleeping_vanilla(
                 job_count=4,

@@ -21,7 +21,7 @@ import json
 import os
 import pytest
 import shutil
-import __builtin__
+import builtins
 
 
 FORMAT_LIST = [
@@ -119,7 +119,7 @@ class TestGetJobInput(YTEnvSetup):
     def check_job_ids(self, job_id_iter):
         for job_id in job_id_iter:
             input_file = os.path.join(self._tmpdir, job_id)
-            with open(input_file) as inf:
+            with open(input_file, "rb") as inf:
                 actual_input = inf.read()
             assert actual_input
             assert get_job_input(job_id) == actual_input
@@ -130,7 +130,7 @@ class TestGetJobInput(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
+        write_table("//tmp/t_input", [{"foo": i} for i in range(100)])
 
         op = map(
             in_="//tmp/t_input",
@@ -162,7 +162,7 @@ class TestGetJobInput(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
+        write_table("//tmp/t_input", [{"foo": i} for i in range(100)])
 
         op = map(
             in_="//tmp/t_input",
@@ -183,7 +183,7 @@ class TestGetJobInput(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
+        write_table("//tmp/t_input", [{"foo": i} for i in range(100)])
 
         cmd = "echo 1 >&2 ; cat | tee {0}/$YT_JOB_ID".format(self._tmpdir)
         reducer_cmd = " ; ".join(
@@ -320,18 +320,18 @@ class TestGetJobInput(YTEnvSetup):
     @authors("psushin")
     def test_map_input_paths(self):
         create("table", "//tmp/in1")
-        for i in xrange(0, 5, 2):
+        for i in range(0, 5, 2):
             write_table(
                 "<append=true>//tmp/in1",
-                [{"key": "%05d" % (i + j), "value": "foo"} for j in xrange(2)],
+                [{"key": "%05d" % (i + j), "value": "foo"} for j in range(2)],
                 sorted_by=["key"],
             )
 
         create("table", "//tmp/in2")
-        for i in xrange(3, 24, 2):
+        for i in range(3, 24, 2):
             write_table(
                 "<append=true>//tmp/in2",
-                [{"key": "%05d" % ((i + j) / 4), "value": "bar"} for j in xrange(2)],
+                [{"key": "%05d" % ((i + j) / 4), "value": "bar"} for j in range(2)],
                 sorted_by=["key", "value"],
             )
 
@@ -357,7 +357,7 @@ class TestGetJobInput(YTEnvSetup):
 
         assert len(job_ids) == 1
         expected = yson.loads(
-            """[
+            b"""[
             <ranges=[{lower_limit={row_index=0};upper_limit={row_index=6}}]>"//tmp/in1";
             <ranges=[
                 {lower_limit={row_index=0;key=["00001"]};upper_limit={row_index=14;key=["00004"]}};
@@ -371,7 +371,7 @@ class TestGetJobInput(YTEnvSetup):
     def test_nonuser_job_type(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
-        write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
+        write_table("//tmp/t_input", [{"foo": i} for i in range(100)])
         op = sort(in_="//tmp/t_input", out="//tmp/t_output", sort_by=["foo"])
 
         wait(lambda: get_job_rows_for_operation(op.id))
@@ -393,7 +393,7 @@ class TestGetJobInput(YTEnvSetup):
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
 
-        write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
+        write_table("//tmp/t_input", [{"foo": i} for i in range(100)])
 
         op = map(
             in_="//tmp/t_input",
@@ -409,7 +409,7 @@ class TestGetJobInput(YTEnvSetup):
         wait_for_data_in_job_archive(op.id, job_ids)
 
         old_chunk_list_id = get("//tmp/t_input/@chunk_list_id")
-        write_table("//tmp/t_input", [{"bar": i} for i in xrange(100)])
+        write_table("//tmp/t_input", [{"bar": i} for i in range(100)])
 
         wait(lambda: not exists("#" + old_chunk_list_id))
         gc_collect()
@@ -418,7 +418,7 @@ class TestGetJobInput(YTEnvSetup):
         assert job_ids
         for job_id in job_ids:
             input_file = os.path.join(self._tmpdir, job_id)
-            with open(input_file) as inf:
+            with open(input_file, "rb") as inf:
                 actual_input = inf.read()
             assert actual_input
             with pytest.raises(YtError):
@@ -429,7 +429,7 @@ class TestGetJobInput(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
+        write_table("//tmp/t_input", [{"foo": i} for i in range(100)])
 
         op = map(
             in_="//tmp/t_input",
@@ -465,7 +465,7 @@ class TestGetJobInput(YTEnvSetup):
         assert job_ids
         for job_id in job_ids:
             input_file = os.path.join(self._tmpdir, job_id)
-            with open(input_file) as inf:
+            with open(input_file, "rb") as inf:
                 actual_input = inf.read()
             assert actual_input
             with pytest.raises(YtError):
@@ -477,7 +477,7 @@ class TestGetJobInput(YTEnvSetup):
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
 
-        write_table("//tmp/t_input", [{"a": i, "b": i * 3} for i in xrange(10)])
+        write_table("//tmp/t_input", [{"a": i, "b": i * 3} for i in range(10)])
 
         op = map(
             in_="//tmp/t_input",
@@ -496,7 +496,7 @@ class TestGetJobInput(YTEnvSetup):
         assert job_ids
         wait_for_data_in_job_archive(op.id, job_ids)
 
-        assert read_table("//tmp/t_output") == [{"c": i * 4} for i in xrange(1, 10)]
+        assert read_table("//tmp/t_output") == [{"c": i * 4} for i in range(1, 10)]
 
         job_ids = os.listdir(self._tmpdir)
         assert job_ids
@@ -508,7 +508,7 @@ class TestGetJobInput(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("//tmp/t_input", [{"a": i, "b": i * 3} for i in xrange(10)])
+        write_table("//tmp/t_input", [{"a": i, "b": i * 3} for i in range(10)])
 
         op = map(
             in_="//tmp/t_input",
@@ -539,7 +539,7 @@ class TestGetJobInput(YTEnvSetup):
     def test_archive_job_spec(self, successfull_jobs):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
-        write_table("//tmp/t_input", [{"foo": i} for i in xrange(25)])
+        write_table("//tmp/t_input", [{"foo": i} for i in range(25)])
 
         op = map(
             in_="//tmp/t_input",
@@ -623,15 +623,15 @@ class TestGetJobStderr(YTEnvSetup):
 
         job_id = wait_breakpoint()[0]
 
-        wait(lambda: retry(lambda: get_job_stderr(op.id, job_id)) == "STDERR-OUTPUT\n")
+        wait(lambda: retry(lambda: get_job_stderr(op.id, job_id)) == b"STDERR-OUTPUT\n")
         release_breakpoint()
         op.track()
         res = get_job_stderr(op.id, job_id)
-        assert res == "STDERR-OUTPUT\n"
+        assert res == b"STDERR-OUTPUT\n"
 
         clean_operations()
 
-        wait(lambda: get_job_stderr(op.id, job_id) == "STDERR-OUTPUT\n")
+        wait(lambda: get_job_stderr(op.id, job_id) == b"STDERR-OUTPUT\n")
 
     @authors("ignat")
     def test_get_job_stderr(self):
@@ -679,7 +679,7 @@ class TestGetJobStderr(YTEnvSetup):
             job_id = job_ids[0]
 
             # We should use 'wait' since job can be still in prepare phase in the opinion of the node.
-            wait(lambda: retry(lambda: get_job_stderr(op.id, job_id, authenticated_user="u")) == "STDERR-OUTPUT\n")
+            wait(lambda: retry(lambda: get_job_stderr(op.id, job_id, authenticated_user="u")) == b"STDERR-OUTPUT\n")
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 
@@ -693,17 +693,17 @@ class TestGetJobStderr(YTEnvSetup):
 
             def get_other_job_ids():
                 all_job_ids = {job["id"] for job in list_jobs(op.id)["jobs"]}
-                return all_job_ids - __builtin__.set(job_ids)
+                return all_job_ids - builtins.set(job_ids)
 
             wait(lambda: len(get_other_job_ids()) == 1)
             other_job_id = list(get_other_job_ids())[0]
 
-            assert "STDERR-OUTPUT\n" == get_job_stderr(op.id, job_id, authenticated_user="other")
-            assert "STDERR-OUTPUT\n" == get_job_stderr(op.id, job_id, authenticated_user="u")
+            assert b"STDERR-OUTPUT\n" == get_job_stderr(op.id, job_id, authenticated_user="other")
+            assert b"STDERR-OUTPUT\n" == get_job_stderr(op.id, job_id, authenticated_user="u")
 
             clean_operations()
 
-            wait(lambda: get_job_stderr(op.id, job_id, authenticated_user="u") == "STDERR-OUTPUT\n")
+            wait(lambda: get_job_stderr(op.id, job_id, authenticated_user="u") == b"STDERR-OUTPUT\n")
             get_job_stderr(op.id, job_id, authenticated_user="other")
 
             get_job_stderr(op.id, other_job_id, authenticated_user="other")

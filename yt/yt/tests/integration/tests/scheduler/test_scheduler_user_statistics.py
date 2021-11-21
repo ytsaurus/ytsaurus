@@ -112,7 +112,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
     def test_job_statistics_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": "b"} for i in xrange(2)])
+        write_table("//tmp/t1", [{"a": "b"} for i in range(2)])
 
         op = map(
             track=False,

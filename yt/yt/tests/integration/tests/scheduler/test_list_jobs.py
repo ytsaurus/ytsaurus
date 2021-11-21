@@ -17,7 +17,7 @@ from yt.common import date_string_to_datetime
 
 import os
 import time
-import __builtin__
+import builtins
 from copy import deepcopy
 from flaky import flaky
 from collections import defaultdict
@@ -37,7 +37,7 @@ def get_stderr_from_table(operation_id, job_id):
         )
     )
     assert len(rows) == 1
-    return rows[0]["stderr"]
+    return rows[0]["stderr"].encode("ascii", errors="ignore")
 
 
 def get_job_from_table(operation_id, job_id):
@@ -162,9 +162,9 @@ class TestListJobsBase(YTEnvSetup):
         for job in jobs:
             address = job["address"]
             address_to_job_ids[address].append(job["id"])
-        for address, job_ids in address_to_job_ids.iteritems():
+        for address, job_ids in address_to_job_ids.items():
             actual_jobs_for_address = checked_list_jobs(op.id, address=address)["jobs"]
-            assert __builtin__.set(job["id"] for job in actual_jobs_for_address) == __builtin__.set(job_ids)
+            assert builtins.set(job["id"] for job in actual_jobs_for_address) == builtins.set(job_ids)
 
     @staticmethod
     def _get_answers_for_filters_during_map(job_ids):
@@ -213,9 +213,9 @@ class TestListJobsBase(YTEnvSetup):
 
     @staticmethod
     def _validate_filters(op, answers):
-        for (name, value), correct_job_ids in answers.iteritems():
+        for (name, value), correct_job_ids in answers.items():
             jobs = checked_list_jobs(op.id, **{name: value})["jobs"]
-            assert __builtin__.set(job["id"] for job in jobs) == __builtin__.set(
+            assert builtins.set(job["id"] for job in jobs) == builtins.set(
                 correct_job_ids
             ), "Assertion for filter {}={} failed".format(name, repr(value))
         TestListJobs._validate_address_filter(op)
@@ -314,7 +314,7 @@ class TestListJobsBase(YTEnvSetup):
 
     @staticmethod
     def _validate_sorting(op, correct_answers):
-        for field_name, correct_job_ids in correct_answers.iteritems():
+        for field_name, correct_job_ids in correct_answers.items():
             for sort_order in ["ascending", "descending"]:
                 jobs = checked_list_jobs(
                     op.id,
@@ -338,7 +338,7 @@ class TestListJobsBase(YTEnvSetup):
                 group_start_idx = 0
                 for correct_group in correct_job_ids:
                     group = jobs[group_start_idx:group_start_idx + len(correct_group)]
-                    assert __builtin__.set(job["id"] for job in group) == __builtin__.set(
+                    assert builtins.set(job["id"] for job in group) == builtins.set(
                         correct_group
                     ), "Assertion for sort_field={} and sort_order={} failed".format(field_name, sort_order)
                     group_start_idx += len(correct_group)
@@ -346,7 +346,7 @@ class TestListJobsBase(YTEnvSetup):
     @staticmethod
     def _check_during_map(op, job_ids):
         res = checked_list_jobs(op.id)
-        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["map"])
+        assert builtins.set(job["id"] for job in res["jobs"]) == builtins.set(job_ids["map"])
         assert res["type_counts"] == {"partition_map": 5}
         assert res["state_counts"] == {"running": 3, "failed": 1, "aborted": 1}
 
@@ -364,7 +364,7 @@ class TestListJobsBase(YTEnvSetup):
     @staticmethod
     def _check_during_reduce(op, job_ids):
         res = checked_list_jobs(op.id)
-        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["reduce"] + job_ids["map"])
+        assert builtins.set(job["id"] for job in res["jobs"]) == builtins.set(job_ids["reduce"] + job_ids["map"])
         assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
         assert res["state_counts"] == {
             "running": 1,
@@ -387,7 +387,7 @@ class TestListJobsBase(YTEnvSetup):
     @staticmethod
     def _check_after_finish(op, job_ids, operation_cleaned):
         res = checked_list_jobs(op.id)
-        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["reduce"] + job_ids["map"])
+        assert builtins.set(job["id"] for job in res["jobs"]) == builtins.set(job_ids["reduce"] + job_ids["map"])
         assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
         assert res["state_counts"] == {"completed": 4, "failed": 1, "aborted": 1}
 
@@ -412,7 +412,7 @@ class TestListJobsBase(YTEnvSetup):
 
         res = checked_list_jobs(op.id, with_stderr=True)
         job_id = res["jobs"][0]["id"]
-        assert get_stderr_from_table(op.id, job_id) == "STDERR-OUTPUT\n"
+        assert get_stderr_from_table(op.id, job_id) == b"STDERR-OUTPUT\n"
 
     def _run_op_and_wait_mapper_breakpoint(self, spec_patch={}):
         input_table, output_table = self._create_tables()
@@ -531,7 +531,7 @@ class TestListJobsBase(YTEnvSetup):
         assert completed_map_job["pool"] == "my_pool"
         assert completed_map_job["pool_tree"] == "default"
 
-        stderr_size = len("STDERR-OUTPUT\n")
+        stderr_size = len(b"STDERR-OUTPUT\n")
         assert completed_map_job["stderr_size"] == stderr_size
 
         aborted_map_job_list = [job for job in res["jobs"] if job["id"] == aborted_map_job_id]
@@ -588,7 +588,7 @@ class TestListJobs(TestListJobsBase):
             command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"),
         )
 
-        expected_stderr_size = len("MAPPER-STDERR-OUTPUT\n")
+        expected_stderr_size = len(b"MAPPER-STDERR-OUTPUT\n")
 
         jobs = wait_breakpoint()
 
@@ -600,7 +600,7 @@ class TestListJobs(TestListJobsBase):
         res = checked_list_jobs(
             op.id,
         )
-        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(jobs)
+        assert builtins.set(job["id"] for job in res["jobs"]) == builtins.set(jobs)
         for job in res["jobs"]:
             assert job["stderr_size"] == expected_stderr_size
 
@@ -610,7 +610,7 @@ class TestListJobs(TestListJobsBase):
         )
         for job in res["jobs"]:
             assert job["stderr_size"] == expected_stderr_size
-        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(jobs)
+        assert builtins.set(job["id"] for job in res["jobs"]) == builtins.set(jobs)
 
         res = checked_list_jobs(
             op.id,

@@ -110,19 +110,19 @@ class TestSchedulerAcls(YTEnvSetup):
         for group in [self.manage_and_read_group]:
             create_group(group)
 
-        for group, members in self.group_membership.iteritems():
+        for group, members in self.group_membership.items():
             for member in members:
                 add_member(member, group)
 
     @staticmethod
     def _random_string(length):
-        return "".join(random.choice(string.letters) for _ in xrange(length))
+        return "".join(random.choice(string.ascii_letters) for _ in range(length))
 
     def _create_tables(self):
         input_path = "//tmp/input_" + self._random_string(5)
         output_path = "//tmp/output_" + self._random_string(5)
         create("table", input_path)
-        write_table(input_path, {"key": i for i in xrange(20)})
+        write_table(input_path, {"key": i for i in range(20)})
         create("table", output_path)
         return input_path, output_path
 
@@ -453,7 +453,7 @@ class TestSchedulerAcls(YTEnvSetup):
             "acl": [make_ace("allow", self.manage_and_read_user, "manage")],
         }
         with self._run_op_context_manager(spec=spec) as (op, job_id):
-            wait(lambda: op.get_alerts().keys() == ["owners_in_spec_ignored"])
+            wait(lambda: list(op.get_alerts().keys()) == ["owners_in_spec_ignored"])
             self._validate_access(self.no_rights_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.read_only_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.manage_only_user, False, _abort_op, operation_id=op.id)
@@ -503,14 +503,14 @@ class TestSchedulerAcls(YTEnvSetup):
                 parameters={"acl": [make_ace("allow", "missing_user", ["read", "manage"])]},
             )
             wait(lambda: op.get_alerts())
-            assert op.get_alerts().keys() == ["invalid_acl"]
+            assert list(op.get_alerts().keys()) == ["invalid_acl"]
 
             with Restarter(self.Env, SCHEDULERS_SERVICE):
                 pass
             time.sleep(0.1)
             op.wait_for_state("running")
 
-            assert op.get_alerts().keys() == ["invalid_acl"]
+            assert list(op.get_alerts().keys()) == ["invalid_acl"]
 
             update_op_parameters(op.id, parameters={"acl": []})
             wait(lambda: not op.get_alerts())

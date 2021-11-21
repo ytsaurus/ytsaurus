@@ -1807,7 +1807,7 @@ class TestSchedulerPoolConfigPresets(YTEnvSetup):
         set("//sys/pool_trees/default/pool/@config_preset", "preset")
 
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
-        assert "contains unrecognized options" in yson.dumps(get("//sys/scheduler/@alerts")[0], yson_format="text")
+        assert b"contains unrecognized options" in yson.dumps(get("//sys/scheduler/@alerts")[0], yson_format="text")
 
     def test_preset_with_unrecognized_option(self):
         create_pool("pool", wait_for_orchid=True)
@@ -1823,7 +1823,7 @@ class TestSchedulerPoolConfigPresets(YTEnvSetup):
         set("//sys/pool_trees/default/pool/@config_preset", "preset")
 
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
-        assert "contains unrecognized options" in yson.dumps(get("//sys/scheduler/@alerts")[0], yson_format="text")
+        assert b"contains unrecognized options" in yson.dumps(get("//sys/scheduler/@alerts")[0], yson_format="text")
 
     def test_preset_with_incorrect_option(self):
         create_pool("pool", wait_for_orchid=True)
@@ -1839,5 +1839,5 @@ class TestSchedulerPoolConfigPresets(YTEnvSetup):
         set("//sys/pool_trees/default/pool/@config_preset", "preset")
 
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
-        assert "failed to load as TPoolPresetConfig" \
+        assert b"failed to load as TPoolPresetConfig" \
                in yson.dumps(get("//sys/scheduler/@alerts")[0], yson_format="text")

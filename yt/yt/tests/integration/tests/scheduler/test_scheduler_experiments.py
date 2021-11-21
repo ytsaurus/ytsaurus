@@ -1,4 +1,4 @@
-import __builtin__
+import builtins
 
 from yt_env_setup import YTEnvSetup, is_asan_build, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
@@ -168,7 +168,7 @@ class TestSchedulerExperiments(YTEnvSetup):
         def get_controller_agent_address(events):
             addresses = [event["attributes"].get("controller_agent_address") for event in events]
             addresses = [address for address in addresses if address is not None]
-            addresses = list(__builtin__.set(addresses))
+            addresses = list(builtins.set(addresses))
             assert len(addresses) == 1
             return addresses[0]
 
@@ -214,7 +214,7 @@ class TestSchedulerExperiments(YTEnvSetup):
         # we mark all operations from this test with a unique random guid taken from created table id.
         guid = get("//tmp/t_in/@id")
         operation_count = 200
-        for i in xrange(operation_count):
+        for i in range(operation_count):
             map(in_=["//tmp/t_in"],
                 out=[],
                 command="exit 0",

@@ -4,7 +4,7 @@ from yt_env_setup import (
     SCHEDULERS_SERVICE,
     NODES_SERVICE,
 )
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import range
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
@@ -37,7 +37,7 @@ from flaky import flaky
 import os
 import time
 
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -87,7 +87,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     def _check_running_jobs(self, op, desired_running_jobs):
         success_iter = 0
         min_success_iteration = 10
-        for i in xrange(100):
+        for i in range(100):
             running_jobs = op.get_running_jobs()
             if running_jobs:
                 assert len(running_jobs) <= desired_running_jobs
@@ -174,7 +174,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         def check_limits():
             stats = get(scheduler_orchid_default_pool_tree_path())
             pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
-            for resource, limit in resource_limits.iteritems():
+            for resource, limit in resource_limits.items():
                 resource_name = "user_memory" if resource == "memory" else resource
                 if not are_almost_equal(pool_resource_limits[resource_name], limit):
                     return False
@@ -183,7 +183,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         wait(check_limits)
 
         self._prepare_tables()
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         write_table("//tmp/t_in", data)
 
         memory_limit = 30 * 1024 * 1024
@@ -219,7 +219,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         )
         self._check_running_jobs(op, 1)
         op_limits = op.get_runtime_progress("scheduling_info_per_pool_tree/default/resource_limits", {})
-        for resource, limit in resource_limits.iteritems():
+        for resource, limit in resource_limits.items():
             resource_name = "user_memory" if resource == "memory" else resource
             assert are_almost_equal(op_limits[resource_name], limit)
 
@@ -228,7 +228,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         create_pool("test_pool2")
 
         self._prepare_tables()
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         write_table("//tmp/t_in", data)
 
         op = map(
@@ -257,7 +257,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     @flaky(max_runs=5)
     def test_resource_limits_runtime(self):
         self._prepare_tables()
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         write_table("//tmp/t_in", data)
 
         op = map(
@@ -287,7 +287,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/t_out_1")
         self._create_table("//tmp/t_out_2")
         self._create_table("//tmp/t_out_3")
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         write_table("//tmp/t_in", data)
 
         def get_pool_fair_share(pool, resource):
@@ -347,7 +347,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     def test_fractional_cpu_usage(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         write_table("//tmp/t_in", data)
 
         op = map(
@@ -374,7 +374,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         write_table("//tmp/t_in", data)
 
         op = map(
@@ -746,7 +746,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
     @authors("asaitgalin")
     def test_operation_count(self):
         create("table", "//tmp/in")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in range(5)])
 
         attrs = {"max_running_operation_count": 3}
         create_pool("research", attributes=attrs)
@@ -754,7 +754,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create_pool("other_subpool", parent_name="subpool", attributes=attrs)
 
         ops = []
-        for i in xrange(3):
+        for i in range(3):
             create("table", "//tmp/out_" + str(i))
             op = map(
                 command="sleep 1000; cat >/dev/null",
@@ -773,7 +773,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
-        data = [{"foo": i} for i in xrange(5)]
+        data = [{"foo": i} for i in range(5)]
         write_table("//tmp/in", data)
 
         op1 = map(track=False, command="sleep 5.0; cat", in_=["//tmp/in"], out="//tmp/out1")
@@ -787,8 +787,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         op1.track()
         op2.track()
 
-        assert sorted(read_table("//tmp/out1")) == sorted(data)
-        assert sorted(read_table("//tmp/out2")) == sorted(data)
+        assert read_table("//tmp/out1") == data
+        assert read_table("//tmp/out2") == data
 
     @authors("ermolovd", "ignat")
     def test_abort_of_pending_operation(self):
@@ -796,7 +796,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
         create("table", "//tmp/out3")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in range(5)])
 
         command = with_breakpoint("cat > /dev/null ; BREAKPOINT")
         op1 = map(track=False, command=command, in_=["//tmp/in"], out="//tmp/out1")
@@ -825,7 +825,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in range(5)])
 
         create_pool("test_pool_1")
         create_pool("test_pool_2")
@@ -866,7 +866,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
-        for i in xrange(5):
+        for i in range(5):
             create("table", "//tmp/out" + str(i))
 
         ops = []
@@ -889,22 +889,22 @@ class TestSchedulerOperationLimits(YTEnvSetup):
                 wait(lambda: op.get_state() in ("pending", "running"))
                 ops.append(op)
 
-        for i in xrange(3):
+        for i in range(3):
             run(i, "research", False)
 
-        for i in xrange(3, 5):
+        for i in range(3, 5):
             run(i, "research", True)
 
-        for i in xrange(3, 5):
+        for i in range(3, 5):
             run(i, "research_subpool", True)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        for i in xrange(3, 5):
+        for i in range(3, 5):
             run(i, "research", True)
 
-        for i in xrange(3, 5):
+        for i in range(3, 5):
             run(i, "production", False)
 
         pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools"
@@ -926,7 +926,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
-        for i in xrange(5):
+        for i in range(5):
             create("table", "//tmp/out" + str(i))
 
         ops = []
@@ -942,7 +942,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
                 )
             )
 
-        for i in xrange(1, 4):
+        for i in range(1, 4):
             run(i, "subpool")
 
         time.sleep(0.5)
@@ -1217,7 +1217,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
         write_table("<append=true>//tmp/t_in", {"foo": "bar"})
 
         ops = []
-        for i in xrange(5):
+        for i in range(5):
             table = "//tmp/t_out" + str(i)
             create("table", table)
             op = map(
@@ -1381,7 +1381,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
         set("//sys/scheduler/config/operation_hangup_safe_timeout", 100000000)
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/operation_hangup_safe_timeout") == 100000000)
 
-        data = [{"foo": str(i - (i % 2)), "bar": i} for i in xrange(8)]
+        data = [{"foo": str(i - (i % 2)), "bar": i} for i in range(8)]
         create("table", "//tmp/in")
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
@@ -1469,7 +1469,7 @@ class TestEphemeralPools(YTEnvSetup):
         assert pool["parent"] == "default_pool"
 
         scheduling_info_per_pool_tree = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
-        assert __builtin__.set(["root", "my_pool"]) == __builtin__.set(
+        assert builtins.set(["root", "my_pool"]) == builtins.set(
             get(scheduling_info_per_pool_tree + "/default/user_to_ephemeral_pools/root")
         )
 
@@ -1666,7 +1666,7 @@ class TestEphemeralPools(YTEnvSetup):
         set("//tmp/t_in/@replication_factor", 1)
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        for i in xrange(1, 5):
+        for i in range(1, 5):
             output = "//tmp/t_out" + str(i)
             create("table", output)
             set(output + "/@replication_factor", 1)
@@ -1678,7 +1678,7 @@ class TestEphemeralPools(YTEnvSetup):
 
         ops = []
         breakpoints = []
-        for i in xrange(1, 4):
+        for i in range(1, 4):
             breakpoint_name = "breakpoint{0}".format(i)
             breakpoints.append(breakpoint_name)
             ops.append(
@@ -1695,7 +1695,7 @@ class TestEphemeralPools(YTEnvSetup):
             wait_breakpoint(breakpoint_name)
 
         scheduling_info_per_pool_tree = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
-        assert __builtin__.set(["pool" + str(i) for i in xrange(1, 4)]) == __builtin__.set(
+        assert builtins.set(["pool" + str(i) for i in range(1, 4)]) == builtins.set(
             get(scheduling_info_per_pool_tree + "/default/user_to_ephemeral_pools/root")
         )
 
@@ -1977,7 +1977,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         create("table", "//tmp/t", attributes={"replication_factor": 1})
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
         create("table", "//tmp/t2", attributes={"replication_factor": 1})
-        write_table("//tmp/t", [{"foo": i} for i in xrange(10)])
+        write_table("//tmp/t", [{"foo": i} for i in range(10)])
 
         # Jobs below are not suspicious, they are just stupid.
         op1 = map(
@@ -1989,7 +1989,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         op2 = map(track=False, command="sleep 1000", in_="//tmp/t", out="//tmp/t2")
 
-        for i in xrange(200):
+        for i in range(200):
             running_jobs1 = op1.get_running_jobs()
             running_jobs2 = op2.get_running_jobs()
             print_debug(
@@ -2008,8 +2008,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         time.sleep(5)
 
-        job1_id = running_jobs1.keys()[0]
-        job2_id = running_jobs2.keys()[0]
+        job1_id = next(iter(running_jobs1.keys()))
+        job2_id = next(iter(running_jobs2.keys()))
 
         time.sleep(1)
 
@@ -2059,7 +2059,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         )
 
         running_jobs = None
-        for i in xrange(200):
+        for i in range(200):
             running_jobs = op.get_running_jobs()
             print_debug("running_jobs:", len(running_jobs))
             if not running_jobs:
@@ -2072,7 +2072,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         time.sleep(5)
 
-        job_id = running_jobs.keys()[0]
+        job_id = next(iter(running_jobs.keys()))
 
         # Most part of the time we should be suspicious, let's check that
         for i in range(30):
@@ -2137,9 +2137,9 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
             time.sleep(1.0)
 
         assert len(running_jobs) == 1
-        job_id = running_jobs.keys()[0]
+        job_id = next(iter(running_jobs.keys()))
 
-        for i in xrange(20):
+        for i in range(20):
             suspicious = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job_id))
             if not suspicious:
                 time.sleep(1.0)
@@ -2296,7 +2296,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         time.sleep(0.5)
 
     def _init_children(self, num_children=2):
-        for i in xrange(num_children):
+        for i in range(num_children):
             create_pool("child" + str(i + 1), parent_name="parent")
 
     def _get_pool_fair_share_ratio(self, pool):

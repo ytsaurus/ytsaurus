@@ -14,7 +14,7 @@ from yt_commands import (
     run_test_vanilla, run_sleeping_vanilla,
     abort_job, get_job, get_job_fail_context,
     abandon_job, get_operation_cypress_path, sync_create_cells, update_controller_agent_config, update_scheduler_config,
-    set_banned_flag, PrepareTables, get_statistics)
+    set_banned_flag, PrepareTables, get_statistics, sorted_dicts)
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path
 
@@ -134,11 +134,11 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
-        for i in xrange(1, op_count + 1):
+        for i in range(1, op_count + 1):
             self._create_table("//tmp/t_out" + str(i))
 
         ops = []
-        for i in xrange(1, op_count):
+        for i in range(1, op_count):
             ops.append(
                 map(
                     track=False,
@@ -161,7 +161,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for op in ops:
             op.track()
 
-        for i in xrange(1, op_count):
+        for i in range(1, op_count):
             assert read_table("//tmp/t_out" + str(i)) == [{"foo": "bar"}]
 
     @authors("ignat")
@@ -237,7 +237,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     def test_suspend_during_revive(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in range(5)])
 
         op = map(track=False, command="sleep 1000", in_=["//tmp/in"], out="//tmp/out")
         op.ensure_running()
@@ -262,7 +262,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
 
-        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in range(5)])
 
         # Operation specific time limit.
         op2 = map(
@@ -283,7 +283,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
         set("//tmp/out/@account", "limited")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(3)])
+        write_table("//tmp/in", [{"foo": i} for i in range(3)])
 
         op = map(
             track=False,
@@ -338,7 +338,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
 
-        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in range(5)])
 
         op = map(
             track=False,
@@ -365,7 +365,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/out1")
         self._create_table("//tmp/out2")
         self._create_table("//tmp/out3")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in range(5)])
 
         create_pool("fifo_pool", ignore_existing=True)
         set("//sys/pools/fifo_pool/@mode", "fifo")
@@ -375,7 +375,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: get(pools_orchid + "/fifo_pool/mode") == "fifo")
 
         ops = []
-        for i in xrange(1, 4):
+        for i in range(1, 4):
             ops.append(
                 map(
                     track=False,
@@ -400,12 +400,12 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     def test_fifo_by_pending_job_count(self):
         op_count = 3
 
-        for i in xrange(1, op_count + 1):
+        for i in range(1, op_count + 1):
             self._create_table("//tmp/in" + str(i))
             self._create_table("//tmp/out" + str(i))
             write_table(
                 "//tmp/in" + str(i),
-                [{"foo": j} for j in xrange(op_count * (op_count + 1 - i))],
+                [{"foo": j} for j in range(op_count * (op_count + 1 - i))],
             )
 
         create_pool("fifo_pool", ignore_existing=True)
@@ -416,7 +416,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         time.sleep(0.6)
 
         ops = []
-        for i in xrange(1, op_count + 1):
+        for i in range(1, op_count + 1):
             ops.append(
                 map(
                     track=False,
@@ -448,7 +448,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         for tx in ls("//sys/transactions", attributes=["operation_id"]):
             if tx.attributes.get("operation_id", "") == op.id:
-                for i in xrange(10):
+                for i in range(10):
                     try:
                         abort_transaction(tx)
                     except YtResponseError as err:
@@ -590,7 +590,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     def test_suspend_resume(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
-        write_table("//tmp/t_in", [{"foo": i} for i in xrange(10)])
+        write_table("//tmp/t_in", [{"foo": i} for i in range(10)])
 
         op = map(
             track=False,
@@ -600,23 +600,23 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             spec={"data_size_per_job": 1},
         )
 
-        for i in xrange(5):
+        for i in range(5):
             time.sleep(0.5)
             op.suspend(abort_running_jobs=True)
             time.sleep(0.5)
             op.resume()
 
-        for i in xrange(5):
+        for i in range(5):
             op.suspend()
             op.resume()
 
-        for i in xrange(5):
+        for i in range(5):
             op.suspend(abort_running_jobs=True)
             op.resume()
 
         op.track()
 
-        assert sorted(read_table("//tmp/t_out")) == [{"foo": i} for i in xrange(10)]
+        assert sorted_dicts(read_table("//tmp/t_out")) == [{"foo": i} for i in range(10)]
 
     @authors("ignat")
     def test_table_changed_during_operation_prepare(self):
@@ -635,7 +635,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         )
         wait(lambda: op1.get_state() == "completed")
 
-        assert sorted(read_table("//tmp/t_in")) == [{"foo": "bar"} for _ in xrange(2)]
+        assert sorted_dicts(read_table("//tmp/t_in")) == [{"foo": "bar"} for _ in range(2)]
 
         op2 = map(
             track=False,
@@ -1143,7 +1143,7 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
         )
 
         wait(lambda: op.get_running_jobs())
-        running_job = op.get_running_jobs().keys()[0]
+        running_job = next(iter(op.get_running_jobs().keys()))
 
         release_breakpoint()
         op.track(raise_on_failed=False)
@@ -1274,7 +1274,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         print_debug("=== stdout ===")
         print_debug(stdout)
         assert child.returncode == 0
-        assert "Prepare" in stdout
+        assert b"Prepare" in stdout
 
     @authors("ignat")
     def test_unexpected_exception(self):
@@ -1659,7 +1659,7 @@ class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
         # TODO(ignat): avoid this sleep.
         time.sleep(2)
 
-        abandon_job(op.get_running_jobs().keys()[0])
+        abandon_job(next(iter(op.get_running_jobs().keys())))
 
         wait(lambda: op.get_state() == "completed")
 

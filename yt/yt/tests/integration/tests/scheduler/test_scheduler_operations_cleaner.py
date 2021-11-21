@@ -12,7 +12,7 @@ from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING, YtError, YtRespo
 import pytest
 
 from datetime import datetime, timedelta
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -35,7 +35,7 @@ def _run_maps_parallel(count, command, expect_fail=False, max_failed_job_count=1
     create("table", "//tmp/input", ignore_existing=True)
     write_table("//tmp/input", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
     ops = []
-    for i in xrange(count):
+    for i in range(count):
         create("table", "//tmp/output_{}".format(i), ignore_existing=True)
         op = map(
             in_="//tmp/input",
@@ -145,7 +145,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         # Earliest operations should be removed
         wait(lambda: len(self._get_removed_operations(ops)) == 7)
-        assert __builtin__.set(self._get_removed_operations(ops)) == __builtin__.set(ops[:7])
+        assert builtins.set(self._get_removed_operations(ops)) == builtins.set(ops[:7])
 
         def scheduler_alert_set():
             for alert in get("//sys/scheduler/@alerts"):
