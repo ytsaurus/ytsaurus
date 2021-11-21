@@ -12,7 +12,7 @@ import pytest
 
 import random
 import time
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -145,7 +145,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in range(2)])
 
         # first job hangs, second is ok.
         op = map(
@@ -156,7 +156,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         )
 
         jobs = self._wait_for_jobs(op.id)
-        job_id = jobs.keys()[0]
+        job_id = next(iter(jobs.keys()))
         address = jobs[job_id]["address"]
 
         set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(address), 0)
@@ -170,7 +170,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in range(2)])
 
         # first job hangs, second is ok.
         op = map(
@@ -182,7 +182,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         )
 
         jobs = self._wait_for_jobs(op.id)
-        job_id = jobs.keys()[0]
+        job_id = next(iter(jobs.keys()))
         address = jobs[job_id]["address"]
 
         set(
@@ -316,14 +316,14 @@ class TestSchedulingTags(YTEnvSetup):
     @authors("ignat")
     def test_tag_correctness(self):
         def get_job_nodes(op):
-            nodes = __builtin__.set()
+            nodes = builtins.set()
             for row in read_table("//sys/scheduler/event_log"):
                 if row.get("event_type") == "job_started" and row.get("operation_id") == op.id:
                     nodes.add(row["node_address"])
             return nodes
 
         self._prepare()
-        write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(20)])
+        write_table("//tmp/t_in", [{"foo": "bar"} for _ in range(20)])
 
         set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default", "tagB"])
         time.sleep(1.2)
@@ -334,7 +334,7 @@ class TestSchedulingTags(YTEnvSetup):
             spec={"scheduling_tag": "tagB", "job_count": 20},
         )
         time.sleep(0.8)
-        assert get_job_nodes(op) == __builtin__.set([self.node])
+        assert get_job_nodes(op) == builtins.set([self.node])
 
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
         time.sleep(0.8)
@@ -556,4 +556,4 @@ class TestOperationNodeBan(YTEnvSetup):
 
         jobs = list_jobs(op.id)["jobs"]
         assert all(job["state"] == "failed" for job in jobs)
-        assert len(__builtin__.set(job["address"] for job in jobs)) == 3
+        assert len(builtins.set(job["address"] for job in jobs)) == 3

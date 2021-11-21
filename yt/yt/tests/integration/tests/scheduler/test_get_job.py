@@ -15,7 +15,7 @@ from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid
 
 from flaky import flaky
 
-import __builtin__
+import builtins
 import datetime
 from copy import deepcopy
 
@@ -139,9 +139,9 @@ class _TestGetJobBase(YTEnvSetup):
 
         attributes = ["job_id", "state", "start_time"]
         job_info = retry(lambda: get_job(op_id, job_id, attributes=attributes))
-        assert __builtin__.set(attributes).issubset(__builtin__.set(job_info.keys()))
-        attribute_difference = __builtin__.set(job_info.keys()) - __builtin__.set(attributes)
-        assert attribute_difference.issubset(__builtin__.set(["archive_state", "controller_agent_state", "is_stale"]))
+        assert builtins.set(attributes).issubset(builtins.set(job_info.keys()))
+        attribute_difference = builtins.set(job_info.keys()) - builtins.set(attributes)
+        assert attribute_difference.issubset(builtins.set(["archive_state", "controller_agent_state", "is_stale"]))
         assert job_info.get("is_stale") == is_stale
 
         def check_has_spec():

@@ -13,6 +13,8 @@ import yt_error_codes
 from yt.common import YtError, YtResponseError
 
 import pytest
+
+import binascii
 import time
 
 ##################################################################
@@ -41,7 +43,7 @@ class TestJobProber(YTEnvSetup):
     def test_abandon_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        for i in xrange(5):
+        for i in range(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
         op = map(
@@ -87,7 +89,7 @@ class TestJobProber(YTEnvSetup):
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        for i in xrange(5):
+        for i in range(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
         op = map(
@@ -131,7 +133,7 @@ class TestJobProber(YTEnvSetup):
             job_id,
             operation="update",
             shell_id=shell_id,
-            keys=keys.encode("hex"),
+            keys=binascii.hexlify(keys.encode("ascii")),
             input_offset=input_offset,
         )
 
@@ -309,7 +311,7 @@ class TestJobProber(YTEnvSetup):
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        for i in xrange(5):
+        for i in range(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
         op = map(

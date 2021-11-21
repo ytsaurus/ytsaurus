@@ -14,7 +14,7 @@ import pytest
 
 import socket
 import time
-import __builtin__
+import builtins
 
 ###############################################################################################
 
@@ -134,7 +134,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"key": i} for i in range(job_count)])
 
-        mapper = """
+        mapper = b"""
 #!/usr/bin/python
 import time
 
@@ -508,7 +508,7 @@ class TestSchedulerGpu(YTEnvSetup):
 
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
-        assert jobs.values()[0]["address"] == gpu_node
+        assert next(iter(jobs.values()))["address"] == gpu_node
 
     @authors("ignat")
     def test_min_share_resources(self):
@@ -522,9 +522,9 @@ class TestSchedulerGpu(YTEnvSetup):
             jobs = op.get_running_jobs()
             if len(jobs) != 1:
                 return False
-            assert jobs.values()[0]["address"] == gpu_node
+            assert next(iter(jobs.values()))["address"] == gpu_node
             job_info = get(
-                "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(gpu_node, jobs.keys()[0])
+                "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(gpu_node, next(iter(jobs.keys())))
             )
             job_gpu_indexes = sorted([device["device_number"] for device in job_info["exec_attributes"]["gpu_devices"]])
             if job_gpu_indexes != sorted(gpu_indexes):
@@ -642,8 +642,8 @@ class TestPorts(YTEnvSetup):
         op.track()
 
         stderr = op.read_stderr(jobs[0])
-        assert "FAILED" not in stderr
-        ports = __builtin__.map(int, stderr.split())
+        assert b"FAILED" not in stderr
+        ports = list(builtins.map(int, stderr.split()))
         assert len(ports) == 2
         assert ports[0] != ports[1]
 
@@ -665,8 +665,8 @@ class TestPorts(YTEnvSetup):
         assert len(jobs) == 1
 
         stderr = op.read_stderr(jobs[0])
-        assert "FAILED" not in stderr
-        ports = __builtin__.map(int, stderr.split())
+        assert b"FAILED" not in stderr
+        ports = list(builtins.map(int, stderr.split()))
         assert len(ports) == 2
         assert ports[0] != ports[1]
 

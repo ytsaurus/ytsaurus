@@ -416,7 +416,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         mutliplier = 1
         data = []
         for letter in ["a", "b", "c", "d", "e"]:
-            data.extend([{"x": letter} for _ in xrange(mutliplier)])
+            data.extend([{"x": letter} for _ in range(mutliplier)])
             mutliplier *= 10
 
         write_table("//tmp/t_in", data)

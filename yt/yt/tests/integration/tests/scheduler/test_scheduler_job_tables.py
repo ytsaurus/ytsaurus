@@ -22,12 +22,13 @@ from yt.wrapper.common import uuid_hash_pair
 
 import binascii
 import itertools
+import logging
 import pytest
 import os
 import subprocess
 import time
 import threading
-import __builtin__
+import builtins
 from multiprocessing import Queue
 
 TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
@@ -55,9 +56,9 @@ def get_stderr_dict_from_table(table_path):
     result = {}
     stderr_rows = read_table("//tmp/t_stderr")
     for job_id, part_iter in itertools.groupby(stderr_rows, key=lambda x: x["job_id"]):
-        job_stderr = ""
+        job_stderr = b""
         for row in part_iter:
-            job_stderr += row["data"]
+            job_stderr += row["data"].encode("ascii", errors="ignore")
         result[job_id] = job_stderr
     return result
 
@@ -96,7 +97,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("//tmp/t_input", [{"key": i} for i in xrange(3)])
+        write_table("//tmp/t_input", [{"key": i} for i in range(3)])
 
         op = map(
             in_="//tmp/t_input",
@@ -113,7 +114,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("//tmp/t_input", [{"key": i} for i in xrange(2)])
+        write_table("//tmp/t_input", [{"key": i} for i in range(2)])
 
         op = map(
             in_="//tmp/t_input",
@@ -142,7 +143,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)])
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
         op = map(
             in_="//tmp/t_input",
@@ -160,7 +161,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)])
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
         op = reduce(
             in_="//tmp/t_input",
@@ -213,7 +214,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("//tmp/t_input", [{"key": i} for i in xrange(3)])
+        write_table("//tmp/t_input", [{"key": i} for i in range(3)])
 
         op = map_reduce(
             in_="//tmp/t_input",
@@ -232,7 +233,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("//tmp/t_input", [{"key": i} for i in xrange(3)])
+        write_table("//tmp/t_input", [{"key": i} for i in range(3)])
 
         op = map_reduce(
             in_="//tmp/t_input",
@@ -250,7 +251,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("//tmp/t_input", [{"key": i} for i in xrange(3)])
+        write_table("//tmp/t_input", [{"key": i} for i in range(3)])
 
         op = map_reduce(
             in_="//tmp/t_input",
@@ -268,7 +269,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("//tmp/t_input", [{"key": i} for i in xrange(100)])
+        write_table("//tmp/t_input", [{"key": i} for i in range(100)])
 
         op = map_reduce(
             in_="//tmp/t_input",
@@ -297,7 +298,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)])
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
         with pytest.raises(YtError):
             map(
@@ -320,7 +321,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)])
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
         with pytest.raises(YtError):
             map(
@@ -338,7 +339,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)])
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(3)])
 
         with pytest.raises(YtError):
             # We set max_part_size to 10MB and max_row_weight to 5MB and write 20MB of stderr.
@@ -360,7 +361,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(1)])
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in range(1)])
 
         map(
             in_="//tmp/t_input",
@@ -603,60 +604,65 @@ class TestCoreTable(YTEnvSetup):
     # Refer to core_watcher.h for core delivery process description.
     def _send_core(self, job_id, exec_name, pid, input_data, ret_dict, open_pipe=True):
         def produce_core(self, job_id, exec_name, pid, input_data, ret_dict, open_pipe):
-            node = ls("//sys/cluster_nodes")[0]
-            slot_index = get(
-                "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/slot_index".format(
-                    node, job_id
+            try:
+                node = ls("//sys/cluster_nodes")[0]
+                slot_index = get(
+                    "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/slot_index".format(
+                        node, job_id
+                    )
                 )
-            )
-            sandbox_path = "{0}/runtime_data/node/0/slots/{1}".format(self.path_to_run, slot_index)
-            core_pipe = "{0}/cores/core_{1}.pipe".format(sandbox_path, pid)
-            core_info = "{0}/cores/core_{1}.info".format(sandbox_path, pid)
-            size = 0
-            core_data = ""
+                sandbox_path = "{0}/runtime_data/node/0/slots/{1}".format(self.path_to_run, slot_index)
+                core_pipe = "{0}/cores/core_{1}.pipe".format(sandbox_path, pid)
+                core_info = "{0}/cores/core_{1}.info".format(sandbox_path, pid)
+                size = 0
+                core_data = b""
 
-            with open(core_info, "w") as info:
-                thread_id = 1234
-                signal = 11
-                container = "dummy_container"
-                datetime = "dummy_datetime"
+                with open(core_info, "w") as info:
+                    thread_id = 1234
+                    signal = 11
+                    container = "dummy_container"
+                    datetime = "dummy_datetime"
 
-                core_info_data = ""
-                core_info_data += exec_name + "\n"
-                core_info_data += str(pid) + "\n"
-                core_info_data += str(thread_id) + "\n"
-                core_info_data += str(signal) + "\n"
-                core_info_data += container + "\n"
-                core_info_data += datetime + "\n"
-                info.write(core_info_data)
+                    core_info_data = ""
+                    core_info_data += exec_name + "\n"
+                    core_info_data += str(pid) + "\n"
+                    core_info_data += str(thread_id) + "\n"
+                    core_info_data += str(signal) + "\n"
+                    core_info_data += container + "\n"
+                    core_info_data += datetime + "\n"
+                    info.write(core_info_data)
 
-            os.mkfifo(core_pipe)
-            if open_pipe:
-                try:
-                    with open(core_pipe, "w") as pipe:
-                        for chunk in input_data:
-                            pipe.write(chunk)
-                            pipe.flush()
-                            size += len(chunk)
-                            core_data += chunk
-                    pipe.close()
-                except IOError:
-                    os.remove(core_pipe)
-            ret_dict["core_info"] = {
-                "executable_name": exec_name,
-                "process_id": pid,
-                "thread_id": thread_id,
-                "signal": signal,
-                "container": container,
-                "datetime": datetime,
-                "size": size,
-                "cuda": False,
-            }
-            ret_dict["core_data"] = core_data
+                os.mkfifo(core_pipe)
+                if open_pipe:
+                    try:
+                        with open(core_pipe, "wb") as pipe:
+                            for chunk in input_data:
+                                pipe.write(chunk)
+                                pipe.flush()
+                                size += len(chunk)
+                                core_data += chunk
+                        pipe.close()
+                    except IOError:
+                        os.remove(core_pipe)
+                ret_dict["core_info"] = {
+                    "executable_name": exec_name,
+                    "process_id": pid,
+                    "thread_id": thread_id,
+                    "signal": signal,
+                    "container": container,
+                    "datetime": datetime,
+                    "size": size,
+                    "cuda": False,
+                }
+                ret_dict["core_data"] = core_data
+            except:
+                logging.getLogger().exception("Failed to produce core")
+                raise
 
         thread = threading.Thread(
             target=produce_core,
             args=(self, job_id, exec_name, pid, input_data, ret_dict, open_pipe),
+            daemon=True,
         )
         thread.start()
         return thread
@@ -690,9 +696,9 @@ class TestCoreTable(YTEnvSetup):
                 "size": 1000000,
                 "cuda": True,
             }
-            ret_dict["core_data"] = "a" * 1000000
+            ret_dict["core_data"] = b"a" * 1000000
 
-        thread = threading.Thread(target=produce_gpu_core, args=(self, job_id, ret_dict))
+        thread = threading.Thread(target=produce_gpu_core, args=(self, job_id, ret_dict), daemon=True)
         thread.start()
         return thread
 
@@ -704,17 +710,17 @@ class TestCoreTable(YTEnvSetup):
         PAGE_SIZE = 65536
         UINT64_LENGTH = 8
 
-        result = ""
+        result = b""
         ptr = 0
         while ptr < len(core_dump):
-            if core_dump[ptr] == "1":
+            if core_dump[ptr] == ord(b"1"):
                 result += core_dump[ptr + 1:ptr + 1 + PAGE_SIZE]
             else:
-                assert core_dump[ptr] == "0"
+                assert core_dump[ptr] == ord(b"0")
                 zeroes = 0
-                for idx in xrange(ptr + 1 + UINT64_LENGTH, ptr, -1):
-                    zeroes = 256 * zeroes + ord(core_dump[idx])
-                result += "\0" * zeroes
+                for idx in range(ptr + 1 + UINT64_LENGTH, ptr, -1):
+                    zeroes = 256 * zeroes + core_dump[idx]
+                result += b"\0" * zeroes
             ptr += PAGE_SIZE + 1
 
         return result
@@ -732,8 +738,8 @@ class TestCoreTable(YTEnvSetup):
             if not row["job_id"] in content:
                 content[row["job_id"]] = []
             if row["core_id"] >= len(content[row["job_id"]]):
-                content[row["job_id"]].append("")
-            content[row["job_id"]][row["core_id"]] += row["data"]
+                content[row["job_id"]].append(b"")
+            content[row["job_id"]][row["core_id"]] += row["data"].encode("utf-8")
         if decompress_sparse_core_dump:
             for job_id in content.keys():
                 for core_id in range(len(content[job_id])):
@@ -756,7 +762,7 @@ class TestCoreTable(YTEnvSetup):
         op, job_ids = self._start_operation(2)
 
         ret_dict = {}
-        t = self._send_core(job_ids[0], "user_process", 42, ["core_data"], ret_dict)
+        t = self._send_core(job_ids[0], "user_process", 42, [b"core_data"], ret_dict)
         t.join()
 
         release_breakpoint()
@@ -771,7 +777,7 @@ class TestCoreTable(YTEnvSetup):
         op, job_ids = self._start_operation(1)
 
         ret_dict = {}
-        t = self._send_core(job_ids[0], "user_process", 42, ["abcdefgh" * 10 ** 6], ret_dict)
+        t = self._send_core(job_ids[0], "user_process", 42, [b"abcdefgh" * 10 ** 6], ret_dict)
         t.join()
 
         release_breakpoint()
@@ -790,7 +796,7 @@ class TestCoreTable(YTEnvSetup):
         q1 = Queue()
         ret_dict1 = {}
         t1 = self._send_core(job_ids[0], "user_process", 42, queue_iterator(q1), ret_dict1)
-        q1.put("abc")
+        q1.put(b"abc")
         while not q1.empty():
             time.sleep(0.1)
 
@@ -799,12 +805,12 @@ class TestCoreTable(YTEnvSetup):
         # Check that second core writer blocks on writing to the named pipe by
         # providing a core that is sufficiently larger than pipe buffer size.
         ret_dict2 = {}
-        t2 = self._send_core(job_ids[0], "user_process2", 43, ["qwert" * (2 * 10 ** 4)], ret_dict2)
+        t2 = self._send_core(job_ids[0], "user_process2", 43, [b"qwert" * (2 * 10 ** 4)], ret_dict2)
 
-        q1.put("def")
+        q1.put(b"def")
         while not q1.empty():
             time.sleep(0.1)
-        assert t2.isAlive()
+        assert t2.is_alive()
         # Signalize end of the stream.
         q1.put(None)
         t1.join()
@@ -823,7 +829,7 @@ class TestCoreTable(YTEnvSetup):
         op, job_ids = self._start_operation(1, max_failed_job_count=1, fail_job_on_core_dump=fail_job_on_core_dump)
 
         ret_dict = {}
-        t = self._send_core(job_ids[0], "user_process", 42, ["core_data"], ret_dict)
+        t = self._send_core(job_ids[0], "user_process", 42, [b"core_data"], ret_dict)
         t.join()
 
         release_breakpoint()
@@ -845,7 +851,7 @@ class TestCoreTable(YTEnvSetup):
         q = Queue()
         ret_dict1 = {}
         t = self._send_core(job_ids[0], "user_process", 42, queue_iterator(q), ret_dict1)
-        q.put("abc")
+        q.put(b"abc")
         while not q.empty():
             time.sleep(0.1)
 
@@ -854,7 +860,7 @@ class TestCoreTable(YTEnvSetup):
 
         release_breakpoint(job_id=job_ids[0])
 
-        q.put("def")
+        q.put(b"def")
         q.put(None)
 
         # One may think that we can check if core forwarder process finished with
@@ -869,10 +875,10 @@ class TestCoreTable(YTEnvSetup):
         q = Queue()
         ret_dict2 = {}
         t = self._send_core(job_ids[0], "user_process", 43, queue_iterator(q), ret_dict2)
-        q.put("123")
+        q.put(b"123")
         while not q.empty():
             time.sleep(0.1)
-        q.put("456")
+        q.put(b"456")
         q.put(None)
         t.join()
 
@@ -891,7 +897,7 @@ class TestCoreTable(YTEnvSetup):
 
         op, job_ids = self._start_operation(1, core_table_path="//tmp/t")
         ret_dict = {}
-        t = self._send_core(job_ids[0], "user_process", 42, ["core_data"], ret_dict)
+        t = self._send_core(job_ids[0], "user_process", 42, [b"core_data"], ret_dict)
         t.join()
 
         release_breakpoint()
@@ -913,7 +919,7 @@ class TestCoreTable(YTEnvSetup):
         q = Queue()
         ret_dict = {}
         t = self._send_core(job_ids[0], "user_process", 42, queue_iterator(q), ret_dict)
-        q.put("abc")
+        q.put(b"abc")
         time.sleep(10)
         q.put(None)
         t.join()
@@ -937,7 +943,7 @@ class TestCoreTable(YTEnvSetup):
         ret_dict = {}
         t = self._send_core(job_ids[0], "user_process", 42, queue_iterator(q), ret_dict)
         # Once sparse core page.
-        page = "a" * (64 * 1024)
+        page = b"a" * (64 * 1024)
         q.put(page)
         time.sleep(1)
 
@@ -991,7 +997,7 @@ class TestCoreTable(YTEnvSetup):
         time.sleep(2)
 
         ret_dict = {}
-        t = self._send_core(job_ids[0], "user_process", 42, ["core_data"], ret_dict)
+        t = self._send_core(job_ids[0], "user_process", 42, [b"core_data"], ret_dict)
         t.join()
 
         with pytest.raises(YtError):
@@ -1033,7 +1039,7 @@ class TestCoreTable(YTEnvSetup):
         op, job_ids = self._start_operation(2)
 
         ret_dict = {}
-        t = self._send_core(job_ids[0], "user_process", 42, ["core_data"], ret_dict)
+        t = self._send_core(job_ids[0], "user_process", 42, [b"core_data"], ret_dict)
         t.join()
 
         release_breakpoint()
@@ -1069,7 +1075,7 @@ class TestCoreTable(YTEnvSetup):
             job_ids[0],
             "user_process",
             42,
-            ["abc" * 12345 + "\0" * 54321 + "abc" * 17424],
+            [b"abc" * 12345 + b"\0" * 54321 + b"abc" * 17424],
             ret_dict,
         )
         t.join()
@@ -1087,7 +1093,7 @@ class TestCoreTable(YTEnvSetup):
         op, job_ids = self._start_operation(2)
 
         ret_dict = {}
-        t = self._send_core(job_ids[0], "user_process", 42, ["\0" * 10 ** 6], ret_dict)
+        t = self._send_core(job_ids[0], "user_process", 42, [b"\0" * 10 ** 6], ret_dict)
         t.join()
 
         release_breakpoint()
@@ -1247,7 +1253,7 @@ class TestJobProfiling(YTEnvSetup):
 
         def profiles_ready():
             profiles = get_profiles_from_table(op.id)
-            return len(__builtin__.set(row["profile_type"] for row in profiles)) == 2
+            return len(builtins.set(row["profile_type"] for row in profiles)) == 2
 
         wait(profiles_ready)
         profiles = get_profiles_from_table(op.id)

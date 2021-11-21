@@ -111,8 +111,8 @@ class TestPoolMetrics(YTEnvSetup):
         create("table", "//t_output")
 
         # write table of 2 chunks because we want 2 jobs
-        write_table("//t_input", [{"key": i} for i in xrange(0, 100)])
-        write_table("<append=%true>//t_input", [{"key": i} for i in xrange(100, 500)])
+        write_table("//t_input", [{"key": i} for i in range(0, 100)])
+        write_table("<append=%true>//t_input", [{"key": i} for i in range(100, 500)])
 
         # create directory backed by block device and accessible to job
         os.makedirs(self.default_disk_path)
@@ -276,7 +276,7 @@ class TestPoolMetrics(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in range(2)])
 
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
         total_time_completed_parent_counter = profiler.counter("scheduler/pools/metrics/total_time_completed", {"pool": "parent"})
@@ -318,11 +318,11 @@ class TestPoolMetrics(YTEnvSetup):
     @authors("eshcherbin")
     def test_total_time_operation_by_state(self):
         create_pool("parent")
-        for i in xrange(3):
+        for i in range(3):
             create_pool("child" + str(i + 1), parent_name="parent")
 
         create("table", "//tmp/t_input")
-        for i in xrange(3):
+        for i in range(3):
             create("table", "//tmp/t_output_" + str(i + 1))
 
         write_table("//tmp/t_input", {"foo": "bar"})
@@ -430,7 +430,7 @@ class TestPoolMetrics(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in range(2)])
 
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
         total_time_completed_counter = profiler.counter("scheduler/pools/metrics/total_time_completed")
@@ -528,7 +528,7 @@ class TestPoolMetrics(YTEnvSetup):
     @authors("eshcherbin")
     def test_total_time_operation_completed_per_tree(self):
         create("table", "//tmp/t_in")
-        for i in xrange(9):
+        for i in range(9):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
         create("table", "//tmp/t_out")
 

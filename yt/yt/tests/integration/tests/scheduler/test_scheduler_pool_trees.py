@@ -26,7 +26,7 @@ import pytest
 from flaky import flaky
 
 import time
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -107,7 +107,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         )
 
         ops = []
-        for i in xrange(10):
+        for i in range(10):
             create("table", "//tmp/t_out" + str(i))
             ops.append(
                 map(
@@ -145,7 +145,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         )
 
         ops = []
-        for i in xrange(10):
+        for i in range(10):
             create("table", "//tmp/t_out" + str(i))
             ops.append(
                 map(
@@ -198,7 +198,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             wait(lambda: tag in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
 
         ops1 = []
-        for i in xrange(10):
+        for i in range(10):
             create("table", "//tmp/t_out" + str(i))
             ops1.append(
                 map(
@@ -213,7 +213,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                 )
             )
         ops12 = []
-        for i in xrange(10, 20):
+        for i in range(10, 20):
             create("table", "//tmp/t_out" + str(i))
             ops12.append(
                 map(
@@ -225,7 +225,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                 )
             )
         ops123 = []
-        for i in xrange(20, 30):
+        for i in range(20, 30):
             create("table", "//tmp/t_out" + str(i))
             ops123.append(
                 map(
@@ -251,7 +251,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     @authors("asaitgalin")
     def test_multitree_operations(self):
         create("table", "//tmp/t_in")
-        for i in xrange(15):
+        for i in range(15):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
         create("table", "//tmp/t_out")
 
@@ -270,7 +270,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     @authors("asaitgalin")
     def test_revive_multitree_operation(self):
         create("table", "//tmp/t_in")
-        for i in xrange(6):
+        for i in range(6):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
         create("table", "//tmp/t_out")
 
@@ -347,7 +347,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     @authors("asaitgalin")
     def test_fair_share(self):
         create("table", "//tmp/t_in")
-        for i in xrange(3):
+        for i in range(3):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
 
         node = create_custom_pool_tree_with_one_node("other")
@@ -425,7 +425,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     @authors("ignat")
     def test_node_tags_changed(self):
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": 1} for iter in xrange(10)])
+        write_table("//tmp/t_in", [{"x": 1} for iter in range(10)])
 
         create_pool_tree("other", config={"nodes_filter": "other"})
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
@@ -782,7 +782,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         spec = self._create_spec()
 
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": i} for i in xrange(20)])
+        write_table("//tmp/t_in", [{"x": i} for i in range(20)])
         create("table", "//tmp/t_out")
 
         op = map(
@@ -832,7 +832,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         spec = self._create_spec()
 
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
+        write_table("//tmp/t_in", [{"x": i} for i in range(30)])
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
 
@@ -878,7 +878,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         update_controller_agent_config("check_tentative_tree_eligibility_period", 500)
 
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
+        write_table("//tmp/t_in", [{"x": i} for i in range(30)])
         create("table", "//tmp/t_out")
 
         events = events_on_fs()
@@ -924,7 +924,7 @@ class TestTentativePoolTrees(YTEnvSetup):
 
         # We have 30 jobs overall, 5 should be tentative, 20 regular jobs we complete fast.
         # It must be enough to ban tentative tree.
-        context = {"completed_jobs": __builtin__.set()}
+        context = {"completed_jobs": builtins.set()}
         wait(lambda: complete_non_tentative_jobs(context))
 
         wait(lambda: op.get_job_count("completed") == 20)
@@ -941,7 +941,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         spec = self._create_spec()
 
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": i} for i in xrange(7)])
+        write_table("//tmp/t_in", [{"x": i} for i in range(7)])
         create("table", "//tmp/t_out")
 
         spec["tentative_pool_trees"] = ["missing"]
@@ -959,7 +959,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         spec = self._create_spec()
 
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
+        write_table("//tmp/t_in", [{"x": i} for i in range(30)])
         create("table", "//tmp/t_out")
 
         events = events_on_fs()
@@ -973,7 +973,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         )
 
         job_aborted = False
-        for iter in xrange(20):
+        for iter in range(20):
             time.sleep(0.5)
 
             for job_id, tentative in self._iter_running_jobs(op, other_nodes):
@@ -1013,7 +1013,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         spec["use_default_tentative_pool_trees"] = True
 
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
+        write_table("//tmp/t_in", [{"x": i} for i in range(30)])
         create("table", "//tmp/t_out")
 
         events = events_on_fs()
@@ -1074,7 +1074,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
 
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
-        assert jobs[jobs.keys()[0]]["address"] == runnable_custom_node
+        assert jobs[next(iter(jobs.keys()))]["address"] == runnable_custom_node
 
         release_breakpoint()
 
@@ -1600,7 +1600,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
 
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
-        for i in xrange(6):
+        for i in range(6):
             create("table", "//tmp/out" + str(i))
 
         ops = []
@@ -1629,16 +1629,16 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
                 wait(lambda: op.get_state() in ("pending", "running"))
                 ops.append(op)
 
-        for i in xrange(3):
+        for i in range(3):
             run(i, {"normal", "tentative"}, frozenset(), False)
 
-        for i in xrange(3, 5):
+        for i in range(3, 5):
             run(i, {"normal", "tentative"}, frozenset(), True)
 
-        for i in xrange(3, 5):
+        for i in range(3, 5):
             run(i, {"normal"}, {"tentative"}, False)
 
-        for i in xrange(5, 6):
+        for i in range(5, 6):
             run(i, {"normal"}, {"tentative"}, True)
 
         wait(lambda: get(pool_path.format("normal") + "/operation_count") == 5)

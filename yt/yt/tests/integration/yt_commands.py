@@ -28,12 +28,16 @@ import os
 import pytest
 import random
 import stat
-import string
 import sys
 import tempfile
 import time
 import traceback
 import logging
+try:
+    from string import letters as ascii_letters
+except ImportError:
+    from string import ascii_letters
+
 from datetime import datetime, timedelta
 try:
     from cStringIO import StringIO as BytesIO, OutputType
@@ -158,6 +162,10 @@ def init_drivers(clusters):
             clusters_drivers[instance._cluster_name] = [default_driver] + secondary_drivers
 
 
+def sorted_dicts(list_of_dicts):
+    return sorted(list_of_dicts, key=lambda dict: sorted(dict.items()))
+
+
 def wait_assert(check_fn, *args, **kwargs):
     last_exception = []
     last_exc_info = []
@@ -188,7 +196,7 @@ def wait_drivers():
         def driver_is_ready():
             try:
                 return get("//@", driver=cluster[cell_tag][default_api_version])
-            except:
+            except Exception:
                 root_logger.exception("Checking driver is ready failed")
                 return False
 
@@ -263,7 +271,7 @@ def get_at(obj, path, default):
 
 def prepare_path(path):
     attributes = {}
-    if isinstance(path, yson.YsonString):
+    if isinstance(path, yson.YsonType):
         attributes = path.attributes
     result = execute_command("parse_ypath", parameters={"path": path}, verbose=False, parse_yson=True)
     update_inplace(result.attributes, attributes)
@@ -724,6 +732,7 @@ def write_table(path, value=None, is_raw=False, **kwargs):
     attributes = {}
     if "sorted_by" in kwargs:
         attributes["sorted_by"] = flatten(kwargs["sorted_by"])
+        del kwargs["sorted_by"]
     kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
     return execute_command("write_table", kwargs, input_stream=input_stream)
 
@@ -1245,7 +1254,7 @@ class Operation(object):
                 message = job_info["error"]["message"]
                 stderr = self.read_stderr(job_id)
                 if stderr:
-                    message += "\n" + stderr
+                    message += "\n" + stderr.decode("utf-8", errors="ignore")
                 job_errors.append(
                     YtError(
                         message=message,
@@ -1693,7 +1702,7 @@ def remove_user(name, **kwargs):
 
 
 def make_random_string(length=10):
-    return "".join(random.choice(string.letters) for _ in xrange(length))
+    return "".join(random.choice(ascii_letters) for _ in xrange(length))
 
 
 def create_test_tables(row_count=1, **kwargs):

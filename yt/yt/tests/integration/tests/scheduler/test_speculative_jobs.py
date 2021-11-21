@@ -20,7 +20,7 @@ import time
 
 def get_sorted_jobs(op):
     jobs = []
-    for id, job in op.get_running_jobs().iteritems():
+    for id, job in op.get_running_jobs().items():
         job["id"] = id
         jobs.append(job)
 

@@ -11,7 +11,7 @@ from yt_commands import (
     create, ls,
     get, set, remove, exists, create_user, create_pool, create_pool_tree, abort_transaction, read_table,
     write_table, map, vanilla, run_test_vanilla, suspend_op,
-    get_operation, get_operation_cypress_path, PrepareTables)
+    get_operation, get_operation_cypress_path, PrepareTables, sorted_dicts)
 
 from yt_helpers import get_current_time, parse_yt_time
 
@@ -24,7 +24,7 @@ import pprint
 import random
 import time
 from datetime import timedelta
-from StringIO import StringIO
+from io import BytesIO
 
 ##################################################################
 
@@ -77,7 +77,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        for index in xrange(self.OP_COUNT):
+        for index in range(self.OP_COUNT):
             self._create_table("//tmp/t_out" + str(index))
             self._create_table("//tmp/t_err" + str(index))
 
@@ -86,7 +86,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         self._prepare_tables()
 
         ops = []
-        for index in xrange(self.OP_COUNT):
+        for index in range(self.OP_COUNT):
             op = map(
                 track=False,
                 command="sleep 1; echo 'AAA' >&2; cat",
@@ -121,7 +121,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         self._prepare_tables()
 
         ops = []
-        for index in xrange(self.OP_COUNT):
+        for index in range(self.OP_COUNT):
             op = map(
                 track=False,
                 command="sleep 20; echo 'AAA' >&2; cat",
@@ -163,7 +163,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         self._prepare_tables()
 
         ops = []
-        for index in xrange(self.OP_COUNT):
+        for index in range(self.OP_COUNT):
             op = map(
                 track=False,
                 command="sleep 20; echo 'AAA' >&2; cat",
@@ -179,7 +179,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
             ops.append(op)
 
         ok = False
-        for iter in xrange(100):
+        for iter in range(100):
             time.sleep(random.randint(5, 15) * 0.5)
             with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
                 pass
@@ -267,7 +267,7 @@ class TestSchedulerRestart(YTEnvSetup):
 
         release_breakpoint()
         op.track()
-        assert sorted(read_table("//tmp/t2")) == sorted(data)
+        assert sorted_dicts(read_table("//tmp/t2")) == sorted_dicts(data)
 
     @authors("max42", "ignat")
     def test_brief_spec(self):
@@ -447,7 +447,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
         self._create_table("//tmp/t_out")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        for iter in xrange(2):
+        for iter in range(2):
             op = map(
                 command="sleep 1000",
                 in_=["//tmp/t_in"],
@@ -630,7 +630,7 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
         wait(lambda: exists(orchid_path))
         retained_finished_jobs = get(orchid_path + "/retained_finished_jobs")
         assert len(retained_finished_jobs) == 1
-        ((job_id, attributes),) = retained_finished_jobs.items()
+        ((job_id, attributes),) = list(retained_finished_jobs.items())
         assert attributes["job_type"] == "map"
         assert attributes["state"] == "failed"
 
@@ -739,7 +739,7 @@ class OperationReviveBase(YTEnvSetup):
 
         op = self._start_op(with_breakpoint("echo '{foo=bar}'; BREAKPOINT"), track=False)
 
-        for iter in xrange(5):
+        for iter in range(5):
             self._wait_for_state(op, "running")
             with Restarter(self.Env, SCHEDULERS_SERVICE):
                 set(op.get_path() + "/@input_transaction_id", "0-0-0-0")
@@ -800,7 +800,7 @@ class OperationReviveBase(YTEnvSetup):
     # NB: test rely on timings and can flap if we hang at some point.
     @authors("ignat")
     @flaky(max_runs=3)
-    @pytest.mark.parametrize("stage", ["stage" + str(index) for index in xrange(1, 8)])
+    @pytest.mark.parametrize("stage", ["stage" + str(index) for index in range(1, 8)])
     def test_completing_with_sleep(self, stage):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
@@ -984,7 +984,7 @@ class TestSchedulerReviveForVanilla(OperationReviveBase):
 class TestJobRevivalBase(YTEnvSetup):
     def _wait_for_single_job(self, op_id):
         path = get_operation_cypress_path(op_id) + "/controller_orchid"
-        for i in xrange(500):
+        for i in range(500):
             time.sleep(0.1)
             if get(path + "/state", default=None) != "running":
                 continue
@@ -1162,7 +1162,7 @@ class TestJobRevival(TestJobRevivalBase):
         if aborted_job_count != aborted_on_revival_job_count:
             print_debug("There were aborted jobs other than during the revival process:")
             for op in ops:
-                output = StringIO()
+                output = BytesIO()
                 pprint.pprint(dict(get(op.get_path() + "/@progress/jobs/aborted")), stream=output)
                 print_debug(output.getvalue())
 
@@ -1212,7 +1212,7 @@ class TestJobRevival(TestJobRevivalBase):
         # Comment about '+10' - we need some additional room for jobs that can be non-scheduled aborted.
         wait(
             lambda: sum(
-                [events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 10)]
+                [events_on_fs().check_event("ready_for_revival_" + str(i)) for i in range(user_slots_limit + 10)]
             )
             == user_slots_limit
         )
@@ -1224,7 +1224,7 @@ class TestJobRevival(TestJobRevivalBase):
         orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
         wait(lambda: exists(orchid_path + "/operations/" + op.id))
 
-        for i in xrange(1000):
+        for i in range(1000):
             user_slots = None
             user_slots_path = orchid_path + "/operations/{0}/resource_usage/user_slots".format(op.id)
             try:
@@ -1232,7 +1232,7 @@ class TestJobRevival(TestJobRevivalBase):
             except YtError:
                 pass
 
-            for j in xrange(10):
+            for j in range(10):
                 try:
                     jobs = get(op.get_path() + "/@progress/jobs", verbose=False)
                     break
@@ -1474,7 +1474,7 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
             wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/slot_index") is not None)
             return op.get_runtime_progress("scheduling_info_per_pool_tree/default/slot_index")
 
-        for i in xrange(3):
+        for i in range(3):
             self._create_table("//tmp/t_out_" + str(i))
 
         op1 = map(
