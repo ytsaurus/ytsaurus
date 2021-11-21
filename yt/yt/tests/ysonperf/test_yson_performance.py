@@ -83,7 +83,7 @@ class TestYsonPerformance(object):
         loads_results = []
         dumps_results = []
 
-        for iteration in xrange(self.ITERATIONS_COUNT):
+        for iteration in range(self.ITERATIONS_COUNT):
             with Timer() as t:
                 loaded = list(yson.loads(raw_data, yson_type="list_fragment", always_create_attributes=False))
                 t.set_extra_info("{0}: loaded {1} rows".format(dataset, len(loaded)))
