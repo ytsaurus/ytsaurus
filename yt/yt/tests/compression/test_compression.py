@@ -20,7 +20,7 @@ def get_testcase_info_list():
     TestCaseInfo = collections.namedtuple("TestCaseInfo", ["testset", "uncompressed_file", "compressed_file"])
     result = []
     testcase_map = compression_testcases()
-    for testset_name, testset_info in testcase_map["testsets"].iteritems():
+    for testset_name, testset_info in testcase_map["testsets"].items():
         uncompressed_file = testset_info["uncompressed_file"]
         for compressed_file in testset_info["compressed_files"]:
             result.append(TestCaseInfo(testset_name, uncompressed_file, compressed_file))
@@ -33,7 +33,7 @@ class CachingFileGetter(object):
 
     def get_file(self, path):
         if path not in self.cache:
-            with open(path) as f:
+            with open(path, "rb") as f:
                 self.cache[path] = f.read()
         return self.cache[path]
 
