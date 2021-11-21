@@ -4,6 +4,7 @@
 #include "format.h"
 #endif
 
+#include "enum.h"
 #include "string.h"
 
 #include <library/cpp/yt/assert/assert.h>

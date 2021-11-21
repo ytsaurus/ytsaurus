@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <library/cpp/yt/memory/ref_counted.h>
+
 namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////

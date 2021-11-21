@@ -1,6 +1,9 @@
 #pragma once
 
-#include <yt/yt/core/misc/guid.h>
+#include <library/cpp/yt/misc/enum.h>
+#include <library/cpp/yt/misc/guid.h>
+#include <library/cpp/yt/misc/hash.h>
+
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/small_vector.h>
 

@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <library/cpp/yt/memory/ref_counted.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////

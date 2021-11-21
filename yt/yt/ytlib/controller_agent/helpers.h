@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/yson/string.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////

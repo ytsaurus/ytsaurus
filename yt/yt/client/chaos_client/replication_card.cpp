@@ -1,6 +1,7 @@
 #include "replication_card.h"
 
 #include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/serialize.h>
 
 #include <util/digest/multi.h>
@@ -183,7 +184,7 @@ void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicatio
             cmpResult = -1;
         } else if (progressIt == progressEnd) {
             cmpResult = 1;
-        } else {      
+        } else {
             cmpResult = CompareRows(progressIt->LowerKey, updateIt->LowerKey);
         }
 

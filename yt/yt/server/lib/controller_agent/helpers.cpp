@@ -3,6 +3,7 @@
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/phoenix.h>
 
 #include <util/generic/cast.h>
