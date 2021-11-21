@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
+#include <yt/yt/core/yson/public.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////

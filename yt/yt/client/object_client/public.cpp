@@ -1,6 +1,7 @@
 #include "public.h"
 
 #include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/guid.h>
 
 #include <util/string/vector.h>
 

@@ -1,7 +1,10 @@
 #pragma once
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
+
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
+
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NJobTrackerClient {
 

@@ -19,6 +19,8 @@
 
 #include <yt/yt/core/concurrency/fls.h>
 
+#include <yt/yt_proto/yt/core/misc/proto/guid.pb.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////

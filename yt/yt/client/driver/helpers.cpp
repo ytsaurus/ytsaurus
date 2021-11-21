@@ -1,6 +1,7 @@
 #include "helpers.h"
 
 #include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/guid.h>
 
 namespace NYT::NDriver {
 

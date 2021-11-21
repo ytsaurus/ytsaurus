@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/enum.h>
 
+#include <library/cpp/yt/memory/ref_counted.h>
+
 namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////

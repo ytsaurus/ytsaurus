@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////

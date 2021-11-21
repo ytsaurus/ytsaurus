@@ -22,6 +22,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////

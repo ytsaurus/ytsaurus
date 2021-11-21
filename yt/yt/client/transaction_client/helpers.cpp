@@ -3,6 +3,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/guid.h>
 
 namespace NYT::NTransactionClient {
 

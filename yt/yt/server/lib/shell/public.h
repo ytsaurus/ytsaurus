@@ -1,7 +1,9 @@
 #pragma once
 
-#include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/intrusive_ptr.h>
+
+#include <library/cpp/yt/misc/enum.h>
+#include <library/cpp/yt/misc/guid.h>
 
 namespace NYT::NShell {
 

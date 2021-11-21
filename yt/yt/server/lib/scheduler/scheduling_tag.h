@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
+#include <yt_proto/yt/core/misc/proto/guid.pb.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
