@@ -74,12 +74,12 @@ lazy val `data-source` = (project in file("data-source"))
       val subdir = if (isSnapshot.value) "snapshots" else "releases"
       val publishDir = s"$sparkYtClientPath/$subdir/${version.value}"
       val link = if (!isSnapshot.value) {
-        Seq(YtPublishLink(publishDir, s"$sparkYtLegacyClientPath/$subdir", None, version.value))
+        Seq(YtPublishLink(publishDir, s"$sparkYtLegacyClientPath/$subdir", None, version.value, isSnapshot.value))
       } else Nil
 
       link ++ Seq(
-        YtPublishFile(assembly.value, publishDir, proxy = None),
-        YtPublishFile(zip.value, publishDir, proxy = None)
+        YtPublishFile(assembly.value, publishDir, proxy = None, isSnapshot.value),
+        YtPublishFile(zip.value, publishDir, proxy = None, isSnapshot.value)
       )
     },
     assembly / assemblyShadeRules ++= clientShadeRules,
@@ -124,12 +124,12 @@ lazy val `client` = (project in file("client"))
       val legacyBasePath = s"$sparkYtLegacyBinPath/${sparkYtSubdir.value}"
       val versionValue = version.value
       val link = if (sparkReleaseLinks.value) {
-        Seq(YtPublishLink(basePath, legacyBasePath, None, versionValue))
+        Seq(YtPublishLink(basePath, legacyBasePath, None, versionValue, sparkIsSnapshot.value))
       } else Nil
 
       link ++ Seq(
-        YtPublishFile(tarArchiveBuild.value, sparkYtBinBasePath.value, None),
-        YtPublishFile((`spark-launcher` / assembly).value, sparkYtBinBasePath.value, None),
+        YtPublishFile(tarArchiveBuild.value, sparkYtBinBasePath.value, None, sparkIsSnapshot.value),
+        YtPublishFile((`spark-launcher` / assembly).value, sparkYtBinBasePath.value, None, sparkIsSnapshot.value),
       ) ++ sparkYtConfigs.value
     }
   )

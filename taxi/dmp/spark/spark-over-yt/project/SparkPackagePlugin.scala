@@ -119,9 +119,10 @@ object SparkPackagePlugin extends AutoPlugin {
         launchConfig,
         versionConfPath,
         None,
-        "spark-launch-conf"
+        "spark-launch-conf",
+        sparkIsSnapshot.value
       )
-      val configsPublish = sidecarConfigs.map(file => YtPublishFile(file, versionConfPath, None))
+      val configsPublish = sidecarConfigs.map(file => YtPublishFile(file, versionConfPath, None, sparkIsSnapshot.value))
 
       val globalConfigPublish = if (sparkReleaseGlobalConfig.value) {
         log.info(s"Prepare configs for ${ytProxies.mkString(", ")}")
@@ -131,13 +132,13 @@ object SparkPackagePlugin extends AutoPlugin {
           val proxyDefaults = readSparkDefaults(proxyDefaultsFile)
           val globalConfig = SparkGlobalConfig(proxyDefaults, sparkVersion)
 
-          YtPublishDocument(globalConfig, sparkYtConfPath, Some(proxy), "global")
+          YtPublishDocument(globalConfig, sparkYtConfPath, Some(proxy), "global", sparkIsSnapshot.value)
         }
       } else Nil
 
       val linkBasePath = s"$sparkYtLegacyConfPath/${sparkYtSubdir.value}"
       val links = if (sparkReleaseLinks.value) {
-        Seq(YtPublishLink(versionConfPath, linkBasePath, None, sparkVersion))
+        Seq(YtPublishLink(versionConfPath, linkBasePath, None, sparkVersion, sparkIsSnapshot.value))
       } else Nil
 
       links ++ configsPublish ++ (launchConfigPublish +: globalConfigPublish)
