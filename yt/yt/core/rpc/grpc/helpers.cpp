@@ -370,6 +370,10 @@ TErrorCode StatusCodeToErrorCode(grpc_status_code statusCode)
     switch (statusCode) {
         case GRPC_STATUS_OK:
             return NYT::EErrorCode::OK;
+        case GRPC_STATUS_CANCELLED:
+            return NYT::EErrorCode::Canceled;
+        case GRPC_STATUS_DEADLINE_EXCEEDED:
+            return NYT::EErrorCode::Timeout;
         case GRPC_STATUS_INVALID_ARGUMENT:
         case GRPC_STATUS_RESOURCE_EXHAUSTED:
             return NRpc::EErrorCode::ProtocolError;
