@@ -363,6 +363,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetReplicated(true)
         .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DataWeight)
+        .SetPresent(table->HasDataWeight()));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -402,6 +404,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
     }
 
     switch (key) {
+        case EInternedAttributeKey::DataWeight: {
+            if (!table->HasDataWeight()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(table->ComputeTotalStatistics().data_weight());
+            return true;
+        }
+
         case EInternedAttributeKey::ChunkRowCount:
             BuildYsonFluently(consumer)
                 .Value(statistics.row_count());

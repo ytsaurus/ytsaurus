@@ -3,7 +3,9 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, retry, create, ls, get, set, copy,
     remove, exists,
-    concatenate, start_transaction, commit_transaction, read_file, write_file, get_singular_chunk_id, set_node_banned)
+    concatenate, start_transaction, commit_transaction,
+    read_file, write_file, get_singular_chunk_id, set_node_banned,
+    raises_yt_error)
 
 from yt.common import YtError
 
@@ -267,6 +269,13 @@ class TestFiles(YTEnvSetup):
 
         write_file("//tmp/fcache5", "", compute_md5=True)
         assert get("//tmp/fcache5/@md5") == "d41d8cd98f00b204e9800998ecf8427e" == hashlib.md5("").hexdigest()
+
+    @authors("kvk1920")
+    def test_data_weight_for_files_absent(self):
+        create("file", "//tmp/file_without_data_weight")
+        assert not exists("//tmp/file_without_data_weight/@data_weight")
+        with raises_yt_error("Attribute \"data_weight\" is not found"):
+            get("//tmp/file_without_data_weight/@data_weight")
 
 
 ##################################################################
