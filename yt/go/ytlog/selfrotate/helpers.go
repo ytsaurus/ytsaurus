@@ -119,10 +119,10 @@ type fileRename struct {
 	from, to string
 }
 
-func planRotation(current *os.File, files []logFile, options Options) (remove []string, rename, compress []fileRename, err error) {
+func planRotation(dir string, files []logFile, options Options) (remove []string, rename, compress []fileRename, err error) {
 	var stat syscall.Statfs_t
 
-	err = syscall.Fstatfs(int(current.Fd()), &stat)
+	err = syscall.Statfs(dir, &stat)
 	if err != nil {
 		return
 	}

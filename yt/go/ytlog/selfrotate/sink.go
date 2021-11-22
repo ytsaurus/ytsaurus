@@ -109,7 +109,7 @@ func (w *Writer) rotate() error {
 		return err
 	}
 
-	remove, rename, compress, err := planRotation(w.file, logFiles, w.options)
+	remove, rename, compress, err := planRotation(dir, logFiles, w.options)
 	if err != nil {
 		return err
 	}
