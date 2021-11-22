@@ -265,7 +265,7 @@ class TestContainerCpuProperties(YTEnvSetup):
     @authors("prime")
     def test_force_idle_cpu_policy(self):
         update_nodes_dynamic_config({
-            "exec_node": {
+            "exec_agent": {
                 "job_controller": {
                     "job_proxy": {
                         "force_idle_cpu_policy": True,
