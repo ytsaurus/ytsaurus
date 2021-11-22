@@ -150,12 +150,12 @@ public:
         return Config_;
     }
 
-    void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) override
+    bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (AreNodesEqual(ConvertToNode(config), ConvertToNode(Config_))) {
-            return;
+            return false;
         }
 
         Config_ = config;
@@ -168,6 +168,8 @@ public:
         }
 
         YT_LOG_INFO("Tree has updated with new config");
+
+        return true;
     }
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) override
@@ -555,11 +557,11 @@ public:
         return TPoolName(poolName, std::nullopt);
     }
 
-    TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode) override
+    TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode, bool forceUpdate) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        if (LastPoolsNodeUpdate_ && AreNodesEqual(LastPoolsNodeUpdate_, poolsNode)) {
+        if (!forceUpdate && LastPoolsNodeUpdate_ && AreNodesEqual(LastPoolsNodeUpdate_, poolsNode)) {
             YT_LOG_INFO("Pools are not changed, skipping update");
             return {LastPoolsNodeUpdateError_, false};
         }

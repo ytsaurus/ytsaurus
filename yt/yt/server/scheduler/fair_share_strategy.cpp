@@ -1590,9 +1590,10 @@ private:
         for (const auto& [treeId, tree] : trees) {
             auto child = poolTreesMap->GetChildOrThrow(treeId);
 
+            bool treeConfigChanged = false;
             try {
                 const auto& config = BuildConfig(poolTreesMap, treeId);
-                tree->UpdateConfig(config);
+                treeConfigChanged = tree->UpdateConfig(config);
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to configure tree %Qv, defaults will be used", treeId)
                     << ex;
@@ -1600,7 +1601,7 @@ private:
                 continue;
             }
 
-            auto updateResult = tree->UpdatePools(child);
+            auto updateResult = tree->UpdatePools(child, treeConfigChanged);
             if (!updateResult.Error.IsOK()) {
                 errors->push_back(updateResult.Error);
             }

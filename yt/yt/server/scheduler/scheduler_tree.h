@@ -45,7 +45,7 @@ struct ISchedulerTree
     : public virtual TRefCounted
 {
     virtual TFairShareStrategyTreeConfigPtr GetConfig() const = 0;
-    virtual void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) = 0;
+    virtual bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) = 0;
     virtual void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) = 0;
 
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
@@ -90,7 +90,7 @@ struct ISchedulerTree
 
     virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) const = 0;
 
-    virtual TPoolsUpdateResult UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
+    virtual TPoolsUpdateResult UpdatePools(const NYTree::INodePtr& poolsNode, bool forceUpdate) = 0;
     virtual TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
     virtual void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName) const = 0;
