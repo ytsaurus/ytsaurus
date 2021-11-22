@@ -650,6 +650,15 @@ class YTInstance(object):
                 result.append(process.pid)
         return result
 
+    def get_node_container(self, index):
+        with self._lock:
+            processes = self._service_processes["node"]
+            process = processes[index]
+            if not isinstance(process, PortoSubprocess):
+                raise YtError("Node is not running in container")
+
+            return process._container
+
     def list_node_subcontainers(self, index):
         with self._lock:
             processes = self._service_processes["node"]

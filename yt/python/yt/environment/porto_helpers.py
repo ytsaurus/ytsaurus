@@ -65,7 +65,6 @@ class PortoSubprocess(object):
         p._connection = conn
         p._container.SetProperty("command", command)
         p._container.SetProperty("ulimit", "core: unlimited")
-        p._container.SetProperty("enable_porto", "isolate")
         p._container.SetProperty("isolate", "true")
 
         # TODO(prime@): enable controllers only when needed

@@ -294,6 +294,37 @@ class TestContainerCpuProperties(YTEnvSetup):
 ###############################################################################################
 
 
+class TestDaemonSubcontainer(YTEnvSetup):
+    USE_PORTO = True
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "resource_limits": {
+            "node_dedicated_cpu": 1,
+            "node_cpu_weight": 100,
+        },
+        "exec_agent": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                    "use_daemon_subcontainer": True,
+                }
+            }
+        }
+    }
+
+    @authors("prime")
+    def test_start(self):
+        container = self.Env.get_node_container(0)
+
+        assert container.GetProperty("cpu_weight") == '100'
+        assert container.GetProperty("cpu_guarantee") == '1c'
+
+
+###############################################################################################
+
+
 class TestUpdateInstanceLimits(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "instance_limits_update_period": 200,
