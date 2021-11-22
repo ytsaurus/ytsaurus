@@ -9,12 +9,16 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
+import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
+import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
@@ -227,6 +231,41 @@ public class YtClientCypressTest extends YtClientTestBase {
         }
 
         assertThat(actualData, is(expectedData));
+    }
+
+    @SuppressWarnings({"checkstyle:AvoidNestedBlocks"})
+    @Test
+    public void testMutationId() {
+        var fixture = createYtFixture();
+        var yt = fixture.yt;
+        {
+            var testPath = fixture.testDirectory.child("some-path");
+            var request = new CreateNode(testPath, ObjectType.Table);
+
+            yt.createNode(request).join();
+
+            GUID firstMutationId = request.getMutatingOptions().get().getMutationId();
+
+            try {
+                yt.createNode(request).join();
+            } catch (Throwable ex) {
+            }
+
+            GUID secondMutationId = request.getMutatingOptions().get().getMutationId();
+            assertThat("Different mutation ids", !firstMutationId.equals(secondMutationId));
+        }
+        {
+            var testPath = fixture.testDirectory.child("some-list");
+
+            yt.createNode(new CreateNode(testPath, ObjectType.ListNode)).join();
+
+            var setRequest = new SetNode(YPath.simple(testPath + "/end"), YTree.integerNode(1));
+            yt.setNode(setRequest).join();
+            assertThat("One item", yt.getNode(testPath + "/@count").join().intValue() == 1);
+
+            yt.setNode(setRequest).join();
+            assertThat("Two items", yt.getNode(testPath + "/@count").join().intValue() == 2);
+        }
     }
 
     @Test(timeout = 10000)
