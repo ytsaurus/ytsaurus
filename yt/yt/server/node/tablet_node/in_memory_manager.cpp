@@ -73,6 +73,9 @@ using NChunkClient::NProto::TMiscExt;
 using NChunkClient::NProto::TBlocksExt;
 using NTableClient::NProto::TBlockMetaExt;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const auto& Logger = TabletNodeLogger;

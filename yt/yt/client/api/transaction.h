@@ -35,6 +35,12 @@ struct TModifyRowsOptions
     //! controls if at least one sync replica is required.
     bool RequireSyncReplica = true;
 
+    //! For chaos replicated tables indicates if it is necessary to explore other replicas.
+    bool TopmostTransaction = true;
+
+    //! For chaos replicas pass replication card to ensure that all data is sent using same meta info.
+    NChaosClient::TReplicationCardPtr ReplicationCard;
+
     //! For writes to replicas, this is the id of the replica at the upstream cluster.
     NTabletClient::TTableReplicaId UpstreamReplicaId;
 

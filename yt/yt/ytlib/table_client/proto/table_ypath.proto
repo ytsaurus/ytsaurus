@@ -1,6 +1,7 @@
 package NYT.NTableClient.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt/ytlib/hive/proto/cell_directory.proto";
 
@@ -135,6 +136,7 @@ message TRspGetMountInfo
     repeated TReplicaInfo replicas = 7;
     // COMPAT(akozhikhov): Drop default value.
     optional bool enable_detailed_profiling = 8 [default = false];
+    optional NYT.NChaosClient.NProto.TReplicationCardToken replication_card_token = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

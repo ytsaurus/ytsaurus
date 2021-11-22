@@ -1006,6 +1006,13 @@ def _build_cluster_connection_config(yt_config,
     if yt_config.clock_count > 0:
         cluster_connection["clock_servers"] = clock_connection_configs[clock_connection_configs["cell_tag"]]
 
+    if yt_config.chaos_node_count > 0:
+        cluster_connection["replication_card_cache"] = {
+            "soft_backoff_time": 100,
+            "hard_backoff_time": 100,
+            "addresses": master_cache_addresses,
+        }
+
     if not yt_config.enable_permission_cache:
         cluster_connection["permission_cache"] = {
             "expire_after_successful_update_time": 0,

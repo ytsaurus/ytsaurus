@@ -16,6 +16,7 @@
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
@@ -67,6 +68,19 @@ using namespace NTransactionClient;
 using namespace NYPath;
 
 using NProto::TMountHint;
+
+using NYT::FromProto;
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPreloadStatistics& TPreloadStatistics::operator+=(const TPreloadStatistics& other)
+{
+    PendingStoreCount += other.PendingStoreCount;
+    CompletedStoreCount += other.CompletedStoreCount;
+    FailedStoreCount += other.FailedStoreCount;
+    return *this;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/tablet_client/table_mount_cache_detail.h>
 
@@ -326,12 +328,17 @@ private:
             tableInfo->Schemas[ETableSchemaKind::Query] = primarySchema->ToQuery();
             tableInfo->Schemas[ETableSchemaKind::Lookup] = primarySchema->ToLookup();
             tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex] = primarySchema->WithTabletIndex();
+            tableInfo->Schemas[ETableSchemaKind::ReplicationLog] = primarySchema->ToReplicationLog();
 
             tableInfo->UpstreamReplicaId = FromProto<TTableReplicaId>(rsp->upstream_replica_id());
             tableInfo->Dynamic = rsp->dynamic();
             tableInfo->NeedKeyEvaluation = primarySchema->HasComputedColumns();
 
             tableInfo->EnableDetailedProfiling = rsp->enable_detailed_profiling();
+
+            if (rsp->has_replication_card_token()) {
+                FromProto(&tableInfo->ReplicationCardToken, rsp->replication_card_token());
+            }
 
             for (const auto& protoTabletInfo : rsp->tablets()) {
                 auto tabletInfo = New<TTabletInfo>();

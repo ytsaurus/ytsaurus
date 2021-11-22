@@ -71,6 +71,16 @@ public:
         RegisterMethod(BIND(&TCoordinatorManager::HydraReqRevokeShortcuts, Unretained(this)));
     }
 
+    void Initialize() override
+    {
+        const auto& transactionManager = Slot_->GetTransactionManager();
+
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraPrepareReplicatedCommit, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraCommitReplicatedCommit, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraAbortReplicatedCommit, MakeStrong(this))));
+    }
+
     IYPathServicePtr GetOrchidService() override
     {
         return OrchidService_;
@@ -323,18 +333,7 @@ private:
         }
 
         if (!inactiveShortcuts.empty()) {
-            NChaosNode::NProto::TRspRevokeShortcuts rsp;
-            ToProto(rsp.mutable_coordinator_cell_id(), Slot_->GetCellId());
-
-            for (const auto& [replicationCardId, era] : inactiveShortcuts) {
-                auto* shortcut = rsp.add_shortcuts();
-                ToProto(shortcut->mutable_replication_card_id(), replicationCardId);
-                shortcut->set_era(era);
-            }
-
-            const auto& hiveManager = Slot_->GetHiveManager();
-            auto* mailbox = hiveManager->GetMailbox(chaosCellId);
-            hiveManager->PostMessage(mailbox, rsp);
+            SendRevokeShortcutsResponse(chaosCellId, inactiveShortcuts);
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcuts revoked (Shortcuts: %v, Inactive: %v)",
@@ -344,6 +343,109 @@ private:
             MakeFormattableView(inactiveShortcuts, [] (auto* builder, const auto& shortcut) {
                 builder->AppendFormat("<%v, %v>", shortcut.first, shortcut.second);
             }));
+    }
+
+    void HydraPrepareReplicatedCommit(TTransaction* transaction, NChaosClient::NProto::TReqReplicatedCommit* request, bool persistent)
+    {
+        YT_VERIFY(persistent);
+
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        TReplicationEra era = request->replication_era();
+
+        auto it = Shortcuts_.find(replicationCardId);
+        if (it == Shortcuts_.end()) {
+            THROW_ERROR_EXCEPTION("Shortcut for replication card is not found")
+                << TErrorAttribute("replication_card_id", replicationCardId);
+        }
+        if (it->second.State != EShortcutState::Granted) {
+            THROW_ERROR_EXCEPTION("Shortcut for replication card has been revoked")
+                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("shortcut_state", it->second.State);
+        }
+        if (it->second.Era != era) {
+            THROW_ERROR_EXCEPTION("Shortcut for replication card has different era")
+                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("shortcut_era", it->second.Era)
+                << TErrorAttribute("repliction_card_era", era);
+        }
+
+        InsertOrCrash(it->second.AliveTransactions, transaction->GetId());
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication batch prepared (ReplicationCardId: %v, TransactionId: %v)",
+            replicationCardId,
+            transaction->GetId());
+    }
+
+    void HydraCommitReplicatedCommit(TTransaction* transaction, NChaosClient::NProto::TReqReplicatedCommit* request)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        DiscardAliveTransaction(replicationCardId, transaction->GetId(), false);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication batch committed (ReplicationCardId: %v, TransactionId: %v)",
+            replicationCardId,
+            transaction->GetId());
+    }
+
+    void HydraAbortReplicatedCommit(TTransaction* transaction, NChaosClient::NProto::TReqReplicatedCommit* request)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        DiscardAliveTransaction(replicationCardId, transaction->GetId(), true);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication batch aborted (ReplicationCardId: %v, TransactionId: %v)",
+            replicationCardId,
+            transaction->GetId());
+    }
+
+    void DiscardAliveTransaction(TReplicationCardId replicationCardId, TTransactionId transactionId, bool isAbort)
+    {
+        auto it = Shortcuts_.find(replicationCardId);
+        if (it == Shortcuts_.end()) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Trying to decrease transaction count for absent shortcut (ReplicationCardId: %v, TransactionId: %v)",
+                replicationCardId,
+                transactionId);
+            YT_VERIFY(isAbort);
+            return;
+        }
+
+        if (!it->second.AliveTransactions.contains(transactionId)) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Trying to decrease transaction count for transaction absent shortcut (ReplicationCardId: %v, TransactionId: %v)",
+                replicationCardId,
+                transactionId);
+            YT_VERIFY(isAbort);
+            return;
+        }
+
+        it->second.AliveTransactions.erase(transactionId);
+
+        if (it->second.AliveTransactions.empty() && it->second.State == EShortcutState::Revoking) {
+            auto chaosCellId = it->second.CellId;
+            auto era = it->second.Era;
+
+            SendRevokeShortcutsResponse(chaosCellId, {{replicationCardId, era}});
+            Shortcuts_.erase(it);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcut revoked (ReplicationCardId: %v, Era: %v)",
+                replicationCardId,
+                era);
+        }
+    }
+
+    void SendRevokeShortcutsResponse(
+        TCellId chaosCellId,
+        const std::vector<std::pair<TReplicationCardId, TReplicationEra>>& shortcuts)
+    {
+        NChaosNode::NProto::TRspRevokeShortcuts rsp;
+        ToProto(rsp.mutable_coordinator_cell_id(), Slot_->GetCellId());
+
+        for (const auto& [replicationCardId, era] : shortcuts) {
+            auto* shortcut = rsp.add_shortcuts();
+            ToProto(shortcut->mutable_replication_card_id(), replicationCardId);
+            shortcut->set_era(era);
+        }
+
+        const auto& hiveManager = Slot_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(chaosCellId);
+        hiveManager->PostMessage(mailbox, rsp);
     }
 
 

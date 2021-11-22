@@ -8,6 +8,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
+#include <yt/yt/server/master/tablet_server/replication_card.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
@@ -90,6 +91,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, BackupState);
     Save(context, TabletCountByBackupState);
     Save(context, AggregatedTabletBackupState);
+    TNullableIntrusivePtrSerializer<>::Save(context, ReplicationCardToken);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -147,6 +149,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, BackupState);
         Load(context, TabletCountByBackupState);
         Load(context, AggregatedTabletBackupState);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterReign::ChaosDataTransfer) {
+        TNullableIntrusivePtrSerializer<>::Load(context, ReplicationCardToken);
     }
 }
 

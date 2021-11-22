@@ -25,6 +25,7 @@
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/client/table_client/columnar_statistics.h>
 
@@ -622,6 +623,32 @@ struct TExplainQueryOptions
     : public TSelectRowsOptionsBase
 {
     bool VerboseOutput = false;
+};
+
+struct TPullRowsOptions
+    : public TTabletReadOptions
+{
+    NChaosClient::TReplicaId UpstreamReplicaId;
+    THashMap<NTabletClient::TTabletId, i64> StartReplicationRowIndexes;
+    i64 TabletRowsPerRead = 1000;
+
+    NChaosClient::TReplicationProgress ReplicationProgress;
+};
+
+struct TPullRowsResult
+{
+    struct TTabletResult
+    {
+        NTabletClient::TTabletId TabletId;
+        NTableClient::TUnversionedOwningRow PivotKey;
+        TSharedRef Data;
+        i64 RowCount;
+        i64 EndReplicationRowIndex;
+        i64 DataWeight;
+        NChaosClient::TReplicationProgress ReplicationProgress;
+    };
+
+    std::vector<TTabletResult> ResultPerTablet;
 };
 
 struct TGetNodeOptions
@@ -1427,6 +1454,10 @@ struct IClientBase
         const TString& query,
         const TExplainQueryOptions& options = TExplainQueryOptions()) = 0;
 
+    virtual TFuture<TPullRowsResult> PullRows(
+        const NYPath::TYPath& path,
+        const TPullRowsOptions& options = {}) = 0;
+
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options = {}) = 0;
@@ -1554,6 +1585,7 @@ struct IClient
     virtual void Terminate() = 0;
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
+    virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
 
     // Transactions

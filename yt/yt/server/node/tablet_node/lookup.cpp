@@ -54,6 +54,8 @@ using namespace NProfiling;
 using namespace NTableClient;
 using namespace NTabletClient;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;

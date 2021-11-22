@@ -56,6 +56,8 @@ using namespace NYTAlloc;
 using NTabletNode::NProto::TAddStoreDescriptor;
 using NTabletNode::NProto::TMountHint;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t MaxRowsPerFlushRead = 1024;

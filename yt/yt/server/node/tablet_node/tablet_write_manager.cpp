@@ -850,7 +850,7 @@ private:
 
     void OnTransactionCommitted(TTransaction* transaction) noexcept
     {
-        auto commitTimestamp =  transaction->GetCommitTimestamp();
+        auto commitTimestamp = transaction->GetCommitTimestamp();
 
         YT_VERIFY(transaction->PrelockedRows().empty());
         auto& lockedRows = transaction->LockedRows();

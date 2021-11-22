@@ -23,6 +23,7 @@ public:
 
     void Terminate() override;
     const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
+    const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() override;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
 
     // Transactions

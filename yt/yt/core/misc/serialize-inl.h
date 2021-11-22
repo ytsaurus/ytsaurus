@@ -1662,6 +1662,7 @@ struct TUniquePtrSerializer
             TUnderlyingSerializer::Load(context, *ptr);
         } else {
             ptr.reset();
+            SERIALIZATION_DUMP_WRITE(context, "nullptr");
         }
     }
 };
@@ -1683,6 +1684,40 @@ struct TNonNullableIntrusivePtrSerializer
     {
         ptr = New<T>();
         TUnderlyingSerializer::Load(context, *ptr);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TUnderlyingSerializer = TDefaultSerializer>
+struct TNullableIntrusivePtrSerializer
+{
+    template <class T, class C>
+    static void Save(C& context, const TIntrusivePtr<T>& ptr)
+    {
+        using NYT::Save;
+
+        Save(context, ptr.operator bool());
+
+        if (ptr) {
+            TUnderlyingSerializer::Save(context, *ptr);
+        }
+    }
+
+    template <class T, class C>
+    static void Load(C& context, TIntrusivePtr<T>& ptr)
+    {
+        using NYT::Load;
+
+        auto hasValue = LoadSuspended<bool>(context);
+
+        if (hasValue) {
+            ptr = New<T>();
+            TUnderlyingSerializer::Load(context, *ptr);
+        } else {
+            ptr.Reset();
+            SERIALIZATION_DUMP_WRITE(context, "nullptr");
+        }
     }
 };
 

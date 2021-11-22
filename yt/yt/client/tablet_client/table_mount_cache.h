@@ -14,6 +14,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
+#include <yt/yt/client/chaos_client/replication_card.h>
+
 #include <yt/yt/client/ypath/public.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -77,6 +79,8 @@ DEFINE_ENUM(ETableSchemaKind,
     // For sorted schemas, coincides with primary.
     // For ordered, contains an additional tablet index columns.
     (PrimaryWithTabletIndex)
+    // Schema used for replication log rows.
+    (ReplicationLog)
 );
 
 struct TTableMountInfo
@@ -89,6 +93,8 @@ struct TTableMountInfo
     bool Dynamic;
     TTableReplicaId UpstreamReplicaId;
     bool NeedKeyEvaluation;
+
+    NChaosClient::TReplicationCardToken ReplicationCardToken;
 
     std::vector<TTabletInfoPtr> Tablets;
     std::vector<TTabletInfoPtr> MountedTablets;
@@ -111,6 +117,9 @@ struct TTableMountInfo
     bool IsReplicated() const;
 
     TTabletInfoPtr GetTabletByIndexOrThrow(int tabletIndex) const;
+    int GetTabletIndexForKey(TRange<NTableClient::TUnversionedValue> key) const;
+    int GetTabletIndexForKey(NTableClient::TUnversionedRow key) const;
+    int GetTabletIndexForRow(TRange<NTableClient::TUnversionedValue> row) const;
     TTabletInfoPtr GetTabletForRow(TRange<NTableClient::TUnversionedValue> row) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TVersionedRow row) const;

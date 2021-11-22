@@ -84,6 +84,35 @@ struct TSelectReadCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPullRowsCounters
+{
+    TPullRowsCounters() = default;
+
+    explicit TPullRowsCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter DataWeight;
+    NProfiling::TCounter RowCount;
+    NProfiling::TCounter WastedRowCount;
+    NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTablePullerCounters
+{
+    TTablePullerCounters() = default;
+
+    explicit TTablePullerCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter DataWeight;
+    NProfiling::TCounter RowCount;
+    NProfiling::TCounter ErrorCount;
+    NProfiling::TEventTimer PullRowsTime;
+    NProfiling::TEventTimer WriteTime;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TWriteCounters
 {
     TWriteCounters() = default;
@@ -210,6 +239,7 @@ struct TQueryServiceCounters
 
     TMethodCounters Execute;
     TMethodCounters Multiread;
+    TMethodCounters PullRows;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -343,7 +373,9 @@ public:
     TSelectReadCounters* GetSelectReadCounters(const std::optional<TString>& userTag);
     TRemoteDynamicStoreReadCounters* GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag);
     TQueryServiceCounters* GetQueryServiceCounters(const std::optional<TString>& userTag);
+    TPullRowsCounters* GetPullRowsCounters(const std::optional<TString>& userTag);
 
+    TTablePullerCounters GetTablePullerCounters();
     TReplicaCounters GetReplicaCounters(const TString& cluster);
 
     TChunkWriteCounters* GetWriteCounters(EChunkWriteProfilingMethod method, bool failed);
@@ -380,6 +412,7 @@ private:
     TUserTaggedCounter<TSelectReadCounters> SelectReadCounters_;
     TUserTaggedCounter<TRemoteDynamicStoreReadCounters> DynamicStoreReadCounters_;
     TUserTaggedCounter<TQueryServiceCounters> QueryServiceCounters_;
+    TUserTaggedCounter<TPullRowsCounters> PullRowsCounters_;
 
     TChunkWriteCountersVector ChunkWriteCounters_;
     TChunkReadCountersVector ChunkReadCounters_;

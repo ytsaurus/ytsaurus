@@ -1,4 +1,5 @@
 #include "transaction_manager.h"
+
 #include "bootstrap.h"
 #include "transaction.h"
 #include "private.h"
@@ -47,6 +48,7 @@ using namespace NObjectClient;
 using namespace NHydra;
 using namespace NHiveServer;
 using namespace NClusterNode;
+using namespace NChaosClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,6 +88,8 @@ public:
             ESyncSerializationPriority::Values,
             "TransactionManager.Values",
             BIND(&TTransactionManager::SaveValues, Unretained(this)));
+
+        RegisterMethod(BIND(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TTransactionManager::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
             ->Via(Slot_->GetGuardedAutomatonInvoker());
@@ -236,6 +240,12 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
+    std::unique_ptr<TMutation> CreateRegisterTransactionActionsMutation(
+        TCtxRegisterTransactionActionsPtr context) override
+    {
+        return CreateMutation(HydraManager_, std::move(context));
+    }
+
 private:
     const TTransactionManagerConfigPtr Config_;
     const ITransactionLeaseTrackerPtr LeaseTracker_;
@@ -376,6 +386,36 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::Clear();
+    }
+
+
+    void HydraRegisterTransactionActions(NChaosClient::NProto::TReqRegisterTransactionActions* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
+        auto signature = request->signature();
+
+        auto* transaction = GetOrCreateTransaction(
+            transactionId,
+            transactionStartTimestamp,
+            transactionTimeout);
+
+        auto state = transaction->GetState();
+        if (state != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        for (const auto& protoData : request->actions()) {
+            auto data = FromProto<TTransactionActionData>(protoData);
+            transaction->Actions().push_back(data);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+                transactionId,
+                data.Type);
+        }
+
+        transaction->SetSignature(transaction->GetSignature() + signature);
     }
 
 

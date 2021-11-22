@@ -94,6 +94,25 @@ TSelectReadCounters::TSelectReadCounters(const TProfiler& profiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPullRowsCounters::TPullRowsCounters(const NProfiling::TProfiler& profiler)
+    : DataWeight(profiler.Counter("/pull_rows/data_weight"))
+    , RowCount(profiler.Counter("/pull_rows/row_count"))
+    , WastedRowCount(profiler.Counter("/pull_rows/needless_row_count"))
+    , ChunkReaderStatisticsCounters(profiler.WithPrefix("/pull_rows/chunk_reader_statistics"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTablePullerCounters::TTablePullerCounters(const NProfiling::TProfiler& profiler)
+    : DataWeight(profiler.Counter("/table_puller/data_weight"))
+    , RowCount(profiler.Counter("/table_puller/row_count"))
+    , ErrorCount(profiler.Counter("/table_puller/error_count"))
+    , PullRowsTime(profiler.Timer("/table_puller/pull_rows_time"))
+    , WriteTime(profiler.Timer("/table_puller/write_time"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TWriteCounters::TWriteCounters(const TProfiler& profiler)
     : RowCount(profiler.Counter("/write/row_count"))
     , DataWeight(profiler.Counter("/write/data_weight"))
@@ -168,6 +187,7 @@ TReplicaCounters::TReplicaCounters(const TProfiler& profiler)
 TQueryServiceCounters::TQueryServiceCounters(const TProfiler& profiler)
     : Execute(profiler.WithPrefix("/execute"))
     , Multiread(profiler.WithPrefix("/multiread"))
+    , PullRows(profiler.WithPrefix("/pull_rows"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -647,6 +667,20 @@ TRemoteDynamicStoreReadCounters* TTableProfiler::GetRemoteDynamicStoreReadCounte
 TQueryServiceCounters* TTableProfiler::GetQueryServiceCounters(const std::optional<TString>& userTag)
 {
     return QueryServiceCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TPullRowsCounters* TTableProfiler::GetPullRowsCounters(const std::optional<TString>& userTag)
+{
+    return PullRowsCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TTablePullerCounters TTableProfiler::GetTablePullerCounters()
+{
+    if (Disabled_) {
+        return {};
+    }
+
+    return TTablePullerCounters{Profiler_};
 }
 
 TReplicaCounters TTableProfiler::GetReplicaCounters(const TString& cluster)

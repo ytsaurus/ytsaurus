@@ -46,6 +46,8 @@ using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NTabletClient;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreTrimmer

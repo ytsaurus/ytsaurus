@@ -14,7 +14,12 @@ using TReplicationCardId = NObjectClient::TObjectId;
 using TReplicaId = NObjectClient::TObjectId;
 using TReplicationEra = ui64;
 
+constexpr TReplicationEra InvalidReplicationEra = -1;
+
 DECLARE_REFCOUNTED_STRUCT(TReplicationCard)
+
+DECLARE_REFCOUNTED_STRUCT(IReplicationCardCache)
+DECLARE_REFCOUNTED_CLASS(TReplicationCardCacheConfig)
 
 struct TReplicationProgress;
 struct TReplicaHistoryItem;

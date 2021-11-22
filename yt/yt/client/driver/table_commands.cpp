@@ -4,13 +4,16 @@
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/skynet.h>
 
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
 #include <yt/yt/client/table_client/adapters.h>
-#include <yt/yt/client/table_client/table_output.h>
 #include <yt/yt/client/table_client/blob_reader.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/table_output.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/versioned_writer.h>
-#include <yt/yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -854,6 +857,56 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         WaitFor(writer->Close())
             .ThrowOnError();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPullRowsCommand::TPullRowsCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("upstream_replica_id", Options.UpstreamReplicaId);
+    RegisterParameter("replication_progress", Options.ReplicationProgress);
+}
+
+void TPullRowsCommand::DoExecute(ICommandContextPtr context)
+{
+    if (Path.HasNontrivialRanges()) {
+        THROW_ERROR_EXCEPTION("Ranges cannot be specified")
+            << TErrorAttribute("rich_ypath", Path);
+    }
+
+    auto tableMountCache = context->GetClient()->GetTableMountCache();
+    auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
+    auto tableInfo = WaitFor(asyncTableInfo)
+        .ValueOrThrow();
+    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+
+    tableInfo->ValidateDynamic();
+
+    auto format = context->GetOutputFormat();
+    auto output = context->Request().OutputStream;
+
+    auto client = context->GetClient();
+    auto pullRowsFuture = client->PullRows(Path.GetPath(), Options);
+    auto pullResult = WaitFor(pullRowsFuture)
+        .ValueOrThrow();
+
+    auto rowBuffer = New<TRowBuffer>();
+    std::vector<TVersionedRow> rows;
+    for (const auto& result : pullResult.ResultPerTablet) {
+        NTableClient::TWireProtocolReader reader(result.Data, rowBuffer);
+        auto resultSchemaData = TWireProtocolReader::GetSchemaData(*schema, TColumnFilter());
+
+        while (!reader.IsFinished()) {
+            auto row = reader.ReadVersionedRow(resultSchemaData, true);
+            rows.push_back(row);
+        }
+    }
+
+    auto writer = CreateVersionedWriterForFormat(format, schema, output);
+    writer->Write(rows);
+    WaitFor(writer->Close())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

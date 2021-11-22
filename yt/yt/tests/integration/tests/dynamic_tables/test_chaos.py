@@ -1,7 +1,8 @@
-from yt_env_setup import YTEnvSetup
+from test_dynamic_tables import DynamicTablesBase
 
 from yt_commands import (
-    authors, wait, execute_command, get_driver, get, set, sync_create_cells,
+    authors, wait, execute_command, get_driver, get, set, ls, create,
+    sync_create_cells, sync_mount_table, alter_table, insert_rows, lookup_rows, pull_rows,
     create_replication_card, get_replication_card, create_replication_card_replica)
 
 from yt.common import YtError
@@ -16,10 +17,11 @@ from yt.environment.helpers import assert_items_equal
 ##################################################################
 
 
-class TestChaos(YTEnvSetup):
-    NUM_CLOCKS = 1
-    NUM_NODES = 5
+class TestChaos(DynamicTablesBase):
     NUM_REMOTE_CLUSTERS = 2
+    NUM_CLOCKS = 1
+    NUM_MASTER_CACHES=1
+    NUM_NODES = 5
     NUM_CHAOS_NODES = 1
 
     DELTA_MASTER_CONFIG = {
@@ -98,6 +100,10 @@ class TestChaos(YTEnvSetup):
         self._wait_for_chaos_cell(cell_id)
         return cell_id
 
+    def _list_chaos_nodes(self, driver=None):
+        nodes = ls("//sys/cluster_nodes", attributes=["state", "flavors"], driver=driver)
+        return [node for node in nodes if ("chaos" in node.attributes["flavors"])]
+
     def setup_method(self, method):
         super(TestChaos, self).setup_method(method)
 
@@ -107,12 +113,17 @@ class TestChaos(YTEnvSetup):
                 "sync_period": 100,
             }
             set("//sys/@config/chaos_manager/alien_cell_synchronizer", synchronizer_config, driver=driver)
+
             discovery_config = {
                 "peer_count": 1,
                 "update_period": 100,
-                "node_tag_filter": "chaos_node",
+                "node_tag_filter": "master_cache"
             }
-            set("//sys/@config/node_tracker/chaos_cache_manager", discovery_config, driver=driver)
+            set("//sys/@config/node_tracker/master_cache_manager", discovery_config, driver=driver)
+
+            chaos_nodes = self._list_chaos_nodes(driver)
+            for chaos_node in chaos_nodes:
+                set("//sys/cluster_nodes/{0}/@user_tags/end".format(chaos_node), "chaos_cache", driver=driver)
 
     @authors("savrus")
     def test_virtual_maps(self):
@@ -207,3 +218,94 @@ class TestChaos(YTEnvSetup):
         assert len(card["replicas"]) == 3
         card_replicas = [{key: r[key] for key in replicas[0].keys()} for r in card["replicas"]]
         assert_items_equal(card_replicas, replicas)
+
+    def _create_queue_table(self, path, **attributes):
+        attributes.update({"dynamic": True})
+        if "schema" not in attributes:
+            attributes.update({
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}]
+                })
+        driver = attributes.pop("driver", None)
+        create("replicated_table", path, attributes=attributes, driver=driver)
+
+    @authors("savrus")
+    def test_chaos_table(self):
+        self._create_chaos_cell_bundle("c")
+        cell_id = self._sync_create_chaos_cell("c")
+
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        self._create_sorted_table("//tmp/t")
+        self._create_sorted_table("//tmp/r1", driver=remote_driver1)
+        self._create_queue_table("//tmp/r0", driver=remote_driver0)
+
+        card_id = create_replication_card(chaos_cell_id=cell_id)
+        print card_id
+        replicas = [
+            {"cluster": "primary", "content_type": "data", "mode": "sync", "state": "enabled", "table_path": "//tmp/t"},
+            {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
+            {"cluster": "remote_1", "content_type": "data", "mode": "async", "state": "enabled", "table_path": "//tmp/r1"}
+        ]
+        replica_ids = []
+        for replica in replicas:
+            replica_id = create_replication_card_replica(
+                chaos_cell_id=cell_id,
+                replication_card_id=card_id,
+                replica_info=replica)
+            replica_ids.append(replica_id)
+
+        card = get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id)
+        print card
+        replication_card_token ={"chaos_cell_id": cell_id, "replication_card_id": card_id}
+
+        for replica, replica_id in zip(replicas, replica_ids):
+            path = replica["table_path"]
+            driver = get_driver(cluster=replica["cluster"])
+            set("{0}/@replication_card_token".format(path), replication_card_token, driver=driver)
+            alter_table(path, upstream_replica_id=replica_id, driver=driver)
+            sync_create_cells(1, driver=driver)
+            sync_mount_table(path, driver=driver)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
+
+    @authors("savrus")
+    def test_pull_rows(self):
+        self._create_chaos_cell_bundle("c")
+        cell_id = self._sync_create_chaos_cell("c")
+
+        self._create_queue_table("//tmp/q")
+
+        card_id = create_replication_card(chaos_cell_id=cell_id)
+        replica_info = {"cluster": "primary", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/q"}
+        replica_id = create_replication_card_replica(
+            chaos_cell_id=cell_id,
+            replication_card_id=card_id,
+            replica_info=replica_info)
+
+        replication_card_token = {"chaos_cell_id": cell_id, "replication_card_id": card_id}
+        set("//tmp/q/@replication_card_token", replication_card_token)
+        alter_table("//tmp/q", upstream_replica_id=replica_id)
+        sync_create_cells(1)
+        sync_mount_table("//tmp/q")
+
+        insert_rows("//tmp/q", [{"key": 0, "value": "0"}])
+
+        def _pull_rows():
+            return pull_rows(
+                "//tmp/q",
+                replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
+                upstream_replica_id=replica_id)
+
+        wait(lambda: len(_pull_rows()) == 1)
+
+        result = _pull_rows()
+        assert len(result) == 1
+        row = result[0]
+        assert row["key"] == 0
+        assert str(row["value"][0]) == "0"

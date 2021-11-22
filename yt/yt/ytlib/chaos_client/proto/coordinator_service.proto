@@ -33,4 +33,10 @@ message TReqRegisterTransactionActions
 message TRspRegisterTransactionActions
 { }
 
+message TReqReplicatedCommit
+{
+    required NYT.NProto.TGuid replication_card_id = 2;
+    required uint64 replication_era = 1; // NChaosClient::TReplicationEra
+}
+
 ////////////////////////////////////////////////////////////////////////////////

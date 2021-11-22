@@ -7,6 +7,8 @@
 #include <yt/yt/client/api/journal_writer.h>
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/client/chaos_client/replication_card_cache.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -60,6 +62,10 @@ public:
     MOCK_METHOD(TFuture<NYson::TYsonString>, ExplainQuery, (
         const TString& query,
         const TExplainQueryOptions& options), (override));
+
+    MOCK_METHOD(TFuture<TPullRowsResult>, PullRows, (
+        const NYPath::TYPath& path,
+        const TPullRowsOptions& options), (override));
 
     MOCK_METHOD(TFuture<ITableReaderPtr>, CreateTableReader, (
         const NYPath::TRichYPath& path,
@@ -196,6 +202,7 @@ public:
     NTransactionClient::ITimestampProviderPtr TimestampProvider;
 
     MOCK_METHOD(void, Terminate, (), (override));
+    MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, (), (override));
 
     const NTabletClient::ITableMountCachePtr& GetTableMountCache() override
     {

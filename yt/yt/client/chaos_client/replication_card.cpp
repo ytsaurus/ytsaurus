@@ -39,6 +39,11 @@ TReplicationCardToken::operator size_t() const
         ReplicationCardId);
 }
 
+TReplicationCardToken::operator bool() const
+{
+    return static_cast<bool>(ReplicationCardId);
+}
+
 bool TReplicationCardToken::operator == (const TReplicationCardToken& other) const
 {
     return ChaosCellId == other.ChaosCellId && ReplicationCardId == other.ReplicationCardId;

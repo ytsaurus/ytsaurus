@@ -19,6 +19,7 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/server/master/tablet_server/backup_manager.h>
+#include <yt/yt/server/master/tablet_server/replication_card.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
 #include <yt/yt/server/master/tablet_server/table_replica.h>
@@ -40,6 +41,8 @@
 #include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
+
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -261,6 +264,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UpstreamReplicaId)
         .SetExternal(isExternal)
         .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationCardToken)
+        .SetWritable(true)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic && trunkTable->ReplicationCardToken()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
@@ -669,6 +676,14 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             }
             BuildYsonFluently(consumer)
                 .Value(trunkTable->GetUpstreamReplicaId());
+            return true;
+
+        case EInternedAttributeKey::ReplicationCardToken:
+            if (!isDynamic || !trunkTable->ReplicationCardToken()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->ReplicationCardToken());
             return true;
 
         case EInternedAttributeKey::EnableTabletBalancer:
@@ -1106,6 +1121,14 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             return true;
         }
 
+        case EInternedAttributeKey::ReplicationCardToken: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            lockedTable->ValidateAllTabletsUnmounted("Cannot change upstream replication card");
+            lockedTable->MutableReplicationCardToken().Reset();
+            return true;
+        }
+
         default:
             break;
     }
@@ -1312,7 +1335,19 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             tableManager->AddTableToCollocation(
                 lockedTable,
                 collocation);
+            return true;
+        }
 
+        case EInternedAttributeKey::ReplicationCardToken: {
+            if (!table->IsDynamic()) {
+                break;
+            }
+            ValidateNoTransaction();
+
+            auto* lockedTable = LockThisImpl();
+            lockedTable->ValidateAllTabletsUnmounted("Cannot change upstream replication card");
+
+            lockedTable->MutableReplicationCardToken() = ConvertTo<TReplicationCardTokenPtr>(value);
             return true;
         }
 
@@ -1519,6 +1554,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         }
     }
 
+    if (trunkTable->ReplicationCardToken()) {
+        ToProto(response->mutable_replication_card_token(), ConvertToClientReplicationCardToken(trunkTable->ReplicationCardToken()));
+    }
+
     context->Reply();
 }
 
@@ -1575,7 +1614,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
 
         if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
+            if (options.Schema || options.SchemaModification || options.Dynamic) {
+                THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
+            }
         }
 
         if (options.Dynamic) {
@@ -1592,7 +1633,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             if (!dynamic) {
                 THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
             }
-            if (table->IsReplicated()) {
+            if (table->IsReplicated() && !table->ReplicationCardToken()) {
                 THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
             }
 

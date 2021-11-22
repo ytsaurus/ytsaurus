@@ -69,6 +69,9 @@ using namespace NQueryAgent;
 
 using NChunkClient::TLegacyReadLimit;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsNewScanReaderEnabled(const TTableMountConfigPtr& mountConfig)

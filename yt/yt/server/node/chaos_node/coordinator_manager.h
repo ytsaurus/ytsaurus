@@ -24,6 +24,8 @@ struct ICoordinatorManager
     : public virtual TRefCounted
 {
 public:
+    virtual void Initialize() = 0;
+
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual void SuspendCoordinator(TSuspendCoordinatorContextPtr context) = 0;

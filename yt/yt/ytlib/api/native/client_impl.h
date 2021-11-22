@@ -62,6 +62,7 @@ public:
 
     NApi::IConnectionPtr GetConnection() override;
     const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
+    const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() override;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
     const IConnectionPtr& GetNativeConnection() override;
     NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override;
@@ -128,6 +129,10 @@ public:
         const TString& query,
         const TSelectRowsOptions& options),
         (query, options))
+    IMPLEMENT_METHOD(TPullRowsResult, PullRows, (
+        const NYPath::TYPath& path,
+        const TPullRowsOptions& options),
+        (path, options))
     IMPLEMENT_METHOD(NYson::TYsonString, ExplainQuery, (
         const TString& query,
         const TExplainQueryOptions& options),
@@ -700,6 +705,10 @@ private:
     NYson::TYsonString DoExplainQuery(
         const TString& queryString,
         const TExplainQueryOptions& options);
+
+    TPullRowsResult DoPullRows(
+        const NYPath::TYPath& path,
+        const TPullRowsOptions& options);
 
     static bool IsReplicaSync(
         const NQueryClient::NProto::TReplicaInfo& replicaInfo,

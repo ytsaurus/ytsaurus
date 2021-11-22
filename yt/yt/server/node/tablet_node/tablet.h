@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lock_manager.h"
+#include "chaos_agent.h"
 #include "object_detail.h"
 #include "partition.h"
 #include "store.h"
@@ -23,6 +24,8 @@
 #include <yt/yt/ytlib/query_client/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/client/chaos_client/replication_card.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -105,6 +108,7 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> UnflushedTimestamp = MinTimestamp;
     std::atomic<TInstant> ModificationTime = NProfiling::GetInstant();
     std::atomic<TInstant> AccessTime = TInstant::Zero();
+    std::atomic<NChaosClient::TReplicationEra> ReplicationEra = {NChaosClient::InvalidReplicationEra};
     TEnumIndexedVector<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
     TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> Errors;
 };
@@ -124,6 +128,17 @@ struct TTableSettings
     TTabletHunkWriterOptionsPtr HunkWriterOptions;
 
     static TTableSettings CreateNew();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPreloadStatistics
+{
+    int PendingStoreCount = 0;
+    int CompletedStoreCount = 0;
+    int FailedStoreCount = 0;
+
+    TPreloadStatistics& operator+=(const TPreloadStatistics& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -397,6 +412,15 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, PendingUserWriteRecordCount);
     // The number of pending write records issued by replicator.
     DEFINE_BYVAL_RW_PROPERTY(int, PendingReplicatorWriteRecordCount);
+
+    DEFINE_BYVAL_RW_PROPERTY(IChaosAgentPtr, ChaosAgent);
+    DEFINE_BYVAL_RW_PROPERTY(ITablePullerPtr, TablePuller);
+    DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationCardPtr, ReplicationCard);
+    DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
+    DEFINE_BYVAL_RW_PROPERTY(int, ReplicationRound);
+
+    using TCurrentReplictionRowIndexs = THashMap<TTabletId, i64>;
+    DEFINE_BYREF_RW_PROPERTY(TCurrentReplictionRowIndexs, CurrentReplicationRowIndexes);
 
 public:
     TTablet(
