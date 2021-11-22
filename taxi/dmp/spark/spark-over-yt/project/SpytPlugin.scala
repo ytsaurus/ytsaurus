@@ -9,7 +9,11 @@ import sbtrelease._
 import spyt.SparkPackagePlugin.autoImport._
 import spyt.SpytRelease._
 
+import scala.sys.process.{Process, stderr}
 import java.io.File
+import java.net.http.{HttpClient, HttpRequest}
+import java.net.http.HttpResponse.BodyHandlers
+import java.time.Duration
 
 object SpytPlugin extends AutoPlugin {
   override def trigger = NoTrigger
@@ -22,16 +26,21 @@ object SpytPlugin extends AutoPlugin {
     val spytClientPythonVersion = settingKey[String]("yandex-spyt version")
     val spytSparkPythonVersion = settingKey[String]("yandex-spark version")
 
+    val pypiRegistry = settingKey[String]("PyPi registry to use")
+
+    val spytUpdateClientPythonDevVersion = taskKey[Unit]("Update yandex-spyt version config")
+    val spytUpdateSparkPythonDevVersion = taskKey[Unit]("Update yandex-pyspark version config")
+    val spytUpdateAllPythonDevVersions = taskKey[Unit]("Update all dev versions if needed")
+    val spytUpdateClientSnapshotVersion = taskKey[Unit]("Spyt calculate real client version")
+
     val spytPublishClusterSnapshot = taskKey[Unit]("Publish spyt cluster with snapshot version")
     val spytPublishClientSnapshot = taskKey[Unit]("Publish spyt client with snapshot version")
-    val spytPublishAllSnapshot = taskKey[Unit]("Publish spyt client & cluster with snapshot version")
+    val spytPublishAllSnapshots = taskKey[Unit]("Publish spyt client & cluster with snapshot version")
 
     val spytPublishCluster = taskKey[Unit]("Publish spyt cluster")
     val spytPublishClient = taskKey[Unit]("Publish spyt client")
     val spytPublishAll = taskKey[Unit]("Publish spyt client & cluster")
 
-    val spytIncreasePythonBetaVersion = taskKey[Unit]("Increase beta-version of yandex-spyt")
-    val spytIncreaseSparkPythonBetaVersion = taskKey[Unit]("Increase beta-version of yandex-spark")
     val spytUpdatePythonVersion = taskKey[Unit]("Update versions in data-source/version.py")
 
     val spytClusterVersionFile = settingKey[File]("Spyt cluster version")
@@ -88,41 +97,211 @@ object SpytPlugin extends AutoPlugin {
     IO.write(sparkVersionFile, sparkVersionContent)
   }
 
-  def increaseBetaVersion(oldVersion: String): String = {
-    val (version, beta) = if (oldVersion.contains("b")) {
-      val split = oldVersion.split("b").toSeq
-      (split(0), split(1).toInt)
+  def updatePythonVersionFile(log: Logger, oldVersion: String, newVersion: String, versionFile: File): Unit = {
+    val content = IO.readLines(versionFile)
+      .map {
+        case line if line.startsWith("__version__") =>
+          log.info(s"Updating version $oldVersion -> $newVersion in ${versionFile.getPath}")
+          s"""__version__ = "$newVersion""""
+        case line =>
+          line
+      }
+      .mkString("\n")
+    IO.write(versionFile, content)
+  }
+
+  def updatePythonVersions(log: Logger,
+                           spytVersion: String,
+                           spytVersionFile: File,
+                           sparkVersion: String,
+                           sparkVersionFile: File): Unit = {
+    updatePythonVersionFile(log, "", spytVersion, spytVersionFile)
+    updatePythonVersionFile(log, "", sparkVersion, sparkVersionFile)
+  }
+
+
+  def gitBranch(submodule: String = ""): Option[String] = {
+    val cmd = "git rev-parse --abbrev-ref HEAD"
+    val real = if (submodule.isEmpty) cmd else s"git submodule foreach $cmd -- $submodule"
+    try Process(real).lineStream.headOption catch { case _: Throwable => None }
+  }
+
+  def gitHash(submodule: String = ""): Option[String] = {
+    val loc = if (submodule.isEmpty) "HEAD" else s"HEAD:$submodule"
+    try Process(s"git rev-parse --short $loc").lineStream.headOption catch { case _: Throwable => None }
+  }
+
+  def gitHasUncommited(submodule: String = ""): Boolean = {
+    val cmd = "git diff-index --quiet HEAD"
+    val real = if (submodule.isEmpty) cmd else s"git submodule foreach $cmd -- $submodule"
+    Process(real).! == 1
+  }
+
+  def httpQuery(log: Logger, url: String, timeoutSec: Int = 30): Option[String] = {
+    val timeout = Duration.ofSeconds(timeoutSec)
+    val cli = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(timeout).build()
+    val req: HttpRequest = HttpRequest.newBuilder()
+      .timeout(timeout)
+      .uri(new URI(url))
+      .build()
+    log.info(s"Requesting $url")
+    val res = cli.send(req, BodyHandlers.ofString())
+    if (res.statusCode() != 200) {
+      log.error(s"Invalid http response: ${res.statusCode()}: ${res.body()}")
+      None
     } else {
-      val Seq(sparkVersion, spytVersion) = oldVersion.split("\\+", 2).toList
-      val newSpytVersion = Version(spytVersion).map(_.bump(Version.Bump.Bugfix).string)
-        .getOrElse(versionFormatError(spytVersion))
-      (s"$sparkVersion+$newSpytVersion", 0)
+      Some(res.body())
+    }
+  }
+
+  case class PythonVersion(major: Int, minor: Int, patch: Int, beta: Int, dev: Int)
+  type PythonVerTuple = (PythonVersion, Option[PythonVersion])
+
+  def listPypiPackageVersions(log: Logger, pythonRegistry: String, packageName: String): Seq[String] = {
+    implicit val ord: Ordering[PythonVersion] = Ordering.by {
+      v => (v.major, v.minor, v.patch, v.beta, v.dev)
     }
 
-    s"${version}b${beta + 1}"
+    def verTuple(ver: String): Option[PythonVerTuple] = {
+      val splitVer = "^(\\d+)\\.(\\d+).(\\d+)(b(\\d+))?(\\.dev(\\d+))?\\+?(.*)$".r
+      ver match {
+        case splitVer(maj, min, patch, _, beta, _, dev, local) =>
+          val p1 = PythonVersion(
+            maj.toInt,
+            min.toInt,
+            patch.toInt,
+            if (beta == null) 0 else beta.toInt,
+            if (dev == null) 0 else dev.toInt
+          )
+          val p2 = if (local != null) verTuple(local).map(_._1) else None
+          Some((p1, p2))
+        case _ => None
+      }
+    }
+    val extractVer = (s".*<a.*?>$packageName-(.*?)\\.tar\\.gz</a>.*$$").r
+
+    httpQuery(log, s"$pythonRegistry/$packageName")
+      .toList
+      .flatMap(_.split("\n").toList)
+      .flatMap {
+        _ match {
+          case extractVer(ver) => List((ver, verTuple(ver)))
+          case _ => List()
+        }
+      }
+      .sortBy(_._2)
+      .reverse
+      .map(_._1)
+  }
+
+  def latestPyPiVersion(log: Logger, pythonRegistry: String, packageName: String): Option[String] = {
+    listPypiPackageVersions(log, pythonRegistry, packageName).headOption
+  }
+
+  def ticketFromBranch(branchName: String): Option[String] = {
+    val p = "^(\\w+)[ -_](\\d+)[ -_].*$".r
+
+    branchName match {
+      case p(q, n) => Some(q.toLowerCase + n)
+      case _ => None
+    }
+  }
+
+  def increaseDevVersion(oldVersion: String, ticket: Option[String], hash: String): Option[String] = {
+    val p = "^([0-9.+]+)([ab](\\d+))?(\\.dev(\\d+))?([.+].*)?$".r
+    oldVersion match {
+      case p(main, beta, _, _, devVer, _) =>
+        val newDev  = if (devVer == null) 1 else devVer.toInt + 1
+        val newBeta = if (beta == null) "" else beta
+        val ticketPx = ticket.map(s => s"+$s").getOrElse("")
+        Some(s"$main$newBeta.dev$newDev$ticketPx.$hash")
+      case _ => None
+    }
+  }
+
+  def extractHashFromVer(ver: String): Option[String] = {
+    val p = "\\.([a-f0-9]{7})$".r
+    ver match {
+      case p(hash) => Some(hash)
+      case _ => None
+    }
+  }
+
+  def updatePythonVersionIfUpdated(log: Logger,
+                                   pythonRegistry: String,
+                                   packageName: String,
+                                   versionFile: File,
+                                   submodule: String = ""): Unit = {
+    log.info(s"Updating python package $packageName version file")
+    for {
+      curVer <- latestPyPiVersion(log, pythonRegistry, packageName)
+      _ = log.debug(s"curVer=$curVer")
+      curBranch <- gitBranch(submodule)
+      _ = log.debug(s"curBranch=$curBranch")
+      newHash <- gitHash(submodule)
+      _ = log.debug(s"newHash=$newHash")
+    } {
+      val curHash = extractHashFromVer(curVer)
+      if (!curHash.contains(newHash)) {
+        val newVer = increaseDevVersion(curVer, ticketFromBranch(curBranch), newHash)
+        if (newVer.isDefined) {
+          updatePythonVersionFile(log, curVer, newVer.get, versionFile)
+        } else {
+          log.error(s"Unable to estimate new version for current version $curVer")
+        }
+      } else {
+        log.info(s"Branch $curBranch: version hash $curHash equals $newHash, nothing to update")
+      }
+    }
+  }
+
+  def clientSnapshotVersion(ver: String): Option[String] = {
+    val p = "^([0-9.]*?)(-[a-z0-9]*?)?(-[a-f0-9]{7})?-SNAPSHOT$".r
+    val midfix = for {
+      hash <- gitHash().map(s => s"-$s")
+      branch <- gitBranch()
+      ticket <- ticketFromBranch(branch).map(s => s"-$s")
+    } yield s"$ticket$hash"
+    val postfix = s"${midfix.getOrElse("")}-SNAPSHOT"
+    ver match {
+      case p(main, _, _) => Some(s"$main$postfix")
+      case _ => None
+    }
+  }
+
+  def updateClientVersionFile(log: Logger, curVer: String, newVerOpt: Option[String], versionFile: File): Unit = {
+    newVerOpt.foreach { newVer =>
+      log.info(s"Updating client version from $curVer to $newVer")
+      val expected = s"""ThisBuild / spytClientVersion := \"$curVer\""""
+      val replacement = s"""ThisBuild / spytClientVersion := \"$newVer\""""
+      val content = IO.readLines(versionFile)
+        .map(_.replace(expected, replacement))
+        .mkString("\n")
+      IO.write(versionFile, content)
+    }
   }
 
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(
     spytClusterVersionFile := baseDirectory.value / "cluster_version.sbt",
     spytClientVersionFile := baseDirectory.value / "client_version.sbt",
     spytSparkVersionFile := baseDirectory.value / "spark_version.sbt",
-    // TODO
+
+    pypiRegistry := "https://pypi.yandex-team.ru/simple",
+
     spytClientVersionPyFile := baseDirectory.value / "data-source" / "src" / "main" / "python" / "spyt" / "version.py",
     spytSparkVersionPyFile := (ThisBuild / sparkVersionPyFile).value,
-    spytIncreasePythonBetaVersion := {
-      val oldVersion = spytClientPythonVersion.value
-      val newVersion = increaseBetaVersion(oldVersion)
-      writeVersion(Seq(
-        spytClientVersion -> spytClientVersion.value,
-        spytClientPythonVersion -> newVersion
-      ), spytClientVersionFile.value)
-      updatePythonVersion(
-        newVersion,
-        spytClientVersionPyFile.value,
-        (ThisBuild / spytSparkPythonVersion).value,
-        spytSparkVersionPyFile.value
-      )
-    },
+
+    spytUpdateClientPythonDevVersion :=
+      updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, "yandex-spyt", spytClientVersionPyFile.value),
+
+    spytUpdateSparkPythonDevVersion :=
+      updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, "yandex-pyspark", spytSparkVersionPyFile.value, "spark"),
+
+    spytUpdateAllPythonDevVersions := Def.sequential(
+      spytUpdateSparkPythonDevVersion,
+      spytUpdateClientPythonDevVersion
+    ).value,
+
     spytUpdatePythonVersion := {
       updatePythonVersion(
         (ThisBuild / spytClientPythonVersion).value,
@@ -131,38 +310,54 @@ object SpytPlugin extends AutoPlugin {
         spytSparkVersionPyFile.value
       )
     },
-    spytIncreaseSparkPythonBetaVersion := {
-      val oldVersion = spytSparkPythonVersion.value
-      val newVersion = increaseBetaVersion(oldVersion)
-      streams.value.log.info(s"New spark python version: $newVersion")
-      writeVersion(Seq(
-        spytSparkPythonVersion -> newVersion
-      ), spytSparkVersionFile.value)
-      updatePythonVersion(
-        (ThisBuild / spytClientPythonVersion).value,
-        spytClientVersionPyFile.value,
-        newVersion,
-        spytSparkVersionPyFile.value
-      )
+
+    spytUpdateClientSnapshotVersion := {
+      val curVer = (ThisBuild / spytClientVersion).value
+      val newVer = clientSnapshotVersion(curVer)
+      val log = streams.value.log
+      if (newVer.isDefined) {
+        updateClientVersionFile(log, curVer, newVer, spytClientVersionFile.value)
+        StateTransform { st =>
+          reapply(Seq(
+            (ThisBuild / spytClientVersion) := newVer.get,
+            (ThisBuild / version) := newVer.get
+          ), st)
+        }
+      } else {
+        StateTransform { st =>
+          st
+        }
+      }
     },
-    spytPublishClusterSnapshot := spytPublishCluster.value,
-    spytPublishClientSnapshot := Def.sequential(
-      spytPublishClient,
-      spytIncreasePythonBetaVersion
+
+
+    spytPublishClusterSnapshot := Def.sequential(
+      spytUpdateSparkPythonDevVersion,
+      spytUpdateClientSnapshotVersion,
+      spytPublishCluster
     ).value,
-    spytPublishAllSnapshot := Def.taskDyn {
+    spytPublishClientSnapshot := Def.sequential(
+      spytUpdateClientPythonDevVersion,
+      spytUpdateClientSnapshotVersion,
+      spytPublishClient,
+    ).value,
+
+    spytPublishAllSnapshots := Def.taskDyn {
       val rebuildSpark = Option(System.getProperty("rebuildSpark")).exists(_.toBoolean)
-      if (rebuildSpark) {
+      if (rebuildSpark) {  
         Def.sequential(
-          spytIncreaseSparkPythonBetaVersion,
+          spytUpdateSparkPythonDevVersion,
+          spytUpdateClientPythonDevVersion,
+          spytUpdateClientSnapshotVersion,
           spytPublishAll,
-          spytIncreasePythonBetaVersion
         )
       } else {
         Def.sequential(
+          spytUpdateSparkPythonDevVersion,
+          spytUpdateClientPythonDevVersion,
+          spytUpdateClientSnapshotVersion,
           spytPublishCluster,
           spytPublishClient,
-          spytIncreasePythonBetaVersion
         )
       }
     }.value,
