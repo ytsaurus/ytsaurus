@@ -573,8 +573,6 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(EInternedAttributeKey::ChunkCount);
     descriptors->push_back(EInternedAttributeKey::UncompressedDataSize);
     descriptors->push_back(EInternedAttributeKey::CompressedDataSize);
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DataWeight)
-        .SetPresent(node->HasDataWeight()));
     descriptors->push_back(EInternedAttributeKey::CompressionRatio);
     descriptors->push_back(EInternedAttributeKey::UpdateMode);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationFactor)
@@ -639,14 +637,6 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
         case EInternedAttributeKey::CompressedDataSize:
             BuildYsonFluently(consumer)
                 .Value(statistics.compressed_data_size());
-            return true;
-
-        case EInternedAttributeKey::DataWeight:
-            if (!node->HasDataWeight()) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(statistics.data_weight());
             return true;
 
         case EInternedAttributeKey::CompressionRatio: {
