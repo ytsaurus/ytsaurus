@@ -918,6 +918,10 @@ private:
             if (portoEnvironmentConfig->UseDaemonSubcontainer) {
                 self->SetCpuWeight(Config_->ResourceLimits->NodeCpuWeight);
 
+                if (Config_->ResourceLimits->NodeDedicatedCpu) {
+                    self->SetCpuGuarantee(*Config_->ResourceLimits->NodeDedicatedCpu);
+                }
+
                 NodeResourceManager_->SubscribeSelfMemoryGuaranteeUpdated(BIND([self] (i64 memoryGuarantee) {
                     try {
                         self->SetMemoryGuarantee(memoryGuarantee);
