@@ -639,6 +639,30 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             ) == pool_tree_settings["custom_pool_tree"]
         )
 
+    @authors("eshcherbin")
+    def test_tree_config_change_forces_pools_update(self):
+        create_pool("pool", attributes={"config_preset": "preset"}, wait_for_orchid=False)
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+        assert get("//sys/scheduler/@alerts")[0]["attributes"]["alert_type"] == "update_pools"
+
+        # Here we change tree config outside of its Cypress node's attributes.
+        # Such a change should still trigger a full pools update.
+        set(
+            "//sys/scheduler/config/template_pool_tree_config_map",
+            {
+                "default": {
+                    "priority": 0,
+                    "filter": ".*",
+                    "config": {
+                        "pool_config_presets": {
+                            "preset": {}
+                        }
+                    },
+                },
+            }
+        )
+        wait(lambda: not get("//sys/scheduler/@alerts"))
+
 
 @authors("renadeen")
 class TestConfigurablePoolTreeRoot(YTEnvSetup):
