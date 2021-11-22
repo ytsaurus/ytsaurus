@@ -324,6 +324,8 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
 {
     YT_VERIFY(LowerRowIndex_ < ChunkMeta_->Misc().row_count());
 
+    TCurrentTraceContextGuard guard(TraceContext_);
+
     std::vector<TBlockFetcher::TBlockInfo> blockInfos;
 
     if (Config_->SamplingMode == ESamplingMode::Block) {
@@ -564,6 +566,8 @@ void TColumnarLookupChunkReaderBase::Initialize()
 
 void TColumnarLookupChunkReaderBase::InitBlockFetcher()
 {
+    TCurrentTraceContextGuard guard(TraceContext_);
+
     std::vector<TBlockFetcher::TBlockInfo> blockInfos;
     for (const auto& column : Columns_) {
         int lastBlockIndex = -1;
