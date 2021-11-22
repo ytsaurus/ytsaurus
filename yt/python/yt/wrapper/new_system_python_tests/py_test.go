@@ -170,11 +170,17 @@ func GetPythonPaths(pythonVersion string) []string {
 		"contrib/python/more-itertools/py2",
 	}
 
-	var contribPathsPy3 = []string{
+	var contribPathsPy35 = []string{
 		// Python3 uses py2 importlib-metadata since it is python3-compatible
 		// and contrib/python/importlib-metadata/py3 requires python3 with version >= 3.6
 		"contrib/python/importlib-metadata/py2",
+		"contrib/python/more-itertools/py2",
+	}
+
+	var contribPathsPy3 = []string{
+		"contrib/python/importlib-metadata/py3",
 		"contrib/python/more-itertools/py3",
+		"contrib/python/typing-extensions/src_py3",
 	}
 
 	var sharedLibraries = []string{
@@ -194,7 +200,11 @@ func GetPythonPaths(pythonVersion string) []string {
 		for _, p := range contribPathsPy2 {
 			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
 		}
-	} else { // 3
+	} else if pythonVersion == "3.5" { // "3.5"
+		for _, p := range contribPathsPy35 {
+			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
+		}
+	} else { // >= 3.6
 		for _, p := range contribPathsPy3 {
 			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
 		}
@@ -313,8 +323,13 @@ func TestPyTest(t *testing.T) {
 		"LD_LIBRARY_PATH="+yatest.PythonLibPath(),
 		"TESTS_SANDBOX="+sandboxDir,
 		"YT_ENABLE_VERBOSE_LOGGING=1",
-		"PYTEST_PLUGINS=pytest_timeout",
 	)
+	if pythonVersion != "3.6" {
+		cmdPytest.Env = append(
+			cmdPytest.Env,
+			"PYTEST_PLUGINS=pytest_timeout",
+		)
+	}
 
 	t.Logf("env: %s", cmdPytest.Env)
 	t.Logf("running %s", cmdPytest.String())
