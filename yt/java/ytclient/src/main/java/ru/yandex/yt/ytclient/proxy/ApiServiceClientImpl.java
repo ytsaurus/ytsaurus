@@ -73,6 +73,8 @@ import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
+import ru.yandex.yt.ytclient.proxy.request.MutateNode;
+import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
@@ -83,6 +85,7 @@ import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.TableReplicaMode;
+import ru.yandex.yt.ytclient.proxy.request.TableReq;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
 import ru.yandex.yt.ytclient.proxy.request.TrimTable;
@@ -819,6 +822,17 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             RequestType extends HighLevelRequest<RequestMsgBuilder>>
     CompletableFuture<RpcClientResponse<ResponseMsg>>
     sendRequest(RequestType req, RpcClientRequestBuilder<RequestMsgBuilder, ResponseMsg> builder) {
+        /**
+         * If several mutating requests was done with the same RequestType instance,
+         * it must have different mutation ids.
+         * So we reset mutationId for every request.
+         */
+        if (req instanceof MutateNode) {
+            ((MutateNode<?>) req).setMutatingOptions(new MutatingOptions().setMutationId(GUID.create()));
+        } else if (req instanceof TableReq) {
+            ((TableReq<?>) req).setMutatingOptions(new MutatingOptions().setMutationId(GUID.create()));
+        }
+
         logger.debug("Starting request {}; {}", builder, req.getArgumentsLogString());
         req.writeHeaderTo(builder.header());
         req.writeTo(builder);

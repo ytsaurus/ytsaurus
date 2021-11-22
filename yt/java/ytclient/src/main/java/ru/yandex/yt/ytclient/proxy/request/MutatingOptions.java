@@ -26,6 +26,10 @@ public class MutatingOptions {
         return this;
     }
 
+    public GUID getMutationId() {
+        return this.id;
+    }
+
     public TMutatingOptions.Builder writeTo(TMutatingOptions.Builder builder) {
         if (id != null) {
             builder.setMutationId(RpcUtil.toProto(id));
