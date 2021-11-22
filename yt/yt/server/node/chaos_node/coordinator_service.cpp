@@ -37,6 +37,7 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
     }
 
 private:
@@ -56,6 +57,26 @@ private:
 
         const auto& coordinatorManager = Slot_->GetCoordinatorManager();
         coordinatorManager->ResumeCoordinator(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RegisterTransactionActions)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
+
+        context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %llx, TransactionTimeout: %v, ActionCount: %v",
+            transactionId,
+            transactionStartTimestamp,
+            transactionTimeout,
+            request->actions_size());
+
+        const auto& transactionManager = Slot_->GetTransactionManager();
+        transactionManager
+            ->CreateRegisterTransactionActionsMutation(context)
+            ->CommitAndReply(context);
     }
 
 

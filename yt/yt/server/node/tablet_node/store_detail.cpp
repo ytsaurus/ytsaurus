@@ -66,6 +66,8 @@ using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TChunkSpec;
 using NChunkClient::NProto::TMiscExt;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto ChunkReaderEvictionTimeout = TDuration::Seconds(15);

@@ -1,8 +1,11 @@
+#include "tablet_manager.h"
+
 #include "backup_manager.h"
 #include "balancing_helpers.h"
 #include "config.h"
 #include "cypress_integration.h"
 #include "private.h"
+#include "replication_card.h"
 #include "table_replica.h"
 #include "table_replica_type_handler.h"
 #include "tablet.h"
@@ -13,11 +16,10 @@
 #include "tablet_cell_bundle_type_handler.h"
 #include "tablet_cell_decommissioner.h"
 #include "tablet_cell_type_handler.h"
-#include "tablet_manager.h"
+#include "tablet_node_tracker.h"
 #include "tablet_resources.h"
 #include "tablet_service.h"
 #include "tablet_type_handler.h"
-#include "tablet_node_tracker.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -87,6 +89,8 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -109,6 +113,7 @@ using namespace NCellServer;
 using namespace NCellarClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
+using namespace NChaosClient;
 using namespace NChunkServer;
 using namespace NConcurrency;
 using namespace NCypressClient;
@@ -392,9 +397,14 @@ public:
         if (!preserveTimestamps && atomicity == NTransactionClient::EAtomicity::None) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::InvalidTabletState,
-                "Cannot set atomicity %v with preserveTimestamps %v",
-                atomicity,
-                preserveTimestamps);
+                "Cannot create replica table: incompatible atomicity and preserve_timestamps")
+                << TErrorAttribute("\"atomicity\"", atomicity)
+                << TErrorAttribute("\"preserve_timestamps\"", preserveTimestamps);
+        }
+
+        // TODO(savrus) Fix this check for multicell environment.
+        if (table->ReplicationCardToken()) {
+            THROW_ERROR_EXCEPTION("Cannot create table replica for queue table");
         }
 
         table->ValidateNotBackup("Cannot create table replica from a backup table");
@@ -3556,6 +3566,15 @@ private:
                     }
                 }
 
+                if (table->ReplicationCardToken()) {
+                    if (tablet->ReplicationProgress().Segments.empty()) {
+                        tablet->ReplicationProgress().Segments.push_back({tablet->GetPivotKey(), MinTimestamp});
+                    }
+
+                    ToProto(req.mutable_replication_card_token(), ConvertToClientReplicationCardToken(table->ReplicationCardToken()));
+                    ToProto(req.mutable_replication_progress(), tablet->ReplicationProgress());
+                }
+
                 auto* chunkList = tablet->GetChunkList();
                 const auto& chunkListStatistics = chunkList->Statistics();
                 auto chunksOrViews = EnumerateStoresInChunkTree(chunkList);
@@ -3963,6 +3982,50 @@ private:
                 oldPivotKeys.push_back(tablets[lastTabletIndex + 1]->GetPivotKey());
             } else {
                 oldPivotKeys.push_back(MaxKey());
+            }
+        }
+
+        // Copy replication progress.
+        if (table->IsPhysicallySorted() && table->ReplicationCardToken()) {
+            TReplicationProgress progress;
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tablet = tablets[index];
+                const auto& segments = tablet->ReplicationProgress().Segments;
+                if (segments.empty()) {
+                    progress.Segments.push_back(TReplicationProgress::TSegment{tablet->GetPivotKey(), MinTimestamp});
+                } else {
+                    progress.Segments.insert(progress.Segments.end(), segments.begin(), segments.end());
+                }
+            }
+
+            auto lastPivotKey = lastTabletIndex + 1 < std::ssize(tablets)
+                ? tablets[lastTabletIndex + 1]->GetPivotKey().Get()
+                : MaxKey().Get();
+
+            int segmentIndex = 0;
+            for (int index = 0; index < std::ssize(newTablets); ++index) {
+                auto& segments = newTablets[index]->ReplicationProgress().Segments;
+
+                auto pivotKey = newTablets[index]->GetPivotKey().Get();
+                auto nextPivotKey = index + 1 < std::ssize(newTablets)
+                    ? newTablets[index + 1]->GetPivotKey().Get()
+                    : lastPivotKey;
+
+                auto lowerKey = progress.Segments[segmentIndex].LowerKey;
+                YT_VERIFY(lowerKey <= pivotKey);
+
+                for (; segmentIndex < std::ssize(progress.Segments) && progress.Segments[segmentIndex].LowerKey < nextPivotKey; ++segmentIndex) {
+                    segments.push_back(progress.Segments[segmentIndex]);
+                }
+
+                YT_VERIFY(!segments.empty());
+                if (segments[0].LowerKey < pivotKey) {
+                    segments[0].LowerKey = newTablets[index]->GetPivotKey();
+                }
+
+                if (segmentIndex < std::ssize(progress.Segments) && progress.Segments[segmentIndex].LowerKey > nextPivotKey) {
+                    --segmentIndex;
+                }
             }
         }
 
@@ -5077,6 +5140,10 @@ private:
                     tabletId);
             }
             return;
+        }
+
+        if (response->has_replication_progress()) {
+            tablet->ReplicationProgress() = FromProto<TReplicationProgress>(response->replication_progress());
         }
 
         SetTabletEdenStoreIds(tablet, FromProto<std::vector<TStoreId>>(response->mount_hint().eden_store_ids()));

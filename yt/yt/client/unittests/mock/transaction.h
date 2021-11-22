@@ -51,6 +51,10 @@ public:
         const TString& query,
         const TExplainQueryOptions& options), (override));
 
+    MOCK_METHOD(TFuture<TPullRowsResult>, PullRows, (
+        const NYPath::TYPath& path,
+        const TPullRowsOptions& options), (override));
+
     MOCK_METHOD(TFuture<ITableReaderPtr>, CreateTableReader, (
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options), (override));

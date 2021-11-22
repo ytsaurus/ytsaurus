@@ -1,5 +1,7 @@
 #include "public.h"
 
+#include <yt/yt/client/tablet_client/public.h>
+
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NTableServer {

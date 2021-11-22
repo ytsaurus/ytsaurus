@@ -103,6 +103,11 @@ const ITableMountCachePtr& TClient::GetTableMountCache()
     return TableMountCache_.Value();
 }
 
+const IReplicationCardCachePtr& TClient::GetReplicationCardCache()
+{
+    YT_UNIMPLEMENTED();
+}
+
 const ITimestampProviderPtr& TClient::GetTimestampProvider()
 {
     return TimestampProvider_.Value();

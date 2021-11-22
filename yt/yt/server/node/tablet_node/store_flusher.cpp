@@ -60,6 +60,7 @@ using namespace NTransactionClient;
 using namespace NYTree;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

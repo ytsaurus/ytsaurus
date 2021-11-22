@@ -41,6 +41,9 @@ using namespace NTabletClient;
 using namespace NTabletNodeTrackerClient;
 using namespace NTabletNodeTrackerClient::NProto;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;

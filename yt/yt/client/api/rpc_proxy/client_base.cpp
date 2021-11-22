@@ -935,6 +935,13 @@ TFuture<TYsonString> TClientBase::ExplainQuery(
     }));
 }
 
+TFuture<TPullRowsResult> TClientBase::PullRows(
+    const TYPath& /*path*/,
+    const TPullRowsOptions& /*options*/)
+{
+    YT_ABORT();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy

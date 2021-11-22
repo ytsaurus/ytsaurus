@@ -35,6 +35,11 @@
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
+#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h>
+
+#include <yt/yt/client/chaos_client/replication_card_cache.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/compression/codec.h>
@@ -51,6 +56,7 @@ using namespace NCypressClient;
 using namespace NTabletClient;
 using namespace NTableClient;
 using namespace NQueryClient;
+using namespace NChaosClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
@@ -219,10 +225,6 @@ public:
     {
         auto guard = Guard(SpinLock_);
 
-        YT_VERIFY(
-            TypeFromId(cellId) == EObjectType::TabletCell ||
-            TypeFromId(cellId) == EObjectType::MasterCell);
-
         if (State_ != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION(
                 NTransactionClient::EErrorCode::InvalidTransactionState,
@@ -231,21 +233,7 @@ public:
                 State_);
         }
 
-        if (GetAtomicity() != EAtomicity::Full) {
-            THROW_ERROR_EXCEPTION(
-                NTransactionClient::EErrorCode::InvalidTransactionAtomicity,
-                "Cannot add action since transaction %v has wrong atomicity: actual %Qlv, expected %Qlv",
-                GetId(),
-                GetAtomicity(),
-                EAtomicity::Full);
-        }
-
-        auto session = GetOrCreateCellCommitSession(cellId);
-        session->RegisterAction(data);
-
-        YT_LOG_DEBUG("Transaction action added (CellId: %v, ActionType: %v)",
-            cellId,
-            data.Type);
+        DoAddAction(cellId, data);
     }
 
 
@@ -419,6 +407,11 @@ public:
         const TExplainQueryOptions& options),
         (query, options))
 
+    DELEGATE_METHOD(TFuture<TPullRowsResult>, PullRows, (
+        const TYPath& path,
+        const TPullRowsOptions& options),
+        (path, options))
+
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TYsonString>, GetNode, (
         const TYPath& path,
         const TGetNodeOptions& options),
@@ -574,7 +567,7 @@ private:
             , Modifications_(std::move(modifications))
             , Options_(options)
             , Logger(transaction->Logger)
-            , TableSession_(transaction->GetOrCreateTableSession(Path_, Options_.UpstreamReplicaId))
+            , TableSession_(transaction->GetOrCreateTableSession(Path_, Options_.UpstreamReplicaId, Options_.ReplicationCard))
         { }
 
         std::optional<i64> GetSequenceNumber()
@@ -590,7 +583,7 @@ private:
             }
 
             const auto& tableInfo = TableSession_->GetInfo();
-            if (Options_.UpstreamReplicaId && tableInfo->IsReplicated()) {
+            if (Options_.UpstreamReplicaId && tableInfo->IsReplicated() && !tableInfo->ReplicationCardToken.ReplicationCardId) {
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::TableMustNotBeReplicated,
                     "Replicated table %v cannot act as a replication sink",
@@ -609,32 +602,45 @@ private:
                     tableInfo->Path);
             }
 
-            for (const auto& syncReplica : syncReplicas) {
-                auto replicaOptions = Options_;
-                replicaOptions.UpstreamReplicaId = syncReplica.ReplicaInfo->ReplicaId;
-                replicaOptions.SequenceNumber.reset();
-                if (syncReplica.Transaction) {
-                    YT_LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
-                        Modifications_.Size());
-                    syncReplica.Transaction->ModifyRows(
-                        syncReplica.ReplicaInfo->ReplicaPath,
-                        NameTable_,
-                        Modifications_,
-                        replicaOptions);
-                } else {
-                    // YT-7571: Local sync replicas must be handled differenly.
-                    // We cannot add more modifications via ITransactions interface since
-                    // the transaction is already committing.
-                    YT_LOG_DEBUG("Buffering local sync replication modifications (Count: %v)",
-                        Modifications_.Size());
-                    transaction->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
-                        transaction.Get(),
-                        Connection_,
-                        syncReplica.ReplicaInfo->ReplicaPath,
-                        NameTable_,
-                        Modifications_,
-                        replicaOptions));
+            if (!Options_.ReplicationCard) {
+                for (const auto& syncReplica : syncReplicas) {
+                    auto replicaOptions = Options_;
+                    replicaOptions.UpstreamReplicaId = syncReplica.ReplicaInfo->ReplicaId;
+                    replicaOptions.SequenceNumber.reset();
+                    replicaOptions.ReplicationCard = syncReplica.ReplicationCard;
+                    replicaOptions.TopmostTransaction = false;
+
+                    if (syncReplica.Transaction) {
+                        YT_LOG_DEBUG("Submitting remote sync replication modifications (Count: %v)",
+                            Modifications_.Size());
+                        syncReplica.Transaction->ModifyRows(
+                            syncReplica.ReplicaInfo->ReplicaPath,
+                            NameTable_,
+                            Modifications_,
+                            replicaOptions);
+                    } else {
+                        // YT-7571: Local sync replicas must be handled differenly.
+                        // We cannot add more modifications via ITransactions interface since
+                        // the transaction is already committing.
+
+                        // For chaos replicated tables this branch is used to send data to itself.
+
+                        YT_LOG_DEBUG("Buffering local sync replication modifications (Count: %v)",
+                            Modifications_.Size());
+                        transaction->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
+                            transaction.Get(),
+                            Connection_,
+                            syncReplica.ReplicaInfo->ReplicaPath,
+                            NameTable_,
+                            Modifications_,
+                            replicaOptions));
+                    }
                 }
+            }
+
+            if (Options_.TopmostTransaction && tableInfo->ReplicationCardToken) {
+                // For chaos tables we write to all replicas via nested invocations above.
+                return;
             }
 
             std::optional<int> tabletIndexColumnId;
@@ -853,6 +859,7 @@ private:
     {
         TTableReplicaInfoPtr ReplicaInfo;
         NApi::ITransactionPtr Transaction;
+        TReplicationCardPtr ReplicationCard;
     };
 
     class TTableCommitSession
@@ -862,15 +869,17 @@ private:
         TTableCommitSession(
             TTransaction* transaction,
             const TYPath& path,
-            TTableReplicaId upstreamReplicaId)
+            TTableReplicaId upstreamReplicaId,
+            TReplicationCardPtr replicationCard)
             : Transaction_(transaction)
             , UpstreamReplicaId_(upstreamReplicaId)
+            , ReplicationCard_(std::move(replicationCard))
             , Logger(transaction->Logger.WithTag("Path: %v", path))
         {
             const auto& tableMountCache = transaction->Client_->GetTableMountCache();
             auto tableInfoFuture = tableMountCache->GetTableInfo(path);
             auto tableInfoOrError = tableInfoFuture.TryGet();
-            PrepareFuture_  = tableInfoOrError && tableInfoOrError->IsOK()
+            PrepareFuture_ = tableInfoOrError && tableInfoOrError->IsOK()
                 ? OnGotTableInfo(tableInfoOrError->Value())
                 : tableInfoFuture
                     .Apply(BIND(&TTableCommitSession::OnGotTableInfo, MakeStrong(this))
@@ -898,23 +907,61 @@ private:
             return SyncReplicas_;
         }
 
+        const TReplicationCardPtr& GetReplicationCard() const
+        {
+            return ReplicationCard_;
+        }
+
     private:
         const TWeakPtr<TTransaction> Transaction_;
-        const TTableReplicaId UpstreamReplicaId_;
-        const NLogging::TLogger Logger;
 
         TFuture<void> PrepareFuture_;
         TTableMountInfoPtr TableInfo_;
+        TTableReplicaId UpstreamReplicaId_;
+        TReplicationCardPtr ReplicationCard_;
         std::vector<TSyncReplica> SyncReplicas_;
 
+        const NLogging::TLogger Logger;
 
         TFuture<void> OnGotTableInfo(const TTableMountInfoPtr& tableInfo)
         {
             TableInfo_ = tableInfo;
+            if (TableInfo_->ReplicationCardToken) {
+                UpstreamReplicaId_ = TableInfo_->UpstreamReplicaId;
+            }
+            if (!TableInfo_->ReplicationCardToken) {
+                return OnGotReplicationCard(true);
+            } else if (ReplicationCard_) {
+                return OnGotReplicationCard(false);
+            } else {
+                auto transaction = Transaction_.Lock();
+                if (!transaction) {
+                    OnGotReplicationCard(false);
+                }
 
+                const auto& replicationCardCache = transaction->Client_->GetReplicationCardCache();
+                return replicationCardCache->GetReplicationCard({
+                        .Token = tableInfo->ReplicationCardToken,
+                        .RequestCoordinators = true
+                    }).Apply(BIND([=, this_ = MakeStrong(this)] (const TReplicationCardPtr& replicationCard) {
+                        YT_LOG_DEBUG("Got replication card (Path: %v, ReplicationCardId: %v, CoordinatorCellIds: %v)",
+                            TableInfo_->Path,
+                            TableInfo_->ReplicationCardToken.ReplicationCardId,
+                            replicationCard->CoordinatorCellIds);
+
+                        ReplicationCard_ = replicationCard;
+                        return OnGotReplicationCard(true);
+                    }).AsyncVia(transaction->SerializedInvoker_));
+            }
+        }
+
+        TFuture<void> OnGotReplicationCard(bool exploreReplicas)
+        {
             std::vector<TFuture<void>> futures;
             CheckPermissions(&futures);
-            RegisterSyncReplicas(&futures);
+            if (exploreReplicas) {
+                RegisterSyncReplicas(&futures);
+            }
 
             return AllSucceeded(std::move(futures));
         }
@@ -947,9 +994,9 @@ private:
                 return;
             }
 
-            for (const auto& replicaInfo : TableInfo_->Replicas) {
+            auto registerReplica = [&] (const auto& replicaInfo) {
                 if (replicaInfo->Mode != ETableReplicaMode::Sync) {
-                    continue;
+                    return;
                 }
 
                 YT_LOG_DEBUG("Sync table replica registered (ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
@@ -962,9 +1009,26 @@ private:
                         .Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::ITransactionPtr& transaction) {
                             SyncReplicas_.push_back(TSyncReplica{
                                 replicaInfo,
-                                transaction
+                                transaction,
+                                ReplicationCard_
                             });
                         }).AsyncVia(transaction->SerializedInvoker_)));
+            };
+
+            for (const auto& replicaInfo : TableInfo_->Replicas) {
+                registerReplica(replicaInfo);
+            }
+
+            if (ReplicationCard_) {
+                for (const auto& chaosReplicaInfo : ReplicationCard_->Replicas) {
+                    if (chaosReplicaInfo.Mode == EReplicaMode::Sync) {
+                        auto replicaInfo = New<TTableReplicaInfo>();
+                        replicaInfo->ClusterName = chaosReplicaInfo.Cluster;
+                        replicaInfo->ReplicaPath = chaosReplicaInfo.TablePath;
+                        replicaInfo->ReplicaId = chaosReplicaInfo.ReplicaId;
+                        registerReplica(replicaInfo);
+                    }
+                }
             }
         }
     };
@@ -1296,6 +1360,9 @@ private:
             if (TableSession_->GetUpstreamReplicaId()) {
                 ToProto(req->mutable_upstream_replica_id(), TableSession_->GetUpstreamReplicaId());
             }
+            if (const auto& replicationCard = TableSession_->GetReplicationCard()) {
+                req->set_replication_era(replicationCard->Era);
+            }
             req->Attachments().push_back(batch->RequestData);
 
             YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, "
@@ -1397,6 +1464,9 @@ private:
                 case EObjectType::MasterCell:
                     future = SendMasterActions(transaction, channel);
                     break;
+                case EObjectType::ChaosCell:
+                    future = SendChaosActions(transaction, channel);
+                    break;
                 default:
                     YT_ABORT();
             }
@@ -1436,6 +1506,18 @@ private:
             auto req = proxy.RegisterTransactionActions();
             req->SetResponseHeavy(true);
             ToProto(req->mutable_transaction_id(), owner->GetId());
+            ToProto(req->mutable_actions(), Actions_);
+            return req->Invoke().As<void>();
+        }
+
+        TFuture<void> SendChaosActions(const TTransactionPtr& owner, const IChannelPtr& channel)
+        {
+            TCoordinatorServiceProxy proxy(channel);
+            auto req = proxy.RegisterTransactionActions();
+            ToProto(req->mutable_transaction_id(), owner->GetId());
+            req->set_transaction_start_timestamp(owner->GetStartTimestamp());
+            req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
+            req->set_signature(AllocateRequestSignature());
             ToProto(req->mutable_actions(), Actions_);
             return req->Invoke().As<void>();
         }
@@ -1563,19 +1645,27 @@ private:
     }
 
 
-    TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path, TTableReplicaId upstreamReplicaId)
+    TTableCommitSessionPtr GetOrCreateTableSession(
+        const TYPath& path,
+        TTableReplicaId upstreamReplicaId,
+        const TReplicationCardPtr& replicationCard)
     {
         auto it = TablePathToSession_.find(path);
         if (it == TablePathToSession_.end()) {
-            auto session = New<TTableCommitSession>(this, path, upstreamReplicaId);
+            auto session = New<TTableCommitSession>(this, path, upstreamReplicaId, replicationCard);
             PendingSessions_.push_back(session);
             it = TablePathToSession_.emplace(path, session).first;
         } else {
             const auto& session = it->second;
+
+            // TODO(savrus): It may happen that in topmost transaction we already have session with upstream replica id resolved.
+            // (Consider direct writing into several replicas of chaos table).
+            // Need to make error message more understandable.
+
             if (session->GetUpstreamReplicaId() != upstreamReplicaId) {
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::UpstreamReplicaMismatch,
-                    "Mismatched upstream replica is specified for modifications to table %v: %v != !v",
+                    "Mismatched upstream replica is specified for modifications to table %v: %v != %v",
                     path,
                     upstreamReplicaId,
                     session->GetUpstreamReplicaId());
@@ -1711,7 +1801,67 @@ private:
                 CommitOptions_.Force2PC = true;
                 break;
             }
+            if (auto chaosCellId = session->GetInfo()->ReplicationCardToken.ChaosCellId;
+                chaosCellId &&
+                session->GetReplicationCard()->Era > 0 &&
+                !options.CoordinatorCellId)
+            {
+                CommitOptions_.Force2PC = true;
+                const auto& coordinatorCellIds = session->GetReplicationCard()->CoordinatorCellIds;
+
+                YT_LOG_DEBUG("Considering replication card (Path: %v, ReplicationCadId: %v, Era: %v, CoordinatorCellIds: %v)",
+                    path,
+                    session->GetInfo()->ReplicationCardToken.ReplicationCardId,
+                    session->GetReplicationCard()->Era,
+                    session->GetReplicationCard()->CoordinatorCellIds);
+
+                if (coordinatorCellIds.empty()) {
+                    THROW_ERROR_EXCEPTION("Coordinators are not available")
+                        << TErrorAttribute("replication_card_id", session->GetInfo()->ReplicationCardToken.ReplicationCardId)
+                        << TErrorAttribute("chaos_cell_id", session->GetInfo()->ReplicationCardToken.ChaosCellId);
+                }
+
+                auto coordinatorCellId = coordinatorCellIds[RandomNumber(coordinatorCellIds.size())];
+                Transaction_->RegisterParticipant(coordinatorCellId);
+
+                NChaosClient::NProto::TReqReplicatedCommit request;
+                ToProto(request.mutable_replication_card_id(), session->GetInfo()->ReplicationCardToken.ReplicationCardId);
+                request.set_replication_era(session->GetReplicationCard()->Era);
+
+                DoAddAction(coordinatorCellId, MakeTransactionActionData(request));
+
+                CommitOptions_.CoordinatorCellId = coordinatorCellId;
+
+                YT_LOG_DEBUG("Coordinator selected (CoordinatorCellId: %v)",
+                    coordinatorCellId);
+
+                break;
+            }
         }
+    }
+
+    void DoAddAction(TCellId cellId, const TTransactionActionData& data)
+    {
+        YT_VERIFY(
+            TypeFromId(cellId) == EObjectType::TabletCell ||
+            TypeFromId(cellId) == EObjectType::ChaosCell ||
+            TypeFromId(cellId) == EObjectType::MasterCell);
+
+        if (GetAtomicity() != EAtomicity::Full) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::InvalidTransactionAtomicity,
+                "Cannot add action since transaction %v has wrong atomicity: actual %Qlv, expected %Qlv",
+                GetId(),
+                GetAtomicity(),
+                EAtomicity::Full);
+        }
+
+        auto session = GetOrCreateCellCommitSession(cellId);
+        session->RegisterAction(data);
+
+        YT_LOG_DEBUG("Transaction action added (CellId: %v, ActionType: %v)",
+            cellId,
+            data.Type);
     }
 
     TFuture<TTransactionCommitResult> DoCommit(const TTransactionCommitOptions& options, bool needsFlush)

@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/cell_master_client/public.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
 #include <yt/yt/ytlib/query_client/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -17,6 +19,8 @@
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
+
+#include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
@@ -69,6 +73,7 @@ struct IConnection
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
+    virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
 
     virtual const NJobProberClient::TJobShellDescriptorCachePtr& GetJobShellDescriptorCache() = 0;

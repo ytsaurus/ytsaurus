@@ -98,6 +98,7 @@ struct TReplicationCardToken
         TReplicationCardId replicationCardId);
 
     operator size_t() const;
+    explicit operator bool() const;
     bool operator == (const TReplicationCardToken& other) const;
 };
 

@@ -24,6 +24,7 @@
 #include "table_replicator.h"
 #include "tablet_profiling.h"
 #include "tablet_snapshot_store.h"
+#include "table_puller.h"
 
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
@@ -47,6 +48,8 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -103,6 +106,7 @@ namespace NYT::NTabletNode {
 
 using namespace NCompression;
 using namespace NConcurrency;
+using namespace NChaosClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NHydra;
@@ -125,6 +129,9 @@ using namespace NProfiling;
 using namespace NDistributedThrottler;
 
 using NLsm::EStoreRotationReason;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,6 +218,10 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReplicateRows, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReplicateRows, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReplicateRows, MakeStrong(this))));
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareWritePulledRows, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitWritePulledRows, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortWritePulledRows, MakeStrong(this))));
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
@@ -823,6 +834,12 @@ private:
             AddTableReplica(tablet, descriptor);
         }
 
+        if (request->has_replication_card_token()) {
+            auto replicationCardToken = FromProto<TReplicationCardToken>(request->replication_card_token());
+            AddChaosAgent(tablet, replicationCardToken);
+            tablet->ReplicationProgress() = FromProto<NChaosClient::TReplicationProgress>(request->replication_progress());
+        }
+
         const auto& lockManager = tablet->GetLockManager();
 
         for (const auto& lock : request->locks()) {
@@ -1186,6 +1203,9 @@ private:
                 TRspUnmountTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
                 *response.mutable_mount_hint() = tablet->GetMountHint();
+                if (tablet->GetUpstreamReplicaId()) {
+                    ToProto(response.mutable_replication_progress(), tablet->ReplicationProgress());
+                }
 
                 TabletMap_.Remove(tabletId);
 
@@ -1906,6 +1926,70 @@ private:
             preserveTimestamps);
     }
 
+    void HydraPrepareWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request, bool persistent)
+    {
+        YT_VERIFY(persistent);
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto round = request->replication_round();
+        auto* tablet = GetTabletOrThrow(tabletId);
+
+        if (tablet->GetReplicationRound() != round) {
+            THROW_ERROR_EXCEPTION("Replication round mismatch: expected %v, got %v",
+                tablet->GetReplicationRound(),
+                round);
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows prepared (TabletId: %v, TransactionId: %v, ReplictionRound: %v",
+            tabletId,
+            transaction->GetId(),
+            round);
+    }
+
+    void HydraCommitWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto round = request->replication_round();
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        YT_VERIFY(tablet->GetReplicationRound() == round);
+
+        tablet->ReplicationProgress() = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
+
+        THashMap<TTabletId, i64> currentReplicationRowIndexes;
+        for (auto protoEndReplicationRowIndex : request->new_replication_row_indexes()) {
+            auto tabletId = FromProto<TTabletId>(protoEndReplicationRowIndex.tablet_id());
+            auto endReplicationRowIndex = protoEndReplicationRowIndex.replication_row_index();
+            YT_VERIFY(currentReplicationRowIndexes.insert(std::make_pair(tabletId, endReplicationRowIndex)).second);
+        }
+
+        tablet->CurrentReplicationRowIndexes() = std::move(currentReplicationRowIndexes);
+        tablet->SetReplicationRound(round + 1);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows committed (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, NewReplicationRound: %v)",
+            tabletId,
+            transaction->GetId(),
+            tablet->ReplicationProgress(),
+            tablet->CurrentReplicationRowIndexes(),
+            tablet->GetReplicationRound());
+    }
+
+    void HydraAbortWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows aborted (TabletId: %v, TransactionId: %v)",
+            tabletId,
+            transaction->GetId());
+    }
+
     void HydraPrepareReplicateRows(TTransaction* transaction, TReqReplicateRows* request, bool persistent)
     {
         YT_VERIFY(persistent);
@@ -2396,6 +2480,11 @@ private:
         for (auto& [replicaId, replicaInfo] : tablet->Replicas()) {
             StartTableReplicaEpoch(tablet, &replicaInfo);
         }
+
+        if (tablet->GetChaosAgent()) {
+            tablet->GetChaosAgent()->Enable();
+            tablet->GetTablePuller()->Enable();
+        }
     }
 
     void StopTabletEpoch(TTablet* tablet)
@@ -2414,6 +2503,11 @@ private:
 
         tablet->SetInFlightUserMutationCount(0);
         tablet->SetInFlightReplicatorMutationCount(0);
+
+        if (tablet->GetChaosAgent()) {
+            tablet->GetChaosAgent()->Disable();
+            tablet->GetTablePuller()->Disable();
+        }
     }
 
 
@@ -3046,6 +3140,23 @@ private:
         request.set_mount_revision(tablet->GetMountRevision());
         replicaInfo.PopulateStatistics(request.mutable_statistics());
         PostMasterMutation(tablet->GetId(), request);
+    }
+
+
+    void AddChaosAgent(TTablet* tablet, const TReplicationCardToken& replicationCardToken)
+    {
+        tablet->SetChaosAgent(CreateChaosAgent(
+            tablet,
+            replicationCardToken,
+            Bootstrap_->GetMasterClient()->GetNativeConnection()));
+        tablet->SetTablePuller(CreateTablePuller(
+            Config_,
+            tablet,
+            Bootstrap_->GetMasterClient()->GetNativeConnection(),
+            Slot_,
+            Bootstrap_->GetTabletSnapshotStore(),
+            CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
+            Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletReplication)));
     }
 
 

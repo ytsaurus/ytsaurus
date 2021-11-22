@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/tablet_client/config.h>
 
+#include <yt/yt/client/chaos_client/config.h>
+
 #include <yt/yt/client/chunk_client/config.h>
 
 #include <yt/yt/client/file_client/config.h>
@@ -52,6 +54,7 @@ public:
     EConnectionType ConnectionType;
     std::optional<TString> ClusterName;
     TTableMountCacheConfigPtr TableMountCache;
+    NChaosClient::TReplicationCardCacheConfigPtr ReplicationCardCache;
 
     TConnectionConfig()
     {
@@ -61,6 +64,8 @@ public:
             .Default();
         RegisterParameter("table_mount_cache", TableMountCache)
             .DefaultNew();
+        RegisterParameter("replication_card_cache", ReplicationCardCache)
+            .Optional();
     }
 };
 

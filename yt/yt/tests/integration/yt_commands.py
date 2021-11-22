@@ -793,6 +793,11 @@ def lookup_rows(path, data, **kwargs):
     return execute_command_with_output_format("lookup_rows", kwargs, input_stream=_prepare_rows_stream(data))
 
 
+def pull_rows(path, **kwargs):
+    kwargs["path"] = path
+    return execute_command_with_output_format("pull_rows", kwargs)
+
+
 def get_in_sync_replicas(path, data, **kwargs):
     kwargs["path"] = path
     if data is None:
@@ -2406,7 +2411,7 @@ def create_table(path, force=None, dynamic=None, schema=None):
     create("table", path, **kwargs)
 
 
-def create_dynamic_table(path, schema=None, **attributes):
+def create_dynamic_table(path, schema=None, driver=None, **attributes):
     if "dynamic" not in attributes:
         attributes.update({"dynamic": True})
 
@@ -2416,8 +2421,7 @@ def create_dynamic_table(path, schema=None, **attributes):
         del attributes["enable_dynamic_store_read"]
 
     attributes.update({"schema": schema})
-
-    return create("table", path, attributes=attributes)
+    return create("table", path, attributes=attributes, driver=driver)
 
 
 def create_area(name, cell_bundle_id, **kwargs):

@@ -70,6 +70,10 @@ public:
         const TString& query,
         const NApi::TExplainQueryOptions& options) override;
 
+    virtual TFuture<TPullRowsResult> PullRows(
+        const NYPath::TYPath& path,
+        const NApi::TPullRowsOptions& options) override;
+
     // TODO(babenko): batch read and batch write
 
     // Cypress

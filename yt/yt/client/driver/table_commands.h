@@ -291,6 +291,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPullRowsOptions
+    : public NApi::TPullRowsOptions
+{ };
+
+class TPullRowsCommand
+    : public TTypedCommand<TPullRowsOptions>
+{
+public:
+    TPullRowsCommand();
+
+private:
+    NYPath::TRichYPath Path;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGetInSyncReplicasCommand
     : public TTypedCommand<NApi::TGetInSyncReplicasOptions>
 {

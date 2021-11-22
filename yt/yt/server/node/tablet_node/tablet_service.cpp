@@ -35,16 +35,20 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NYTree;
-using namespace NRpc;
-using namespace NCompression;
+using namespace NChaosClient;
 using namespace NChunkClient;
-using namespace NTabletClient;
-using namespace NTableClient;
-using namespace NTransactionClient;
-using namespace NHydra;
 using namespace NClusterNode;
+using namespace NCompression;
 using namespace NConcurrency;
+using namespace NHydra;
+using namespace NRpc;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTransactionClient;
+using namespace NYTree;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,6 +99,9 @@ private:
         auto versioned = request->versioned();
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
         auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
+        auto replicationEra = request->has_replication_era()
+            ? std::make_optional(FromProto<TReplicationEra>(request->replication_era()))
+            : std::nullopt;
 
         ValidateTabletTransactionId(transactionId);
 
@@ -103,7 +110,7 @@ private:
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %llx, "
             "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, Generation: %x, RowCount: %v, DataWeight: %v, "
-            "RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, UpstreamReplicaId: %v",
+            "RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, UpstreamReplicaId: %v, ReplicationEra: %v",
             tabletId,
             transactionId,
             transactionStartTimestamp,
@@ -117,7 +124,8 @@ private:
             requestCodecId,
             versioned,
             syncReplicaIds,
-            upstreamReplicaId);
+            upstreamReplicaId,
+            replicationEra);
 
         // NB: Must serve the whole request within a single epoch.
         TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
@@ -149,6 +157,12 @@ private:
                     tabletSnapshot->UpstreamReplicaId,
                     upstreamReplicaId);
             }
+        }
+
+        if (auto era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load(); replicationEra && *replicationEra != era) {
+            THROW_ERROR_EXCEPTION("Replication era mismatch: expected %v, got %v",
+                *replicationEra,
+                era);
         }
 
         const auto& resourceLimitsManager = Bootstrap_->GetResourceLimitsManager();

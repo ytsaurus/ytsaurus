@@ -60,6 +60,9 @@ using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NProfiling;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;

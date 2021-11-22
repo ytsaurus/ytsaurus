@@ -144,6 +144,11 @@ const ITableMountCachePtr& TClient::GetTableMountCache()
     return Connection_->GetTableMountCache();
 }
 
+const NChaosClient::IReplicationCardCachePtr& TClient::GetReplicationCardCache()
+{
+    return Connection_->GetReplicationCardCache();
+}
+
 const ITimestampProviderPtr& TClient::GetTimestampProvider()
 {
     return Connection_->GetTimestampProvider();
@@ -176,6 +181,7 @@ IChannelPtr TClient::GetMasterChannelOrThrow(
     const auto& channels = MasterChannels_[kind];
     auto it = channels.find(cellTag == PrimaryMasterCellTag ? Connection_->GetPrimaryMasterCellTag() : cellTag);
     if (it == channels.end()) {
+        YT_ABORT();
         THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
             cellTag);
     }

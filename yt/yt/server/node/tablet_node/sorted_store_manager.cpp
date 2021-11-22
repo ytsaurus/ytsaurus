@@ -69,6 +69,8 @@ using namespace NHydra;
 using namespace NYTAlloc;
 
 using NTableClient::TLegacyKey;
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +78,9 @@ struct THunkScratchBufferTag
 { };
 
 struct TMergeRowsOnFlushBufferTag
+{ };
+
+struct TMergeRowsOnFlushTag
 { };
 
 static const size_t MaxRowsPerFlushRead = 1024;

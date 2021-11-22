@@ -43,7 +43,30 @@ TTabletInfoPtr TTableMountInfo::GetTabletByIndexOrThrow(int tabletIndex) const
     return Tablets[tabletIndex];
 }
 
-TTabletInfoPtr TTableMountInfo::GetTabletForRow(TRange<TUnversionedValue> row) const
+int TTableMountInfo::GetTabletIndexForKey(TRange<TUnversionedValue> key) const
+{
+    ValidateDynamic();
+    auto it = std::upper_bound(
+        Tablets.begin(),
+        Tablets.end(),
+        key,
+        [&] (TRange<TUnversionedValue> key, const TTabletInfoPtr& rhs) {
+            return CompareRows(
+                key.Begin(),
+                key.End(),
+                rhs->PivotKey.Begin(),
+                rhs->PivotKey.End()) < 0;
+        });
+    YT_VERIFY(it != Tablets.begin());
+    return std::distance(Tablets.begin(), it - 1);
+}
+
+int TTableMountInfo::GetTabletIndexForKey(TUnversionedRow key) const
+{
+    return GetTabletIndexForKey(MakeRange(key.Begin(), key.End()));
+}
+
+int TTableMountInfo::GetTabletIndexForRow(TRange<TUnversionedValue> row) const
 {
     int keyColumnCount = Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
     YT_VERIFY(std::ssize(row) >= keyColumnCount);
@@ -60,7 +83,13 @@ TTabletInfoPtr TTableMountInfo::GetTabletForRow(TRange<TUnversionedValue> row) c
                 rhs->PivotKey.End()) < 0;
         });
     YT_VERIFY(it != Tablets.begin());
-    return *(--it);
+    return std::distance(Tablets.begin(), it - 1);
+}
+
+TTabletInfoPtr TTableMountInfo::GetTabletForRow(TRange<TUnversionedValue> row) const
+{
+    auto index = GetTabletIndexForRow(row);
+    return Tablets[index];
 }
 
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const

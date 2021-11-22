@@ -20,7 +20,8 @@ message TReqWrite
     required bool versioned = 10;
     repeated NYT.NProto.TGuid sync_replica_ids = 11;
     optional NYT.NProto.TGuid upstream_replica_id = 12;
-    optional uint64 data_weight = 13 [default = 0];
+    optional int64 data_weight = 13 [default = 0];
+    optional uint64 replication_era = 15 [default = 0];
     // Attachment contains wire-encoded data.
 }
 

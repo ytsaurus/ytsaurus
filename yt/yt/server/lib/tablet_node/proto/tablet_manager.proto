@@ -1,6 +1,7 @@
 package NYT.NTabletNode.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_view.proto";
@@ -99,6 +100,8 @@ message TReqMountTablet
     optional uint64 retained_timestamp = 21;
     repeated NYT.NProto.TGuid dynamic_store_ids = 22;
     optional TMountHint mount_hint = 23;
+    optional NYT.NChaosClient.NProto.TReplicationCardToken replication_card_token = 27;
+    optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 28;
 }
 
 message TReqUnmountTablet
@@ -271,5 +274,18 @@ message TRspAllocateDynamicStore
     required uint64 mount_revision = 3;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+message TReqWritePulledRows
+{
+    message TReplicationRowIndex
+    {
+        required NYT.NProto.TGuid tablet_id = 1;
+        required int64 replication_row_index = 2;
+    }
 
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int32 replication_round = 2;
+    required NYT.NChaosClient.NProto.TReplicationProgress new_replication_progress = 3;
+    repeated TReplicationRowIndex new_replication_row_indexes = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////

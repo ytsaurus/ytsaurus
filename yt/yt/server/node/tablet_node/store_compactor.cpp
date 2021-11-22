@@ -98,6 +98,9 @@ using namespace NYTAlloc;
 using namespace NYson;
 using namespace NProfiling;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t MaxRowsPerRead = 65536;

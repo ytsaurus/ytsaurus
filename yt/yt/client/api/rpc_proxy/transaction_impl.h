@@ -75,12 +75,14 @@ public:
         const NApi::TTransactionStartOptions& options) override;
 
     TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
-        const NYPath::TYPath& path, NTableClient::TNameTablePtr nameTable,
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const NApi::TLookupRowsOptions& options) override;
 
     TFuture<NApi::IVersionedRowsetPtr> VersionedLookupRows(
-        const NYPath::TYPath& path, NTableClient::TNameTablePtr nameTable,
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const NApi::TVersionedLookupRowsOptions& options) override;
 
@@ -95,6 +97,10 @@ public:
     TFuture<NYson::TYsonString> ExplainQuery(
         const TString& query,
         const NApi::TExplainQueryOptions& options) override;
+
+    TFuture<NApi::TPullRowsResult> PullRows(
+        const NYPath::TYPath& path,
+        const NApi::TPullRowsOptions& options) override;
 
     TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,

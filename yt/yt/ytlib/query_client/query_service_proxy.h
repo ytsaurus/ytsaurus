@@ -19,6 +19,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, Multiread);
+    DEFINE_RPC_PROXY_METHOD(NProto, PullRows);
     DEFINE_RPC_PROXY_METHOD(NProto, GetTabletInfo);
     DEFINE_RPC_PROXY_METHOD(NProto, ReadDynamicStore,
         .SetStreamingEnabled(true));

@@ -6,6 +6,8 @@
 #include "transaction.h"
 #include "private.h"
 
+#include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
+
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
@@ -68,22 +70,24 @@
 
 namespace NYT::NApi::NNative {
 
-using namespace NConcurrency;
-using namespace NRpc;
-using namespace NHiveClient;
+using namespace NChaosClient;
 using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NHiveClient;
+using namespace NHydra;
+using namespace NJobProberClient;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NProfiling;
+using namespace NQueryClient;
+using namespace NRpc;
+using namespace NScheduler;
+using namespace NScheduler;
+using namespace NSecurityClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
-using namespace NObjectClient;
-using namespace NQueryClient;
-using namespace NHydra;
-using namespace NNodeTrackerClient;
-using namespace NJobProberClient;
-using namespace NSecurityClient;
-using namespace NScheduler;
-using namespace NProfiling;
-using namespace NYson;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,6 +231,13 @@ public:
             Logger,
             Profiler_);
 
+        if (const auto& config = Config_->ReplicationCardCache) {
+            ReplicationCardCache_ = CreateNativeReplicationCardCache(
+                config,
+                this,
+                Logger);
+        }
+
         QueryEvaluator_ = CreateEvaluator(Config_->QueryEvaluator);
         ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(Config_->ColumnEvaluatorCache);
 
@@ -257,6 +268,14 @@ public:
     const ITableMountCachePtr& GetTableMountCache() override
     {
         return TableMountCache_;
+    }
+
+    const IReplicationCardCachePtr& GetReplicationCardCache() override
+    {
+        if (!ReplicationCardCache_) {
+            THROW_ERROR_EXCEPTION("Replication card cache is not configured");
+        }
+        return ReplicationCardCache_;
     }
 
     const ITimestampProviderPtr& GetTimestampProvider() override
@@ -476,6 +495,10 @@ public:
         MediumDirectorySynchronizer_->Stop();
 
         NodeDirectorySynchronizer_->Stop();
+
+        if (ReplicationCardCache_) {
+            ReplicationCardCache_->Clear();
+        }
     }
 
     bool IsTerminated() override
@@ -534,6 +557,7 @@ private:
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
+    IReplicationCardCachePtr ReplicationCardCache_;
     IChannelPtr TimestampProviderChannel_;
     ITimestampProviderPtr TimestampProvider_;
     TJobShellDescriptorCachePtr JobShellDescriptorCache_;

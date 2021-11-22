@@ -12,11 +12,15 @@
 
 #include <yt/yt/server/master/chunk_server/public.h>
 
+#include <yt/yt/server/lib/tablet_node/public.h>
+
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/backup.h>
 
 #include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
+
+#include <yt/yt/client/chaos_client/replication_card.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -292,6 +296,8 @@ public:
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);
     DECLARE_BYVAL_RW_PROPERTY(ETabletBackupState, BackupState);
     DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
+
+    DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
 
 public:
     using TObject::TObject;

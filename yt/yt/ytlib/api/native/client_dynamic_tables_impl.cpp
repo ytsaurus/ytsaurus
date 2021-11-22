@@ -2148,6 +2148,142 @@ std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
     return FromProto<std::vector<TAlienCellDescriptor>>(res->cell_descriptors());
 }
 
+TPullRowsResult TClient::DoPullRows(
+    const TYPath& path,
+    const TPullRowsOptions& options)
+{
+    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+        .ValueOrThrow();
+
+    tableInfo->ValidateDynamic();
+    tableInfo->ValidateSorted();
+
+    const auto& schema = tableInfo->Schemas[ETableSchemaKind::ReplicationLog];
+    auto resultSchemaData = TWireProtocolReader::GetSchemaData(*schema, TColumnFilter());
+
+    const auto& cellDirectory = Connection_->GetCellDirectory();
+    const auto& networks = Connection_->GetNetworks();
+
+    auto& segments = options.ReplicationProgress.Segments;
+    if (segments.empty()) {
+        THROW_ERROR_EXCEPTION("Invalid replication progress: no segments");
+    }
+    auto startIndex = tableInfo->GetTabletIndexForKey(segments[0].LowerKey.Get());
+
+    struct TTabletRequest
+    {
+        int TabletIndex;
+        std::optional<ui64> StartReplicationRowIndex;
+        TReplicationProgress Progress;
+    };
+
+    std::vector<TTabletRequest> requests;
+    requests.emplace_back();
+    requests.back().TabletIndex = startIndex;
+    requests.back().Progress.Segments.push_back(segments[0]);
+
+    for (int index = 0; index < std::ssize(segments); ++index) {
+        const auto& nextKey = index == std::ssize(segments) - 1
+            ? options.ReplicationProgress.UpperKey
+            : segments[index + 1].LowerKey;
+
+        while (startIndex < std::ssize(tableInfo->Tablets) - 1 && tableInfo->Tablets[startIndex + 1]->PivotKey < nextKey) {
+            ++startIndex;
+            const auto& tabletInfo = tableInfo->Tablets[startIndex];
+            const auto& pivotKey = tabletInfo->PivotKey;
+            requests.back().Progress.UpperKey = pivotKey;
+            requests.push_back({});
+            requests.back().TabletIndex = startIndex;
+            requests.back().Progress.Segments.push_back({pivotKey, segments[index].Timestamp});
+        }
+
+        if (index < std::ssize(segments) - 1) {
+            if (startIndex < std::ssize(tableInfo->Tablets) - 1 && tableInfo->Tablets[startIndex + 1]->PivotKey > nextKey) {
+                requests.back().Progress.Segments.push_back(segments[index + 1]);
+            }
+        } else {
+            requests.back().Progress.UpperKey = nextKey;
+        }
+    }
+
+    for (auto& request : requests) {
+        const auto& tabletInfo = tableInfo->Tablets[request.TabletIndex];
+        if (auto it = options.StartReplicationRowIndexes.find(tabletInfo->TabletId)) {
+            request.StartReplicationRowIndex = it->second;
+        }
+    }
+
+    std::vector<TFuture<TQueryServiceProxy::TRspPullRowsPtr>> asyncResults;
+
+    for (const auto& request : requests) {
+        const auto& tabletInfo = tableInfo->Tablets[request.TabletIndex];
+        auto channel = CreateTabletReadChannel(
+            ChannelFactory_,
+            cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId),
+            options,
+            networks);
+
+        TQueryServiceProxy proxy(channel);
+        auto req = proxy.PullRows();
+        req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
+        req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
+        req->set_mount_revision(tabletInfo->MountRevision);
+        req->set_max_rows_per_read(options.TabletRowsPerRead);
+        ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
+        ToProto(req->mutable_cell_id(), tabletInfo->CellId);
+        ToProto(req->mutable_start_replication_progress(), request.Progress);
+        ToProto(req->mutable_upstream_replica_id(), options.UpstreamReplicaId);
+        if (request.StartReplicationRowIndex.has_value()) {
+            req->set_start_replication_row_index(*request.StartReplicationRowIndex);
+        }
+
+        asyncResults.push_back(req->Invoke());
+
+        YT_LOG_DEBUG("Issuing pull rows request (TabletId: %v, Progress: %v, StartRowIndex: %v)",
+            tabletInfo->TabletId,
+            request.Progress,
+            request.StartReplicationRowIndex);
+    }
+
+    auto results = WaitFor(AllSet(std::move(asyncResults)))
+        .ValueOrThrow();
+
+    TPullRowsResult combinedResult;
+
+    for (int index = 0; index < std::ssize(requests); ++index) {
+        const auto& tabletInfo = tableInfo->Tablets[index];
+        if (!results[index].IsOK()) {
+            YT_LOG_DEBUG(results[index], "Pull rows request failed (TabletId: %v)",
+                tabletInfo->TabletId);
+            continue;
+        }
+
+        const auto& result = results[index].Value();
+        auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
+        auto responseData = responseCodec->Decompress(result->Attachments()[0]);
+        auto progress = FromProto<TReplicationProgress>(result->end_replication_progress());
+
+        YT_LOG_DEBUG("Got pull rows response (TabletId: %v, RowCount: %v, EndReplicationRowIndex: %v, Progress: %v, DataWeight: %v)",
+            tabletInfo->TabletId,
+            result->row_count(),
+            result->end_replication_row_index(),
+            progress,
+            result->data_weight());
+
+        combinedResult.ResultPerTablet.push_back({
+            tabletInfo->TabletId,
+            tabletInfo->PivotKey,
+            responseData,
+            result->row_count(),
+            result->end_replication_row_index(),
+            result->data_weight(),
+            std::move(progress)
+        });
+    }
+
+    return combinedResult;
+}
 IChannelPtr TClient::GetChaosChannel(TCellId chaosCellId)
 {
     const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();

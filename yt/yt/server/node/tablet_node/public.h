@@ -40,6 +40,8 @@ DECLARE_REFCOUNTED_STRUCT(TRuntimeTabletCellData)
 
 class TSaveContext;
 class TLoadContext;
+enum class ETabletReign;
+using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext, ETabletReign>;
 
 DECLARE_REFCOUNTED_CLASS(TTabletManager)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
@@ -105,6 +107,9 @@ DECLARE_REFCOUNTED_STRUCT(IVersionedChunkMetaManager)
 DECLARE_REFCOUNTED_CLASS(TVersionedChunkMetaCacheEntry)
 
 DECLARE_REFCOUNTED_CLASS(TTableReplicator)
+
+DECLARE_REFCOUNTED_STRUCT(ITablePuller)
+DECLARE_REFCOUNTED_STRUCT(IChaosAgent)
 
 DECLARE_REFCOUNTED_STRUCT(IStoreCompactor)
 DECLARE_REFCOUNTED_STRUCT(IStoreFlusher)

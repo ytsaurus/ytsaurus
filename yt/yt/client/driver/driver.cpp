@@ -190,6 +190,7 @@ public:
         REGISTER_ALL(TExplainQueryCommand,                 "explain_query",                   Null,       Structured, false, true );
         REGISTER_ALL(TSelectRowsCommand,                   "select_rows",                     Null,       Tabular,    false, true );
         REGISTER_ALL(TLookupRowsCommand,                   "lookup_rows",                     Tabular,    Tabular,    false, true );
+        REGISTER_ALL(TPullRowsCommand,                     "pull_rows",                       Null,       Tabular,    false, true );
 
         REGISTER    (TEnableTableReplicaCommand,           "enable_table_replica",            Null,       Null,       true,  false, ApiVersion3);
         REGISTER    (TDisableTableReplicaCommand,          "disable_table_replica",           Null,       Null,       true,  false, ApiVersion3);

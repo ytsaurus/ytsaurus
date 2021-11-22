@@ -82,10 +82,10 @@ private:
         std::optional<TString> ProfilingTag;
         bool EnableDetailedProfiling = false;
         bool EnableConsistentChunkReplicaPlacement = false;
-
         NTabletClient::ETableBackupState BackupState = NTabletClient::ETableBackupState::None;
         TEnumIndexedVector<NTabletClient::ETabletBackupState, int> TabletCountByBackupState;
         NTabletClient::ETabletBackupState AggregatedTabletBackupState = NTabletClient::ETabletBackupState::None;
+        NTabletServer::TReplicationCardTokenPtr ReplicationCardToken;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -142,6 +142,7 @@ public:
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByBackupState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, AggregatedTabletBackupState);
     DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(DynamicTableAttributes, TabletStatistics);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, ReplicationCardToken);
 
     // COMPAT(ifsmirnov)
     DECLARE_BYVAL_RW_PROPERTY(std::optional<bool>, EnableTabletBalancer);

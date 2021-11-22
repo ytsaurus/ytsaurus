@@ -571,6 +571,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, EdenStoreIds_);
     Save(context, BackupState_);
     Save(context, DynamicStores_);
+    Save(context, ReplicationProgress_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -607,6 +608,10 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::RefFromTabletToDynamicStore) {
         Load(context, DynamicStores_);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterReign::ChaosDataTransfer) {
+        Load(context, ReplicationProgress_);
     }
 }
 

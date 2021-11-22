@@ -8,20 +8,23 @@
 #include <yt/yt/server/node/query_agent/config.h>
 
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
+#include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/master_connector.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/store.h>
+#include <yt/yt/server/node/tablet_node/replication_log.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/tablet_reader.h>
 #include <yt/yt/server/node/tablet_node/tablet_slot.h>
-#include <yt/yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
-#include <yt/yt/server/node/tablet_node/lookup.h>
+#include <yt/yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/yt/server/node/tablet_node/transaction_manager.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -58,6 +61,8 @@
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
+#include <yt/yt/core/misc/tls_cache.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/authentication_identity.h>
 
@@ -66,6 +71,7 @@
 namespace NYT::NQueryAgent {
 
 using namespace NClusterNode;
+using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NCompression;
 using namespace NConcurrency;
@@ -398,6 +404,9 @@ public:
             .SetCancelable(true)
             .SetInvoker(bootstrap->GetTabletLookupPoolInvoker())
             .SetRequestQueueProvider(BIND(&TQueryService::GetMultireadRequestQueue, Unretained(this))));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
+            .SetCancelable(true)
+            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
             .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadDynamicStore)
@@ -740,6 +749,183 @@ private:
                         context->Reply(ex);
                     }
                 }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, PullRows)
+    {
+        auto upstreamReplicaId = FromProto<TReplicaId>(request->upstream_replica_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto cellId = FromProto<TTabletCellId>(request->cell_id());
+        auto mountRevision = request->mount_revision();
+        auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
+        auto progress = FromProto<NChaosClient::TReplicationProgress>(request->start_replication_progress());
+        auto startReplicationRowIndex = request->has_start_replication_row_index()
+            ? std::optional(request->start_replication_row_index())
+            : std::nullopt;
+
+        // TODO(savrus): Extract this out of RPC request.
+        TClientChunkReadOptions chunkReadOptions{
+            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
+            .ReadSessionId = TReadSessionId::Create(),
+        };
+
+        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, ResponseCodec: %v, ReadSessionId: %v",
+            tabletId,
+            startReplicationRowIndex,
+            responseCodecId,
+            chunkReadOptions.ReadSessionId);
+
+        auto* responseCodec = NCompression::GetCodec(responseCodecId);
+
+        TServiceProfilerGuard profilerGuard;
+        auto identity = NRpc::GetCurrentAuthenticationIdentity();
+        auto currentProfilingUser = GetProfilingUser(identity);
+
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+
+        ExecuteRequestWithRetries<void>(
+            Config_->MaxQueryRetries,
+            Logger,
+            [&] {
+                auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
+                if (tabletSnapshot->UpstreamReplicaId != upstreamReplicaId) {
+                    THROW_ERROR_EXCEPTION("Mismatched upstream replica: expected %v, got %v",
+                        tabletSnapshot->UpstreamReplicaId,
+                        upstreamReplicaId);
+                }
+
+                auto serviceCounters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
+                profilerGuard.Start(serviceCounters->PullRows);
+
+                snapshotStore->ValidateTabletAccess(tabletSnapshot, AsyncLastCommittedTimestamp);
+                tabletSnapshot->ValidateMountRevision(mountRevision);
+
+                auto logParser = CreateReplicationLogParser(tabletSnapshot->TableSchema, tabletSnapshot->Settings.MountConfig, Logger);
+                TWireProtocolWriter writer;
+
+                // TODO(savrus) Use binary search based on progress timestamp.
+                auto currentRowIndex = startReplicationRowIndex.value_or(tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load());
+
+                auto reader = CreateSchemafulRangeTabletReader(
+                    tabletSnapshot,
+                    TColumnFilter(),
+                    MakeRowBound(currentRowIndex),
+                    MakeRowBound(std::numeric_limits<i64>::max()),
+                    /* timestampRange */ {},
+                    chunkReadOptions,
+                    /* tabletThrottlerKind */ std::nullopt,
+                    EWorkloadCategory::SystemTabletReplication);
+
+                auto rowBuffer = New<TRowBuffer>();
+                i64 totalRowCount = 0;
+                i64 responseRowCount = 0;
+                i64 responseDataWeight = 0;
+                auto maxTimestamp = MinTimestamp;
+
+                TRowBatchReadOptions readOptions{
+                    .MaxRowsPerRead = request->max_rows_per_read()
+                };
+
+                bool hasMoreData = true;
+                while (hasMoreData) {
+                    auto batch = reader->Read(readOptions);
+                    hasMoreData = static_cast<bool>(batch);
+                    if (!batch) {
+                        break;
+                    }
+
+                    if (batch->IsEmpty()) {
+                        YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
+                            currentRowIndex);
+
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
+                        continue;
+                    }
+
+                    auto range = batch->MaterializeRows();
+                    auto readerRows = std::vector<TUnversionedRow>(range.begin(), range.end());
+
+                    for (const auto& row : readerRows) {
+                        ++currentRowIndex;
+
+                        TTypeErasedRow replicationRow;
+                        NApi::ERowModificationType modificationType;
+                        i64 rowIndex;
+                        TTimestamp timestamp;
+                        logParser->ParseLogRow(
+                            tabletSnapshot,
+                            row,
+                            rowBuffer,
+                            &replicationRow,
+                            &modificationType,
+                            &rowIndex,
+                            &timestamp,
+                            /*isVersioned*/ true);
+
+                        auto vrow = TVersionedRow(replicationRow);
+
+                        // Check that row fits into requested row range.
+                        if (CompareRows(progress.UpperKey.Begin(), progress.UpperKey.End(), vrow.BeginKeys(), vrow.EndKeys()) < 0 ||
+                            CompareRows(progress.Segments[0].LowerKey.Begin(), progress.Segments[0].LowerKey.End(), vrow.BeginKeys(), vrow.EndKeys()) > 0)
+                        {
+                            continue;
+                        }
+
+                        // Check that row fits into requested timestamp range.
+                        {
+                            auto it = std::upper_bound(
+                                progress.Segments.begin(),
+                                progress.Segments.end(),
+                                vrow,
+                                [] (const auto& row, const auto& segment) {
+                                   return CompareRows(segment.LowerKey.Begin(), segment.LowerKey.End(), row.BeginKeys(), row.EndKeys()) > 0;
+                                });
+                            --it;
+
+                            YT_VERIFY(it >= progress.Segments.begin());
+
+                            if (timestamp <= it->Timestamp) {
+                                continue;
+                            }
+                        }
+
+                        maxTimestamp = std::max(maxTimestamp, timestamp);
+
+                        writer.WriteVersionedRow(vrow);
+                        ++responseRowCount;
+                        responseDataWeight += GetDataWeight(vrow);
+                    }
+
+                    totalRowCount += readerRows.size();
+                }
+
+                TReplicationProgress endProgress;
+                endProgress.UpperKey = progress.UpperKey;
+                endProgress.Segments.push_back({progress.Segments[0].LowerKey, maxTimestamp});
+
+                // TODO(savrus): In (future) catch up mode we would like to increase maxTimestamp up to era end.
+                // When doing wo we need to be sure that no more rows will appear in that era hence we need to think of some barrier.
+
+                auto counters = tabletSnapshot->TableProfiler->GetPullRowsCounters(GetCurrentProfilingUser());
+                counters->DataWeight.Increment(responseDataWeight);
+                counters->RowCount.Increment(responseRowCount);
+                counters->WastedRowCount.Increment(totalRowCount - responseRowCount);
+                counters->ChunkReaderStatisticsCounters.Increment(chunkReadOptions.ChunkReaderStatistics);
+
+                response->set_row_count(responseRowCount);
+                response->set_data_weight(responseDataWeight);
+                response->set_end_replication_row_index(currentRowIndex);
+                ToProto(response->mutable_end_replication_progress(), endProgress);
+                response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
+
+                context->SetResponseInfo("RowCount: %v, DataWeight: %v, ProcessedRowCount: %v, EndRowIndex: %v",
+                    responseRowCount,
+                    responseDataWeight,
+                    totalRowCount,
+                    currentRowIndex);
+                context->Reply();
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetTabletInfo)
@@ -1365,6 +1551,13 @@ private:
         }
 
         context->Reply();
+    }
+
+    static TLegacyOwningKey MakeRowBound(i64 rowIndex)
+    {
+        return MakeUnversionedOwningRow(
+            -1, // tablet id, fake
+            rowIndex);
     }
 };
 

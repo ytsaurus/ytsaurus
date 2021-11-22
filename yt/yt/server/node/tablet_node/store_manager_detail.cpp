@@ -31,6 +31,8 @@ using namespace NCypressClient;
 using NTabletNode::NProto::TAddStoreDescriptor;
 using NLsm::EStoreRotationReason;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreManagerBase::TStoreManagerBase(

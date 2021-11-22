@@ -222,6 +222,7 @@ DEFINE_ENUM(EMasterReign,
     // 22.1 starts here.
     ((EnableCellBalancerInConfig)                                   (1900))  // alexkolodezny
     ((RefFromTabletToDynamicStore)                                  (1901))  // ifsmirnov
+    ((ChaosDataTransfer)                                            (1902))  // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////
