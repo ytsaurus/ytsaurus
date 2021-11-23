@@ -850,7 +850,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             newState == NNodeTrackerClient::ENodeState::Online &&
             execNode->GetRegistrationError().IsOK())
         {
-            YT_LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
+            YT_LOG_INFO("Node is not registered at scheduler but online at master (NodeId: %v, NodeAddress: %v)",
                 nodeId,
                 address);
         }
@@ -1866,12 +1866,15 @@ void TNodeShard::ProcessHeartbeatJobs(
     if (checkMissingJobs) {
         std::vector<TJobPtr> missingJobs;
         for (const auto& job : node->Jobs()) {
-            YT_VERIFY(!job->GetWaitingForConfirmation());
             // Jobs that are waiting for confirmation may never be considered missing.
             // They are removed in two ways: by explicit unconfirmation of the node
             // or after revival confirmation timeout.
+            YT_VERIFY(!job->GetWaitingForConfirmation());
             if (!job->GetFoundOnNode()) {
-                YT_LOG_WARNING("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
+                // This situation is possible if heartbeat from node has timed out,
+                // but we have scheduled some jobs.
+                // TODO(ignat):  YT-15875: consider deadline from node.
+                YT_LOG_INFO("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
                     node->GetDefaultAddress(),
                     job->GetId(),
                     job->GetOperationId());
