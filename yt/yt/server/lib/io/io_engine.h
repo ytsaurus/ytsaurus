@@ -5,8 +5,10 @@
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/misc/ref.h>
-
+#include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -39,7 +41,7 @@ DEFINE_ENUM(EFlushFileMode,
 struct IIOEngine
     : public TRefCounted
 {
-    static constexpr auto DefaultPriority = Max<i64>();
+    using TSessionId = TGuid;
 
     struct TReadRequest
     {
@@ -87,6 +89,13 @@ struct IIOEngine
         EFlushFileMode Mode;
     };
 
+    struct TFlushFileRangeRequest
+    {
+        TIOEngineHandlePtr Handle;
+        i64 Offset = -1;
+        i64 Size = -1;
+    };
+
     struct TFlushDirectoryRequest
     {
         TString Path;
@@ -97,30 +106,36 @@ struct IIOEngine
 
     virtual TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
-        i64 priority,
+        EWorkloadCategory category,
         NYTAlloc::EMemoryZone memoryZone,
-        TRefCountedTypeCookie tagCookie) = 0;
+        TRefCountedTypeCookie tagCookie,
+        TSessionId sessionId = {}) = 0;
     virtual TFuture<void> Write(
         TWriteRequest request,
-        i64 priority = DefaultPriority) = 0;
+        EWorkloadCategory category = EWorkloadCategory::Idle,
+        TSessionId sessionId = {}) = 0;
 
     virtual TFuture<void> FlushFile(
         TFlushFileRequest request,
-        i64 priority = DefaultPriority) = 0;
+        EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
+    virtual TFuture<void> FlushFileRange(
+        TFlushFileRangeRequest request,
+        EWorkloadCategory category = EWorkloadCategory::Idle,
+        TSessionId sessionId = {}) = 0;
     virtual TFuture<void> FlushDirectory(
         TFlushDirectoryRequest request,
-        i64 priority = DefaultPriority) = 0;
+        EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
 
     virtual TFuture<TIOEngineHandlePtr> Open(
         TOpenRequest request,
-        i64 priority = DefaultPriority) = 0;
+        EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
     virtual TFuture<void> Close(
         TCloseRequest request,
-        i64 priority = DefaultPriority) = 0;
+        EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
 
     virtual TFuture<void> Allocate(
         TAllocateRequest request,
-        i64 priority = DefaultPriority) = 0;
+        EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
 
     virtual bool IsSick() const = 0;
 
@@ -130,12 +145,14 @@ struct IIOEngine
     template <class TTag = TDefaultReadTag>
     TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
-        i64 priority = DefaultPriority,
-        NYTAlloc::EMemoryZone memoryZone = NYTAlloc::EMemoryZone::Normal);
+        EWorkloadCategory category = EWorkloadCategory::Idle,
+        NYTAlloc::EMemoryZone memoryZone = NYTAlloc::EMemoryZone::Normal,
+        TSessionId sessionId = {});
 
     TFuture<TSharedRef> ReadAll(
         const TString& path,
-        i64 priority = DefaultPriority);
+        EWorkloadCategory category = EWorkloadCategory::Idle,
+        TSessionId sessionId = {});
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)

@@ -9,6 +9,7 @@ namespace NYT::NIO {
 DEFINE_ENUM(EIOEngineType,
     (ThreadPool)
     (Uring)
+    (FairShareThreadPool)
 );
 
 DECLARE_REFCOUNTED_STRUCT(IIOEngine)

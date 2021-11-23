@@ -337,8 +337,9 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
             firstBlockInfo.offset(),
             totalSize
         }},
-        options.WorkloadDescriptor.GetPriority(),
-        EMemoryZone::Undumpable)
+        options.WorkloadDescriptor.Category,
+        EMemoryZone::Undumpable,
+        options.ReadSessionId)
         .Apply(BIND(&TChunkFileReader::OnBlocksRead, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt));
 }
 
@@ -356,7 +357,7 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
     YT_LOG_DEBUG("Started reading chunk meta file (FileName: %v)",
         metaFileName);
 
-    return IOEngine_->ReadAll(metaFileName)
+    return IOEngine_->ReadAll(metaFileName, options.WorkloadDescriptor.Category, options.ReadSessionId)
         .Apply(BIND(&TChunkFileReader::OnMetaRead, MakeStrong(this), metaFileName, options.ChunkReaderStatistics));
 }
 
