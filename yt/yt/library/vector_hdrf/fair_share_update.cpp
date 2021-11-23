@@ -1,14 +1,11 @@
 #include "fair_share_update.h"
 #include "resource_helpers.h"
-
-// #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+#include "private.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
 // TODO(ignat): move finally to library
 #include <yt/yt/core/misc/finally.h>
-
-#include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/library/numeric/binary_search.h>
 
@@ -17,10 +14,6 @@
 namespace NYT::NVectorHdrf {
 
 using namespace NProfiling;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const NLogging::TLogger FairShareLogger{"FairShare"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
