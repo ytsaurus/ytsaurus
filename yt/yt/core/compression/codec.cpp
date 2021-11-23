@@ -207,31 +207,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQuickLzCodec
-    : public TCodecBase<TQuickLzCodec>
-{
-public:
-    TQuickLzCodec()
-    { }
-
-    void DoCompress(StreamSource* source, TBlob* output)
-    {
-        NCompression::QuickLzCompress(source, output);
-    }
-
-    void DoDecompress(StreamSource* source, TBlob* output)
-    {
-        NCompression::QuickLzDecompress(source, output);
-    }
-
-    ECodec GetId() const override
-    {
-        return ECodec::QuickLz;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TZstdCodec
     : public TCodecBase<TZstdCodec>
 {
@@ -396,11 +371,6 @@ ICodec* GetCodec(ECodec id)
 
         case ECodec::Lz4HighCompression: {
             static TLz4Codec result(true);
-            return &result;
-        }
-
-        case ECodec::QuickLz: {
-            static TQuickLzCodec result;
             return &result;
         }
 

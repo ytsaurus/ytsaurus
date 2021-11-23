@@ -14,7 +14,6 @@ DEFINE_AMBIGUOUS_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((Snappy)                     (1))
     ((Lz4)                        (4))
     ((Lz4HighCompression)         (5))
-    ((QuickLz)                    (6))
 
     ((Brotli_1)                  (11))
     ((Brotli_2)                  (12))
@@ -90,6 +89,8 @@ DEFINE_AMBIGUOUS_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((Brotli3)                    (8))
     ((Brotli5)                    (9))
     ((Brotli8)                   (10))
+    // Removed
+    // ((QuickLz)                    (6))
 );
 
 const int MaxBlockSize = 1 << 30;

@@ -41,7 +41,6 @@ def get_codec_list():
             "snappy",
             "lz4",
             "lz4_high_compression",
-            "quick_lz",
         ],
         ["brotli_{0}".format(i) for i in including_xrange(1, 11)],
         ["bzip2_{0}".format(i) for i in including_xrange(1, 9)],

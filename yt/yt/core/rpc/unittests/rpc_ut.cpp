@@ -521,7 +521,7 @@ TYPED_TEST(TNotGrpcTest, StreamingEcho)
 {
     TMyProxy proxy(this->CreateChannel());
     proxy.SetDefaultRequestCodec(NCompression::ECodec::Lz4);
-    proxy.SetDefaultResponseCodec(NCompression::ECodec::QuickLz);
+    proxy.SetDefaultResponseCodec(NCompression::ECodec::Zstd_1);
     proxy.SetDefaultEnableLegacyRpcCodecs(false);
 
     const int AttachmentCount = 30;
@@ -897,7 +897,7 @@ TYPED_TEST(TRpcTest, NullAndEmptyAttachments)
 
 TYPED_TEST(TNotGrpcTest, Compression)
 {
-    const auto requestCodecId = NCompression::ECodec::QuickLz;
+    const auto requestCodecId = NCompression::ECodec::Zstd_2;
     const auto responseCodecId = NCompression::ECodec::Snappy;
 
     TString message("This is a message string.");
