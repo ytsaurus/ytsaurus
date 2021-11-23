@@ -1,11 +1,10 @@
 #pragma once
 
-#include "property.h"
-
 #include <yt/yt/library/numeric/fixed_point_number.h>
 
 // TODO(ignat): migrate to enum class
 #include <library/cpp/yt/misc/enum.h>
+#include <library/cpp/yt/misc/property.h>
 
 #include <optional>
 
