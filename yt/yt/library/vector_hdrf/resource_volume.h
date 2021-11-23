@@ -1,8 +1,8 @@
 #pragma once
 
-#include "property.h"
-
 #include <yt/yt/library/vector_hdrf/job_resources.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <util/datetime/base.h>
 
