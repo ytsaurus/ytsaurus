@@ -6,7 +6,8 @@ namespace NYT::NYson::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonSyntaxChecker::TYsonSyntaxChecker(EYsonType ysonType)
+TYsonSyntaxChecker::TYsonSyntaxChecker(EYsonType ysonType, int nestingLevelLimit)
+    : NestingLevelLimit_(static_cast<ui32>(nestingLevelLimit))
 {
     StateStack_.push_back(EYsonState::Terminated);
     switch (ysonType) {

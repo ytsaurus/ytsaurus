@@ -124,7 +124,7 @@ void NDetail::TZeroCopyInputStreamReader::FinishRecording()
     if (RecordingFrom_) {
         RecordOutput_->Write(RecordingFrom_, Current_ - RecordingFrom_);
     }
-    
+
     RecordOutput_ = nullptr;
     RecordingFrom_ = nullptr;
 }
@@ -158,10 +158,10 @@ bool operator==(TYsonItem lhs, TYsonItem rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonPullParser::TYsonPullParser(IZeroCopyInput* input, EYsonType ysonType)
+TYsonPullParser::TYsonPullParser(IZeroCopyInput* input, EYsonType ysonType, int nestingLevelLimit)
     : StreamReader_(input)
     , Lexer_(StreamReader_)
-    , SyntaxChecker_(ysonType)
+    , SyntaxChecker_(ysonType, nestingLevelLimit)
 { }
 
 ui64 TYsonPullParser::GetTotalReadSize() const

@@ -25,6 +25,15 @@ except ImportError:
     yt_yson_bindings = None
 
 
+def _create_deep_object(depth):
+    result = {}
+    it = result
+    for _ in range(depth // 2):
+        it["x"] = [{}]
+        it = it["x"][0]
+    return result
+
+
 class YsonParserTestBase(object):
     @staticmethod
     def load(*args, **kws):
@@ -284,6 +293,10 @@ class YsonParserTestBase(object):
         with pytest.raises(Exception):
             self.loads(b"{a=b};{c=d}")
 
+    def test_big_nesting_limit(self):
+        deep = _create_deep_object(80)
+        assert deep == self.loads(yt.yson.dumps(deep))
+
 
 class TestParserDefault(YsonParserTestBase):
     @staticmethod
@@ -340,6 +353,12 @@ class TestParserBindings(YsonParserTestBase):
         check(b"[" + b"a" * STREAM_BLOCK_SIZE + b";{1=2}]", b"aaaaaaaa;{1=2}]", 10)
         check(b"[1;2;3", b"[1;2;3", 6)
         check(b"a=1;1=2", b"a=1;1=2", 3, "map_fragment")
+
+    def test_nesting_limit(self):
+        deep = _create_deep_object(260)
+        deep_yson = yt.yson.dumps(deep)
+        with pytest.raises(Exception):
+            self.loads(deep_yson)
 
 
 @pytest.mark.skipif("not yt_yson_bindings")

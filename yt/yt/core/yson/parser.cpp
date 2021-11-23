@@ -96,13 +96,13 @@ public:
     TImpl(IYsonConsumer* consumer, TYsonParserConfig config)
         : Impl([&] () -> TStatelessYsonParserImplBase* {
             if (config.EnableContext && config.EnableLinePositionInfo) {
-                return new TStatelessYsonParserImpl<IYsonConsumer, 64, true>(consumer, config.MemoryLimit);
+                return new TStatelessYsonParserImpl<IYsonConsumer, 64, true>(consumer, config.MemoryLimit, config.NestingLevelLimit);
             } else if (config.EnableContext && !config.EnableLinePositionInfo) {
-                return new TStatelessYsonParserImpl<IYsonConsumer, 64, false>(consumer, config.MemoryLimit);
+                return new TStatelessYsonParserImpl<IYsonConsumer, 64, false>(consumer, config.MemoryLimit, config.NestingLevelLimit);
             } else if (!config.EnableContext && config.EnableLinePositionInfo) {
-                return new TStatelessYsonParserImpl<IYsonConsumer, 0, true>(consumer, config.MemoryLimit);
+                return new TStatelessYsonParserImpl<IYsonConsumer, 0, true>(consumer, config.MemoryLimit, config.NestingLevelLimit);
             } else {
-                return new TStatelessYsonParserImpl<IYsonConsumer, 0, false>(consumer, config.MemoryLimit);
+                return new TStatelessYsonParserImpl<IYsonConsumer, 0, false>(consumer, config.MemoryLimit, config.NestingLevelLimit);
             }
         }())
     { }

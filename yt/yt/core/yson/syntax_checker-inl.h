@@ -322,9 +322,9 @@ void TYsonSyntaxChecker::OnSimple(EYsonItemType itemType)
 void TYsonSyntaxChecker::IncrementNestingLevel()
 {
     ++NestingLevel_;
-    if (NestingLevel_ >= NestingLevelLimit) {
+    if (NestingLevel_ >= NestingLevelLimit_) {
         THROW_ERROR_EXCEPTION("Depth limit exceeded while parsing YSON")
-            << TErrorAttribute("limit", NestingLevelLimit);
+            << TErrorAttribute("limit", NestingLevelLimit_);
     }
 }
 

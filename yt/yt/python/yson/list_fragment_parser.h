@@ -110,7 +110,7 @@ class TListFragmentParser
 {
 public:
     TListFragmentParser();
-    explicit TListFragmentParser(IInputStream* stream);
+    TListFragmentParser(IInputStream* stream, int nestingLevelLimit);
 
     TSharedRef NextItem();
 
