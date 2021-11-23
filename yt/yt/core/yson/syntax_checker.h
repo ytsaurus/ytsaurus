@@ -70,7 +70,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EYsonState, ui8,
 class TYsonSyntaxChecker
 {
 public:
-    explicit TYsonSyntaxChecker(EYsonType ysonType);
+    TYsonSyntaxChecker(EYsonType ysonType, int nestingLevelLimit);
 
     Y_FORCE_INLINE void OnSimpleNonstring(EYsonItemType itemType);
     Y_FORCE_INLINE void OnString();
@@ -99,10 +99,10 @@ private:
 
 private:
     SmallVector<EYsonState, 16> StateStack_;
+
     // We don't use stack size, we compute depth level precisely to be compatible with old yson parser.
     ui32 NestingLevel_ = 0;
-
-    static constexpr ui32 NestingLevelLimit = 64;
+    ui32 NestingLevelLimit_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

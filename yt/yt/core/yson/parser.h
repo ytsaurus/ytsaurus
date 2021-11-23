@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "detail.h"
 
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/ref.h>
@@ -23,6 +24,9 @@ struct TYsonParserConfig
     //!
     //! Makes error messages friendlier but slightly slows down parsing.
     bool EnableContext = true;
+
+    //! @brief Maximum level of nesting of lists and maps.
+    int NestingLevelLimit = DefaultYsonParserNestingLevelLimit;
 };
 
 class TYsonParser

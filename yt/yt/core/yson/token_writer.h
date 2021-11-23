@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+
 #include "syntax_checker.h"
 
 #include <yt/yt/core/misc/zerocopy_output_writer.h>
@@ -64,8 +65,14 @@ private:
 class TCheckedYsonTokenWriter
 {
 public:
-    explicit TCheckedYsonTokenWriter(IZeroCopyOutput* writer, EYsonType type = EYsonType::Node);
-    explicit TCheckedYsonTokenWriter(TZeroCopyOutputStreamWriter* writer, EYsonType type = EYsonType::Node);
+    explicit TCheckedYsonTokenWriter(
+        IZeroCopyOutput* writer,
+        EYsonType type = EYsonType::Node,
+        int nestingLevelLimit = DefaultYsonParserNestingLevelLimit);
+    explicit TCheckedYsonTokenWriter(
+        TZeroCopyOutputStreamWriter* writer,
+        EYsonType type = EYsonType::Node,
+        int nestingLevelLimit = DefaultYsonParserNestingLevelLimit);
 
     void WriteTextBoolean(bool value);
     void WriteBinaryBoolean(bool value);

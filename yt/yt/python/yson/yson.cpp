@@ -42,6 +42,10 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr int YsonParserNestingLevelLimit = 256;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYsonIterator
     : public Py::PythonClass<TYsonIterator>
 {
@@ -59,7 +63,7 @@ public:
         YT_VERIFY(!inputStreamHolder || inputStreamHolder.get() == inputStream);
 
         InputStreamHolder_ = std::move(inputStreamHolder);
-        Parser_.reset(new TYsonPullParser(inputStream, EYsonType::ListFragment));
+        Parser_.reset(new TYsonPullParser(inputStream, EYsonType::ListFragment, YsonParserNestingLevelLimit));
         ObjectBuilder_.reset(new TPullObjectBuilder(Parser_.get(), alwaysCreateAttributes, encoding));
     }
 
@@ -82,7 +86,7 @@ public:
         return TBase::self();
     }
 
-    PyObject* iternext() override 
+    PyObject* iternext() override
     {
         YT_VERIFY(InputStreamHolder_);
         YT_VERIFY(Parser_);
@@ -130,7 +134,7 @@ public:
     void Init(IInputStream* inputStream, std::unique_ptr<IInputStream> inputStreamHolder)
     {
         InputStreamHolder_ = std::move(inputStreamHolder);
-        Parser_ = TListFragmentParser(inputStream);
+        Parser_ = TListFragmentParser(inputStream, YsonParserNestingLevelLimit);
     }
 
     Py::Object iter() override
@@ -196,7 +200,7 @@ public:
 
 
         InputStreamHolder_ = std::move(inputStreamHolder);
-        Parser_.reset(new TYsonPullParser(inputStream, EYsonType::ListFragment));
+        Parser_.reset(new TYsonPullParser(inputStream, EYsonType::ListFragment, YsonParserNestingLevelLimit));
         ObjectBuilder_.reset(new TPullObjectBuilder(Parser_.get(), alwaysCreateAttributes, encoding));
     }
 
@@ -215,7 +219,7 @@ public:
             }
             return result;
         } CATCH_AND_CREATE_YSON_ERROR("Yson load failed");
-        
+
     }
 
     virtual ~TLazyYsonIterator()
@@ -523,7 +527,7 @@ private:
                 iter->Init(inputStream, std::move(inputStreamHolder), encoding, alwaysCreateAttributes);
                 return pythonIter;
             } else {
-                TYsonPullParser parser(inputStreamHolder.get(), ysonType);
+                TYsonPullParser parser(inputStreamHolder.get(), ysonType, YsonParserNestingLevelLimit);
                 TPullObjectBuilder builder(&parser, alwaysCreateAttributes, encoding);
                 if (ysonType == NYson::EYsonType::MapFragment) {
                     return Py::Object(builder.ParseMapLazy(NYson::EYsonItemType::EndOfStream).release(), /* owned */ true);
@@ -554,7 +558,7 @@ private:
                 throw CreateYsonError("Raw mode is only supported for list fragments");
             }
 
-            TYsonPullParser parser(inputStreamHolder.get(), ysonType);
+            TYsonPullParser parser(inputStreamHolder.get(), ysonType, YsonParserNestingLevelLimit);
             TPullObjectBuilder builder(&parser, alwaysCreateAttributes, encoding);
             if (ysonType == NYson::EYsonType::MapFragment) {
                 return Py::Object(builder.ParseMap(NYson::EYsonItemType::EndOfStream, alwaysCreateAttributes).release(), /* owned */ true);

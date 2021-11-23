@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "detail.h"
+
 #include "syntax_checker.h"
 
 #include <util/generic/strbuf.h>
@@ -113,7 +114,10 @@ private:
 class TYsonPullParser
 {
 public:
-    TYsonPullParser(IZeroCopyInput* input, EYsonType ysonType);
+    TYsonPullParser(
+        IZeroCopyInput* input,
+        EYsonType ysonType,
+        int nestingLevelLimit = DefaultYsonParserNestingLevelLimit);
 
     TYsonItem Next();
 

@@ -2,6 +2,9 @@
 
 #include "detail.h"
 
+// For the sake of sane code completion.
+#include "parser.h"
+
 #include <yt/yt/core/misc/finally.h>
 
 #include <util/string/escape.h>
@@ -22,16 +25,18 @@ private:
     typedef TLexerBase<TReaderWithContext<TBlockStream, MaxContextSize>, EnableLinePositionInfo> TBase;
     TConsumer* Consumer;
     int NestingLevel = 0;
-    static const int NestingLevelLimit = 64;
+    int NestingLevelLimit;
     bool Stopped_ = false;
 
 public:
     TParser(
         const TBlockStream& blockStream,
         TConsumer* consumer,
-        i64 memoryLimit)
+        i64 memoryLimit,
+        int nestingLevelLimit)
         : TBase(blockStream, memoryLimit)
         , Consumer(consumer)
+        , NestingLevelLimit(nestingLevelLimit)
     { }
 
     void DoParse(EYsonType parsingMode)
@@ -449,22 +454,22 @@ public:
     {
         if (config.EnableLinePositionInfo && config.EnableContext) {
             typedef NDetail::TParser<TConsumer, TBlockStream, 64, true> TImpl;
-            TImpl impl(blockStream, consumer, config.MemoryLimit);
+            TImpl impl(blockStream, consumer, config.MemoryLimit, config.NestingLevelLimit);
             BlockStream_ = static_cast<TBlockStream*>(&impl);
             impl.DoParse(parsingMode);
         } else if (config.EnableLinePositionInfo && !config.EnableContext) {
             typedef NDetail::TParser<TConsumer, TBlockStream, 0, true> TImpl;
-            TImpl impl(blockStream, consumer, config.MemoryLimit);
+            TImpl impl(blockStream, consumer, config.MemoryLimit, config.NestingLevelLimit);
             BlockStream_ = static_cast<TBlockStream*>(&impl);
             impl.DoParse(parsingMode);
         } else if (!config.EnableLinePositionInfo && config.EnableContext) {
             typedef NDetail::TParser<TConsumer, TBlockStream, 64, false> TImpl;
-            TImpl impl(blockStream, consumer, config.MemoryLimit);
+            TImpl impl(blockStream, consumer, config.MemoryLimit, config.NestingLevelLimit);
             BlockStream_ = static_cast<TBlockStream*>(&impl);
             impl.DoParse(parsingMode);
         } else {
             typedef NDetail::TParser<TConsumer, TBlockStream, 0, false> TImpl;
-            TImpl impl(blockStream, consumer, config.MemoryLimit);
+            TImpl impl(blockStream, consumer, config.MemoryLimit, config.NestingLevelLimit);
             BlockStream_ = static_cast<TBlockStream*>(&impl);
             impl.DoParse(parsingMode);
         }
@@ -500,8 +505,9 @@ private:
 public:
     TStatelessYsonParserImpl(
         TConsumer* consumer,
-        i64 memoryLimit)
-        : Parser(TStringReader(), consumer, memoryLimit)
+        i64 memoryLimit,
+        int nestingLevelLimit)
+        : Parser(TStringReader(), consumer, memoryLimit, nestingLevelLimit)
     { }
 
     void Parse(TStringBuf data, EYsonType type = EYsonType::Node) override

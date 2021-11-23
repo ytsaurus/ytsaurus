@@ -11,13 +11,18 @@ namespace NYT::NPython {
 class TListFragmentParser::TImpl
 {
 public:
-    explicit TImpl(IInputStream* stream)
+    explicit TImpl(IInputStream* stream, int nestingLevelLimit)
         : InputStream_(TStreamReader(stream))
         , Consumer_(BIND(
             [&] () {
                 CheckItem();
             }))
-        , Parser_(&Consumer_, NYson::EYsonType::ListFragment)
+        , Parser_(
+            &Consumer_,
+            NYson::EYsonType::ListFragment,
+            NYson::TYsonParserConfig{
+                .NestingLevelLimit = nestingLevelLimit,
+            })
     { }
 
     TSharedRef NextItem()
@@ -81,8 +86,8 @@ private:
 TListFragmentParser::TListFragmentParser()
 { }
 
-TListFragmentParser::TListFragmentParser(IInputStream* stream)
-    : Impl_(new TImpl(stream))
+TListFragmentParser::TListFragmentParser(IInputStream* stream, int nestingLevelLimit)
+    : Impl_(new TImpl(stream, nestingLevelLimit))
 { }
 
 TSharedRef TListFragmentParser::NextItem()

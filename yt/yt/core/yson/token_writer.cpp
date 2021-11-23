@@ -86,13 +86,13 @@ void TUncheckedYsonTokenWriter::WriteRawNodeUnchecked(TStringBuf value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCheckedYsonTokenWriter::TCheckedYsonTokenWriter(IZeroCopyOutput* writer, EYsonType type)
-    : Checker_(type)
+TCheckedYsonTokenWriter::TCheckedYsonTokenWriter(IZeroCopyOutput* writer, EYsonType type, int nestingLevelLimit)
+    : Checker_(type, nestingLevelLimit)
     , UncheckedWriter_(writer, type)
 { }
 
-TCheckedYsonTokenWriter::TCheckedYsonTokenWriter(TZeroCopyOutputStreamWriter* writer, EYsonType type)
-    : Checker_(type)
+TCheckedYsonTokenWriter::TCheckedYsonTokenWriter(TZeroCopyOutputStreamWriter* writer, EYsonType type, int nestingLevelLimit)
+    : Checker_(type, nestingLevelLimit)
     , UncheckedWriter_(writer, type)
 { }
 
