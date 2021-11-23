@@ -2824,7 +2824,7 @@ void TSchedulerOperationElement::CheckForDeactivation(
     // Reset operation element activeness (it can be active after scheduling without preepmtion).
     attributes.Active = false;
 
-    if (!IsAlive() || !OperationElementSharedState_->Enabled()) {
+    if (!IsAlive()) {
         onOperationDeactivated(EDeactivationReason::IsNotAlive);
         return;
     }
@@ -3024,6 +3024,11 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
 
     if (auto blockedReason = CheckBlocked(context->SchedulingContext())) {
         deactivateOperationElement(*blockedReason);
+        return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
+    }
+
+    if (!OperationElementSharedState_->Enabled()) {
+        deactivateOperationElement(EDeactivationReason::IsNotAlive);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
