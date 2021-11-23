@@ -45,6 +45,8 @@ def caching_file_getter():
 
 def test_compression(caching_file_getter):
     for testcase_info in get_testcase_info_list():
+        if testcase_info.compressed_file["codec"] == "quick_lz":
+            continue
         uncompressed_data = caching_file_getter.get_file(testcase_info.uncompressed_file["path"])
         assert get_shasum(uncompressed_data) == testcase_info.uncompressed_file["shasum"]
         compressed_data = caching_file_getter.get_file(testcase_info.compressed_file["path"])

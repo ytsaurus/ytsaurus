@@ -37,12 +37,6 @@ protected:
 
     void TestCase(const std::vector<TString>& pieces)
     {
-#if defined(_msan_enabled_)
-        if (std::get<0>(GetParam()) == ECodec::QuickLz) {
-            // TODO(ermolovd): quicklz library has unitialized memory error under msan
-            GTEST_SKIP();
-        }
-#endif
         std::vector<TSharedRef> refs;
         size_t length = 0;
 

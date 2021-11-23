@@ -388,6 +388,6 @@ class TestBigFilesRpcProxy(YTEnvSetup):
 class TestBigFilesWithCompressionRpcProxy(TestBigFilesRpcProxy):
     DELTA_RPC_DRIVER_CONFIG = {
         "request_codec": "lz4",
-        "response_codec": "quick_lz",
+        "response_codec": "snappy",
         "enable_legacy_rpc_codecs": False,
     }

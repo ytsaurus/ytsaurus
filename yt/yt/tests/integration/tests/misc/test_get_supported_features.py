@@ -49,7 +49,6 @@ class TestGetFeatures(YTEnvSetup):
             "snappy",
             "lz4",
             "lz4_high_compression",
-            "quick_lz",
             "brotli_1",
             "brotli_11",
             "zlib_1",

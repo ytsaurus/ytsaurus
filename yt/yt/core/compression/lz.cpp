@@ -2,8 +2,6 @@
 #include "public.h"
 #include "lz.h"
 
-#include <yt/yt/contrib/quicklz/quicklz.h>
-
 #define LZ4_DISABLE_DEPRECATE_WARNINGS
 
 #include <contrib/libs/lz4/lz4.h>
@@ -66,9 +64,6 @@ namespace NYT::NCompression {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLz4CompressedTag
-{ };
-
-struct TQuickLzCompressedTag
 { };
 
 static inline bool ExtendedHeader(size_t totalUncompressedSize)
@@ -293,38 +288,6 @@ void Lz4Decompress(StreamSource* source, TBlob* sink)
             if (rv != static_cast<int>(inputSize)) {
                 THROW_ERROR_EXCEPTION("Cannot decompress LZ4 data: returned size mismatch")
                     << TErrorAttribute("expected_size", inputSize)
-                    << TErrorAttribute("actual_size", rv);
-            }
-        }
-    );
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void QuickLzCompress(StreamSource* source, TBlob* sink) {
-    GenericBlockCompress(
-        source,
-        sink,
-        [] (size_t size) -> size_t {
-            return size + 400; // See QuickLZ implementation.
-        },
-        [] (const char *input, char *output, size_t inputSize) {
-            qlz_state_compress state{};
-            return qlz_compress(input, output, inputSize, &state);
-        });
-}
-
-void QuickLzDecompress(StreamSource* source, TBlob* sink)
-{
-    GenericBlockDecompress<TQuickLzCompressedTag>(
-        source,
-        sink,
-        [] (const char* input, size_t /*inputSize*/, char* output, size_t outputSize) {
-            qlz_state_decompress state;
-            auto rv = qlz_decompress(input, output, &state);
-            if (rv != outputSize) {
-                THROW_ERROR_EXCEPTION("Cannot decompress QuickLZ data: returned size mismatch")
-                    << TErrorAttribute("expected_size", outputSize)
                     << TErrorAttribute("actual_size", rv);
             }
         }

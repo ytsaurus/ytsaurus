@@ -1170,7 +1170,7 @@ class TestGetSupportedFeatures(object):
 
         assert "compression_codecs" in features
         expected_compression_codecs = {
-            "none", "snappy", "lz4", "lz4_high_compression", "quick_lz",
+            "none", "snappy", "lz4", "lz4_high_compression",
             "brotli_1", "brotli_11",
             "zlib_1", "zlib_9",
             "zstd_1", "zstd_21",
