@@ -259,7 +259,7 @@ class YsonLexer(object):
             result = []
         while True:
             ch = self._peek_char()
-            if ch and (ch.isalpha() or ch.isdigit() or ch in b"_%-"):
+            if ch and (ch.isalpha() or ch.isdigit() or ch in b"_%-."):
                 self._read_char()
                 if self._output_buffer is None:
                     result.append(ch)

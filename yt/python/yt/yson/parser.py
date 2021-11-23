@@ -2,7 +2,6 @@ from . import convert
 from .common import raise_yson_error, StreamWrap, _ENCODING_SENTINEL
 from .tokenizer import YsonTokenizer
 from .yson_token import *
-from .yson_types import YsonUint64
 
 from yt.packages.six import PY3, BytesIO, text_type
 

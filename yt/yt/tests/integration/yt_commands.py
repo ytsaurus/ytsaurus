@@ -15,6 +15,7 @@ from yt.common import (
     date_string_to_datetime,
     uuid_to_parts,
 )
+from yt.ypath import parse_ypath
 
 from yt.packages.six import itervalues, iteritems, iterkeys
 from yt.packages.six.moves import xrange, builtins
@@ -270,10 +271,12 @@ def get_at(obj, path, default):
 
 
 def prepare_path(path):
+    if not path:
+        return path
     attributes = {}
     if isinstance(path, yson.YsonType):
         attributes = path.attributes
-    result = execute_command("parse_ypath", parameters={"path": path}, verbose=False, parse_yson=True)
+    result = parse_ypath(path)
     update_inplace(result.attributes, attributes)
     return result
 
@@ -376,7 +379,7 @@ def execute_command(
     if "rewrite_operation_path" not in parameters:
         parameters["rewrite_operation_path"] = False
 
-    if "path" in parameters and command_name != "parse_ypath":
+    if "path" in parameters:
         parameters["path"] = prepare_path(parameters["path"])
 
     if "paths" in parameters:
