@@ -15,13 +15,14 @@ inline bool TIOEngineHandle::IsOpenForDirectIO() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TTag>
+template <class TTag>
 TFuture<IIOEngine::TReadResponse> IIOEngine::Read(
     std::vector<TReadRequest> requests,
-    i64 priority,
-    NYTAlloc::EMemoryZone memoryZone)
+    EWorkloadCategory category,
+    NYTAlloc::EMemoryZone memoryZone,
+    TSessionId clientId)
 {
-    return Read(std::move(requests), priority, memoryZone, GetRefCountedTypeCookie<TTag>());
+    return Read(std::move(requests), category, memoryZone, GetRefCountedTypeCookie<TTag>(), clientId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

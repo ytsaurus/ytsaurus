@@ -218,6 +218,8 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         std::make_tuple(EIOEngineType::ThreadPool, DefaultConfig),
         std::make_tuple(EIOEngineType::ThreadPool, CustomConfig),
+        std::make_tuple(EIOEngineType::FairShareThreadPool, DefaultConfig),
+        std::make_tuple(EIOEngineType::FairShareThreadPool, CustomConfig),
         std::make_tuple(EIOEngineType::Uring, DefaultConfig),
         std::make_tuple(EIOEngineType::Uring, CustomConfig)
     )

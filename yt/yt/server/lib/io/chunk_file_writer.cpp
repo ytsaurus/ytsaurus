@@ -199,7 +199,25 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
     }
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
-    return IOEngine_->Close({std::move(DataFile_), DataSize_, SyncOnClose_})
+
+    // Flushing written data using fsync/fdatasync creates bursty load on disk,
+    // which has negative impact on read request latencies from SSD disks.
+    // Here we explicitly call FlushFileRange to give finer control over disk usage to io_engine scheduler.
+    auto flushWritten = [this] () {
+        if (!SyncOnClose_) {
+            return VoidFuture;
+        }
+        return IOEngine_->FlushFileRange({
+            .Handle = DataFile_,
+            .Offset = 0,
+            .Size = DataSize_
+        });
+    };
+
+    return flushWritten()
+        .Apply(BIND([=, _this = MakeStrong(this)] {
+            return IOEngine_->Close({std::move(DataFile_), DataSize_, SyncOnClose_});
+        }))
         .Apply(BIND([=, _this = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Closing);
 
@@ -241,7 +259,7 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
                     MetaDataSize_,
                     SyncOnClose_
                 },
-                IIOEngine::DefaultPriority));
+                EWorkloadCategory::Idle));
         }))
         .Apply(BIND([=, _this = MakeStrong(this)] () {
             YT_VERIFY(State_.load() == EState::Closing);
