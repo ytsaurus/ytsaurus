@@ -44,6 +44,7 @@
 #include <yt/yt/library/process/subprocess.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
@@ -1793,23 +1794,14 @@ void TJobController::TImpl::OnProfiling()
             continue;
         }
 
-        TString sensorName = "/user_job/tmpfs_size/sum";
+        static const TString sensorName = "/user_job/tmpfs_size/sum";
 
-        auto statisticsNode = ConvertToNode(statisticsYson);
-        auto tmpfsSizeNode = FindNodeByYPath(statisticsNode, sensorName);
-        if (!tmpfsSizeNode) {
+        auto tmpfsSizeSum = TryGetInt64(statisticsYson.AsStringBuf(), sensorName);
+        if (!tmpfsSizeSum) {
             continue;
         }
 
-        if (tmpfsSizeNode->GetType() != ENodeType::Int64) {
-            YT_LOG_WARNING("Wrong type of sensor (SensorName: %v, ExpectedType: %v, ActualType: %v)",
-                sensorName,
-                ENodeType::Int64,
-                tmpfsSizeNode->GetType());
-            continue;
-        }
-
-        tmpfsUsage += tmpfsSizeNode->GetValue<i64>();
+        tmpfsUsage += *tmpfsSizeSum;
     }
 
     TmpfsSizeGauge_.Update(tmpfsSize);
