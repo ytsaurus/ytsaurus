@@ -178,6 +178,9 @@ public class ApiServiceTransactionOptions {
         if (pingAncestors != null) {
             startTransaction.setPingAncestors(pingAncestors);
         }
+        if (pingPeriod != null) {
+            startTransaction.setPingPeriod(pingPeriod);
+        }
         if (atomicity != null) {
             switch (atomicity) {
                 case A_FULL:
