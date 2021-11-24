@@ -453,7 +453,8 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
-    registrar.Parameter("enable_archivation", &TThis::EnableArchivation)
+    registrar.Parameter("enable_operation_archivation", &TThis::EnableOperationArchivation)
+        .Alias("enable_archivation")
         .Default(true);
     registrar.Parameter("clean_delay", &TThis::CleanDelay)
         .Default(TDuration::Minutes(5));
@@ -493,15 +494,17 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("parse_operation_attributes_batch_size", &TThis::ParseOperationAttributesBatchSize)
         .Default(100);
-    registrar.Parameter("max_enqueued_operation_alert_event_count", &TOperationsCleanerConfig::MaxEnqueuedOperationAlertEventCount)
+    registrar.Parameter("enable_operation_alert_event_archivation", &TThis::EnableOperationAlertEventArchivation)
+        .Default(true);
+    registrar.Parameter("max_enqueued_operation_alert_event_count", &TThis::MaxEnqueuedOperationAlertEventCount)
         .Default(1000)
         .GreaterThanOrEqual(0);
-    registrar.Parameter("max_alert_event_count_per_operation", &TOperationsCleanerConfig::MaxAlertEventCountPerOperation)
+    registrar.Parameter("max_alert_event_count_per_operation", &TThis::MaxAlertEventCountPerOperation)
         .Default(1000)
         .GreaterThanOrEqual(0);
-    registrar.Parameter("operation_alert_event_send_period", &TOperationsCleanerConfig::OperationAlertEventSendPeriod)
+    registrar.Parameter("operation_alert_event_send_period", &TThis::OperationAlertEventSendPeriod)
         .Default(TDuration::Seconds(5));
-    registrar.Parameter("operation_alert_sender_alert_threshold", &TOperationsCleanerConfig::OperationAlertSenderAlertThreshold)
+    registrar.Parameter("operation_alert_sender_alert_threshold", &TThis::OperationAlertSenderAlertThreshold)
         .Default(TDuration::Minutes(5));
 
     registrar.Postprocessor([&] (TOperationsCleanerConfig* config) {
