@@ -2231,9 +2231,9 @@ void TObjectService::ProcessSessions()
 
     // NB: Local read executor cannot be turned off in runtime since some requests can be already in it.
     if (Config_->EnableLocalReadExecutor) {
-        TAutomatonBlockGuard guard(Bootstrap_->GetHydraFacade());
-
         auto quantumDuration = GetDynamicConfig()->LocalReadExecutorQuantumDuration;
+
+        TAutomatonBlockGuard guard(Bootstrap_->GetHydraFacade());
         auto readFuture = LocalReadExecutor_->Run(quantumDuration);
         readFuture
             .Get()
