@@ -88,7 +88,6 @@ using std::placeholders::_1;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobAgentServerLogger;
-static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -375,7 +374,7 @@ void TJobController::TImpl::Initialize()
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TImpl::OnProfiling, MakeWeak(this)),
-        ProfilingPeriod);
+        Config_->ProfilingPeriod);
     ProfilingExecutor_->Start();
 
     ResourceAdjustmentExecutor_ = New<TPeriodicExecutor>(
@@ -1595,20 +1594,18 @@ void TJobController::TImpl::OnDynamicConfigChanged(
     const TClusterNodeDynamicConfigPtr& newNodeConfig)
 {
     auto jobControllerConfig = newNodeConfig->ExecNode->JobController;
-
+    YT_ASSERT(jobControllerConfig);
     DynamicConfig_.Store(jobControllerConfig);
-
-    if (jobControllerConfig && jobControllerConfig->ResourceAdjustmentPeriod) {
-        ResourceAdjustmentExecutor_->SetPeriod(*jobControllerConfig->ResourceAdjustmentPeriod);
-    } else {
-        ResourceAdjustmentExecutor_->SetPeriod(Config_->ResourceAdjustmentPeriod);
-    }
-
-    if (jobControllerConfig && jobControllerConfig->RecentlyRemovedJobsCleanPeriod) {
-        RecentlyRemovedJobCleaner_->SetPeriod(*jobControllerConfig->RecentlyRemovedJobsCleanPeriod);
-    } else {
-        RecentlyRemovedJobCleaner_->SetPeriod(Config_->RecentlyRemovedJobsCleanPeriod);
-    }
+    
+    ProfilingExecutor_->SetPeriod(
+        jobControllerConfig->ProfilingPeriod.value_or(
+            Config_->ProfilingPeriod));
+    ResourceAdjustmentExecutor_->SetPeriod(
+        jobControllerConfig->ResourceAdjustmentPeriod.value_or(
+            Config_->ResourceAdjustmentPeriod));
+    RecentlyRemovedJobCleaner_->SetPeriod(
+        jobControllerConfig->RecentlyRemovedJobsCleanPeriod.value_or(
+            Config_->RecentlyRemovedJobsCleanPeriod));
 }
 
 void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
