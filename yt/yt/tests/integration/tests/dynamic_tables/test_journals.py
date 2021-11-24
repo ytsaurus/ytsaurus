@@ -669,7 +669,7 @@ class TestJournals(YTEnvSetup):
             copy("//tmp/j", "//tmp/j2")
 
     @authors("kvk1920")
-    def test_data_weight_for_files_absent(self):
+    def test_data_weight_for_journals_absent(self):
         create("journal", "//tmp/journal_without_data_weight")
         assert not exists("//tmp/journal_without_data_weight/@data_weight")
         with raises_yt_error("Attribute \"data_weight\" is not found"):
