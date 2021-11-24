@@ -432,6 +432,86 @@ TUnversionedRow BuildOperationAliasesTableRow(
     return rowBuffer->CaptureRow(builder.GetRow());
 }
 
+void DoSendOperationAlerts(
+    NNative::IClientPtr client,
+    std::deque<TOperationAlertEvent> eventsToSend,
+    int maxAlertEventCountPerOperation)
+{
+    YT_LOG_DEBUG("Writing operation alert events to archive (EventCount: %v)", eventsToSend.size());
+
+    TOrderedByIdTableDescriptor tableDescriptor;
+    const auto& tableIndex = tableDescriptor.Index;
+    auto columns = std::vector{tableIndex.IdHi, tableIndex.IdLo, tableIndex.AlertEvents};
+    auto columnFilter = NTableClient::TColumnFilter(columns);
+
+    THashSet<TOperationId> ids;
+    for (const auto& event : eventsToSend) {
+        ids.insert(*event.OperationId);
+    }
+    auto rowsetOrError = LookupOperationsInArchive(
+        client,
+        std::vector(ids.begin(), ids.end()),
+        columnFilter);
+    THROW_ERROR_EXCEPTION_IF_FAILED(rowsetOrError, "Failed to fetch operation alert events from archive");
+    auto rowset = rowsetOrError.Value();
+
+    auto idHiIndex = columnFilter.GetPosition(tableIndex.IdHi);
+    auto idLoIndex = columnFilter.GetPosition(tableIndex.IdLo);
+    auto alertEventsIndex = columnFilter.GetPosition(tableIndex.AlertEvents);
+
+    THashMap<TOperationId, std::deque<TOperationAlertEvent>> idToAlertEvents;
+    for (auto row : rowset->GetRows()) {
+        if (!row) {
+            continue;
+        }
+        auto operationId = TOperationId(
+            FromUnversionedValue<ui64>(row[idHiIndex]),
+            FromUnversionedValue<ui64>(row[idLoIndex]));
+
+        auto eventsFromArchive = FromUnversionedValue<std::optional<TYsonStringBuf>>(row[alertEventsIndex]);            
+        if (eventsFromArchive) {
+            idToAlertEvents.emplace(
+                operationId,
+                ConvertTo<std::deque<TOperationAlertEvent>>(*eventsFromArchive));
+        }
+    }
+    for (const auto& alertEvent : eventsToSend) {
+        // Id can be absent in idToAlertEvents if row with such id is not created in archive yet.
+        // In this case we want to create this row and initialize it with empty operation alert history.
+        auto& operationAlertEvents = idToAlertEvents[*alertEvent.OperationId];
+        operationAlertEvents.push_back(alertEvent);
+        while (std::ssize(operationAlertEvents) > maxAlertEventCountPerOperation) {
+            operationAlertEvents.pop_front();
+        }
+    }
+
+    auto rowBuffer = New<TRowBuffer>();
+    std::vector<TUnversionedRow> rows;
+    rows.reserve(idToAlertEvents.size());
+
+    for (const auto& [operationId, events] : idToAlertEvents) {
+        TUnversionedRowBuilder builder;
+        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableIndex.IdHi));
+        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableIndex.IdLo));
+        auto serializedEvents = ConvertToYsonString(events);
+        builder.AddValue(MakeUnversionedAnyValue(serializedEvents.AsStringBuf(), tableIndex.AlertEvents));
+
+        rows.push_back(rowBuffer->CaptureRow(builder.GetRow()));
+    }
+
+    auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
+        .ValueOrThrow();
+    transaction->WriteRows(
+        GetOperationsArchiveOrderedByIdPath(),
+        tableDescriptor.NameTable,
+        MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    YT_LOG_DEBUG("Operation alert events written to archive (EventCount: %v)", eventsToSend.size());
+}
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -491,7 +571,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         bool enable = Config_->Enable;
-        bool enableArchivation = Config_->EnableArchivation;
+        bool enableOperationArchivation = Config_->EnableOperationArchivation;
+        bool enableOperationAlertEventArchivation = Config_->EnableOperationAlertEventArchivation;
         Config_ = config;
 
         if (enable != Config_->Enable) {
@@ -502,18 +583,26 @@ public:
             }
         }
 
-        if (enableArchivation != Config_->EnableArchivation) {
-            if (Config_->EnableArchivation) {
-                DoStartArchivation();
+        if (enableOperationArchivation != Config_->EnableOperationArchivation) {
+            if (Config_->EnableOperationArchivation) {
+                DoStartOperationArchivation();
             } else {
-                DoStopArchivation();
+                DoStopOperationArchivation();
             }
         }
 
+        if (enableOperationAlertEventArchivation != Config_->EnableOperationAlertEventArchivation) {
+            if (Config_->EnableOperationAlertEventArchivation) {
+                DoStartAlertEventArchivation();
+            } else {
+                DoStopAlertEventArchivation();
+            }
+        }
+
+        CheckAndTruncateAlertEvents();
         if (OperationAlertEventSenderExecutor_) {
             OperationAlertEventSenderExecutor_->SetPeriod(Config_->OperationAlertEventSendPeriod);
         }
-        CheckAndTruncateAlertEvents();
 
         ArchiveBatcher_->UpdateMaxBatchSize(Config_->ArchiveBatchSize);
         ArchiveBatcher_->UpdateBatchDuration(Config_->ArchiveBatchTimeout);
@@ -521,9 +610,10 @@ public:
         RemoveBatcher_->UpdateMaxBatchSize(Config_->RemoveBatchSize);
         RemoveBatcher_->UpdateBatchDuration(Config_->RemoveBatchTimeout);
 
-        YT_LOG_INFO("Operations cleaner config updated (Enable: %v, EnableArchivation: %v)",
+        YT_LOG_INFO("Operations cleaner config updated (Enable: %v, EnableOperationArchivation: %v, EnableOperationAlertEventArchivation: %v)",
             Config_->Enable,
-            Config_->EnableArchivation);
+            Config_->EnableOperationArchivation,
+            Config_->EnableOperationAlertEventArchivation);
     }
 
     void SubmitForArchivation(TArchiveOperationRequest request)
@@ -586,7 +676,7 @@ public:
 
         fluent
             .Item("enable").Value(IsEnabled())
-            .Item("enable_archivation").Value(IsArchivationEnabled())
+            .Item("enable_operation_archivation").Value(IsOperationArchivationEnabled())
             .Item("remove_pending").Value(RemovePending_.load())
             .Item("archive_pending").Value(ArchivePending_.load())
             .Item("submitted").Value(Submitted_.load());
@@ -621,9 +711,9 @@ private:
     int ArchiveVersion_ = -1;
 
     bool Enabled_ = false;
-    bool ArchivationEnabled_ = false;
+    bool OperationArchivationEnabled_ = false;
 
-    TDelayedExecutorCookie ArchivationStartCookie_;
+    TDelayedExecutorCookie OperationArchivationStartCookie_;
 
     std::multimap<TInstant, TOperationId> ArchiveTimeToOperationIdMap_;
     THashMap<TOperationId, TArchiveOperationRequest> OperationMap_;
@@ -684,7 +774,8 @@ private:
             GetInvoker()->Invoke(BIND(&TImpl::RemoveOperations, MakeStrong(this)));
 
             ScheduleArchiveOperations();
-            DoStartArchivation();
+            DoStartOperationArchivation();
+            DoStartAlertEventArchivation();
 
             // If operations cleaner was disabled during scheduler runtime and then
             // enabled then we should fetch all finished operation since scheduler did not
@@ -697,38 +788,52 @@ private:
         }
     }
 
-    void DoStartArchivation()
+    void DoStartOperationArchivation()
     {
-        if (Config_->Enable && Config_->EnableArchivation && !ArchivationEnabled_) {
-            ArchivationEnabled_ = true;
-            TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+        if (Config_->Enable && Config_->EnableOperationArchivation && !OperationArchivationEnabled_) {
+            OperationArchivationEnabled_ = true;
+            TDelayedExecutor::CancelAndClear(OperationArchivationStartCookie_);
             Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
-            
+
+            YT_LOG_INFO("Operations archivation started");
+        }
+    }
+
+    void DoStartAlertEventArchivation()
+    {
+        if (Config_->Enable && Config_->EnableOperationAlertEventArchivation && !OperationAlertEventSenderExecutor_) {
             OperationAlertEventSenderExecutor_ = New<TPeriodicExecutor>(
                 CancelableControlInvoker_,
                 BIND(&TImpl::SendOperationAlerts, MakeWeak(this)),
                 Config_->OperationAlertEventSendPeriod);
             OperationAlertEventSenderExecutor_->Start();
 
-            YT_LOG_INFO("Operations archivation started");
+            YT_LOG_INFO("Alert event archivation started");
         }
     }
 
-    void DoStopArchivation()
+    void DoStopOperationArchivation()
     {
-        if (!ArchivationEnabled_) {
+        if (!OperationArchivationEnabled_) {
             return;
         }
 
-        ArchivationEnabled_ = false;
-        TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+        OperationArchivationEnabled_ = false;
+        TDelayedExecutor::CancelAndClear(OperationArchivationStartCookie_);
         Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
-        YT_VERIFY(OperationAlertEventSenderExecutor_);
+        YT_LOG_INFO("Operations archivation stopped");
+    }
+
+    void DoStopAlertEventArchivation()
+    {
+        if (!OperationAlertEventSenderExecutor_) {
+            return;
+        }
         OperationAlertEventSenderExecutor_->Stop();
         OperationAlertEventSenderExecutor_.Reset();
 
-        YT_LOG_INFO("Operations archivation stopped");
+        YT_LOG_INFO("Alert event archivation stopped");
     }
 
     void DoStop()
@@ -751,9 +856,10 @@ private:
         }
         AnalysisExecutor_.Reset();
 
-        TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+        TDelayedExecutor::CancelAndClear(OperationArchivationStartCookie_);
 
-        DoStopArchivation();
+        DoStopOperationArchivation();
+        DoStopAlertEventArchivation();
 
         ArchiveBatcher_->Drop();
         RemoveBatcher_->Drop();
@@ -864,7 +970,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-        if (IsArchivationEnabled()) {
+        if (IsOperationArchivationEnabled()) {
             EnqueueForArchivation(operationId);
         } else {
             EnqueueForRemoval(operationId);
@@ -1026,9 +1132,9 @@ private:
         ArchivedOperationCounter_.Increment(operationIds.size());
     }
 
-    bool IsArchivationEnabled() const
+    bool IsOperationArchivationEnabled() const
     {
-        return IsEnabled() && ArchivationEnabled_;
+        return IsEnabled() && OperationArchivationEnabled_;
     }
 
     void ArchiveOperations()
@@ -1039,7 +1145,7 @@ private:
             .ValueOrThrow();
 
         if (!batch.empty()) {
-            while (IsArchivationEnabled()) {
+            while (IsOperationArchivationEnabled()) {
                 TError error;
                 try {
                     TryArchiveOperations(batch);
@@ -1269,12 +1375,12 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-        DoStopArchivation();
+        DoStopOperationArchivation();
 
-        auto enableCallback = BIND(&TImpl::DoStartArchivation, MakeStrong(this))
+        auto enableCallback = BIND(&TImpl::DoStartOperationArchivation, MakeStrong(this))
             .Via(GetInvoker());
 
-        ArchivationStartCookie_ = TDelayedExecutor::Submit(
+        OperationArchivationStartCookie_ = TDelayedExecutor::Submit(
             enableCallback,
             Config_->ArchivationEnableDelay);
 
@@ -1388,112 +1494,30 @@ private:
         OperationsArchived_.Fire(archivedOperationRequests);
     }
 
-    void DoSendOperationAlerts()
+    void SendOperationAlerts()
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
-
+        
         if (ArchiveVersion_ < 43 || OperationAlertEventQueue_.empty()) {
+            Host_->SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, TError());
             return;
         }
-        YT_LOG_DEBUG("Writing operation alert events to archive (EventCount: %v)", OperationAlertEventQueue_.size());
-
-        TOrderedByIdTableDescriptor tableDescriptor;
-        const auto& tableIndex = tableDescriptor.Index;
-        auto columns = std::vector{tableIndex.IdHi, tableIndex.IdLo, tableIndex.AlertEvents};
-        auto columnFilter = NTableClient::TColumnFilter(columns);
 
         std::deque<TOperationAlertEvent> eventsToSend;
         eventsToSend.swap(OperationAlertEventQueue_);
-
-        THashSet<TOperationId> ids;
-        for (const auto& event : eventsToSend) {
-            ids.insert(*event.OperationId);
-        }
-        auto rowsetOrError = LookupOperationsInArchive(
-            Client_,
-            std::vector(ids.begin(), ids.end()),
-            columnFilter);
-        
-        auto finallyOnError = Finally([&] () {
-            while (!eventsToSend.empty() && std::ssize(OperationAlertEventQueue_) < Config_->MaxEnqueuedOperationAlertEventCount) {
-                OperationAlertEventQueue_.emplace_front(std::move(eventsToSend.back()));
-                eventsToSend.pop_back();
-            }
-            EnqueuedAlertEvents_.store(std::ssize(OperationAlertEventQueue_));
-        });
-
-        if (!rowsetOrError.IsOK()) {
-            YT_LOG_WARNING(rowsetOrError, "Failed to fetch operation alert events from archive");
-            return;
-        }
-        auto rowset = rowsetOrError.Value();
-        
-        auto idHiIndex = columnFilter.GetPosition(tableIndex.IdHi);
-        auto idLoIndex = columnFilter.GetPosition(tableIndex.IdLo);
-        auto alertEventsIndex = columnFilter.GetPosition(tableIndex.AlertEvents);
-
-        THashMap<TOperationId, std::deque<TOperationAlertEvent>> idToAlertEvents;
-        for (auto row : rowset->GetRows()) {
-            if (!row) {
-                continue;
-            }
-            auto operationId = TOperationId(
-                FromUnversionedValue<ui64>(row[idHiIndex]),
-                FromUnversionedValue<ui64>(row[idLoIndex]));
-
-            auto eventsFromArchive = FromUnversionedValue<std::optional<TYsonString>>(row[alertEventsIndex]);            
-            if (eventsFromArchive) {
-                idToAlertEvents.emplace(
-                    operationId,
-                    ConvertTo<std::deque<TOperationAlertEvent>>(*eventsFromArchive));
-            }
-        }
-        for (const auto& alertEvent : eventsToSend) {
-            // Id can be absent in idToAlertEvents if row with such id is not created in archive yet.
-            // In this case we want to create this row and initialize it with empty operation alert history.
-            auto& operationAlertEvents = idToAlertEvents[*alertEvent.OperationId];
-            operationAlertEvents.push_back(alertEvent);
-            while (std::ssize(operationAlertEvents) > Config_->MaxAlertEventCountPerOperation) {
-                operationAlertEvents.pop_front();
-            }
-        }
-
-        auto rowBuffer = New<TRowBuffer>();
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(idToAlertEvents.size());
-
-        for (const auto& [operationId, events] : idToAlertEvents) {
-            TUnversionedRowBuilder builder;
-            builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableIndex.IdHi));
-            builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableIndex.IdLo));
-            auto serializedEvents = ConvertToYsonString(events);
-            builder.AddValue(MakeUnversionedAnyValue(serializedEvents.AsStringBuf(), tableIndex.AlertEvents));
-
-            rows.push_back(rowBuffer->CaptureRow(builder.GetRow()));
-        }
-
-        auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
-            .ValueOrThrow();
-        transaction->WriteRows(
-            GetOperationsArchiveOrderedByIdPath(),
-            tableDescriptor.NameTable,
-            MakeSharedRange(std::move(rows), std::move(rowBuffer)));
-
-        WaitFor(transaction->Commit())
-            .ThrowOnError();
-
-        YT_LOG_DEBUG("Operation alert events written to archive (EventCount: %v)", eventsToSend.size());
-        ArchivedOperationAlertEventCounter_.Increment(eventsToSend.size());
-        EnqueuedAlertEvents_.store(std::ssize(OperationAlertEventQueue_));
-        finallyOnError.Release();
-    }
-
-    void SendOperationAlerts()
-    {
         try {
-            DoSendOperationAlerts();
+            WaitFor(BIND([
+                    client = Client_,
+                    eventsToSend,
+                    maxAlertEventCountPerOperation = Config_->MaxAlertEventCountPerOperation] () mutable {
+                    NDetail::DoSendOperationAlerts(std::move(client), std::move(eventsToSend), maxAlertEventCountPerOperation);
+                })
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run())
+                .ThrowOnError();
             LastOperationAlertEventSendTime_ = TInstant::Now();
             Host_->SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, TError());
+            ArchivedOperationAlertEventCounter_.Increment(eventsToSend.size());
         } catch (const std::exception& ex) {
             auto error = TError("Failed to write operation alert events to archive")
                 << ex;
@@ -1501,7 +1525,13 @@ private:
             if (TInstant::Now() - LastOperationAlertEventSendTime_ > Config_->OperationAlertSenderAlertThreshold) {
                 Host_->SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, error);
             }
+
+            while (!eventsToSend.empty() && std::ssize(OperationAlertEventQueue_) < Config_->MaxEnqueuedOperationAlertEventCount) {
+                OperationAlertEventQueue_.emplace_front(std::move(eventsToSend.back()));
+                eventsToSend.pop_back();
+            }
         }
+        EnqueuedAlertEvents_.store(std::ssize(OperationAlertEventQueue_));
     }
 
     void CheckAndTruncateAlertEvents()

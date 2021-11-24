@@ -11,6 +11,8 @@ import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.common import datetime_to_string, uuid_to_parts, YtError
 
+from yt.yson import YsonEntity
+
 import time
 from datetime import datetime
 
@@ -158,6 +160,22 @@ class TestSchedulerAlertHistory(TestSchedulerAlertHistoryBase):
         assert alert_events[0]["error"]["code"] == 0
 
         update_scheduler_config("operations_cleaner/max_enqueued_operation_alert_event_count", 1000)
+
+    @authors("egor-gutrov")
+    def test_disabled_alert_event_archivation(self):
+        update_scheduler_config("operations_cleaner/enable_operation_alert_event_archivation", False)
+        update_scheduler_config("operations_cleaner/max_enqueued_operation_alert_event_count", 2)
+
+        op1 = _run_op_with_input_chunks_alert(return_events=False)
+        op2 = _run_op_with_input_chunks_alert(return_events=False)
+
+        update_scheduler_config("operations_cleaner/enable_operation_alert_event_archivation", True)
+        update_scheduler_config("operations_cleaner/max_enqueued_operation_alert_event_count", 1000)
+        wait(
+            lambda: _lookup_ordered_by_id_row(op1.id)["alert_events"] == YsonEntity(),
+            ignore_exceptions=False,
+        )
+        _wait_for_alert_events(op2, 2)
 
 
 class TestSchedulerAlertHistoryWithOldArchive(TestSchedulerAlertHistoryBase):

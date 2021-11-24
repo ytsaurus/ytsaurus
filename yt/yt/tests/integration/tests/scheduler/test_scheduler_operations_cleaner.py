@@ -165,7 +165,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             config["finished_operations_archive_lookup_timeout"] = int(lookup_timeout.total_seconds() * 1000)
         set("//sys/scheduler/config", {"operations_cleaner": config})
         wait(lambda: not get(CLEANER_ORCHID + "/enable"))
-        wait(lambda: not get(CLEANER_ORCHID + "/enable_archivation"))
+        wait(lambda: not get(CLEANER_ORCHID + "/enable_operation_archivation"))
 
         ops = _run_maps_parallel(7, command, max_failed_job_count=max_failed_job_count)
 

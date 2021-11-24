@@ -438,7 +438,7 @@ public:
 
     //! Enables archivation, if set to false then operations will be removed from Cypress
     //! without insertion to archive.
-    bool EnableArchivation;
+    bool EnableOperationArchivation;
 
     //! Operations are kept in Cypress for this duration after finish.
     TDuration CleanDelay;
@@ -499,6 +499,9 @@ public:
 
     //! The number of operations in batch to parse.
     int ParseOperationAttributesBatchSize;
+
+    //! Enables alert event archivation. If set to false events will be discarded.
+    bool EnableOperationAlertEventArchivation;
 
     //! Max enqueued alert event count stored on cleaner.
     int MaxEnqueuedOperationAlertEventCount;
