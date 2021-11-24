@@ -19,6 +19,7 @@ import __builtin__
 class TestCypressLocks(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
+    NUM_TEST_PARTITIONS = 4
 
     @authors("panin", "ignat")
     def test_invalid_cases(self):

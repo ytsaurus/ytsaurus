@@ -608,6 +608,7 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
 
 class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
     NUM_SECONDARY_MASTER_CELLS = 5
+    NUM_TEST_PARTITIONS = 4
     ENABLE_TMP_PORTAL = True
     MASTER_CELL_ROLES = {
         "0": ["cypress_node_host"],
