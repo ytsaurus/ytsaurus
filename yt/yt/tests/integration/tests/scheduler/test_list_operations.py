@@ -899,6 +899,7 @@ class _TestListOperationsBase(ListOperationsSetup):
 
 
 class TestListOperationsCypressOnly(_TestListOperationsBase):
+    NUM_TEST_PARTITIONS = 4
     include_archive = False
     read_from_values = ["cache", "follower"]
     check_failed_jobs_count = True

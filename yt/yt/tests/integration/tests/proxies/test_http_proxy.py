@@ -549,6 +549,8 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
 
 
 class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
+    NUM_TEST_PARTITIONS = 4
+
     def setup(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)

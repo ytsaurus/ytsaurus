@@ -24,6 +24,7 @@ from time import sleep
 class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 21
+    NUM_TEST_PARTITIONS = 4
 
     DELTA_NODE_CONFIG = {
         "data_node": {
