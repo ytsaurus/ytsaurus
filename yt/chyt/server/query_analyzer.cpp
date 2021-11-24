@@ -973,17 +973,10 @@ void TQueryAnalyzer::AddBoundConditionToJoinedSubquery(
         lowerBound,
         upperBound);
 
-    auto unversionedRowToFields = [] (TUnversionedRow row) {
-        std::vector<DB::Field> literals;
-        literals.reserve(row.GetCount());
-        for (const auto& value : row) {
-            literals.emplace_back(ToField(value));
-        }
-        return literals;
-    };
-
     auto createBoundCondition = [&] (const auto& bound) -> DB::ASTPtr {
-        auto boundLiterals = unversionedRowToFields(bound.Prefix);
+        auto tableSchema = Storages_[0]->GetSchema();
+        auto boundLiterals = UnversionedRowToFields(bound.Prefix, *tableSchema);
+
         // Nothing to compare. Condition is always true or false.
         if (boundLiterals.empty()) {
             return std::make_shared<DB::ASTLiteral>(!bound.IsUpper);

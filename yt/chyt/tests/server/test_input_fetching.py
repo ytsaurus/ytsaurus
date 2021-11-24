@@ -245,11 +245,8 @@ class TestInputFetching(ClickHouseTestBase):
         float_types = ["float", "double"]
         float_values = [i * 2.0 for i in range(3)]
 
-        string_types = ["string", "any"]
+        string_types = ["string"]
         string_values = ["{abc=2}", "{zzz=3}"]
-        # Column of type "any" can not be required.
-        if required:
-            string_types.pop()
 
         date_types = ["date", "datetime"]  # , "timestamp"]
         date_scales = [1, 24 * 60 * 60]  # , 24 * 60 * 60 * 10**6]

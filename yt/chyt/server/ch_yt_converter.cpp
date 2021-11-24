@@ -8,29 +8,33 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/library/decimal/decimal.h>
+
 #include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/yson/token_writer.h>
 #include <yt/yt/core/yson/null_consumer.h>
 
-#include <Core/Types.h>
-#include <Columns/IColumn.h>
 #include <Columns/ColumnArray.h>
-#include <Columns/ColumnString.h>
-#include <Columns/ColumnVector.h>
-#include <Columns/ColumnNullable.h>
+#include <Columns/ColumnDecimal.h>
 #include <Columns/ColumnNothing.h>
+#include <Columns/ColumnNullable.h>
+#include <Columns/ColumnString.h>
 #include <Columns/ColumnTuple.h>
+#include <Columns/ColumnVector.h>
+#include <Columns/IColumn.h>
+#include <Core/Types.h>
 #include <DataTypes/DataTypeArray.h>
-#include <DataTypes/IDataType.h>
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <DataTypes/DataTypeNullable.h>
-#include <DataTypes/DataTypeNothing.h>
-#include <DataTypes/DataTypeTuple.h>
-#include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeCustom.h>
+#include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeNothing.h>
+#include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypesDecimal.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypeTuple.h>
+#include <DataTypes/IDataType.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -40,9 +44,10 @@
 
 namespace NYT::NClickHouseServer {
 
+using namespace NDecimal;
+using namespace NLogging;
 using namespace NTableClient;
 using namespace NYson;
-using namespace NLogging;
 
 // Used only for YT_LOG_FATAL below.
 static const TLogger Logger("CHYTConverter");
@@ -409,6 +414,101 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TUnderlyingIntegerType>
+class TDecimalConverter
+    : public IConverter
+{
+public:
+    static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int32>
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int64>
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int128>);
+
+    using TClickHouseDecimal = DB::Decimal<TUnderlyingIntegerType>;
+    using TDecimalColumn = DB::ColumnDecimal<TClickHouseDecimal>;
+    static constexpr i64 DecimalSize = sizeof(TUnderlyingIntegerType);
+
+    TDecimalConverter(int precision, int scale)
+        : Precision_(precision)
+        , Scale_(scale)
+    { }
+
+    void InitColumn(const DB::IColumn* column) override
+    {
+        Column_ = DB::checkAndGetColumn<TDecimalColumn>(column);
+        CurrentValueIndex_ = 0;
+    }
+
+    void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    {
+        YT_VERIFY(values.size() == Column_->size());
+
+        Buffer_.resize(values.size() * DecimalSize);
+
+        const char* data = Column_->template getRawDataBegin<DecimalSize>();
+
+        for (int index = 0; index < std::ssize(values); ++index) {
+            const char* chValue = data + DecimalSize * index;
+            char* ytValue = Buffer_.begin() + DecimalSize * index;
+            DoConvertDecimal(ytValue, chValue);
+
+            values[index].Type = EValueType::String;
+            values[index].Data.String = ytValue;
+            values[index].Length = DecimalSize;
+        }
+    }
+
+    void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    {
+        YT_VERIFY(CurrentValueIndex_ < static_cast<int>(Column_->size()));
+
+        if (writer) {
+            const char* data = Column_->template getRawDataBegin<DecimalSize>();
+            const char* chValue = data + DecimalSize * CurrentValueIndex_;
+
+            char ytValue[DecimalSize];
+            DoConvertDecimal(ytValue, chValue);
+
+            writer->WriteBinaryString(TStringBuf(ytValue, DecimalSize));
+        }
+        ++CurrentValueIndex_;
+    }
+
+    TLogicalTypePtr GetLogicalType() const override
+    {
+        return DecimalLogicalType(Precision_, Scale_);
+    }
+
+private:
+    int Precision_;
+    int Scale_;
+
+    const TDecimalColumn* Column_ = nullptr;
+    i64 CurrentValueIndex_ = 0;
+    // Buffer to store decimals in YT representation.
+    TString Buffer_;
+
+    void DoConvertDecimal(char* ytValue, const char* chValue)
+    {
+        if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int32>) {
+            i32 value;
+            memcpy(&value, chValue, DecimalSize);
+            TDecimal::WriteBinary32(Precision_, value, ytValue, DecimalSize);
+        } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int64>) {
+            i64 value;
+            memcpy(&value, chValue, DecimalSize);
+            TDecimal::WriteBinary64(Precision_, value, ytValue, DecimalSize);
+        } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int128>) {
+            TDecimal::TValue128 value;
+            memcpy(&value, chValue, DecimalSize);
+            TDecimal::WriteBinary128(Precision_, value, ytValue, DecimalSize);
+        } else {
+            YT_ABORT();
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -439,7 +539,10 @@ public:
 
         RootConverter_->InitColumn(CurrentColumn_.get());
 
-        if (IsV1Type(RootConverter_->GetLogicalType())) {
+        auto logicalType = RootConverter_->GetLogicalType();
+        auto notOptionalLogicalType = RemoveOptional(logicalType);
+
+        if (IsV1Type(logicalType) || notOptionalLogicalType->GetMetatype() == ELogicalMetatype::Decimal) {
             RootConverter_->FillValueRange(CurrentValues_);
         } else {
             TBufferOutput output(Buffer_);
@@ -568,6 +671,35 @@ private:
             dataTypeTuple->haveExplicitNames() ? std::make_optional(elementNames) : std::nullopt);
     }
 
+    IConverterPtr CreateDecimalConverter(const DB::DataTypePtr& dataType)
+    {
+        int precision = DB::getDecimalPrecision(*dataType);
+        int scale = DB::getDecimalScale(*dataType);
+
+        if (precision > 35) {
+            THROW_ERROR_EXCEPTION("ClickHouse type %v is not representable as YT type: "
+                "maximum decimal precision in YT is 35",
+                DataType_->getName())
+                << TErrorAttribute("docs", "https://yt.yandex-team.ru/docs/description/storage/data_types#schema_decimal_binary");
+        }
+
+        switch (dataType->getTypeId()) {
+            case DB::TypeIndex::Decimal32:
+                return std::make_unique<TDecimalConverter<DB::Int32>>(precision, scale);
+            case DB::TypeIndex::Decimal64:
+                return std::make_unique<TDecimalConverter<DB::Int64>>(precision, scale);
+            case DB::TypeIndex::Decimal128:
+                return std::make_unique<TDecimalConverter<DB::Int128>>(precision, scale);
+            case DB::TypeIndex::Decimal256:
+                // Decimal256 has precision in range [39:76], which is more than
+                // maximum supported precision in YT decimal type (35).
+                // We should not get here because precision has already been checked.
+                YT_ABORT();
+            default:
+                YT_ABORT();
+        }
+    }
+
     IConverterPtr CreateConverter(const DB::DataTypePtr& dataType)
     {
         switch (dataType->getTypeId()) {
@@ -592,6 +724,11 @@ private:
                 return CreateArrayConverter(dataType);
             case DB::TypeIndex::Tuple:
                 return CreateTupleConverter(dataType);
+            case DB::TypeIndex::Decimal32:
+            case DB::TypeIndex::Decimal64:
+            case DB::TypeIndex::Decimal128:
+            case DB::TypeIndex::Decimal256:
+                return CreateDecimalConverter(dataType);
             default:
                 THROW_ERROR_EXCEPTION(
                     "Conversion of ClickHouse type %v to YT type system is not supported",
