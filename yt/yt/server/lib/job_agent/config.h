@@ -255,14 +255,16 @@ public:
 
     std::optional<TDuration> CpuOverdraftTimeout;
     std::optional<TDuration> MemoryOverdraftTimeout;
-    
+
+    std::optional<TDuration> ProfilingPeriod;
+
     std::optional<TDuration> ResourceAdjustmentPeriod;
-    
+
     std::optional<TDuration> RecentlyRemovedJobsCleanPeriod;
     std::optional<TDuration> RecentlyRemovedJobsStoreTimeout;
 
     std::optional<bool> DisableJobProxyProfiling;
-    
+
     TGpuManagerDynamicConfigPtr GpuManager;
 
     NJobProxy::TJobProxyDynamicConfigPtr JobProxy;
@@ -271,16 +273,19 @@ public:
     {
         RegisterParameter("get_job_specs_timeout", GetJobSpecsTimeout)
             .Default();
-        
+
         RegisterParameter("total_confirmation_period", TotalConfirmationPeriod)
             .Default();
-        
+
         RegisterParameter("cpu_overdraft_timeout", CpuOverdraftTimeout)
             .Default();
-        
+
         RegisterParameter("memory_overdraft_timeout", MemoryOverdraftTimeout)
             .Default();
         
+        RegisterParameter("profiling_period", ProfilingPeriod)
+            .Default();
+
         RegisterParameter("resource_adjustment_period", ResourceAdjustmentPeriod)
             .Default();
 
@@ -289,10 +294,10 @@ public:
 
         RegisterParameter("recently_removed_jobs_store_timeout", RecentlyRemovedJobsStoreTimeout)
             .Default();
-        
+
         RegisterParameter("gpu_manager", GpuManager)
             .DefaultNew();
-        
+
         RegisterParameter("disable_job_proxy_profiling", DisableJobProxyProfiling)
             .Default();
 
@@ -317,6 +322,8 @@ public:
 
     TDuration CpuOverdraftTimeout;
     TDuration MemoryOverdraftTimeout;
+
+    TDuration ProfilingPeriod;
 
     TDuration ResourceAdjustmentPeriod;
 
@@ -365,6 +372,9 @@ public:
 
         RegisterParameter("cpu_overdraft_timeout", CpuOverdraftTimeout)
             .Default(TDuration::Minutes(10));
+
+        RegisterParameter("profiling_period", ProfilingPeriod)
+            .Default(TDuration::Seconds(5));
 
         RegisterParameter("resource_adjustment_period", ResourceAdjustmentPeriod)
             .Default(TDuration::Seconds(5));
