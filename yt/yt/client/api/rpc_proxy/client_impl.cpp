@@ -9,8 +9,6 @@
 
 #include <yt/yt/core/net/address.h>
 
-#include <yt/yt/core/misc/small_set.h>
-
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/stream.h>
 #include <yt/yt/core/rpc/dynamic_channel_pool.h>

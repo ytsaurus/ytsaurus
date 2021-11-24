@@ -11,7 +11,7 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/variant.h>
-#include <yt/yt/core/misc/small_set.h>
+#include <yt/yt/core/misc/compact_set.h>
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/core/utilex/random.h>
@@ -592,7 +592,7 @@ private:
             }
         };
 
-        SmallSet<TStringBuf, 16> seenAddresses;
+        TCompactSet<TStringBuf, 16> seenAddresses;
         auto currentRandomIndex = randomIndex % ViablePeers_.size();
         while (true) {
             rebaseIt();

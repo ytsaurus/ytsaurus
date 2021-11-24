@@ -13,7 +13,6 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/small_set.h>
 
 #include <util/generic/map.h>
 
