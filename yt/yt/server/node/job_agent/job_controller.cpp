@@ -1780,7 +1780,7 @@ void TJobController::TImpl::OnProfiling()
             continue;
         }
 
-        auto extension = jobSpec.GetExtension(extensionId);
+        const auto& extension = jobSpec.GetExtension(extensionId);
         if (!extension.has_user_job_spec()) {
             continue;
         }
