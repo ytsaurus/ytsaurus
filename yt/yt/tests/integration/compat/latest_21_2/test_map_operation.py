@@ -10,6 +10,8 @@ class TestMapCommandsCompatUpToCA(BaseTestMapCommands):
 
 
 class TestMapCommandsCompatNewNodes(BaseTestMapCommands):
+    UPLOAD_DEBUG_ARTIFACT_CHUNKS = True
+
     ARTIFACT_COMPONENTS = {
         "21_2": ["master", "scheduler", "controller-agent"],
         "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],

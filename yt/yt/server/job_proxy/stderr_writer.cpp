@@ -90,6 +90,30 @@ NChunkClient::TChunkId TStderrWriter::GetChunkId() const
     return ChunkId_;
 }
 
+void TStderrWriter::Upload(
+    NApi::TFileWriterConfigPtr config,
+    NChunkClient::TMultiChunkWriterOptionsPtr options,
+    NApi::NNative::IClientPtr client,
+    NObjectClient::TTransactionId transactionId,
+    NChunkClient::TTrafficMeterPtr trafficMeter,
+    NConcurrency::IThroughputThrottlerPtr throttler)
+{
+    try {
+        TFileChunkOutput fileChunkOutput(
+            config,
+            options,
+            client,
+            transactionId,
+            trafficMeter,
+            throttler);
+        SaveCurrentDataTo(&fileChunkOutput);
+        fileChunkOutput.Finish();
+        ChunkId_ = fileChunkOutput.GetChunkId();
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Writing stderr data to chunk failed");
+    }
+}
+
 void TStderrWriter::DoWrite(const void* buf_, size_t len)
 {
     const char* buf = static_cast<const char*>(buf_);
@@ -139,30 +163,6 @@ void TStderrWriter::SaveCurrentDataTo(IOutputStream* output) const
             output->Write(skipped);
         }
         Tail_->SaveTo(output);
-    }
-}
-
-void TStderrWriter::Upload(
-    NApi::TFileWriterConfigPtr config,
-    NChunkClient::TMultiChunkWriterOptionsPtr options,
-    NApi::NNative::IClientPtr client,
-    NObjectClient::TTransactionId transactionId,
-    NChunkClient::TTrafficMeterPtr trafficMeter,
-    NConcurrency::IThroughputThrottlerPtr throttler)
-{
-    try {
-        TFileChunkOutput fileChunkOutput(
-            config,
-            options,
-            client,
-            transactionId,
-            trafficMeter,
-            throttler);
-        SaveCurrentDataTo(&fileChunkOutput);
-        fileChunkOutput.Finish();
-        ChunkId_ = fileChunkOutput.GetChunkId();
-    } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Writing stderr data to chunk failed");
     }
 }
 

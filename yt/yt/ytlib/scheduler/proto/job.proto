@@ -374,6 +374,9 @@ message TSchedulerJobResultExt
 
     // Used to restart completed job in case of interruption.
     optional bool restart_needed = 18;
+
+    optional bool has_stderr = 21;
+    optional bool has_fail_context = 22;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -300,7 +300,9 @@ public:
             if (!JobErrorPromise_.IsSet()) {
                 FinalizeJobIO();
             }
-            UploadStderrFile();
+            if (Config_->UploadDebugArtifactChunks) {
+                UploadStderrFile();
+            }
 
             CleanupUserProcesses();
 
@@ -324,8 +326,11 @@ public:
 
         TJobResult result;
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
-        SaveErrorChunkId(schedulerResultExt);
+        // COMPAT(ignat)
+        if (Config_->UploadDebugArtifactChunks) {
+            SaveErrorChunkId(schedulerResultExt);
+        }
+        schedulerResultExt->set_has_stderr(ErrorOutput_->GetCurrentSize() > 0);
         UserJobWriteController_->PopulateStderrResult(schedulerResultExt);
 
         if (jobResultError) {
@@ -746,6 +751,7 @@ private:
         return ProfileOutput_.get();
     }
 
+    // COMPAT(ignat)
     void SaveErrorChunkId(TSchedulerJobResultExt* schedulerResultExt)
     {
         if (!ErrorOutput_) {
@@ -775,11 +781,16 @@ private:
             FailContext_->append(context.Begin(), context.Size());
         }
 
-        auto contextChunkIds = DoDumpInputContext(contexts);
+        schedulerResultExt->set_has_fail_context(size > 0);
 
-        YT_VERIFY(contextChunkIds.size() <= 1);
-        if (!contextChunkIds.empty()) {
-            ToProto(schedulerResultExt->mutable_fail_context_chunk_id(), contextChunkIds.front());
+        // COMPAT(ignat)
+        if (Config_->UploadDebugArtifactChunks) {
+            auto contextChunkIds = DoDumpInputContext(contexts);
+
+            YT_VERIFY(contextChunkIds.size() <= 1);
+            if (!contextChunkIds.empty()) {
+                ToProto(schedulerResultExt->mutable_fail_context_chunk_id(), contextChunkIds.front());
+            }
         }
     }
 
@@ -970,6 +981,7 @@ private:
         }
     }
 
+    // COMPAT(ignat)
     void UploadStderrFile()
     {
         if (JobErrorPromise_.IsSet() || UserJobSpec_.upload_stderr_if_completed()) {
