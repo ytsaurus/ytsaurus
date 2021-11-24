@@ -484,6 +484,8 @@ public:
 
     TDuration JobProxyHeartbeatPeriod;
 
+    bool JobProxyUploadDebugArtifactChunks;
+
     //! This is a special testing option.
     //! Instead of actually setting root fs, it just provides special environment variable.
     bool TestRootFS;
@@ -557,6 +559,9 @@ public:
 
         RegisterParameter("job_proxy_heartbeat_period", JobProxyHeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("job_proxy_upload_debug_artifact_chunks", JobProxyUploadDebugArtifactChunks)
+            .Default(true);
 
         RegisterParameter("test_root_fs", TestRootFS)
             .Default(false);

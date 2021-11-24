@@ -248,6 +248,9 @@ class YTEnvSetup(object):
     NODE_IO_ENGINE_TYPE = None  # use "thread_pool" or "uring"
     NODE_ENABLE_DIRECT_IO = False
 
+    # COMPAT(ignat)
+    UPLOAD_DEBUG_ARTIFACT_CHUNKS = False
+
     @classmethod
     def is_multicell(cls):
         return cls.NUM_SECONDARY_MASTER_CELLS > 0
@@ -550,6 +553,8 @@ class YTEnvSetup(object):
                 config = update_inplace(config, get_porto_delta_node_config())
             if cls.USE_CUSTOM_ROOTFS:
                 config = update_inplace(config, get_custom_rootfs_delta_node_config())
+
+            config["exec_agent"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
 
             configs["node"][index] = config
             cls.modify_node_config(configs["node"][index])

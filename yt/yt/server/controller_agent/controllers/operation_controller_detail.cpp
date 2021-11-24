@@ -5150,11 +5150,25 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
 
     const auto& schedulerResultExt = summary->Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-    auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
-    auto failContextChunkId = FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id());
+    bool hasStderr = false;
+    if (schedulerResultExt.has_has_stderr()) {
+        hasStderr = schedulerResultExt.has_stderr();
+    } else {
+        auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
+        if (stderrChunkId) {
+            Host->AddChunkTreesToUnstageList({stderrChunkId}, false /* recursive */);
+        }
+        hasStderr = static_cast<bool>(stderrChunkId);
+    }
 
-    auto hasStderr = static_cast<bool>(stderrChunkId);
-    auto hasFailContext = static_cast<bool>(failContextChunkId);
+    bool hasFailContext = false;
+    if (schedulerResultExt.has_has_fail_context()) {
+        hasFailContext = schedulerResultExt.has_fail_context();
+    } else {
+        auto failContextChunkId = FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id());
+        hasFailContext = static_cast<bool>(failContextChunkId);
+    }
+
     auto coreInfoCount = schedulerResultExt.core_infos().size();
 
     auto joblet = GetJoblet(jobId);
@@ -5188,9 +5202,6 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     }
 
     if (!shouldRetainJob) {
-        if (hasStderr) {
-            Host->AddChunkTreesToUnstageList({stderrChunkId}, false /* recursive */);
-        }
         return;
     }
 

@@ -1828,6 +1828,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
         proxyConfig->EnableJobShellSeccopm = proxyDynamicConfig->EnableJobShellSeccopm;
         proxyConfig->UsePortoKillForSignalling = proxyDynamicConfig->UsePortoKillForSignalling;
         proxyConfig->ForceIdleCpuPolicy = proxyDynamicConfig->ForceIdleCpuPolicy;
+        proxyConfig->UploadDebugArtifactChunks = proxyDynamicConfig->UploadDebugArtifactChunks;
     }
 
     return proxyConfig;

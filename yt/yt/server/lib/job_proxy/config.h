@@ -233,6 +233,8 @@ public:
 
     bool ForceIdleCpuPolicy;
 
+    bool UploadDebugArtifactChunks;
+
     TJobProxyConfig()
     {
         RegisterParameter("slot_index", SlotIndex);
@@ -324,6 +326,9 @@ public:
         RegisterParameter("force_idle_cpu_policy", ForceIdleCpuPolicy)
             .Default(false);
 
+        RegisterParameter("upload_debug_artifact_chunks", UploadDebugArtifactChunks)
+            .Default(true);
+
         RegisterPreprocessor([&] {
             SolomonExporter->EnableSelfProfiling = false;
             SolomonExporter->WindowSize = 1;
@@ -367,6 +372,8 @@ public:
 
     bool ForceIdleCpuPolicy;
 
+    bool UploadDebugArtifactChunks; 
+
     TJobProxyDynamicConfig()
     {
         RegisterParameter("jaeger", Jaeger)
@@ -380,6 +387,9 @@ public:
 
         RegisterParameter("force_idle_cpu_policy", ForceIdleCpuPolicy)
             .Default(false);
+
+        RegisterParameter("upload_debug_artifact_chunks", UploadDebugArtifactChunks)
+            .Default(true);
     }
 };
 
