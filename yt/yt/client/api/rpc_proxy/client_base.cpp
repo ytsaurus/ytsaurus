@@ -14,8 +14,6 @@
 
 #include <yt/yt/core/net/address.h>
 
-#include <yt/yt/core/misc/small_set.h>
-
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>

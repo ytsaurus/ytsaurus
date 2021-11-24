@@ -9,7 +9,6 @@
 #include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/small_set.h>
 #include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NCellServer {

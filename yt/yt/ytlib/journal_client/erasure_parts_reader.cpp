@@ -14,9 +14,9 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/core/misc/compact_set.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/small_vector.h>
-#include <yt/yt/core/misc/small_set.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -31,7 +31,7 @@ using namespace NApi::NNative;
 using namespace NYT::NErasure;
 using namespace ::NErasure;
 
-using TPartIndexSet = SmallSet<int, ::NErasure::MaxTotalPartCount>;
+using TPartIndexSet = TCompactSet<int, ::NErasure::MaxTotalPartCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

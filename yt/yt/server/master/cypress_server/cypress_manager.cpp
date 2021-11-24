@@ -54,8 +54,8 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/yt/core/misc/compact_set.h>
 #include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/small_set.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
@@ -1595,7 +1595,7 @@ public:
             }
         }
 
-        SmallSet<TCypressNode*, 8> unbranchedNodes;
+        TCompactSet<TCypressNode*, 8> unbranchedNodes;
         auto unbranchNode = [&] (TCypressNode* node) -> TCypressNode* {
             auto* originator = node->GetOriginator();
             auto* transaction = node->GetTransaction();

@@ -15,8 +15,6 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/yt/core/misc/small_set.h>
-
 #include <util/random/random.h>
 
 #include <array>

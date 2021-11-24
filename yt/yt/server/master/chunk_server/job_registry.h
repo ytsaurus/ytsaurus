@@ -20,7 +20,6 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/small_set.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
