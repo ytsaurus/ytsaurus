@@ -246,7 +246,6 @@ private:
     std::atomic<bool> EnableMutationBoomerangs_ = true;
     std::atomic<bool> EnableLocalReadExecutor_ = true;
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
-    std::atomic<TDuration> LocalReadExecutorQuantumDuration_ = TDuration::MilliSeconds(10);
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -2234,7 +2233,8 @@ void TObjectService::ProcessSessions()
     if (Config_->EnableLocalReadExecutor) {
         TAutomatonBlockGuard guard(Bootstrap_->GetHydraFacade());
 
-        auto readFuture = LocalReadExecutor_->Run(LocalReadExecutorQuantumDuration_);
+        auto quantumDuration = GetDynamicConfig()->LocalReadExecutorQuantumDuration;
+        auto readFuture = LocalReadExecutor_->Run(quantumDuration);
         readFuture
             .Get()
             .ThrowOnError();
