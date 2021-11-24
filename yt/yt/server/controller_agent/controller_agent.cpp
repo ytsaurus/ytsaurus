@@ -949,6 +949,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        ValidateConnected();
+
         NScheduler::ValidateOperationAccess(
             user,
             operationId,
@@ -957,8 +959,6 @@ public:
             GetOperationOrThrow(operationId)->GetAcl(),
             Bootstrap_->GetMasterClient(),
             Logger);
-
-        ValidateConnected();
     }
 
     std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
