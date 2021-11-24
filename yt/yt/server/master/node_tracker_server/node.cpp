@@ -561,10 +561,26 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 
     if (context.GetVersion() >= EMasterReign::CRP) {
         Load(context, ConsistentReplicaPlacementTokenCount_);
+        if (context.GetVersion() < EMasterReign::CrpTokenCountFixes) {
+            if (IsValidWriteTarget()) {
+                SmallVector<int, 8> mediumIndexesWithZeroTokens;
+                for (auto [mediumIndex, tokenCount] : ConsistentReplicaPlacementTokenCount_) {
+                    if (tokenCount == 0) {
+                        mediumIndexesWithZeroTokens.push_back(mediumIndex);
+                    }
+                }
+                for (auto mediumIndex : mediumIndexesWithZeroTokens) {
+                    ConsistentReplicaPlacementTokenCount_.erase(mediumIndex);
+                }
+            } else {
+                ConsistentReplicaPlacementTokenCount_.clear();
+            }
+        }
     }
 
     ComputeDefaultAddress();
     ResetDestroyedReplicasIterator();
+    ComputeFillFactorsAndTotalSpace();
 }
 
 TJobPtr TNode::FindJob(TJobId jobId)

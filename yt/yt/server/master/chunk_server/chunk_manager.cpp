@@ -2522,6 +2522,10 @@ private:
             affectedChunks = ConsistentChunkPlacement_->AddNode(node);
         } else {
             affectedChunks = ConsistentChunkPlacement_->RemoveNode(node);
+
+            // TODO(shakurov): the counterpart to this is done in data node
+            // tracker's ProcessFullHeartbeat. Refactor.
+            node->ConsistentReplicaPlacementTokenCount().clear();
         }
         ScheduleConsistentlyPlacedChunkRefresh(affectedChunks);
     }
