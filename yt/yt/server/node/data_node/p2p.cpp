@@ -407,7 +407,7 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
                             .BlockIndex = blockIndex,
                             .Peers = blockCounter.Peers,
                         });
-                        DistributedBytes_.Increment((*blocks)[i].Size());
+                        DistributedBytes_.Increment((*blocks)[i].Size() * blockCounter.Peers.size());
                     }
                 }
 
