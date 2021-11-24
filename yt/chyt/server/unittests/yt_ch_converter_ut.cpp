@@ -6,8 +6,6 @@
 #include <yt/chyt/server/helpers.h>
 #include <yt/chyt/server/yt_ch_converter.h>
 
-#include <yt/yt/library/clickhouse_functions/unescaped_yson.h>
-
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/yt/ytlib/table_chunk_format/data_block_writer.h>
@@ -16,6 +14,10 @@
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/helpers.h>
+
+#include <yt/yt/library/clickhouse_functions/unescaped_yson.h>
+
+#include <yt/yt/library/decimal/decimal.h>
 
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -37,11 +39,12 @@
 
 namespace NYT::NClickHouseServer {
 
-using namespace NYson;
-using namespace NTableClient;
-using namespace NYTree;
+using namespace NDecimal;
 using namespace NLogging;
 using namespace NTableChunkFormat;
+using namespace NTableClient;
+using namespace NYson;
+using namespace NYTree;
 
 static TLogger Logger("Test");
 
@@ -136,6 +139,8 @@ protected:
     }
 };
 
+///////////////////////////////////////////////////////////////////////////////
+
 TYsonStringBufs ToYsonStringBufs(std::vector<TString>& ysonStrings)
 {
     TYsonStringBufs result;
@@ -227,6 +232,28 @@ std::pair<TYtColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
 
     return {ytColumn, owner};
 }
+
+///////////////////////////////////////////////////////////////////////////////
+
+bool IsDecimalRepresentable(const TString& decimal, int precision, int scale)
+{
+    auto decimalPoint = std::find(decimal.begin(), decimal.end(), '.');
+    auto isDigit = [] (unsigned char c) { return std::isdigit(c); };
+
+    auto digitsBeforePoint = std::count_if(decimal.begin(), decimalPoint, isDigit);
+    auto digitsAfterPoint = std::count_if(decimalPoint, decimal.end(), isDigit);
+
+    if (digitsAfterPoint > scale) {
+        return false;
+    }
+    if (scale + digitsBeforePoint > precision) {
+        return false;
+    }
+
+    return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TTestYTCHConversion, TestAnyPassthrough)
 {
@@ -695,6 +722,221 @@ TEST_F(TTestYTCHConversion, TestOptionalStructInt32String)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
+TEST_F(TTestYTCHConversion, TestDecimal)
+{
+    std::vector<TString> values = {
+        "1.2",
+        "123456.123",
+        "999999.999",
+        "-999999.999",
+        "0.001",
+        "0",
+        "-1",
+        "1234567.1234",
+        "1234567890.12345",
+        "123456789012345.12345",
+        "12345678901234567890.12345",
+        "1234567890123456789012345.12345",
+        "123456789012345678901234567890.12345",
+        "1234567890123456789012345.1234567890",
+    };
+
+    for (int precision : {5, 9, 10, 15, 18, 19, 30, 35}) {
+        for (int scale : {3, 5, 10}) {
+            if (scale >= precision) {
+                continue;
+            }
+
+            auto logicalType = DecimalLogicalType(precision, scale);
+            TComplexTypeFieldDescriptor descriptor(logicalType);
+
+            std::vector<TString> ysonStrings;
+            std::vector<DB::Field> expectedFields;
+
+            for (const auto& value : values) {
+                if (!IsDecimalRepresentable(value, precision, scale)) {
+                    continue;
+                }
+
+                TString binary = TDecimal::TextToBinary(value, precision, scale);
+                ysonStrings.emplace_back(ConvertToYsonString(binary).ToString());
+
+                if (precision <= 9) {
+                    auto parsedValue = TDecimal::ParseBinary32(precision, binary);
+                    expectedFields.emplace_back(DB::DecimalField(DB::Decimal32(parsedValue), scale));
+                } else if (precision <= 18) {
+                    auto parsedValue = TDecimal::ParseBinary64(precision, binary);
+                    expectedFields.emplace_back(DB::DecimalField(DB::Decimal64(parsedValue), scale));
+                } else {
+                    auto ytValue = TDecimal::ParseBinary128(precision, binary);
+                    DB::Decimal128 chValue;
+                    std::memcpy(&chValue, &ytValue, sizeof(ytValue));
+                    expectedFields.emplace_back(DB::DecimalField(chValue, scale));
+                }
+            }
+            YT_VERIFY(ysonStrings.size() > 0);
+
+            auto ysons = ToYsonStringBufs(ysonStrings);
+            auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
+            auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, TColumnSchema(/* name */ "", logicalType));
+
+            for (const auto& value : unversionedValues) {
+                if (value.Type != EValueType::Null) {
+                    EXPECT_EQ(value.Type, EValueType::String);
+                }
+            }
+
+            ExpectDataConversion(descriptor, ysons, expectedFields);
+            ExpectDataConversion(descriptor, unversionedValues, expectedFields);
+            ExpectDataConversion(descriptor, ytColumn, expectedFields);
+        }
+    }
+}
+
+// Mostly copy-pasted from TestDecimal.
+TEST_F(TTestYTCHConversion, TestOptionalDecimal)
+{
+    std::vector<TString> values = {
+        "1.2",
+        "123456.123",
+        "999999.999",
+        "-999999.999",
+        "0.001",
+        "0",
+        "#",
+        "-1",
+        "1234567.1234",
+        "1234567890.12345",
+        "123456789012345.12345",
+        "12345678901234567890.12345",
+        "1234567890123456789012345.12345",
+        "123456789012345678901234567890.12345",
+        "1234567890123456789012345.1234567890",
+        "#",
+    };
+
+    for (int precision : {5, 9, 10, 15, 18, 19, 30, 35}) {
+        for (int scale : {3, 5, 10}) {
+            if (scale >= precision) {
+                continue;
+            }
+
+            auto logicalType = OptionalLogicalType(DecimalLogicalType(precision, scale));
+            TComplexTypeFieldDescriptor descriptor(logicalType);
+
+            std::vector<TString> ysonStrings;
+            std::vector<DB::Field> expectedFields;
+
+            for (const auto& value : values) {
+                if (value == "#") {
+                    ysonStrings.emplace_back(value);
+                    expectedFields.emplace_back(DB::Null());
+                } else {
+                    if (!IsDecimalRepresentable(value, precision, scale)) {
+                        continue;
+                    }
+
+                    TString binary = TDecimal::TextToBinary(value, precision, scale);
+                    ysonStrings.emplace_back(ConvertToYsonString(binary).ToString());
+
+                    if (precision <= 9) {
+                        auto parsedValue = TDecimal::ParseBinary32(precision, binary);
+                        expectedFields.emplace_back(DB::DecimalField(DB::Decimal32(parsedValue), scale));
+                    } else if (precision <= 18) {
+                        auto parsedValue = TDecimal::ParseBinary64(precision, binary);
+                        expectedFields.emplace_back(DB::DecimalField(DB::Decimal64(parsedValue), scale));
+                    } else {
+                        auto ytValue = TDecimal::ParseBinary128(precision, binary);
+                        DB::Decimal128 chValue;
+                        std::memcpy(&chValue, &ytValue, sizeof(ytValue));
+                        expectedFields.emplace_back(DB::DecimalField(chValue, scale));
+                    }
+                }
+            }
+            YT_VERIFY(ysonStrings.size() > 0);
+
+            auto ysons = ToYsonStringBufs(ysonStrings);
+            auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
+            auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, TColumnSchema(/* name */ "", logicalType));
+
+            ExpectDataConversion(descriptor, ysons, expectedFields);
+            ExpectDataConversion(descriptor, unversionedValues, expectedFields);
+            ExpectDataConversion(descriptor, ytColumn, expectedFields);
+        }
+    }
+}
+
+// Mostly copy-pasted from TestDecimal.
+TEST_F(TTestYTCHConversion, TestListDecimal)
+{
+    std::vector<TString> values = {
+        "1.2",
+        "123456.123",
+        "999999.999",
+        "-999999.999",
+        "0.001",
+        "0",
+        "-1",
+        "1234567.1234",
+        "1234567890.12345",
+        "123456789012345.12345",
+        "12345678901234567890.12345",
+        "1234567890123456789012345.12345",
+        "123456789012345678901234567890.12345",
+        "1234567890123456789012345.1234567890",
+    };
+
+    for (int precision : {5, 9, 10, 15, 18, 19, 30, 35}) {
+        for (int scale : {3, 5, 10}) {
+            if (scale >= precision) {
+                continue;
+            }
+
+            auto logicalType = ListLogicalType(DecimalLogicalType(precision, scale));
+            TComplexTypeFieldDescriptor descriptor(logicalType);
+
+            std::vector<TString> ysonStrings;
+            std::vector<DB::Field> expectedFields;
+
+            for (const auto& value : values) {
+                if (!IsDecimalRepresentable(value, precision, scale)) {
+                    continue;
+                }
+
+                TString binary = TDecimal::TextToBinary(value, precision, scale);
+                std::vector<TString> binaryArray = {binary,};
+                ysonStrings.emplace_back(ConvertToYsonString(binaryArray).ToString());
+
+                DB::Array fieldArray;
+
+                if (precision <= 9) {
+                    auto parsedValue = TDecimal::ParseBinary32(precision, binary);
+                    fieldArray.emplace_back(DB::DecimalField(DB::Decimal32(parsedValue), scale));
+                } else if (precision <= 18) {
+                    auto parsedValue = TDecimal::ParseBinary64(precision, binary);
+                    fieldArray.emplace_back(DB::DecimalField(DB::Decimal64(parsedValue), scale));
+                } else {
+                    auto ytValue = TDecimal::ParseBinary128(precision, binary);
+                    DB::Decimal128 chValue;
+                    std::memcpy(&chValue, &ytValue, sizeof(ytValue));
+                    fieldArray.emplace_back(DB::DecimalField(chValue, scale));
+                }
+
+                expectedFields.emplace_back(std::move(fieldArray));
+            }
+            YT_VERIFY(ysonStrings.size() > 0);
+
+            auto ysons = ToYsonStringBufs(ysonStrings);
+            auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
+            auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, TColumnSchema(/* name */ "", logicalType));
+
+            ExpectDataConversion(descriptor, ysons, expectedFields);
+            ExpectDataConversion(descriptor, unversionedValues, expectedFields);
+            ExpectDataConversion(descriptor, ytColumn, expectedFields);
+        }
+    }
+}
+
 TEST_F(TTestYTCHConversion, TestAnyUpcast)
 {
     // This is a pretty tricky scenario. Any column may be read from chunks originally
@@ -793,6 +1035,41 @@ TOwningKeyBound MakeUpperBound(const TUnversionedValues& values)
     return MakeBound(values, /*isInclusive*/ false, /*isupper*/ true);
 }
 
+TTableSchema MakeDummySchema(const DB::DataTypes& types)
+{
+    std::vector<TColumnSchema> columnSchemas;
+    columnSchemas.reserve(types.size());
+
+    for (auto chType : types) {
+        bool required = true;
+        ESimpleLogicalValueType ytType;
+
+        if (chType->getTypeId() == DB::TypeIndex::Nullable) {
+            required = false;
+            chType = DB::removeNullable(chType);
+        }
+
+        switch (chType->getTypeId()) {
+            case DB::TypeIndex::Int64:
+                ytType = ESimpleLogicalValueType::Int64;
+                break;
+            case DB::TypeIndex::UInt64:
+                ytType = ESimpleLogicalValueType::Uint64;
+                break;
+            case DB::TypeIndex::String:
+                ytType = ESimpleLogicalValueType::String;
+                break;
+            default:
+                YT_ABORT();
+        }
+
+        auto& columnSchema = columnSchemas.emplace_back("dummy_name", ytType);
+        columnSchema.SetRequired(required);
+    }
+
+    return TTableSchema(std::move(columnSchemas));
+}
+
 TEST(TTestKeyConversion, TestBasic)
 {
     DB::DataTypes dataTypes = {
@@ -800,6 +1077,8 @@ TEST(TTestKeyConversion, TestBasic)
         std::make_shared<DB::DataTypeString>(),
         std::make_shared<DB::DataTypeUInt64>(),
     };
+    auto schema = MakeDummySchema(dataTypes);
+
     auto lowerBound = MakeLowerBound({
         MakeUnversionedInt64Value(1),
         MakeUnversionedStringValue("test"),
@@ -809,21 +1088,21 @@ TEST(TTestKeyConversion, TestBasic)
         MakeUnversionedStringValue("test2"),
         MakeUnversionedUint64Value(1)});
 
-    auto chKeys = ToClickHouseKeys(lowerBound, upperBound, dataTypes, 3, false);
+    auto chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 3, false);
     EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({1, "test", 2u}));
     EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({10, "test2", 1u}));
 
     // Convert exclusive to inclusive.
-    chKeys = ToClickHouseKeys(lowerBound, upperBound, dataTypes, 3, true);
+    chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 3, true);
     EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({1, "test", 2u}));
     EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({10, "test2", 0u}));
 
     // Upper bound is not always exclusive.
-    chKeys = ToClickHouseKeys(lowerBound, upperBound, dataTypes, 2, true);
+    chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 2, true);
     EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({1, "test"}));
     EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({10, "test2"}));
 
-    chKeys = ToClickHouseKeys(lowerBound, upperBound, dataTypes, 1, true);
+    chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 1, true);
     EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({DB::FieldRef(1)}));
     EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({DB::FieldRef(10)}));
 }
@@ -835,6 +1114,8 @@ TEST(TTestKeyConversion, TestNulls)
         DB::makeNullable(std::make_shared<DB::DataTypeInt64>()),
         DB::makeNullable(std::make_shared<DB::DataTypeUInt64>()),
     };
+    auto schema = MakeDummySchema(dataTypes);
+
     // Diffrent prefix
     {
         auto lowerBound = MakeLowerBound({
@@ -846,7 +1127,7 @@ TEST(TTestKeyConversion, TestNulls)
             MakeUnversionedNullValue(),
             MakeUnversionedUint64Value(22)});
 
-        auto chKeys = ToClickHouseKeys(lowerBound, upperBound, dataTypes, 3, true);
+        auto chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 3, true);
         EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({
             1,
             std::numeric_limits<DB::Int64>::min(),
@@ -867,7 +1148,7 @@ TEST(TTestKeyConversion, TestNulls)
             MakeUnversionedNullValue(),
             MakeUnversionedUint64Value(22)});
 
-        auto chKeys = ToClickHouseKeys(lowerBound, upperBound, dataTypes, 3, true);
+        auto chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 3, true);
         EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({
             1,
             std::numeric_limits<DB::Int64>::min(),
@@ -888,7 +1169,7 @@ TEST(TTestKeyConversion, TestNulls)
             MakeUnversionedInt64Value(std::numeric_limits<DB::Int64>::min()),
             MakeUnversionedUint64Value(22)});
 
-        auto chKeys = ToClickHouseKeys(lowerBound, upperBound, dataTypes, 3, true);
+        auto chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 3, true);
         EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({
             1,
             std::numeric_limits<DB::Int64>::min(),

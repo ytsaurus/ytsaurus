@@ -138,27 +138,19 @@ TTableSchema ToTableSchema(const DB::ColumnsDescription& columns, const TKeyColu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(dakovalkov): value.Type is a physical type, it's better to pass the desired CH-type.
-DB::Field ToField(const NTableClient::TUnversionedValue& value)
+DB::Field ToField(
+    const NTableClient::TUnversionedValue& value,
+    const NTableClient::TLogicalTypePtr& type)
 {
-    switch (value.Type) {
-        case EValueType::Null:
-            return DB::Field();
-        case EValueType::Int64:
-            return DB::Field(static_cast<DB::Int64>(value.Data.Int64));
-        case EValueType::Uint64:
-            return DB::Field(static_cast<DB::UInt64>(value.Data.Uint64));
-        case EValueType::Double:
-            return DB::Field(static_cast<DB::Float64>(value.Data.Double));
-        case EValueType::Boolean:
-            return DB::Field(static_cast<DB::UInt64>(value.Data.Boolean ? 1 : 0));
-        case EValueType::String:
-        case EValueType::Any:
-        case EValueType::Composite:
-            return DB::Field(value.Data.String, value.Length);
-        default:
-            THROW_ERROR_EXCEPTION("Unexpected data type %Qlv", value.Type);
-    }
+    auto settings = New<TCompositeSettings>();
+    TYTCHConverter convertor(TComplexTypeFieldDescriptor(type), settings);
+
+    convertor.ConsumeUnversionedValues(TRange(&value, 1));
+    auto resultColumn = convertor.FlushColumn();
+
+    YT_VERIFY(resultColumn->size() == 1);
+
+return (*resultColumn)[0];
 }
 
 void ToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
@@ -188,6 +180,22 @@ void ToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
             THROW_ERROR_EXCEPTION("Unexpected data type %Qlv", value->Type);
         }
     }
+}
+
+std::vector<DB::Field> UnversionedRowToFields(
+    const NTableClient::TUnversionedRow& row,
+    const NTableClient::TTableSchema& schema)
+{
+    YT_VERIFY(row.GetCount() <= schema.Columns().size());
+
+    std::vector<DB::Field> fields;
+    fields.reserve(row.GetCount());
+
+    for (size_t index = 0; index < row.GetCount(); ++index) {
+        fields.emplace_back(ToField(row[index], schema.Columns()[index].LogicalType()));
+    }
+
+    return fields;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -420,6 +428,7 @@ TSharedRange<TUnversionedRow> ToRowRange(
 TClickHouseKeys ToClickHouseKeys(
     const TKeyBound& lowerBound,
     const TKeyBound& upperBound,
+    const NTableClient::TTableSchema& schema,
     const DB::DataTypes& dataTypes,
     int usedKeyColumnCount,
     bool tryMakeBoundsInclusive)
@@ -453,7 +462,7 @@ TClickHouseKeys ToClickHouseKeys(
 
                     adjusted = !ytBound.IsUpper && index >= commonPrefixSize;
                 } else {
-                    chKey[index] = ToField(ytBound.Prefix[index]);
+                    chKey[index] = ToField(ytBound.Prefix[index], schema.Columns()[index].LogicalType());
 
                     adjusted = ytBound.IsUpper
                         && index >= commonPrefixSize

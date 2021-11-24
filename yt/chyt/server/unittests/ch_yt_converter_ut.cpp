@@ -9,18 +9,21 @@
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/library/decimal/decimal.h>
+
+#include <Columns/ColumnsNumber.h>
+#include <Columns/IColumn.h>
+#include <Core/Field.h>
 #include <Core/Types.h>
-#include <DataTypes/IDataType.h>
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeArray.h>
-#include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
-#include <Columns/IColumn.h>
-#include <Columns/ColumnsNumber.h>
-#include <Core/Field.h>
+#include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypesDecimal.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypeTuple.h>
+#include <DataTypes/IDataType.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -28,11 +31,12 @@
 
 namespace NYT::NClickHouseServer {
 
-using namespace NYson;
-using namespace NTableClient;
-using namespace NYTree;
+using namespace NDecimal;
 using namespace NLogging;
 using namespace NTableChunkFormat;
+using namespace NTableClient;
+using namespace NYson;
+using namespace NYTree;
 
 static TLogger Logger("Test");
 
@@ -57,6 +61,17 @@ TUnversionedValue MakeUnversionedValue(TStringBuf yson)
         TStatelessLexer lexer;
         return NTableClient::MakeUnversionedValue(yson, /* id */ 0, lexer);
     }
+}
+
+std::vector<TStringBuf> ToStringBufs(std::vector<TString>& ysonStrings)
+{
+    std::vector<TStringBuf> result;
+    result.reserve(ysonStrings.size());
+    for (const auto& ysonString : ysonStrings) {
+        result.emplace_back(ysonString);
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,6 +220,108 @@ TEST_F(TTestCHYTConversion, TestString)
     auto actualValues = ExpectConversion(column, SimpleLogicalType(ESimpleLogicalValueType::String), expectedValueYsons);
     EXPECT_EQ(actualValues[0].Data.String, column->getDataAt(0).data);
     EXPECT_EQ(actualValues[1].Data.String, column->getDataAt(1).data);
+}
+
+TEST_F(TTestCHYTConversion, TestDecimal)
+{
+    std::vector<TString> expectedValues = {
+        "0",
+        "1.23",
+        "-1",
+        "0.001",
+        "123456.123",
+        "999999.999",
+        "-999999.999",
+    };
+
+    for (int precision : {9, 15, 18, 19, 35}) {
+        int scale = 3;
+        auto dataType = DB::createDecimal<DB::DataTypeDecimal>(precision, scale);
+
+        std::vector<TString> ysonStrings;
+        std::vector<DB::Field> fields;
+
+        for (const auto& value : expectedValues) {
+            TString binary = TDecimal::TextToBinary(value, precision, scale);
+            ysonStrings.emplace_back(ConvertToYsonString(binary).ToString());
+
+            if (precision <= 9) {
+                auto parsedValue = TDecimal::ParseBinary32(precision, binary);
+                fields.emplace_back(DB::DecimalField(DB::Decimal32(parsedValue), scale));
+            } else if (precision <= 18) {
+                auto parsedValue = TDecimal::ParseBinary64(precision, binary);
+                fields.emplace_back(DB::DecimalField(DB::Decimal64(parsedValue), scale));
+            } else {
+                auto ytValue = TDecimal::ParseBinary128(precision, binary);
+                DB::Decimal128 chValue;
+                std::memcpy(&chValue, &ytValue, sizeof(ytValue));
+                fields.emplace_back(DB::DecimalField(chValue, scale));
+            }
+        }
+
+        auto column = MakeColumn(dataType, fields);
+        auto expectedLogicalType = DecimalLogicalType(precision, scale);
+        auto expectedYsons = ToStringBufs(ysonStrings);
+
+        Converter_.emplace(dataType, Settings_);
+
+        ExpectConversion(column, expectedLogicalType, expectedYsons);
+    }
+}
+
+TEST_F(TTestCHYTConversion, TestNullableDecimal)
+{
+    std::vector<TString> expectedValues = {
+        "0",
+        "1.23",
+        "#",
+        "-1",
+        "0.001",
+        "123456.123",
+        "#",
+        "999999.999",
+        "-999999.999",
+        "#",
+    };
+
+    for (int precision : {9, 15, 18, 19, 35}) {
+        int scale = 3;
+        auto dataType = DB::makeNullable(DB::createDecimal<DB::DataTypeDecimal>(precision, scale));
+
+        std::vector<TString> ysonStrings;
+        std::vector<DB::Field> fields;
+
+        for (const auto& value : expectedValues) {
+            if (value == "#") {
+                ysonStrings.emplace_back(value);
+                fields.emplace_back(DB::Null());
+            } else {
+                TString binary = TDecimal::TextToBinary(value, precision, scale);
+                ysonStrings.emplace_back(ConvertToYsonString(binary).ToString());
+
+                if (precision <= 9) {
+                    auto parsedValue = TDecimal::ParseBinary32(precision, binary);
+                    fields.emplace_back(DB::DecimalField(DB::Decimal32(parsedValue), scale));
+                } else if (precision <= 18) {
+                    auto parsedValue = TDecimal::ParseBinary64(precision, binary);
+                    fields.emplace_back(DB::DecimalField(DB::Decimal64(parsedValue), scale));
+                } else {
+                    auto ytValue = TDecimal::ParseBinary128(precision, binary);
+                    DB::Decimal128 chValue;
+                    std::memcpy(&chValue, &ytValue, sizeof(ytValue));
+                    fields.emplace_back(DB::DecimalField(chValue, scale));
+                }
+            }
+        }
+
+        auto column = MakeColumn(dataType, fields);
+        auto expectedLogicalType = OptionalLogicalType(DecimalLogicalType(precision, scale));
+        auto expectedYsons = ToStringBufs(ysonStrings);
+
+        Converter_.emplace(dataType, Settings_);
+
+        ExpectConversion(column, expectedLogicalType, expectedYsons);
+    }
 }
 
 TEST_F(TTestCHYTConversion, TestNullableInt64)

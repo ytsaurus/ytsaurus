@@ -719,6 +719,7 @@ private:
     {
         const auto& keyCondition = KeyConditions_[operandIndex];
         const auto& keyColumnDataTypes = KeyColumnDataTypes_[operandIndex];
+        const auto& schema = OperandSchemas_[operandIndex];
 
         YT_LOG_TRACE(
             "Checking range mask (Scale: %v, LowerBound: %v, UpperBound: %v, OperandIndex: %v, KeyCondition: %v)",
@@ -742,6 +743,7 @@ private:
         auto chKeys = ToClickHouseKeys(
             lowerBound,
             upperBound,
+            *schema,
             keyColumnDataTypes,
             usedKeyColumnCount,
             StorageContext_->Settings->Testing->MakeUpperBoundInclusive);

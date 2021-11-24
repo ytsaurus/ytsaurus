@@ -4,37 +4,42 @@
 #include "columnar_conversion.h"
 #include "data_type_boolean.h"
 
-#include <yt/yt/library/clickhouse_functions/unescaped_yson.h>
-
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
+
+#include <yt/yt/library/clickhouse_functions/unescaped_yson.h>
+
+#include <yt/yt/library/decimal/decimal.h>
 
 #include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/yson/token_writer.h>
 
-#include <Core/Types.h>
-#include <Columns/IColumn.h>
 #include <Columns/ColumnArray.h>
-#include <Columns/ColumnString.h>
-#include <Columns/ColumnVector.h>
-#include <Columns/ColumnNullable.h>
+#include <Columns/ColumnDecimal.h>
 #include <Columns/ColumnNothing.h>
+#include <Columns/ColumnNullable.h>
+#include <Columns/ColumnString.h>
 #include <Columns/ColumnTuple.h>
+#include <Columns/ColumnVector.h>
+#include <Columns/IColumn.h>
+#include <Core/Types.h>
 #include <DataTypes/DataTypeArray.h>
-#include <DataTypes/IDataType.h>
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <DataTypes/DataTypeNullable.h>
-#include <DataTypes/DataTypeNothing.h>
-#include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeNothing.h>
+#include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypesDecimal.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypeTuple.h>
+#include <DataTypes/IDataType.h>
 
 #include <library/cpp/iterator/functools.h>
 
 namespace NYT::NClickHouseServer {
 
+using namespace NDecimal;
 using namespace NTableClient;
 using namespace NYson;
 
@@ -866,6 +871,121 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TUnderlyingIntegerType>
+class TDecimalConverter
+    : public IConverter
+{
+public:
+    static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int32>
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int64>
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int128>);
+
+    using TClickHouseDecimal = DB::Decimal<TUnderlyingIntegerType>;
+    using TDecimalColumn = DB::ColumnDecimal<TClickHouseDecimal>;
+    static constexpr i64 DecimalSize = sizeof(TUnderlyingIntegerType);
+
+    TDecimalConverter(int precision, int scale)
+        : Precision_(precision)
+        , DataType_(std::make_shared<DB::DataTypeDecimal<TClickHouseDecimal>>(precision, scale))
+        , Column_(DataType_->createColumn())
+        , DecimalColumn_(dynamic_cast<TDecimalColumn*>(Column_.get()))
+    {
+        YT_VERIFY(DecimalColumn_ != nullptr);
+    }
+
+    void ConsumeYson(TYsonPullParserCursor* cursor) override
+    {
+        auto ysonItem = cursor->GetCurrent();
+        auto data = ysonItem.UncheckedAsString();
+
+        YT_ASSERT(data.size() == DecimalSize);
+
+        ParseAndPushBackDecimal(data);
+
+        cursor->Next();
+    }
+
+    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    {
+        Column_->reserve(values.size());
+
+        for (const auto& value : values) {
+            if (value.Type == EValueType::Null) {
+                TDecimalConverter::ConsumeNulls(1);
+            } else {
+                YT_VERIFY(value.Type == EValueType::String);
+
+                TStringBuf ytValue(value.Data.String, value.Length);
+                ParseAndPushBackDecimal(ytValue);
+            }
+        }
+    }
+
+    void ConsumeNulls(int count) override
+    {
+        Column_->insertManyDefaults(count);
+    }
+
+    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column) override
+    {
+        // TODO(dakovalkov): Can be done without materialization to string column.
+        auto stringColumn = ConvertStringLikeYTColumnToCHColumn(column);
+
+        int rowCount = std::ssize(*stringColumn);
+        DecimalColumn_->reserve(rowCount);
+
+        for (int index = 0; index < rowCount; ++index) {
+            auto data = stringColumn->getDataAt(index);
+            if (data.size == 0) {
+                // If actual stored value is Null, underlying YT-column can contain empty string.
+                // In this case we can insert arbitrary value into unerlying CH-column.
+                Column_->insertDefault();
+            } else {
+                TStringBuf ytValue(data.data, data.size);
+                ParseAndPushBackDecimal(ytValue);
+            }
+        }
+    }
+
+    DB::ColumnPtr FlushColumn() override
+    {
+        return std::move(Column_);
+    }
+
+    DB::DataTypePtr GetDataType() const override
+    {
+        return DataType_;
+    }
+
+private:
+    int Precision_;
+    DB::DataTypePtr DataType_;
+    DB::MutableColumnPtr Column_;
+    TDecimalColumn* DecimalColumn_;
+
+    void ParseAndPushBackDecimal(TStringBuf ytValue)
+    {
+        TClickHouseDecimal chValue;
+
+        if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int32>) {
+            auto parsedValue = TDecimal::ParseBinary32(Precision_, ytValue);
+            memcpy(&chValue, &parsedValue, DecimalSize);
+        } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int64>) {
+            auto parsedValue = TDecimal::ParseBinary64(Precision_, ytValue);
+            memcpy(&chValue, &parsedValue, DecimalSize);
+        } else if constexpr (std::is_same_v<TUnderlyingIntegerType, DB::Int128>) {
+            auto parsedValue = TDecimal::ParseBinary128(Precision_, ytValue);
+            memcpy(&chValue, &parsedValue, DecimalSize);
+        } else {
+            YT_ABORT();
+        }
+
+        DecimalColumn_->insertValue(chValue);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -983,8 +1103,9 @@ private:
 
         YT_VERIFY(nestingLevel > 0);
 
+        auto metatype = nonOptionalDescriptor.GetType()->GetMetatype();
         bool isV1Optional = isOutermost && (nestingLevel == 1) &&
-            nonOptionalDescriptor.GetType()->GetMetatype() == ELogicalMetatype::Simple;
+            (metatype == ELogicalMetatype::Simple || metatype == ELogicalMetatype::Decimal);
 
         auto underlyingConverter = CreateConverter(nonOptionalDescriptor);
 
@@ -1041,6 +1162,24 @@ private:
         return std::make_unique<TStructConverter>(std::move(fieldConverters), std::move(fieldNames));
     }
 
+    IConverterPtr CreateDecimalConverter(const TComplexTypeFieldDescriptor& descriptor)
+    {
+        const auto& decimalType = descriptor.GetType()->AsDecimalTypeRef();
+        int precision = decimalType.GetPrecision();
+        int scale = decimalType.GetScale();
+        auto valueSize = TDecimal::GetValueBinarySize(precision);
+
+        if (valueSize == sizeof(DB::Int32)) {
+            return std::make_unique<TDecimalConverter<DB::Int32>>(precision, scale);
+        } else if (valueSize == sizeof(DB::Int64)) {
+            return std::make_unique<TDecimalConverter<DB::Int64>>(precision, scale);
+        } else if (valueSize == sizeof(DB::Int128)) {
+            return std::make_unique<TDecimalConverter<DB::Int128>>(precision, scale);
+        }
+
+        YT_ABORT();
+    }
+
     IConverterPtr CreateConverter(const TComplexTypeFieldDescriptor& descriptor, bool isOutermost = false)
     {
         const auto& type = descriptor.GetType();
@@ -1065,6 +1204,8 @@ private:
             return CreateTupleConverter(descriptor);
         } else if (type->GetMetatype() == ELogicalMetatype::Struct) {
             return CreateStructConverter(descriptor);
+        } else if (type->GetMetatype() == ELogicalMetatype::Decimal) {
+            return CreateDecimalConverter(descriptor);
         } else {
             ValidateReadOnly(descriptor);
             // Perform fallback to raw yson.

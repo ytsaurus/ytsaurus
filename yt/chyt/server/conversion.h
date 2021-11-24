@@ -38,8 +38,19 @@ NTableClient::TTableSchema ToTableSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(max42): pass logical type.
-DB::Field ToField(const NTableClient::TUnversionedValue& value);
+//! Convert single YT-value (UnversionedValue) to CH-value (DB::Field).
+//! This function is suboptimal and can be used only for query preparation.
+//! For converting data on execution stage consider using TYTCHConverter.
+DB::Field ToField(
+    const NTableClient::TUnversionedValue& value,
+    const NTableClient::TLogicalTypePtr& type);
+
+//! Convert YT-row from the table to vector of CH-values (DB::Field).
+//! ToField is used to convert every value, so it's suboptimal and should be
+//! used only for query preparation as well.
+std::vector<DB::Field> UnversionedRowToFields(
+    const NTableClient::TUnversionedRow& row,
+    const NTableClient::TTableSchema& schema);
 
 // TODO(max42): pass logical type.
 void ToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue* value);
@@ -81,6 +92,7 @@ struct TClickHouseKeys
 TClickHouseKeys ToClickHouseKeys(
     const NTableClient::TKeyBound& ytLowerBound,
     const NTableClient::TKeyBound& ytUpperBound,
+    const NTableClient::TTableSchema& schema,
     const DB::DataTypes& dataTypes,
     int usedKeyColumnCount,
     bool tryMakeBoundsInclusive = true);

@@ -1,8 +1,12 @@
-from base import ClickHouseTestBase, Clique
+from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from helpers import get_schema_from_description
 
-from yt_commands import (write_table, authors, create)
+from yt_commands import (write_table, authors, create, get, raises_yt_error, read_table)
+
+from yt_type_helpers import (decimal_type, make_schema, normalize_schema_v3)
+
+from decimal_helpers import encode_decimal
 
 
 class TestComposite(ClickHouseTestBase):
@@ -95,3 +99,82 @@ class TestComposite(ClickHouseTestBase):
             # assert clique.make_query("select untuple(a) from `//tmp/t`") == [
             #     {"s": "foo", "i": 42}
             # ]
+
+    @authors("dakovalkov")
+    def test_decimal(self):
+        create("table", "//tmp/t", attributes={"schema": [
+            {
+                "name": "decimal32",
+                "type_v3": decimal_type(9, 2),
+            },
+            {
+                "name": "decimal64",
+                "type_v3": decimal_type(15, 5),
+            },
+            {
+                "name": "decimal128",
+                "type_v3": decimal_type(30, 10),
+            },
+        ]})
+
+        row = {
+            "decimal32": encode_decimal("1.1", 9, 2),
+            "decimal64": encode_decimal("1234.1234", 15, 5),
+            "decimal128": encode_decimal("123456789.123456789", 30, 10),
+        }
+        write_table("//tmp/t", [row])
+
+        with Clique(1) as clique:
+            assert get_schema_from_description(clique.make_query('describe "//tmp/t"')) == [
+                {"name": "decimal32", "type": "Decimal(9, 2)"},
+                {"name": "decimal64", "type": "Decimal(15, 5)"},
+                {"name": "decimal128", "type": "Decimal(30, 10)"},
+            ]
+
+            assert clique.make_query('select * from "//tmp/t"') == [{
+                "decimal32": 1.1,
+                "decimal64": 1234.1234,
+                "decimal128": 123456789.123456789,
+            }]
+
+            create_query = '''
+                create table "//tmp/tout" engine YtTable() as select
+                    toDecimal32(10.5, 5) as decimal32,
+                    toDecimal64(100.005, 10) as decimal64,
+                    CAST(0.000005, 'Decimal(35, 15)') as decimal128'''
+
+            clique.make_query(create_query)
+
+            assert normalize_schema_v3(get("//tmp/tout/@schema")) == make_schema(
+                [
+                    {
+                        "name": "decimal32",
+                        "type_v3": decimal_type(9, 5),
+                    },
+                    {
+                        "name": "decimal64",
+                        "type_v3": decimal_type(18, 10),
+                    },
+                    {
+                        "name": "decimal128",
+                        "type_v3": decimal_type(35, 15),
+                    },
+                ],
+                strict=True,
+                unique_keys=False,
+            )
+
+            assert read_table("//tmp/tout") == [{
+                "decimal32": encode_decimal("10.5", 9, 5),
+                "decimal64": encode_decimal("100.005", 18, 10),
+                "decimal128": encode_decimal("0.000005", 35, 15),
+            }]
+
+            # Max precision for Decimal128 in YT is 35 (because of YQL-compatibility).
+            # In CH it's 38, so not all values are acceptable.
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('create table "//tmp/t_bad" engine YtTable() as select toDecimal128(1.0, 10) as d128')
+
+            # Decimal256 is not supported in YT.
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('create table "//tmp/t_bad" engine YtTable() as select toDecimal256(1.0, 10) as d256')

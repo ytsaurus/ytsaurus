@@ -53,6 +53,7 @@ struct TComputedColumnEntry
     std::vector<TString> References;
     TConstExpressionPtr Expression;
     TString ComputedColumn;
+    TLogicalTypePtr LogicalType;
 };
 
 //! Representation or an inclusion statement.
@@ -211,7 +212,7 @@ struct TComputedColumnPopulationMatcher
             }
             YT_LOG_TRACE("Calculated expression result (ComputedColumnValue: %v)", resultValue);
 
-            auto resultField = ToField(resultValue);
+            auto resultField = ToField(resultValue, entry.LogicalType);
             YT_LOG_TRACE("Converted to CH field (ComputedColumnValue: %v)", resultField);
             possibleTuple.emplace_back(std::move(resultField));
             ResultTuples.emplace_back(std::move(possibleTuple));
@@ -509,7 +510,7 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
             THashSet<TString> referenceSet;
             auto expr = PrepareExpression(*columnSchema.Expression(), *schema, BuiltinTypeInferrersMap, &referenceSet);
             std::vector<TString> references(referenceSet.begin(), referenceSet.end());
-            entries.emplace_back(TComputedColumnEntry{references, expr, columnSchema.Name()});
+            entries.emplace_back(TComputedColumnEntry{references, expr, columnSchema.Name(), columnSchema.LogicalType()});
             YT_LOG_DEBUG(
                 "Key computed column found (Column: %v, References: %v, Expression: %v)",
                 columnSchema.Name(),
