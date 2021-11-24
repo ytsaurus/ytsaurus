@@ -4,6 +4,6 @@ from original_tests.yt.yt.tests.integration.tests.controller.test_map_reduce_ope
 
 class TestMapReduceCommandsCompatUpToCA(BaseTestMapReduceCommands):
     ARTIFACT_COMPONENTS = {
-        "21_2": ["master", "node", "job-proxy", "exec", "tools"],
+        "21_3": ["master", "node", "job-proxy", "exec", "tools"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }
