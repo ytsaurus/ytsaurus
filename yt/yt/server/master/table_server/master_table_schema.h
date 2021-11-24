@@ -8,7 +8,7 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt/core/misc/small_flat_map.h>
+#include <yt/yt/core/misc/compact_flat_map.h>
 
 namespace NYT::NTableServer {
 
@@ -26,8 +26,8 @@ public:
     >;
     using TTableSchemaToObjectMapIterator = TTableSchemaToObjectMap::iterator;
 
-    using TAccountToMasterMemoryUsage = TSmallFlatMap<NSecurityServer::TAccount*, i64, 2>;
-    using TAccountToRefCounterMap = TSmallFlatMap<NSecurityServer::TAccount*, i64, 2>;
+    using TAccountToMasterMemoryUsage = TCompactFlatMap<NSecurityServer::TAccount*, i64, 2>;
+    using TAccountToRefCounterMap = TCompactFlatMap<NSecurityServer::TAccount*, i64, 2>;
 
     // These are transient and are used for master memory accounting only.
     DEFINE_BYREF_RO_PROPERTY(TAccountToMasterMemoryUsage, ChargedMasterMemoryUsage);

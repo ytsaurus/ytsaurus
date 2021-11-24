@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/small_flat_map.h>
+#include <yt/yt/core/misc/compact_flat_map.h>
 
 namespace NYT::NTransactionServer {
 
@@ -59,7 +59,7 @@ protected:
     using TReqReplicateTransactionsPtr = NTransactionClient::TTransactionServiceProxy::TReqReplicateTransactionsPtr;
     using TRspReplicateTransactionsPtr = NTransactionClient::TTransactionServiceProxy::TRspReplicateTransactionsPtr;
 
-    using TReplicationRequestMap = TSmallFlatMap<NObjectClient::TCellTag, TReqReplicateTransactionsPtr, 4>;
+    using TReplicationRequestMap = TCompactFlatMap<NObjectClient::TCellTag, TReqReplicateTransactionsPtr, 4>;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

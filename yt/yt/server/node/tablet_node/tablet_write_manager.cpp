@@ -23,7 +23,7 @@
 
 #include <yt/yt/core/compression/codec.h>
 
-#include <yt/yt/core/misc/small_flat_map.h>
+#include <yt/yt/core/misc/compact_flat_map.h>
 
 #include <util/generic/cast.h>
 
@@ -788,8 +788,8 @@ private:
             return;
         }
 
-        TSmallFlatMap<TTableReplicaInfo*, int, 8> replicaToRowCount;
-        TSmallFlatMap<TTablet*, int, 8> tabletToRowCount;
+        TCompactFlatMap<TTableReplicaInfo*, int, 8> replicaToRowCount;
+        TCompactFlatMap<TTablet*, int, 8> tabletToRowCount;
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = Host_->GetTabletOrThrow(writeRecord.TabletId);
 
@@ -984,7 +984,7 @@ private:
         auto commitTimestamp = transaction->GetCommitTimestamp();
 
         int rowCount = 0;
-        TSmallFlatMap<TTablet*, int, 16> tabletToRowCount;
+        TCompactFlatMap<TTablet*, int, 16> tabletToRowCount;
         for (const auto& record : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = Host_->FindTablet(record.TabletId);
             if (!tablet) {
@@ -1048,8 +1048,8 @@ private:
             lockedTabletCount);
 
         if (transaction->GetRowsPrepared()) {
-            TSmallFlatMap<TTableReplicaInfo*, int, 8> replicaToRowCount;
-            TSmallFlatMap<TTablet*, int, 8> tabletToRowCount;
+            TCompactFlatMap<TTableReplicaInfo*, int, 8> replicaToRowCount;
+            TCompactFlatMap<TTablet*, int, 8> tabletToRowCount;
             for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
                 auto* tablet = Host_->FindTablet(writeRecord.TabletId);
                 if (!tablet || !tablet->IsReplicated()) {

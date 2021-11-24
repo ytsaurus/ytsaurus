@@ -767,7 +767,7 @@ public:
         YT_VERIFY(srcAccount);
         YT_VERIFY(dstAccount);
 
-        TSmallFlatMap<TAccount*, TClusterResourceLimits, 4> limitsBackup;
+        TCompactFlatMap<TAccount*, TClusterResourceLimits, 4> limitsBackup;
         try {
             if (resourceDelta.IsViolatedBy(TClusterResourceLimits())) {
                 THROW_ERROR_EXCEPTION("Resource delta cannot be negative");
