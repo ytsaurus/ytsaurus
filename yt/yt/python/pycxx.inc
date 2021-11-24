@@ -3,3 +3,10 @@ SET(PYCXX_FLAGS
     -DPYCXX_6_2_COMPATIBILITY
     -DPy_LIMITED_API=0x03040000
 )
+    
+IF (NOT USE_ARCADIA_PYTHON) 
+    SET(PYCXX_FLAGS
+        ${PYCXX_FLAGS}
+        -Wno-register
+    )
+ENDIF()
