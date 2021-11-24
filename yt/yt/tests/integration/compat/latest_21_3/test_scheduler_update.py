@@ -49,7 +49,7 @@ class TestSchedulerUpdate(YTEnvSetup):
     }
 
     ARTIFACT_COMPONENTS = {
-        "21_2": ["master"],
+        "21_3": ["master"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "node", "job-proxy", "exec", "tools"],
     }
 
@@ -104,7 +104,7 @@ class TestSchedulerUpdateWithOperationsCleaner(YTEnvSetup):
     }
 
     ARTIFACT_COMPONENTS = {
-        "21_2": ["master"],
+        "21_3": ["master"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "node", "job-proxy", "exec", "tools"],
     }
 
