@@ -423,7 +423,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     // (replicaCount, mediumIndex) for each medium with non-empty set of replicas
     // 0
     {
-        SmallVector<int, 8> mediumIndexes;
+        TCompactVector<int, 8> mediumIndexes;
         for (const auto& [mediumIndex, replicas] : Replicas_) {
             if (!replicas.empty()) {
                 mediumIndexes.push_back(mediumIndex);
@@ -563,7 +563,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
         Load(context, ConsistentReplicaPlacementTokenCount_);
         if (context.GetVersion() < EMasterReign::CrpTokenCountFixes) {
             if (IsValidWriteTarget()) {
-                SmallVector<int, 8> mediumIndexesWithZeroTokens;
+                TCompactVector<int, 8> mediumIndexesWithZeroTokens;
                 for (auto [mediumIndex, tokenCount] : ConsistentReplicaPlacementTokenCount_) {
                     if (tokenCount == 0) {
                         mediumIndexesWithZeroTokens.push_back(mediumIndex);

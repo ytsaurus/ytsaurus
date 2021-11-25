@@ -493,7 +493,7 @@ public:
             SetTimestampHolderTimestamp(transactionId, commitTimestamp);
         }
 
-        SmallVector<TTransaction*, 16> nestedTransactions(
+        TCompactVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectIdComparer());
@@ -603,7 +603,7 @@ public:
             securityManager->ValidatePermission(transaction, EPermission::Write);
         }
 
-        SmallVector<TTransaction*, 16> nestedTransactions(
+        TCompactVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectIdComparer());
@@ -709,7 +709,7 @@ public:
         // Shall externalize if true, replicate otherwise.
         auto shouldExternalize = transaction->IsForeign();
 
-        SmallVector<std::pair<TTransaction*, TCellTagList>, 16> transactionsToDstCells;
+        TCompactVector<std::pair<TTransaction*, TCellTagList>, 16> transactionsToDstCells;
         for (auto* currentTransaction = transaction; currentTransaction; currentTransaction = currentTransaction->GetParent()) {
             YT_VERIFY(IsObjectAlive(currentTransaction));
             checkTransactionState(currentTransaction);
@@ -1367,9 +1367,9 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-        SmallVector<TTransactionId, 4> postedTransactionIds;
-        SmallVector<TTransactionId, 4> skippedTransactionIds;
-        SmallVector<TTransactionId, 4> postedMissingTransactionIds;
+        TCompactVector<TTransactionId, 4> postedTransactionIds;
+        TCompactVector<TTransactionId, 4> skippedTransactionIds;
+        TCompactVector<TTransactionId, 4> postedMissingTransactionIds;
         for (const auto& protoTransactionId : request->transaction_ids()) {
             auto transactionId = FromProto<TTransactionId>(protoTransactionId);
             YT_VERIFY(CellTagFromId(transactionId) == Bootstrap_->GetCellTag());
@@ -1498,7 +1498,7 @@ public:
         }
         transaction->PrerequisiteTransactions().clear();
 
-        SmallVector<TTransaction*, 16> dependentTransactions(
+        TCompactVector<TTransaction*, 16> dependentTransactions(
             transaction->DependentTransactions().begin(),
             transaction->DependentTransactions().end());
         std::sort(dependentTransactions.begin(), dependentTransactions.end(), TObjectIdComparer());

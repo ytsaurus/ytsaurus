@@ -10,6 +10,7 @@
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/public.h>
 
@@ -66,7 +67,7 @@ DECLARE_ENTITY_TYPE(TArea, TAreaId, NObjectClient::TDirectObjectIdHash)
 extern const TString DefaultCellBundleName;
 extern const TString DefaultAreaName;
 
-using TCellSet = SmallVector<std::pair<const TCellBase*, int>, NCellarClient::TypicalCellarSize>;
+using TCellSet = TCompactVector<std::pair<const TCellBase*, int>, NCellarClient::TypicalCellarSize>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

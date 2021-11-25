@@ -18,7 +18,7 @@ DECLARE_REFCOUNTED_STRUCT(IJobTracker)
 DECLARE_REFCOUNTED_STRUCT(IReplicatorState)
 
 using TNodePtrWithIndexes = TPtrWithIndexes<TNode>;
-using TNodePtrWithIndexesList = SmallVector<TNodePtrWithIndexes, NChunkClient::TypicalReplicaCount>;
+using TNodePtrWithIndexesList = TCompactVector<TNodePtrWithIndexes, NChunkClient::TypicalReplicaCount>;
 
 using TMediumIndex = int;
 using TRackIndex = int;

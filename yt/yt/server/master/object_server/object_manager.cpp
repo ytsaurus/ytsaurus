@@ -378,7 +378,7 @@ public:
             : MakeYPathRewrite(requestPath, requestPath);
         forwardedYPathExt->set_target_path(targetPathRewrite.Rewritten);
 
-        SmallVector<TYPathRewrite, TypicalAdditionalPathCount> additionalPathRewrites;
+        TCompactVector<TYPathRewrite, TypicalAdditionalPathCount> additionalPathRewrites;
         for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
             const auto& additionalPath = forwardedYPathExt->additional_paths(index);
             auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
@@ -407,7 +407,7 @@ public:
             additionalPathRewrites.push_back(std::move(additionalPathRewrite));
         }
 
-        SmallVector<TYPathRewrite, 4> prerequisiteRevisionPathRewrites;
+        TCompactVector<TYPathRewrite, 4> prerequisiteRevisionPathRewrites;
         if (forwardedRequestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
             auto* prerequisitesExt = forwardedRequestHeader.MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
             for (int index = 0; index < prerequisitesExt->revisions_size(); ++index) {

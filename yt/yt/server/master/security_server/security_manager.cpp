@@ -800,7 +800,7 @@ public:
                 tryIncrementLimits(account, -resourceDelta);
             }
 
-            SmallVector<TAccount*, 4> dstAncestors;
+            TCompactVector<TAccount*, 4> dstAncestors;
             for (auto* account = dstAccount; account != lcaAccount; account = account->GetParent()) {
                 dstAncestors.push_back(account);
             }

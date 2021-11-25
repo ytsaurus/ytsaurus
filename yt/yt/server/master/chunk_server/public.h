@@ -103,7 +103,7 @@ using TNodePtrWithIndexesList = TCompactVector<TNodePtrWithIndexes, TypicalRepli
 using TChunkPtrWithIndexes = TPtrWithIndexes<TChunk>;
 using TChunkPtrWithIndex = NChunkServer::TPtrWithIndex<TChunk>;
 
-using TChunkReplicaIndexList = SmallVector<int, ChunkReplicaIndexBound>;
+using TChunkReplicaIndexList = TCompactVector<int, ChunkReplicaIndexBound>;
 
 struct TChunkTreeStatistics;
 struct TAggregatedNodeStatistics;
@@ -148,7 +148,7 @@ DECLARE_REFCOUNTED_STRUCT(ICompositeJobController)
 
 DECLARE_REFCOUNTED_STRUCT(IDataNodeTracker)
 
-//! Used as an expected upper bound in SmallVector.
+//! Used as an expected upper bound in TCompactVector.
 constexpr int TypicalChunkParentCount = 2;
 
 //! The number of supported replication priorities.

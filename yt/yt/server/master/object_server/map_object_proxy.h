@@ -110,7 +110,7 @@ protected:
 
     virtual TSelfPtr ResolveNameOrThrow(const TString& name) = 0;
 
-    SmallVector<TObject*, 1> ListDescendants(TObject* object) override;
+    TCompactVector<TObject*, 1> ListDescendants(TObject* object) override;
 
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,

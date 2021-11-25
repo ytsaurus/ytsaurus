@@ -61,7 +61,7 @@ public:
 
 private:
     EChunkMappingMode Mode_;
-    THashMap<NChunkClient::TInputChunkPtr, SmallVector<NChunkClient::TInputChunkPtr, 1>> Substitutes_;
+    THashMap<NChunkClient::TInputChunkPtr, TCompactVector<NChunkClient::TInputChunkPtr, 1>> Substitutes_;
     THashMap<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::TChunkStripePtr> OriginalStripes_;
 
     void ValidateSortedChunkConsistency(

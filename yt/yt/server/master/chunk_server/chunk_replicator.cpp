@@ -48,7 +48,7 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/profiling/profiler.h>
@@ -480,7 +480,10 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
                         }
                     }
                 } else {
-                    result.DecommissionedRemovalReplicas.append(replicas.begin(), replicas.end());
+                    result.DecommissionedRemovalReplicas.insert(
+                        result.DecommissionedRemovalReplicas.end(),
+                        replicas.begin(),
+                        replicas.end());
                     result.Status |= EChunkStatus::Overreplicated;
                 }
             }
@@ -741,7 +744,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
     bool precarious = true;
     bool allMediaTransient = true;
-    SmallVector<int, MaxMediumCount> mediaOnWhichLost;
+    TCompactVector<int, MaxMediumCount> mediaOnWhichLost;
     bool hasMediumOnWhichPresent = false;
     bool hasMediumOnWhichUnderreplicated = false;
     bool hasMediumOnWhichSealedMissing = false;
@@ -899,7 +902,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsCrossMedia(
     bool hasSealedReplicas,
     bool precarious,
     bool allMediaTransient,
-    const SmallVector<int, MaxMediumCount>& mediaOnWhichLost,
+    const TCompactVector<int, MaxMediumCount>& mediaOnWhichLost,
     bool hasMediumOnWhichPresent,
     bool hasMediumOnWhichUnderreplicated,
     bool hasMediumOnWhichSealedMissing)
@@ -2284,7 +2287,7 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
     auto mark = TChunkList::GenerateVisitMark();
 
     // BFS queue. Try to avoid allocations.
-    SmallVector<TChunkList*, 64> queue;
+    TCompactVector<TChunkList*, 64> queue;
     size_t frontIndex = 0;
 
     auto enqueue = [&] (TChunkList* chunkList) {

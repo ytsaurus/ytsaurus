@@ -435,8 +435,8 @@ private:
         TSharedRefArray RequestMessage;
         TCellTag ForwardedCellTag = InvalidCellTag;
         std::optional<TYPathRewrite> TargetPathRewrite;
-        std::optional<SmallVector<TYPathRewrite, TypicalAdditionalPathCount>> AdditionalPathRewrites;
-        std::optional<SmallVector<TYPathRewrite, 4>> PrerequisiteRevisionPathRewrites;
+        std::optional<TCompactVector<TYPathRewrite, TypicalAdditionalPathCount>> AdditionalPathRewrites;
+        std::optional<TCompactVector<TYPathRewrite, 4>> PrerequisiteRevisionPathRewrites;
         TSharedRefArray RemoteRequestMessage;
         TSharedRefArray ResponseMessage;
         NTracing::TTraceContextPtr TraceContext;
@@ -462,7 +462,7 @@ private:
     // (Otherwise write requests are handled by per-subrequest replication sessions.)
     TTransactionReplicationSessionWithoutBoomerangsPtr RemoteTransactionReplicationSession_;
 
-    THashMap<TTransactionId, SmallVector<TSubrequest*, 1>> RemoteTransactionIdToSubrequests_;
+    THashMap<TTransactionId, TCompactVector<TSubrequest*, 1>> RemoteTransactionIdToSubrequests_;
 
     std::unique_ptr<TSubrequest[]> Subrequests_;
     int CurrentAutomatonSubrequestIndex_ = 0;
@@ -1003,7 +1003,7 @@ private:
         auto addSubrequestTransactions = [&] (
             std::vector<TTransactionId>* transactions,
             TSubrequest& subrequest,
-            THashMap<TTransactionId, SmallVector<TSubrequest*,1>>* transactionIdToSubrequests)
+            THashMap<TTransactionId, TCompactVector<TSubrequest*,1>>* transactionIdToSubrequests)
         {
             auto doTransaction = [&] (TTransactionId transactionId) {
                 transactions->push_back(transactionId);
@@ -1209,7 +1209,7 @@ private:
         struct TBatchValue
         {
             TObjectServiceProxy::TReqExecuteBatchBasePtr BatchReq;
-            SmallVector<int, 16> Indexes;
+            TCompactVector<int, 16> Indexes;
         };
         THashMap<TBatchKey, TBatchValue> batchMap;
         auto getOrCreateBatch = [&] (TCellTag cellTag, EPeerKind peerKind) {
@@ -1890,8 +1890,8 @@ private:
         auto& attachments = response.Attachments();
 
         // Will take a snapshot.
-        SmallVector<int, 16> completedIndexes;
-        SmallVector<int, 16> uncertainIndexes;
+        TCompactVector<int, 16> completedIndexes;
+        TCompactVector<int, 16> uncertainIndexes;
 
         // Check for forwarding errors.
         for (auto index = 0; index < TotalSubrequestCount_; ++index) {

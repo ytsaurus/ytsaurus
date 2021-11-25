@@ -78,7 +78,7 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/misc/id_generator.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/ypath/token.h>
 
@@ -970,7 +970,7 @@ private:
     // COMPAT(gritukan)
     bool NeedToCreateHostObjects_ = false;
 
-    using TNodeGroupList = SmallVector<TNodeGroup*, 4>;
+    using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
 
     TNodeId GenerateNodeId()
     {
@@ -1501,7 +1501,7 @@ private:
         }
 
         auto rspTags = response->mutable_tags();
-        SmallVector<TString, 16> sortedTags(node->Tags().begin(), node->Tags().end());
+        TCompactVector<TString, 16> sortedTags(node->Tags().begin(), node->Tags().end());
         std::sort(sortedTags.begin(), sortedTags.end());
         for (auto tag : sortedTags) {
             rspTags->Add(std::move(tag));

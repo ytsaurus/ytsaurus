@@ -14,7 +14,7 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 namespace NYT::NCellServer {
 

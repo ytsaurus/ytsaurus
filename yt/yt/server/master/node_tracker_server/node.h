@@ -260,7 +260,7 @@ public:
         bool IsWarmedUp() const;
     };
 
-    using TCellar = SmallVector<TCellSlot, NCellarClient::TypicalCellarSize>;
+    using TCellar = TCompactVector<TCellSlot, NCellarClient::TypicalCellarSize>;
     using TCellarMap = THashMap<NCellarClient::ECellarType, TCellar>;
     DEFINE_BYREF_RW_PROPERTY(TCellarMap, Cellars);
 

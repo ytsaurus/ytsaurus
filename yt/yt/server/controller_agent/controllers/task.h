@@ -38,7 +38,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TVertexDescriptorList = SmallVector<TDataFlowGraph::TVertexDescriptor, 4>;
+using TVertexDescriptorList = TCompactVector<TDataFlowGraph::TVertexDescriptor, 4>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,8 +2,8 @@
 
 #include "public.h"
 
+#include "compact_vector.h"
 #include "mpl.h"
-#include "small_vector.h"
 #include "variant.h"
 
 namespace NYT {
@@ -92,7 +92,7 @@ public:
     /*!
      *  /note May return duplicates.
      */
-    SmallVector<S, N> GetServersForFile(typename NMpl::TCallTraits<F>::TType file, int replicaCount) const;
+    TCompactVector<S, N> GetServersForFile(typename NMpl::TCallTraits<F>::TType file, int replicaCount) const;
 
 private:
     struct TServerToken
@@ -130,7 +130,7 @@ private:
     using TRing = std::set<std::pair<ui64, TRingItem>, TRingCompare<TRingItem>>;
     using TServerTokenRing = std::set<std::pair<ui64, TServerToken>, TRingCompare<TServerToken>>;
 
-    SmallVector<TServerToken, N> GetTokensForFile(typename NMpl::TCallTraits<F>::TType file, int replicaCount) const;
+    TCompactVector<TServerToken, N> GetTokensForFile(typename NMpl::TCallTraits<F>::TType file, int replicaCount) const;
 
     TRing Ring_;
     TServerTokenRing TokenRing_; // No, not *that* token ring :-)

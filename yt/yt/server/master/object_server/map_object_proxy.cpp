@@ -53,7 +53,7 @@ TIntrusivePtr<ICompositeNode> TNonversionedMapObjectProxyBase<TObject>::AsCompos
 template <class TObject>
 TYPath TNonversionedMapObjectProxyBase<TObject>::GetPath() const
 {
-    SmallVector<TString, 32> tokens;
+    TCompactVector<TString, 32> tokens;
 
     const auto* currentObject = TBase::GetThisImpl();
     for (; currentObject->GetParent(); currentObject = currentObject->GetParent()) {
@@ -354,12 +354,12 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
 }
 
 template <class TObject>
-SmallVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendants(
+TCompactVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendants(
     TObject* object)
 {
     return AccumulateOverMapObjectSubtree(
         object,
-        SmallVector<TObject*, 1>(),
+        TCompactVector<TObject*, 1>(),
         [root = object] (auto* currentObject, auto* descendants) {
             if (currentObject != root) {
                 descendants->push_back(currentObject);

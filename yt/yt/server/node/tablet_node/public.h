@@ -136,7 +136,7 @@ struct ITabletContext;
 
 struct TWriteContext;
 
-using TSyncReplicaIdList = SmallVector<TTableReplicaId, 2>;
+using TSyncReplicaIdList = TCompactVector<TTableReplicaId, 2>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

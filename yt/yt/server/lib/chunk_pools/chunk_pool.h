@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/actions/signal.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/logging/logger_owner.h>
 

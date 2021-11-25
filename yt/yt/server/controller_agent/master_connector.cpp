@@ -780,7 +780,7 @@ private:
         transaction->WriteRows(
             GetOperationsArchiveOrderedByIdPath(),
             tableDescriptor.NameTable,
-            MakeSharedRange(SmallVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
+            MakeSharedRange(TCompactVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
 
         auto error = WaitFor(transaction->Commit()
             .ToUncancelable()

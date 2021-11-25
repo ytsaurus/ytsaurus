@@ -135,14 +135,14 @@ private:
         int DecommissionedReplicaCount[ChunkReplicaIndexBound];
 
         //! Indexes of replicas whose replication is advised.
-        SmallVector<int, TypicalReplicaCount> ReplicationIndexes;
+        TCompactVector<int, TypicalReplicaCount> ReplicationIndexes;
 
         //! Decommissioned replicas whose removal is advised.
         // NB: there's no actual need to have medium index in context of this
         // per-medium class. This is just for convenience.
-        SmallVector<TNodePtrWithIndexes, TypicalReplicaCount> DecommissionedRemovalReplicas;
+        TCompactVector<TNodePtrWithIndexes, TypicalReplicaCount> DecommissionedRemovalReplicas;
          //! Indexes of replicas whose removal is advised for balancing.
-        SmallVector<int, TypicalReplicaCount> BalancingRemovalIndexes;
+        TCompactVector<int, TypicalReplicaCount> BalancingRemovalIndexes;
     };
 
     struct TChunkStatistics
@@ -251,7 +251,7 @@ private:
         bool hasSealedReplicas,
         bool precarious,
         bool allMediaTransient,
-        const SmallVector<int, MaxMediumCount>& mediaOnWhichLost,
+        const TCompactVector<int, MaxMediumCount>& mediaOnWhichLost,
         bool hasMediumOnWhichPresent,
         bool hasMediumOnWhichUnderreplicated,
         bool hasMediumOnWhichSealedMissing);

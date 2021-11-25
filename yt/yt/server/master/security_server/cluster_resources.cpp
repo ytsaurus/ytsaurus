@@ -309,7 +309,7 @@ void DoSerializeClusterResources(
     TFluentMap& fluent,
     const TBootstrap* bootstrap,
     bool serializeTabletResources,
-    const SmallVector<int, 4>& additionalMediumIndexes = {})
+    const TCompactVector<int, 4>& additionalMediumIndexes = {})
 {
     const auto& chunkManager = bootstrap->GetChunkManager();
     const auto& multicellManager = bootstrap->GetMulticellManager();
@@ -329,7 +329,7 @@ void DoSerializeClusterResources(
         };
 
     // Disk space patched with additional media.
-    SmallVector<std::pair<const TMedium*, i64>, 4> diskSpace;
+    TCompactVector<std::pair<const TMedium*, i64>, 4> diskSpace;
     auto totalDiskSpace = i64(0);
     auto addMediumIndex = [&] (int mediumIndex, i64 mediumDiskSpace) {
         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
@@ -349,7 +349,7 @@ void DoSerializeClusterResources(
             return;
         }
 
-        diskSpace.insert(it, {medium, mediumDiskSpace}); // No emplace in SmallVector.
+        diskSpace.insert(it, {medium, mediumDiskSpace}); // No emplace in TCompactVector.
         totalDiskSpace += mediumDiskSpace;
     };
 
@@ -533,7 +533,7 @@ void SerializeAccountClusterResourceUsage(
 
     // Zero disk space usage should nevertheless be serialized if there's a
     // non-zero limit for that medium.
-    SmallVector<int, 4> additionalMediumIndexes;
+    TCompactVector<int, 4> additionalMediumIndexes;
     for (auto [mediumIndex, _] : account->ClusterResourceLimits().DiskSpace()) {
         additionalMediumIndexes.push_back(mediumIndex);
     }

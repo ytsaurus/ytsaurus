@@ -9,7 +9,7 @@
 #include <yt/yt/server/master/cypress_server/public.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/yson/public.h>
 
@@ -21,7 +21,7 @@ namespace NYT::NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 const int TypicalSubjectCount = 4;
-using TSubjectList = SmallVector<TSubject*, TypicalSubjectCount>;
+using TSubjectList = TCompactVector<TSubject*, TypicalSubjectCount>;
 
 struct TAccessControlEntry
 {

@@ -869,7 +869,7 @@ private:
         lockedRows.clear();
 
         int locklessRowCount = 0;
-        SmallVector<TTablet*, 16> locklessTablets;
+        TCompactVector<TTablet*, 16> locklessTablets;
         for (const auto& record : transaction->ImmediateLocklessWriteLog()) {
             auto* tablet = Host_->FindTablet(record.TabletId);
             if (!tablet) {
@@ -902,8 +902,8 @@ private:
             lockedRowCount,
             locklessRowCount);
 
-        SmallVector<TTableReplicaInfo*, 16> syncReplicas;
-        SmallVector<TTablet*, 16> syncReplicaTablets;
+        TCompactVector<TTableReplicaInfo*, 16> syncReplicas;
+        TCompactVector<TTablet*, 16> syncReplicaTablets;
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = Host_->FindTablet(writeRecord.TabletId);
             if (!tablet) {
