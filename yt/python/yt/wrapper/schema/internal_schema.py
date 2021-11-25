@@ -210,7 +210,7 @@ def _validate_py_schema_impl(py_schema, for_reading, field_path):
             raise YtError("Schema and yt_dataclass mismatch: field \"{}\" is non-nullable in yt_dataclass and "
                           "optional in table schema"
                           .format(field_path))
-    
+
     if isinstance(py_schema, StructSchema):
         validate_not_optional()
         for field in py_schema._fields:
@@ -271,7 +271,9 @@ def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, al
                 other_columns_field = FieldMissingFromSchema(field.name, field.type)
             else:
                 py_schema_fields.append(StructField(field.name, _create_py_schema(field.type)))
-        return StructSchema(py_schema_fields, py_type, other_columns_field=other_columns_field)
+        return StructSchema(py_schema_fields, py_type,
+                            other_columns_field=other_columns_field, is_ti_type_optional=is_ti_type_optional)
+
     yt_fields = list(yt_fields)
     py_schema_fields = []
     name_to_field = {}
@@ -455,6 +457,8 @@ def _py_schema_to_ti_type(py_schema):
         ti_type = ti.Struct.__getitem__(tuple(ti_items))
     elif isinstance(py_schema, OptionalSchema):
         ti_type = ti.Optional[_py_schema_to_ti_type(py_schema._item)]
+    elif isinstance(py_schema, ListSchema):
+        ti_type = ti.List[_py_schema_to_ti_type(py_schema._item)]
     elif isinstance(py_schema, PrimitiveSchema):
         ti_type = py_schema._ti_type
     else:
