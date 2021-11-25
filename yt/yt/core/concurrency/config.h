@@ -26,7 +26,7 @@ public:
     //! Limit on average throughput (per sec). Null means unlimited.
     std::optional<double> Limit;
 
-    //! Period for which the bandwidth limit applies.
+    //! Period for leaky bucket algorithm.
     TDuration Period;
 };
 

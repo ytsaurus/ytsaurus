@@ -112,15 +112,11 @@ IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
     const TString& name,
     NProfiling::TProfiler profiler = {});
 
-//! Constructs a throttler providing a joint rate limit
-//! enforced by a set of underlying #throttlers.
-//! Note that IThroughputThrotter::TryAcquire is not implemented.
+//! This throttler is DEPRECATED. Use TFairThrottler instead.
 IThroughputThrottlerPtr CreateCombinedThrottler(
     const std::vector<IThroughputThrottlerPtr>& throttlers);
 
-//! Constructs combined throttler that allows #stealer throttler to steal bandwidth from #underlying one.
-//! Effectively that means that #stealer throttler is used as-is, and
-//! #underlying throttler is always acquired unconditionally and may face overdraft.
+//! This throttler is DEPRECATED. Use TFairThrottler instead.
 IThroughputThrottlerPtr CreateStealingThrottler(
     IThroughputThrottlerPtr stealer,
     IThroughputThrottlerPtr underlying);
