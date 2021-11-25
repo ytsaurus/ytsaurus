@@ -2070,7 +2070,7 @@ TLegacyKey WidenKeyPrefix(TLegacyKey key, ui32 prefixLength, ui32 keyColumnCount
 TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey upperBound)
 {
     auto rowBuffer = New<TRowBuffer>();
-    SmallVector<TRowRange, 1> ranges(1, TRowRange(
+    TCompactVector<TRowRange, 1> ranges(1, TRowRange(
         rowBuffer->CaptureRow(lowerBound),
         rowBuffer->CaptureRow(upperBound)));
     return MakeSharedRange(

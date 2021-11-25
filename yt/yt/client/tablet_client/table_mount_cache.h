@@ -20,7 +20,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <util/datetime/base.h>
 

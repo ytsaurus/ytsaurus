@@ -23,9 +23,9 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SmallVector<const TCellPeerDescriptor*, TypicalPeerCount> GetValidPeers(const TCellDescriptor& cellDescriptor)
+TCompactVector<const TCellPeerDescriptor*, TypicalPeerCount> GetValidPeers(const TCellDescriptor& cellDescriptor)
 {
-    SmallVector<const TCellPeerDescriptor*, TypicalPeerCount> peers;
+    TCompactVector<const TCellPeerDescriptor*, TypicalPeerCount> peers;
     for (const auto& peer : cellDescriptor.Peers) {
         if (!peer.IsNull()) {
             peers.push_back(&peer);

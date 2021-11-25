@@ -7,7 +7,7 @@
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 namespace NYT::NScheduler {
 
@@ -55,7 +55,7 @@ public:
     void Persist(const TStreamPersistenceContext& context);
 };
 
-using TJobResourcesWithQuotaList = SmallVector<TJobResourcesWithQuota, 8>;
+using TJobResourcesWithQuotaList = TCompactVector<TJobResourcesWithQuota, 8>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -17,7 +17,7 @@ struct TLegacyDataSlice
     : public TRefCounted
 {
 public:
-    using TChunkSliceList = SmallVector<TInputChunkSlicePtr, 1>;
+    using TChunkSliceList = TCompactVector<TInputChunkSlicePtr, 1>;
 
 public:
     DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LegacyLowerLimit);

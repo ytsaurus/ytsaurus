@@ -199,7 +199,7 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
     int valueCount = 0;
     int deleteTimestampCount = row.GetDeleteTimestampCount();
 
-    SmallVector<TTimestamp, 64> writeTimestamps;
+    TCompactVector<TTimestamp, 64> writeTimestamps;
     for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
         ui16 originalId = value->Id;
         YT_VERIFY(originalId < idMapping.size());

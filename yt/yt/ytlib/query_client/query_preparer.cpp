@@ -2740,7 +2740,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 
-    SmallVector<TRowRange, 1> rowRanges;
+    TCompactVector<TRowRange, 1> rowRanges;
     auto buffer = New<TRowBuffer>(TQueryPreparerBufferTag());
     rowRanges.push_back({
         buffer->CaptureRow(range.first.Get()),

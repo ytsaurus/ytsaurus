@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/misc/bitmap.h>
 #include <yt/yt/core/misc/ref.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 namespace NYT::NTableClient {
 
@@ -94,8 +94,8 @@ private:
 
     i64 RowIndex_;
 
-    const static size_t DefaultKeyBufferCapacity = 256;
-    SmallVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
+    const static size_t DefaultKeyBufferCapacity = 128;
+    TCompactVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
     TLegacyMutableKey Key_;
 
     const char* KeyDataPtr_;

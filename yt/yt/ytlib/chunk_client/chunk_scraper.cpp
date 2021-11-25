@@ -14,7 +14,7 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/finally.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <util/random/shuffle.h>
 
@@ -143,7 +143,7 @@ private:
         req->SetResponseHeavy(true);
 
         constexpr int maxSampleChunkCount = 5;
-        SmallVector<TChunkId, maxSampleChunkCount> sampleChunkIds;
+        TCompactVector<TChunkId, maxSampleChunkCount> sampleChunkIds;
         for (int chunkCount = 0; chunkCount < Config_->MaxChunksPerRequest; ++chunkCount) {
             ToProto(req->add_subrequests(), ChunkIds_[NextChunkIndex_]);
             if (sampleChunkIds.size() < maxSampleChunkCount) {

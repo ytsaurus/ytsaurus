@@ -16,7 +16,7 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/hash.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <util/digest/numeric.h>
 
@@ -53,9 +53,9 @@ namespace {
 constexpr int TypicalTagCount = 16;
 
 // Cf. YT-10645
-SmallVector<TStringBuf, TypicalTagCount> GetSortedTags(const std::vector<TString>& tags)
+TCompactVector<TStringBuf, TypicalTagCount> GetSortedTags(const std::vector<TString>& tags)
 {
-    SmallVector<TStringBuf, TypicalTagCount> result;
+    TCompactVector<TStringBuf, TypicalTagCount> result;
     result.reserve(tags.size());
     for (const auto& tag : tags) {
         result.push_back(tag);

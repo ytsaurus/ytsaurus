@@ -49,7 +49,7 @@ using namespace NTabletClient;
 using NChunkClient::TLegacyReadLimit;
 
 using NYT::FromProto;
-using TIdMapping = SmallVector<int, TypicalColumnCount>;
+using TIdMapping = TCompactVector<int, TypicalColumnCount>;
 
 template <class IReaderPtr>
 using TChunkReaderFactory = TCallback<IReaderPtr(

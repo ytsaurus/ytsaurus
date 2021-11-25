@@ -20,7 +20,7 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SmallVector<const NHiveClient::TCellPeerDescriptor*, NTabletClient::TypicalPeerCount> GetValidPeers(
+TCompactVector<const NHiveClient::TCellPeerDescriptor*, NTabletClient::TypicalPeerCount> GetValidPeers(
     const NHiveClient::TCellDescriptor& cellDescriptor);
 
 const NHiveClient::TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(

@@ -1790,7 +1790,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             }
         }
 
-        SmallVector<TRowRange, 1> cappedBounds(1, TRowRange(lowerBound, upperBound));
+        TCompactVector<TRowRange, 1> cappedBounds(1, TRowRange(lowerBound, upperBound));
         return MakeSharedRange(std::move(cappedBounds), ranges.GetHolder(), singletonClippingRange.GetHolder());
     };
 

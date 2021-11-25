@@ -23,7 +23,7 @@ struct TConnectionOptions;
 
 class TTabletSyncReplicaCache;
 
-using TTableReplicaIdList = SmallVector<
+using TTableReplicaIdList = TCompactVector<
     NTabletClient::TTableReplicaId,
     NTabletClient::TypicalTableReplicaCount>;
 

@@ -67,7 +67,7 @@ public:
 private:
     struct TFetcherChunkDescriptor
     {
-        SmallVector<NChunkClient::TInputChunkPtr, 1> ChunkSpecs;
+        TCompactVector<NChunkClient::TInputChunkPtr, 1> ChunkSpecs;
         bool IsWaiting = true;
     };
 

@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <initializer_list>
 
@@ -182,11 +182,11 @@ using TTableId = NCypressClient::TNodeId;
 
 //! NB: |int| is important since we use negative values to indicate that
 //! certain values need to be dropped. Cf. #TRowBuffer::CaptureAndPermuteRow.
-using TNameTableToSchemaIdMapping = SmallVector<int, TypicalColumnCount>;
+using TNameTableToSchemaIdMapping = TCompactVector<int, TypicalColumnCount>;
 
-using TIdMapping = SmallVector<int, TypicalColumnCount>;
+using TIdMapping = TCompactVector<int, TypicalColumnCount>;
 
-using THunkColumnIds = SmallVector<int, TypicalHunkColumnCount>;
+using THunkColumnIds = TCompactVector<int, TypicalHunkColumnCount>;
 
 union TUnversionedValueData;
 

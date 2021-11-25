@@ -8,7 +8,7 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/blob_output.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/yson/writer.h>
 
@@ -149,7 +149,7 @@ private:
     const TRowBufferPtr RowBuffer_;
 
     std::vector<TUnversionedRow> Rows_;
-    SmallVector<TUnversionedValue, TypicalColumnCount> Values_;
+    TCompactVector<TUnversionedValue, TypicalColumnCount> Values_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

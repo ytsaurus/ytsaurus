@@ -10,7 +10,7 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/ref_counted.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <cstdlib>
 
@@ -29,7 +29,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TDivisors = SmallVector<TUnversionedValue, 1>;
+using TDivisors = TCompactVector<TUnversionedValue, 1>;
 
 struct TRangeInferrerBufferTag
 { };
@@ -81,7 +81,7 @@ template <class T>
 class TQuotientEnumerationGenerator
 {
 public:
-    TQuotientEnumerationGenerator(T lower, T upper, const SmallVector<T, 1>& divisors)
+    TQuotientEnumerationGenerator(T lower, T upper, const TCompactVector<T, 1>& divisors)
         : DivisorQueue_(CreateDivisorQueue(lower, divisors))
         , Estimate_(Estimate(lower, upper, divisors))
         , Lower_(lower)
@@ -136,7 +136,7 @@ public:
         return Estimate_;
     }
 
-    static ui64 Estimate(T lower, T upper, const SmallVector<T, 1>& divisors)
+    static ui64 Estimate(T lower, T upper, const TCompactVector<T, 1>& divisors)
     {
         ui64 estimate = 1;
         for (auto divisor : divisors) {
@@ -160,7 +160,7 @@ private:
     T Current_ = T();
     ui64 Delta_ = 0;
 
-    static TPriorityQueueType CreateDivisorQueue(T lower, const SmallVector<T, 1>& divisors)
+    static TPriorityQueueType CreateDivisorQueue(T lower, const TCompactVector<T, 1>& divisors)
     {
         TPriorityQueueType queue;
         for (auto divisor : divisors) {
@@ -232,7 +232,7 @@ std::unique_ptr<IGenerator> CreateLiftedGenerator(
     TUnversionedValue upper,
     const TDivisors& divisors)
 {
-    auto unliftedDivisors = SmallVector<TPrimitive, 1>();
+    auto unliftedDivisors = TCompactVector<TPrimitive, 1>();
     for (const auto& divisor : divisors) {
         unliftedDivisors.push_back(unlift(divisor));
     }
@@ -276,7 +276,7 @@ ui64 Estimate(TUnversionedValue lower, TUnversionedValue upper, TDivisors partia
 
     switch (lower.Type) {
         case EValueType::Int64: {
-            auto unliftedDivisors = SmallVector<i64, 1>();
+            auto unliftedDivisors = TCompactVector<i64, 1>();
             for (const auto& divisor : partial) {
                 unliftedDivisors.push_back(divisor.Data.Int64);
             }
@@ -288,7 +288,7 @@ ui64 Estimate(TUnversionedValue lower, TUnversionedValue upper, TDivisors partia
             break;
         }
         case EValueType::Uint64: {
-            auto unliftedDivisors = SmallVector<ui64, 1>();
+            auto unliftedDivisors = TCompactVector<ui64, 1>();
             for (const auto& divisor : partial) {
                 unliftedDivisors.push_back(divisor.Data.Uint64);
             }
@@ -350,7 +350,7 @@ TDivisors GetDivisors(const TSchemaColumns& columns, int keyIndex, TConstExpress
         TDivisors result;
         for (const auto& argument : functionExpr->Arguments) {
             const auto arg = GetDivisors(columns, keyIndex, argument);
-            result.append(arg.begin(), arg.end());
+            result.insert(result.end(), arg.begin(), arg.end());
         }
         return result;
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
@@ -378,13 +378,13 @@ TDivisors GetDivisors(const TSchemaColumns& columns, int keyIndex, TConstExpress
 
         auto lhs = GetDivisors(columns, keyIndex, binaryOp->Lhs);
         auto rhs = GetDivisors(columns, keyIndex, binaryOp->Rhs);
-        lhs.append(rhs.begin(), rhs.end());
+        lhs.insert(lhs.end(), rhs.begin(), rhs.end());
         return lhs;
     } else if (auto inExpr = expr->As<TInExpression>()) {
         TDivisors result;
         for (const auto& argument : inExpr->Arguments) {
             const auto arg = GetDivisors(columns, keyIndex, argument);
-            result.append(arg.begin(), arg.end());
+            result.insert(result.end(), arg.begin(), arg.end());
         }
         return result;
     } else if (expr->As<TLiteralExpression>()) {
