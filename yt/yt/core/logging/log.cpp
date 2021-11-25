@@ -41,6 +41,7 @@ TLoggingContext GetLoggingContext()
         .ThreadId = TThread::CurrentThreadId(),
         .ThreadName = CachedLoggingThreadName,
         .FiberId = NConcurrency::GetCurrentFiberId(),
+        .TraceId = traceContext ? traceContext->GetTraceId() : TTraceId{},
         .RequestId = traceContext ? traceContext->GetRequestId() : NTracing::TRequestId(),
         .TraceLoggingTag = traceContext ? traceContext->GetLoggingTag() : TStringBuf(),
     };
