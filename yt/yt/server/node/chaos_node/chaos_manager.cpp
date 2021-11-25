@@ -63,7 +63,8 @@ public:
         , ChaosCellSynchronizer_(CreateChaosCellSynchronizer(Config_->ChaosCellSynchronizer, slot, bootstrap))
         , CommencerExecutor_(New<TPeriodicExecutor>(
             slot->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::EraCommencer),
-            BIND(&TChaosManager::InvestigateStalledReplicationCards, MakeWeak(this))))
+            BIND(&TChaosManager::InvestigateStalledReplicationCards, MakeWeak(this)),
+            Config_->EraCommencingPeriod))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -275,6 +276,7 @@ private:
         TChaosAutomatonPart::OnLeaderActive();
 
         ChaosCellSynchronizer_->Start();
+        CommencerExecutor_->Start();
     }
 
     void OnStopLeading() override
@@ -284,6 +286,7 @@ private:
         TChaosAutomatonPart::OnStopLeading();
 
         ChaosCellSynchronizer_->Stop();
+        CommencerExecutor_->Stop();
     }
 
 
@@ -343,6 +346,10 @@ private:
         // We also need to be sure that old data is actually present at replicas.
         // One way to do that is to split removing process: a) first update progress at the replication card
         // and b) remove only data that is older than replication card progress says (e.g. data 'invisible' to other replicas)
+
+        if (newReplica.ReplicationProgress.Segments.empty()) {
+            newReplica.ReplicationProgress.Segments.push_back({EmptyKey(), NullTimestamp});
+        }
 
         newReplica.ReplicaId = Slot_->GenerateId(EObjectType::ReplicationCardTableReplica);
         ToProto(response->mutable_replica_id(), newReplica.ReplicaId);
@@ -543,6 +550,7 @@ private:
         ToProto(req.mutable_chaos_cell_id(), Slot_->GetCellId());
         auto* shortcut = req.add_shortcuts();
         ToProto(shortcut->mutable_replication_card_id(), replicationCard->GetId());
+        shortcut->set_era(replicationCard->GetEra());
 
         for (auto& [cellId, coordinator] : replicationCard->Coordinators()) {
             coordinator.State = EShortcutState::Revoking;
@@ -589,28 +597,28 @@ private:
         }
 
         for (const auto& replica : replicationCard->Replicas()) {
-            if (!IsStableReplicaMode(replica.Mode) || !IsStableReplicaState(replica.State)) {
-                AutomatonInvoker_->Invoke(BIND(
-                    &TChaosManager::GenerateNewReplicationEraTimestamp,
-                    MakeStrong(this),
-                    replicationCard->GetId(),
-                    replicationCard->GetEra()));
-                break;
+            if (IsStableReplicaMode(replica.Mode) && IsStableReplicaState(replica.State)) {
+                continue;
             }
+
+            Bootstrap_->GetMasterConnection()->GetTimestampProvider()->GenerateTimestamps()
+                .Apply(BIND(
+                    &TChaosManager::CommitNewReplicationEraTimestamp,
+                    MakeWeak(this),
+                    replicationCard->GetId(),
+                    replicationCard->GetEra())
+                    .AsyncVia(AutomatonInvoker_));
         }
     }
 
-    void GenerateNewReplicationEraTimestamp(TReplicationCardId replicationCardId, TReplicationEra era)
+    void CommitNewReplicationEraTimestamp(TReplicationCardId replicationCardId, TReplicationEra era, TTimestamp timestamp)
     {
-        auto timestampOrError = WaitFor(Bootstrap_->GetMasterConnection()->GetTimestampProvider()->GenerateTimestamps());
-        if (timestampOrError.IsOK()) {
-            NChaosNode::NProto::TReqCommenceNewReplicationEra request;
-            ToProto(request.mutable_replication_card_id(), replicationCardId);
-            request.set_timestamp(static_cast<ui64>(timestampOrError.Value()));
-            request.set_replication_era(era);
-            CreateMutation(HydraManager_, request)
-                ->CommitAndLog(Logger);
-        }
+        NChaosNode::NProto::TReqCommenceNewReplicationEra request;
+        ToProto(request.mutable_replication_card_id(), replicationCardId);
+        request.set_timestamp(timestamp);
+        request.set_replication_era(era);
+        CreateMutation(HydraManager_, request)
+            ->CommitAndLog(Logger);
     }
 
     void HydraCommenceNewReplicationEra(NChaosNode::NProto::TReqCommenceNewReplicationEra* request)
@@ -634,6 +642,23 @@ private:
     void DoCommenceNewReplicationEra(TReplicationCard *replicationCard, TTimestamp timestamp)
     {
         YT_VERIFY(HasMutationContext());
+
+        auto hasSyncQueue = [&] {
+            for (const auto& replica : replicationCard->Replicas()) {
+                if (replica.ContentType == EReplicaContentType::Queue &&
+                    (replica.Mode == EReplicaMode::Sync || replica.Mode == EReplicaMode::AsyncToSync))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }();
+
+        if (!hasSyncQueue) {
+            YT_LOG_DEBUG("Do not commence new replication era since there would be no sync queue replicas (ReplicationCard: %v)",
+                *replicationCard);
+            return;
+        }
 
         auto newEra = replicationCard->GetEra() + 1;
         replicationCard->SetEra(newEra);
@@ -663,8 +688,8 @@ private:
             }
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Start new replication era (ReplicationCardId: %v, Era: %v, Timestamp: %v)",
-            replicationCard->GetId(),
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Start new replication era (ReplicationCard: %v, Era: %v, Timestamp: %llx)",
+            *replicationCard,
             newEra,
             timestamp);
 

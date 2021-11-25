@@ -2372,9 +2372,9 @@ def sync_disable_table_replica(replica_id, driver=None):
     wait(lambda: get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
 
 
-def get_tablet_leader_address(tablet_id):
-    cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
-    peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
+def get_tablet_leader_address(tablet_id, driver=None):
+    cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id", driver=driver)
+    peers = get("//sys/tablet_cells/" + cell_id + "/@peers", driver=driver)
     leader_peer = list(x for x in peers if x["state"] == "leading")[0]
     return leader_peer["address"]
 

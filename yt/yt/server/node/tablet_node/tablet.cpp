@@ -124,6 +124,32 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRefCountedReplicationProgress::TRefCountedReplicationProgress(
+    const NChaosClient::TReplicationProgress& progress)
+    : TReplicationProgress(progress)
+{ }
+
+TRefCountedReplicationProgress::TRefCountedReplicationProgress(
+    NChaosClient::TReplicationProgress&& progress)
+    : TReplicationProgress(std::move(progress))
+{ }
+
+TRefCountedReplicationProgress& TRefCountedReplicationProgress::operator=(
+    const NChaosClient::TReplicationProgress& progress)
+{
+    TReplicationProgress::operator=(progress);
+    return *this;
+}
+
+TRefCountedReplicationProgress& TRefCountedReplicationProgress::operator=(
+    NChaosClient::TReplicationProgress&& progress)
+{
+    TReplicationProgress::operator=(std::move(progress));
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableSettings TTableSettings::CreateNew()
 {
     return {

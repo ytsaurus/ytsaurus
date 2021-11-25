@@ -103,27 +103,27 @@ class DynamicTablesBase(YTEnvSetup):
             )
         create_dynamic_table(path, **attributes)
 
-    def _get_recursive(self, path, result=None):
+    def _get_recursive(self, path, result=None, driver=None):
         if result is None or result.attributes.get("opaque", False):
-            result = get(path, attributes=["opaque"])
+            result = get(path, attributes=["opaque"], driver=driver)
         if isinstance(result, dict):
             for key, value in result.iteritems():
-                result[key] = self._get_recursive(path + "/" + key, value)
+                result[key] = self._get_recursive(path + "/" + key, value, driver=driver)
         if isinstance(result, list):
             for index, value in enumerate(result):
-                result[index] = self._get_recursive(path + "/" + str(index), value)
+                result[index] = self._get_recursive(path + "/" + str(index), value, driver=driver)
         return result
 
-    def _find_tablet_orchid(self, address, tablet_id):
+    def _find_tablet_orchid(self, address, tablet_id, driver=None):
         def _do():
             path = "//sys/cluster_nodes/{}/orchid/tablet_cells".format(address)
-            cells = ls(path)
+            cells = ls(path, driver=driver)
             for cell_id in cells:
-                if get("{}/{}/hydra/active".format(path, cell_id), False):
-                    tablets = ls("{}/{}/tablets".format(path, cell_id))
+                if get("{}/{}/hydra/active".format(path, cell_id), False, driver=driver):
+                    tablets = ls("{}/{}/tablets".format(path, cell_id), driver=driver)
                     if tablet_id in tablets:
                         try:
-                            return self._get_recursive("{}/{}/tablets/{}".format(path, cell_id, tablet_id))
+                            return self._get_recursive("{}/{}/tablets/{}".format(path, cell_id, tablet_id), driver=driver)
                         except YtError:
                             return None
             return None

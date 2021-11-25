@@ -34,11 +34,14 @@ class TChaosManagerConfig
 {
 public:
     TChaosCellSynchronizerConfigPtr ChaosCellSynchronizer;
+    TDuration EraCommencingPeriod;
 
     TChaosManagerConfig()
     {
         RegisterParameter("chaos_cell_synchronizer", ChaosCellSynchronizer)
             .DefaultNew();
+        RegisterParameter("era_commencing_period", EraCommencingPeriod)
+            .Default(TDuration::Seconds(15));
     }
 };
 

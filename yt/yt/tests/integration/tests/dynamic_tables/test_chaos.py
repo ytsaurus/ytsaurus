@@ -1,7 +1,7 @@
 from test_dynamic_tables import DynamicTablesBase
 
 from yt_commands import (
-    authors, wait, execute_command, get_driver, get, set, ls, create,
+    authors, wait, execute_command, get_driver, get, set, ls, create, get_tablet_leader_address,
     sync_create_cells, sync_mount_table, alter_table, insert_rows, lookup_rows, pull_rows,
     create_replication_card, get_replication_card, create_replication_card_replica)
 
@@ -103,6 +103,24 @@ class TestChaos(DynamicTablesBase):
     def _list_chaos_nodes(self, driver=None):
         nodes = ls("//sys/cluster_nodes", attributes=["state", "flavors"], driver=driver)
         return [node for node in nodes if ("chaos" in node.attributes["flavors"])]
+
+    def _wait_for_era(self, path, era=1, driver=None):
+        def _check():
+            tablets = get("{0}/@tablets".format(path), driver=driver)
+            tablet_ids = [tablet["tablet_id"] for tablet in tablets]
+            for tablet_id in tablet_ids:
+                orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id, driver=driver), tablet_id, driver=driver)
+                if not orchid["replication_card"] or orchid["replication_card"]["era"] != era:
+                    return False
+            return True
+        wait(_check)
+
+    def _sync_replication_card(self, cell_id, card_id):
+        def _check():
+            card = get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id)
+            return all(replica["state"] == "enabled" for replica in card["replicas"])
+        wait(_check)
+        return get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id)
 
     def setup_method(self, method):
         super(TestChaos, self).setup_method(method)
@@ -256,8 +274,7 @@ class TestChaos(DynamicTablesBase):
                 replica_info=replica)
             replica_ids.append(replica_id)
 
-        card = get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id)
-        print card
+        repliation_card = self._sync_replication_card(cell_id, card_id)
         replication_card_token ={"chaos_cell_id": cell_id, "replication_card_id": card_id}
 
         for replica, replica_id in zip(replicas, replica_ids):
@@ -267,6 +284,9 @@ class TestChaos(DynamicTablesBase):
             alter_table(path, upstream_replica_id=replica_id, driver=driver)
             sync_create_cells(1, driver=driver)
             sync_mount_table(path, driver=driver)
+
+        self._wait_for_era("//tmp/t", era=repliation_card["era"])
+        self._wait_for_era("//tmp/r0", era=repliation_card["era"], driver=remote_driver0)
 
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values)

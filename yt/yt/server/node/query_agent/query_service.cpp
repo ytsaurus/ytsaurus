@@ -760,8 +760,9 @@ private:
         auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
         auto progress = FromProto<NChaosClient::TReplicationProgress>(request->start_replication_progress());
         auto startReplicationRowIndex = request->has_start_replication_row_index()
-            ? std::optional(request->start_replication_row_index())
+            ? std::make_optional(request->start_replication_row_index())
             : std::nullopt;
+        auto upperTimestamp = request->upper_timestamp();
 
         // TODO(savrus): Extract this out of RPC request.
         TClientChunkReadOptions chunkReadOptions{
@@ -794,6 +795,11 @@ private:
                         upstreamReplicaId);
                 }
 
+                auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
+                if (upperTimestamp && !IsReplicationProgressGreaterOrEqual(*replicationProgress, upperTimestamp)) {
+                    upperTimestamp = NullTimestamp;
+                }
+
                 auto serviceCounters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
                 profilerGuard.Start(serviceCounters->PullRows);
 
@@ -803,7 +809,7 @@ private:
                 auto logParser = CreateReplicationLogParser(tabletSnapshot->TableSchema, tabletSnapshot->Settings.MountConfig, Logger);
                 TWireProtocolWriter writer;
 
-                // TODO(savrus) Use binary search based on progress timestamp.
+                // TODO(savrus): Use binary search based on progress timestamp.
                 auto currentRowIndex = startReplicationRowIndex.value_or(tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load());
 
                 auto reader = CreateSchemafulRangeTabletReader(
@@ -825,6 +831,8 @@ private:
                 TRowBatchReadOptions readOptions{
                     .MaxRowsPerRead = request->max_rows_per_read()
                 };
+
+                // TODO(savrus): limit total read row count/data weight per PullRows request (and don't forget about tx atomicity).
 
                 bool hasMoreData = true;
                 while (hasMoreData) {
@@ -900,12 +908,14 @@ private:
                     totalRowCount += readerRows.size();
                 }
 
+                // TODO(savrus): Check here that we read all rows or reached upperTimestamp in log.
+                if (upperTimestamp && responseRowCount == 0) {
+                    maxTimestamp = upperTimestamp;
+                }
+
                 TReplicationProgress endProgress;
                 endProgress.UpperKey = progress.UpperKey;
                 endProgress.Segments.push_back({progress.Segments[0].LowerKey, maxTimestamp});
-
-                // TODO(savrus): In (future) catch up mode we would like to increase maxTimestamp up to era end.
-                // When doing wo we need to be sure that no more rows will appear in that era hence we need to think of some barrier.
 
                 auto counters = tabletSnapshot->TableProfiler->GetPullRowsCounters(GetCurrentProfilingUser());
                 counters->DataWeight.Increment(responseDataWeight);

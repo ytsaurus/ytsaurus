@@ -120,7 +120,8 @@ message TReqPullRows
     required NYT.NProto.TGuid tablet_id = 6;
     required NYT.NProto.TGuid cell_id = 7;
     required NChaosClient.NProto.TReplicationProgress start_replication_progress = 8;
-    optional int64 start_replication_row_index = 9;
+    required uint64 upper_timestamp = 9;
+    optional int64 start_replication_row_index = 10;
 }
 
 message TRspPullRows

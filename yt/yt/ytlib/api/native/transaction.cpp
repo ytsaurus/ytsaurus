@@ -944,7 +944,7 @@ private:
                         .Token = tableInfo->ReplicationCardToken,
                         .RequestCoordinators = true
                     }).Apply(BIND([=, this_ = MakeStrong(this)] (const TReplicationCardPtr& replicationCard) {
-                        YT_LOG_DEBUG("Got replication card (Path: %v, ReplicationCardId: %v, CoordinatorCellIds: %v)",
+                        YT_LOG_DEBUG("Got replication card from cache (Path: %v, ReplicationCardId: %v, CoordinatorCellIds: %v)",
                             TableInfo_->Path,
                             TableInfo_->ReplicationCardToken.ReplicationCardId,
                             replicationCard->CoordinatorCellIds);

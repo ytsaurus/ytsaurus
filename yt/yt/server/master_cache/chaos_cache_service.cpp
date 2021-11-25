@@ -52,6 +52,14 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
 {
     auto requestId = context->GetRequestId();
     auto replicationCardToken = FromProto<TReplicationCardToken>(request->replication_card_token());
+    bool requestCoordinators = request->request_coordinators();
+    bool requestProgress = request->request_replication_progress();
+    bool requestHistory = request->request_history();
+    auto options = TGetReplicationCardOptions{
+        .IncludeCoordinators = requestCoordinators,
+        .IncludeProgress = requestProgress,
+        .IncludeHistory = requestHistory
+    };
 
     context->SetRequestInfo("ReplicationCardToken: %v",
         replicationCardToken);
@@ -63,7 +71,10 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
 
         auto key = TChaosCacheKey(
             context->GetAuthenticationIdentity().User,
-            replicationCardToken);
+            replicationCardToken,
+            requestCoordinators,
+            requestProgress,
+            requestHistory);
 
         YT_LOG_DEBUG("Serving request from cache (RequestId: %v, Key: %v)",
             requestId,
@@ -87,7 +98,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
         }));
 
         if (cookie.IsActive()) {
-            Client_->GetReplicationCard(replicationCardToken).Apply(
+            Client_->GetReplicationCard(replicationCardToken, options).Apply(
                 BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TReplicationCardPtr>& replicationCardOrError) mutable {
                     Cache_->EndLookup(
                         requestId,
@@ -96,12 +107,12 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
                 }));
         }
     } else {
-        asyncReplicationCard = Client_->GetReplicationCard(replicationCardToken);
+        asyncReplicationCard = Client_->GetReplicationCard(replicationCardToken, options);
     }
 
     context->ReplyFrom(asyncReplicationCard
         .Apply(BIND([=] (const TReplicationCardPtr& replicationCard) {
-            ToProto(response->mutable_replication_card(), *replicationCard);
+            ToProto(response->mutable_replication_card(), *replicationCard, requestCoordinators, requestProgress, requestHistory);
         })));
 }
 

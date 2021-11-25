@@ -633,6 +633,7 @@ struct TPullRowsOptions
     i64 TabletRowsPerRead = 1000;
 
     NChaosClient::TReplicationProgress ReplicationProgress;
+    NTransactionClient::TTimestamp UpperTimestamp = NTransactionClient::NullTimestamp;
 };
 
 struct TPullRowsResult

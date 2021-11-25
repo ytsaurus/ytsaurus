@@ -22,6 +22,11 @@ DEFINE_ENUM(ETabletDistributedThrottlerKind,
     (Write)
 )
 
+DEFINE_ENUM(ETabletWriteMode,
+    (Direct)
+    (Pull)
+)
+
 using TTabletDistributedThrottlersVector = TEnumIndexedVector<
     ETabletDistributedThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr>;
@@ -63,6 +68,7 @@ DECLARE_REFCOUNTED_STRUCT(TSampleKeyList)
 DECLARE_REFCOUNTED_STRUCT(TPartitionSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TTableReplicaSnapshot)
+DECLARE_REFCOUNTED_STRUCT(TRefCountedReplicationProgress)
 DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
 DECLARE_REFCOUNTED_CLASS(TTableProfiler)
 DECLARE_REFCOUNTED_CLASS(TChunkIOProfiler)

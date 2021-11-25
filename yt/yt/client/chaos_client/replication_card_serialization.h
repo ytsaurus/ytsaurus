@@ -29,7 +29,12 @@ void FromProto(TReplicationProgress* replicationProgress, const NChaosClient::NP
 void ToProto(NChaosClient::NProto::TReplicaInfo* protoReplicaInfo, const TReplicaInfo& replicaInfo, bool includeProgress = false, bool includeHistory = false);
 void FromProto(TReplicaInfo* replicaInfo, const NChaosClient::NProto::TReplicaInfo& protoReplicaInfo);
 
-void ToProto(NChaosClient::NProto::TReplicationCard* protoReplicationCard, const TReplicationCard& replicationCard);
+void ToProto(
+    NChaosClient::NProto::TReplicationCard* protoReplicationCard,
+    const TReplicationCard& replicationCard,
+    bool includeCoordinators = false,
+    bool includeProgress = false,
+    bool includeHistory = false);
 void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TReplicationCard& protoReplicationCard);
 
 void ToProto(NChaosClient::NProto::TReplicationCardToken* protoReplicationCardToken, const TReplicationCardToken& replicationCardToken);

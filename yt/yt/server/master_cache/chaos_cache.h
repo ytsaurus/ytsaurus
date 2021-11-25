@@ -16,8 +16,16 @@ struct TChaosCacheKey
 {
     TString User;
     NChaosClient::TReplicationCardToken ReplicationCardToken;
+    bool RequestCoordinators;
+    bool RequestProgress;
+    bool RequestHistory;
 
-    TChaosCacheKey(const TString& user, const NChaosClient::TReplicationCardToken& replicationCardToken);
+    TChaosCacheKey(
+        TString user,
+        NChaosClient::TReplicationCardToken replicationCardToken,
+        bool requestCoordinators,
+        bool requestProgress,
+        bool requestHistory);
 
     operator size_t() const;
     bool operator == (const TChaosCacheKey& other) const;
