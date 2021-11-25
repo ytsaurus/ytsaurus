@@ -51,30 +51,44 @@ TString ToString(const TTablePtr& table)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Workaround until we support descending sort order.
-TTableSchemaPtr RemoveDescendingSortOrder(const TTableSchemaPtr& schema)
+TTableSchemaPtr RemoveIncompatibleSortOrder(const TTableSchemaPtr& schema)
 {
-    bool foundDescendingSortOrder = false;
+    auto hasIncompatibleSortOrder = [] (const TColumnSchema& column) -> bool {
+        if (column.SortOrder()) {
+            // ESortOrder::Descending is not supported in ClickHouse.
+            if (column.SortOrder() != ESortOrder::Ascending) {
+                return true;
+            }
+            // We convert 'any' values to yson-strings, so sort order is broken.
+            if (*RemoveOptional(column.LogicalType()) == *SimpleLogicalType(ESimpleLogicalValueType::Any)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    bool foundIncompatibleSortOrder = false;
     for (const auto& column : schema->Columns()) {
-        if (column.SortOrder() == ESortOrder::Descending) {
-            foundDescendingSortOrder = true;
+        if (hasIncompatibleSortOrder(column)) {
+            foundIncompatibleSortOrder = true;
             break;
         }
     }
+
     // Fast path.
-    if (!foundDescendingSortOrder) {
+    if (!foundIncompatibleSortOrder) {
         return schema;
     }
 
     auto columns = schema->Columns();
-    foundDescendingSortOrder = false;
+    foundIncompatibleSortOrder = false;
 
     for (auto& column : columns) {
-        if (column.SortOrder() == ESortOrder::Descending) {
-            foundDescendingSortOrder = true;
+        if (hasIncompatibleSortOrder(column)) {
+            foundIncompatibleSortOrder = true;
         }
-        // Delete sort order from all columns after descending sort order.
-        if (foundDescendingSortOrder) {
+        // Delete sort order from all columns after incompatible one.
+        if (foundIncompatibleSortOrder) {
             column.SetSortOrder(std::nullopt);
         }
     }
@@ -190,7 +204,7 @@ std::vector<TTablePtr> FetchTables(
     throwOnErrors();
 
     for (auto& table : tables) {
-        table->Schema = RemoveDescendingSortOrder(table->Schema);
+        table->Schema = RemoveIncompatibleSortOrder(table->Schema);
     }
 
     for (const auto& table : tables) {
