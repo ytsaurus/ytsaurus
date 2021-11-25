@@ -2,6 +2,7 @@
 
 #include <library/cpp/yt/string/format.h>
 
+#include <library/cpp/yt/small_containers/compact_vector.h>
 #include <library/cpp/yt/small_containers/small_vector.h>
 
 #include <limits>
@@ -20,6 +21,7 @@ static_assert(TFormatTraits<TStringBuf>::HasCustomFormatValue);
 static_assert(TFormatTraits<TString>::HasCustomFormatValue);
 static_assert(TFormatTraits<std::vector<int>>::HasCustomFormatValue);
 static_assert(TFormatTraits<SmallVector<int, 1>>::HasCustomFormatValue);
+static_assert(TFormatTraits<TCompactVector<int, 1>>::HasCustomFormatValue);
 static_assert(TFormatTraits<std::set<int>>::HasCustomFormatValue);
 static_assert(TFormatTraits<std::map<int, int>>::HasCustomFormatValue);
 static_assert(TFormatTraits<std::multimap<int, int>>::HasCustomFormatValue);
