@@ -32,13 +32,13 @@ class Timer(object):
         gc.disable()
         gc.collect()
 
-        self.start_wall_clock = time.clock()
+        self.start_wall_clock = time.perf_counter()
 
     def stop(self):
         assert self._running
         self._running = False
 
-        self.finish_wall_clock = time.clock()
+        self.finish_wall_clock = time.perf_counter()
 
         gc.collect()
         gc.enable()
@@ -85,13 +85,13 @@ class TestYsonPerformance(object):
 
         for iteration in range(self.ITERATIONS_COUNT):
             with Timer() as t:
-                loaded = list(yson.loads(raw_data, yson_type="list_fragment", always_create_attributes=False))
+                loaded = list(yson.loads(raw_data, yson_type="list_fragment", always_create_attributes=False, encoding=None))
                 t.set_extra_info("{0}: loaded {1} rows".format(dataset, len(loaded)))
             loads_results.append(t.finish_wall_clock - t.start_wall_clock)
 
             with Timer() as t:
                 dumped = yson.dumps(
-                    loaded, yson_type="list_fragment", yson_format="binary", ignore_inner_attributes=True
+                    loaded, yson_type="list_fragment", yson_format="binary", ignore_inner_attributes=True,
                 )
                 t.set_extra_info("{0}: dumped {1} bytes".format(dataset, len(dumped)))
             dumps_results.append(t.finish_wall_clock - t.start_wall_clock)
