@@ -67,6 +67,7 @@ public:
     void AddRequiredTag(TTag tag, int parent = NoParent);
     void AddExcludedTag(TTag tag, int parent = NoParent);
     void AddAlternativeTag(TTag tag, int alternativeTo, int parent = NoParent);
+    void AddExtensionTag(TTag tag, int extensionOf);
     void AddTagWithChild(TTag tag, int child);
     void Append(const TTagSet& other);
 
