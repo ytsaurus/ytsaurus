@@ -152,7 +152,7 @@ class OutputRow:
     """
     Wrapper for job output row.
     """
-    
+
     __slots__ = ("_row", "_table_index")
 
     def __init__(self, row, table_index=0):

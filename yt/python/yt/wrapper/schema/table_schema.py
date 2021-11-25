@@ -180,4 +180,4 @@ class TableSchema(object):
         return not (self == other)
 
     def __repr__(self):
-        return "TableSchema({})".format(self.to_yson_type())    
+        return "TableSchema({})".format(self.to_yson_type())
