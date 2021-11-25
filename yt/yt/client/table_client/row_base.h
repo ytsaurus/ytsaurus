@@ -284,7 +284,7 @@ inline constexpr bool IsPrimitiveType(EValueType type)
 class TColumnFilter
 {
 public:
-    using TIndexes = SmallVector<int, TypicalColumnCount>;
+    using TIndexes = TCompactVector<int, TypicalColumnCount>;
 
     TColumnFilter();
     TColumnFilter(const std::initializer_list<int>& indexes);

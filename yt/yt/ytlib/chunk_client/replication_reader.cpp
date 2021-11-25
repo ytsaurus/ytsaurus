@@ -126,7 +126,7 @@ void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf form
     FormatValue(builder, peer.AddressWithNetwork, format);
 }
 
-using TPeerList = SmallVector<TPeer, 3>;
+using TPeerList = TCompactVector<TPeer, 3>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

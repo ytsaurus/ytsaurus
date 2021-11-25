@@ -1,7 +1,7 @@
 #pragma once
 
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/dense_map.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -86,7 +86,7 @@ template <typename T>
 using TMediumMap = SmallDenseMap<int, T>;
 using TMediumIntMap = TMediumMap<int>;
 
-//! Used as an expected upper bound in SmallVector.
+//! Used as an expected upper bound in TCompactVector.
 /*
  *  Maximum regular number of replicas is 16 (for LRC codec).
  *  Additional +8 enables some flexibility during balancing.
@@ -107,10 +107,10 @@ constexpr int DefaultSlotsMediumIndex =   0;
 constexpr int MediumIndexBound = AllMediaIndex + 1;
 
 class TChunkReplicaWithMedium;
-using TChunkReplicaWithMediumList = SmallVector<TChunkReplicaWithMedium, TypicalReplicaCount>;
+using TChunkReplicaWithMediumList = TCompactVector<TChunkReplicaWithMedium, TypicalReplicaCount>;
 
 class TChunkReplica;
-using TChunkReplicaList = SmallVector<TChunkReplica, TypicalReplicaCount>;
+using TChunkReplicaList = TCompactVector<TChunkReplica, TypicalReplicaCount>;
 
 extern const TString DefaultStoreAccountName;
 extern const TString DefaultStoreMediumName;

@@ -16,7 +16,7 @@
 
 #include <yt/yt/core/misc/compact_set.h>
 #include <yt/yt/core/misc/finally.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 

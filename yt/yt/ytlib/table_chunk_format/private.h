@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/common.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -62,7 +62,7 @@ struct TSegmentInfo
 ////////////////////////////////////////////////////////////////////////////////
 
 using TTimestampIndex = ui32;
-using TTimestampIndexes = SmallVector<TTimestampIndex, 10>;
+using TTimestampIndexes = TCompactVector<TTimestampIndex, 10>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

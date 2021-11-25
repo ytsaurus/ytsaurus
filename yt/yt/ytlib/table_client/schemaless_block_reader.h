@@ -72,9 +72,9 @@ private:
     const char* CurrentPointer_;
     ui32 ValueCount_;
 
-    constexpr static size_t DefaultKeyBufferCapacity = 512;
+    constexpr static size_t DefaultKeyBufferCapacity = 128;
 
-    SmallVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
+    TCompactVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
     TMutableUnversionedRow Key_;
 
     NYson::TStatelessLexer Lexer_;

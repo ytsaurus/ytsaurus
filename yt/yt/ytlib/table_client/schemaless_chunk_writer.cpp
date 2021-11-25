@@ -470,7 +470,7 @@ private:
 
     void EmitSample(TUnversionedRow row)
     {
-        SmallVector<TUnversionedValue, TypicalColumnCount> sampleValues;
+        TCompactVector<TUnversionedValue, TypicalColumnCount> sampleValues;
         int weight = 0;
         for (auto it = row.Begin(); it != row.End(); ++it) {
             sampleValues.push_back(*it);
@@ -1110,7 +1110,7 @@ private:
     std::vector<int> IdMapping_;
 
     // For duplicate id validation.
-    SmallVector<i64, TypicalColumnCount> IdValidationMarks_;
+    TCompactVector<i64, TypicalColumnCount> IdValidationMarks_;
     i64 CurrentIdValidationMark_ = 1;
 
     void EvaluateComputedColumns(TMutableUnversionedRow row)

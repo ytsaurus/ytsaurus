@@ -9,7 +9,7 @@
 #include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/chunked_memory_pool.h>
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/varint.h>
 
@@ -827,7 +827,7 @@ inline int GetKeyComparerValueCount(const TUnversionedOwningRow& row, int prefix
 class TUnversionedRowBuilder
 {
 public:
-    static const int DefaultValueCapacity = 16;
+    static const int DefaultValueCapacity = 8;
 
     explicit TUnversionedRowBuilder(int initialValueCapacity = DefaultValueCapacity);
 
@@ -840,7 +840,7 @@ private:
         sizeof(TUnversionedRowHeader) +
         DefaultValueCapacity * sizeof(TUnversionedValue);
 
-    SmallVector<char, DefaultBlobCapacity> RowData_;
+    TCompactVector<char, DefaultBlobCapacity> RowData_;
 
     TUnversionedRowHeader* GetHeader();
     TUnversionedValue* GetValue(ui32 index);

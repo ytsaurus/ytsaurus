@@ -4,7 +4,7 @@
 
 #include <yt/yt/client/object_client/public.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <optional>
 
@@ -14,7 +14,7 @@ namespace NYT::NHiveClient {
 
 struct TTimestampMap
 {
-    SmallVector<std::pair<NObjectClient::TCellTag, TTimestamp>, 4> Timestamps;
+    TCompactVector<std::pair<NObjectClient::TCellTag, TTimestamp>, 4> Timestamps;
 
     std::optional<TTimestamp> FindTimestamp(NObjectClient::TCellTag) const;
     TTimestamp GetTimestamp(NObjectClient::TCellTag) const;

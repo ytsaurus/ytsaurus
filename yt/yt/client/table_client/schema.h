@@ -8,7 +8,7 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/range.h>
 
 #include <yt/yt/core/yson/public.h>
@@ -133,7 +133,7 @@ void PrintTo(const TColumnSchema& columnSchema, std::ostream* os);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TKeyColumnTypes = SmallVector<EValueType, 16>;
+using TKeyColumnTypes = TCompactVector<EValueType, 16>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

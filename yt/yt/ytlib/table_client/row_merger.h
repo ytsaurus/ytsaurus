@@ -5,7 +5,7 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/ytlib/query_client/public.h>
 
@@ -41,12 +41,12 @@ private:
     const TTimestamp RetentionTimestamp_;
 
     TMutableUnversionedRow MergedRow_;
-    SmallVector<TTimestamp, TypicalColumnCount> MergedTimestamps_;
+    TCompactVector<TTimestamp, TypicalColumnCount> MergedTimestamps_;
 
-    SmallVector<int, TypicalColumnCount> ColumnIds_;
-    SmallVector<int, TypicalColumnCount> ColumnIdToIndex_;
+    TCompactVector<int, TypicalColumnCount> ColumnIds_;
+    TCompactVector<int, TypicalColumnCount> ColumnIdToIndex_;
 
-    SmallVector<TVersionedValue, TypicalColumnCount> AggregateValues_;
+    TCompactVector<TVersionedValue, TypicalColumnCount> AggregateValues_;
 
     TTimestamp LatestWrite_;
     TTimestamp LatestDelete_;
@@ -81,7 +81,7 @@ private:
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
     TMutableUnversionedRow MergedRow_;
-    SmallVector<bool, TypicalColumnCount> ValidValues_;
+    TCompactVector<bool, TypicalColumnCount> ValidValues_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,9 +122,9 @@ private:
 
     bool Started_ = false;
 
-    SmallVector<int, TypicalColumnCount> ColumnIds_;
-    SmallVector<int, TypicalColumnCount> ColumnIdToIndex_;
-    SmallVector<TUnversionedValue, TypicalColumnCount> Keys_;
+    TCompactVector<int, TypicalColumnCount> ColumnIds_;
+    TCompactVector<int, TypicalColumnCount> ColumnIdToIndex_;
+    TCompactVector<TUnversionedValue, TypicalColumnCount> Keys_;
 
     std::vector<TVersionedValue> PartialValues_;
     std::vector<TVersionedValue> ColumnValues_;
@@ -154,8 +154,8 @@ private:
 
     int SampledColumnCount_ = 0;
 
-    SmallVector<TTimestamp, TypicalColumnCount> LatestTimestamps_;
-    SmallVector<int, TypicalColumnCount> IdMapping_;
+    TCompactVector<TTimestamp, TypicalColumnCount> LatestTimestamps_;
+    TCompactVector<int, TypicalColumnCount> IdMapping_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

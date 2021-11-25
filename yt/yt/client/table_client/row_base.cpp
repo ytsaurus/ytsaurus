@@ -1,7 +1,7 @@
 #include "row_base.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/format.h>
 
 namespace NYT::NTableClient {
@@ -135,7 +135,7 @@ void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCou
         return;
     }
 
-    SmallVector<bool, TypicalColumnCount> flags;
+    TCompactVector<bool, TypicalColumnCount> flags;
     flags.resize(schemaColumnCount);
 
     for (int index : columnFilter.GetIndexes()) {

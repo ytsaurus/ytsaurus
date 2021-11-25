@@ -46,7 +46,7 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTableReplicaInfoPtrList = SmallVector<
+using TTableReplicaInfoPtrList = TCompactVector<
     NTabletClient::TTableReplicaInfoPtr,
     NTabletClient::TypicalTableReplicaCount>;
 

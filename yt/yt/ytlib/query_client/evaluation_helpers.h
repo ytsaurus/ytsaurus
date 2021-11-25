@@ -115,7 +115,7 @@ struct TSingleJoinParameters
 
 struct TMultiJoinParameters
 {
-    SmallVector<TSingleJoinParameters, 10> Items;
+    TCompactVector<TSingleJoinParameters, 10> Items;
     size_t PrimaryRowSize;
     size_t BatchSize;
 };
@@ -149,7 +149,7 @@ struct TMultiJoinClosure
             TComparerFunction* lookupEqComparer);
     };
 
-    SmallVector<TItem, 32> Items;
+    TCompactVector<TItem, 32> Items;
 
     size_t PrimaryRowSize;
     size_t BatchSize;

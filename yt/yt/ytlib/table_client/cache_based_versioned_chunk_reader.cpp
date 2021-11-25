@@ -58,7 +58,7 @@ class TChunkLookupHashTable
 public:
     explicit TChunkLookupHashTable(size_t size);
     void Insert(TLegacyKey key, std::pair<ui16, ui32> index) override;
-    SmallVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const override;
+    TCompactVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const override;
     size_t GetByteSize() const override;
 
 private:
@@ -221,7 +221,7 @@ private:
 
     //! Holds uncompressed blocks for the returned rows (for string references).
     //! In compressed mode, also serves as a per-request cache of uncompressed blocks.
-    SmallVector<TSharedRef, 4> RetainedUncompressedBlocks_;
+    TCompactVector<TSharedRef, 4> RetainedUncompressedBlocks_;
     int LastRetainedBlockIndex_ = -1;
 
     //! Holds row values for the returned rows.

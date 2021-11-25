@@ -5,7 +5,7 @@
 #include <library/cpp/yt/misc/hash.h>
 
 #include <yt/yt/core/misc/string.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/client/election/public.h>
 
@@ -69,8 +69,8 @@ constexpr TCellTag InvalidCellTag = 0xf004;
 //! A static limit for the number of secondary master cells.
 constexpr int MaxSecondaryMasterCells = 32;
 
-using TCellTagList = SmallVector<TCellTag, MaxSecondaryMasterCells + 1>;
-using TCellIdList = SmallVector<TCellId, MaxSecondaryMasterCells + 1>;
+using TCellTagList = TCompactVector<TCellTag, MaxSecondaryMasterCells + 1>;
+using TCellIdList = TCompactVector<TCellId, MaxSecondaryMasterCells + 1>;
 
 //! Currently at most one additional path is expected (source paths for Copy and Move verbs).
 constexpr int TypicalAdditionalPathCount = 1;
