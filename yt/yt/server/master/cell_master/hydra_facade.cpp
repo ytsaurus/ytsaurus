@@ -42,6 +42,8 @@
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
+#include <yt/yt/core/misc/proc.h>
+
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/server.h>
@@ -50,8 +52,6 @@
 
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
-
-#include <util/system/thread.h>
 
 namespace NYT::NCellMaster {
 
@@ -261,7 +261,7 @@ public:
         if (IsAutomatonLocked()) {
             auto automatonThreadId = AutomatonThread_Slot.GetBoundThreadId();
             YT_VERIFY(automatonThreadId != InvalidThreadId);
-            YT_VERIFY(::TThread::CurrentThreadId() != automatonThreadId);
+            YT_VERIFY(GetCurrentThreadId() != automatonThreadId);
         } else {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
         }
