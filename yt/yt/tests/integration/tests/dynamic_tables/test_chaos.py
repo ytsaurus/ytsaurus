@@ -314,6 +314,9 @@ class TestChaos(DynamicTablesBase):
         sync_create_cells(1)
         sync_mount_table("//tmp/q")
 
+        repliation_card = self._sync_replication_card(cell_id, card_id)
+        self._wait_for_era("//tmp/q", era=repliation_card["era"])
+
         insert_rows("//tmp/q", [{"key": 0, "value": "0"}])
 
         def _pull_rows():
