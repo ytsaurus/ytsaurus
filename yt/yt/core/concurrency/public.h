@@ -94,6 +94,12 @@ class TEventCount;
 
 DECLARE_REFCOUNTED_CLASS(TFiber)
 
+DECLARE_REFCOUNTED_STRUCT(TFairThrottlerConfig)
+DECLARE_REFCOUNTED_STRUCT(TFairThrottlerBucketConfig)
+
+DECLARE_REFCOUNTED_CLASS(TFairThrottler)
+DECLARE_REFCOUNTED_CLASS(TBucketThrottler)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
