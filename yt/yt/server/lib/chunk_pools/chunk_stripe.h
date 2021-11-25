@@ -28,7 +28,7 @@ TChunkStripeStatistics& operator += (
     TChunkStripeStatistics& lhs,
     const TChunkStripeStatistics& rhs);
 
-typedef SmallVector<TChunkStripeStatistics, 1> TChunkStripeStatisticsVector;
+typedef TCompactVector<TChunkStripeStatistics, 1> TChunkStripeStatisticsVector;
 
 //! Adds up input statistics and returns a single-item vector with the sum.
 TChunkStripeStatisticsVector AggregateStatistics(
@@ -53,7 +53,7 @@ struct TChunkStripe
 
     void Persist(const TPersistenceContext& context);
 
-    SmallVector<NChunkClient::TLegacyDataSlicePtr, 1> DataSlices;
+    TCompactVector<NChunkClient::TLegacyDataSlicePtr, 1> DataSlices;
     int WaitingChunkCount = 0;
     bool Foreign = false;
     bool Solid = false;

@@ -139,7 +139,7 @@ private:
 
     // Leave some space for the replicator to manipulate replication policies.
     static constexpr unsigned TypicalChunkMediumCount = 7;
-    using TEntries = SmallVector<TEntry, TypicalChunkMediumCount>;
+    using TEntries = TCompactVector<TEntry, TypicalChunkMediumCount>;
 
 public:
     using iterator = TEntries::iterator;
@@ -235,7 +235,7 @@ private:
     static auto Find(T& entries, int mediumIndex) -> decltype(entries.begin());
 };
 
-static_assert(sizeof(TChunkReplication) == 64, "TChunkReplication's size is wrong");
+static_assert(sizeof(TChunkReplication) == 40, "TChunkReplication's size is wrong");
 
 bool operator==(const TChunkReplication& lhs, const TChunkReplication& rhs);
 bool operator!=(const TChunkReplication& lhs, const TChunkReplication& rhs);
@@ -349,7 +349,7 @@ public:
     // Actually, the entries vector is most likely to contain a single element.
     // However, additional space is needed when merging new items into it, and
     // branching a chunk owner node also introduces additional items.
-    using TEntries = SmallVector<TRequisitionEntry, 4>;
+    using TEntries = TCompactVector<TRequisitionEntry, 4>;
     using const_iterator = TEntries::const_iterator;
 
     //! Constructs an empty requisition with no entries.

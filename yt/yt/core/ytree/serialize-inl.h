@@ -371,6 +371,13 @@ void Serialize(const SmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
     NDetail::SerializeVector(items, consumer);
 }
 
+// TCompactVector
+template <class T, size_t N>
+void Serialize(const TCompactVector<T, N>& items, NYson::IYsonConsumer* consumer)
+{
+    NDetail::SerializeVector(items, consumer);
+}
+
 // RepeatedPtrField
 template <class T>
 void Serialize(const NProtoBuf::RepeatedPtrField<T>& items, NYson::IYsonConsumer* consumer)
@@ -538,6 +545,13 @@ void Deserialize(std::deque<T, A>& value, INodePtr node)
 // SmallVector
 template <class T, unsigned N>
 void Deserialize(SmallVector<T, N>& value, INodePtr node)
+{
+    NDetail::DeserializeVector(value, node);
+}
+
+// TCompactVector
+template <class T, size_t N>
+void Deserialize(TCompactVector<T, N>& value, INodePtr node)
 {
     NDetail::DeserializeVector(value, node);
 }

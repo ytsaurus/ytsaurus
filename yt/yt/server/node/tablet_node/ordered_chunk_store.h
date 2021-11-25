@@ -47,7 +47,7 @@ public:
 private:
     class TReader;
 
-    using TIdMapping = SmallVector<int, NTableClient::TypicalColumnCount>;
+    using TIdMapping = TCompactVector<int, NTableClient::TypicalColumnCount>;
 
     NTableClient::TKeyComparer GetKeyComparer() override;
 

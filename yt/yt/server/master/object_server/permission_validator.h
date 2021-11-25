@@ -38,7 +38,7 @@ protected:
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission);
 
-    virtual SmallVector<TObject*, 1> ListDescendants(TObject* object) = 0;
+    virtual TCompactVector<TObject*, 1> ListDescendants(TObject* object) = 0;
 
     void ValidateCreatePermissions(
         bool replace,

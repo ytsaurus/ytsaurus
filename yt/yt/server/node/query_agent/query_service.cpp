@@ -641,7 +641,7 @@ private:
                 std::function<TSharedRef()> Callback;
             };
 
-            SmallVector<TSubrequest, 16> Subrequests;
+            TCompactVector<TSubrequest, 16> Subrequests;
         };
 
         auto session = New<TSession>();

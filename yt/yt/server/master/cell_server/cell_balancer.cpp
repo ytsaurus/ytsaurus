@@ -331,7 +331,7 @@ private:
         }
 
     private:
-        THashMap<const TCellBase*, SmallVector<const TNode*, TypicalPeerCount>> Peers_;
+        THashMap<const TCellBase*, TCompactVector<const TNode*, TypicalPeerCount>> Peers_;
     };
 
     const ICellBalancerProviderPtr Provider_;

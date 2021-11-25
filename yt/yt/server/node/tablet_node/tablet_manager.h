@@ -20,7 +20,7 @@
 
 #include <yt/yt/client/api/public.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/ytree/public.h>
 

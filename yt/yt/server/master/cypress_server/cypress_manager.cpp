@@ -1208,7 +1208,7 @@ public:
         };
 
         using TToken = std::variant<TStringBuf, int>;
-        SmallVector<TToken, 64> tokens;
+        TCompactVector<TToken, 64> tokens;
 
         auto* currentNode = GetVersionedNode(trunkNode, transaction);
         while (true) {
@@ -1694,7 +1694,7 @@ public:
     void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
     {
         // BFS queue.
-        SmallVector<TTransaction*, 64> queue;
+        TCompactVector<TTransaction*, 64> queue;
 
         size_t frontIndex = 0;
         queue.push_back(rootTransaction);
@@ -1877,7 +1877,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
 
-        SmallVector<TTransaction*, 16> transactions;
+        TCompactVector<TTransaction*, 16> transactions;
 
         auto addLock = [&] (const TLock* lock) {
             // Get the top-most transaction.
@@ -3135,11 +3135,11 @@ private:
     {
         auto* parentTransaction = transaction->GetParent();
 
-        SmallVector<TLock*, 16> locks(transaction->Locks().begin(), transaction->Locks().end());
+        TCompactVector<TLock*, 16> locks(transaction->Locks().begin(), transaction->Locks().end());
         transaction->Locks().clear();
         Sort(locks, TObjectIdComparer());
 
-        SmallVector<TCypressNode*, 16> lockedNodes(transaction->LockedNodes().begin(), transaction->LockedNodes().end());
+        TCompactVector<TCypressNode*, 16> lockedNodes(transaction->LockedNodes().begin(), transaction->LockedNodes().end());
         transaction->LockedNodes().clear();
         Sort(lockedNodes, TCypressNodeIdComparer());
 

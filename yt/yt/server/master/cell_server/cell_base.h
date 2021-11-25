@@ -26,7 +26,7 @@
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/yson/public.h>
 
@@ -69,7 +69,7 @@ public:
         void Persist(const NCellMaster::TPersistenceContext& context);
     };
 
-    using TPeerList = SmallVector<TPeer, TypicalPeerCount>;
+    using TPeerList = TCompactVector<TPeer, TypicalPeerCount>;
     DEFINE_BYREF_RW_PROPERTY(TPeerList, Peers);
     DEFINE_BYVAL_RW_PROPERTY(int, LeadingPeerId);
 

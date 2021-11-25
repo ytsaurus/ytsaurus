@@ -26,7 +26,7 @@
 #include <yt/yt/ytlib/table_client/public.h>
 #include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 namespace NYT::NTabletServer {
 

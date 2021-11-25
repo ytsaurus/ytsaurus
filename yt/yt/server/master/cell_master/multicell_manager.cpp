@@ -313,7 +313,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         // List candidates.
-        SmallVector<std::pair<TCellTag, i64>, MaxSecondaryMasterCells> candidates;
+        TCompactVector<std::pair<TCellTag, i64>, MaxSecondaryMasterCells> candidates;
         auto maybeAddCandidate = [&] (TCellTag cellTag, i64 chunkCount) {
             if (cellTag == GetPrimaryCellTag()) {
                 return;
@@ -347,8 +347,8 @@ public:
         i64 avgChunkCount = totalChunkCount / candidates.size();
 
         // Split the candidates into two subsets: less-that-avg and more-than-avg.
-        SmallVector<TCellTag, MaxSecondaryMasterCells> loCandidates;
-        SmallVector<TCellTag, MaxSecondaryMasterCells> hiCandidates;
+        TCompactVector<TCellTag, MaxSecondaryMasterCells> loCandidates;
+        TCompactVector<TCellTag, MaxSecondaryMasterCells> hiCandidates;
         for (auto [cellTag, chunkCount] : candidates) {
             if (chunkCount < avgChunkCount) {
                 loCandidates.push_back(cellTag);

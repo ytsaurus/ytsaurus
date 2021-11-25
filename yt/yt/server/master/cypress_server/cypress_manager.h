@@ -28,7 +28,7 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/id_generator.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/ytree/tree_builder.h>
 #include <yt/yt/core/ytree/ypath_service.h>
@@ -181,7 +181,7 @@ public:
     void SetExpirationTime(TCypressNode* node, std::optional<TInstant> time);
     void SetExpirationTimeout(TCypressNode* node, std::optional<TDuration> time);
 
-    using TSubtreeNodes = SmallVector<TCypressNode*, 1>;
+    using TSubtreeNodes = TCompactVector<TCypressNode*, 1>;
     TSubtreeNodes ListSubtreeNodes(
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,

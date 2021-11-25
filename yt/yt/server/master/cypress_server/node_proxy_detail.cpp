@@ -1197,7 +1197,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 }
 
-SmallVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendants(TCypressNode* node)
+TCompactVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendants(TCypressNode* node)
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto* trunkNode = node->GetTrunkNode();

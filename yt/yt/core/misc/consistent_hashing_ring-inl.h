@@ -328,10 +328,10 @@ TConsistentHashingRing<S, F, P, H, N>::GetFileRangeForServer(typename NMpl::TCal
 }
 
 template <class S, class F, class P, class H, int N>
-SmallVector<S, N> TConsistentHashingRing<S, F, P, H, N>::GetServersForFile(typename NMpl::TCallTraits<F>::TType file, int replicaCount) const
+TCompactVector<S, N> TConsistentHashingRing<S, F, P, H, N>::GetServersForFile(typename NMpl::TCallTraits<F>::TType file, int replicaCount) const
 {
     auto targetTokens = GetTokensForFile(file, replicaCount);
-    SmallVector<S, N> result;
+    TCompactVector<S, N> result;
     result.reserve(targetTokens.size());
     std::transform(
         targetTokens.begin(),
@@ -344,10 +344,10 @@ SmallVector<S, N> TConsistentHashingRing<S, F, P, H, N>::GetServersForFile(typen
 }
 
 template <class S, class F, class P, class H, int N>
-SmallVector<typename TConsistentHashingRing<S, F, P, H, N>::TServerToken, N>
+TCompactVector<typename TConsistentHashingRing<S, F, P, H, N>::TServerToken, N>
 TConsistentHashingRing<S, F, P, H, N>::GetTokensForFile(typename NMpl::TCallTraits<F>::TType file, int replicaCount) const
 {
-    using TResult = SmallVector<typename TConsistentHashingRing<S, F, P, H, N>::TServerToken, N>;
+    using TResult = TCompactVector<typename TConsistentHashingRing<S, F, P, H, N>::TServerToken, N>;
 
     if (TokenRing_.empty()) {
         return {};

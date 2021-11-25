@@ -40,7 +40,7 @@
 
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -375,10 +375,10 @@ private:
     std::unique_ptr<TVersionedRowMerger> CacheRowMerger_;
 
     static const int TypicalSessionCount = 16;
-    using TReadSessionList = SmallVector<TReadSession, TypicalSessionCount>;
+    using TReadSessionList = TCompactVector<TReadSession, TypicalSessionCount>;
     TReadSessionList DynamicEdenSessions_;
     TReadSessionList ChunkEdenSessions_;
-    SmallVector<TReadSessionList, MaxParallelPartitionLookupsLimit> PartitionSessions_;
+    TCompactVector<TReadSessionList, MaxParallelPartitionLookupsLimit> PartitionSessions_;
 
     int CacheHits_ = 0;
     int CacheMisses_ = 0;

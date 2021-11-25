@@ -15,7 +15,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 namespace NYT::NTabletNode {
 

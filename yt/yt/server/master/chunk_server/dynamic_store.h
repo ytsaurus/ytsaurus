@@ -19,7 +19,7 @@ class TDynamicStore
     , public TRefTracked<TDynamicStore>
 {
 public:
-    using TParents = SmallVector<TChunkTree*, TypicalChunkParentCount>;
+    using TParents = TCompactVector<TChunkTree*, TypicalChunkParentCount>;
 
     DECLARE_BYVAL_RW_PROPERTY(NTabletServer::TTablet*, Tablet);
     DEFINE_BYVAL_RO_PROPERTY(TChunk*, FlushedChunk);

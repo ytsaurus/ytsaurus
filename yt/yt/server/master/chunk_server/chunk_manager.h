@@ -33,7 +33,7 @@
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 

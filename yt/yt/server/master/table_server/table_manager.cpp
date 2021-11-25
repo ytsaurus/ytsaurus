@@ -302,7 +302,7 @@ public:
 
     void HydraUpdateTableStatistics(NTableServer::NProto::TReqUpdateTableStatistics* request)
     {
-        SmallVector<TTableId, 8> nodeIds;
+        TCompactVector<TTableId, 8> nodeIds;
         nodeIds.reserve(request->entries_size());
         for (const auto& entry : request->entries()) {
             nodeIds.push_back(FromProto<TNodeId>(entry.node_id()));
@@ -311,7 +311,7 @@ public:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Received node statistics update (NodeIds: %v)",
             nodeIds);
 
-        SmallVector<TTableId, 8> nodeIdsToRetry; // Just for logging.
+        TCompactVector<TTableId, 8> nodeIdsToRetry; // Just for logging.
         NTableServer::NProto::TReqNotifyContentRevisionCasFailed retryRequest;
 
         auto externalCellTag = InvalidCellTag;

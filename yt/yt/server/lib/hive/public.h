@@ -9,7 +9,7 @@
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/core/misc/enum.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/actions/callback.h>
@@ -34,7 +34,7 @@ DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
 DECLARE_REFCOUNTED_STRUCT(TMailboxRuntimeData)
 
 constexpr int TypicalMailboxCount = 16;
-using TMailboxList = SmallVector<TMailbox*, TypicalMailboxCount>;
+using TMailboxList = TCompactVector<TMailbox*, TypicalMailboxCount>;
 
 DECLARE_REFCOUNTED_STRUCT(TSerializedMessage)
 

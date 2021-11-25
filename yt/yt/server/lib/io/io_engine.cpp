@@ -1293,8 +1293,8 @@ struct TReadUringRequest
     };
 
     std::vector<IIOEngine::TReadRequest> ReadSubrequests;
-    SmallVector<TReadSubrequestState, TypicalSubrequestCount> ReadSubrequestStates;
-    SmallVector<int, TypicalSubrequestCount> PendingReadSubrequestIndexes;
+    TCompactVector<TReadSubrequestState, TypicalSubrequestCount> ReadSubrequestStates;
+    TCompactVector<int, TypicalSubrequestCount> PendingReadSubrequestIndexes;
     TReadRequestCombiner ReadRequestCombiner;
 
     i64 PaddedBytesRead = 0;

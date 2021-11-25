@@ -4,6 +4,7 @@
 
 #include <yt/yt/core/yson/producer.h>
 
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/mpl.h>
 #include <yt/yt/core/misc/optional.h>
@@ -120,6 +121,10 @@ void Serialize(const std::deque<T, A>& value, NYson::IYsonConsumer* consumer);
 template <class T, unsigned N>
 void Serialize(const SmallVector<T, N>& value, NYson::IYsonConsumer* consumer);
 
+// TCompactVector
+template <class T, size_t N>
+void Serialize(const TCompactVector<T, N>& value, NYson::IYsonConsumer* consumer);
+
 // TErrorOr
 template <class T>
 void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer);
@@ -214,6 +219,10 @@ void Deserialize(std::deque<T, A>& value, INodePtr node);
 // SmallVector
 template <class T, unsigned N>
 void Deserialize(SmallVector<T, N>& value, INodePtr node);
+
+// TCompactVector
+template <class T, size_t N>
+void Deserialize(TCompactVector<T, N>& value, INodePtr node);
 
 // TErrorOr
 template <class T>

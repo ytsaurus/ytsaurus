@@ -8,7 +8,7 @@
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
@@ -30,7 +30,7 @@ public:
     explicit TCachedPeerList(int entryCountLimit);
 
     static constexpr int TypicalPeerCount = 64;
-    using TNodeIdList = SmallVector<TNodeId, TypicalPeerCount>;
+    using TNodeIdList = TCompactVector<TNodeId, TypicalPeerCount>;
     //! Returns all node ids (sweeping out expired ones).
     TNodeIdList GetPeers();
 
@@ -53,7 +53,7 @@ private:
     const int EntryCountLimit_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
-    SmallVector<TBlockPeerEntry, TypicalPeerCount * 2> Entries_;
+    TCompactVector<TBlockPeerEntry, TypicalPeerCount * 2> Entries_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedPeerList)

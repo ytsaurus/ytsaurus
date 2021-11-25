@@ -159,7 +159,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
 
 public:
-    using TChunkVector = SmallVector<TChunk*, 16>;
+    using TChunkVector = TCompactVector<TChunk*, 16>;
     TMergeJob(
         TJobId jobId,
         NNodeTrackerServer::TNode* node,

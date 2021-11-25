@@ -159,7 +159,7 @@ public:
     }
 
 private:
-    SmallVector<IVersionedReaderPtr, 3> Readers_;
+    TCompactVector<IVersionedReaderPtr, 3> Readers_;
     int CurrentReaderIndex_;
     int FakeRowsRead_;
 

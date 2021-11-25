@@ -163,7 +163,7 @@ void BuildChunkSpec(
         ? std::numeric_limits<int>::max() // all replicas are feasible
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-    SmallVector<TNodePtrWithIndexes, TypicalReplicaCount> replicas;
+    TCompactVector<TNodePtrWithIndexes, TypicalReplicaCount> replicas;
 
     auto addReplica = [&] (TNodePtrWithIndexes replica)  {
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {

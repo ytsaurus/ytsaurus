@@ -8,7 +8,7 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 namespace NYT::NCypressServer {
 
@@ -45,7 +45,7 @@ DECLARE_ENTITY_TYPE(TCypressShard, NObjectClient::TObjectId, NObjectClient::TDir
 
 DECLARE_MASTER_OBJECT_TYPE(TCypressNode)
 
-using TCypressNodeList = SmallVector<TCypressNode*, 8>;
+using TCypressNodeList = TCompactVector<TCypressNode*, 8>;
 using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNode*>;
 
 struct TLockRequest;

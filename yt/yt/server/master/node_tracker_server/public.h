@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <bitset>
 
@@ -57,7 +57,7 @@ DECLARE_ENTITY_TYPE(THost, THostId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TDataCenter, TDataCenterId, NObjectClient::TDirectObjectIdHash)
 
-using TNodeList = SmallVector<TNode*, NChunkClient::TypicalReplicaCount>;
+using TNodeList = TCompactVector<TNode*, NChunkClient::TypicalReplicaCount>;
 
 class TNodeDirectoryBuilder;
 

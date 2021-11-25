@@ -169,7 +169,7 @@ protected:
 
     ICypressNodeProxyPtr GetProxy(TCypressNode* trunkNode) const;
 
-    SmallVector<TCypressNode*, 1> ListDescendants(TCypressNode* node) override;
+    TCompactVector<TCypressNode*, 1> ListDescendants(TCypressNode* node) override;
 
     // TSupportsPermissions members
     void ValidatePermission(
