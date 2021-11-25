@@ -78,17 +78,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSimpleOperationIo
-{
-    TVector<TRichYPath> Inputs;
-    TVector<TRichYPath> Outputs;
-
-    TFormat InputFormat;
-    TFormat OutputFormat;
-
-    TVector<TSmallJobFile> JobFiles;
-};
-
 struct TMapReduceOperationIo
 {
     TVector<TRichYPath> Inputs;
@@ -284,11 +273,10 @@ THashSet<TString> GetColumnsUsedInOperation(const TVanillaTask&)
     return THashSet<TString>();
 }
 
-template <class TSpec>
 TStructuredJobTableList ApplyProtobufColumnFilters(
     const TStructuredJobTableList& tableList,
     const TOperationPreparer& preparer,
-    const TSpec& spec,
+    const THashSet<TString>& columnsUsedInOperations,
     const TOperationOptions& options)
 {
     bool hasInputQuery = options.Spec_.Defined() && options.Spec_->IsMap() && options.Spec_->HasKey("input_query");
@@ -305,7 +293,6 @@ TStructuredJobTableList ApplyProtobufColumnFilters(
         });
 
     auto newTableList = tableList;
-    auto columnsUsedInOperations = GetColumnsUsedInOperation(spec);
     for (size_t tableIndex = 0; tableIndex < tableList.size(); ++tableIndex) {
         if (isDynamic[tableIndex].AsBool()) {
             continue;
@@ -345,72 +332,20 @@ TSimpleOperationIo CreateSimpleOperationIo(
         VerifyHasElements(GetStructuredInputs(spec), "input");
     }
 
-    auto structuredInputs = CanonizeStructuredTableList(preparer.GetAuth(),  GetStructuredInputs(spec));
-    auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredOutputs(spec));
     TUserJobFormatHints hints;
     hints.InputFormatHints_ = GetInputFormatHints(spec);
     hints.OutputFormatHints_ = GetOutputFormatHints(spec);
-
-    auto jobSchemaInferenceResult = PrepareOperation(
-        structuredJob,
-        TOperationPreparationContext(
-            structuredInputs,
-            structuredOutputs,
-            preparer.GetAuth(),
-            preparer.GetClientRetryPolicy(),
-            preparer.GetTransactionId()),
-        &structuredInputs,
-        &structuredOutputs,
-        hints);
-
     ENodeReaderFormat nodeReaderFormat = GetNodeReaderFormat(spec, allowSkiff);
 
-    TVector<TSmallJobFile> formatConfigList;
-    TFormatBuilder formatBuilder(preparer.GetClientRetryPolicy(), preparer.GetAuth(), preparer.GetTransactionId(), options);
-
-    // Input format
-    auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
-        structuredJob,
-        EIODirection::Input,
-        structuredInputs,
-        hints.InputFormatHints_,
+    return CreateSimpleOperationIoHelper(
+        structuredJob,	
+        preparer,
+        options,	
+        GetStructuredInputs(spec),
+        GetStructuredOutputs(spec),
+        hints,
         nodeReaderFormat,
-        /* allowFormatFromTableAttribute = */ true);
-
-    // Output format
-    auto [outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
-        structuredJob,
-        EIODirection::Output,
-        structuredOutputs,
-        hints.OutputFormatHints_,
-        ENodeReaderFormat::Yson,
-        /* allowFormatFromTableAttribute = */ false);
-
-    const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
-
-    auto outputPaths = GetPathList(
-        structuredOutputs,
-        jobSchemaInferenceResult,
-        inferOutputSchema);
-
-    auto inputPaths = GetPathList(
-        ApplyProtobufColumnFilters(
-            structuredInputs,
-            preparer,
-            spec,
-            options),
-        /*schemaInferenceResult*/ Nothing(),
-        /*inferSchema*/ false);
-
-    return TSimpleOperationIo {
-        inputPaths,
-        outputPaths,
-
-        inputFormat,
-        outputFormat,
-
-        CreateFormatConfig(inputFormatConfig, outputFormatConfig)
-    };
+        GetColumnsUsedInOperation(spec));
 }
 
 template <class T>
@@ -1101,6 +1036,79 @@ static TVector<TString> GetJobsStderr(
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TSimpleOperationIo CreateSimpleOperationIoHelper(
+    const IStructuredJob& structuredJob,
+    const TOperationPreparer& preparer,
+    const TOperationOptions& options,
+    const TVector<TStructuredTablePath>& structuredTablePathInputs,
+    const TVector<TStructuredTablePath>& structuredTablePathOutputs,
+    TUserJobFormatHints hints,
+    ENodeReaderFormat nodeReaderFormat,
+    const THashSet<TString>& columnsUsedInOperations)
+{
+    auto structuredInputs = CanonizeStructuredTableList(preparer.GetAuth(),  structuredTablePathInputs);
+    auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), structuredTablePathOutputs);
+
+    auto jobSchemaInferenceResult = PrepareOperation(
+        structuredJob,
+        TOperationPreparationContext(
+            structuredInputs,
+            structuredOutputs,
+            preparer.GetAuth(),
+            preparer.GetClientRetryPolicy(),
+            preparer.GetTransactionId()),
+        &structuredInputs,
+        &structuredOutputs,
+        hints);
+
+    TVector<TSmallJobFile> formatConfigList;
+    TFormatBuilder formatBuilder(preparer.GetClientRetryPolicy(), preparer.GetAuth(), preparer.GetTransactionId(), options);
+
+    // Input format
+    auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
+        structuredJob,
+        EIODirection::Input,
+        structuredInputs,
+        hints.InputFormatHints_,
+        nodeReaderFormat,
+        /* allowFormatFromTableAttribute = */ true);
+
+    // Output format
+    auto [outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
+        structuredJob,
+        EIODirection::Output,
+        structuredOutputs,
+        hints.OutputFormatHints_,
+        ENodeReaderFormat::Yson,
+        /* allowFormatFromTableAttribute = */ false);
+
+    const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
+
+    auto outputPaths = GetPathList(
+        structuredOutputs,
+        jobSchemaInferenceResult,
+        inferOutputSchema);
+
+    auto inputPaths = GetPathList(
+        ApplyProtobufColumnFilters(
+            structuredInputs,
+            preparer,
+            columnsUsedInOperations,
+            options),
+        /*schemaInferenceResult*/ Nothing(),
+        /*inferSchema*/ false);
+
+    return TSimpleOperationIo {
+        inputPaths,
+        outputPaths,
+
+        inputFormat,
+        outputFormat,
+
+        CreateFormatConfig(inputFormatConfig, outputFormatConfig)
+    };
+}
 
 EOperationBriefState CheckOperation(
     const IClientRetryPolicyPtr& clientRetryPolicy,
@@ -2179,7 +2187,7 @@ TOperationId ExecuteMapReduce(
         ApplyProtobufColumnFilters(
             structuredInputs,
             preparer,
-            spec,
+            GetColumnsUsedInOperation(spec),
             options),
         /* jobSchemaInferenceResult */ Nothing(),
         /* inferSchema */ false);

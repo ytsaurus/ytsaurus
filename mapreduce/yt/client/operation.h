@@ -1,5 +1,7 @@
 #pragma once
 
+#include "structured_table_formats.h"
+
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/retry_policy.h>
@@ -82,6 +84,29 @@ private:
 private:
     void CheckValidity() const;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSimpleOperationIo
+{
+    TVector<TRichYPath> Inputs;
+    TVector<TRichYPath> Outputs;
+
+    TFormat InputFormat;
+    TFormat OutputFormat;
+
+    TVector<TSmallJobFile> JobFiles;
+};
+
+TSimpleOperationIo CreateSimpleOperationIoHelper(
+    const IStructuredJob& structuredJob,
+    const TOperationPreparer& preparer,
+    const TOperationOptions& options,
+    const TVector<TStructuredTablePath>& structuredInputs,
+    const TVector<TStructuredTablePath>& structuredOutputs,
+    TUserJobFormatHints hints,
+    ENodeReaderFormat nodeReaderFormat,
+    const THashSet<TString>& columnsUsedInOperations);
 
 ////////////////////////////////////////////////////////////////////////////////
 
