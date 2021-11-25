@@ -597,6 +597,15 @@ b"""
         };
     };
 
+    chaos_node = {
+        chaos_manager = {
+            chaos_cell_synchronizer = {
+                sync_period = 100;
+            };
+            era_commencing_period = 100;
+        };
+    };
+
     cellar_node = {
         master_connector = {
             heartbeat_period = 100;

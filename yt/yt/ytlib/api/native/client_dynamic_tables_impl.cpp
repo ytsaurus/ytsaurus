@@ -2230,6 +2230,7 @@ TPullRowsResult TClient::DoPullRows(
         req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
         req->set_mount_revision(tabletInfo->MountRevision);
         req->set_max_rows_per_read(options.TabletRowsPerRead);
+        req->set_upper_timestamp(options.UpperTimestamp); 
         ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
         ToProto(req->mutable_cell_id(), tabletInfo->CellId);
         ToProto(req->mutable_start_replication_progress(), request.Progress);

@@ -835,8 +835,14 @@ private:
 
         if (request->has_replication_card_token()) {
             auto replicationCardToken = FromProto<TReplicationCardToken>(request->replication_card_token());
+            auto progress = FromProto<NChaosClient::TReplicationProgress>(request->replication_progress());
+            YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardToken: %v, ReplicationProgress: %v)",
+                tablet->GetLoggingTag(),
+                replicationCardToken,
+                progress);
+
+            tablet->RuntimeData()->ReplicationProgress.Store(New<TRefCountedReplicationProgress>(std::move(progress)));
             AddChaosAgent(tablet, replicationCardToken);
-            tablet->ReplicationProgress() = FromProto<NChaosClient::TReplicationProgress>(request->replication_progress());
         }
 
         const auto& lockManager = tablet->GetLockManager();
@@ -1202,8 +1208,8 @@ private:
                 TRspUnmountTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
                 *response.mutable_mount_hint() = tablet->GetMountHint();
-                if (tablet->GetUpstreamReplicaId()) {
-                    ToProto(response.mutable_replication_progress(), tablet->ReplicationProgress());
+                if (auto replicationProgress = tablet->RuntimeData()->ReplicationProgress.Load()) {
+                    ToProto(response.mutable_replication_progress(), *replicationProgress);
                 }
 
                 TabletMap_.Remove(tabletId);
@@ -1956,7 +1962,8 @@ private:
 
         YT_VERIFY(tablet->GetReplicationRound() == round);
 
-        tablet->ReplicationProgress() = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
+        auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
+        tablet->RuntimeData()->ReplicationProgress.Store(progress);
 
         THashMap<TTabletId, i64> currentReplicationRowIndexes;
         for (auto protoEndReplicationRowIndex : request->new_replication_row_indexes()) {
@@ -1971,7 +1978,7 @@ private:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows committed (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, NewReplicationRound: %v)",
             tabletId,
             transaction->GetId(),
-            tablet->ReplicationProgress(),
+            static_cast<NChaosClient::TReplicationProgress>(*progress),
             tablet->CurrentReplicationRowIndexes(),
             tablet->GetReplicationRound());
     }
@@ -2584,6 +2591,9 @@ private:
                 .Item("in_flight_replicator_mutation_count").Value(tablet->GetInFlightReplicatorMutationCount())
                 .Item("pending_user_write_record_count").Value(tablet->GetPendingUserWriteRecordCount())
                 .Item("pending_replicator_write_record_count").Value(tablet->GetPendingReplicatorWriteRecordCount())
+                .Item("replication_card").Value(tablet->ReplicationCard())
+                .Item("replicaiton_progress").Value(tablet->RuntimeData()->ReplicationProgress.Load())
+                .Item("write_mode").Value(tablet->RuntimeData()->WriteMode.load())
                 .Do([tablet] (auto fluent) {
                     BuildTableSettingsOrchidYson(tablet->GetSettings(), fluent);
                 })
@@ -3146,6 +3156,7 @@ private:
     {
         tablet->SetChaosAgent(CreateChaosAgent(
             tablet,
+            Slot_,
             replicationCardToken,
             Bootstrap_->GetMasterClient()->GetNativeConnection()));
         tablet->SetTablePuller(CreateTablePuller(

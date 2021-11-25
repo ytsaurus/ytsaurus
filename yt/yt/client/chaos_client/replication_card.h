@@ -74,6 +74,9 @@ struct TReplicaInfo
     TReplicationProgress ReplicationProgress;
     std::vector<TReplicaHistoryItem> History;
 
+    //! Returns index of history item corresponding to timestamp, -1 if none.
+    int FindHistoryItemIndex(NTransactionClient::TTimestamp timestamp);
+
     void Persist(const TStreamPersistenceContext& context);
 };
 
@@ -83,6 +86,9 @@ struct TReplicationCard
     std::vector<TReplicaInfo> Replicas;
     std::vector<NObjectClient::TCellId> CoordinatorCellIds;
     TReplicationEra Era;
+
+    //! Returns pointer to replica with a given id, nullptr if none.
+    TReplicaInfo* FindReplica(TReplicaId replicaId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationCard)
@@ -118,9 +124,17 @@ TString ToString(const TReplicationCardToken& replicationCardToken);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsReplicaReallySync(EReplicaMode mode, EReplicaState state);
+
 void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicationProgress& update);
+
+bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, const TReplicationProgress& other);
+bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, NTransactionClient::TTimestamp timestamp);
+
+TReplicationProgress AdvanceReplicationProgress(const TReplicationProgress& progress, NTransactionClient::TTimestamp timestamp);
+
+NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progress);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosClient
-

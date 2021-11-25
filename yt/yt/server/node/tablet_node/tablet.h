@@ -96,6 +96,25 @@ DEFINE_REFCOUNTED_TYPE(TTableReplicaSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRefCountedReplicationProgress
+    : public NChaosClient::TReplicationProgress
+    , public TRefCounted
+{
+    explicit TRefCountedReplicationProgress(
+        const NChaosClient::TReplicationProgress& progress);
+    explicit TRefCountedReplicationProgress(
+        NChaosClient::TReplicationProgress&& progress);
+
+    TRefCountedReplicationProgress& operator=(
+        const NChaosClient::TReplicationProgress& progress);
+    TRefCountedReplicationProgress& operator=(
+        NChaosClient::TReplicationProgress&& progress);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRefCountedReplicationProgress)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! All fields must be atomic since they're being accessed both
 //! from the writer and from readers concurrently.
 struct TRuntimeTabletData
@@ -108,7 +127,9 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> UnflushedTimestamp = MinTimestamp;
     std::atomic<TInstant> ModificationTime = NProfiling::GetInstant();
     std::atomic<TInstant> AccessTime = TInstant::Zero();
-    std::atomic<NChaosClient::TReplicationEra> ReplicationEra = {NChaosClient::InvalidReplicationEra};
+    std::atomic<ETabletWriteMode> WriteMode = ETabletWriteMode::Direct;
+    std::atomic<NChaosClient::TReplicationEra> ReplicationEra = NChaosClient::InvalidReplicationEra;
+    TAtomicObject<TRefCountedReplicationProgressPtr> ReplicationProgress;
     TEnumIndexedVector<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
     TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> Errors;
 };

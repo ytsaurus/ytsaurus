@@ -274,14 +274,21 @@ void FromProto(TReplicaInfo* replicaInfo, const NChaosClient::NProto::TReplicaIn
     FromProto(&replicaInfo->History, protoReplicaInfo.history());
 }
 
-void ToProto(NChaosClient::NProto::TReplicationCard* protoReplicationCard, const TReplicationCard& replicationCard)
+void ToProto(
+    NChaosClient::NProto::TReplicationCard* protoReplicationCard,
+    const TReplicationCard& replicationCard,
+    bool includeCoordinators,
+    bool includeProgress,
+    bool includeHistory)
 {
+    protoReplicationCard->set_era(replicationCard.Era);
     for (const auto& replicaInfo : replicationCard.Replicas) {
         auto* protoReplicaInfo = protoReplicationCard->add_replicas();
-        ToProto(protoReplicaInfo, replicaInfo);
+        ToProto(protoReplicaInfo, replicaInfo, includeProgress, includeHistory);
     }
-    protoReplicationCard->set_era(replicationCard.Era);
-    ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), replicationCard.CoordinatorCellIds);
+    if (includeCoordinators) {
+        ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), replicationCard.CoordinatorCellIds);
+    }
 }
 
 void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TReplicationCard& protoReplicationCard)

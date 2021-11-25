@@ -218,6 +218,7 @@ public:
         CoordinatorService_ = CreateCoordinatorService(this);
 
         ChaosManager_->Initialize();
+        CoordinatorManager_->Initialize();
     }
 
     void RegisterRpcServices() override

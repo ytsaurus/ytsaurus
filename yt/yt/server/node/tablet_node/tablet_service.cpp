@@ -159,10 +159,18 @@ private:
             }
         }
 
-        if (auto era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load(); replicationEra && *replicationEra != era) {
+        auto era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+        if (replicationEra && *replicationEra != era) {
             THROW_ERROR_EXCEPTION("Replication era mismatch: expected %v, got %v",
-                *replicationEra,
-                era);
+                era,
+                *replicationEra);
+        }
+
+        auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
+        if (writeMode != ETabletWriteMode::Direct &&
+            context->GetAuthenticationIdentity().User != NSecurityClient::ReplicatorUserName)
+        {
+            THROW_ERROR_EXCEPTION("Direct write is not allowed: replica is probably catching up");
         }
 
         const auto& resourceLimitsManager = Bootstrap_->GetResourceLimitsManager();

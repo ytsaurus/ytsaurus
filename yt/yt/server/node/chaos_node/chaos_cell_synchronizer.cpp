@@ -47,7 +47,7 @@ public:
         : Slot_(slot)
         , Bootstrap_(bootstrap)
         , SynchronizeExecutor_(New<TPeriodicExecutor>(
-            slot->GetEpochAutomatonInvoker(),
+            slot->GetAutomatonInvoker(),
             BIND(&TChaosCellSynchronizer::SafeSynchronize, MakeWeak(this)),
             config->SyncPeriod))
     { }
@@ -79,6 +79,8 @@ private:
 
     void Synchronize()
     {
+        YT_LOG_DEBUG("Chaos cell synchronizer requesting cells from master");
+
         const auto& connection = Bootstrap_->GetMasterConnection();
         const auto& cellDirectory = connection->GetCellDirectory();
 
@@ -99,7 +101,7 @@ private:
             cellDirectory->ReconfigureCell(descriptor);
         }
 
-        YT_LOG_DEBUG("Got chaos coordinator cells (ChaosCellIds: %v)",
+        YT_LOG_DEBUG("Chaos cell synchronizer received cells (ChaosCellIds: %v)",
             chaosCellIds);
 
         std::vector<TCellId> oldCoordinators;
@@ -114,7 +116,7 @@ private:
 
         std::vector<TCellId> newCoordinators(chaosCellIds.begin(), chaosCellIds.end());
 
-        YT_LOG_DEBUG("Will change chaos coordinator cells (NewChaosCellIds: %v, OldChaosCellIds: %v)",
+        YT_LOG_DEBUG("Chaos cell synchronizer will update coordinator cells (NewChaosCellIds: %v, OldChaosCellIds: %v)",
             newCoordinators,
             oldCoordinators);
 
