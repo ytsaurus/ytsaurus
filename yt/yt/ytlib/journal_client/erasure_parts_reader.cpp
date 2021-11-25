@@ -58,9 +58,10 @@ public:
             return MakeFuture(result);
         }
 
-        YT_LOG_DEBUG("Erasure rows read session started (FirstRowIndex: %v, RowCount: %v)",
+        YT_LOG_DEBUG("Erasure rows read session started (FirstRowIndex: %v, RowCount: %v, PartIndices: %v)",
             FirstRowIndex_,
-            ReadRowCount_);
+            ReadRowCount_,
+            Reader_->PartIndices_);
 
         const auto& chunkReaders = Reader_->ChunkReaders_;
 
@@ -151,7 +152,10 @@ private:
                 replica.PartIndex);
         }
 
-        if (MetaResponseCount_ == std::ssize(MetaFutures_) && !CanRunSlowPath()) {
+        // NB(gritukan): If only one part is required, it's possible
+        // that fast path can be done since there is another replica with
+        // the same part, but chunk repair is not possible.
+        if (MetaResponseCount_ == std::ssize(MetaFutures_) && !CanRunFastPath() && !CanRunSlowPath()) {
             auto availableIndices = GetAvailableIndices();
             auto erasedIndices = GetErasedIndices(availableIndices);
 
@@ -159,6 +163,7 @@ private:
                 Reader_->ChunkId_)
                 << TErrorAttribute("needed_row_count", FirstRowIndex_ + ReadRowCount_)
                 << TErrorAttribute("min_available_row_count", MinAvailableRowCount_)
+                << TErrorAttribute("required_indices", Reader_->PartIndices_)
                 << TErrorAttribute("erased_indices", erasedIndices)
                 << TErrorAttribute("available_indices", availableIndices);
             Promise_.Set(error);
@@ -286,6 +291,7 @@ private:
     TFuture<std::vector<std::vector<TSharedRef>>> DoRunFastPath()
     {
         VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+        YT_VERIFY(CanRunFastPath());
 
         YT_LOG_DEBUG("Session will run fast path");
 
@@ -357,6 +363,7 @@ private:
     TFuture<std::vector<std::vector<TSharedRef>>> DoRunSlowPath()
     {
         VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
+        YT_VERIFY(CanRunSlowPath());
 
         auto availableIndicies = GetAvailableIndices();
         auto erasedIndices = GetErasedIndices(availableIndicies);
