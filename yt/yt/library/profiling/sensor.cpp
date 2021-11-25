@@ -228,6 +228,18 @@ TProfiler TProfiler::WithAlternativeTag(const TString& name, const TString& valu
     return TProfiler(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
+TProfiler TProfiler::WithExtensionTag(const TString& name, const TString& value, int extensionOf) const
+{
+    if (!Enabled_) {
+        return {};
+    }
+
+    auto allTags = Tags_;
+
+    allTags.AddExtensionTag(std::pair(name, value), extensionOf);
+    return TProfiler(Prefix_, Namespace_, allTags, Impl_, Options_);
+}
+
 TProfiler TProfiler::WithTags(const TTagSet& tags) const
 {
     if (!Enabled_) {

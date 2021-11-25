@@ -765,6 +765,29 @@ TEST(TSolomonRegistry, TestRemoteTransfer)
     ASSERT_TRUE(sensors.Counters.empty());
 }
 
+TEST(TSolomonRegistry, ExtensionTag)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TProfiler r(impl, "/d");
+
+    auto c0 = r.WithTag("location_type", "store")
+        .WithTag("medium", "ssd_blobs", -1)
+        .WithTag("location_id", "store0", -1)
+        .WithExtensionTag("device", "sdb", -1)
+        .WithExtensionTag("model", "M5100", -1)
+        .Counter("/bytes_read");
+    c0.Increment();
+
+    auto result = CollectSensors(impl);
+    ASSERT_EQ(result.Counters.size(), 4u);
+
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{}"));
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store}"));
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store;medium=ssd_blobs}"));
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store;medium=ssd_blobs;location_id=store0;device=sdb;model=M5100}"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

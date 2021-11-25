@@ -193,6 +193,7 @@ public:
     TProfiler WithRequiredTag(const TString& name, const TString& value, int parent = NoParent) const;
     TProfiler WithExcludedTag(const TString& name, const TString& value, int parent = NoParent) const;
     TProfiler WithAlternativeTag(const TString& name, const TString& value, int alternativeTo, int parent = NoParent) const;
+    TProfiler WithExtensionTag(const TString& name, const TString& value, int parent = NoParent) const;
     TProfiler WithTags(const TTagSet& tags) const;
 
     //! WithSparse sets sparse flags on all sensors created using returned registry.

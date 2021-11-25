@@ -116,6 +116,13 @@ void TTagSet::AddAlternativeTag(TTag tag, int alternativeTo, int parent)
     }
 }
 
+void TTagSet::AddExtensionTag(TTag tag, int extensionOf)
+{
+    int extensionIndex = Tags_.size() + extensionOf;
+    AddTag(std::move(tag), extensionOf);
+    Children_.back() = extensionIndex;
+}
+
 void TTagSet::AddTagWithChild(TTag tag, int child)
 {
     int childIndex = Tags_.size() + child;
