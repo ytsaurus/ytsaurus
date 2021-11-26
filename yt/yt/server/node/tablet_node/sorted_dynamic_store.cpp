@@ -132,7 +132,7 @@ public:
     TSortedDynamicRow Find(TLegacyKey key) const
     {
         auto fingerprint = GetFarmFingerprint(key);
-        SmallVector<ui64, 1> items;
+        TCompactVector<ui64, 1> items;
         HashTable_.Find(fingerprint, &items);
         for (auto item : items) {
             auto dynamicRow = TSortedDynamicRow(reinterpret_cast<TSortedDynamicRowHeader*>(item));

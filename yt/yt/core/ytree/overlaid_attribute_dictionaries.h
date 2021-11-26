@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/ytree/attributes.h>
 
@@ -59,7 +59,7 @@ private:
     bool Remove(const IAttributeDictionary& dict, const TString& key);
 
     // From top to bottom (the earlier the dictionary, the higher its priority).
-    SmallVector<T, 2> UnderlyingDictionaries_;
+    TCompactVector<T, 2> UnderlyingDictionaries_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/ref.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
@@ -26,7 +26,7 @@ struct TPathPart
 
 struct TContext
 {
-    SmallVector<TPathPart, 2> PathParts;
+    TCompactVector<TPathPart, 2> PathParts;
     std::optional<size_t> RowIndex;
 
     void Push(TStringBuf& key)

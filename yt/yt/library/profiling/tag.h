@@ -4,7 +4,7 @@
 
 #include <util/generic/string.h>
 
-#include <library/cpp/yt/small_containers/small_vector.h>
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 namespace NYT::NProfiling {
 
@@ -14,15 +14,15 @@ using TTagId = int;
 
 constexpr int TypicalTagCount = 6;
 
-using TTagIdList = SmallVector<TTagId, TypicalTagCount>;
+using TTagIdList = TCompactVector<TTagId, TypicalTagCount>;
 
 using TTag = std::pair<TString, TString>;
 
-using TTagList = SmallVector<TTag, TypicalTagCount>;
+using TTagList = TCompactVector<TTag, TypicalTagCount>;
 
 using TTagIndex = ui8;
 
-using TTagIndexList = SmallVector<TTagIndex, TypicalTagCount>;
+using TTagIndexList = TCompactVector<TTagIndex, TypicalTagCount>;
 
 constexpr ui8 NoTagSentinel = 0xff;
 

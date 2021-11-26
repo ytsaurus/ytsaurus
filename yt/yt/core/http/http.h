@@ -185,7 +185,7 @@ public:
     //! Returns first header value, if any. Throws otherwise.
     TString GetOrThrow(TStringBuf header) const;
 
-    const SmallVector<TString, 1>& GetAll(TStringBuf header) const;
+    const TCompactVector<TString, 1>& GetAll(TStringBuf header) const;
 
     void WriteTo(
         IOutputStream* out,
@@ -201,7 +201,7 @@ private:
     struct TEntry
     {
         TString OriginalHeaderName;
-        SmallVector<TString, 1> Values;
+        TCompactVector<TString, 1> Values;
     };
 
     THashMap<TString, TEntry, TCaseInsensitiveStringHasher, TCaseInsensitiveStringEqualityComparer> NameToEntry_;

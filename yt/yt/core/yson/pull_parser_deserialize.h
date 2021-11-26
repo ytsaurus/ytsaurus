@@ -115,6 +115,13 @@ void Deserialize(
     TYsonPullParserCursor* cursor,
     std::enable_if_t<ArePullParserDeserializable<T>(), void*> = nullptr);
 
+// TCompactVector.
+template <class T, size_t N>
+void Deserialize(
+    TCompactVector<T, N>& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<T>(), void*> = nullptr);
+
 // std::pair.
 template <class F, class S>
 void Deserialize(

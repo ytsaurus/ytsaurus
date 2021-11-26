@@ -139,7 +139,7 @@ public:
 private:
     struct TBandDescriptor
     {
-        SmallVector<TTosLevel, 8> NetworkIdToTosLevel;
+        TCompactVector<TTosLevel, 8> NetworkIdToTosLevel;
         TTosLevel DefaultTosLevel = DefaultTosLevel;
     };
 
@@ -154,7 +154,7 @@ private:
     TEnumIndexedVector<EMultiplexingBand, TBandDescriptor> BandToDescriptor_;
 
     // Using linear search in vector since number of networks is very small.
-    SmallVector<TString, 8> NetworkNames_;
+    TCompactVector<TString, 8> NetworkNames_;
 
     TAtomicObject<IServiceDiscoveryPtr> ServiceDiscovery_;
 

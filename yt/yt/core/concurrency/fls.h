@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 namespace NYT::NConcurrency {
 
@@ -30,7 +30,7 @@ public:
     ~TFsdHolder();
 
 private:
-    SmallVector<uintptr_t, 8> Fsd_;
+    TCompactVector<uintptr_t, 8> Fsd_;
 
     void FsdResize();
 };

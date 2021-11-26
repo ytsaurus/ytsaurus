@@ -961,7 +961,7 @@ class TCollectionSorter
 {
 public:
     using TIterator = typename T::const_iterator;
-    using TIterators = SmallVector<TIterator, 16>;
+    using TIterators = TCompactVector<TIterator, 16>;
 
     class TIteratorWrapper
     {

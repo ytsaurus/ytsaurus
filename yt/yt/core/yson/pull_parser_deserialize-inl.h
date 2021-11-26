@@ -206,6 +206,13 @@ void Deserialize(SmallVector<T, N>& value, TYsonPullParserCursor* cursor, std::e
     NDetail::DeserializeVector(value, cursor);
 }
 
+// TCompactVector
+template <class T, size_t N>
+void Deserialize(TCompactVector<T, N>& value, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
+{
+    NDetail::DeserializeVector(value, cursor);
+}
+
 template <class F, class S>
 void Deserialize(std::pair<F, S>& value, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<F, S>(), void*>)
 {

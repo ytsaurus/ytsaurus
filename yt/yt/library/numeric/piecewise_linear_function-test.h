@@ -4,7 +4,7 @@
 #include "binary_search.h"
 #include "piecewise_linear_function.h"
 
-#include <library/cpp/yt/small_containers/small_vector.h>
+#include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <vector>
 #include <algorithm>
@@ -17,7 +17,7 @@ namespace NYT {
 namespace NDetail {
 
 static constexpr int MergeArity = 8;
-using TPivotsVector = SmallVector<int, MergeArity + 1>;
+using TPivotsVector = TCompactVector<int, MergeArity + 1>;
 
 void SortOrMergeImpl(
     std::vector<double>* vec,

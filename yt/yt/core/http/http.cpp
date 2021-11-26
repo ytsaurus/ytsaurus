@@ -121,7 +121,7 @@ TString THeaders::GetOrThrow(TStringBuf header) const
     return *value;
 }
 
-const SmallVector<TString, 1>& THeaders::GetAll(TStringBuf header) const
+const TCompactVector<TString, 1>& THeaders::GetAll(TStringBuf header) const
 {
     auto it = NameToEntry_.find(header);
     if (it == NameToEntry_.end()) {

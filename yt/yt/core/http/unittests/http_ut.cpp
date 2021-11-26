@@ -97,7 +97,7 @@ TEST(THttpCookie, ParseCookie)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> ToVector(const SmallVector<TString, 1>& v)
+std::vector<TString> ToVector(const TCompactVector<TString, 1>& v)
 {
     return std::vector<TString>(v.begin(), v.end());
 }

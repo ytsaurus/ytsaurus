@@ -6,7 +6,7 @@
 #include <yt/yt/core/ytree/tree_builder.h>
 
 #include <yt/yt/core/json/config.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/utf8_decoder.h>
 
 #include <queue>
@@ -82,7 +82,7 @@ private:
     const i64 MemoryLimit_;
     const NJson::EJsonAttributesMode AttributesMode_;
 
-    SmallVector<EJsonCallbacksNodeType, 4> Stack_;
+    TCompactVector<EJsonCallbacksNodeType, 4> Stack_;
 
     const std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
 };
@@ -118,7 +118,7 @@ private:
     NYson::EYsonType YsonType_;
     TUtf8Transcoder Utf8Transcoder_;
 
-    SmallVector<EJsonCallbacksNodeType, 4> Stack_;
+    TCompactVector<EJsonCallbacksNodeType, 4> Stack_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

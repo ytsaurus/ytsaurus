@@ -228,7 +228,7 @@ int TCube<T>::ReadSensors(
             consumer->OnLabel(hostLabel.first, hostLabel.second);
         }
 
-        SmallVector<bool, 8> replacedInstanceTags(options.InstanceTags.size());
+        TCompactVector<bool, 8> replacedInstanceTags(options.InstanceTags.size());
 
         if (allowAggregate && options.MarkAggregates && !options.Global) {
             consumer->OnLabel(ytAggrLabel.first, ytAggrLabel.second);

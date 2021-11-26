@@ -47,7 +47,7 @@ void TChunkLookupHashTable::Insert(TLegacyKey key, std::pair<ui16, ui32> index)
 TCompactVector<std::pair<ui16, ui32>, 1> TChunkLookupHashTable::Find(TLegacyKey key) const
 {
     TCompactVector<std::pair<ui16, ui32>, 1> result;
-    SmallVector<ui64, 1> items;
+    TCompactVector<ui64, 1> items;
     HashTable_.Find(GetFarmFingerprint(key), &items);
     for (const auto& value : items) {
         result.emplace_back(value >> 32, static_cast<ui32>(value));

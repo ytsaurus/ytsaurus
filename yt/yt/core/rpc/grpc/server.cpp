@@ -11,7 +11,7 @@
 
 #include <yt/yt/core/bus/bus.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/net/address.h>
 
@@ -888,7 +888,7 @@ private:
             NRpc::NProto::TResponseHeader responseHeader;
             YT_VERIFY(TryParseResponseHeader(ResponseMessage_, &responseHeader));
 
-            SmallVector<grpc_op, 2> ops;
+            TCompactVector<grpc_op, 2> ops;
 
             TError error;
             if (responseHeader.has_error() && responseHeader.error().code() != static_cast<int>(NYT::EErrorCode::OK)) {

@@ -13,7 +13,7 @@ TTagIdList operator + (const TTagIdList& a, const TTagIdList& b)
 
 TTagIdList& operator += (TTagIdList& a, const TTagIdList& b)
 {
-    a.append(b.begin(), b.end());
+    a.insert(a.end(), b.begin(), b.end());
     return a;
 }
 
