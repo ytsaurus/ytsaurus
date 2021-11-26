@@ -32,12 +32,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 // Forward declarations
 
-template <class T>
-class SmallVectorImpl;
-
-template <class T, unsigned N>
-class SmallVector;
-
 template <class T, size_t N>
 class TCompactVector;
 
@@ -81,14 +75,6 @@ public:
     TRange(const T* begin, const T* end)
         : Data_(begin)
         , Length_(end - begin)
-    { }
-
-    //! Constructs a TRange from a SmallVector. This is templated in order to
-    //! avoid instantiating SmallVectorTemplateBase<T> whenever we
-    //! copy-construct a TRange.
-    TRange(const SmallVectorImpl<T>& elements)
-        : Data_(elements.data())
-        , Length_(elements.size())
     { }
 
     //! Constructs a TRange from a TCompactVector.
@@ -249,13 +235,6 @@ TRange<T> MakeRange(const T* begin, const T* end)
     return TRange<T>(begin, end);
 }
 
-//! Constructs a TRange from a SmallVector.
-template <class T>
-TRange<T> MakeRange(const SmallVectorImpl<T>& elements)
-{
-    return elements;
-}
-
 //! Constructs a TRange from a TCompactVector.
 template <class T, size_t N>
 TRange<T> MakeRange(const TCompactVector<T, N>& elements)
@@ -347,11 +326,6 @@ public:
     //! Constructs a TMutableRange from a range.
     TMutableRange(T* begin, T* end)
         : TRange<T>(begin, end)
-    { }
-
-    //! Constructs a TMutableRange from a SmallVector.
-    TMutableRange(SmallVectorImpl<T>& elements)
-        : TRange<T>(elements)
     { }
 
     //! Constructs a TMutableRange from a TCompactVector.
@@ -464,13 +438,6 @@ template <class T>
 TMutableRange<T> MakeMutableRange(T* begin, T* end)
 {
     return TMutableRange<T>(begin, end);
-}
-
-//! Constructs a TMutableRange from a SmallVector.
-template <class T>
-TMutableRange<T> MakeMutableRange(SmallVectorImpl<T>& elements)
-{
-    return elements;
 }
 
 //! Constructs a TMutableRange from a TCompactVector.

@@ -1047,12 +1047,6 @@ struct TSorterSelector<std::vector<T>, C, TSortedTag>
 };
 
 template <class T, class C, unsigned size>
-struct TSorterSelector<SmallVector<T, size>, C, TSortedTag>
-{
-    typedef TCollectionSorter<SmallVector<T, size>, TValueSorterComparer<C>> TSorter;
-};
-
-template <class T, class C, unsigned size>
 struct TSorterSelector<TCompactVector<T, size>, C, TSortedTag>
 {
     typedef TCollectionSorter<TCompactVector<T, size>, TValueSorterComparer<C>> TSorter;
@@ -1797,12 +1791,6 @@ struct TSerializerTraits<std::vector<T, A>, C, void>
 };
 
 template <class T, unsigned size, class C>
-struct TSerializerTraits<SmallVector<T, size>, C, void>
-{
-    typedef TVectorSerializer<> TSerializer;
-};
-
-template <class T, unsigned size, class C>
 struct TSerializerTraits<TCompactVector<T, size>, C, void>
 {
     typedef TVectorSerializer<> TSerializer;
@@ -1851,12 +1839,6 @@ struct TSerializerTraits<THashMultiSet<T>, C, void>
 
 template <class T, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::vector<T, A>>, C, void>
-{
-    typedef TOptionalVectorSerializer<> TSerializer;
-};
-
-template <class T, unsigned size, class C>
-struct TSerializerTraits<std::unique_ptr<SmallVector<T, size>>, C, void>
 {
     typedef TOptionalVectorSerializer<> TSerializer;
 };

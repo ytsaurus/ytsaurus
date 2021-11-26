@@ -15,7 +15,6 @@
 #include <yt/yt/core/misc/variant.h>
 #include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/string.h>
-#include <yt/yt/core/misc/small_vector.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>

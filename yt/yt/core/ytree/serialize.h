@@ -8,7 +8,6 @@
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/mpl.h>
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/small_vector.h>
 
 #include <yt/yt/core/yson/writer.h>
 
@@ -117,10 +116,6 @@ void Serialize(const std::vector<T, A>& value, NYson::IYsonConsumer* consumer);
 template <class T, class A>
 void Serialize(const std::deque<T, A>& value, NYson::IYsonConsumer* consumer);
 
-// SmallVector
-template <class T, unsigned N>
-void Serialize(const SmallVector<T, N>& value, NYson::IYsonConsumer* consumer);
-
 // TCompactVector
 template <class T, size_t N>
 void Serialize(const TCompactVector<T, N>& value, NYson::IYsonConsumer* consumer);
@@ -215,10 +210,6 @@ void Deserialize(std::vector<T, A>& value, INodePtr node);
 // std::deque
 template <class T, class A>
 void Deserialize(std::deque<T, A>& value, INodePtr node);
-
-// SmallVector
-template <class T, unsigned N>
-void Deserialize(SmallVector<T, N>& value, INodePtr node);
 
 // TCompactVector
 template <class T, size_t N>

@@ -108,13 +108,6 @@ void Deserialize(
     TYsonPullParserCursor* cursor,
     std::enable_if_t<TEnumTraits<T>::IsEnum, void*> = nullptr);
 
-// SmallVector.
-template <class T, unsigned N>
-void Deserialize(
-    SmallVector<T, N>& value,
-    TYsonPullParserCursor* cursor,
-    std::enable_if_t<ArePullParserDeserializable<T>(), void*> = nullptr);
-
 // TCompactVector.
 template <class T, size_t N>
 void Deserialize(
