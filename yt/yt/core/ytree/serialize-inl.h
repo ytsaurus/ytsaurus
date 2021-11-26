@@ -364,13 +364,6 @@ void Serialize(const std::deque<T, A>& items, NYson::IYsonConsumer* consumer)
     NDetail::SerializeVector(items, consumer);
 }
 
-// SmallVector
-template <class T, unsigned N>
-void Serialize(const SmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
-{
-    NDetail::SerializeVector(items, consumer);
-}
-
 // TCompactVector
 template <class T, size_t N>
 void Serialize(const TCompactVector<T, N>& items, NYson::IYsonConsumer* consumer)
@@ -538,13 +531,6 @@ void Deserialize(std::vector<T, A>& value, INodePtr node)
 // std::deque
 template <class T, class A>
 void Deserialize(std::deque<T, A>& value, INodePtr node)
-{
-    NDetail::DeserializeVector(value, node);
-}
-
-// SmallVector
-template <class T, unsigned N>
-void Deserialize(SmallVector<T, N>& value, INodePtr node)
 {
     NDetail::DeserializeVector(value, node);
 }

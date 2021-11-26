@@ -109,9 +109,6 @@ constexpr TChecksum NullChecksum = 0;
 
 constexpr size_t CacheLineSize = 64;
 
-template <class T, unsigned Size>
-class SmallVector;
-
 template <class T, size_t N>
 class TCompactVector;
 

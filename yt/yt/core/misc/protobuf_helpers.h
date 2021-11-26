@@ -7,7 +7,6 @@
 #include "range.h"
 #include "ref.h"
 #include "serialize.h"
-#include "small_vector.h"
 
 #include <yt/yt/core/compression/public.h>
 
@@ -76,16 +75,6 @@ template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
     const std::vector<TOriginal>& originalArray);
-
-template <class TSerialized, class TOriginal>
-void ToProto(
-    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const SmallVectorImpl<TOriginal>& originalArray);
-
-template <class TSerialized, class TOriginal>
-void ToProto(
-    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const SmallVectorImpl<TOriginal>& originalArray);
 
 template <class TSerialized, class TOriginal, size_t Size>
 void ToProto(
