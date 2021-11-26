@@ -42,7 +42,7 @@ public:
     ~TJobRegistry();
 
     void RegisterJob(const TJobPtr& job);
-    void UnregisterJob(TJobPtr job);
+    void OnJobFinished(TJobPtr job);
 
     void Start();
     void Stop();

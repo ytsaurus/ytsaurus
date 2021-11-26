@@ -2035,7 +2035,8 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
     if (unsucceededJob->GetType() == EJobType::RemoveChunk &&
         !unsucceededJob->Error().FindMatching(NChunkClient::EErrorCode::NoSuchChunk))
     {
-        auto* node = unsucceededJob->GetNode();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* node = nodeTracker->GetNodeByAddress(unsucceededJob->NodeAddress());
         // If job was aborted due to node unregistration, do not reschedule job.
         if (!node->ReportedDataNodeHeartbeat()) {
             return;
@@ -2076,7 +2077,7 @@ void TChunkReplicator::OnJobRunning(const TJobPtr& job, IJobControllerCallbacks*
         YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
             job->GetJobId(),
             job->GetType(),
-            job->GetNode()->GetDefaultAddress(),
+            job->NodeAddress(),
             TInstant::Now() - job->GetStartTime(),
             job->GetChunkIdWithIndexes());
 

@@ -36,7 +36,7 @@ TJob::TJob(
     TChunkIdWithIndexes chunkIdWithIndexes)
     : JobId_(jobId)
     , Type_(type)
-    , Node_(node)
+    , NodeAddress_(IsObjectAlive(node) ? node->GetDefaultAddress() : "")
     , ResourceUsage_(resourceUsage)
     , ChunkIdWithIndexes_(chunkIdWithIndexes)
     , StartTime_(TInstant::Now())
@@ -106,7 +106,7 @@ void TRemovalJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobS
 
     bool isErasure = Chunk_->IsErasure();
     for (auto replica : Chunk_->StoredReplicas()) {
-        if (replica.GetPtr() == Node_) {
+        if (replica.GetPtr()->GetDefaultAddress() == NodeAddress_) {
             continue;
         }
         if (isErasure && replica.GetReplicaIndex() != ChunkIdWithIndexes_.ReplicaIndex) {
@@ -114,7 +114,6 @@ void TRemovalJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobS
         }
         jobSpecExt->add_replicas(ToProto<ui32>(replica));
     }
-
 
     const auto& configManager = bootstrap->GetConfigManager();
     const auto& config = configManager->GetConfig()->ChunkManager;
@@ -346,7 +345,7 @@ void TAutotomyJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* job
 
 void TAutotomyJob::SetNode(TNode* node)
 {
-    Node_ = node;
+    NodeAddress_ = node->GetDefaultAddress();
 }
 
 TNodeResources TAutotomyJob::GetResourceUsage()

@@ -66,6 +66,9 @@ struct TChunkDynamicData
     //! Set of jobs that are currently scheduled for this chunk.
     TJobSet Jobs;
 
+    //! Last finished job.
+    TJobPtr LastFinishedJob;
+
     //! All blob chunks are linked via this node, as are all journal
     //! chunks. (The two lists are separate.)
     TIntrusiveLinkedListNode<TChunk> LinkedListNode;
@@ -190,6 +193,7 @@ public:
     void SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value);
 
     const TChunkDynamicData::TJobSet& GetJobs() const;
+    const TJobPtr& GetLastFinishedJob() const;
 
     bool HasJobs() const;
     void AddJob(TJobPtr job);

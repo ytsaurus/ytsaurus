@@ -156,6 +156,11 @@ inline const TChunkDynamicData::TJobSet& TChunk::GetJobs() const
     return GetDynamicData()->Jobs;
 }
 
+inline const TJobPtr& TChunk::GetLastFinishedJob() const
+{
+    return GetDynamicData()->LastFinishedJob;
+}
+
 inline bool TChunk::HasJobs() const
 {
     return !GetJobs().empty();

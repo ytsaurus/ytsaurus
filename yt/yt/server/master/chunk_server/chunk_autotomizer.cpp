@@ -214,7 +214,7 @@ public:
                 "(JobId: %v, BodyChunkId: %v, Address: %v, Duration: %v, Timeout: %v)",
                 job->GetJobId(),
                 job->GetBodyChunkId(),
-                job->GetNode()->GetDefaultAddress(),
+                job->NodeAddress(),
                 jobDuration,
                 jobTimeout);
 
