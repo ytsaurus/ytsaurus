@@ -203,7 +203,7 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
     // Flushing written data using fsync/fdatasync creates bursty load on disk,
     // which has negative impact on read request latencies from SSD disks.
     // Here we explicitly call FlushFileRange to give finer control over disk usage to io_engine scheduler.
-    auto flushWritten = [this] () {
+    auto flushWritten = [&] {
         if (!SyncOnClose_) {
             return VoidFuture;
         }

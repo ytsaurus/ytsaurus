@@ -20,7 +20,7 @@ void CheckRead(i64 readRequestSize, i64 desiredSize, i64 minimalSize, const TBuf
         .Offset = 4096,
         .Size = readRequestSize 
     };
-    auto slices = TIoRequestSlicer(desiredSize, minimalSize).Slice(request, buffer);
+    auto slices = TIORequestSlicer(desiredSize, minimalSize).Slice(request, buffer);
 
     EXPECT_EQ(expectedSizes.size(), slices.size());
     
@@ -69,7 +69,7 @@ void CheckWrite(
         request.Buffers.push_back(TSharedMutableRef::Allocate(size));
     }
 
-    auto slices = TIoRequestSlicer(desiredSize, minimalSize).Slice(request);
+    auto slices = TIORequestSlicer(desiredSize, minimalSize).Slice(request);
     EXPECT_EQ(expectedSizes.size(), slices.size());
     i64 offset = request.Offset;
 
@@ -97,7 +97,7 @@ void CheckFlushFileRange(
         .Size = requestSize
     };
 
-    auto slices = TIoRequestSlicer(desiredSize, minimalSize).Slice(request);
+    auto slices = TIORequestSlicer(desiredSize, minimalSize).Slice(request);
     EXPECT_EQ(expectedSizes.size(), slices.size());
     i64 offset = request.Offset;
     

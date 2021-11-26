@@ -14,10 +14,10 @@ struct TSlicedReadRequest
     TMutableRef OutputBuffer;
 };
 
-class TIoRequestSlicer
+class TIORequestSlicer
 {
 public:
-    TIoRequestSlicer(i64 desiredSize, i64 minSize);
+    TIORequestSlicer(i64 desiredSize, i64 minSize);
 
     std::vector<TSlicedReadRequest> Slice(IIOEngine::TReadRequest request, TMutableRef buffer);
 
@@ -32,6 +32,8 @@ private:
     const i64 DesiredRequestSize_;
     const i64 MinRequestSize_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TDummyRequestSlicer
 {
