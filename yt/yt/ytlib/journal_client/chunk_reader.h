@@ -31,16 +31,6 @@ NChunkClient::IChunkReaderPtr CreateChunkReader(
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
-NChunkClient::IChunkReaderPtr CreateChunkPartReader(
-    TChunkReaderConfigPtr config,
-    NApi::NNative::IClientPtr client,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
-    NChunkClient::TChunkId chunkId,
-    NErasure::ECodec codecId,
-    const NChunkClient::TChunkReplicaList& replicas);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJournalClient
