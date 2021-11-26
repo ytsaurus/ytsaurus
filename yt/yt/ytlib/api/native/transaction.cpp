@@ -1,6 +1,7 @@
 #include "transaction.h"
 #include "connection.h"
 #include "config.h"
+#include "sync_replica_cache.h"
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
@@ -994,6 +995,40 @@ private:
                 return;
             }
 
+            YT_VERIFY(
+                !HasSimpleReplicas() ||
+                !HasChaosReplicas());
+
+            if (HasSimpleReplicas()) {
+                const auto& syncReplicaCache = transaction->Client_->GetNativeConnection()->GetSyncReplicaCache();
+                auto future = syncReplicaCache->Get(TableInfo_->Path);
+                if (auto result = future.TryGet()) {
+                    DoRegisterSyncReplicas(
+                        futures,
+                        transaction,
+                        result->ValueOrThrow());
+                } else {
+                    futures->push_back(future
+                        .Apply(BIND([=, this_ = MakeStrong(this)] (const TTableReplicaInfoPtrList& syncReplicas) {
+                            std::vector<TFuture<void>> futures;
+                            DoRegisterSyncReplicas(
+                                &futures,
+                                transaction,
+                                syncReplicas);
+                            return AllSucceeded(std::move(futures));
+                        })
+                        .AsyncVia(transaction->SerializedInvoker_)));
+                }
+            } else if (HasChaosReplicas()) {
+                DoRegisterSyncReplicas(futures, transaction, /* syncReplicas */ {});
+            }
+        }
+
+        void DoRegisterSyncReplicas(
+            std::vector<TFuture<void>>* futures,
+            const TTransactionPtr& transaction,
+            const TTableReplicaInfoPtrList& syncReplicas)
+        {
             auto registerReplica = [&] (const auto& replicaInfo) {
                 if (replicaInfo->Mode != ETableReplicaMode::Sync) {
                     return;
@@ -1015,11 +1050,30 @@ private:
                         }).AsyncVia(transaction->SerializedInvoker_)));
             };
 
-            for (const auto& replicaInfo : TableInfo_->Replicas) {
-                registerReplica(replicaInfo);
-            }
+            if (HasSimpleReplicas()) {
+                THashSet<TTableReplicaId> syncReplicaIds;
+                syncReplicaIds.reserve(syncReplicas.size());
+                for (const auto& syncReplicaInfo : syncReplicas) {
+                    syncReplicaIds.insert(syncReplicaInfo->ReplicaId);
+                }
 
-            if (ReplicationCard_) {
+                for (const auto& replicaInfo : TableInfo_->Replicas) {
+                    if (replicaInfo->Mode != ETableReplicaMode::Sync) {
+                        continue;
+                    }
+                    if (!syncReplicaIds.contains(replicaInfo->ReplicaId)) {
+                        futures->push_back(MakeFuture(TError(
+                            NTabletClient::EErrorCode::SyncReplicaNotInSync,
+                            "Cannot write to sync replica %v since it is not in-sync yet",
+                            replicaInfo->ReplicaId)));
+                        return;
+                    }
+                }
+
+                for (const auto& replicaInfo : TableInfo_->Replicas) {
+                    registerReplica(replicaInfo);
+                }
+            } else if (HasChaosReplicas()) {
                 for (const auto& chaosReplicaInfo : ReplicationCard_->Replicas) {
                     if (chaosReplicaInfo.Mode == EReplicaMode::Sync) {
                         auto replicaInfo = New<TTableReplicaInfo>();
@@ -1030,6 +1084,16 @@ private:
                     }
                 }
             }
+        }
+
+        bool HasSimpleReplicas() const
+        {
+            return !TableInfo_->Replicas.empty();
+        }
+
+        bool HasChaosReplicas() const
+        {
+            return static_cast<bool>(ReplicationCard_);
         }
     };
 

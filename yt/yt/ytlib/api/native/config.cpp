@@ -222,12 +222,18 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("enable_networking", EnableNetworking)
         .Default(true);
 
+    RegisterParameter("sync_replica_cache", SyncReplicaCache)
+        .DefaultNew();
+
     RegisterPreprocessor([&] {
         FunctionImplCache->Capacity = 100;
 
         JobShellDescriptorCache->ExpireAfterAccessTime = TDuration::Minutes(5);
         JobShellDescriptorCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
         JobShellDescriptorCache->RefreshTime = TDuration::Minutes(1);
+
+        SyncReplicaCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
+        SyncReplicaCache->RefreshTime = TDuration::Seconds(5);
     });
 }
 

@@ -1,4 +1,7 @@
 #include "tablet_helpers.h"
+#include "config.h"
+#include "connection.h"
+#include "tablet_sync_replica_cache.h"
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
@@ -269,6 +272,204 @@ TTabletInfoPtr GetOrderedTabletForRow(
     return tabletInfo;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsReplicaSync(
+    const NQueryClient::NProto::TReplicaInfo& replicaInfo,
+    const NQueryClient::NProto::TTabletInfo& tabletInfo)
+{
+    return
+        FromProto<ETableReplicaMode>(replicaInfo.mode()) == ETableReplicaMode::Sync &&
+        replicaInfo.current_replication_row_index() >= tabletInfo.total_row_count();
+}
+
+TTableReplicaInfoPtrList OnTabletInfosReceived(
+    const IConnectionPtr& connection,
+    const TTableMountInfoPtr& tableInfo,
+    int totalTabletCount,
+    std::optional<TInstant> cachedSyncReplicasAt,
+    THashMap<TTableReplicaId, int> replicaIdToCount,
+    const std::vector<NQueryClient::TQueryServiceProxy::TRspGetTabletInfoPtr>& responses)
+{
+    const auto& Logger = connection->GetLogger();
+
+    THashMap<TTabletId, TTableReplicaIdList> tabletIdToSyncReplicaIds;
+
+    for (const auto& response : responses) {
+        for (const auto& protoTabletInfo : response->tablets()) {
+            TTableReplicaIdList* syncReplicaIds = nullptr;
+            if (cachedSyncReplicasAt) {
+                auto tabletId = FromProto<TTabletId>(protoTabletInfo.tablet_id());
+                auto [it, emplaced] = tabletIdToSyncReplicaIds.try_emplace(tabletId);
+                YT_VERIFY(emplaced);
+                syncReplicaIds = &it->second;
+            }
+
+            for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
+                if (IsReplicaSync(protoReplicaInfo, protoTabletInfo)) {
+                    auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
+                    ++replicaIdToCount[replicaId];
+                    if (cachedSyncReplicasAt) {
+                        syncReplicaIds->push_back(replicaId);
+                    }
+                }
+            }
+        }
+    }
+
+    if (cachedSyncReplicasAt && !tabletIdToSyncReplicaIds.empty()) {
+        connection->GetTabletSyncReplicaCache()->Put(
+            *cachedSyncReplicasAt,
+            std::move(tabletIdToSyncReplicaIds));
+    }
+
+    TTableReplicaInfoPtrList inSyncReplicaInfos;
+    for (const auto& replicaInfo : tableInfo->Replicas) {
+        auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
+        if (it != replicaIdToCount.end() && it->second == totalTabletCount) {
+            YT_LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
+                tableInfo->Path,
+                replicaInfo->ReplicaId,
+                replicaInfo->ClusterName);
+            inSyncReplicaInfos.push_back(replicaInfo);
+        }
+    }
+
+    return inSyncReplicaInfos;
+}
+
+TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
+    const IConnectionPtr& connection,
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTabletReadOptions& options,
+    THashMap<NObjectClient::TCellId, std::vector<NTabletClient::TTabletId>> cellIdToTabletIds)
+{
+    const auto& Logger = connection->GetLogger();
+
+    auto cachedSyncReplicasAt = options.CachedSyncReplicasTimeout
+        ? std::make_optional(TInstant::Now())
+        : std::nullopt;
+
+    int totalTabletCount = 0;
+    for (const auto& [cellId, tabletIds] : cellIdToTabletIds) {
+        totalTabletCount += tabletIds.size();
+    }
+
+    THashMap<TTableReplicaId, int> replicaIdToCount;
+
+    int cachedTabletCount = 0;
+    if (cachedSyncReplicasAt) {
+        auto cachedSyncReplicasDeadline = *cachedSyncReplicasAt - *options.CachedSyncReplicasTimeout;
+        auto syncReplicaIdLists = connection->GetTabletSyncReplicaCache()->Filter(
+            &cellIdToTabletIds,
+            cachedSyncReplicasDeadline);
+        for (const auto& syncReplicaIds : syncReplicaIdLists) {
+            for (auto syncReplicaId : syncReplicaIds) {
+                ++replicaIdToCount[syncReplicaId];
+            }
+            ++cachedTabletCount;
+        }
+    }
+
+    YT_LOG_DEBUG("Looking for in-sync replicas "
+        "(Path: %v, CellCount: %v, TotalTabletCount: %v, CachedTabletCount: %v)",
+        tableInfo->Path,
+        cellIdToTabletIds.size(),
+        totalTabletCount,
+        cachedTabletCount);
+
+    const auto& channelFactory = connection->GetChannelFactory();
+    const auto& cellDirectory = connection->GetCellDirectory();
+
+    std::vector<TFuture<NQueryClient::TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncResults;
+    if (!cachedSyncReplicasAt) {
+        asyncResults.reserve(cellIdToTabletIds.size());
+    }
+
+    for (const auto& [cellId, tabletIds] : cellIdToTabletIds) {
+        if (tabletIds.empty()) {
+            continue;
+        }
+
+        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+        auto channel = CreateTabletReadChannel(
+            channelFactory,
+            cellDescriptor,
+            options,
+            connection->GetNetworks());
+
+        NQueryClient::TQueryServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(options.Timeout.value_or(connection->GetConfig()->DefaultGetInSyncReplicasTimeout));
+
+        auto req = proxy.GetTabletInfo();
+        ToProto(req->mutable_tablet_ids(), tabletIds);
+        for (int index = 0; index < std::ssize(tabletIds); ++index) {
+            ToProto(req->add_cell_ids(), cellId);
+        }
+
+        asyncResults.push_back(req->Invoke());
+    }
+
+    auto asyncResult = AllSucceeded(std::move(asyncResults));
+    if (const auto& resultOrError = asyncResult.TryGet()) {
+        return MakeFuture(OnTabletInfosReceived(
+            connection,
+            tableInfo,
+            totalTabletCount,
+            cachedSyncReplicasAt,
+            std::move(replicaIdToCount),
+            resultOrError->ValueOrThrow()));
+    } else {
+        return asyncResult.Apply(BIND(
+            &OnTabletInfosReceived,
+            connection,
+            tableInfo,
+            totalTabletCount,
+            cachedSyncReplicasAt,
+            Passed(std::move(replicaIdToCount)))
+            .AsyncVia(GetCurrentInvoker()));
+    }
+}
+
+TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
+    const IConnectionPtr& connection,
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTabletReadOptions& options,
+    const std::vector<std::pair<NTableClient::TLegacyKey, int>>& keys)
+{
+    THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+    THashSet<TTabletId> tabletIds;
+    for (const auto& [key, _] : keys) {
+        auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
+        auto tabletId = tabletInfo->TabletId;
+        if (tabletIds.insert(tabletId).second) {
+            cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+        }
+    }
+
+    return PickInSyncReplicas(
+        connection,
+        tableInfo,
+        options,
+        std::move(cellIdToTabletIds));
+}
+
+TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
+    const IConnectionPtr& connection,
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTabletReadOptions& options)
+{
+    THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+    for (const auto& tabletInfo : tableInfo->Tablets) {
+        cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+    }
+
+    return PickInSyncReplicas(
+        connection,
+        tableInfo,
+        options,
+        std::move(cellIdToTabletIds));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,7 +11,7 @@ namespace NYT::NApi::NNative {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletSyncReplicaCache
-    : public TRefCounted    
+    : public TRefCounted
 {
 public:
     TTabletSyncReplicaCache();

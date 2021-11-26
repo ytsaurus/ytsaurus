@@ -46,10 +46,6 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTableReplicaInfoPtrList = TCompactVector<
-    NTabletClient::TTableReplicaInfoPtr,
-    NTabletClient::TypicalTableReplicaCount>;
-
 DECLARE_REFCOUNTED_CLASS(TClient)
 
 class TClient
@@ -671,17 +667,6 @@ private:
     static TString PickRandomCluster(
         const std::vector<TString>& clusterNames);
 
-    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
-        const NTabletClient::TTableMountInfoPtr& tableInfo,
-        const TTabletReadOptions& options,
-        const std::vector<std::pair<NTableClient::TLegacyKey, int>>& keys);
-    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
-        const NTabletClient::TTableMountInfoPtr& tableInfo,
-        const TTabletReadOptions& options);
-    TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
-        const NTabletClient::TTableMountInfoPtr& tableInfo,
-        const TTabletReadOptions& options,
-        THashMap<NObjectClient::TCellId, std::vector<NTabletClient::TTabletId>> cellIdToTabletIds);
     TTableReplicaInfoPtrList OnTabletInfosReceived(
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         int totalTabletCount,
@@ -710,9 +695,6 @@ private:
         const NYPath::TYPath& path,
         const TPullRowsOptions& options);
 
-    static bool IsReplicaSync(
-        const NQueryClient::NProto::TReplicaInfo& replicaInfo,
-        const NQueryClient::NProto::TTabletInfo& tabletInfo);
     static bool IsReplicaInSync(
         const NQueryClient::NProto::TReplicaInfo& replicaInfo,
         const NQueryClient::NProto::TTabletInfo& tabletInfo,

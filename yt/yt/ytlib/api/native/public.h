@@ -13,6 +13,7 @@ DECLARE_REFCOUNTED_STRUCT(IClient)
 DECLARE_REFCOUNTED_STRUCT(ITransaction)
 DECLARE_REFCOUNTED_CLASS(TClientCache)
 DECLARE_REFCOUNTED_CLASS(TStickyGroupSizeCache)
+DECLARE_REFCOUNTED_CLASS(TSyncReplicaCache)
 DECLARE_REFCOUNTED_CLASS(TTabletSyncReplicaCache)
 
 DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
@@ -22,6 +23,10 @@ DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
 struct TConnectionOptions;
 
 class TTabletSyncReplicaCache;
+
+using TTableReplicaInfoPtrList = TCompactVector<
+    NTabletClient::TTableReplicaInfoPtr,
+    NTabletClient::TypicalTableReplicaCount>;
 
 using TTableReplicaIdList = TCompactVector<
     NTabletClient::TTableReplicaId,

@@ -22,6 +22,8 @@
 
 #include <yt/yt/client/chaos_client/public.h>
 
+#include <yt/yt/core/logging/public.h>
+
 #include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
@@ -82,6 +84,7 @@ struct IConnection
 
     virtual const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() = 0;
 
+    virtual const TSyncReplicaCachePtr& GetSyncReplicaCache() = 0;
     virtual const TTabletSyncReplicaCachePtr& GetTabletSyncReplicaCache() = 0;
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
@@ -94,6 +97,8 @@ struct IConnection
     virtual TFuture<void> SyncHiveCellWithOthers(
         const std::vector<NElection::TCellId>& srcCellIds,
         NElection::TCellId dstCellId) = 0;
+
+    virtual const NLogging::TLogger& GetLogger() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

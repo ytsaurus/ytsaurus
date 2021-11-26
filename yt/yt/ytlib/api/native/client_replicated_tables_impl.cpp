@@ -1,7 +1,6 @@
 #include "client_impl.h"
 #include "connection.h"
 #include "tablet_helpers.h"
-#include "tablet_sync_replica_cache.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
@@ -28,15 +27,6 @@ using namespace NYPath;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-bool TClient::IsReplicaSync(
-    const NQueryClient::NProto::TReplicaInfo& replicaInfo,
-    const NQueryClient::NProto::TTabletInfo& tabletInfo)
-{
-    return
-        FromProto<ETableReplicaMode>(replicaInfo.mode()) == ETableReplicaMode::Sync &&
-        replicaInfo.current_replication_row_index() >= tabletInfo.total_row_count();
-}
 
 bool TClient::IsReplicaInSync(
     const NQueryClient::NProto::TReplicaInfo& replicaInfo,
@@ -215,186 +205,6 @@ TString TClient::PickRandomCluster(
     return clusterNames[RandomNumber<size_t>() % clusterNames.size()];
 }
 
-TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
-    const TTableMountInfoPtr& tableInfo,
-    const TTabletReadOptions& options,
-    const std::vector<std::pair<NTableClient::TLegacyKey, int>>& keys)
-{
-    THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
-    THashSet<TTabletId> tabletIds;
-    for (const auto& [key, _] : keys) {
-        auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-        auto tabletId = tabletInfo->TabletId;
-        if (tabletIds.insert(tabletId).second) {
-            cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
-        }
-    }
-    return PickInSyncReplicas(
-        tableInfo,
-        options,
-        std::move(cellIdToTabletIds));
-}
-
-TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
-    const TTableMountInfoPtr& tableInfo,
-    const TTabletReadOptions& options)
-{
-    THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
-    for (const auto& tabletInfo : tableInfo->Tablets) {
-        cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
-    }
-    return PickInSyncReplicas(
-        tableInfo,
-        options,
-        std::move(cellIdToTabletIds));
-}
-
-TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
-    const TTableMountInfoPtr& tableInfo,
-    const TTabletReadOptions& options,
-    THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds)
-{
-    auto cachedSyncReplicasAt = options.CachedSyncReplicasTimeout
-        ? std::make_optional(TInstant::Now())
-        : std::nullopt;
-
-    int totalTabletCount = 0;
-    for (const auto& [cellId, tabletIds] : cellIdToTabletIds) {
-        totalTabletCount += tabletIds.size();
-    }
-
-    THashMap<TTableReplicaId, int> replicaIdToCount;
-
-    int cachedTabletCount = 0;
-    if (cachedSyncReplicasAt) {
-        auto cachedSyncReplicasDeadline = *cachedSyncReplicasAt - *options.CachedSyncReplicasTimeout;
-        auto syncReplicaIdLists = Connection_->GetTabletSyncReplicaCache()->Filter(
-            &cellIdToTabletIds,
-            cachedSyncReplicasDeadline);
-        for (const auto& syncReplicaIds : syncReplicaIdLists) {
-            for (auto syncReplicaId : syncReplicaIds) {
-                ++replicaIdToCount[syncReplicaId];
-            }
-            ++cachedTabletCount;
-        }
-    }
-
-    YT_LOG_DEBUG("Looking for in-sync replicas "
-        "(Path: %v, CellCount: %v, TotalTabletCount: %v, CachedTabletCount: %v)",
-        tableInfo->Path,
-        cellIdToTabletIds.size(),
-        totalTabletCount,
-        cachedTabletCount);
-
-    const auto& channelFactory = Connection_->GetChannelFactory();
-    const auto& cellDirectory = Connection_->GetCellDirectory();
-
-    std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncResults;
-    if (!cachedSyncReplicasAt) {
-        asyncResults.reserve(cellIdToTabletIds.size());
-    }
-
-    for (const auto& [cellId, tabletIds] : cellIdToTabletIds) {
-        if (tabletIds.empty()) {
-            continue;
-        }
-
-        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
-        auto channel = CreateTabletReadChannel(
-            channelFactory,
-            cellDescriptor,
-            options,
-            Connection_->GetNetworks());
-
-        TQueryServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
-
-        auto req = proxy.GetTabletInfo();
-        ToProto(req->mutable_tablet_ids(), tabletIds);
-        for (int index = 0; index < std::ssize(tabletIds); ++index) {
-            ToProto(req->add_cell_ids(), cellId);
-        }
-
-        asyncResults.push_back(req->Invoke());
-    }
-
-    auto asyncResult = AllSucceeded(std::move(asyncResults));
-    if (const auto& resultOrError = asyncResult.TryGet()) {
-        return MakeFuture(OnTabletInfosReceived(
-            tableInfo,
-            totalTabletCount,
-            cachedSyncReplicasAt,
-            std::move(replicaIdToCount),
-            resultOrError->ValueOrThrow()));
-    } else {
-        return asyncResult.Apply(BIND(
-            &TClient::OnTabletInfosReceived,
-            MakeStrong(this),
-            tableInfo,
-            totalTabletCount,
-            cachedSyncReplicasAt,
-            Passed(std::move(replicaIdToCount)))
-            .AsyncVia(GetCurrentInvoker()));
-    }
-}
-
-TTableReplicaInfoPtrList TClient::OnTabletInfosReceived(
-    const TTableMountInfoPtr& tableInfo,
-    int totalTabletCount,
-    std::optional<TInstant> cachedSyncReplicasAt,
-    THashMap<TTableReplicaId, int> replicaIdToCount,
-    const std::vector<TQueryServiceProxy::TRspGetTabletInfoPtr>& responses)
-{
-    THashMap<TTabletId, TTableReplicaIdList> tabletIdToSyncReplicaIds;
-
-    for (const auto& response : responses) {
-        for (const auto& protoTabletInfo : response->tablets()) {
-            TTableReplicaIdList* syncReplicaIds = nullptr;
-            if (cachedSyncReplicasAt) {
-                auto tabletId = FromProto<TTabletId>(protoTabletInfo.tablet_id());
-                auto [it, emplaced] = tabletIdToSyncReplicaIds.try_emplace(tabletId);
-                YT_VERIFY(emplaced);
-                syncReplicaIds = &it->second;
-            }
-
-            for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
-                if (IsReplicaSync(protoReplicaInfo, protoTabletInfo)) {
-                    auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
-                    ++replicaIdToCount[replicaId];
-                    if (cachedSyncReplicasAt) {
-                        syncReplicaIds->push_back(replicaId);
-                    }
-                }
-            }
-        }
-    }
-
-    if (cachedSyncReplicasAt && !tabletIdToSyncReplicaIds.empty()) {
-        Connection_->GetTabletSyncReplicaCache()->Put(
-            *cachedSyncReplicasAt,
-            std::move(tabletIdToSyncReplicaIds));
-    }
-
-    TTableReplicaInfoPtrList inSyncReplicaInfos;
-    for (const auto& replicaInfo : tableInfo->Replicas) {
-        auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
-        if (it != replicaIdToCount.end() && it->second == totalTabletCount) {
-            YT_LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
-                tableInfo->Path,
-                replicaInfo->ReplicaId,
-                replicaInfo->ClusterName);
-            inSyncReplicaInfos.push_back(replicaInfo);
-        }
-    }
-
-    if (inSyncReplicaInfos.empty()) {
-        THROW_ERROR_EXCEPTION("No in-sync replicas found for table %v",
-            tableInfo->Path);
-    }
-
-    return inSyncReplicaInfos;
-}
-
 std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
     const TTabletReadOptions& options,
     NAst::TQuery* query)
@@ -433,7 +243,10 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
 
     std::vector<TFuture<TTableReplicaInfoPtrList>> asyncCandidates;
     for (size_t tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
-        asyncCandidates.push_back(PickInSyncReplicas(tableInfos[tableIndex], options));
+        asyncCandidates.push_back(PickInSyncReplicas(
+            Connection_,
+            tableInfos[tableIndex],
+            options));
     }
 
     auto candidates = WaitFor(AllSucceeded(asyncCandidates))
@@ -555,7 +368,7 @@ NApi::IClientPtr TClient::GetOrCreateReplicaClient(const TString& clusterName)
     })
         .AsyncVia(Connection_->GetInvoker())
         .Run();
-    
+
     replicaClient->AsyncClient = asyncClient;
     writerGuard.Release();
 
