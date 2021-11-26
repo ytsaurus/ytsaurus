@@ -323,6 +323,15 @@ class TestChunkServer(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
+    @authors("kvk1920")
+    def test_last_finished_job(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) == 3)
+        jobs = get("//sys/chunks/{}/@jobs".format(chunk_id))
+        assert 1 == len(jobs) and "completed" == jobs[0]["state"]
+
 
 ##################################################################
 

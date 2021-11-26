@@ -61,7 +61,9 @@ void TJobRegistry::Stop()
 
 void TJobRegistry::RegisterJob(const TJobPtr& job)
 {
-    job->GetNode()->RegisterJob(job);
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    auto* node = nodeTracker->FindNodeByAddress(job->NodeAddress());
+    node->RegisterJob(job);
 
     auto jobType = job->GetType();
     ++RunningJobs_[jobType];
@@ -79,12 +81,14 @@ void TJobRegistry::RegisterJob(const TJobPtr& job)
     YT_LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Address: %v)",
         job->GetJobId(),
         job->GetType(),
-        job->GetNode()->GetDefaultAddress());
+        job->NodeAddress());
 }
 
-void TJobRegistry::UnregisterJob(TJobPtr job)
+void TJobRegistry::OnJobFinished(TJobPtr job)
 {
-    job->GetNode()->UnregisterJob(job);
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    auto* node = nodeTracker->FindNodeByAddress(job->NodeAddress());
+    node->UnregisterJob(job);
     auto jobType = job->GetType();
     --RunningJobs_[jobType];
 
@@ -107,13 +111,14 @@ void TJobRegistry::UnregisterJob(TJobPtr job)
     auto* chunk = chunkManager->FindChunk(chunkId);
     if (chunk) {
         chunk->RemoveJob(job);
+        chunk->GetDynamicData()->LastFinishedJob = job;
         chunkManager->ScheduleChunkRefresh(chunk);
     }
 
     YT_LOG_DEBUG("Job unregistered (JobId: %v, JobType: %v, Address: %v)",
         job->GetJobId(),
         job->GetType(),
-        job->GetNode()->GetDefaultAddress());
+        job->NodeAddress());
 }
 
 bool TJobRegistry::IsOverdraft() const

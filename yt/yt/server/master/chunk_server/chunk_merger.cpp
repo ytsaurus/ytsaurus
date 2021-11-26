@@ -557,7 +557,7 @@ void TChunkMerger::OnJobRunning(const TMergeJobPtr& job, IJobControllerCallbacks
         YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
             job->GetJobId(),
             job->GetType(),
-            job->GetNode()->GetDefaultAddress(),
+            job->NodeAddress(),
             TInstant::Now() - job->GetStartTime(),
             job->GetChunkIdWithIndexes());
 

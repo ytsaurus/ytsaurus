@@ -1431,7 +1431,7 @@ public:
             ToProto(response->add_jobs_to_remove(), {jobId});
 
             if (auto job = node->FindJob(jobId)) {
-                JobRegistry_->UnregisterJob(job);
+                JobRegistry_->OnJobFinished(job);
             }
         };
 
@@ -4662,7 +4662,7 @@ private:
 
         JobController_->OnJobAborted(job);
 
-        JobRegistry_->UnregisterJob(job);
+        JobRegistry_->OnJobFinished(job);
     }
 
     std::vector<TError> GetAlerts() const

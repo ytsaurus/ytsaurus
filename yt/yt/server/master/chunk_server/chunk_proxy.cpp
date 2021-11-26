@@ -741,20 +741,23 @@ private:
 
             case EInternedAttributeKey::Jobs: {
                 RequireLeader();
-                BuildYsonFluently(consumer)
-                    .DoListFor(
-                        chunk->GetJobs(),
-                        [&] (TFluentList fluent, const TJobPtr& job) {
-                            fluent
-                                .Item()
-                                .BeginMap()
-                                    .Item("id").Value(job->GetJobId())
-                                    .Item("type").Value(job->GetType())
-                                    .Item("start_time").Value(job->GetStartTime())
-                                    .Item("address").Value(job->GetNode()->GetDefaultAddress())
-                                    .Item("state").Value(job->GetState())
-                                .EndMap();
-                        });
+                auto list = BuildYsonFluently(consumer).BeginList();
+                auto addJob = [&] (const TJobPtr& job) {
+                    list.Item().BeginMap()
+                        .Item("id").Value(job->GetJobId())
+                        .Item("type").Value(job->GetType())
+                        .Item("start_time").Value(job->GetStartTime())
+                        .Item("address").Value(job->NodeAddress())
+                        .Item("state").Value(job->GetState())
+                    .EndMap();
+                };
+                for (const auto& job : chunk->GetJobs()) {
+                    addJob(job);
+                }
+                if (const auto& lastFinishedJob = chunk->GetLastFinishedJob()) {
+                    addJob(lastFinishedJob);
+                }
+                list.EndList();
                 return true;
             }
 
