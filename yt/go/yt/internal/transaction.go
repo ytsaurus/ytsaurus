@@ -100,7 +100,7 @@ func (t *TxInterceptor) Abort() (err error) {
 }
 
 func (t *TxInterceptor) Commit() (err error) {
-	return t.pinger.TryAbort(func() error {
+	return t.pinger.TryCommit(func() error {
 		return t.Client.CommitTx(t.pinger.ctx, t.pinger.txID, nil)
 	})
 }
