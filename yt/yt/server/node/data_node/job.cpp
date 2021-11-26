@@ -1214,6 +1214,8 @@ public:
 private:
     const TMergeChunksJobSpecExt JobSpecExt_;
     const TCellTag CellTag_;
+    bool DeepMergeFallbackOccurred_ = false;
+    NChunkClient::EChunkMergerMode MergeMode_;
 
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
@@ -1234,6 +1236,14 @@ private:
         TClientChunkReadOptions Options;
     };
     std::vector<TChunkInfo> InputChunkInfos_;
+
+    void SetMergeJobResult()
+    {
+        auto* jobResultExt = Result_.MutableExtension(TMergeChunksJobResultExt::merge_chunks_job_result_ext);
+        if (MergeMode_ == NChunkClient::EChunkMergerMode::Auto) {
+            jobResultExt->set_deep_merge_fallback_occurred(DeepMergeFallbackOccurred_);
+        }
+    }
 
     void DoRun() override
     {
@@ -1257,11 +1267,11 @@ private:
             MaxBlockCount_ = chunkMergerWriterOptions.max_block_count();
         }
 
-        auto mergeMode = CheckedEnumCast<NChunkClient::EChunkMergerMode>(chunkMergerWriterOptions.merge_mode());
-        YT_LOG_DEBUG("Merge job started (Mode: %v)", mergeMode);
+        MergeMode_ = CheckedEnumCast<NChunkClient::EChunkMergerMode>(chunkMergerWriterOptions.merge_mode());
+        YT_LOG_DEBUG("Merge job started (Mode: %v)", MergeMode_);
 
         PrepareInputChunkMetas();
-        switch (mergeMode) {
+        switch (MergeMode_) {
             case NChunkClient::EChunkMergerMode::Shallow:
                 MergeShallow();
                 break;
@@ -1276,12 +1286,14 @@ private:
                         throw;
                     }
                     YT_LOG_DEBUG(ex, "Unable to merge chunks using shallow mode, falling back to deep merge");
+                    DeepMergeFallbackOccurred_ = true;
                     MergeDeep();
                 }
                 break;
             default:
-                THROW_ERROR_EXCEPTION("Cannot merge chunks in %Qlv mode", mergeMode);
+                THROW_ERROR_EXCEPTION("Cannot merge chunks in %Qlv mode", MergeMode_);
         }
+        SetMergeJobResult();
     }
 
     void PrepareInputChunkMetas()

@@ -93,6 +93,24 @@ def filter_tests(name_pred=None):
     return decorate_class
 
 
+def _get_all_master_profilers():
+    profilers = []
+    for i in range(len(ls("//sys/primary_masters"))):
+        profilers.append(profiler_factory().at_primary_master(master_index=i))
+    for cell_tag in ls("//sys/secondary_masters"):
+        for i in range(len(ls("//sys/secondary_masters/{0}".format(cell_tag)))):
+            profilers.append(profiler_factory().at_secondary_master(cell_tag=cell_tag, master_index=i))
+    return profilers
+
+
+def get_all_master_counters(path, *args, **kwargs):
+    return [profiler.counter(path, *args, **kwargs) for profiler in _get_all_master_profilers()]
+
+
+def get_all_master_gauges(path, *args, **kwargs):
+    return [profiler.gauge(path, *args, **kwargs) for profiler in _get_all_master_profilers()]
+
+
 def skip_if_no_descending(env):
     if env.get_component_version("ytserver-master").abi <= (20, 3):
         pytest.skip("Masters do not support descending yet")
