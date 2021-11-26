@@ -95,7 +95,7 @@ class TestAuth(YTEnvSetup):
 
         tvm_port = yatest.common.network.PortManager().get_port()
         cls.fake_tvm = yatest.common.execute([
-            yatest.common.binary_path("passport/go/daemons/tvmtool/cmd/tvmtool"),
+            yatest.common.binary_path("passport/infra/daemons/tvmtool/cmd/tvmtool"),
             "--unittest",
             "--port", str(tvm_port),
             "--config", tvm_config_path,
