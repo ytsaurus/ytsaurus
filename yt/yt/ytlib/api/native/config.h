@@ -163,6 +163,8 @@ public:
     //! May be disabled for snapshot validation purposes.
     bool EnableNetworking;
 
+    TAsyncExpiringCacheConfigPtr SyncReplicaCache;
+
     TConnectionConfig();
 };
 

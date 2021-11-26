@@ -69,6 +69,7 @@ DEFINE_ENUM(EErrorCode,
     ((CannotCheckConflictsAgainstChunkStore)  (1729))
     ((InvalidBackupState)                     (1730))
     ((WriteRetryIsImpossible)                 (1731))
+    ((SyncReplicaNotInSync)                   (1732))
 );
 
 DEFINE_ENUM(EInMemoryMode,

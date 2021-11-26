@@ -12,9 +12,10 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_flush_table, sync_enable_table_replica, sync_disable_table_replica,
     remove_table_replica, alter_table_replica, get_in_sync_replicas, sync_alter_table_replica_mode,
-    get_driver, SyncLastCommittedTimestamp)
+    get_driver, SyncLastCommittedTimestamp, raises_yt_error)
 
 from yt.test_helpers import are_items_equal, assert_items_equal
+import yt_error_codes
 from yt.wrapper import YtError, YtResponseError
 import yt.yson as yson
 
@@ -159,6 +160,19 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
     def _create_cells(self):
         sync_create_cells(1)
         sync_create_cells(1, driver=self.replica_driver)
+
+    def _check_replication_is_banned(self, rows, dummy, replica_driver):
+        rows[0]["value2"] = dummy["counter"]
+        dummy["counter"] += 1
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
+        try:
+            wait(
+                lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=replica_driver) == rows,
+                iter=5,
+                sleep_backoff=1)
+            return False
+        except WaitFailed:
+            return True
 
 
 ##################################################################
@@ -2380,23 +2394,10 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("akozhikhov")
     @pytest.mark.parametrize("remove_list", [True, False])
     def test_banned_clusters_in_replicator(self, remove_list):
-        def _check_replicator_failed(rows, dummy):
-            rows[0]["value2"] = dummy["counter"]
-            dummy["counter"] += 1
-            insert_rows("//tmp/t", rows, require_sync_replica=False)
-            try:
-                wait(
-                    lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == rows,
-                    iter=5,
-                    sleep_backoff=1)
-                return False
-            except WaitFailed:
-                return True
-
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, min_replication_log_ttl=0)
+        self._create_replicated_table("//tmp/t", min_replication_log_ttl=0)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async"})
-        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
+        self._create_replica_table("//tmp/r", replica_id)
         sync_enable_table_replica(replica_id)
 
         rows = [{"key": 0, "value1": "0", "value2": 0}]
@@ -2407,7 +2408,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             [self.REPLICA_CLUSTER_NAME])
 
         dummy = {"counter": 1}
-        wait(lambda: _check_replicator_failed(rows, dummy))
+        wait(lambda: self._check_replication_is_banned(rows, dummy, self.replica_driver))
 
         if remove_list:
             remove("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters")
@@ -2614,6 +2615,27 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert lambda: get("#{}/@mode".format(replica2)) == get("#{}/@mode".format(replica4))
         assert lambda: get("#{}/@mode".format(replica1)) != get("#{}/@mode".format(replica2))
         assert lambda: get("#{}/@mode".format(replica3)) != get("#{}/@mode".format(replica4))
+
+    @authors("akozhikhov")
+    def test_forbid_write_if_not_in_sync(self):
+        self._create_cells()
+
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", replica_id)
+        sync_enable_table_replica(replica_id)
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters",
+            [self.REPLICA_CLUSTER_NAME])
+
+        rows = [{"key": 0, "value1": "0", "value2": 0}]
+        dummy = {"counter": 1}
+        wait(lambda: self._check_replication_is_banned(rows, dummy, self.replica_driver))
+
+        sync_alter_table_replica_mode(replica_id, "sync")
+
+        with raises_yt_error(yt_error_codes.SyncReplicaNotInSync):
+            insert_rows("//tmp/t", rows)
 
 
 ##################################################################

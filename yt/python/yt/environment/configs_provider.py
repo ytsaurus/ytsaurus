@@ -962,6 +962,12 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_access_time": 0,
             "refresh_time": 0
         },
+        "sync_replica_cache": {
+            "expire_after_successful_update_time": 0,
+            "expire_after_failed_update_time": 0,
+            "expire_after_access_time": 0,
+            "refresh_time": 0,
+        },
         "permission_cache": {
         },
         "master_cell_directory_synchronizer": {

@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/ytlib/query_client/query_service_proxy.h>
+
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -64,6 +66,22 @@ NTabletClient::TTabletInfoPtr GetOrderedTabletForRow(
     std::optional<int> tabletIndexColumnId,
     NTableClient::TLegacyKey key,
     bool validateWrite = false);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsReplicaSync(
+    const NQueryClient::NProto::TReplicaInfo& replicaInfo,
+    const NQueryClient::NProto::TTabletInfo& tabletInfo);
+
+TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
+    const IConnectionPtr& connection,
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTabletReadOptions& options,
+    const std::vector<std::pair<NTableClient::TLegacyKey, int>>& keys);
+TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
+    const IConnectionPtr& connection,
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTabletReadOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

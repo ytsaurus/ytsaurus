@@ -1,6 +1,7 @@
 #include "config.h"
 #include "connection.h"
 #include "client.h"
+#include "sync_replica_cache.h"
 #include "tablet_sync_replica_cache.h"
 #include "transaction_participant.h"
 #include "transaction.h"
@@ -241,6 +242,11 @@ public:
         QueryEvaluator_ = CreateEvaluator(Config_->QueryEvaluator);
         ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(Config_->ColumnEvaluatorCache);
 
+        SyncReplicaCache_ = New<TSyncReplicaCache>(
+            Config_->SyncReplicaCache,
+            this,
+            Logger);
+
         NodeDirectory_ = New<TNodeDirectory>();
         NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
             Config_->NodeDirectorySynchronizer,
@@ -296,6 +302,11 @@ public:
     const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() override
     {
         return StickyGroupSizeCache_;
+    }
+
+    const TSyncReplicaCachePtr& GetSyncReplicaCache() override
+    {
+        return SyncReplicaCache_;
     }
 
     const TTabletSyncReplicaCachePtr& GetTabletSyncReplicaCache() override
@@ -534,6 +545,11 @@ public:
             }));
     }
 
+    const NLogging::TLogger& GetLogger() override
+    {
+        return Logger;
+    }
+
 private:
     const TConnectionConfigPtr Config_;
     const TConnectionOptions Options_;
@@ -564,6 +580,7 @@ private:
     TPermissionCachePtr PermissionCache_;
     IEvaluatorPtr QueryEvaluator_;
     IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    TSyncReplicaCachePtr SyncReplicaCache_;
 
     TCellDirectoryPtr CellDirectory_;
     ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;

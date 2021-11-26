@@ -619,20 +619,25 @@ TRowset TClient::DoLookupRowsOnce(
 
     if (tableInfo->IsReplicated()) {
         auto inSyncReplicasFuture = PickInSyncReplicas(
+            Connection_,
             tableInfo,
             options,
             sortedKeys);
 
-        TReplicaFallbackInfo replicaFallbackInfo;
+        TTableReplicaInfoPtrList inSyncReplicas;
         if (auto inSyncReplicasOrError = inSyncReplicasFuture.TryGet()) {
-            replicaFallbackInfo = GetReplicaFallbackInfo(
-                inSyncReplicasOrError->ValueOrThrow());
+            inSyncReplicas = inSyncReplicasOrError->ValueOrThrow();
         } else {
-            auto inSyncReplicas = WaitFor(inSyncReplicasFuture)
+            inSyncReplicas = WaitFor(inSyncReplicasFuture)
                 .ValueOrThrow();
-            replicaFallbackInfo = GetReplicaFallbackInfo(inSyncReplicas);
         }
 
+        if (inSyncReplicas.empty()) {
+            THROW_ERROR_EXCEPTION("No in-sync replicas found for table %v",
+                tableInfo->Path);
+        }
+
+        auto replicaFallbackInfo = GetReplicaFallbackInfo(inSyncReplicas);
         return WaitFor(replicaFallbackHandler(replicaFallbackInfo))
             .ValueOrThrow();
     }
