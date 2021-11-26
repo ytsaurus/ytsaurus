@@ -3,7 +3,7 @@
 #include "private.h"
 
 #include <yt/yt/core/misc/chunked_memory_allocator.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 namespace NYT::NBus {
 
@@ -24,7 +24,7 @@ DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EPacketFlags, ui16,
 
 constexpr ui32 PacketSignature = 0x78616d4f;
 constexpr ui32 NullPacketPartSize = 0xffffffff;
-constexpr int TypicalPacketPartCount = 64;
+constexpr int TypicalPacketPartCount = 16;
 constexpr int TypicalVariableHeaderSize = TypicalPacketPartCount * (sizeof (ui32) + sizeof (ui64));
 
 struct TPacketHeader
@@ -74,7 +74,7 @@ protected:
 
     TPacketHeader FixedHeader_;
 
-    SmallVector<char, TypicalVariableHeaderSize> VariableHeader_;
+    TCompactVector<char, TypicalVariableHeaderSize> VariableHeader_;
     size_t VariableHeaderSize_;
     ui32* PartSizes_;
     ui64* PartChecksums_;
@@ -91,7 +91,6 @@ protected:
     void SetFinished();
 
     TDerived* AsDerived();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,7 +127,6 @@ private:
     bool EndVariableHeaderPhase();
     bool EndMessagePartPhase();
     void NextMessagePartPhase();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,7 +161,6 @@ private:
     bool EndVariableHeaderPhase();
     bool EndMessagePartPhase();
     void NextMessagePartPhase();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
