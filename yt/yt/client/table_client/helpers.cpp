@@ -76,7 +76,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
             return;
         }
 
-        switch (tableSchema.Columns()[id].GetPhysicalType()) {
+        switch (tableSchema.Columns()[id].GetWireType()) {
             case EValueType::Boolean:
                 rowBuilder.AddValue(MakeUnversionedBooleanValue(value->GetValue<bool>(), id));
                 break;
@@ -95,8 +95,10 @@ TUnversionedOwningRow YsonToSchemafulRow(
             case EValueType::Any:
                 rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id));
                 break;
-            case EValueType::Null:
             case EValueType::Composite:
+                rowBuilder.AddValue(MakeUnversionedCompositeValue(ConvertToYsonString(value).AsStringBuf(), id));
+                break;
+            case EValueType::Null:
 
             case EValueType::Min:
             case EValueType::Max:

@@ -404,7 +404,7 @@ void FromProto(
 void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSchema& schema)
 {
     protoSchema->set_name(schema.Name());
-    protoSchema->set_type(NYT::ToProto<int>(schema.GetPhysicalType()));
+    protoSchema->set_type(NYT::ToProto<int>(GetPhysicalType(schema.CastToV1Type())));
     auto typeV3Yson = ConvertToYsonString(TTypeV3LogicalTypeWrapper{schema.LogicalType()});
     protoSchema->set_type_v3(typeV3Yson.ToString());
     if (schema.Lock()) {
@@ -1522,7 +1522,7 @@ std::vector<TSharedRef> SerializeRowset(
         entry->set_name(column.Name());
         // we save physical type for backward compatibility
         // COMPAT(babenko)
-        entry->set_type(ToProto<int>(column.GetPhysicalType()));
+        entry->set_type(ToProto<int>(column.GetWireType()));
         // TODO (ermolovd) YT-7178, support complex schemas.
         if (!column.IsOfV1Type()) {
             THROW_ERROR_EXCEPTION("Serialization of complex types is not supported yet")

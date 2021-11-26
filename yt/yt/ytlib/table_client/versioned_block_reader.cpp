@@ -47,7 +47,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     for (int id = 0; id < ChunkSchema_->GetColumnCount(); ++id) {
         const auto& columnSchema = ChunkSchema_->Columns()[id];
         ColumnHunkFlags_[id] = columnSchema.MaxInlineHunkSize().operator bool();
-        ColumnTypes_[id] = columnSchema.GetPhysicalType();
+        ColumnTypes_[id] = columnSchema.GetWireType();
     }
 
     auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);

@@ -44,7 +44,7 @@ void TValueConsumerBase::InitializeIdToTypeMapping()
         if (id >= static_cast<int>(NameTableIdToType_.size())) {
             NameTableIdToType_.resize(id + 1, EValueType::Any);
         }
-        NameTableIdToType_[id] = column.GetPhysicalType();
+        NameTableIdToType_[id] = column.GetWireType();
     }
 }
 
@@ -302,7 +302,7 @@ void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
     if (columnSchema.Aggregate() && Aggregate_) {
         valueCopy.Flags |= EValueFlags::Aggregate;
     }
-    if (columnSchema.GetPhysicalType() == EValueType::Any &&
+    if (columnSchema.IsOfV1Type(ESimpleLogicalValueType::Any) &&
         valueCopy.Type != EValueType::Any &&
         (valueCopy.Type != EValueType::Null || ConvertNullToEntity_))
     {

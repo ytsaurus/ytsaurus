@@ -190,7 +190,7 @@ private:
         estimatedSize = GetVersionedRowByteSize(keyCount, valueCount, 1, 0);
 
         for (const auto& column : TabletSnapshot_->TableSchema->Columns()) {
-            if (IsStringLikeType(column.GetPhysicalType())) {
+            if (IsStringLikeType(column.GetWireType())) {
                 estimatedSize += ExpectedStringSize - sizeof(TUnversionedValueData);
             }
         }

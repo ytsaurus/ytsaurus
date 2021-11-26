@@ -321,7 +321,7 @@ private:
     {
         TUnversionedValue value{};
         value.Id = index;
-        value.Type = Tablet_->GetPhysicalSchema()->Columns()[index].GetPhysicalType();
+        value.Type = Tablet_->GetPhysicalSchema()->Columns()[index].GetWireType();
         if (IsStringLikeType(value.Type)) {
             value.Length = data.String->Length;
             value.Data.String = data.String->Data;
@@ -423,7 +423,7 @@ private:
                     continue;
                 }
 
-                switch (columnIt->GetPhysicalType()) {
+                switch (columnIt->GetWireType()) {
                     case EValueType::Int64: {
                         i64 lhsData = lhsValue->Int64;
                         i64 rhsData = rhsValue->Int64;
@@ -504,7 +504,7 @@ private:
                  index < minLength;
                  ++index, nullKeyBit <<= 1, ++lhsValue, ++rhsValue, ++columnIt)
             {
-                auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType::Null : columnIt->GetPhysicalType();
+                auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType::Null : columnIt->GetWireType();
                 if (lhsType < rhsValue->Type) {
                     return -1;
                 } else if (lhsType > rhsValue->Type) {
@@ -2225,4 +2225,3 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, WriteDelete3)
 
 } // namespace
 } // namespace NYT::NTabletNode
-

@@ -339,7 +339,7 @@ TDivisors GetDivisors(const TSchemaColumns& columns, int keyIndex, TConstExpress
 
     TUnversionedValue one;
     one.Id = 0;
-    one.Type = columns[keyIndex].GetPhysicalType();
+    one.Type = columns[keyIndex].GetWireType();
     one.Data.Int64 = 1;
 
     if (auto referenceExpr = expr->As<TReferenceExpression>()) {
@@ -877,4 +877,3 @@ TRangeInferrer CreateRangeInferrer(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
-

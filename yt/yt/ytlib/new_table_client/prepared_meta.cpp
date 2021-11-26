@@ -182,7 +182,7 @@ size_t TPreparedChunkMeta::Prepare(
 
 
     for (int index = 0; index < std::ssize(chunkSchemaColumns); ++index) {
-        auto type = chunkSchemaColumns[index].GetPhysicalType();
+        auto type = GetPhysicalType(chunkSchemaColumns[index].CastToV1Type());
         bool valueColumn = index >= chunkSchema->GetKeyColumnCount();
 
         auto blockIds = preparedColumns[index].PrepareMetas(

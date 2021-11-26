@@ -1,4 +1,5 @@
 #include "logical_type_shortcuts.h"
+#include "yt/yt/client/table_client/logical_type.h"
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -39,6 +40,7 @@ TEST(TTableSchemaTest, ColumnTypeV1Deserialization)
         EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Int64), true);
         EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Uint64), false);
         EXPECT_EQ(column.CastToV1Type(), ESimpleLogicalValueType::Int64);
+        EXPECT_EQ(column.GetWireType(), EValueType::Int64);
         EXPECT_EQ(column.Required(), false);
         EXPECT_EQ(IsV3Composite(column.LogicalType()), false);
     }
@@ -55,6 +57,7 @@ TEST(TTableSchemaTest, ColumnTypeV1Deserialization)
         EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Uint64), true);
         EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Int64), false);
         EXPECT_EQ(column.CastToV1Type(), ESimpleLogicalValueType::Uint64);
+        EXPECT_EQ(column.GetWireType(), EValueType::Uint64);
         EXPECT_EQ(column.Required(), true);
         EXPECT_EQ(IsV3Composite(column.LogicalType()), false);
     }
@@ -71,6 +74,7 @@ TEST(TTableSchemaTest, ColumnTypeV1Deserialization)
         EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Null), true);
         EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Int64), false);
         EXPECT_EQ(column.CastToV1Type(), ESimpleLogicalValueType::Null);
+        EXPECT_EQ(column.GetWireType(), EValueType::Null);
         EXPECT_EQ(column.Required(), false);
         EXPECT_EQ(IsV3Composite(column.LogicalType()), false);
     }
@@ -101,6 +105,7 @@ TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
     EXPECT_EQ(listUtf8Column.IsOfV1Type(ESimpleLogicalValueType::Utf8), false);
     EXPECT_EQ(listUtf8Column.IsOfV1Type(ESimpleLogicalValueType::Any), false);
     EXPECT_EQ(listUtf8Column.CastToV1Type(), ESimpleLogicalValueType::Any);
+    EXPECT_EQ(listUtf8Column.GetWireType(), EValueType::Composite);
     EXPECT_EQ(IsV3Composite(listUtf8Column.LogicalType()), true);
 
     {
@@ -152,7 +157,29 @@ TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
         EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Utf8), false);
         EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Any), false);
         EXPECT_EQ(column.CastToV1Type(), ESimpleLogicalValueType::Any);
+        EXPECT_EQ(column.GetWireType(), EValueType::Composite);
         EXPECT_EQ(IsV3Composite(column.LogicalType()), true);
+    }
+
+    {
+        auto decimalColumn = ColumnFromYson(R"(
+            {
+              name=x;
+              type_v3={
+                type_name=decimal;
+                precision=4;
+                scale=2;
+              }
+            }
+        )");
+        EXPECT_EQ(*decimalColumn.LogicalType(), *Decimal(4, 2));
+        EXPECT_EQ(decimalColumn.Required(), true);
+        EXPECT_EQ(decimalColumn.IsOfV1Type(), false);
+        EXPECT_EQ(decimalColumn.IsOfV1Type(ESimpleLogicalValueType::String), false);
+        EXPECT_EQ(decimalColumn.IsOfV1Type(ESimpleLogicalValueType::Any), false);
+        EXPECT_EQ(decimalColumn.CastToV1Type(), ESimpleLogicalValueType::String);
+        EXPECT_EQ(decimalColumn.GetWireType(), EValueType::String);
+        EXPECT_EQ(IsV3Composite(decimalColumn.LogicalType()), false);
     }
 
     EXPECT_THROW_WITH_SUBSTRING(
@@ -381,14 +408,14 @@ TEST(TTableSchemaTest, ColumnSchemaProtobufBackwardCompatibility)
     FromProto(&columnSchema, columnSchemaProto);
 
     EXPECT_EQ(*columnSchema.LogicalType(), *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64)));
-    EXPECT_EQ(columnSchema.GetPhysicalType(), EValueType::Uint64);
+    EXPECT_EQ(columnSchema.GetWireType(), EValueType::Uint64);
     EXPECT_EQ(columnSchema.Name(), "foo");
 
     columnSchemaProto.set_simple_logical_type(static_cast<int>(ESimpleLogicalValueType::Uint32));
     FromProto(&columnSchema, columnSchemaProto);
 
     EXPECT_EQ(*columnSchema.LogicalType(), *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint32)));
-    EXPECT_EQ(columnSchema.GetPhysicalType(), EValueType::Uint64);
+    EXPECT_EQ(columnSchema.GetWireType(), EValueType::Uint64);
     EXPECT_EQ(columnSchema.Name(), "foo");
 }
 
