@@ -3,7 +3,7 @@
 #include "client.h"
 #include "private.h"
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -190,12 +190,12 @@ private:
     std::atomic<bool> PrimaryCanceled_ = false;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
-    SmallVector<IClientRequestControlPtr, 2> RequestControls_; // always at most 2 items
+    TCompactVector<IClientRequestControlPtr, 2> RequestControls_; // always at most 2 items
 
 
     void CancelSentRequests()
     {
-        SmallVector<IClientRequestControlPtr, 2> requestControls;
+        TCompactVector<IClientRequestControlPtr, 2> requestControls;
         {
             auto guard = Guard(SpinLock_);
             RequestControls_.swap(requestControls);

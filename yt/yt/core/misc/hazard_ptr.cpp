@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/free_list.h>
 #include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/intrusive_linked_list.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ring_queue.h>
@@ -101,7 +101,7 @@ struct THazardThreadState
 
     std::atomic<void*>* const HazardPointer;
     TRingQueue<TRetiredPtr> DeleteList;
-    SmallVector<void*, 64> ProtectedPointers;
+    TCompactVector<void*, 64> ProtectedPointers;
     bool Scanning = false;
 
     explicit THazardThreadState(std::atomic<void*>* hazardPointer)

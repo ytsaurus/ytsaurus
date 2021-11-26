@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ref.h"
-#include "small_vector.h"
+#include "compact_vector.h"
 
 #include <util/system/align.h>
 
@@ -165,7 +165,7 @@ public:
     }
 
 private:
-    SmallVector<TByte, NBitmapDetail::SerializationAlignment> Chunks_;
+    TCompactVector<TByte, NBitmapDetail::SerializationAlignment> Chunks_;
     size_t BitSize_ = 0;
 };
 

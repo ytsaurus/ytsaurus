@@ -1,7 +1,7 @@
 #pragma once
 
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/enum.h>
 
 #include <yt/yt/library/profiling/tag.h>

@@ -126,7 +126,7 @@ public:
      */
     TDuration GetDuration() const;
 
-    using TTagList = SmallVector<std::pair<TString, TString>, 4>;
+    using TTagList = TCompactVector<std::pair<TString, TString>, 4>;
     TTagList GetTags() const;
 
     NYson::TYsonString GetBaggage() const;
@@ -148,11 +148,11 @@ public:
         NProfiling::TCpuInstant At;
         TString Message;
     };
-    using TLogList = SmallVector<TTraceLogEntry, 4>;
+    using TLogList = TCompactVector<TTraceLogEntry, 4>;
     TLogList GetLogEntries() const;
     void AddLogEntry(NProfiling::TCpuInstant at, TString message);
 
-    using TAsyncChildrenList = SmallVector<TTraceId, 4>;
+    using TAsyncChildrenList = TCompactVector<TTraceId, 4>;
     TAsyncChildrenList GetAsyncChildren() const;
     bool AddAsyncChild(const TTraceId& traceId);
 

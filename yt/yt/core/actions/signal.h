@@ -2,7 +2,7 @@
 
 #include "callback.h"
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
 
@@ -61,7 +61,7 @@ public:
 
 private:
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
-    using TCallbackVector = SmallVector<TCallback, 4>;
+    using TCallbackVector = TCompactVector<TCallback, 4>;
     TCallbackVector Callbacks_;
 
 };
@@ -123,7 +123,7 @@ public:
 private:
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
     std::atomic<bool> Fired_ = false;
-    using TCallbackVector = SmallVector<TCallback, 4>;
+    using TCallbackVector = TCompactVector<TCallback, 4>;
     TCallbackVector Callbacks_;
     std::tuple<typename std::decay<TArgs>::type...> Args_;
 

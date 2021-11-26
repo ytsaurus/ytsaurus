@@ -49,7 +49,7 @@ class TProtobufField;
 class TProtobufEnumType;
 
 static constexpr size_t TypicalFieldCount = 16;
-using TFieldNumberList = SmallVector<int, TypicalFieldCount>;
+using TFieldNumberList = TCompactVector<int, TypicalFieldCount>;
 
 static constexpr int AttributeDictionaryAttributeFieldNumber = 1;
 static constexpr int ProtobufMapKeyFieldNumber = 1;

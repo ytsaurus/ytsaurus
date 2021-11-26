@@ -119,8 +119,8 @@ protected:
     TSharedRef ResponseBody_;
     std::vector<TSharedRef> ResponseAttachments_;
 
-    SmallVector<TString, 4> RequestInfos_;
-    SmallVector<TString, 4> ResponseInfos_;
+    TCompactVector<TString, 4> RequestInfos_;
+    TCompactVector<TString, 4> ResponseInfos_;
 
     NCompression::ECodec ResponseCodec_ = NCompression::ECodec::None;
 

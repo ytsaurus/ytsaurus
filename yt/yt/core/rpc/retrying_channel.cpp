@@ -116,7 +116,7 @@ private:
                     return;
                 }
 
-                SmallVector<IClientRequestControlPtr, 2> toCancelList;
+                TCompactVector<IClientRequestControlPtr, 2> toCancelList;
 
                 auto guard = Guard(SpinLock_);
 

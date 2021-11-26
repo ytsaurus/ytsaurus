@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 namespace NYT::NYson {
 
@@ -98,7 +98,7 @@ private:
     void ThrowUnexpectedToken(TStringBuf token, TStringBuf extraMessage = {});
 
 private:
-    SmallVector<EYsonState, 16> StateStack_;
+    TCompactVector<EYsonState, 16> StateStack_;
 
     // We don't use stack size, we compute depth level precisely to be compatible with old yson parser.
     ui32 NestingLevel_ = 0;

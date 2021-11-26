@@ -1,6 +1,6 @@
 #pragma once
 
-#include "small_vector.h"
+#include "compact_vector.h"
 #include "public.h"
 
 #include <util/system/types.h>
@@ -23,18 +23,35 @@ public:
     explicit TLinearProbeHashTable(size_t maxElementCount);
 
     bool Insert(TFingerprint fingerprint, TValue value);
-    void Find(TFingerprint fingerprint, SmallVectorImpl<TValue>* result) const;
+
+    template <size_t N>
+    void Find(TFingerprint fingerprint, TCompactVector<TValue, N>* result) const;
 
     size_t GetByteSize() const;
 
 private:
+    constexpr static int HashTableExpansionParameter = 2;
+    constexpr static int ValueLog = 48;
+
     std::vector<std::atomic<TEntry>> HashTable_;
 
     bool Insert(ui64 index, TStamp stamp, TValue value);
-    void Find(ui64 index, TStamp stamp, SmallVectorImpl<TValue>* result) const;
+
+    template <size_t N>
+    void Find(ui64 index, TStamp stamp, TCompactVector<TValue, N>* result) const;
+
+    static TStamp StampFromEntry(TEntry entry);
+    static TValue ValueFromEntry(TEntry entry);
+    static TEntry MakeEntry(TStamp stamp, TValue value);
+
+    static ui64 IndexFromFingerprint(TFingerprint fingerprint);
+    static TStamp StampFromFingerprint(TFingerprint fingerprint);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
+#define LINEAR_PROBE_INL_H_
+#include "linear_probe-inl.h"
+#undef LINEAR_PROBE_INL_H_

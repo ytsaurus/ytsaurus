@@ -152,7 +152,7 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
 
 TYPath TNodeBase::GetPath() const
 {
-    SmallVector<TString, 64> tokens;
+    TCompactVector<TString, 64> tokens;
     IConstNodePtr current(this);
     while (true) {
         auto parent = current->GetParent();

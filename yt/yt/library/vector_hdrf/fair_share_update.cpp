@@ -1084,7 +1084,7 @@ void TOperationElement::PrepareFairShareByFitFactor(TFairShareUpdateContext* con
     if (maxUsage == 0.0) {
         builder.PushSegment({0.0, TResourceVector::Zero()}, {1.0, TResourceVector::Zero()});
     } else {
-        SmallVector<double, ResourceCount> sortedUsage(Attributes().UsageShare.begin(), Attributes().UsageShare.end());
+        TCompactVector<double, ResourceCount> sortedUsage(Attributes().UsageShare.begin(), Attributes().UsageShare.end());
         std::sort(sortedUsage.begin(), sortedUsage.end());
 
         builder.AddPoint({0.0, TResourceVector::Zero()});

@@ -112,6 +112,9 @@ constexpr size_t CacheLineSize = 64;
 template <class T, unsigned Size>
 class SmallVector;
 
+template <class T, size_t N>
+class TCompactVector;
+
 class TRef;
 class TMutableRef;
 

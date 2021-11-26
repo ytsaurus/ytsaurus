@@ -41,9 +41,9 @@ TTagIdList TTagRegistry::Encode(const TTagSet& tags)
     return Encode(tags.Tags());
 }
 
-SmallVector<std::optional<TTagId>, TypicalTagCount> TTagRegistry::TryEncode(const TTagList& tags) const
+TCompactVector<std::optional<TTagId>, TypicalTagCount> TTagRegistry::TryEncode(const TTagList& tags) const
 {
-    SmallVector<std::optional<TTagId>, TypicalTagCount> ids;
+    TCompactVector<std::optional<TTagId>, TypicalTagCount> ids;
 
     for (const auto& tag : tags) {
         if (auto it = TagByName_.find(tag); it != TagByName_.end()) {

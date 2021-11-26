@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/ref.h>
 
 #include <yt/yt/core/crypto/public.h>
@@ -106,8 +106,8 @@ public:
 
 private:
     static constexpr size_t TypicalSize = 4;
-    SmallVector<grpc_metadata, TypicalSize> NativeMetadata_;
-    SmallVector<TString, TypicalSize> Strings_;
+    TCompactVector<grpc_metadata, TypicalSize> NativeMetadata_;
+    TCompactVector<TString, TypicalSize> Strings_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

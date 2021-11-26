@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/common.h>
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/source_location.h>
 
 #include <yt/yt/core/actions/callback.h>
@@ -323,7 +323,7 @@ public:
     };
 
 private:
-    SmallVector<TContextSwitchHandlers, 16> UserHandlers_;
+    TCompactVector<TContextSwitchHandlers, 16> UserHandlers_;
     TSwitchHandler* SavedThis_;
     static thread_local TSwitchHandler* This_;
     // Canceler could be thread_local variable but non POD TLS does not work properly in shared libraries.

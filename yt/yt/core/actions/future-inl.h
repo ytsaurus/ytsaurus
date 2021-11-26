@@ -12,7 +12,7 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <atomic>
 #include <type_traits>
@@ -113,8 +113,8 @@ public:
 
 private:
     static constexpr int TypicalCount = 8;
-    SmallVector<T, TypicalCount> Callbacks_;
-    SmallVector<TFutureCallbackCookie, TypicalCount> SpareCookies_;
+    TCompactVector<T, TypicalCount> Callbacks_;
+    TCompactVector<TFutureCallbackCookie, TypicalCount> SpareCookies_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,7 +189,7 @@ public:
     using TVoidResultHandlers = TFutureCallbackList<TVoidResultHandler, 0, (1ULL << 30) - 1>;
 
     using TCancelHandler = TCallback<void(const TError&)>;
-    using TCancelHandlers = SmallVector<TCancelHandler, 8>;
+    using TCancelHandlers = TCompactVector<TCancelHandler, 8>;
 
     void RefFuture()
     {
