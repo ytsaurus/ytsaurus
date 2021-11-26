@@ -97,28 +97,32 @@ object SpytPlugin extends AutoPlugin {
     IO.write(sparkVersionFile, sparkVersionContent)
   }
 
-  def updatePythonVersionFile(log: Logger, oldVersion: String, newVersion: String, versionFile: File): Unit = {
+  def updatePythonVersionFile(log: Logger, versionFile: File, versions: Map[String, VersionInfo]): Unit = {
+    versions.filter(!_._2.hashChanged).foreach {
+      case (_, ver) => log.info(s"Package ${ver.packageName}: version hash not changed, skipping update")
+    }
+    versions.filter(_._2.nextVersion.isEmpty).foreach {
+      case (_, ver) => log.info(s"Package ${ver.packageName}: unable to find next version for ${ver.currentVersion}")
+    }
+    def findVersions(line: String): Option[(String, VersionInfo)] =
+      versions.filter { case (_, ver) => ver.hashChanged && ver.nextVersion.isDefined }
+        .toSeq
+        .find(e => line.startsWith(e._1))
+
     val content = IO.readLines(versionFile)
-      .map {
-        case line if line.startsWith("__version__") =>
-          log.info(s"Updating version $oldVersion -> $newVersion in ${versionFile.getPath}")
-          s"""__version__ = "$newVersion""""
-        case line =>
-          line
+      .map { line =>
+        findVersions(line) match {
+          case Some((prefix, verInfo)) if verInfo.nextVersion.isDefined =>
+            log.info(s"Updating package ${verInfo.packageName} version" +
+              s" ${verInfo.currentVersion} -> ${verInfo.nextVersion.get} in ${versionFile.getPath}")
+            s"""$prefix = "${verInfo.nextVersion.get}""""
+          case None =>
+            line
+        }
       }
       .mkString("\n")
     IO.write(versionFile, content)
   }
-
-  def updatePythonVersions(log: Logger,
-                           spytVersion: String,
-                           spytVersionFile: File,
-                           sparkVersion: String,
-                           sparkVersionFile: File): Unit = {
-    updatePythonVersionFile(log, "", spytVersion, spytVersionFile)
-    updatePythonVersionFile(log, "", sparkVersion, sparkVersionFile)
-  }
-
 
   def gitBranch(submodule: String = ""): Option[String] = {
     val cmd = "git rev-parse --abbrev-ref HEAD"
@@ -227,32 +231,31 @@ object SpytPlugin extends AutoPlugin {
     }
   }
 
-  def updatePythonVersionIfUpdated(log: Logger,
-                                   pythonRegistry: String,
-                                   packageName: String,
-                                   versionFile: File,
-                                   submodule: String = ""): Unit = {
-    log.info(s"Updating python package $packageName version file")
+  case class VersionInfo(packageName: String, currentVersion: String, currentBranch: String, currentHash: String,
+                         versionHash: Option[String]) {
+    def hashChanged: Boolean = !versionHash.contains(currentHash)
+    def nextVersion: Option[String] = increaseDevVersion(currentVersion, ticketFromBranch(currentBranch), currentHash)
+  }
+
+  def packageVersionInfo(log: Logger, pythonRegistry: String, packageName: String,
+                         submodule: String): Option[VersionInfo] =
     for {
       curVer <- latestPyPiVersion(log, pythonRegistry, packageName)
-      _ = log.debug(s"curVer=$curVer")
       curBranch <- gitBranch(submodule)
-      _ = log.debug(s"curBranch=$curBranch")
       newHash <- gitHash(submodule)
-      _ = log.debug(s"newHash=$newHash")
-    } {
-      val curHash = extractHashFromVer(curVer)
-      if (!curHash.contains(newHash)) {
-        val newVer = increaseDevVersion(curVer, ticketFromBranch(curBranch), newHash)
-        if (newVer.isDefined) {
-          updatePythonVersionFile(log, curVer, newVer.get, versionFile)
-        } else {
-          log.error(s"Unable to estimate new version for current version $curVer")
-        }
-      } else {
-        log.info(s"Branch $curBranch: version hash $curHash equals $newHash, nothing to update")
-      }
+    } yield VersionInfo(packageName, curVer, curBranch, newHash, extractHashFromVer(curVer))
+
+
+  def updatePythonVersionIfUpdated(log: Logger,
+                                   pythonRegistry: String,
+                                   versionFile: File,
+                                   prefix2package: Map[String, (String, String)]): Unit = {
+    log.info(s"Updating python version file $versionFile")
+    val versions = prefix2package.flatMap {
+      case (prefix, (packageName, submodule)) =>
+        packageVersionInfo(log, pythonRegistry, packageName, submodule).map(vi => (prefix, vi))
     }
+    updatePythonVersionFile(log, versionFile, versions)
   }
 
   def clientSnapshotVersion(ver: String): Option[String] = {
@@ -292,15 +295,19 @@ object SpytPlugin extends AutoPlugin {
     spytSparkVersionPyFile := (ThisBuild / sparkVersionPyFile).value,
 
     spytUpdateClientPythonDevVersion :=
-      updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, "yandex-spyt", spytClientVersionPyFile.value),
+      updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytClientVersionPyFile.value,
+        Map("__version__" -> ("yandex-spyt", ""))),
 
     spytUpdateSparkPythonDevVersion :=
-      updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, "yandex-pyspark", spytSparkVersionPyFile.value, "spark"),
+      updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytSparkVersionPyFile.value,
+        Map("__version__" -> ("yandex-pyspark", "spark"))),
 
-    spytUpdateAllPythonDevVersions := Def.sequential(
-      spytUpdateSparkPythonDevVersion,
-      spytUpdateClientPythonDevVersion
-    ).value,
+    spytUpdateAllPythonDevVersions := {
+      updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytSparkVersionPyFile.value,
+        Map("__version__" -> ("yandex-pyspark", "spark")))
+      updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytClientVersionPyFile.value,
+          Map("__version__" -> ("yandex-spyt", ""), "__spark_version__" -> ("yandex-pyspark", "spark")))
+    },
 
     spytUpdatePythonVersion := {
       updatePythonVersion(
@@ -346,16 +353,14 @@ object SpytPlugin extends AutoPlugin {
       val rebuildSpark = Option(System.getProperty("rebuildSpark")).exists(_.toBoolean)
       if (rebuildSpark) {  
         Def.sequential(
-          spytUpdateSparkPythonDevVersion,
-          spytUpdateClientPythonDevVersion,
           spytUpdateClientSnapshotVersion,
+          spytUpdateAllPythonDevVersions,
           spytPublishAll,
         )
       } else {
         Def.sequential(
-          spytUpdateSparkPythonDevVersion,
-          spytUpdateClientPythonDevVersion,
           spytUpdateClientSnapshotVersion,
+          spytUpdateAllPythonDevVersions,
           spytPublishCluster,
           spytPublishClient,
         )
