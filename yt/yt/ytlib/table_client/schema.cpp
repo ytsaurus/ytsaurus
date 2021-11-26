@@ -34,10 +34,10 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
         oldColumn.LogicalType(),
         newColumn.LogicalType());
     try {
-        if (oldColumn.GetPhysicalType() != newColumn.GetPhysicalType()) {
+        if (oldColumn.GetWireType() != newColumn.GetWireType()) {
             THROW_ERROR_EXCEPTION("Cannot change physical type from %Qlv to %Qlv",
-                oldColumn.GetPhysicalType(),
-                newColumn.GetPhysicalType());
+                oldColumn.GetWireType(),
+                newColumn.GetWireType());
         }
         if (compatibility.first != ESchemaCompatibility::FullyCompatible) {
             THROW_ERROR compatibility.second;
@@ -201,28 +201,28 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
                 std::optional<EValueType> resultType;
 
                 descriptor->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
-                if (!constraint.Get(columnSchema.GetPhysicalType())) {
+                if (!constraint.Get(columnSchema.GetWireType())) {
                     THROW_ERROR_EXCEPTION("Argument type mismatch in aggregate function %Qv from column %Qv: expected %Qlv, got %Qlv",
                         *columnSchema.Aggregate(),
                         columnSchema.Name(),
                         constraint,
-                        columnSchema.GetPhysicalType());
+                        columnSchema.GetWireType());
                 }
 
-                if (stateType && *stateType != columnSchema.GetPhysicalType()) {
+                if (stateType && *stateType != columnSchema.GetWireType()) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv state type %Qlv differs from column %Qv type %Qlv",
                         *columnSchema.Aggregate(),
                         stateType,
                         columnSchema.Name(),
-                        columnSchema.GetPhysicalType());
+                        columnSchema.GetWireType());
                 }
 
-                if (resultType && *resultType != columnSchema.GetPhysicalType()) {
+                if (resultType && *resultType != columnSchema.GetWireType()) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv result type %Qlv differs from column %Qv type %Qlv",
                         *columnSchema.Aggregate(),
                         resultType,
                         columnSchema.Name(),
-                        columnSchema.GetPhysicalType());
+                        columnSchema.GetWireType());
                 }
             } else {
                 THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %Qv",
@@ -346,13 +346,13 @@ void ValidatePivotKey(const TUnversionedRow& pivotKey, const TTableSchema& schem
     }
 
     for (int index = 0; index < static_cast<int>(pivotKey.GetCount()); ++index) {
-        if (pivotKey[index].Type != EValueType::Null && pivotKey[index].Type != schema.Columns()[index].GetPhysicalType()) {
+        if (pivotKey[index].Type != EValueType::Null && pivotKey[index].Type != schema.Columns()[index].GetWireType()) {
             THROW_ERROR_EXCEPTION(
                 NTableClient::EErrorCode::SchemaViolation,
                 "Mismatched type of column %Qv in %v key: expected %Qlv, found %Qlv",
                 schema.Columns()[index].Name(),
                 keyType,
-                schema.Columns()[index].GetPhysicalType(),
+                schema.Columns()[index].GetWireType(),
                 pivotKey[index].Type);
         }
         if (validateRequired && pivotKey[index].Type == EValueType::Null && !schema.Columns()[index].LogicalType()->IsNullable()) {

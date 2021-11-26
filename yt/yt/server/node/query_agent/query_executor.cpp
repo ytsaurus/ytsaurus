@@ -123,11 +123,11 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     TColumnFilter::TIndexes columnFilterIndexes;
     for (const auto& column : desiredSchema.Columns()) {
         const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name());
-        if (tabletColumn.GetPhysicalType() != column.GetPhysicalType()) {
+        if (tabletColumn.GetWireType() != column.GetWireType()) {
             THROW_ERROR_EXCEPTION("Mismatched type of column %Qv in schema: expected %Qlv, found %Qlv",
                 column.Name(),
-                tabletColumn.GetPhysicalType(),
-                column.GetPhysicalType());
+                tabletColumn.GetWireType(),
+                column.GetWireType());
         }
         columnFilterIndexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
     }
@@ -695,7 +695,7 @@ private:
 
         std::vector<EValueType> keySchema;
         for (ssize_t index = 0; index < keySize; ++index) {
-            keySchema.push_back(Query_->Schema.Original->Columns()[index].GetPhysicalType());
+            keySchema.push_back(Query_->Schema.Original->Columns()[index].GetWireType());
         }
 
         bool hasRanges = false;

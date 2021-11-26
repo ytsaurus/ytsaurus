@@ -123,7 +123,8 @@ void ValidateSchemaValueType(EValueType type)
         type != EValueType::Double &&
         type != EValueType::Boolean &&
         type != EValueType::String &&
-        type != EValueType::Any)
+        type != EValueType::Any &&
+        type != EValueType::Composite)
     {
         THROW_ERROR_EXCEPTION("Invalid value type %Qlv", type);
     }

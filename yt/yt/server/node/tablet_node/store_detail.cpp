@@ -1158,7 +1158,7 @@ TLegacyOwningKey RowToKey(const TTableSchema& schema, TSortedDynamicRow row)
 
     TUnversionedOwningRowBuilder builder;
     for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
-        builder.AddValue(GetUnversionedKeyValue(row, index, schema.Columns()[index].GetPhysicalType()));
+        builder.AddValue(GetUnversionedKeyValue(row, index, schema.Columns()[index].GetWireType()));
     }
     return builder.FinishRow();
 }
@@ -1173,4 +1173,3 @@ TTimestamp CalculateRetainedTimestamp(TTimestamp currentTimestamp, TDuration min
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

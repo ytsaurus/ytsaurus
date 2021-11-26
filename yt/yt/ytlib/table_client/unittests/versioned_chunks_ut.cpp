@@ -571,7 +571,7 @@ protected:
             std::vector<TUnversionedValue> key;
             YT_VERIFY(row.GetKeyCount() <= readSchema->GetKeyColumnCount());
             for (int i = 0; i < row.GetKeyCount() && i < readSchema->GetKeyColumnCount(); ++i) {
-                YT_VERIFY(row.BeginKeys()[i].Type == readSchema->Columns()[i].GetPhysicalType());
+                YT_VERIFY(row.BeginKeys()[i].Type == readSchema->Columns()[i].GetWireType());
                 key.push_back(row.BeginKeys()[i]);
             }
 

@@ -447,7 +447,7 @@ protected:
             dstValue->Type = EValueType::Null;
             return;
         }
-        dstValue->Type = Store_->Schema_->Columns()[index].GetPhysicalType();
+        dstValue->Type = Store_->Schema_->Columns()[index].GetWireType();
         if (IsStringLikeType(dstValue->Type)) {
             dstValue->Length = srcData.String->Length;
             dstValue->Data.String = srcData.String->Data;
@@ -1629,8 +1629,8 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, const TUnversionedVa
         if (srcValue.Type == EValueType::Null) {
             nullKeyMask |= nullKeyBit;
         } else {
-            YT_ASSERT(srcValue.Type == columnIt->GetPhysicalType());
-            if (IsStringLikeType(columnIt->GetPhysicalType())) {
+            YT_ASSERT(srcValue.Type == columnIt->GetWireType());
+            if (IsStringLikeType(columnIt->GetWireType())) {
                 *dstValue = CaptureStringValue(srcValue);
             } else {
                 ::memcpy(dstValue, &srcValue.Data, sizeof(TDynamicValueData));
@@ -1653,9 +1653,9 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
          ++index, nullKeyBit <<= 1, ++srcKeys, ++dstKeys, ++columnIt)
     {
         bool isNull = nullKeyMask & nullKeyBit;
-        dstRow.GetDataWeight() += GetDataWeight(columnIt->GetPhysicalType(), isNull, *srcKeys);
+        dstRow.GetDataWeight() += GetDataWeight(columnIt->GetWireType(), isNull, *srcKeys);
         if (!isNull) {
-            if(IsStringLikeType(columnIt->GetPhysicalType())) {
+            if(IsStringLikeType(columnIt->GetWireType())) {
                 *dstKeys = CaptureStringValue(*srcKeys);
             } else {
                 *dstKeys = *srcKeys;
@@ -1666,7 +1666,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
 
 void TSortedDynamicStore::CommitValue(TSortedDynamicRow row, TValueList list, int index)
 {
-    row.GetDataWeight() += GetDataWeight(Schema_->Columns()[index].GetPhysicalType(), list.GetUncommitted());
+    row.GetDataWeight() += GetDataWeight(Schema_->Columns()[index].GetWireType(), list.GetUncommitted());
     list.Commit();
 
     if (static_cast<ssize_t>(row.GetDataWeight()) > MaxDataWeight_) {
@@ -1766,7 +1766,7 @@ ui32 TSortedDynamicStore::CaptureVersionedValue(
     const TVersionedValue& src,
     TTimestampToRevisionMap* timestampToRevision)
 {
-    YT_ASSERT(src.Type == EValueType::Null || src.Type == Schema_->Columns()[src.Id].GetPhysicalType());
+    YT_ASSERT(src.Type == EValueType::Null || src.Type == Schema_->Columns()[src.Id].GetWireType());
     ui32 revision = CaptureTimestamp(src.Timestamp, timestampToRevision);
     dst->Revision = revision;
     CaptureUnversionedValue(dst, src);
@@ -1779,7 +1779,7 @@ void TSortedDynamicStore::CaptureUncommittedValue(TDynamicValue* dst, const TDyn
     YT_ASSERT(src.Revision == UncommittedRevision);
 
     *dst = src;
-    if (!src.Null && IsStringLikeType(Schema_->Columns()[index].GetPhysicalType())) {
+    if (!src.Null && IsStringLikeType(Schema_->Columns()[index].GetWireType())) {
         dst->Data = CaptureStringValue(src.Data);
     }
 }
@@ -1788,7 +1788,7 @@ void TSortedDynamicStore::CaptureUnversionedValue(
     TDynamicValue* dst,
     const TUnversionedValue& src)
 {
-    YT_ASSERT(src.Type == EValueType::Null || src.Type == Schema_->Columns()[src.Id].GetPhysicalType());
+    YT_ASSERT(src.Type == EValueType::Null || src.Type == Schema_->Columns()[src.Id].GetWireType());
 
     dst->Flags = src.Flags;
 

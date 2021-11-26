@@ -1279,7 +1279,7 @@ public:
                     });
                 }
                 result = &Tables[index];
-                type = column->GetPhysicalType();
+                type = column->GetWireType();
                 ++index;
                 break;
             }

@@ -1,5 +1,6 @@
 #include "logical_type.h"
 #include "schema.h"
+#include "yt/yt/client/table_client/row_base.h"
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
@@ -898,6 +899,7 @@ bool TTaggedLogicalType::IsNullable() const
 struct TTypeV3Info
 {
     ESimpleLogicalValueType V1Type;
+    EValueType StorageType;
     bool Required;
     bool IsPureV1Type;
 };
@@ -905,17 +907,20 @@ struct TTypeV3Info
 static TTypeV3Info GetTypeV3Info(const TLogicalTypePtr& logicalType)
 {
     switch (logicalType->GetMetatype()) {
-        case ELogicalMetatype::Simple:
-            return {logicalType->AsSimpleTypeRef().GetElement(), !logicalType->IsNullable(), true};
+        case ELogicalMetatype::Simple: {
+            auto element = logicalType->AsSimpleTypeRef().GetElement();
+            return {element, GetPhysicalType(element), !logicalType->IsNullable(), true};
+        }
         case ELogicalMetatype::Decimal:
-            return {ESimpleLogicalValueType::String, true, false};
+            return {ESimpleLogicalValueType::String, EValueType::String, true, false};
         case ELogicalMetatype::Optional: {
             const auto& element = logicalType->AsOptionalTypeRef().GetElement();
             if (element->IsNullable()) {
-                return {ESimpleLogicalValueType::Any, false, false};
+                return {ESimpleLogicalValueType::Any, EValueType::Composite, false, false};
             } else {
                 auto elementInfo = GetTypeV3Info(element);
-                return {elementInfo.V1Type, false, elementInfo.IsPureV1Type};
+                elementInfo.Required = false;
+                return elementInfo;
             }
         }
         case ELogicalMetatype::Tagged:
@@ -926,7 +931,7 @@ static TTypeV3Info GetTypeV3Info(const TLogicalTypePtr& logicalType)
         case ELogicalMetatype::VariantStruct:
         case ELogicalMetatype::VariantTuple:
         case ELogicalMetatype::Dict:
-            return {ESimpleLogicalValueType::Any, true, false};
+            return {ESimpleLogicalValueType::Any, EValueType::Composite, true, false};
     }
     YT_ABORT();
 }
@@ -942,10 +947,14 @@ bool IsV1Type(const TLogicalTypePtr& logicalType)
     return GetTypeV3Info(logicalType).IsPureV1Type;
 }
 
+EValueType GetWireType(const TLogicalTypePtr& logicalType)
+{
+    return GetTypeV3Info(logicalType).StorageType;
+}
+
 bool IsV3Composite(const TLogicalTypePtr& logicalType)
 {
-    auto info = GetTypeV3Info(logicalType);
-    return info.IsPureV1Type == false && info.V1Type == ESimpleLogicalValueType::Any;
+    return GetWireType(logicalType) == EValueType::Composite;
 }
 
 TLogicalTypePtr DenullifyLogicalType(const TLogicalTypePtr& type)

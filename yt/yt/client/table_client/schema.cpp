@@ -1,5 +1,6 @@
 #include "schema.h"
 #include "unversioned_row.h"
+#include "yt/yt/client/table_client/logical_type.h"
 
 #include <yt/yt/core/yson/public.h>
 #include <yt/yt/core/yson/pull_parser_deserialize.h>
@@ -130,9 +131,9 @@ TColumnSchema& TColumnSchema::SetLogicalType(TLogicalTypePtr type)
     return *this;
 }
 
-EValueType TColumnSchema::GetPhysicalType() const
+EValueType TColumnSchema::GetWireType() const
 {
-    return NTableClient::GetPhysicalType(V1Type_);
+    return NTableClient::GetWireType(LogicalType_);
 }
 
 i64 TColumnSchema::GetMemoryUsage() const
@@ -398,7 +399,7 @@ void Deserialize(TColumnSchema& schema, NYson::TYsonPullParserCursor* cursor)
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
 {
     protoSchema->set_name(schema.Name());
-    protoSchema->set_type(static_cast<int>(schema.GetPhysicalType()));
+    protoSchema->set_type(static_cast<int>(GetPhysicalType(schema.CastToV1Type())));
 
     if (schema.IsOfV1Type()) {
         protoSchema->set_simple_logical_type(static_cast<int>(schema.CastToV1Type()));
@@ -1072,7 +1073,7 @@ TKeyColumnTypes TTableSchema::GetKeyColumnTypes() const
 {
     TKeyColumnTypes result(KeyColumnCount_);
     for (int index = 0; index < KeyColumnCount_; ++index) {
-        result[index] = Columns_[index].GetPhysicalType();
+        result[index] = Columns_[index].GetWireType();
     }
     return result;
 }
@@ -1347,20 +1348,19 @@ void ValidateSystemColumnSchema(
     bool isTableSorted,
     bool allowUnversionedUpdateColumns)
 {
-    static const auto allowedSortedTablesSystemColumns = THashMap<TString, EValueType>{
+    static const auto allowedSortedTablesSystemColumns = THashMap<TString, ESimpleLogicalValueType>{
     };
 
-    static const auto allowedOrderedTablesSystemColumns = THashMap<TString, EValueType>{
-        {TimestampColumnName, EValueType::Uint64}
+    static const auto allowedOrderedTablesSystemColumns = THashMap<TString, ESimpleLogicalValueType>{
+        {TimestampColumnName, ESimpleLogicalValueType::Uint64}
     };
 
-    auto validateType = [&] (EValueType expected) {
-        auto actual = columnSchema.GetPhysicalType();
-        if (actual != expected) {
+    auto validateType = [&] (ESimpleLogicalValueType expected) {
+        if (!columnSchema.IsOfV1Type(expected)) {
             THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv, got %Qlv",
                 columnSchema.Name(),
                 expected,
-                actual);
+                *columnSchema.LogicalType());
         }
     };
 
@@ -1380,10 +1380,10 @@ void ValidateSystemColumnSchema(
     if (allowUnversionedUpdateColumns) {
         // Unversioned update schema system column.
         if (name == TUnversionedUpdateSchema::ChangeTypeColumnName) {
-            validateType(EValueType::Uint64);
+            validateType(ESimpleLogicalValueType::Uint64);
             return;
         } else if (name.StartsWith(TUnversionedUpdateSchema::FlagsColumnNamePrefix)) {
-            validateType(EValueType::Uint64);
+            validateType(ESimpleLogicalValueType::Uint64);
             return;
         } else if (name.StartsWith(TUnversionedUpdateSchema::ValueColumnNamePrefix)) {
             // Value can have any type.
@@ -1469,7 +1469,7 @@ void ValidateColumnSchema(
             }
         }
 
-        ValidateSchemaValueType(columnSchema.GetPhysicalType());
+        ValidateSchemaValueType(columnSchema.GetWireType());
 
         if (columnSchema.Expression() && !columnSchema.SortOrder() && isTableDynamic) {
             THROW_ERROR_EXCEPTION("Non-key column cannot be computed");
@@ -1492,9 +1492,9 @@ void ValidateColumnSchema(
             if (columnSchema.MaxInlineHunkSize() <= 0) {
                 THROW_ERROR_EXCEPTION("Max inline hunk size must be positive");
             }
-            if (!IsStringLikeType(columnSchema.GetPhysicalType())) {
+            if (!IsStringLikeType(columnSchema.GetWireType())) {
                 THROW_ERROR_EXCEPTION("Max inline hunk size can only be set for string-like columns, not %Qlv",
-                    columnSchema.GetPhysicalType());
+                    columnSchema.GetWireType());
             }
             if (columnSchema.SortOrder()) {
                 THROW_ERROR_EXCEPTION("Max inline hunk size cannot be set for key column");
@@ -1535,7 +1535,10 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
             if (!column.IsOfV1Type()) {
                 THROW_ERROR_EXCEPTION("Complex types are not allowed in dynamic tables yet");
             }
-            if (column.SortOrder() && column.GetPhysicalType() == EValueType::Any) {
+            if (column.SortOrder() && (
+                    column.GetWireType() == EValueType::Any ||
+                    column.GetWireType() == EValueType::Composite))
+            {
                 THROW_ERROR_EXCEPTION("Dynamic table cannot have key column of type %Qv",
                     *column.LogicalType());
             }

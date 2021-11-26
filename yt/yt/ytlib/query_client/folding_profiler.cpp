@@ -49,7 +49,7 @@ std::vector<EValueType> GetTypesFromSchema(const TTableSchema& tableSchema)
     std::vector<EValueType> result;
 
     for (const auto& column : tableSchema.Columns()) {
-        result.push_back(column.GetPhysicalType());
+        result.push_back(column.GetWireType());
     }
 
     return result;
@@ -111,7 +111,7 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
     for (int index = 0; index < std::ssize(columns); ++index) {
         const auto& column = columns[index];
-        Fold(static_cast<ui16>(column.GetPhysicalType()));
+        Fold(static_cast<ui16>(column.GetWireType()));
         Fold(column.Name().c_str());
         int aux = (column.Expression() ? 1 : 0) | ((column.Aggregate() ? 1 : 0) << 1);
         Fold(aux);
@@ -1298,7 +1298,7 @@ void TQueryProfiler::Profile(
 
                         projectClause->AddProjection(
                             New<TReferenceExpression>(
-                                joinRenamedTableColumns[index].GetPhysicalType(),
+                                joinRenamedTableColumns[index].GetWireType(),
                                 joinRenamedTableColumns[index].Name()),
                             joinRenamedTableColumns[index].Name());
                     }
@@ -1326,10 +1326,10 @@ void TQueryProfiler::Profile(
                 selfColumnNames.end(),
                 selfTableColumns[index].Name()))
             {
-                primaryColumns.emplace_back(index, selfTableColumns[index].GetPhysicalType());
+                primaryColumns.emplace_back(index, selfTableColumns[index].GetWireType());
 
                 Fold(index);
-                Fold(static_cast<int>(selfTableColumns[index].GetPhysicalType()));
+                Fold(static_cast<int>(selfTableColumns[index].GetWireType()));
             }
         }
 
@@ -1498,4 +1498,3 @@ void TExtraColumnsChecker::OnReference(const TReferenceExpression* referenceExpr
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
-

@@ -65,7 +65,7 @@ std::vector<EValueType> GetKeyTypes(const TTableSchemaPtr& tableSchema)
     const auto& schemaColumns = tableSchema->Columns();
 
     for (int keyColumnIndex = 0; keyColumnIndex < keyColumnCount; ++keyColumnIndex) {
-        auto type = schemaColumns[keyColumnIndex].GetPhysicalType();
+        auto type = schemaColumns[keyColumnIndex].GetWireType();
         keyTypes.push_back(type);
     }
 
@@ -80,7 +80,7 @@ std::vector<TValueSchema> GetValuesSchema(
 
     const auto& schemaColumns = tableSchema->Columns();
     for (const auto& idMapping : valueIdMapping) {
-        auto type = schemaColumns[idMapping.ReaderSchemaIndex].GetPhysicalType();
+        auto type = schemaColumns[idMapping.ReaderSchemaIndex].GetWireType();
         valueSchema.push_back(TValueSchema{
             type,
             ui16(idMapping.ReaderSchemaIndex),

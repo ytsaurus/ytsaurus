@@ -103,7 +103,8 @@ public:
     TColumnSchema& SetRequired(bool value);
     TColumnSchema& SetMaxInlineHunkSize(std::optional<i64> value);
 
-    EValueType GetPhysicalType() const;
+    //! Get EValueType that values satisifying this schema usually have.
+    EValueType GetWireType() const;
 
     i64 GetMemoryUsage() const;
 

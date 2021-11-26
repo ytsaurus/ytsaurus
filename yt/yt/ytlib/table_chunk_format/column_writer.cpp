@@ -19,7 +19,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
     const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter)
 {
-    switch (columnSchema.GetPhysicalType()) {
+    switch (columnSchema.GetWireType()) {
         case EValueType::Int64:
             return CreateUnversionedInt64ColumnWriter(columnIndex, blockWriter);
 
@@ -41,22 +41,20 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
             return CreateUnversionedBooleanColumnWriter(columnIndex, blockWriter);
 
         case EValueType::Any:
-            if (columnSchema.IsOfV1Type()) {
-                return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter);
-            } else {
-                return CreateUnversionedComplexColumnWriter(columnIndex, blockWriter);
-            }
+            return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter);
+
+        case EValueType::Composite:
+            return CreateUnversionedComplexColumnWriter(columnIndex, blockWriter);
 
         case EValueType::Null:
             return CreateUnversionedNullColumnWriter(blockWriter);
 
-        case EValueType::Composite:
         case EValueType::Min:
         case EValueType::TheBottom:
         case EValueType::Max:
             break;
     }
-    ThrowUnexpectedValueType(columnSchema.GetPhysicalType());
+    ThrowUnexpectedValueType(columnSchema.GetWireType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +64,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
     const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter)
 {
-    switch (columnSchema.GetPhysicalType()) {
+    switch (columnSchema.GetWireType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnWriter(
                 columnId,
@@ -118,7 +116,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
         case EValueType::TheBottom:
             break;
     }
-    ThrowUnexpectedValueType(columnSchema.GetPhysicalType());
+    ThrowUnexpectedValueType(columnSchema.GetWireType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

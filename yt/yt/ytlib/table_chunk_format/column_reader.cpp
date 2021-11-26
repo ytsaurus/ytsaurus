@@ -22,7 +22,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     int columnId,
     std::optional<ESortOrder> sortOrder)
 {
-    switch (schema.GetPhysicalType()) {
+    switch (schema.GetWireType()) {
         case EValueType::Int64:
             return CreateUnversionedInt64ColumnReader(meta, columnIndex, columnId, sortOrder);
 
@@ -44,17 +44,15 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
             return CreateUnversionedBooleanColumnReader(meta, columnIndex, columnId, sortOrder);
 
         case EValueType::Any:
-            if (schema.IsOfV1Type()) {
-                return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId, sortOrder);
-            } else {
-                return CreateUnversionedComplexColumnReader(meta, columnIndex, columnId, sortOrder);
-            }
+            return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId, sortOrder);
+        case EValueType::Composite:
+            return CreateUnversionedComplexColumnReader(meta, columnIndex, columnId, sortOrder);
 
         case EValueType::Null:
             return CreateUnversionedNullColumnReader(meta, columnIndex, columnId, sortOrder);
 
         default:
-            ThrowUnexpectedValueType(schema.GetPhysicalType());
+            ThrowUnexpectedValueType(schema.GetWireType());
     }
 }
 
@@ -66,7 +64,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
     int columnId)
 {
     auto simplifiedLogicalType = columnSchema.CastToV1Type();
-    switch (columnSchema.GetPhysicalType()) {
+    switch (columnSchema.GetWireType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnReader(
                 meta,
@@ -112,7 +110,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
                 columnSchema);
 
         default:
-            ThrowUnexpectedValueType(columnSchema.GetPhysicalType());
+            ThrowUnexpectedValueType(columnSchema.GetWireType());
     }
 }
 
