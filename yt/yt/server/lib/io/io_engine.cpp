@@ -188,7 +188,7 @@ public:
     i64 DesiredRequestSize;
     i64 MinRequestSize;
 
-    // Fair-share thread pool settings
+    // Fair-share thread pool settings.
     double DefaultPoolWeight;
     double UserInteractivePoolWeight;
 
@@ -2171,7 +2171,7 @@ IIOEnginePtr CreateIOEngine(
     NLogging::TLogger logger)
 {
     using TClassicThreadPoolIOEngine = TThreadPoolIOEngine<TFixedPriorityExecutor, TDummyRequestSlicer>;
-    using TFairShareThreadPoolIOEngine = TThreadPoolIOEngine<TFairShareThreadPool, TIoRequestSlicer>;
+    using TFairShareThreadPoolIOEngine = TThreadPoolIOEngine<TFairShareThreadPool, TIORequestSlicer>;
 
     switch (engineType) {
         case EIOEngineType::ThreadPool:
