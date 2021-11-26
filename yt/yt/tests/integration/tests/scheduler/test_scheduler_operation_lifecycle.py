@@ -9,14 +9,18 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get,
-    set, remove, exists, create_account, create_tmpdir, create_user, create_pool, start_transaction, abort_transaction,
+    set, remove, exists, create_account, create_tmpdir, create_user, create_pool, create_pool_tree,
+    start_transaction, abort_transaction,
     read_table, write_table, map, sort,
     run_test_vanilla, run_sleeping_vanilla,
     abort_job, get_job, get_job_fail_context,
     abandon_job, get_operation_cypress_path, sync_create_cells, update_controller_agent_config, update_scheduler_config,
     set_banned_flag, PrepareTables, get_statistics, sorted_dicts)
 
-from yt_scheduler_helpers import scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path
+from yt_scheduler_helpers import (
+    scheduler_orchid_operation_path,
+    scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path)
 
 from yt_helpers import get_current_time, parse_yt_time, profiler_factory, get_job_count_profiling
 
@@ -982,6 +986,31 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: get_new_jobs_with_state("completed") == 1)
 
         assert op.get_state() == "completed"
+
+    @authors("eshcherbin")
+    def test_aborted_job_count_profiling_per_tree(self):
+        aborted_jobs_counter = profiler_factory().at_scheduler().counter("scheduler/jobs/aborted_job_count")
+
+        op1 = run_sleeping_vanilla()
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/resource_usage/cpu", default=None) == 1.0)
+        op1.abort()
+
+        wait(lambda: aborted_jobs_counter.get_delta(tags={"tree": "default"}) == 1)
+        wait(lambda: aborted_jobs_counter.get_delta() == 1)
+
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+        create_pool_tree("other", config={"nodes_filter": "other"})
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{}/@user_tags".format(node), ["other"])
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>", tree="other") + "/resource_limits/cpu") == 1.0)
+
+        op2 = run_sleeping_vanilla(spec={"pool_trees": ["other"]})
+        wait(lambda: get(scheduler_orchid_operation_path(op2.id, tree="other") + "/resource_usage/cpu", default=None) == 1.0)
+        op2.abort()
+
+        wait(lambda: aborted_jobs_counter.get_delta(tags={"tree": "other"}) == 1)
+        wait(lambda: aborted_jobs_counter.get_delta(tags={"tree": "default"}) == 1)
+        wait(lambda: aborted_jobs_counter.get_delta() == 2)
 
     @authors("ignat")
     def test_scheduling_index_profiling(self):

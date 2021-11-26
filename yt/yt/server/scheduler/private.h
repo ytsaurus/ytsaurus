@@ -38,9 +38,9 @@ class TJobMetrics;
 ////////////////////////////////////////////////////////////////////////////////
 
 using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, std::pair<i64, NProfiling::TGauge>>;
-using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, NProfiling::TCounter>;
-using TFailedJobCounter = THashMap<std::tuple<EJobType, EJobState>, NProfiling::TCounter>;
-using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterruptReason>, NProfiling::TCounter>;
+using TAbortedJobCounter = THashMap<std::tuple<EJobType, EAbortReason, TString>, NProfiling::TCounter>;
+using TFailedJobCounter = THashMap<std::tuple<EJobType, TString>, NProfiling::TCounter>;
+using TCompletedJobCounter = THashMap<std::tuple<EJobType, EInterruptReason, TString>, NProfiling::TCounter>;
 
 using TNonOwningOperationElementMap = THashMap<TOperationId, TSchedulerOperationElement*>;
 using TOperationElementMap = THashMap<TOperationId, TSchedulerOperationElementPtr>;
