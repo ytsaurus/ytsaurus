@@ -531,6 +531,16 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
     buffer->AddCounter("/chunk_merger_chunk_count_saving", ChunkCountSaving_);
 
     buffer->AddCounter("/chunk_merger_sessions_awaiting_finalization", SessionsAwaitingFinalizaton_.size());
+
+    for (auto mergerMode : TEnumTraits<NChunkClient::EChunkMergerMode>::GetDomainValues()) {
+        if (mergerMode == NChunkClient::EChunkMergerMode::None) {
+            continue;
+        }
+        buffer->PushTag({"merger_mode", FormatEnum(mergerMode)});
+        buffer->AddCounter("/chunk_merger_completed_job_count", CompletedJobCountPerMode_[mergerMode]);
+        buffer->PopTag();
+    }
+    buffer->AddCounter("/chunk_merger_auto_merge_fallback_count", AutoMergeFallbackJobCount_);
 }
 
 void TChunkMerger::OnJobWaiting(const TMergeJobPtr& job, IJobControllerCallbacks* callbacks)
@@ -557,6 +567,16 @@ void TChunkMerger::OnJobRunning(const TMergeJobPtr& job, IJobControllerCallbacks
 
 void TChunkMerger::OnJobCompleted(const TMergeJobPtr& job)
 {
+    const auto& jobResult = job->Result();
+    const auto& jobResultExt = jobResult.GetExtension(NChunkClient::NProto::TMergeChunksJobResultExt::merge_chunks_job_result_ext);
+    auto it = RunningJobs_.find(job->GetJobId());
+    if (it != RunningJobs_.end()) {
+        ++CompletedJobCountPerMode_[it->second.MergeMode];
+        if (jobResultExt.deep_merge_fallback_occurred()) {
+            ++AutoMergeFallbackJobCount_;
+        }
+    }
+
     OnJobFinished(job);
 }
 

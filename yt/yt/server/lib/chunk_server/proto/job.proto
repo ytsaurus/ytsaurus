@@ -198,3 +198,13 @@ message TAutotomizeChunkJobResultExt
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TMergeChunksJobResultExt
+{
+    extend NJobTrackerClient.NProto.TJobResult
+    {
+        optional TMergeChunksJobResultExt merge_chunks_job_result_ext = 210;
+    }
+
+    optional bool deep_merge_fallback_occurred = 1;
+}

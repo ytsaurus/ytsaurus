@@ -8,7 +8,7 @@ from yt_commands import (
     set_node_banned, set_banned_flag, start_transaction,
     get_account_disk_space, get_account_committed_disk_space, get_chunk_owner_disk_space)
 
-from yt_helpers import profiler_factory
+from yt_helpers import get_all_master_counters, get_all_master_gauges
 
 import yt.yson as yson
 from yt.common import YtError
@@ -1027,27 +1027,12 @@ class TestChunkAutotomizer(YTEnvSetup):
             }
         })
 
-    def _get_all_master_profilers(self):
-        profilers = []
-        for i in range(len(ls("//sys/primary_masters"))):
-            profilers.append(profiler_factory().at_primary_master(master_index=i))
-        for cell_tag in ls("//sys/secondary_masters"):
-            for i in range(len(ls("//sys/secondary_masters/{0}".format(cell_tag)))):
-                profilers.append(profiler_factory().at_secondary_master(cell_tag=cell_tag, master_index=i))
-        return profilers
-
-    def _get_all_master_counters(self, path, *args, **kwargs):
-        return [profiler.counter(path, *args, **kwargs) for profiler in self._get_all_master_profilers()]
-
-    def _get_all_master_gauges(self, path, *args, **kwargs):
-        return [profiler.gauge(path, *args, **kwargs) for profiler in self._get_all_master_profilers()]
-
     @authors("gritukan")
     def test_simple(self):
         if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
             pytest.skip("Chunk autotomy is available in 21.3+ versions")
 
-        success_counters = self._get_all_master_counters("chunk_server/chunk_autotomizer/successful_autotomies")
+        success_counters = get_all_master_counters("chunk_server/chunk_autotomizer/successful_autotomies")
 
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
         set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
@@ -1132,12 +1117,12 @@ class TestChunkAutotomizer(YTEnvSetup):
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
 
-        fail_counters = self._get_all_master_counters("chunk_server/jobs_failed", tags={"job_type": "autotomize_chunk"})
+        fail_counters = get_all_master_counters("chunk_server/jobs_failed", tags={"job_type": "autotomize_chunk"})
         self._set_fail_jobs(True)
         self._create_simple_journal()
 
         wait(lambda: sum(counter.get_delta() for counter in fail_counters) > 5)
-        registered_gauges = self._get_all_master_gauges("chunk_server/chunk_autotomizer/registered_chunks")
+        registered_gauges = get_all_master_gauges("chunk_server/chunk_autotomizer/registered_chunks")
         assert sum(gauge.get() for gauge in registered_gauges) == 1
 
         assert len(get("//tmp/j/@chunk_ids")) == 1
@@ -1155,8 +1140,8 @@ class TestChunkAutotomizer(YTEnvSetup):
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
         set("//sys/@config/chunk_manager/chunk_autotomizer/job_timeout", 5000)
 
-        win_counters = self._get_all_master_counters("chunk_server/chunk_autotomizer/speculative_job_wins")
-        loss_counters = self._get_all_master_counters("chunk_server/chunk_autotomizer/speculative_job_wins")
+        win_counters = get_all_master_counters("chunk_server/chunk_autotomizer/speculative_job_wins")
+        loss_counters = get_all_master_counters("chunk_server/chunk_autotomizer/speculative_job_wins")
         speculative_counters = win_counters + loss_counters
 
         self._set_sleep_in_jobs(True)
@@ -1198,7 +1183,7 @@ class TestChunkAutotomizer(YTEnvSetup):
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
 
-        unsuccess_counters = self._get_all_master_counters("chunk_server/chunk_autotomizer/unsuccessful_autotomies")
+        unsuccess_counters = get_all_master_counters("chunk_server/chunk_autotomizer/unsuccessful_autotomies")
 
         self._set_fail_jobs(True)
         self._create_simple_journal()
@@ -1227,7 +1212,7 @@ class TestChunkAutotomizer(YTEnvSetup):
         assert len(get("//tmp/j/@chunk_ids")) == 1
 
         remove("//tmp/j")
-        registered_gauges = self._get_all_master_gauges("chunk_server/chunk_autotomizer/registered_chunks")
+        registered_gauges = get_all_master_gauges("chunk_server/chunk_autotomizer/registered_chunks")
         wait(lambda: sum(gauge.get() for gauge in registered_gauges) == 0)
 
     @authors("gritukan")

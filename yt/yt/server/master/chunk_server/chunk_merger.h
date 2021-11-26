@@ -126,6 +126,9 @@ private:
     i64 ChunkReplacementFailed_ = 0;
     i64 ChunkCountSaving_ = 0;
 
+    TEnumIndexedVector<NChunkClient::EChunkMergerMode, i64> CompletedJobCountPerMode_;
+    i64 AutoMergeFallbackJobCount_ = 0;
+
     THashMap<NCypressClient::TObjectId, TChunkMergerSession> RunningSessions_;
 
 

@@ -9,6 +9,8 @@ from yt_commands import (
     start_transaction, abort_transaction, commit_transaction,
     sync_unmount_table, create_dynamic_table)
 
+from yt_helpers import get_all_master_counters
+
 from yt_type_helpers import make_schema
 
 from yt.common import YtError
@@ -771,9 +773,12 @@ class TestChunkMerger(YTEnvSetup):
         assert read_table("//tmp/t{c, b}") == read_table("//tmp/t1{c, b}")
         assert read_table("//tmp/t{zzzzz}") == read_table("//tmp/t1{zzzzz}")
 
-    @authors("babenko")
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_nonstrict_schema(self, optimize_for):
+    @authors("babenko", "h0pless")
+    @pytest.mark.parametrize(
+        "optimize_for, merge_mode",
+        [("scan", "auto"), ("lookup" , "auto"), ("scan", "deep"), ("lookup" , "deep")]
+    )
+    def test_nonstrict_schema(self, optimize_for, merge_mode):
         schema = make_schema(
             [
                 {"name": "a", "type": "string"},
@@ -792,7 +797,11 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", rows3)
         assert read_table("//tmp/t") == rows1 + rows2 + rows3
 
-        self._wait_for_merge("//tmp/t", "deep", "tmp")
+        fallback_counter = get_all_master_counters("chunk_server/chunk_merger_auto_merge_fallback_count")
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
+
+        if merge_mode == "auto":
+            wait(lambda: sum(counter.get_delta() for counter in fallback_counter) > 0)
 
         chunk_format = "table_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
         chunk_ids = get("//tmp/t/@chunk_ids")
