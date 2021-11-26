@@ -641,6 +641,7 @@ private:
 
     TNodeMemoryTrackerPtr MemoryUsageTracker_;
     TNodeResourceManagerPtr NodeResourceManager_;
+    TDiskTrackerPtr DiskTracker_;
 
     IReconfigurableThroughputThrottlerPtr RawTotalInThrottler_;
     IThroughputThrottlerPtr TotalInThrottler_;
@@ -733,6 +734,9 @@ private:
             std::vector<std::pair<EMemoryCategory, i64>>{},
             Logger,
             ClusterNodeProfiler.WithPrefix("/memory_usage"));
+
+        DiskTracker_ = New<TDiskTracker>();
+        ClusterNodeProfiler.AddProducer("", DiskTracker_);
 
         MasterCacheQueue_ = New<TActionQueue>("MasterCache");
         StorageHeavyThreadPool_ = New<TThreadPool>(

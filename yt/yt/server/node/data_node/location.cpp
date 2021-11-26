@@ -157,7 +157,9 @@ TLocation::TLocation(
         .WithSparse()
         .WithTag("location_type", FormatEnum(Type_))
         .WithTag("medium", GetMediumName(), -1)
-        .WithTag("location_id", Id_, -1);
+        .WithTag("location_id", Id_, -1)
+        .WithExtensionTag("device_name", Config_->DeviceName, -1)
+        .WithExtensionTag("device_model", Config_->DeviceModel, -1);
 
     PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
 

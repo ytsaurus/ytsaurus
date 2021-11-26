@@ -126,6 +126,45 @@ TEST(TProcTest, CgroupList)
     }
 }
 
+TEST(TProcTest, DiskStat)
+{
+    {
+        auto parsed = ParseDiskStat("259       1 nvme0n1 372243 70861 50308550 175935 635314 559065 105338106 2777004 0 415304 3236956 38920 4 80436632 905059");
+        EXPECT_EQ(parsed.MajorNumber, 259);
+        EXPECT_EQ(parsed.MinorNumber, 1);
+        EXPECT_EQ(parsed.DeviceName, "nvme0n1");
+
+        EXPECT_EQ(parsed.ReadsCompleted, 372243);
+        EXPECT_EQ(parsed.ReadsMerged, 70861);
+        EXPECT_EQ(parsed.SectorsRead, 50308550);
+        EXPECT_EQ(parsed.TimeSpentReading, TDuration::MilliSeconds(175935));
+
+        EXPECT_EQ(parsed.WritesCompleted, 635314);
+
+        EXPECT_EQ(parsed.DiscardsCompleted, 38920);
+        EXPECT_EQ(parsed.DiscardsMerged, 4);
+        EXPECT_EQ(parsed.SectorsDiscarded, 80436632);
+        EXPECT_EQ(parsed.TimeSpentDiscarding, TDuration::MilliSeconds(905059));
+    }
+    {
+        auto parsed = ParseDiskStat("259       1 nvme0n1 372243 trash 50308550 trash");
+        EXPECT_EQ(parsed.MajorNumber, 259);
+        EXPECT_EQ(parsed.MinorNumber, 1);
+        EXPECT_EQ(parsed.DeviceName, "nvme0n1");
+
+        EXPECT_EQ(parsed.ReadsCompleted, 372243);
+        EXPECT_EQ(parsed.ReadsMerged, 0);
+        EXPECT_EQ(parsed.SectorsRead, 50308550);
+        EXPECT_EQ(parsed.TimeSpentReading, TDuration::MilliSeconds(0));
+    }
+    {
+        auto stats = GetDiskStats();
+        for (const TString& disk : ListDisks()) {
+            EXPECT_TRUE(IsIn(stats, disk));
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

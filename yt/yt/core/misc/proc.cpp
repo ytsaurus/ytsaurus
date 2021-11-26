@@ -1,4 +1,5 @@
 #include "proc.h"
+#include "common.h"
 #include "string.h"
 
 #include <yt/yt/core/logging/log.h>
@@ -1308,6 +1309,92 @@ std::vector<TMemoryMapping> GetProcessMemoryMappings(int pid)
     return ParseMemoryMappings(rawSMaps);
 #else
     Y_UNUSED(pid);
+    return {};
+#endif
+}
+
+template<typename TField>
+static bool TryParseField(const TVector<TString>& fields, int index, TField& field)
+{
+    if (std::ssize(fields) <= index) {
+        return false;
+    }
+    return TryFromString(fields[index], field);
+}
+
+static bool TryParseField(const TVector<TString>& fields, int index, TDuration& field)
+{
+    i64 value = 0;
+    if (TryParseField(fields, index, value)) {
+        field = TDuration::MilliSeconds(value);
+        return true;
+    }
+    return false;
+}
+
+TDiskStat ParseDiskStat(const TString& statLine)
+{
+    auto buffer = SplitString(statLine, " ");
+    TDiskStat result;
+    TryParseField(buffer, 0, result.MajorNumber);
+    TryParseField(buffer, 1, result.MinorNumber);
+    TryParseField(buffer, 2, result.DeviceName);
+    TryParseField(buffer, 3, result.ReadsCompleted);
+    TryParseField(buffer, 4, result.ReadsMerged);
+    TryParseField(buffer, 5, result.SectorsRead);
+    TryParseField(buffer, 6, result.TimeSpentReading);
+    TryParseField(buffer, 7, result.WritesCompleted);
+    TryParseField(buffer, 8, result.WritesMerged);
+    TryParseField(buffer, 9, result.SectorsWritten);
+    TryParseField(buffer, 10, result.TimeSpentWriting);
+    TryParseField(buffer, 11, result.IOCurrentlyInProgress);
+    TryParseField(buffer, 12, result.TimeSpentDoingIO);
+    TryParseField(buffer, 13, result.WeightedTimeSpentDoingIO);
+    TryParseField(buffer, 14, result.DiscardsCompleted);
+    TryParseField(buffer, 15, result.DiscardsMerged);
+    TryParseField(buffer, 16, result.SectorsDiscarded);
+    TryParseField(buffer, 17, result.TimeSpentDiscarding);
+    return result;
+}
+
+THashMap<TString, TDiskStat> GetDiskStats()
+{
+#ifdef _linux_
+    THashMap<TString, TDiskStat> result;
+    static const TString path("/proc/diskstats");
+    TFileInput diskStatsFile(path);
+    auto data = diskStatsFile.ReadAll();
+    auto lines = SplitString(data, "\n");
+
+    for (const auto& line : lines) {
+        auto strippedLine = Strip(line);
+        if (strippedLine.empty()) {
+            continue;
+        }
+        auto parsed = ParseDiskStat(line);
+        result[parsed.DeviceName] = parsed;
+    }
+    
+    return result;
+#else
+    return {};
+#endif
+}
+
+std::vector<TString> ListDisks()
+{
+#ifdef _linux_
+    std::vector<TString> disks;
+
+    for (const auto& entry : TDirIterator("/sys/block", TDirIterator::TOptions().SetMaxLevel(1))) {
+        if (entry.fts_info == FTS_D || entry.fts_info == FTS_DP) {
+            continue;
+        }
+        disks.push_back(entry.fts_name);
+    }
+
+    return disks;
+#else
     return {};
 #endif
 }

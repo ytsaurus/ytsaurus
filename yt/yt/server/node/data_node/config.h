@@ -271,6 +271,12 @@ public:
     //! in order to join them together during read coalescing.
     i64 CoalescedReadMaxGapSize;
 
+    //! Block device name.
+    TString DeviceName;
+
+    //! Storage device vendor info.
+    TString DeviceModel;
+
     TStoreLocationConfigBase()
     {
         RegisterParameter("quota", Quota)
@@ -298,6 +304,11 @@ public:
             .GreaterThanOrEqual(0)
             .Default(0);
         RegisterParameter("disk_family", DiskFamily)
+            .Default("UNKNOWN");
+
+        RegisterParameter("device_name", DeviceName)
+            .Default("UNKNOWN");
+        RegisterParameter("device_model", DeviceModel)
             .Default("UNKNOWN");
     }
 };
