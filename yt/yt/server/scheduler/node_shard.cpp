@@ -2523,12 +2523,20 @@ void TNodeShard::SubmitJobsToStrategy()
 
 void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
 {
-    if (job->GetState() == EJobState::Aborted) {
-        auto key = std::make_tuple(job->GetType(), job->GetState(), job->GetAbortReason());
+    auto jobState = job->GetState();
+    if (jobState == EJobState::Aborted ||
+        jobState == EJobState::Completed ||
+        jobState == EJobState::Failed)
+    {
+        YT_ASSERT(value >= 0);
+    }
+
+    if (jobState == EJobState::Aborted) {
+        auto key = std::make_tuple(job->GetType(), job->GetAbortReason(), job->GetTreeId());
         auto it = AbortedJobCounter_.find(key);
         if (it == AbortedJobCounter_.end()) {
             it = AbortedJobCounter_.emplace(
-                key,
+                std::move(key),
                 SchedulerProfiler
                     .WithTag("job_type", FormatEnum(job->GetType()))
                     .WithTag("abort_reason", FormatEnum(job->GetAbortReason()))
@@ -2536,12 +2544,12 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
                     .Counter("/jobs/aborted_job_count")).first;
         }
         it->second.Increment(value);
-    } else if (job->GetState() == EJobState::Completed) {
-        auto key = std::make_tuple(job->GetType(), job->GetState(), job->GetInterruptReason());
+    } else if (jobState == EJobState::Completed) {
+        auto key = std::make_tuple(job->GetType(), job->GetInterruptReason(), job->GetTreeId());
         auto it = CompletedJobCounter_.find(key);
         if (it == CompletedJobCounter_.end()) {
             it = CompletedJobCounter_.emplace(
-                key,
+                std::move(key),
                 SchedulerProfiler
                     .WithTag("job_type", FormatEnum(job->GetType()))
                     .WithTag("interrupt_reason", FormatEnum(job->GetInterruptReason()))
@@ -2549,12 +2557,12 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
                     .Counter("/jobs/completed_job_count")).first;
         }
         it->second.Increment(value);
-    } else if (job->GetState() == EJobState::Failed) {
-        auto key = std::make_tuple(job->GetType(), job->GetState());
+    } else if (jobState == EJobState::Failed) {
+        auto key = std::make_tuple(job->GetType(), job->GetTreeId());
         auto it = FailedJobCounter_.find(key);
         if (it == FailedJobCounter_.end()) {
             it = FailedJobCounter_.emplace(
-                key,
+                std::move(key),
                 SchedulerProfiler
                     .WithTag("job_type", FormatEnum(job->GetType()))
                     .WithTag(ProfilingPoolTreeKey, job->GetTreeId())
@@ -2562,7 +2570,7 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
         }
         it->second.Increment(value);
     } else {
-        auto key = std::make_tuple(job->GetType(), job->GetState());
+        auto key = std::make_tuple(job->GetType(), jobState);
         auto it = JobCounter_.find(key);
         if (it == JobCounter_.end()) {
             it = JobCounter_.emplace(
@@ -2571,7 +2579,7 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
                     0,
                     SchedulerProfiler
                         .WithTag("job_type", FormatEnum(job->GetType()))
-                        .WithTag("state", FormatEnum(job->GetState()))
+                        .WithTag("state", FormatEnum(jobState))
                         .WithTag(ProfilingPoolTreeKey, job->GetTreeId())
                         .Gauge("/jobs/running_job_count"))).first;
         }
