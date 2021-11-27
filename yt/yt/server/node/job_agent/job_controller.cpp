@@ -936,15 +936,13 @@ IJobPtr TJobController::TImpl::CreateSchedulerJob(
     auto type = CheckedEnumCast<EJobType>(jobSpec.type());
     auto factory = GetSchedulerJobFactory(type);
 
-    auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
-    TDuration waitingJobTimeout = Config_->WaitingJobsTimeout;
-    YT_VERIFY(jobSpec.HasExtension(extensionId));
+    auto jobSpecExtId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+    auto waitingJobTimeout = Config_->WaitingJobsTimeout;
 
-    {
-        const auto& extension = jobSpec.GetExtension(extensionId);
-        if (extension.has_waiting_job_timeout()) {
-            waitingJobTimeout = FromProto<TDuration>(extension.waiting_job_timeout());
-        }
+    YT_VERIFY(jobSpec.HasExtension(jobSpecExtId));
+    const auto& jobSpecExt = jobSpec.GetExtension(jobSpecExtId);
+    if (jobSpecExt.has_waiting_job_timeout()) {
+        waitingJobTimeout = FromProto<TDuration>(jobSpecExt.waiting_job_timeout());
     }
 
     auto job = factory.Run(
@@ -977,8 +975,8 @@ IJobPtr TJobController::TImpl::CreateMasterJob(
     auto type = CheckedEnumCast<EJobType>(jobSpec.type());
     auto factory = GetMasterJobFactory(type);
 
-    auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
-    YT_VERIFY(!jobSpec.HasExtension(extensionId));
+    auto jobSpecExtId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+    YT_VERIFY(!jobSpec.HasExtension(jobSpecExtId));
 
     auto job = factory.Run(
         jobId,
@@ -1775,17 +1773,17 @@ void TJobController::TImpl::OnProfiling()
         }
 
         const auto& jobSpec = job->GetSpec();
-        auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
-        if (!jobSpec.HasExtension(extensionId)) {
+        auto jobSpecExtId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+        if (!jobSpec.HasExtension(jobSpecExtId)) {
             continue;
         }
 
-        const auto& extension = jobSpec.GetExtension(extensionId);
-        if (!extension.has_user_job_spec()) {
+        const auto& jobSpecExt = jobSpec.GetExtension(jobSpecExtId);
+        if (!jobSpecExt.has_user_job_spec()) {
             continue;
         }
 
-        for (const auto& tmpfsVolumeProto : extension.user_job_spec().tmpfs_volumes()) {
+        for (const auto& tmpfsVolumeProto : jobSpecExt.user_job_spec().tmpfs_volumes()) {
             tmpfsSize += tmpfsVolumeProto.size();
         }
 
