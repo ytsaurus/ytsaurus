@@ -280,7 +280,7 @@ bool IsReplicaSync(
 {
     return
         FromProto<ETableReplicaMode>(replicaInfo.mode()) == ETableReplicaMode::Sync &&
-        replicaInfo.current_replication_row_index() >= tabletInfo.total_row_count();
+        replicaInfo.current_replication_row_index() >= tabletInfo.total_row_count() + tabletInfo.delayed_lockless_row_count();
 }
 
 TTableReplicaInfoPtrList OnTabletInfosReceived(

@@ -3399,6 +3399,7 @@ private:
                     auto* protoTabletInfo = response->add_tablets();
                     protoTabletInfo->set_total_row_count(tabletInfo.TotalRowCount);
                     protoTabletInfo->set_trimmed_row_count(tabletInfo.TrimmedRowCount);
+                    protoTabletInfo->set_delayed_lockless_row_count(tabletInfo.DelayedLocklessRowCount);
                     protoTabletInfo->set_barrier_timestamp(tabletInfo.BarrierTimestamp);
                     protoTabletInfo->set_last_write_timestamp(tabletInfo.LastWriteTimestamp);
                     ToProto(protoTabletInfo->mutable_tablet_errors(), tabletInfo.TabletErrors);
