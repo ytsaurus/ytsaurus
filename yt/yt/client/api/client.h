@@ -276,6 +276,10 @@ struct TTabletInfo
     //! Contains the number of front rows that are trimmed and are not guaranteed to be accessible.
     i64 TrimmedRowCount = 0;
 
+    //! Only makes sense for replicated tablets.
+    //! Contains the number of rows that are yet to be committed.
+    i64 DelayedLocklessRowCount = 0;
+
     //! Mostly makes sense for ordered tablets.
     //! Contains the barrier timestamp of the tablet cell containing the tablet, which lags behind the current timestamp.
     //! It is guaranteed that all transactions with commit timestamp not exceeding the barrier

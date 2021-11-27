@@ -335,6 +335,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
             const auto& tabletInfo = rsp->tablets(static_cast<int>(resultIndexIndex));
             result.TotalRowCount = tabletInfo.total_row_count();
             result.TrimmedRowCount = tabletInfo.trimmed_row_count();
+            result.DelayedLocklessRowCount = tabletInfo.delayed_lockless_row_count();
             result.BarrierTimestamp = tabletInfo.barrier_timestamp();
             result.LastWriteTimestamp = tabletInfo.last_write_timestamp();
             result.TableReplicaInfos = tabletInfo.replicas().empty()

@@ -968,6 +968,7 @@ private:
             protoTabletInfo->set_barrier_timestamp(tabletSnapshot->TabletCellRuntimeData->BarrierTimestamp.load());
             protoTabletInfo->set_total_row_count(tabletSnapshot->TabletRuntimeData->TotalRowCount.load());
             protoTabletInfo->set_trimmed_row_count(tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load());
+            protoTabletInfo->set_delayed_lockless_row_count(tabletSnapshot->TabletRuntimeData->DelayedLocklessRowCount.load());
             protoTabletInfo->set_last_write_timestamp(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp.load());
 
             if (request->request_errors()) {

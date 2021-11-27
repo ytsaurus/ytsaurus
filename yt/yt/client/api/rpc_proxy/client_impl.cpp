@@ -543,6 +543,7 @@ TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
             auto& tabletInfo = tabletInfos.emplace_back();
             tabletInfo.TotalRowCount = protoTabletInfo.total_row_count();
             tabletInfo.TrimmedRowCount = protoTabletInfo.trimmed_row_count();
+            tabletInfo.DelayedLocklessRowCount = protoTabletInfo.delayed_lockless_row_count();
             tabletInfo.BarrierTimestamp = protoTabletInfo.barrier_timestamp();
             tabletInfo.LastWriteTimestamp = protoTabletInfo.last_write_timestamp();
             tabletInfo.TableReplicaInfos = protoTabletInfo.replicas().empty()

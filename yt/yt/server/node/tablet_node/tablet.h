@@ -122,6 +122,7 @@ struct TRuntimeTabletData
 {
     std::atomic<i64> TotalRowCount = 0;
     std::atomic<i64> TrimmedRowCount = 0;
+    std::atomic<i64> DelayedLocklessRowCount = 0;
     std::atomic<TTimestamp> LastCommitTimestamp = NullTimestamp;
     std::atomic<TTimestamp> LastWriteTimestamp = NullTimestamp;
     std::atomic<TTimestamp> UnflushedTimestamp = MinTimestamp;
@@ -628,7 +629,6 @@ private:
     TRowCachePtr RowCache_;
 
     i64 TabletLockCount_ = 0;
-    i64 DelayedLocklessRowCount_ = 0;
 
     IPerTabletStructuredLoggerPtr StructuredLogger_;
 
