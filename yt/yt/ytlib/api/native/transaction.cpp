@@ -905,6 +905,7 @@ private:
 
         const std::vector<TSyncReplica>& GetSyncReplicas() const
         {
+            YT_VERIFY(PrepareFuture_.IsSet());
             return SyncReplicas_;
         }
 
@@ -926,6 +927,8 @@ private:
 
         TFuture<void> OnGotTableInfo(const TTableMountInfoPtr& tableInfo)
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             TableInfo_ = tableInfo;
             if (TableInfo_->ReplicationCardToken) {
                 UpstreamReplicaId_ = TableInfo_->UpstreamReplicaId;
@@ -958,6 +961,8 @@ private:
 
         TFuture<void> OnGotReplicationCard(bool exploreReplicas)
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             std::vector<TFuture<void>> futures;
             CheckPermissions(&futures);
             if (exploreReplicas) {
@@ -969,6 +974,8 @@ private:
 
         void CheckPermissions(std::vector<TFuture<void>>* futures)
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             auto transaction = Transaction_.Lock();
             if (!transaction) {
                 return;
@@ -990,6 +997,8 @@ private:
 
         void RegisterSyncReplicas(std::vector<TFuture<void>>* futures)
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             auto transaction = Transaction_.Lock();
             if (!transaction) {
                 return;
@@ -1029,6 +1038,8 @@ private:
             const TTransactionPtr& transaction,
             const TTableReplicaInfoPtrList& syncReplicas)
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             auto registerReplica = [&] (const auto& replicaInfo) {
                 if (replicaInfo->Mode != ETableReplicaMode::Sync) {
                     return;
@@ -1382,6 +1393,8 @@ private:
 
         void InvokeNextBatch()
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             if (InvokeBatchIndex_ >= std::ssize(Batches_)) {
                 InvokePromise_.Set(TError());
                 return;
@@ -1603,6 +1616,7 @@ private:
     THashMap<TCellId, TCellCommitSessionPtr> CellIdToSession_;
 
     //! Maps replica cluster name to sync replica transaction.
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ClusterNameToSyncReplicaTransactionPromiseSpinLock_);
     THashMap<TString, TPromise<NApi::ITransactionPtr>> ClusterNameToSyncReplicaTransactionPromise_;
 
     //! Caches mappings from name table ids to schema ids.
@@ -1628,13 +1642,19 @@ private:
 
     TFuture<NApi::ITransactionPtr> GetSyncReplicaTransaction(const TTableReplicaInfoPtr& replicaInfo)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TPromise<NApi::ITransactionPtr> promise;
-        auto it = ClusterNameToSyncReplicaTransactionPromise_.find(replicaInfo->ClusterName);
-        if (it != ClusterNameToSyncReplicaTransactionPromise_.end()) {
-            return it->second.ToFuture();
-        } else {
-            promise = NewPromise<NApi::ITransactionPtr>();
-            YT_VERIFY(ClusterNameToSyncReplicaTransactionPromise_.emplace(replicaInfo->ClusterName, promise).second);
+        {
+            auto guard = Guard(ClusterNameToSyncReplicaTransactionPromiseSpinLock_);
+
+            auto it = ClusterNameToSyncReplicaTransactionPromise_.find(replicaInfo->ClusterName);
+            if (it != ClusterNameToSyncReplicaTransactionPromise_.end()) {
+                return it->second.ToFuture();
+            } else {
+                promise = NewPromise<NApi::ITransactionPtr>();
+                EmplaceOrCrash(ClusterNameToSyncReplicaTransactionPromise_, replicaInfo->ClusterName, promise);
+            }
         }
 
         return
@@ -1691,6 +1711,8 @@ private:
 
     void EnqueueModificationRequest(std::unique_ptr<TModificationRequest> request)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         if (auto sequenceNumber = request->GetSequenceNumber()) {
             if (*sequenceNumber < 0) {
                 THROW_ERROR_EXCEPTION(
@@ -1714,6 +1736,8 @@ private:
         TTableReplicaId upstreamReplicaId,
         const TReplicationCardPtr& replicationCard)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto it = TablePathToSession_.find(path);
         if (it == TablePathToSession_.end()) {
             auto session = New<TTableCommitSession>(this, path, upstreamReplicaId, replicationCard);
@@ -1735,6 +1759,7 @@ private:
                     session->GetUpstreamReplicaId());
             }
         }
+
         return it->second;
     }
 
@@ -1763,6 +1788,7 @@ private:
 
     TFuture<void> DoAbort(TSpinlockGuard<TAdaptiveLock>* guard, const TTransactionAbortOptions& options = {})
     {
+        VERIFY_THREAD_AFFINITY_ANY();
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
         if (State_ == ETransactionState::Aborted) {
@@ -2027,6 +2053,8 @@ private:
 
     TCellCommitSessionPtr GetOrCreateCellCommitSession(TCellId cellId)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto it = CellIdToSession_.find(cellId);
         if (it == CellIdToSession_.end()) {
             it = CellIdToSession_.emplace(cellId, New<TCellCommitSession>(this, cellId)).first;
@@ -2036,6 +2064,8 @@ private:
 
     TCellCommitSessionPtr GetCommitSession(TCellId cellId)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return GetOrCrash(CellIdToSession_, cellId);
     }
 
@@ -2053,42 +2083,6 @@ private:
         }
     }
 
-
-    void DoRegisterAlienTransaction(const NApi::ITransactionPtr& transaction, ETransactionState expectedState)
-    {
-        {
-            auto guard = Guard(SpinLock_);
-
-            if (State_ != expectedState) {
-                THROW_ERROR_EXCEPTION(
-                    NTransactionClient::EErrorCode::InvalidTransactionState,
-                    "Transaction %v is in %Qlv state",
-                    GetId(),
-                    State_);
-            }
-
-            if (GetType() != ETransactionType::Tablet) {
-                THROW_ERROR_EXCEPTION(
-                    NTransactionClient::EErrorCode::MalformedAlienTransaction,
-                    "Transaction %v is of type %Qlv and hence does not allow alien transactions",
-                    GetId(),
-                    GetType());
-            }
-
-            if (GetId() != transaction->GetId()) {
-                THROW_ERROR_EXCEPTION(
-                    NTransactionClient::EErrorCode::MalformedAlienTransaction,
-                    "Transaction id mismatch: local %v, alien %v",
-                    GetId(),
-                    transaction->GetId());
-            }
-
-            AlienTransactions_.push_back(transaction);
-        }
-
-        YT_LOG_DEBUG("Alien transaction registered (AlienConnectionId: %v)",
-            transaction->GetConnection()->GetLoggingTag());
-    }
 
     void DoRegisterSyncReplicaAlienTransaction(const NApi::ITransactionPtr& transaction)
     {
