@@ -912,7 +912,34 @@ class TestChunkMerger(YTEnvSetup):
 class TestChunkMergerMulticell(TestChunkMerger):
     NUM_TEST_PARTITIONS = 6
 
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_teleportation(self, merge_mode):
+        create("table", "//tmp/t1", attributes={"external_cell_tag" : 2})
+        write_table("<append=true>//tmp/t1", {"a": "b"})
+        write_table("<append=true>//tmp/t1", {"a": "c"})
+
+        create("table", "//tmp/t2", attributes={"external_cell_tag" : 3})
+        write_table("<append=true>//tmp/t2", {"a": "d"})
+        write_table("<append=true>//tmp/t2", {"a": "e"})
+
+        create("table", "//tmp/t", attributes={"external_cell_tag" : 3})
+        concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/t")
+
+        assert get("//tmp/t1/@external_cell_tag") == 2
+        assert get("//tmp/t2/@external_cell_tag") == 3
+        assert get("//tmp/t/@external_cell_tag") == 3
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        remove("//tmp/t1")
+        remove("//tmp/t2")
+
+        self._wait_for_merge("//tmp/t", merge_mode, "tmp")
+
+        for chunk_id in chunk_ids:
+            wait(lambda: not exists("#{}".format(chunk_id)))
 
 
 class TestChunkMergerPortal(TestChunkMergerMulticell):
