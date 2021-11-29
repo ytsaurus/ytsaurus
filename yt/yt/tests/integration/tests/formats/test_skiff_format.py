@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, create_table, write_file, read_table, write_table, map,
-    map_reduce, raises_yt_error)
+    map_reduce, raises_yt_error, sorted_dicts)
 
 from decimal_helpers import decode_decimal, encode_decimal
 
@@ -18,6 +18,13 @@ from decimal import Decimal
 from random import shuffle
 
 ##################################################################
+
+
+def is_empty(obj):
+    if isinstance(obj, yson.YsonStringProxy):
+        return bool(yson.get_bytes(obj))
+    else:
+        return bool(obj)
 
 
 def with_name(skiff_type, name=None):
@@ -71,7 +78,7 @@ def skiff_repeated_variant8(*children, **kwargs):
 
 
 def make_skiff_format(*table_skiff_schemas):
-    format = yson.YsonString("skiff")
+    format = yson.YsonString(b"skiff")
     format.attributes["table_skiff_schemas"] = table_skiff_schemas
     return format
 
@@ -111,7 +118,7 @@ class TestSkiffFormat(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        format = yson.YsonString("skiff")
+        format = yson.YsonString(b"skiff")
         format.attributes["table_skiff_schemas"] = [
             {
                 "wire_type": "tuple",
@@ -153,7 +160,7 @@ class TestSkiffFormat(YTEnvSetup):
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
-        format = yson.YsonString("skiff")
+        format = yson.YsonString(b"skiff")
         format.attributes["table_skiff_schemas"] = [
             {
                 "wire_type": "tuple",
@@ -199,7 +206,7 @@ class TestSkiffFormat(YTEnvSetup):
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
-        format = yson.YsonString("skiff")
+        format = yson.YsonString(b"skiff")
         format.attributes["table_skiff_schemas"] = [
             {
                 "wire_type": "tuple",
@@ -388,7 +395,7 @@ class TestSkiffFormat(YTEnvSetup):
 
         # Check that column name is not in our table dump.
         # It's simple check that read_table didn't return yson.
-        assert schema[0]["name"] not in skiff_dump
+        assert schema[0]["name"].encode("ascii") not in skiff_dump
 
         create("table", "//tmp/table2", attributes={"schema": schema})
         write_table("//tmp/table2", skiff_dump, is_raw=True, input_format=format)
@@ -407,11 +414,11 @@ class TestSkiffFormat(YTEnvSetup):
             ],
         )
 
-        format = yson.YsonString("skiff")
+        format = yson.YsonString(b"skiff")
         format.attributes["table_skiff_schemas"] = [{"wire_type": "tuple", "children": []}]
 
         read_data = read_table("//tmp/t_in{}", output_format=format)
-        assert read_data == "\x00\x00\x00\x00\x00\x00"
+        assert read_data == b"\x00\x00\x00\x00\x00\x00"
 
         create("table", "//tmp/t_out")
         write_table("//tmp/t_out", read_data, input_format=format, is_raw=True)
@@ -444,14 +451,14 @@ class TestSkiffFormat(YTEnvSetup):
             )
         )
 
-        mapper_output_format = yson.YsonString("skiff")
+        mapper_output_format = yson.YsonString(b"skiff")
         mapper_output_format.attributes["override_intermediate_table_schema"] = schema
         mapper_output_format.attributes["table_skiff_schemas"] = [
             format.attributes["table_skiff_schemas"][0],
             format.attributes["table_skiff_schemas"][0],
         ]
 
-        reducer_input_format = yson.YsonString("skiff")
+        reducer_input_format = yson.YsonString(b"skiff")
         reducer_input_format.attributes["override_intermediate_table_schema"] = schema
         reducer_input_format.attributes["table_skiff_schemas"] = [
             format.attributes["table_skiff_schemas"][0],
@@ -516,7 +523,7 @@ class TestSkiffFormat(YTEnvSetup):
                 "key1": 2 * i,
                 "key3": i,
             }
-            for i in xrange(row_count)
+            for i in range(row_count)
         ]
         shuffle(first_rows)
         write_table("//tmp/in1", first_rows)
@@ -525,12 +532,12 @@ class TestSkiffFormat(YTEnvSetup):
                 "key1": 2 * i + 1,
                 "key2": i,
             }
-            for i in xrange(row_count)
+            for i in range(row_count)
         ]
         shuffle(second_rows)
         write_table("//tmp/in2", second_rows)
 
-        reducer = """
+        reducer = b"""
 import sys, json, struct
 
 def read(n):
@@ -558,12 +565,12 @@ while True:
     else:
         row["key1"] = one_key
         row["key2"] = another_key
-    sys.stderr.write(json.dumps(row) + "\\n")
-    sys.stdout.write(json.dumps(row) + "\\n")
+    sys.stderr.write(json.dumps(row) + b"\\n")
+    sys.stdout.write(json.dumps(row) + b"\\n")
 """
         create("file", "//tmp/reducer.py")
         write_file("//tmp/reducer.py", reducer)
-        input_format = yson.YsonString("skiff")
+        input_format = yson.YsonString(b"skiff")
         input_format.attributes["table_skiff_schemas"] = [
             skiff_tuple(
                 skiff_simple("int64", name="key1"),
@@ -603,7 +610,7 @@ while True:
         for r in second_rows:
             r.update({"table_index": 1, "key3": None})
             expected_rows.append(r)
-        assert sorted(expected_rows) == sorted(result_rows)
+        assert sorted_dicts(expected_rows) == sorted_dicts(result_rows)
 
     @authors("ermolovd")
     def test_read_write_empty_tuple(self):
@@ -618,7 +625,7 @@ while True:
 
         format = make_skiff_format(skiff_tuple(skiff_tuple(name="column")))
 
-        skiff_data = "\x00\x00" "\x00\x00"
+        skiff_data = b"\x00\x00" b"\x00\x00"
 
         write_table("//tmp/table", skiff_data, is_raw=True, input_format=format)
         assert read_table("//tmp/table") == [{"column": {}}, {"column": {}}]
@@ -639,14 +646,14 @@ while True:
         write_table("//tmp/table", [{"column": 1}, {"column": 2, "missing_column": None}])
         read_data = read_table("//tmp/table", is_raw=True, output_format=format)
         assert read_data == (
-            "\x00\x00"
-            "\x01\x00\x00\x00"
-            "\x00\x00\x00\x00"
-            "\x00"
-            "\x00\x00"
-            "\x02\x00\x00\x00"
-            "\x00\x00\x00\x00"
-            "\x00"
+            b"\x00\x00"
+            b"\x01\x00\x00\x00"
+            b"\x00\x00\x00\x00"
+            b"\x00"
+            b"\x00\x00"
+            b"\x02\x00\x00\x00"
+            b"\x00\x00\x00\x00"
+            b"\x00"
         )
 
         write_table("//tmp/table", [{"column": 1}, {"column": 2, "missing_column": "GG"}])
@@ -668,7 +675,7 @@ while True:
             read_table("//tmp/table", is_raw=True, output_format=format)
 
         with raises_yt_error("Skiff type int64 cannot represent"):
-            write_table("//tmp/table", "", is_raw=True, input_format=format)
+            write_table("//tmp/table", b"", is_raw=True, input_format=format)
 
     @authors("ermolovd")
     def test_too_many_columns(self):
@@ -699,8 +706,8 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             skiff_tuple(skiff_simple(skiff_type, name="column"))
         )
         skiff_data = (
-            "\x00\x00\x3a\x01" + "\x00" * (binary_size - 2)
-            + "\x00\x00\xf1\xfe" + "\xff" * (binary_size - 2)
+            b"\x00\x00\x3a\x01" + b"\x00" * (binary_size - 2)
+            + b"\x00\x00\xf1\xfe" + b"\xff" * (binary_size - 2)
         )
         write_table(
             "//tmp/table",
@@ -724,8 +731,8 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             skiff_tuple(skiff_simple(skiff_type, name="column"))
         )
         skiff_data = (
-            "\x00\x00\x3a\x01" + "\x00" * (binary_size - 2)
-            + "\x00\x00\xf1\xfe" + "\xff" * (binary_size - 2)
+            b"\x00\x00\x3a\x01" + b"\x00" * (binary_size - 2)
+            + b"\x00\x00\xf1\xfe" + b"\xff" * (binary_size - 2)
         )
         write_table(
             "//tmp/table",
@@ -747,9 +754,9 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             skiff_tuple(skiff_optional(skiff_simple(skiff_type), name="column"))
         )
         skiff_data = (
-            "\x00\x00\x01\x3a\x01" + "\x00" * (binary_size - 2)
-            + "\x00\x00\x00"
-            + "\x00\x00\x01\xf1\xfe" + "\xff" * (binary_size - 2)
+            b"\x00\x00\x01\x3a\x01" + b"\x00" * (binary_size - 2)
+            + b"\x00\x00\x00"
+            + b"\x00\x00\x01\xf1\xfe" + b"\xff" * (binary_size - 2)
         )
         write_table(
             "//tmp/table",
@@ -757,7 +764,7 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             is_raw=True,
             input_format=format)
         actual = [
-            decode_decimal(row["column"], precision, 2) if row["column"] else None
+            decode_decimal(row["column"], precision, 2) if is_empty(row["column"]) else None
             for row in read_table("//tmp/table")
         ]
         assert actual == [
@@ -776,8 +783,8 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             skiff_tuple(skiff_optional(skiff_simple(skiff_type), name="column"))
         )
         skiff_data = (
-            "\x00\x00\x01\x3a\x01" + "\x00" * (binary_size - 2)
-            + "\x00\x00\x01\xf1\xfe" + "\xff" * (binary_size - 2)
+            b"\x00\x00\x01\x3a\x01" + b"\x00" * (binary_size - 2)
+            + b"\x00\x00\x01\xf1\xfe" + b"\xff" * (binary_size - 2)
         )
         write_table(
             "//tmp/table",
@@ -791,7 +798,7 @@ class TestGoodSkiffDecimal(YTEnvSetup):
         with raises_yt_error(yt_error_codes.SchemaViolation):
             write_table(
                 "//tmp/table",
-                "\x00\x00\x00",
+                b"\x00\x00\x00",
                 is_raw=True,
                 input_format=format)
 
@@ -816,8 +823,8 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             )
         )
         skiff_data = (
-            "\x00\x00\x3a\x01" + "\x00" * (binary_size - 2) + "\x02\x00\x00\x00" "pi"
-            + "\x00\x00\xf1\xfe" + "\xff" * (binary_size - 2) + "\x07\x00\x00\x00" "minus e"
+            b"\x00\x00\x3a\x01" + b"\x00" * (binary_size - 2) + b"\x02\x00\x00\x00" b"pi"
+            + b"\x00\x00\xf1\xfe" + b"\xff" * (binary_size - 2) + b"\x07\x00\x00\x00" b"minus e"
         )
         write_table(
             "//tmp/table",

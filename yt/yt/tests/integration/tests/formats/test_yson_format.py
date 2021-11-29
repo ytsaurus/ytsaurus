@@ -62,7 +62,7 @@ def _test_invalid_write(type, optimize_for, value, format):
 
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
 class TestYsonPositionalFormat(YTEnvSetup):
-    POSITIONAL_YSON = yson.loads("<complex_type_mode=positional>yson")
+    POSITIONAL_YSON = yson.loads(b"<complex_type_mode=positional>yson")
     STRUCT = struct_type(
         [
             ("f1", "int64"),
@@ -78,7 +78,7 @@ class TestYsonPositionalFormat(YTEnvSetup):
 
     @authors("ermolovd")
     def test_struct(self, optimize_for):
-        self.POSITIONAL_YSON = yson.loads("<complex_type_mode=positional>yson")
+        self.POSITIONAL_YSON = yson.loads(b"<complex_type_mode=positional>yson")
 
         _test_yson_row(
             self.STRUCT,
@@ -114,8 +114,8 @@ class TestYsonPositionalFormat(YTEnvSetup):
 @authors("egor-gutrov")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
 class TestYsonDecimalFormat(YTEnvSetup):
-    TEXT_DECIMAL_FORMAT = yson.loads("<decimal_mode=text>yson")
-    BINARY_PI = "\x80\x00\x7A\xB7"
+    TEXT_DECIMAL_FORMAT = yson.loads(b"<decimal_mode=text>yson")
+    BINARY_PI = b"\x80\x00\x7A\xB7"
     TEXT_PI = "3.1415"
     DECIMAL = decimal_type(5, 4)
 
@@ -135,12 +135,12 @@ class TestYsonDecimalFormat(YTEnvSetup):
         decimal_struct = struct_type([("f1", self.DECIMAL)])
         _test_yson_row(decimal_struct, optimize_for, {"f1": self.BINARY_PI}, self.TEXT_DECIMAL_FORMAT, {"f1": self.TEXT_PI})
 
-        text_decimal_positional_format = yson.loads("<decimal_mode=text; complex_type_mode=positional>yson")
+        text_decimal_positional_format = yson.loads(b"<decimal_mode=text; complex_type_mode=positional>yson")
         _test_yson_row(decimal_struct, optimize_for, {"f1": self.BINARY_PI}, text_decimal_positional_format, [self.TEXT_PI])
 
     def test_in_variant_struct(self, optimize_for):
         decimal_variant_struct = variant_struct_type([("f1", self.DECIMAL)])
-        text_decimal_positional_format = yson.loads("<decimal_mode=text; complex_type_mode=positional>yson")
+        text_decimal_positional_format = yson.loads(b"<decimal_mode=text; complex_type_mode=positional>yson")
         _test_yson_row(decimal_variant_struct, optimize_for, ["f1", self.BINARY_PI], self.TEXT_DECIMAL_FORMAT, ["f1", self.TEXT_PI])
         _test_yson_row(decimal_variant_struct, optimize_for, ["f1", self.BINARY_PI], text_decimal_positional_format, [0, self.TEXT_PI])
 
@@ -152,7 +152,7 @@ class TestYsonDecimalFormat(YTEnvSetup):
 @authors("egor-gutrov")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
 class TestYsonTimeFormat(YTEnvSetup):
-    TEXT_TIME_FORMAT = yson.loads("<time_mode=text>yson")
+    TEXT_TIME_FORMAT = yson.loads(b"<time_mode=text>yson")
     DATE = {"type_name": "date"}
     DATETIME = {"type_name": "datetime"}
     TIMESTAMP = {"type_name": "timestamp"}
@@ -206,7 +206,7 @@ class TestYsonTimeFormat(YTEnvSetup):
             self.TEXT_TIME_FORMAT,
             {"f1": self.DATE_TEXT, "f2": self.DATETIME_TEXT, "f3": self.TIMESTAMP_TEXT}
         )
-        text_time_positional_format = yson.loads("<time_mode=text; complex_type_mode=positional>yson")
+        text_time_positional_format = yson.loads(b"<time_mode=text; complex_type_mode=positional>yson")
         _test_yson_row(
             struct,
             optimize_for,
@@ -254,11 +254,11 @@ class TestYsonTimeFormat(YTEnvSetup):
 @authors("egor-gutrov")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
 class TestYsonUuidFormat(YTEnvSetup):
-    TEXT_YT_FORMAT = yson.loads("<uuid_mode=text_yt>yson")
-    TEXT_YQL_FORMAT = yson.loads("<uuid_mode=text_yql>yson")
+    TEXT_YT_FORMAT = yson.loads(b"<uuid_mode=text_yt>yson")
+    TEXT_YQL_FORMAT = yson.loads(b"<uuid_mode=text_yql>yson")
     UUID = {"type_name": "uuid"}
 
-    UUID_BINARY = "\x01\x10\x20\x30\x40\x50\x60\x70\x80\x90\xa0\xb0\xc0\xd0\xe0\xf0"
+    UUID_BINARY = b"\x01\x10\x20\x30\x40\x50\x60\x70\x80\x90\xa0\xb0\xc0\xd0\xe0\xf0"
     UUID_TEXT_YT = "1102030-40506070-8090a0b0-c0d0e0f0"
     UUID_TEXT_YQL = "30201001-5040-7060-8090-a0b0c0d0e0f0"
 
