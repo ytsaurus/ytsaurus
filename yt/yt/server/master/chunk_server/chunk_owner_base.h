@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/security_server/security_tags.h>
 
+#include <yt/yt/server/master/chunk_server/chunk_merger_traversal_info.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -38,10 +40,13 @@ public:
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NCompression::ECodec, CompressionCodec);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NErasure::ECodec, ErasureCodec);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, bool, EnableSkynetSharing);
+
+    // TODO(aleksandra-zh): Merger stuff, wrap that.
     // If chunk owner is changed, while it is being merged, it should be marked updated
     // to initiate another merge after the current one is finished.
     DEFINE_BYVAL_RW_PROPERTY(bool, UpdatedSinceLastMerge, false);
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EChunkMergerMode, ChunkMergerMode, NChunkClient::EChunkMergerMode::None);
+    DEFINE_BYREF_RW_PROPERTY(TChunkMergerTraversalInfo, ChunkMergerTraversalInfo);
 
 public:
     using TCypressNode::TCypressNode;

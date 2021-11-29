@@ -42,12 +42,19 @@ message TReqReplaceChunks
     required NYT.NProto.TGuid chunk_list_id = 3;
 }
 
+message TTraversalInfo
+{
+    required int32 chunk_count = 1;
+    required int32 config_version = 2;
+}
+
 message TReqFinalizeChunkMergeSessions
 {
     message TSessionResult
     {
         required NYT.NProto.TGuid node_id = 1;
         required int32 result = 2; // EMergeSessionResult
+        optional TTraversalInfo traversal_info = 3;
     }
 
     repeated TSessionResult subrequests = 1;

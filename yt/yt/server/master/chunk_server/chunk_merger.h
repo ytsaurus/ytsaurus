@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "chunk_merger_traversal_info.h"
 #include "chunk_replacer.h"
 #include "job_controller.h"
 
@@ -55,6 +56,8 @@ struct TChunkMergerSession
     THashMap<NCypressClient::TObjectId, THashSet<TJobId>> ChunkListIdToRunningJobs;
     THashMap<NCypressClient::TObjectId, std::vector<TMergeJobInfo>> ChunkListIdToCompletedJobs;
     EMergeSessionResult Result = EMergeSessionResult::None;
+
+    TChunkMergerTraversalInfo TraversalInfo;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,7 +74,8 @@ struct IMergeChunkVisitorHost
         std::vector<TChunkId> inputChunkIds) = 0;
     virtual void OnTraversalFinished(
         NCypressClient::TObjectId nodeId,
-        EMergeSessionResult result) = 0;
+        EMergeSessionResult result,
+        TChunkMergerTraversalInfo traversalInfo) = 0;
 };
 
 class TChunkMerger
@@ -121,6 +125,7 @@ private:
     TTransactionId TransactionId_;
     TTransactionId PreviousTransactionId_;
     THashSet<NCypressClient::TObjectId> NodesBeingMerged_;
+    i64 ConfigVersion_ = 0;
 
     i64 ChunkReplacementSucceded_ = 0;
     i64 ChunkReplacementFailed_ = 0;
@@ -156,6 +161,7 @@ private:
     {
         NCypressClient::TObjectId NodeId;
         EMergeSessionResult Result;
+        TChunkMergerTraversalInfo TraversalInfo;
     };
     std::queue<TMergeSessionResult> SessionsAwaitingFinalizaton_;
 
@@ -175,7 +181,10 @@ private:
         NCypressClient::TObjectId nodeId,
         TChunkListId parentChunkListId,
         std::vector<TChunkId> inputChunkIds) override;
-    void OnTraversalFinished(NCypressClient::TObjectId nodeId, EMergeSessionResult result) override;
+    void OnTraversalFinished(
+        NCypressClient::TObjectId nodeId,
+        EMergeSessionResult result,
+        TChunkMergerTraversalInfo traversalInfo) override;
 
     void ScheduleSessionFinalization(NCypressClient::TObjectId nodeId, EMergeSessionResult result);
     void FinalizeSessions();

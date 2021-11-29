@@ -75,6 +75,20 @@ static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TTraversalInfo* protoTraversalInfo, const TChunkMergerTraversalInfo& traversalInfo)
+{
+    protoTraversalInfo->set_chunk_count(traversalInfo.ChunkCount);
+    protoTraversalInfo->set_config_version(traversalInfo.ConfigVersion);
+}
+
+void FromProto(TChunkMergerTraversalInfo* traversalInfo, const NProto::TTraversalInfo& protoTraversalInfo)
+{
+    traversalInfo->ChunkCount = protoTraversalInfo.chunk_count();
+    traversalInfo->ConfigVersion = protoTraversalInfo.config_version();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkReplacerCallbacks
     : public IChunkReplacerCallbacks
 {
@@ -172,9 +186,11 @@ public:
     TMergeChunkVisitor(
         TBootstrap* bootstrap,
         TEphemeralObjectPtr<TChunkOwnerBase> node,
+        i64 configVersion,
         TWeakPtr<IMergeChunkVisitorHost> chunkVisitorHost)
         : Bootstrap_(bootstrap)
         , Node_(std::move(node))
+        , ConfigVersion_(configVersion)
         , Mode_(Node_->GetChunkMergerMode())
         , Account_(Node_->GetAccount())
         , ChunkVisitorHost_(std::move(chunkVisitorHost))
@@ -192,16 +208,33 @@ public:
             Bootstrap_,
             EAutomatonThreadQueue::ChunkMerger);
 
-        YT_LOG_DEBUG("Traversal started (NodeId: %v, RootChunkListId: %v)",
+        const auto& config = GetDynamicConfig();
+        const auto& info = Node_->ChunkMergerTraversalInfo();
+        TraversalInfo_.ConfigVersion = ConfigVersion_;
+        TraversalInfo_.ChunkCount = TraversalInfo_.ConfigVersion == info.ConfigVersion ? info.ChunkCount : 0;
+        TraversalInfo_.ChunkCount -= config->MaxChunkCount;
+        TraversalInfo_.ChunkCount = std::max(TraversalInfo_.ChunkCount, 0);
+
+        NChunkClient::TReadLimit lowerLimit;
+        lowerLimit.SetChunkIndex(TraversalInfo_.ChunkCount);
+        YT_LOG_DEBUG("Traversal started (NodeId: %v, RootChunkListId: %v, LowerLimit: %v)",
             Node_->GetId(),
-            Node_->GetChunkList()->GetId());
-        TraverseChunkTree(std::move(callbacks), this, Node_->GetChunkList());
+            Node_->GetChunkList()->GetId(),
+            lowerLimit);
+
+        TraverseChunkTree(
+            std::move(callbacks),
+            this,
+            Node_->GetChunkList(),
+            lowerLimit,
+            {},
+            {});
     }
 
 private:
-
     TBootstrap* const Bootstrap_;
     const TEphemeralObjectPtr<TChunkOwnerBase> Node_;
+    const i64 ConfigVersion_;
     const EChunkMergerMode Mode_;
     const TAccountChunkMergerNodeTraversalsPtr<TAccount> Account_;
     const TWeakPtr<IMergeChunkVisitorHost> ChunkVisitorHost_;
@@ -211,6 +244,8 @@ private:
 
     std::vector<TChunkId> ChunkIds_;
     EChunkMergerMode CurrentJobMode_;
+
+    TChunkMergerTraversalInfo TraversalInfo_;
 
     TChunkListId ParentChunkListId_;
     i64 CurrentRowCount_ = 0;
@@ -229,6 +264,8 @@ private:
         const NChunkClient::TReadLimit& /*upperLimit*/,
         TTransactionId /*timestampTransactionId*/) override
     {
+        ++TraversalInfo_.ChunkCount;
+
         if (!IsNodeMergeable()) {
             return false;
         }
@@ -274,7 +311,10 @@ private:
 
         auto nodeId = Node_->GetId();
         auto result = error.IsOK() ? EMergeSessionResult::OK : EMergeSessionResult::TransientFailure;
-        chunkVisitorHost->OnTraversalFinished(nodeId, result);
+        chunkVisitorHost->OnTraversalFinished(
+            nodeId,
+            result,
+            TraversalInfo_);
     }
 
 
@@ -678,6 +718,7 @@ void TChunkMerger::Clear()
     TransactionId_ = {};
     PreviousTransactionId_ = {};
     NodesBeingMerged_.clear();
+    ConfigVersion_ = 0;
 }
 
 void TChunkMerger::ResetTransientState()
@@ -909,9 +950,10 @@ void TChunkMerger::RegisterJobAwaitingChunkCreation(
     InsertOrCrash(session.ChunkListIdToRunningJobs[parentChunkListId], jobId);
 }
 
-void TChunkMerger::OnTraversalFinished(TObjectId nodeId, EMergeSessionResult result)
+void TChunkMerger::OnTraversalFinished(TObjectId nodeId, EMergeSessionResult result, TChunkMergerTraversalInfo traversalInfo)
 {
     auto& session = GetOrCrash(RunningSessions_, nodeId);
+    session.TraversalInfo = traversalInfo;
     if (session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty()) {
         ScheduleSessionFinalization(nodeId, result);
     }
@@ -929,12 +971,15 @@ void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionRe
     YT_VERIFY(session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty());
     YT_LOG_DEBUG_IF(
         IsMutationLoggingEnabled(),
-        "Finalizing chunk merge session (NodeId: %v, Result: %v)",
+        "Finalizing chunk merge session (NodeId: %v, Result: %v, TraversalInfo: %v)",
         nodeId,
-        session.Result);
+        session.Result,
+        session.TraversalInfo);
+
     SessionsAwaitingFinalizaton_.push({
         .NodeId = nodeId,
-        .Result = session.Result
+        .Result = session.Result,
+        .TraversalInfo = session.TraversalInfo
     });
     EraseOrCrash(RunningSessions_, nodeId);
 }
@@ -952,6 +997,10 @@ void TChunkMerger::FinalizeSessions()
         const auto& sessionResult = SessionsAwaitingFinalizaton_.front();
         ToProto(req->mutable_node_id(), sessionResult.NodeId);
         req->set_result(ToProto<int>(sessionResult.Result));
+
+        if (sessionResult.Result != EMergeSessionResult::TransientFailure) {
+            ToProto(req->mutable_traversal_info(), sessionResult.TraversalInfo);
+        }
         SessionsAwaitingFinalizaton_.pop();
     }
 
@@ -994,6 +1043,7 @@ void TChunkMerger::ProcessTouchedNodes()
                 New<TMergeChunkVisitor>(
                     Bootstrap_,
                     TEphemeralObjectPtr<TChunkOwnerBase>(node),
+                    ConfigVersion_,
                     MakeWeak(this))
                     ->Run();
             } else {
@@ -1223,6 +1273,8 @@ void TChunkMerger::OnDynamicConfigChanged(TDynamicClusterConfigPtr)
 
     const auto& config = GetDynamicConfig();
 
+    ++ConfigVersion_;
+
     if (ScheduleExecutor_) {
         ScheduleExecutor_->SetPeriod(config->SchedulePeriod);
     }
@@ -1397,7 +1449,6 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     }
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-
     auto chunkReplacementSucceded = 0;
     for (int index = 0; index < replacementCount; ++index) {
         const auto& replacement = request->replacements()[index];
@@ -1427,9 +1478,23 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 nodeId,
                 chunkIds,
                 newChunkId);
+
             ++ChunkReplacementSucceded_;
             ++chunkReplacementSucceded;
-            ChunkCountSaving_ += std::ssize(chunkIds) - 1;
+            auto chunkCountDiff = std::ssize(chunkIds) - 1;
+            ChunkCountSaving_ += chunkCountDiff;
+            if (IsLeader()) {
+                auto& session = GetOrCrash(RunningSessions_, nodeId);
+                session.TraversalInfo.ChunkCount -= chunkCountDiff;
+                if (session.TraversalInfo.ChunkCount < 0) {
+                    YT_LOG_ALERT_IF(
+                        IsMutationLoggingEnabled(),
+                        "Node traversed chunk count is negative (NodeId: %v, TraversalInfo: %v)",
+                        chunkOwner->GetId(),
+                        session.TraversalInfo);
+                    session.TraversalInfo.ChunkCount = 0;
+                }
+            }
         } else {
             YT_LOG_DEBUG_IF(
                 IsMutationLoggingEnabled(),
@@ -1488,6 +1553,7 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
     for (const auto& subrequest : request->subrequests()) {
         auto nodeId = FromProto<TObjectId>(subrequest.node_id());
         auto result = FromProto<EMergeSessionResult>(subrequest.result());
+
         YT_VERIFY(result != EMergeSessionResult::None);
 
         YT_VERIFY(NodesBeingMerged_.erase(nodeId) > 0);
@@ -1498,6 +1564,11 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
         auto nodeTouched = chunkOwner->GetUpdatedSinceLastMerge();
         chunkOwner->SetUpdatedSinceLastMerge(false);
+
+        if (subrequest.has_traversal_info()) {
+            FromProto(&chunkOwner->ChunkMergerTraversalInfo(), subrequest.traversal_info());
+        }
+
         YT_LOG_DEBUG_IF(
             IsMutationLoggingEnabled(),
             "Finalizing merge session (NodeId: %v, NodeTouched: %v, Result: %v)",
@@ -1549,6 +1620,7 @@ void TChunkMerger::Save(NCellMaster::TSaveContext& context) const
     Save(context, TransactionId_);
     Save(context, PreviousTransactionId_);
     Save(context, NodesBeingMerged_);
+    Save(context, ConfigVersion_);
 }
 
 void TChunkMerger::Load(NCellMaster::TLoadContext& context)
@@ -1557,8 +1629,13 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
 
     Load(context, TransactionId_);
     Load(context, PreviousTransactionId_);
+
     if (context.GetVersion() >= EMasterReign::PersistNodesBeingMerged) {
         Load(context, NodesBeingMerged_);
+    }
+
+    if (context.GetVersion() >= EMasterReign::OneMoreChunkMergerOptimization) {
+        Load(context, ConfigVersion_);
     }
 }
 
