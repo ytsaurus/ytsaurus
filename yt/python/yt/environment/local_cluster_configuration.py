@@ -79,7 +79,7 @@ CONTROLLER_AGENT_CONFIG_PATCH = {
         "map_reduce_operation_options": {
             "spec_template": {
                 "partition_data_size": 512 * MB,
-                "enable_table_index_if_has_trivial_mapper": True,
+                "enable_table_index_if_has_trivial_mapper": False,
             }
         },
     }
