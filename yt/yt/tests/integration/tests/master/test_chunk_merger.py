@@ -359,6 +359,52 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/t") == rows
 
+    @authors("aleksandra-zh")
+    def test_chunk_tail(self):
+        create("table", "//tmp/t")
+        set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 2)
+        set("//sys/@config/chunk_manager/chunk_merger/max_row_count", 4)
+
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"b": "c"})
+        write_table("<append=true>//tmp/t", {"c": "d"})
+        write_table("<append=true>//tmp/t", {"q": "d"})
+
+        rows = [{"a" : "b"} for _ in range(10)]
+        write_table("<append=true>//tmp/t", rows)
+        write_table("<append=true>//tmp/t", rows)
+
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        set("//tmp/t/@chunk_merger_mode", "deep")
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+
+        # [{"a": "b"}, {"b": "c"}], [{"c": "d"}, {"q": "d"}], rows, rows
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 4)
+        wait(lambda: not get("//tmp/t/@is_being_merged"))
+
+        traversal_info1 = get("//tmp/t/@chunk_merger_traversal_info")
+        assert(traversal_info1["chunk_count"] > 0)
+
+        write_table("<append=true>//tmp/t", {"c": "d"})
+        write_table("<append=true>//tmp/t", {"q": "d"})
+
+        # [{"a": "b"}, {"b": "c"}], [{"c": "d"}, {"q": "d"}], rows, rows, [{"c": "d"}, {"q": "d"}]
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 5)
+
+        traversal_info2 = get("//tmp/t/@chunk_merger_traversal_info")
+        assert(traversal_info2["chunk_count"] > traversal_info1["chunk_count"])
+        assert(traversal_info2["config_version"] == traversal_info1["config_version"])
+
+        set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
+        set("//sys/@config/chunk_manager/chunk_merger/max_row_count", 100)
+        write_table("<append=true>//tmp/t", {"q": "d"})
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
+
+        traversal_info3 = get("//tmp/t/@chunk_merger_traversal_info")
+        assert(traversal_info3["config_version"] > traversal_info2["config_version"])
+
     @authors("cookiedoth")
     @pytest.mark.parametrize("enable_erasure", [False, True])
     def test_multiple_merge(self, enable_erasure):

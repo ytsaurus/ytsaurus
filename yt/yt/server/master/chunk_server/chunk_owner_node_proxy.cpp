@@ -604,6 +604,9 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableSkynetSharing)
         .SetWritable(true)
         .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerTraversalInfo)
+        .SetExternal(isExternal)
+        .SetOpaque(true));
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -722,6 +725,20 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             BuildYsonFluently(consumer)
                 .Value(node->GetEnableSkynetSharing());
             return true;
+
+        case EInternedAttributeKey::ChunkMergerTraversalInfo: {
+            if (isExternal) {
+                break;
+            }
+
+            const auto& traversalInfo = node->ChunkMergerTraversalInfo();
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("chunk_count").Value(traversalInfo.ChunkCount)
+                    .Item("config_version").Value(traversalInfo.ConfigVersion)
+                .EndMap();
+            return true;
+        }
 
         default:
             break;

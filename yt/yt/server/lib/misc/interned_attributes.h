@@ -69,6 +69,7 @@
     XX(ChunkListId, chunk_list_id) \
     XX(ChunkMergerMode, chunk_merger_mode) \
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
+    XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkReplicaCount, chunk_replica_count) \
     XX(ChunkReplicatorEnabled, chunk_replicator_enabled) \

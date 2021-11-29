@@ -71,6 +71,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, ChunkMergerMode_);
     Save(context, EnableSkynetSharing_);
     Save(context, UpdatedSinceLastMerge_);
+    Save(context, ChunkMergerTraversalInfo_);
 }
 
 void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
@@ -123,6 +124,11 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::PersistNodesBeingMerged) {
         Load(context, UpdatedSinceLastMerge_);
+    }
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::OneMoreChunkMergerOptimization) {
+        Load(context, ChunkMergerTraversalInfo_);
     }
 }
 
