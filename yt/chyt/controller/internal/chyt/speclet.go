@@ -24,16 +24,16 @@ type Speclet struct {
 	GeoData              *GeoData              `yson:"geodata"`
 
 	// OperationDescription is visible in clique operation UI.
-	// OperationTitle is YT operation title visible in operation UI.
-	// OperationAnnotations allows adding arbitrary human-readable annotations visible via YT list_operations API.
 	OperationDescription map[string]interface{} `yson:"operation_description"`
-	OperationTitle       *string                `yson:"operation_title"`
+	// OperationTitle is YT operation title visible in operation UI.
+	OperationTitle *string `yson:"operation_title"`
+	// OperationAnnotations allows adding arbitrary human-readable annotations visible via YT list_operations API.
 	OperationAnnotations map[string]interface{} `yson:"operation_annotations"`
 
-	// TODO(max42)
-	ClickHouseConfigPatch map[string]interface{} `yson:"clickhouse_config_patch"`
-	YTConfigPatch         map[string]interface{} `yson:"yt_config_patch"`
-	RootConfigPatch       map[string]interface{} `yson:"root_config_patch"`
+	ClickHouseConfig map[string]interface{} `yson:"clickhouse_config"`
+	YTConfig         map[string]interface{} `yson:"yt_config"`
+	// TODO(dakovalkov): RootConfigPatch is not supported yet.
+	RootConfigPatch map[string]interface{} `yson:"root_config_patch"`
 
 	// RuntimeDataPath defines where all clique table belongings reside (e.g. stderr/core-tables, log dyntables, etc).
 	RuntimeDataPath *ypath.Path `yson:"runtime_data_path"`
