@@ -3,9 +3,9 @@ import yt.yson
 import copy
 import ctypes
 import collections
-from cStringIO import StringIO
 import os
 import struct
+from io import BytesIO
 
 
 class Enumeration(object):
@@ -90,11 +90,15 @@ def create_type_name_to_type_info():
         "sfixed64": WIRE_TYPE_64_BIT,
     }
 
-    def create_simple_type_info(type_name):
+    def create_simple_type_info(type_name, reader_postprocessor=None):
+        if reader_postprocessor is None:
+            reader_function = lambda reader: reader.read_value(type_name)
+        else:
+            reader_function = lambda reader: reader_postprocessor(reader.read_value(type_name))
         return TypeInfo(
             name=type_name,
             writer_function=lambda writer, value: writer.write_value(type_name, value),
-            reader_function=lambda reader: reader.read_value(type_name),
+            reader_function=reader_function,
             wire_type=TYPE_NAME_TO_WIRE_TYPE[type_name],
         )
 
@@ -124,7 +128,7 @@ def create_type_name_to_type_info():
         "int32": create_int_type_info(ctypes.c_int32),
         "uint32": create_simple_type_info("varint"),
         "sint32": create_simple_type_info("zigzag_varint"),
-        "string": create_simple_type_info("length_delimited"),
+        "string": create_simple_type_info("length_delimited", reader_postprocessor=lambda value: value.decode("utf-8")),
         "bytes": create_simple_type_info("length_delimited"),
         "message": create_simple_type_info("length_delimited"),
         "enum_int": create_int_type_info(ctypes.c_int32),
@@ -262,7 +266,7 @@ class ProtobufReader(BytesReader):
 def parse_protobuf_message(message, field_configs, enumerations):
     def parse(reader, field_config, type_info):
         if field_config.get("packed", False):
-            inner_reader = ProtobufReader(StringIO(reader.read_length_delimited()))
+            inner_reader = ProtobufReader(BytesIO(reader.read_length_delimited()))
             result = []
             while not inner_reader.is_exhausted():
                 result.append(type_info.reader_function(inner_reader))
@@ -295,7 +299,7 @@ def parse_protobuf_message(message, field_configs, enumerations):
             field_number_to_field_config[field_config["field_number"]] = field_config
 
     result = {}
-    bufio = StringIO(message)
+    bufio = BytesIO(message)
     reader = ProtobufReader(bufio)
     while True:
         tag = reader.try_read_varint()
@@ -321,7 +325,7 @@ def parse_protobuf_message(message, field_configs, enumerations):
 
 
 def parse_lenval_protobuf(data, format, enable_control_attributes=False):
-    bufio = StringIO(data)
+    bufio = BytesIO(data)
     result = []
     reader = LenvalReader(bufio)
     assert str(format) == "protobuf"
@@ -360,17 +364,22 @@ class ProtobufWriter(object):
         assert value >= 0
         while value >= 0x80:
             b = (value & 0xFF) | 0x80
-            self.output.write(chr(b))
+            self.output.write(bytes([b]))
             value = value >> 7
-        self.output.write(chr(value))
+        self.output.write(bytes([value]))
 
     def write_zigzag_varint(self, value):
         encoded = (2 * abs(value)) - (1 if value < 0 else 0)
         self.write_varint(encoded)
 
     def write_length_delimited(self, data):
-        self.write_varint(len(data))
-        self.output.write(data)
+        if isinstance(data, str):
+            encoded_data = data.encode("utf-8")
+            self.write_varint(len(encoded_data))
+            self.output.write(encoded_data)
+        else:  # bytes
+            self.write_varint(len(data))
+            self.output.write(data)
 
     def write_value(self, type_, value):
         if type_ in TYPE_NAME_TO_STRUCT_FORMAT:
@@ -412,7 +421,7 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
     if other_columns_configs:
         other_columns_config = other_columns_configs[0]
         other_columns = {}
-    bufio = StringIO()
+    bufio = BytesIO()
     writer = ProtobufWriter(bufio)
     for name, value in message_dict.items():
         if name not in field_name_to_field_config:
@@ -441,7 +450,7 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
                 if len(value) == 0:
                     continue
                 writer.write_varint(tag)
-                inner_bufio = StringIO()
+                inner_bufio = BytesIO()
                 inner_writer = ProtobufWriter(inner_bufio)
                 for el in value:
                     type_info.writer_function(inner_writer, el)
@@ -464,7 +473,7 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
 
 
 def write_lenval_protobuf(message_dicts, format):
-    bufio = StringIO()
+    bufio = BytesIO()
     writer = LenvalWriter(bufio)
     assert str(format) == "protobuf"
     assert len(format.attributes["tables"]) == 1

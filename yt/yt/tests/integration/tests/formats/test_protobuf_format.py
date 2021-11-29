@@ -151,7 +151,7 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         rows = []
         random.seed(42)
         enum_names = list(ENUMERATIONS["MyEnum"].keys())
-        for _ in xrange(count):
+        for _ in range(count):
             rows.append(
                 {
                     "int64_column": random.randrange(1 << 63),
@@ -705,7 +705,7 @@ SCHEMAFUL_TABLE_ROWS = [
                 {"a": "---", "b": True},
             ],
         },
-        "utf8": HELLO_WORLD,
+        "utf8": HELLO_WORLD.decode("utf-8"),
         "packed_repeated_int8": [0, 12, 127],
         "optional_list_of_int64": yson.YsonEntity(),
         "dict": [[12, {"f1": -9, "f2": "-9"}], [13, {"f1": -127, "f2": "-127"}]],
@@ -722,7 +722,7 @@ SCHEMAFUL_TABLE_ROWS = [
             "enum_string": "Red",
             "optional_list_of_structs": yson.YsonEntity(),
         },
-        "utf8": GOODBYE_WORLD,
+        "utf8": GOODBYE_WORLD.decode("utf-8"),
         "packed_repeated_int8": [],
         "optional_list_of_int64": [-300, -200, -100],
         "variant": ["f3", {"var": ["g2", "spam"], "list_of_ints": [3, 4, 5]}],
@@ -746,7 +746,7 @@ PROTOBUF_SCHEMAFUL_TABLE_ROWS = [
                 {"a": "---", "b": True},
             ],
         },
-        "utf8": HELLO_WORLD,
+        "utf8": HELLO_WORLD.decode("utf-8"),
         "packed_repeated_int8": [0, 12, 127],
         "dict": [
             {"key": 12, "value": {"f1": -9, "f2": "-9"}},
@@ -762,7 +762,7 @@ PROTOBUF_SCHEMAFUL_TABLE_ROWS = [
             "enum_int": 12,
             "enum_string": "Red",
         },
-        "utf8": GOODBYE_WORLD,
+        "utf8": GOODBYE_WORLD.decode("utf-8"),
         "optional_list_of_int64": [-300, -200, -100],
         "variant": ["f3", {"var": ["g2", "spam"], "list_of_ints": [3, 4, 5]}],
     },
@@ -785,7 +785,7 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
                 {"a": "---", "b": True},
             ],
         },
-        "utf8": HELLO_WORLD,
+        "utf8": HELLO_WORLD.decode("utf8"),
         "packed_repeated_int8": [0, 12, 127],
         "optional_list_of_int64": yson.YsonEntity(),
         "variant": yson.YsonEntity(),
@@ -804,7 +804,7 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
             "extra_field": yson.YsonEntity(),
             "optional_list_of_structs": yson.YsonEntity(),
         },
-        "utf8": GOODBYE_WORLD,
+        "utf8": GOODBYE_WORLD.decode("utf8"),
         "packed_repeated_int8": [],
         "optional_list_of_int64": [-300, -200, -100],
         "variant": ["f3", {"var": ["g2", "spam"], "list_of_ints": [3, 4, 5]}],
@@ -822,7 +822,7 @@ def make_random_list(max_len, generator, optional=False):
     length = random.randrange(min_len, max_len + 1)
     if length == -1:
         return yson.YsonEntity()
-    return [generator() for _ in xrange(length)]
+    return [generator() for _ in range(length)]
 
 
 def make_random_variant_struct(fields):
@@ -862,8 +862,8 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
     def _generate_random_rows(self, count):
         rows = []
         random.seed(42)
-        enum_names = ENUMERATIONS["MyEnum"].keys()
-        for _ in xrange(count):
+        enum_names = list(ENUMERATIONS["MyEnum"].keys())
+        for _ in range(count):
             rows.append(
                 {
                     "int16": random.randrange(1 << 15),

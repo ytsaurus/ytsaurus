@@ -1,6 +1,8 @@
 import decimal
 import struct
 
+from yt.yson import get_bytes, YsonStringProxy
+
 MAX_DECIMAL_PRECISION = 35
 
 
@@ -96,6 +98,8 @@ def decode_decimal(yt_binary_value, precision, scale):
         return value_map.get(intval, None)
 
     expected_size = _get_decimal_byte_size(precision)
+    if isinstance(yt_binary_value, YsonStringProxy):
+        yt_binary_value = get_bytes(yt_binary_value)
     if len(yt_binary_value) != _get_decimal_byte_size(precision):
         raise ValueError(
             "Binary value of Decimal<{},{}> has invalid length; expected length: {} actual length: {}"

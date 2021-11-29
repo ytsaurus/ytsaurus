@@ -12,7 +12,7 @@ import yt.yson as yson
 
 import pytest
 
-import __builtin__
+import builtins
 import base64
 import collections
 import json
@@ -112,8 +112,8 @@ COLUMN_LIST = [
             b"ab\xFAcd",
         ],
         [
-            {"$type": "string", "$value": u"\xFF\xFE\xFD\xFC"},
-            {"$type": "string", "$value": u"ab\xFAcd"},
+            {"$type": "string", "$value": "\xFF\xFE\xFD\xFC"},
+            {"$type": "string", "$value": "ab\xFAcd"},
         ],
         False,
     ),
@@ -248,7 +248,7 @@ def get_output_yql_rows():
             "variant_tuple_column": [["0", "bar"], variant_tuple_type],
             "struct_column": [[False, "1", "flame", yson.YsonEntity()], struct_type],
             "non_utf_string_column": [
-                [{"val": base64.b64encode(b"\xFF\xFE\xFD\xFC"), "b64": True}],
+                [{"val": base64.b64encode(b"\xFF\xFE\xFD\xFC").decode("ascii"), "b64": True}],
                 ["OptionalType", ["DataType", "String"]],
             ],
             "list_optional_int64_column": [
@@ -273,7 +273,7 @@ def get_output_yql_rows():
                 struct_type,
             ],
             "non_utf_string_column": [
-                [{"val": base64.b64encode(b"ab\xFAcd"), "b64": True}],
+                [{"val": base64.b64encode(b"ab\xFAcd").decode("ascii"), "b64": True}],
                 ["OptionalType", ["DataType", "String"]],
             ],
             "list_optional_int64_column": [
@@ -299,7 +299,7 @@ def get_rows(dynamic=False):
     for column in COLUMN_LIST:
         if dynamic and column.complex:
             continue
-        for i in xrange(2):
+        for i in range(2):
             res[i][column.name] = column.values[i]
     return res
 
@@ -309,7 +309,7 @@ def get_expected_output(dynamic=False, ordered=False):
     for column in COLUMN_LIST:
         if dynamic and column.complex:
             continue
-        for i in xrange(2):
+        for i in range(2):
             rows[i][column.name] = column.expected[i]
 
     if dynamic:
@@ -352,7 +352,7 @@ def get_expected_all_column_names(dynamic=False, ordered=False):
 
 
 def get_web_json_format(field_weight_limit, column_limit, value_format=None, string_weight_limit=None):
-    format_ = yson.YsonString("web_json")
+    format_ = yson.YsonString(b"web_json")
     format_.attributes["field_weight_limit"] = field_weight_limit
     format_.attributes["max_selected_column_count"] = column_limit
     if value_format is not None:
@@ -368,12 +368,12 @@ def get_dynamic_table_select_query(column_names, table_path):
             column_name = "[" + column_name + "]"
         return column_name
 
-    columns_selector = ", ".join(__builtin__.map(wrap_system_column, column_names))
+    columns_selector = ", ".join(builtins.map(wrap_system_column, column_names))
     return "{} FROM [{}]".format(columns_selector, table_path)
 
 
 def _assert_yql_row_match(actual_row, expected_row, type_registry):
-    assert __builtin__.set(actual_row.keys()) == __builtin__.set(expected_row.keys())
+    assert builtins.set(actual_row.keys()) == builtins.set(expected_row.keys())
     for key, entry in actual_row.items():
         assert isinstance(entry, list)
         assert len(entry) == 2
@@ -518,7 +518,7 @@ class TestWebJsonFormat(YTEnvSetup):
                 "$type": "int64",
                 "$value": "0",
             }
-        output["rows"].sort(key=lambda column: (column["$$tablet_index"], column["$$row_index"]))
+        output["rows"].sort(key=lambda column: (column["$$tablet_index"]["$value"], column["$$row_index"]["$value"]))
         assert output == expected_output
 
         sync_unmount_table(TABLE_PATH)
@@ -555,9 +555,9 @@ class TestWebJsonFormat(YTEnvSetup):
 
     @authors("levysotsky")
     def test_non_ascii_column_names(self):
-        column_name = u"not_ascii_Ё"
-        encoded_column_name = u"not_ascii_\xc3\x90\xc2\x81"
-        field_name = u"ПолеТожеНеАски"
+        column_name = "not_ascii_Ё"
+        encoded_column_name = b"not_ascii_\xc3\x90\xc2\x81"
+        field_name = "ПолеТожеНеАски"
         schema = [
             {
                 "name": column_name.encode("utf-8"),
@@ -588,12 +588,12 @@ class TestWebJsonFormat(YTEnvSetup):
 
         assert len(output["rows"]) == 1
         actual_row = output["rows"][0]
-        value_and_type = actual_row.get(encoded_column_name)
+        value_and_type = actual_row.get(encoded_column_name.decode("utf-8"))
         assert value_and_type is not None
         value, type_ = value_and_type
-        assert value == [u"13"]
-        assert type_registry[int(type_)] == [u"StructType", [[field_name, [u"DataType", u"Int64"]]]]
+        assert value == ["13"]
+        assert type_registry[int(type_)] == ["StructType", [[field_name, ["DataType", "Int64"]]]]
 
         assert output["incomplete_columns"] == "false"
         assert output["incomplete_all_column_names"] == "false"
-        assert output["all_column_names"] == [encoded_column_name]
+        assert output["all_column_names"] == [encoded_column_name.decode("utf-8")]
