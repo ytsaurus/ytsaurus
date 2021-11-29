@@ -324,6 +324,7 @@ class TestChunkServer(YTEnvSetup):
             pass
 
     @authors("kvk1920")
+    @pytest.mark.xfail(run=False, reason="Feature is disabled until YT-15928 is resolved.")
     def test_last_finished_job(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})

@@ -111,7 +111,8 @@ void TJobRegistry::OnJobFinished(TJobPtr job)
     auto* chunk = chunkManager->FindChunk(chunkId);
     if (chunk) {
         chunk->RemoveJob(job);
-        chunk->GetDynamicData()->LastFinishedJob = job;
+        // TODO(kvk1920): Uncomment when YT-15928 will be resolved
+        // chunk->GetDynamicData()->LastFinishedJob = job;
         chunkManager->ScheduleChunkRefresh(chunk);
     }
 
