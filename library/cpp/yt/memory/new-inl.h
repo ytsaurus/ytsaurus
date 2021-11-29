@@ -92,6 +92,17 @@ struct TRefCountedWrapperWithCookie final
 
 namespace NDetail {
 
+Y_FORCE_INLINE void* AllignedMalloc(size_t size, size_t allignment)
+{
+#ifdef _win_
+    return ::_aligned_malloc(size, allignment);
+#else
+    void* ptr = nullptr;
+    ::posix_memalign(&ptr, allignment, size);
+    return ptr;
+#endif
+}
+
 Y_FORCE_INLINE void CustomInitialize(...)
 { }
 
@@ -170,9 +181,7 @@ void* AllocateConstSizeAligned()
     if (Alignment <= 16) {
         return NYTAlloc::AllocateConstSize<Size>();
     } else {
-        void* ptr = nullptr;
-        ::posix_memalign(&ptr, Alignment, Size);
-        return ptr;
+        return AllignedMalloc(Size, Alignment);
     }
 }
 
@@ -216,7 +225,7 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewWithExtraSpace(
     if (NDetail::TConstructHelper<T>::Alignment <= 16) {
         ptr = NYTAlloc::Allocate(totalSize);
     } else {
-        ::posix_memalign(&ptr, NDetail::TConstructHelper<T>::Alignment, totalSize);
+        ptr = NDetail::AllignedMalloc(totalSize, NDetail::TConstructHelper<T>::Alignment);
     }
 
     return NDetail::SafeConstruct<T>(ptr, std::forward<As>(args)...);

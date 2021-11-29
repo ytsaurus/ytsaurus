@@ -27,10 +27,6 @@ inline bool IsQuotationSpecSymbol(char symbol)
     return symbol == 'Q' || symbol == 'q';
 }
 
-// __int128
-[[deprecated("Do not use this method")]]
-void FormatValue(TStringBuilderBase* builder, __int128 value, TStringBuf format);
-
 // TStringBuf
 inline void FormatValue(TStringBuilderBase* builder, TStringBuf value, TStringBuf format)
 {

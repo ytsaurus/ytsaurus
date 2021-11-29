@@ -22,6 +22,8 @@ void Format(TStringBuilderBase* builder, TStringBuf format, TArgs&&... args);
 class TStringBuilderBase
 {
 public:
+    virtual ~TStringBuilderBase() = default;
+
     char* Preallocate(size_t size);
 
     size_t GetLength() const;
@@ -44,10 +46,9 @@ public:
     void Reset();
 
 protected:
-    char EmptyBuf_[0];
-    char* Begin_ = EmptyBuf_;
-    char* Current_ = EmptyBuf_;
-    char* End_ = EmptyBuf_;
+    char* Begin_ = nullptr;
+    char* Current_ = nullptr;
+    char* End_ = nullptr;
 
     virtual void DoReset() = 0;
     virtual void DoPreallocate(size_t newLength) = 0;

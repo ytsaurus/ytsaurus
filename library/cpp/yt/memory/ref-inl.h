@@ -10,8 +10,8 @@ namespace NYT {
 
 namespace NDetail {
 
-extern const char EmptyRefData[0];
-extern char MutableEmptyRefData[0];
+extern const char EmptyRefData[];
+extern char MutableEmptyRefData[];
 
 } // namespace NDetail
 

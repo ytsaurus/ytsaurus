@@ -19,7 +19,9 @@ static_assert(TFormatTraits<const char*>::HasCustomFormatValue);
 static_assert(TFormatTraits<TStringBuf>::HasCustomFormatValue);
 static_assert(TFormatTraits<TString>::HasCustomFormatValue);
 static_assert(TFormatTraits<std::vector<int>>::HasCustomFormatValue);
-static_assert(TFormatTraits<TCompactVector<int, 1>>::HasCustomFormatValue);
+
+// N.B. TCompactVector<int, 1> is not buildable on Windows
+static_assert(TFormatTraits<TCompactVector<int, 2>>::HasCustomFormatValue);
 static_assert(TFormatTraits<std::set<int>>::HasCustomFormatValue);
 static_assert(TFormatTraits<std::map<int, int>>::HasCustomFormatValue);
 static_assert(TFormatTraits<std::multimap<int, int>>::HasCustomFormatValue);
@@ -145,4 +147,3 @@ TEST(TFormatTest, Pointers)
 
 } // namespace
 } // namespace NYT
-
