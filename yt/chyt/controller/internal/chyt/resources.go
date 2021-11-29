@@ -10,10 +10,12 @@ const (
 	gib = 1024 * 1024 * 1024
 
 	memClickHouse             = 16 * gib
-	memUncompressedBlockCache = 16 * gib
+	memChunkMetaCache         = 1 * gib
+	memCompressedBlockCache   = 16 * gib
+	memUncompressedBlockCache = 0
 	memReader                 = 12 * gib
 
-	memElastic = memClickHouse + memUncompressedBlockCache + memReader
+	memElastic = memClickHouse + memChunkMetaCache + memCompressedBlockCache + memUncompressedBlockCache + memReader
 
 	memLogTailer = 2 * gib
 	memFootprint = 10 * gib
@@ -32,6 +34,8 @@ const (
 
 type InstanceMemory struct {
 	ClickHouse        *uint64 `yson:"clickhouse"`
+	ChunkMetaCache    *uint64 `yson:"chunk_meta_cache"`
+	CompressedCache   *uint64 `yson:"compressed_cache"`
 	UncompressedCache *uint64 `yson:"uncompressed_cache"`
 	Reader            *uint64 `yson:"reader"`
 }
@@ -57,20 +61,22 @@ type Resources struct {
 }
 
 func (r *InstanceMemory) maxServerMemoryUsage() uint64 {
-	return *r.ClickHouse + *r.UncompressedCache + *r.Reader + memFootprint
+	return *r.ClickHouse + *r.ChunkMetaCache + *r.CompressedCache + *r.UncompressedCache + *r.Reader + memFootprint
 }
 
 func (r *InstanceMemory) ytServerClickHouseMemoryLimit() uint64 {
-	return *r.ClickHouse + *r.UncompressedCache + *r.Reader + memFootprint + memClickHouseWatermark
+	return r.maxServerMemoryUsage() + memClickHouseWatermark
 }
 
 func (r *InstanceMemory) totalMemory() uint64 {
-	return *r.ClickHouse + *r.UncompressedCache + *r.Reader + memLogTailer + memFootprint + memClickHouseWatermark
+	return r.ytServerClickHouseMemoryLimit() + memLogTailer
 }
 
 func (r *InstanceMemory) memoryConfig() map[string]uint64 {
 	return map[string]uint64{
 		"reader":                        *r.Reader,
+		"chunk_meta_cache":              *r.ChunkMetaCache,
+		"compressed_block_cache":        *r.CompressedCache,
 		"uncompressed_block_cache":      *r.UncompressedCache,
 		"memory_limit":                  r.ytServerClickHouseMemoryLimit(),
 		"max_server_memory_usage":       r.maxServerMemoryUsage(),
@@ -81,12 +87,14 @@ func (r *InstanceMemory) memoryConfig() map[string]uint64 {
 
 var memDefault = &InstanceMemory{
 	ClickHouse:        ptr.Uint64(memClickHouse),
+	ChunkMetaCache:    ptr.Uint64(memChunkMetaCache),
+	CompressedCache:   ptr.Uint64(memCompressedBlockCache),
 	UncompressedCache: ptr.Uint64(memUncompressedBlockCache),
 	Reader:            ptr.Uint64(memReader),
 }
 
 func buildResources(instanceCount uint64, instanceCPU uint64, memory *InstanceMemory) *Resources {
-	instanceTotalMemory := *memory.UncompressedCache + *memory.ClickHouse + *memory.Reader + memFootprint + memLogTailer
+	instanceTotalMemory := memory.totalMemory()
 	return &Resources{
 		InstanceCount:       ptr.Uint64(instanceCount),
 		InstanceMemory:      memory,
@@ -106,7 +114,7 @@ func (c *Controller) populateResourcesClique(resources *Resources) error {
 		return fmt.Errorf("chyt: total_{cpu,memory} should not be specified simultaneously with instance_count")
 	}
 
-	var modelMemory uint64 = memClickHouse + memUncompressedBlockCache + memReader + memLogTailer + memFootprint + memClickHouseWatermark
+	var modelMemory = memDefault.totalMemory()
 
 	var instanceCount uint64 = maxInstanceCount
 
@@ -118,7 +126,7 @@ func (c *Controller) populateResourcesClique(resources *Resources) error {
 	}
 
 	if resources.CliqueMemory != nil {
-		instanceCountMem := *resources.InstanceTotalMemory / modelMemory
+		instanceCountMem := *resources.CliqueMemory / modelMemory
 		if instanceCount > instanceCountMem {
 			instanceCount = instanceCountMem
 		}
@@ -162,11 +170,19 @@ func (c *Controller) populateResourcesInstance(resources *Resources) error {
 		scale := float64(*resources.InstanceTotalMemory-memNonElastic) / memElastic
 
 		mem = *memDefault
+		*mem.ChunkMetaCache = uint64(float64(*mem.ChunkMetaCache) * scale)
+		*mem.CompressedCache = uint64(float64(*mem.CompressedCache) * scale)
 		*mem.UncompressedCache = uint64(float64(*mem.UncompressedCache) * scale)
 		*mem.ClickHouse = uint64(float64(*mem.ClickHouse) * scale)
 		*mem.Reader = uint64(float64(*mem.Reader) * scale)
 	} else {
 		mem = *resources.InstanceMemory
+		if mem.ChunkMetaCache == nil {
+			mem.ChunkMetaCache = ptr.Uint64(memChunkMetaCache)
+		}
+		if mem.CompressedCache == nil {
+			mem.CompressedCache = ptr.Uint64(memCompressedBlockCache)
+		}
 		if mem.UncompressedCache == nil {
 			mem.UncompressedCache = ptr.Uint64(memUncompressedBlockCache)
 		}
