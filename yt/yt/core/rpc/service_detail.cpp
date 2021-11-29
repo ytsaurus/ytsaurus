@@ -848,10 +848,11 @@ private:
         PerformanceCounters_->ExecutionTimeCounter.Record(*ExecutionTime_);
         PerformanceCounters_->TotalTimeCounter.Record(*TotalTime_);
         if (!Error_.IsOK()) {
-            PerformanceCounters_->FailedRequestCounter.Increment();
-        }
-        if (Service_->EnableErrorCodeCounting.load()) {
-            PerformanceCounters_->ErrorCodes.RegisterCode(Error_.GetNonTrivialCode());
+            if (Service_->EnableErrorCodeCounting.load()) {
+                PerformanceCounters_->ErrorCodes.RegisterCode(Error_.GetNonTrivialCode());
+            } else {
+                PerformanceCounters_->FailedRequestCounter.Increment();
+            }
         }
         HandleLoggingSuppression();
 
