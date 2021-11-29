@@ -1444,7 +1444,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             nodeId,
             chunkListId);
         ChunkReplacementFailed_ += replacementCount;
-        FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::OK);
+        FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::TransientFailure);
         return;
     }
 
