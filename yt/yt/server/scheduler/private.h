@@ -114,8 +114,8 @@ static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 inline const TString EventLogPoolTreeKey{"tree_id"};
 inline const TString ProfilingPoolTreeKey{"tree"};
 
-inline const NLogging::TLogger StrategyLogger{"NodeShard"};
-inline const NLogging::TLogger NodeShardLogger{"Strategy"};
+inline const NLogging::TLogger StrategyLogger{"Strategy"};
+inline const NLogging::TLogger NodeShardLogger{"NodeShard"};
 
 inline constexpr char DefaultOperationTag[] = "default";
 
