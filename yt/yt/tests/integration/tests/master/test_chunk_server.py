@@ -329,9 +329,12 @@ class TestChunkServer(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
         chunk_id = get_singular_chunk_id("//tmp/t")
-        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) == 3)
-        jobs = get("//sys/chunks/{}/@jobs".format(chunk_id))
-        assert 1 == len(jobs) and "completed" == jobs[0]["state"]
+
+        def check_if_job_finished():
+            jobs = get("//sys/chunks/{}/@jobs".format(chunk_id))
+            return len(jobs) == 1 and jobs[0]["state"] in {"completed", "aborted", "failed"}
+
+        wait(check_if_job_finished)
 
 
 ##################################################################
