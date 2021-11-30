@@ -1748,7 +1748,7 @@ void TJobController::TImpl::OnProfiling()
 
     if (Bootstrap_->IsExecNode()) {
         const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
-        GpuUtilizationBuffer_->Update([this, gpuManager] (ISensorWriter* writer) {
+        GpuUtilizationBuffer_->Update([gpuManager] (ISensorWriter* writer) {
             for (const auto& [index, gpuInfo] : gpuManager->GetGpuInfoMap()) {
                 writer->PushTag(TTag{"gpu_name", gpuInfo.Name});
                 writer->PushTag(TTag{"device_number", ToString(index)});

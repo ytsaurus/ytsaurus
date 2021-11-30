@@ -1462,7 +1462,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     selectRowsOptions.InputRowLimit = std::numeric_limits<i64>::max();
     selectRowsOptions.MemoryLimitPerNode = 100_MB;
 
-    return SelectRows(builder.Build(), selectRowsOptions).Apply(BIND([operationId, this, this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
+    return SelectRows(builder.Build(), selectRowsOptions).Apply(BIND([operationId, this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
         return ParseJobsFromArchiveResponse(operationId, result.Rowset, /* needFullStatistics */ false);
     }));
 }

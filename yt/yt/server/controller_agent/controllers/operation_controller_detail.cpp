@@ -9293,7 +9293,7 @@ void TOperationControllerBase::UpdateExecNodes()
             OnlineExecNodeCount_ = onlineExecNodeCount;
             CachedMaxAvailableExecNodeResources_ = maxAvailableResources;
 
-            auto assign = [this]<class T, class U>(T* variable, U value) {
+            auto assign = []<class T, class U>(T* variable, U value) {
                 auto oldValue = *variable;
                 *variable = std::move(value);
 
