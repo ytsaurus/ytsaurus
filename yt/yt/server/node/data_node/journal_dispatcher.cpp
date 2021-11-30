@@ -163,11 +163,33 @@ public:
             int firstRecordId = UnderlyingChangelog_->GetRecordCount();
             auto flushResult = UnderlyingChangelog_->Append(records);
             const auto& journalManager = Location_->GetJournalManager();
-            future = journalManager->AppendMultiplexedRecords(
+
+            auto multiplexedFlushResult = journalManager->AppendMultiplexedRecords(
                 ChunkId_,
                 firstRecordId,
                 records,
                 flushResult);
+
+            future = multiplexedFlushResult
+                .Apply(BIND([=, this_ = MakeStrong(this)] (bool skipped) {
+                    // We provide the most strong semantic possible.
+                    //
+                    // Concurrent Append()-s are permitted. Successful completetion of last append,
+                    // guarantees that all previous records are committed to disk.
+                    if (skipped) {
+                        RejectedMultiplexedAppends_++;
+                        flushResult.Apply(BIND([this, this_ = MakeStrong(this)] {
+                            RejectedMultiplexedAppends_--;
+                            YT_VERIFY(RejectedMultiplexedAppends_ >= 0);
+                        }));
+                    }
+
+                    if (RejectedMultiplexedAppends_) {
+                        return flushResult;
+                    } else {
+                        return VoidFuture;
+                    }
+                }));
         } else {
             future = UnderlyingChangelog_->Append(records);
         }
@@ -187,9 +209,10 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    TFuture<void> Truncate(int recordCount) override
+    TFuture<void> Truncate(int /*recordCount*/) override
     {
-        return UnderlyingChangelog_->Truncate(recordCount).ToUncancelable();
+        // NB: Truncate is incompatible with multiplexing.
+        YT_UNIMPLEMENTED();
     }
 
     TFuture<void> Close() override
@@ -207,6 +230,7 @@ private:
     const bool EnableMultiplexing_;
     const IChangelogPtr UnderlyingChangelog_;
 
+    std::atomic<int> RejectedMultiplexedAppends_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedChangelog)

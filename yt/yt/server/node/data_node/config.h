@@ -485,6 +485,9 @@ public:
     //! Time to wait before marking a multiplexed changelog as clean.
     TDuration CleanDelay;
 
+    //! Records bigger than BigRecordThreshold are not multiplexed.
+    std::optional<i64> BigRecordThreshold;
+
     TMultiplexedChangelogConfig()
     {
         RegisterParameter("max_record_count", MaxRecordCount)
@@ -503,6 +506,8 @@ public:
             .Default(3);
         RegisterParameter("clean_delay", CleanDelay)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("big_record_threshold", BigRecordThreshold)
+            .Default(64_KB);
     }
 };
 
