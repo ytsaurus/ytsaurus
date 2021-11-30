@@ -2,8 +2,9 @@
 
 from yt.testlib import authors
 
-from yt.wrapper.schema import TableSchema, yt_dataclass
+from yt.wrapper.schema import TableSchema, yt_dataclass, _create_row_py_schema
 from yt.wrapper.schema.types import Uint8, Int32
+from yt.wrapper.format import StructuredSkiffFormat
 
 from typing import Optional, List
 
@@ -35,6 +36,12 @@ class MyClass:
 @authors("ignat")
 def test_yt_dataclass():
     table_schema = TableSchema.from_row_type(MyClass)
+
+    # Format creation runs validation of py_schema.
+    py_schema = _create_row_py_schema(MyClass, table_schema)
+    StructuredSkiffFormat([py_schema], for_reading=False)
+    StructuredSkiffFormat([py_schema], for_reading=True)
+
     yson_repr = table_schema.to_yson_type()
     assert list(yson_repr) == [
         {"name": "my_string", "type_v3": "utf8"},
