@@ -63,6 +63,7 @@ void CheckWrite(
     auto request = IIOEngine::TWriteRequest{
         .Handle = New<TIOEngineHandle>(),
         .Offset = 4096,
+        .Flush = true
     };
 
     for (auto size : inputBufferSizes) {
@@ -78,6 +79,7 @@ void CheckWrite(
         const auto& expected = expectedSizes[i];
         
         EXPECT_EQ(slice.Handle.Get(), request.Handle.Get());
+        EXPECT_EQ(slice.Flush, request.Flush);
         EXPECT_EQ(slice.Offset, offset);
         EXPECT_TRUE(CheckSizes(expected, slice.Buffers));
 

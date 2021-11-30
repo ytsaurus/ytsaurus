@@ -884,20 +884,36 @@ private:
             THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "Unexpected end-of-file in read request");
         }
     }
-
+    
     void DoWrite(
+        const TWriteRequest& request,
+        TWallTimer timer)
+    {
+        auto writtenBytes = DoWriteImpl(request, timer);
+        if (request.Flush && writtenBytes) {
+            YT_VERIFY(writtenBytes > 0);
+            DoFlushFileRange(TFlushFileRangeRequest{
+                .Handle = request.Handle,
+                .Offset = request.Offset,
+                .Size = writtenBytes
+            });
+        }
+    }
+
+    i64 DoWriteImpl(
         const TWriteRequest& request,
         TWallTimer timer)
     {
         AddWriteWaitTimeSample(timer.GetElapsedTime());
 
+        auto fileOffset = request.Offset;
+        
         NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
 
             auto toWriteRemaining = static_cast<i64>(GetByteSize(request.Buffers));
 
             int bufferIndex = 0;
-            auto fileOffset = request.Offset;
             i64 bufferOffset = 0; // within current buffer
 
             while (toWriteRemaining > 0) {
@@ -1000,6 +1016,8 @@ private:
                 }
             }
         });
+
+        return fileOffset - request.Offset;
     }
 
     void DoFlushFile(const TFlushFileRequest& request)
