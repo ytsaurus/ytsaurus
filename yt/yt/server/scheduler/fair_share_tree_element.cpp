@@ -80,6 +80,8 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
     , CumulativeAnalyzeJobsTime(profiler.TimeCounter("/cumulative_analyze_jobs_time"))
     , ScheduleJobAttemptCount(profiler.Counter("/schedule_job_attempt_count"))
     , ScheduleJobFailureCount(profiler.Counter("/schedule_job_failure_count"))
+    , ControllerScheduleJobCount(profiler.Counter("/controller_schedule_job_count"))
+    , ControllerScheduleJobTimedOutCount(profiler.Counter("/controller_schedule_job_timed_out_count"))
 {
     for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues()) {
         ControllerScheduleJobFail[reason] = profiler
@@ -258,6 +260,8 @@ void TScheduleJobsContext::ProfileStageStatistics()
 
     profilingCounters->ScheduleJobAttemptCount.Increment(StageState_->ScheduleJobAttemptCount);
     profilingCounters->ScheduleJobFailureCount.Increment(StageState_->ScheduleJobFailureCount);
+    profilingCounters->ControllerScheduleJobCount.Increment(SchedulingStatistics().ControllerScheduleJobCount);
+    profilingCounters->ControllerScheduleJobTimedOutCount.Increment(SchedulingStatistics().ControllerScheduleJobTimedOutCount);
 
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
         profilingCounters->ControllerScheduleJobFail[reason].Increment(StageState_->FailedScheduleJob[reason]);
