@@ -225,6 +225,7 @@ DEFINE_ENUM(EMasterReign,
     ((EnableCellBalancerInConfig)                                   (1900))  // alexkolodezny
     ((RefFromTabletToDynamicStore)                                  (1901))  // ifsmirnov
     ((ChaosDataTransfer)                                            (1902))  // savrus
+    ((AccessControlNode)                                            (1903))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

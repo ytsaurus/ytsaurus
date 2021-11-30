@@ -61,6 +61,7 @@ using TUint64Node  = TScalarNode<ui64>;
 using TDoubleNode  = TScalarNode<double>;
 using TBooleanNode = TScalarNode<bool>;
 
+class TAccessControlNode;
 class TLinkNode;
 class TDocumentNode;
 class TPortalEntranceNode;

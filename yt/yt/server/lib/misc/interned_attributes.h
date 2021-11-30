@@ -267,6 +267,7 @@
     XX(MulticellStatistics, multicell_statistics) \
     XX(MulticellStatus, multicell_status) \
     XX(Name, name) \
+    XX(Namespace, namespace) \
     XX(NativeCellTag, native_cell_tag) \
     XX(NativeContentRevision, native_content_revision) \
     XX(NestedTransactionIds, nested_transaction_ids) \

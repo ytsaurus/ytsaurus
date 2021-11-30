@@ -1,5 +1,6 @@
 #include "cypress_manager.h"
 #include "private.h"
+#include "access_control_node_type_handler.h"
 #include "access_tracker.h"
 #include "cypress_traverser.h"
 #include "expiration_tracker.h"
@@ -896,6 +897,7 @@ public:
         RegisterHandler(CreatePortalExitTypeHandler(Bootstrap_));
         RegisterHandler(CreatePortalEntranceMapTypeHandler(Bootstrap_));
         RegisterHandler(CreatePortalExitMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateAccessControlNodeTypeHandler(Bootstrap_));
 
         RegisterLoader(
             "CypressManager.Keys",
