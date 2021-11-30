@@ -198,6 +198,11 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TEventTimer PackingRecordHeartbeatTime;
     NProfiling::TEventTimer PackingCheckTime;
     NProfiling::TEventTimer AnalyzeJobsTime;
+    NProfiling::TTimeCounter CumulativePrescheduleJobTime;
+    NProfiling::TTimeCounter CumulativeTotalControllerScheduleJobTime;
+    NProfiling::TTimeCounter CumulativeExecControllerScheduleJobTime;
+    NProfiling::TTimeCounter CumulativeStrategyScheduleJobTime;
+    NProfiling::TTimeCounter CumulativeAnalyzeJobsTime;
     NProfiling::TCounter ScheduleJobAttemptCount;
     NProfiling::TCounter ScheduleJobFailureCount;
 

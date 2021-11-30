@@ -73,6 +73,11 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
     , PackingRecordHeartbeatTime(profiler.Timer("/packing_record_heartbeat_time"))
     , PackingCheckTime(profiler.Timer("/packing_check_time"))
     , AnalyzeJobsTime(profiler.Timer("/analyze_jobs_time"))
+    , CumulativePrescheduleJobTime(profiler.TimeCounter("/cumulative_preschedule_job_time"))
+    , CumulativeTotalControllerScheduleJobTime(profiler.TimeCounter("/cumulative_controller_schedule_job_time/total"))
+    , CumulativeExecControllerScheduleJobTime(profiler.TimeCounter("/cumulative_controller_schedule_job_time/exec"))
+    , CumulativeStrategyScheduleJobTime(profiler.TimeCounter("/cumulative_strategy_schedule_job_time"))
+    , CumulativeAnalyzeJobsTime(profiler.TimeCounter("/cumulative_analyze_jobs_time"))
     , ScheduleJobAttemptCount(profiler.Counter("/schedule_job_attempt_count"))
     , ScheduleJobFailureCount(profiler.Counter("/schedule_job_failure_count"))
 {
@@ -227,6 +232,7 @@ void TScheduleJobsContext::ProfileStageStatistics()
     auto* profilingCounters = &StageState_->SchedulingStage->ProfilingCounters;
 
     profilingCounters->PrescheduleJobTime.Record(StageState_->PrescheduleDuration);
+    profilingCounters->CumulativePrescheduleJobTime.Add(StageState_->PrescheduleDuration);
 
     if (StageState_->PrescheduleExecuted) {
         profilingCounters->PrescheduleJobCount.Increment();
@@ -239,12 +245,16 @@ void TScheduleJobsContext::ProfileStageStatistics()
         - StageState_->PrescheduleDuration
         - StageState_->TotalScheduleJobDuration;
     profilingCounters->StrategyScheduleJobTime.Record(strategyScheduleJobDuration);
+    profilingCounters->CumulativeStrategyScheduleJobTime.Add(strategyScheduleJobDuration);
 
     profilingCounters->TotalControllerScheduleJobTime.Record(StageState_->TotalScheduleJobDuration);
+    profilingCounters->CumulativeTotalControllerScheduleJobTime.Add(StageState_->TotalScheduleJobDuration);
     profilingCounters->ExecControllerScheduleJobTime.Record(StageState_->ExecScheduleJobDuration);
+    profilingCounters->CumulativeExecControllerScheduleJobTime.Add(StageState_->ExecScheduleJobDuration);
     profilingCounters->PackingRecordHeartbeatTime.Record(StageState_->PackingRecordHeartbeatDuration);
     profilingCounters->PackingCheckTime.Record(StageState_->PackingCheckDuration);
     profilingCounters->AnalyzeJobsTime.Record(StageState_->AnalyzeJobsDuration);
+    profilingCounters->CumulativeAnalyzeJobsTime.Add(StageState_->AnalyzeJobsDuration);
 
     profilingCounters->ScheduleJobAttemptCount.Increment(StageState_->ScheduleJobAttemptCount);
     profilingCounters->ScheduleJobFailureCount.Increment(StageState_->ScheduleJobFailureCount);
