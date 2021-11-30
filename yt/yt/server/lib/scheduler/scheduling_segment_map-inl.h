@@ -10,76 +10,78 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr bool IsDataCenterAwareSchedulingSegment(ESchedulingSegment segment)
+constexpr bool IsModuleAwareSchedulingSegment(ESchedulingSegment segment)
 {
     return segment == ESchedulingSegment::LargeGpu;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const TDataCenter NullDataCenter = {};
+static inline const TSchedulingSegmentModule NullModule = {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
-const TValue& TDataCenterAwareValue<TValue>::GetOrDefault(const TValue& defaultValue) const
+const TValue& TModuleAwareValue<TValue>::GetOrDefault(const TValue& defaultValue) const
 {
-    YT_VERIFY(!IsMultiDataCenter_);
-    return GetOrDefaultImpl(NullDataCenter, defaultValue);
+    YT_VERIFY(!IsMultiModule_);
+    return GetOrDefaultImpl(NullModule, defaultValue);
 }
 
 template <class TValue>
-TValue& TDataCenterAwareValue<TValue>::Mutable()
+TValue& TModuleAwareValue<TValue>::Mutable()
 {
-    YT_VERIFY(!IsMultiDataCenter_);
-    return MutableImpl(NullDataCenter);
+    YT_VERIFY(!IsMultiModule_);
+    return MutableImpl(NullModule);
 }
 
 template <class TValue>
-void TDataCenterAwareValue<TValue>::Set(const TValue& value)
+void TModuleAwareValue<TValue>::Set(const TValue& value)
 {
-    YT_VERIFY(!IsMultiDataCenter_);
-    SetImpl(NullDataCenter, value);
+    YT_VERIFY(!IsMultiModule_);
+    SetImpl(NullModule, value);
 }
 
 template <class TValue>
-const TValue& TDataCenterAwareValue<TValue>::GetOrDefaultAt(const TDataCenter& dataCenter, const TValue& defaultValue) const
+const TValue& TModuleAwareValue<TValue>::GetOrDefaultAt(
+    const TSchedulingSegmentModule& schedulingSegmentModule,
+    const TValue& defaultValue) const
 {
-    YT_VERIFY(IsMultiDataCenter_);
-    return GetOrDefaultImpl(dataCenter, defaultValue);
+    YT_VERIFY(IsMultiModule_);
+    return GetOrDefaultImpl(schedulingSegmentModule, defaultValue);
 }
 
 template <class TValue>
-TValue& TDataCenterAwareValue<TValue>::MutableAt(const TDataCenter& dataCenter)
+TValue& TModuleAwareValue<TValue>::MutableAt(const TSchedulingSegmentModule& schedulingSegmentModule)
 {
-    YT_VERIFY(IsMultiDataCenter_);
-    return MutableImpl(dataCenter);
+    YT_VERIFY(IsMultiModule_);
+    return MutableImpl(schedulingSegmentModule);
 }
 
 template <class TValue>
-void TDataCenterAwareValue<TValue>::SetAt(const TDataCenter& dataCenter, const TValue& value)
+void TModuleAwareValue<TValue>::SetAt(const TSchedulingSegmentModule& schedulingSegmentModule, const TValue& value)
 {
-    YT_VERIFY(IsMultiDataCenter_);
-    SetImpl(dataCenter, value);
+    YT_VERIFY(IsMultiModule_);
+    SetImpl(schedulingSegmentModule, value);
 }
 
 template <class TValue>
-TDataCenterList TDataCenterAwareValue<TValue>::GetDataCenters() const
+TSchedulingSegmentModuleList TModuleAwareValue<TValue>::GetModules() const
 {
-    YT_VERIFY(IsMultiDataCenter_);
+    YT_VERIFY(IsMultiModule_);
 
-    TDataCenterList result;
-    for (const auto& [dataCenter, _] : Map_) {
-        result.push_back(dataCenter);
+    TSchedulingSegmentModuleList result;
+    for (const auto& [schedulingSegmentModule, _] : Map_) {
+        result.push_back(schedulingSegmentModule);
     }
 
     return result;
 }
 
 template <class TValue>
-TValue TDataCenterAwareValue<TValue>::GetTotal() const
+TValue TModuleAwareValue<TValue>::GetTotal() const
 {
-    YT_VERIFY(IsMultiDataCenter_);
+    YT_VERIFY(IsMultiModule_);
 
     TValue result = {};
     for (const auto& [_, value] : Map_) {
@@ -90,29 +92,29 @@ TValue TDataCenterAwareValue<TValue>::GetTotal() const
 }
 
 template <class TValue>
-const TValue& TDataCenterAwareValue<TValue>::GetOrDefaultImpl(const TDataCenter& dataCenter, const TValue& defaultValue) const
+const TValue& TModuleAwareValue<TValue>::GetOrDefaultImpl(const TSchedulingSegmentModule& schedulingSegmentModule, const TValue& defaultValue) const
 {
-    auto it = Map_.find(dataCenter);
+    auto it = Map_.find(schedulingSegmentModule);
     return it != Map_.end() ? it->second : defaultValue;
 }
 
 template <class TValue>
-TValue& TDataCenterAwareValue<TValue>::MutableImpl(const TDataCenter& dataCenter)
+TValue& TModuleAwareValue<TValue>::MutableImpl(const TSchedulingSegmentModule& schedulingSegmentModule)
 {
-    return Map_[dataCenter];
+    return Map_[schedulingSegmentModule];
 }
 
 template <class TValue>
-void TDataCenterAwareValue<TValue>::SetImpl(const TDataCenter& dataCenter, const TValue& value)
+void TModuleAwareValue<TValue>::SetImpl(const TSchedulingSegmentModule& schedulingSegmentModule, const TValue& value)
 {
-    Map_[dataCenter] = value;
+    Map_[schedulingSegmentModule] = value;
 }
 
 template <class TValue>
-void Serialize(const TDataCenterAwareValue<TValue>& value, NYson::IYsonConsumer* consumer)
+void Serialize(const TModuleAwareValue<TValue>& value, NYson::IYsonConsumer* consumer)
 {
     using NYTree::Serialize;
-    if (value.IsMultiDataCenter_) {
+    if (value.IsMultiModule_) {
         Serialize(value.Map_, consumer);
     } else {
         Serialize(value.GetOrDefault(), consumer);
@@ -120,36 +122,36 @@ void Serialize(const TDataCenterAwareValue<TValue>& value, NYson::IYsonConsumer*
 }
 
 template <class TValue>
-void DeserializeScalarValue(TDataCenterAwareValue<TValue>& value, const NYTree::INodePtr& node)
+void DeserializeScalarValue(TModuleAwareValue<TValue>& value, const NYTree::INodePtr& node)
 {
     using NYTree::Deserialize;
 
-    value.IsMultiDataCenter_ = false;
+    value.IsMultiModule_ = false;
     Deserialize(value.Mutable(), node);
 }
 
 template <class TValue>
-void DeserializeMultiDataCenterValue(TDataCenterAwareValue<TValue>& value, const NYTree::INodePtr& node)
+void DeserializeMultiModuleValue(TModuleAwareValue<TValue>& value, const NYTree::INodePtr& node)
 {
     using NYTree::Deserialize;
 
-    value.IsMultiDataCenter_ = true;
+    value.IsMultiModule_ = true;
 
     // NB(eshcherbin): This workaround is used because we cannot deserialize std::optional as a map node key.
-    // TODO(eshcherbin): Is it possible to add a FromStringImpl<TDataCenter> template specialization instead?
-    typename TDataCenterAwareValue<TValue>::TMapForDeserialize map;
+    // TODO(eshcherbin): Is it possible to add a FromStringImpl<TModule> template specialization instead?
+    typename TModuleAwareValue<TValue>::TMapForDeserialize map;
     Deserialize(map, node);
 
     value.Map_.clear();
-    for (auto&& [dataCenter, valueAtDataCenter] : map) {
-        YT_VERIFY(value.Map_.emplace(std::move(dataCenter), std::move(valueAtDataCenter)).second);
+    for (auto&& [schedulingSegmentModule, valueAtModule] : map) {
+        YT_VERIFY(value.Map_.emplace(std::move(schedulingSegmentModule), std::move(valueAtModule)).second);
     }
 }
 
 template <class TValue>
-void FormatValue(TStringBuilderBase* builder, const TDataCenterAwareValue<TValue>& value, TStringBuf format)
+void FormatValue(TStringBuilderBase* builder, const TModuleAwareValue<TValue>& value, TStringBuf format)
 {
-    if (value.IsMultiDataCenter_) {
+    if (value.IsMultiModule_) {
         FormatValue(builder, value.Map_, format);
     } else {
         FormatValue(builder, value.GetOrDefault(), format);
@@ -162,18 +164,18 @@ template <class TValue>
 TSchedulingSegmentMap<TValue>::TSchedulingSegmentMap()
 {
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-        Map_[segment].IsMultiDataCenter_ = IsDataCenterAwareSchedulingSegment(segment);
+        Map_[segment].IsMultiModule_ = IsModuleAwareSchedulingSegment(segment);
     }
 }
 
 template <class TValue>
-const TDataCenterAwareValue<TValue>& TSchedulingSegmentMap<TValue>::At(ESchedulingSegment segment) const
+const TModuleAwareValue<TValue>& TSchedulingSegmentMap<TValue>::At(ESchedulingSegment segment) const
 {
     return Map_[segment];
 }
 
 template <class TValue>
-TDataCenterAwareValue<TValue>& TSchedulingSegmentMap<TValue>::At(ESchedulingSegment segment)
+TModuleAwareValue<TValue>& TSchedulingSegmentMap<TValue>::At(ESchedulingSegment segment)
 {
     return Map_[segment];
 }
@@ -195,8 +197,8 @@ void Deserialize(TSchedulingSegmentMap<TValue>& map, const NYTree::INodePtr& nod
     auto mapNode = node->AsMap();
     for (const auto& [stringSegment, child] : mapNode->GetChildren()) {
         auto segment = TEnumTraits<ESchedulingSegment>::FromString(DecodeEnumValue(stringSegment));
-        if (IsDataCenterAwareSchedulingSegment(segment)) {
-            DeserializeMultiDataCenterValue<TValue>(map.Map_[segment], child);
+        if (IsModuleAwareSchedulingSegment(segment)) {
+            DeserializeMultiModuleValue<TValue>(map.Map_[segment], child);
         } else {
             DeserializeScalarValue<TValue>(map.Map_[segment], child);
         }

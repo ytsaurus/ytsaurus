@@ -926,7 +926,13 @@ public:
                         const auto& snapshot = snapshotIt->second;
 
                         bool shouldAbortJob = false;
-                        snapshot->ProcessUpdatedJob(job.OperationId, job.JobId, job.JobResources, job.JobDataCenter, &shouldAbortJob);
+                        snapshot->ProcessUpdatedJob(
+                            job.OperationId,
+                            job.JobId,
+                            job.JobResources,
+                            job.JobDataCenter,
+                            job.JobInfinibandCluster,
+                            &shouldAbortJob);
 
                         if (shouldAbortJob) {
                             jobsToAbort->push_back(job.JobId);
@@ -1104,20 +1110,20 @@ public:
 
         auto state = GetOperationState(operationId);
 
-        bool hasDataCenterAwareSegment = false;
+        bool hasModuleAwareSegment = false;
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
             auto segment = GetTree(treeId)->InitOperationSchedulingSegment(operationId);
-            hasDataCenterAwareSegment |= IsDataCenterAwareSchedulingSegment(segment);
+            hasModuleAwareSegment |= IsModuleAwareSchedulingSegment(segment);
         }
 
-        if (hasDataCenterAwareSegment && state->TreeIdToPoolNameMap().size() > 1) {
+        if (hasModuleAwareSegment && state->TreeIdToPoolNameMap().size() > 1) {
             std::vector<TString> treeIds;
             for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
                 treeIds.push_back(treeId);
             }
 
             return TError(
-                "Scheduling in several trees is forbidden for operations in data center-aware scheduling segments, "
+                "Scheduling in several trees is forbidden for operations in module-aware scheduling segments, "
                 "specify a single tree or use the \"schedule_in_single_tree\" spec option")
                 << TErrorAttribute("tree_ids", treeIds);
         }
@@ -1137,13 +1143,13 @@ public:
         return result;
     }
 
-    THashMap<TString, TOperationIdWithDataCenterList> GetOperationSchedulingSegmentDataCenterUpdates() const override
+    THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> GetOperationSchedulingSegmentModuleUpdates() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        THashMap<TString, TOperationIdWithDataCenterList> result;
+        THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> result;
         for (const auto& [treeId, tree] : IdToTree_) {
-            auto updates = tree->GetOperationSchedulingSegmentDataCenterUpdates();
+            auto updates = tree->GetOperationSchedulingSegmentModuleUpdates();
             if (!updates.empty()) {
                 YT_VERIFY(result.emplace(treeId, std::move(updates)).second);
             }

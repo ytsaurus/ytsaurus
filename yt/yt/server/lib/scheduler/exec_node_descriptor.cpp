@@ -60,7 +60,8 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     const TBooleanFormulaTags& tags,
     const TRunningJobStatistics& runningJobStatistics,
     ESchedulingSegment schedulingSegment,
-    bool schedulingSegmentFrozen)
+    bool schedulingSegmentFrozen,
+    std::optional<TString> infinibandCluster)
     : Id(id)
     , Address(std::move(address))
     , DataCenter(std::move(dataCenter))
@@ -72,6 +73,7 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     , RunningJobStatistics(runningJobStatistics)
     , SchedulingSegment(schedulingSegment)
     , SchedulingSegmentFrozen(schedulingSegmentFrozen)
+    , InfinibandCluster(std::move(infinibandCluster))
 { }
 
 bool TExecNodeDescriptor::CanSchedule(const TSchedulingTagFilter& filter) const

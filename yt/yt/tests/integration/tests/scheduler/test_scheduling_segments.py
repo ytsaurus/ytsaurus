@@ -3,6 +3,7 @@ from yt_env_setup import (
     Restarter,
     SCHEDULERS_SERVICE,
     CONTROLLER_AGENTS_SERVICE,
+    NODES_SERVICE,
     is_asan_build,
 )
 
@@ -25,10 +26,16 @@ from yt.test_helpers import are_almost_equal
 
 from yt.common import YtError
 
+import yt.yson as yson
+
 
 import pytest
 
 import time
+
+from copy import deepcopy
+
+from collections import defaultdict
 
 
 ##################################################################
@@ -831,7 +838,7 @@ class TestSchedulingSegments(YTEnvSetup):
 ##################################################################
 
 
-class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
+class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 10
     NUM_SCHEDULERS = 1
@@ -870,24 +877,85 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
     DATA_CENTERS = ["SAS", "VLA"]
     RACKS = ["SAS1", "VLA1"]
+    INFINIBAND_CLUSTERS = ["IBC1", "IBC2"]
 
     def _get_usage_ratio(self, op, tree="default"):
-        return get(scheduler_orchid_operation_path(op, tree) + "/usage_ratio", default=0.0)
+        return get(scheduler_orchid_operation_path(op, tree) + "/dominant_usage_share", default=0.0)
 
     def _get_fair_share_ratio(self, op, tree="default"):
-        return get(scheduler_orchid_operation_path(op, tree) + "/fair_share_ratio", default=0.0)
+        return get(scheduler_orchid_operation_path(op, tree) + "/detailed_dominant_fair_share/total", default=0.0)
 
-    def _get_data_center(self, op, tree="default"):
-        return get(scheduler_orchid_operation_path(op.id, tree) + "/scheduling_segment_data_center", default=None)
+    def _get_operation_module(self, op, tree="default"):
+        return get(scheduler_orchid_operation_path(op.id, tree) + "/scheduling_segment_module", default=None)
+
+    def _setup_node_modules(self):
+        raise NotImplementedError()
+
+    def _get_module_type(self):
+        raise NotImplementedError()
+
+    def _get_all_modules(self):
+        raise NotImplementedError()
+
+    def _get_node_module(self, node_address):
+        raise NotImplementedError()
+
+    def _get_node_tag_from_module(self, module):
+        raise NotImplementedError()
+
+    def _setup_data_centers(self, ibc_to_dc=None):
+        dc_to_rack = dict(zip(BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS, BaseTestSchedulingSegmentsMultiModule.RACKS))
+        for dc, r in dc_to_rack.items():
+            create_data_center(dc)
+            create_rack(r)
+            set("//sys/racks/" + r + "/@data_center", dc)
+
+        dc_count = len(BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS)
+        def get_node_rack(i, node):
+            if ibc_to_dc is None:
+                return BaseTestSchedulingSegmentsMultiModule.RACKS[i % dc_count]
+            ibc = get("//sys/cluster_nodes/{}/@annotations/infiniband_cluster_tag".format(node))
+            return dc_to_rack[ibc_to_dc[ibc]]
+
+        nodes = list(ls("//sys/cluster_nodes"))
+        for i, node in enumerate(nodes):
+            set("//sys/cluster_nodes/" + node + "/@rack", get_node_rack(i, node))
+
+        rack_to_dc = dict(zip(BaseTestSchedulingSegmentsMultiModule.RACKS, BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS))
+        for i, node in enumerate(nodes):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == rack_to_dc[get_node_rack(i, node)])
+
+    def _setup_infiniband_clusters(self):
+        ibc_count = len(BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS)
+        with Restarter(self.Env, NODES_SERVICE):
+            for i, node_config in enumerate(self.Env.configs["node"]):
+                config = deepcopy(node_config)
+                annotations = config.pop("cypress_annotations", dict())
+                annotations["infiniband_cluster_tag"] = BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS[i % ibc_count]
+                config["cypress_annotations"] = annotations
+
+                config_path = self.Env.config_paths["node"][i]
+                with open(config_path, "wb") as fout:
+                    yson.dump(config, fout)
+
+        node_count_per_ibc = defaultdict(int)
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/infiniband_cluster", default=None)
+                         in BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS)
+            ibc = get(scheduler_orchid_node_path(node) + "/infiniband_cluster")
+            set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "infiniband_cluster_tag:{}".format(ibc))
+            node_count_per_ibc[ibc] += 1
+        for ibc in BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS:
+            assert node_count_per_ibc[ibc] == BaseTestSchedulingSegmentsMultiModule.NUM_NODES // ibc_count
 
     @classmethod
     def setup_class(cls):
         if is_asan_build():
             pytest.skip("test suite has too high memory consumption for ASAN build")
-        super(TestSchedulingSegmentsMultiDataCenter, cls).setup_class()
+        super(BaseTestSchedulingSegmentsMultiModule, cls).setup_class()
 
     def setup_method(self, method):
-        super(TestSchedulingSegmentsMultiDataCenter, self).setup_method(method)
+        super(BaseTestSchedulingSegmentsMultiModule, self).setup_method(method)
         # NB(eshcherbin): This is done to reset node segments.
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
@@ -900,17 +968,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             for response in execute_batch(requests):
                 assert not get_batch_error(response)
 
-        for dc, r in zip(TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS, TestSchedulingSegmentsMultiDataCenter.RACKS):
-            create_data_center(dc)
-            create_rack(r)
-            set("//sys/racks/" + r + "/@data_center", dc)
-
-        nodes = list(ls("//sys/cluster_nodes"))
-        dc_count = len(TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
-        for i, node in enumerate(nodes):
-            set("//sys/cluster_nodes/" + node + "/@rack", TestSchedulingSegmentsMultiDataCenter.RACKS[i % dc_count])
-        for i, node in enumerate(nodes):
-            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS[i % dc_count])
+        self._setup_node_modules()
 
         create_pool("cpu", wait_for_orchid=False)
         create_pool("small_gpu", wait_for_orchid=False)
@@ -918,7 +976,9 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
             "unsatisfied_segments_rebalancing_timeout": 1000,
-            "data_centers": TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS,
+            "data_centers": BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS,
+            "infiniband_clusters": BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS,
+            "module_type": self._get_module_type(),
         })
         set("//sys/pool_trees/default/@config/main_resource", "gpu")
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
@@ -937,23 +997,23 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80)
 
     @authors("eshcherbin")
-    def test_data_center_locality_for_large_multihost_operations(self):
+    def test_module_locality_for_large_multihost_operations(self):
         op = run_sleeping_vanilla(
             job_count=5,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
 
-        wait(lambda: self._get_data_center(op) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
-        dc = self._get_data_center(op)
+        wait(lambda: self._get_operation_module(op) in self._get_all_modules())
+        module = self._get_operation_module(op)
 
         wait(lambda: len(op.get_running_jobs()) == 5)
         jobs = op.get_running_jobs()
         for _, job in jobs.items():
-            assert get("//sys/cluster_nodes/" + job["address"] + "/@data_center", default="") == dc
+            assert self._get_node_module(job["address"]) == module
 
     @authors("eshcherbin")
-    def test_no_data_center_locality_for_small_multihost_operations(self):
+    def test_no_module_locality_for_small_multihost_operations(self):
         op = run_sleeping_vanilla(
             job_count=12,
             spec={"pool": "small_gpu"},
@@ -962,7 +1022,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 48.0 / 80.0))
 
     @authors("eshcherbin")
-    def test_uniform_distribution_of_large_operations_to_data_centers_1(self):
+    def test_uniform_distribution_of_large_operations_to_modules_1(self):
         ops = []
         for i in range(10):
             op = run_sleeping_vanilla(
@@ -972,13 +1032,13 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             ops.append(op)
             wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
 
-        dcs = [self._get_data_center(op_) for op_ in ops]
-        assert dcs[0] != dcs[1]
+        modules = [self._get_operation_module(op_) for op_ in ops]
+        assert modules[0] != modules[1]
         for i in range(2, 10):
-            assert dcs[i] == dcs[i - 2]
+            assert modules[i] == modules[i - 2]
 
     @authors("eshcherbin")
-    def test_uniform_distribution_of_large_operations_to_data_centers_2(self):
+    def test_uniform_distribution_of_large_operations_to_modules_2(self):
         set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 80})
 
         blocking_op = run_sleeping_vanilla(
@@ -994,7 +1054,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.4))
-        big_dc = self._get_data_center(big_op)
+        big_module = self._get_operation_module(big_op)
 
         for i in range(4):
             op = run_sleeping_vanilla(
@@ -1002,40 +1062,40 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
             )
             wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
-            wait(lambda: big_dc != self._get_data_center(op))
+            wait(lambda: big_module != self._get_operation_module(op))
 
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.2))
 
     @authors("eshcherbin")
-    def test_specified_data_center(self):
+    def test_specified_module(self):
         big_op = run_sleeping_vanilla(
             job_count=4,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.4))
-        big_dc = self._get_data_center(big_op)
+        big_module = self._get_operation_module(big_op)
 
         op = run_sleeping_vanilla(
-            spec={"pool": "large_gpu", "scheduling_segment_data_centers": [big_dc]},
+            spec={"pool": "large_gpu", "scheduling_segment_modules": [big_module]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
-        wait(lambda: big_dc == self._get_data_center(op))
+        wait(lambda: big_module == self._get_operation_module(op))
 
     @authors("eshcherbin")
-    def test_data_center_reconsideration(self):
+    def test_module_reconsideration(self):
         big_op = run_sleeping_vanilla(
             job_count=5,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.5))
-        big_dc = self._get_data_center(big_op)
+        big_module = self._get_operation_module(big_op)
 
         node_to_disappear = None
         for node in ls("//sys/cluster_nodes"):
-            if get("//sys/cluster_nodes/" + node + "/@data_center") == big_dc:
+            if self._get_node_module(node) == big_module:
                 node_to_disappear = node
                 break
         assert node_to_disappear is not None
@@ -1045,13 +1105,13 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         set("//sys/cluster_nodes/" + node_to_disappear + "/@user_tags/end", "other")
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 4. / 9.))
 
-        set("//sys/pool_trees/default/@config/scheduling_segments/data_center_reconsideration_timeout", 5000)
+        set("//sys/pool_trees/default/@config/scheduling_segments/module_reconsideration_timeout", 5000)
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 5. / 9.))
-        wait(lambda: big_dc != self._get_data_center(big_op))
+        wait(lambda: big_module != self._get_operation_module(big_op))
         wait(lambda: big_op.get_job_count("aborted") >= 5)
 
     @authors("eshcherbin")
-    def test_rebalance_large_gpu_segment_nodes_between_data_centers(self):
+    def test_rebalance_large_gpu_segment_nodes_between_modules(self):
         create_pool("large_gpu_other")
         set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 40})
         set("//sys/pools/small_gpu/@strong_guarantee_resources", {"gpu": 40})
@@ -1068,11 +1128,11 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.3))
-        big_dc = self._get_data_center(big_op)
+        big_module = self._get_operation_module(big_op)
 
         opportunistic_op = run_sleeping_vanilla(
             job_count=2,
-            spec={"pool": "large_gpu_other", "scheduling_segment_data_centers": [big_dc]},
+            spec={"pool": "large_gpu_other", "scheduling_segment_modules": [big_module]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(opportunistic_op.id), 0.2))
@@ -1085,12 +1145,12 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.2))
-        wait(lambda: big_dc != self._get_data_center(op))
+        wait(lambda: big_module != self._get_operation_module(op))
 
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
 
     @authors("eshcherbin")
-    def test_revive_operation_data_center(self):
+    def test_revive_operation_module(self):
         update_controller_agent_config("snapshot_period", 300)
 
         ops = []
@@ -1101,19 +1161,19 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             )
             ops.append(op)
 
-        dcs = []
+        modules = []
         for op in ops:
-            op_dc_path = op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default/scheduling_segment_data_center"
-            wait(lambda: exists(op_dc_path))
-            dcs.append(get(op_dc_path))
+            op_module_path = op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default/scheduling_segment_module"
+            wait(lambda: exists(op_module_path))
+            modules.append(get(op_module_path))
 
         ops[-1].wait_for_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        for op, dc in zip(ops, dcs):
-            wait(lambda: dc == self._get_data_center(op))
+        for op, module in zip(ops, modules):
+            wait(lambda: module == self._get_operation_module(op))
 
     @authors("eshcherbin")
     def test_profiling(self):
@@ -1122,9 +1182,9 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
         profiler = profiler_factory().at_scheduler()
 
-        for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
-            wait(lambda: profiler.gauge("scheduler/segments/data_center_capacity", fixed_tags={"data_center": dc}).get() ==
-                 8 * (TestSchedulingSegmentsMultiDataCenter.NUM_NODES / 2))
+        for module in self._get_all_modules():
+            wait(lambda: profiler.gauge("scheduler/segments/module_capacity", fixed_tags={"module": module}).get() ==
+                 8 * (BaseTestSchedulingSegmentsMultiModule.NUM_NODES / 2))
 
         fair_resource_amount_default_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "default"})
         current_resource_amount_default_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "default"})
@@ -1133,9 +1193,9 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
         wait(lambda: fair_resource_amount_default_sensor.get() == 0)
         wait(lambda: current_resource_amount_default_sensor.get() == 80)
-        for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
-            wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": dc}) == 0)
-            wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": dc}) == 0)
+        for module in self._get_all_modules():
+            wait(lambda: fair_resource_amount_large_sensor.get(tags={"module": module}) == 0)
+            wait(lambda: current_resource_amount_large_sensor.get(tags={"module": module}) == 0)
 
         blocking_op = run_sleeping_vanilla(
             job_count=20,
@@ -1146,31 +1206,31 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
         wait(lambda: fair_resource_amount_default_sensor.get() == 80)
         wait(lambda: current_resource_amount_default_sensor.get() == 80)
-        for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
-            wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": dc}) == 0)
-            wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": dc}) == 0)
+        for module in self._get_all_modules():
+            wait(lambda: fair_resource_amount_large_sensor.get(tags={"module": module}) == 0)
+            wait(lambda: current_resource_amount_large_sensor.get(tags={"module": module}) == 0)
 
         op1 = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_fair_share_ratio(op1.id), 0.1))
-        wait(lambda: self._get_data_center(op1) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
-        op1_dc = self._get_data_center(op1)
+        wait(lambda: self._get_operation_module(op1) in self._get_all_modules())
+        op1_module = self._get_operation_module(op1)
 
         time.sleep(3.0)
 
         wait(lambda: fair_resource_amount_default_sensor.get() == 72)
         wait(lambda: current_resource_amount_default_sensor.get() == 80)
-        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 8)
-        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 0)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"module": op1_module}) == 8)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"module": op1_module}) == 0)
 
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000)
 
         wait(lambda: fair_resource_amount_default_sensor.get() == 72)
         wait(lambda: current_resource_amount_default_sensor.get() == 72)
-        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 8)
-        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 8)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"module": op1_module}) == 8)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"module": op1_module}) == 8)
 
         op2 = run_sleeping_vanilla(
             job_count=2,
@@ -1178,16 +1238,16 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_fair_share_ratio(op2.id), 0.2))
-        wait(lambda: self._get_data_center(op2) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
-        op2_dc = self._get_data_center(op2)
-        assert op1_dc != op2_dc
+        wait(lambda: self._get_operation_module(op2) in self._get_all_modules())
+        op2_module = self._get_operation_module(op2)
+        assert op1_module != op2_module
 
         wait(lambda: fair_resource_amount_default_sensor.get() == 56)
         wait(lambda: current_resource_amount_default_sensor.get() == 56)
-        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 8)
-        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 8)
-        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op2_dc}) == 16)
-        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op2_dc}) == 16)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"module": op1_module}) == 8)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"module": op1_module}) == 8)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"module": op2_module}) == 16)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"module": op2_module}) == 16)
 
     @authors("eshcherbin")
     def test_fail_large_gpu_operation_started_in_several_trees(self):
@@ -1218,24 +1278,30 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
-        wait(lambda: self._get_data_center(blocking_op) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
-        dc = self._get_data_center(blocking_op)
-        other_dc = [dz for dz in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS if dz != dc][0]
+        wait(lambda: self._get_operation_module(blocking_op) in self._get_all_modules())
+        module = self._get_operation_module(blocking_op)
+        other_module = [module_ for module_ in self._get_all_modules() if module_ != module][0]
 
         op1 = run_sleeping_vanilla(
-            spec={"pool": "large_gpu", "scheduling_tag_filter": dc},
+            spec={"pool": "large_gpu", "scheduling_tag_filter": self._get_node_tag_from_module(module)},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         op1.wait_for_state("failed")
 
         op2 = run_sleeping_vanilla(
-            spec={"pool": "large_gpu", "scheduling_tag_filter": other_dc},
+            spec={"pool": "large_gpu", "scheduling_tag_filter": self._get_node_tag_from_module(other_module)},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(op2.id), 0.1))
 
         op3 = run_sleeping_vanilla(
-            spec={"pool": "large_gpu", "scheduling_tag_filter": "{} & !{}".format(dc, other_dc)},
+            spec={
+                "pool": "large_gpu",
+                "scheduling_tag_filter": "{} & !{}".format(
+                    self._get_node_tag_from_module(module),
+                    self._get_node_tag_from_module(other_module)
+                )
+            },
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_fair_share_ratio(op3.id), 0.1))
@@ -1244,7 +1310,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         wait(lambda: are_almost_equal(self._get_usage_ratio(op3.id), 0.0))
 
         op4 = run_sleeping_vanilla(
-            spec={"pool": "large_gpu", "scheduling_tag_filter": dc},
+            spec={"pool": "large_gpu", "scheduling_tag_filter": self._get_node_tag_from_module(module)},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_fair_share_ratio(op4.id), 0.05))
@@ -1254,8 +1320,8 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_min_remaining_feasible_capacity_assignment_heuristic(self):
-        set("//sys/pool_trees/default/@config/scheduling_segments/data_center_assignment_heuristic", "min_remaining_feasible_capacity")
-        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/data_center_assignment_heuristic") ==
+        set("//sys/pool_trees/default/@config/scheduling_segments/module_assignment_heuristic", "min_remaining_feasible_capacity")
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/module_assignment_heuristic") ==
              "min_remaining_feasible_capacity")
 
         op1 = run_sleeping_vanilla(
@@ -1263,27 +1329,94 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: self._get_data_center(op1) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        wait(lambda: self._get_operation_module(op1) in self._get_all_modules())
 
         op2 = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: self._get_data_center(op2) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        wait(lambda: self._get_operation_module(op2) in self._get_all_modules())
 
         op3 = run_sleeping_vanilla(
             job_count=4,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: self._get_data_center(op3) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        wait(lambda: self._get_operation_module(op3) in self._get_all_modules())
 
         op4 = run_sleeping_vanilla(
             job_count=3,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: self._get_data_center(op4) in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        wait(lambda: self._get_operation_module(op4) in self._get_all_modules())
 
-        assert self._get_data_center(op1) == self._get_data_center(op2) == self._get_data_center(op4)
-        assert self._get_data_center(op1) != self._get_data_center(op3)
+        assert self._get_operation_module(op1) == self._get_operation_module(op2) == self._get_operation_module(op4)
+        assert self._get_operation_module(op1) != self._get_operation_module(op3)
+
+
+class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModule):
+    def _setup_node_modules(self):
+        self._setup_data_centers()
+
+    def _get_module_type(self):
+        return "data_center"
+
+    def _get_all_modules(self):
+        return BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS
+
+    def _get_node_module(self, node_address):
+        return get("//sys/cluster_nodes/" + node_address + "/@data_center", default="")
+
+    def _get_node_tag_from_module(self, module):
+        return module
+
+
+class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMultiModule):
+    def _setup_node_modules(self):
+        self._setup_infiniband_clusters()
+
+    def _get_module_type(self):
+        return "infiniband_cluster"
+
+    def _get_all_modules(self):
+        return BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS
+
+    def _get_node_module(self, node_address):
+        return get("//sys/cluster_nodes/" + node_address + "/@annotations/infiniband_cluster_tag", default="")
+
+    def _get_node_tag_from_module(self, module):
+        return "infiniband_cluster_tag:{}".format(module)
+
+    @authors("eshcherbin")
+    def test_module_migration(self):
+        # Set up data centers for migration.
+        ibc_to_dc = dict(zip(
+            BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS,
+            BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS))
+        print_debug("IBC to DC:", ibc_to_dc)
+        self._setup_data_centers(ibc_to_dc)
+
+        ops = []
+        for i in range(10):
+            spec = {"pool": "large_gpu"}
+            if i < 5:
+                spec["scheduling_segment_modules"] = [BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS[i % len(ibc_to_dc)]]
+
+            op = run_sleeping_vanilla(
+                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            )
+            ops.append(op)
+
+        ops_ibc = []
+        for op in ops:
+            wait(lambda: self._get_operation_module(op) in self._get_all_modules())
+            ops_ibc.append(self._get_operation_module(op))
+
+        scheduling_segments_config = get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments")
+        scheduling_segments_config["module_type"] = "data_center"
+        scheduling_segments_config["module_migration_mapping"] = ibc_to_dc
+        set("//sys/pool_trees/default/@config/scheduling_segments", scheduling_segments_config)
+
+        for op, op_ibc in zip(ops, ops_ibc):
+            wait(lambda: self._get_operation_module(op) == ibc_to_dc[op_ibc])

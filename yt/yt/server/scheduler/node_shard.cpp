@@ -822,6 +822,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         auto newState = attributes.Get<NNodeTrackerClient::ENodeState>("state");
         auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
         auto specifiedSchedulingSegment = attributes.Find<ESchedulingSegment>("scheduling_segment");
+        auto annotationsYson = attributes.FindYson("annotations");
 
         YT_LOG_DEBUG("Handling node attributes (NodeId: %v, NodeAddress: %v, ObjectId: %v, NewState: %v)",
             nodeId,
@@ -831,8 +832,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         YT_VERIFY(Host_->GetNodeShardId(nodeId) == Id_);
 
-        auto nodeIt = IdToNode_.find(nodeId);
-        if (nodeIt == IdToNode_.end()) {
+        if (!IdToNode_.contains(nodeId)) {
             if (newState != NNodeTrackerClient::ENodeState::Offline) {
                 RegisterNode(nodeId, TNodeDescriptor(address), ENodeState::Offline);
             } else {
@@ -870,6 +870,19 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         if (specifiedSchedulingSegment) {
             SetNodeSchedulingSegment(execNode, *specifiedSchedulingSegment);
             execNode->SetSchedulingSegmentFrozen(true);
+        }
+
+        if (annotationsYson) {
+            auto infinibandCluster = ConvertToAttributes(annotationsYson)->Find<TString>(InfinibandClusterNameKey);
+            if (auto nodeInfinibandCluster = execNode->GetInfinibandCluster()) {
+                YT_LOG_WARNING_IF(nodeInfinibandCluster != infinibandCluster,
+                    "Node infiniband cluster tag has changed "
+                    "(OldInfinibandCluster: %v, NewInfinibandCluster: %v)",
+                    nodeInfinibandCluster,
+                    infinibandCluster);
+            } else {
+                execNode->SetInfinibandCluster(std::move(infinibandCluster));
+            }
         }
 
         auto oldState = execNode->GetMasterState();
@@ -2272,7 +2285,8 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
                     job->GetId(),
                     job->GetTreeId(),
                     TJobResources(),
-                    job->GetNode()->NodeDescriptor().GetDataCenter()
+                    job->GetNode()->NodeDescriptor().GetDataCenter(),
+                    job->GetNode()->GetInfinibandCluster()
                 };
                 operationState->JobsToSubmitToStrategy.insert(job->GetId());
             }
@@ -2366,7 +2380,8 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
                 job->GetId(),
                 job->GetTreeId(),
                 job->ResourceUsage(),
-                job->GetNode()->NodeDescriptor().GetDataCenter()
+                job->GetNode()->NodeDescriptor().GetDataCenter(),
+                job->GetNode()->GetInfinibandCluster()
             };
 
             operationState->JobsToSubmitToStrategy.insert(job->GetId());
@@ -2642,7 +2657,8 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
                 job->GetId(),
                 job->GetTreeId(),
                 TJobResources(),
-                job->GetNode()->NodeDescriptor().GetDataCenter()};
+                job->GetNode()->NodeDescriptor().GetDataCenter(),
+                job->GetNode()->GetInfinibandCluster()};
         operationState->JobsToSubmitToStrategy.insert(job->GetId());
 
         YT_LOG_DEBUG_IF(enableLogging, "Job unregistered (JobId: %v, OperationId: %v, State: %v)",

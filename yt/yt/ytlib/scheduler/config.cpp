@@ -1933,7 +1933,7 @@ void TFairShareStrategyPackingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int MaxSchedulingSegmentDataCenterCount = 8;
+static constexpr int MaxSchedulingSegmentModuleCount = 8;
 
 void TStrategyOperationSpec::Register(TRegistrar registrar)
 {
@@ -1968,7 +1968,8 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default(EPreemptionMode::Normal);
     registrar.Parameter("scheduling_segment", &TThis::SchedulingSegment)
         .Default();
-    registrar.Parameter("scheduling_segment_data_centers", &TThis::SchedulingSegmentDataCenters)
+    registrar.Parameter("scheduling_segment_modules", &TThis::SchedulingSegmentModules)
+        .Alias("scheduling_segment_data_centers")
         .Default();
     registrar.Parameter("enable_limiting_ancestor_check", &TThis::EnableLimitingAncestorCheck)
         .Default(true);
@@ -1976,10 +1977,10 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TStrategyOperationSpec* spec) {
-        if (spec->SchedulingSegmentDataCenters && spec->SchedulingSegmentDataCenters->size() >= MaxSchedulingSegmentDataCenterCount) {
+        if (spec->SchedulingSegmentModules && spec->SchedulingSegmentModules->size() >= MaxSchedulingSegmentModuleCount) {
             THROW_ERROR_EXCEPTION("%Qv size must be not greater than %v",
-                "scheduling_segment_data_centers",
-                MaxSchedulingSegmentDataCenterCount);
+                "scheduling_segment_modules",
+                MaxSchedulingSegmentModuleCount);
         }
         if (spec->ScheduleInSingleTree && (spec->TentativePoolTrees || spec->UseDefaultTentativePoolTrees)) {
             THROW_ERROR_EXCEPTION("%Qv option cannot be used simultaneously with tentative pool trees (check %Qv and %Qv)",
@@ -2004,7 +2005,8 @@ void TOperationFairShareTreeRuntimeParameters::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("tentative", &TThis::Tentative)
         .Default(false);
-    registrar.Parameter("scheduling_segment_data_center", &TThis::SchedulingSegmentDataCenter)
+    registrar.Parameter("scheduling_segment_module", &TThis::SchedulingSegmentModule)
+        .Alias("scheduling_segment_data_center")
         .Default();
 }
 

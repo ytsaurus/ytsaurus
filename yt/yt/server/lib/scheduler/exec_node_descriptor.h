@@ -55,7 +55,8 @@ struct TExecNodeDescriptor
         const TBooleanFormulaTags& tags,
         const TRunningJobStatistics& runningJobStatistics,
         ESchedulingSegment schedulingSegment,
-        bool schedulingSegmentFrozen);
+        bool schedulingSegmentFrozen,
+        std::optional<TString> infinibandCluster);
 
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
@@ -70,6 +71,7 @@ struct TExecNodeDescriptor
     TRunningJobStatistics RunningJobStatistics;
     ESchedulingSegment SchedulingSegment;
     bool SchedulingSegmentFrozen;
+    std::optional<TString> InfinibandCluster;
 
     void Persist(const TStreamPersistenceContext& context);
 };

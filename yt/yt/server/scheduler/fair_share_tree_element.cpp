@@ -106,7 +106,7 @@ void TPersistentAttributes::ResetOnElementEnabled()
     auto resetAttributes = TPersistentAttributes();
     resetAttributes.IntegralResourcesState = IntegralResourcesState;
     resetAttributes.LastNonStarvingTime = TInstant::Now();
-    resetAttributes.SchedulingSegmentDataCenter = SchedulingSegmentDataCenter;
+    resetAttributes.SchedulingSegmentModule = SchedulingSegmentModule;
     *this = resetAttributes;
 }
 
@@ -2863,9 +2863,10 @@ void TSchedulerOperationElement::CheckForDeactivation(
         return;
     }
 
-    if (!IsSchedulingSegmentCompatibleWithNode(
-        context->SchedulingContext()->GetSchedulingSegment(),
-        context->SchedulingContext()->GetNodeDescriptor().DataCenter))
+    const auto& nodeModule = TNodeSchedulingSegmentManager::GetNodeModule(
+        context->SchedulingContext()->GetNodeDescriptor(),
+        TreeConfig_->SchedulingSegments->ModuleType);
+    if (!IsSchedulingSegmentCompatibleWithNode(context->SchedulingContext()->GetSchedulingSegment(), nodeModule))
     {
         onOperationDeactivated(EDeactivationReason::IncompatibleSchedulingSegment);
         return;
@@ -2908,7 +2909,7 @@ TString TSchedulerOperationElement::GetLoggingString() const
 {
     return Format(
         "Scheduling info for tree %Qv = {%v, "
-        "PendingJobs: %v, AggregatedMinNeededResources: %v, SchedulingSegment: %v, SchedulingSegmentDataCenter: %v, "
+        "PendingJobs: %v, AggregatedMinNeededResources: %v, SchedulingSegment: %v, SchedulingSegmentModule: %v, "
         "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v, "
         "DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v}",
         GetTreeId(),
@@ -2916,7 +2917,7 @@ TString TSchedulerOperationElement::GetLoggingString() const
         PendingJobCount_,
         AggregatedMinNeededJobResources_,
         SchedulingSegment(),
-        PersistentAttributes_.SchedulingSegmentDataCenter,
+        PersistentAttributes_.SchedulingSegmentModule,
         GetPreemptableJobCount(),
         GetAggressivelyPreemptableJobCount(),
         GetPreemptionStatusStatistics(),
@@ -3703,7 +3704,8 @@ void TSchedulerOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedul
 {
     auto maybeInitialMinNeededResources = Operation_->GetInitialAggregatedMinNeededResources();
     auto segment = Spec_->SchedulingSegment.value_or(
-        TStrategySchedulingSegmentManager::GetSegmentForOperation(mode,
+        TStrategySchedulingSegmentManager::GetSegmentForOperation(
+            mode,
             maybeInitialMinNeededResources.value_or(TJobResources{})));
 
     if (SchedulingSegment() != segment) {
@@ -3714,9 +3716,9 @@ void TSchedulerOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedul
             Spec_->SchedulingSegment);
 
         SchedulingSegment() = segment;
-        SpecifiedSchedulingSegmentDataCenters() = Spec_->SchedulingSegmentDataCenters;
-        if (!IsDataCenterAwareSchedulingSegment(segment)) {
-            PersistentAttributes_.SchedulingSegmentDataCenter.reset();
+        SpecifiedSchedulingSegmentModules() = Spec_->SchedulingSegmentModules;
+        if (!IsModuleAwareSchedulingSegment(segment)) {
+            PersistentAttributes_.SchedulingSegmentModule.reset();
         }
     }
 }
@@ -3726,7 +3728,9 @@ bool TSchedulerOperationElement::IsLimitingAncestorCheckEnabled() const
     return Spec_->EnableLimitingAncestorCheck;
 }
 
-bool TSchedulerOperationElement::IsSchedulingSegmentCompatibleWithNode(ESchedulingSegment nodeSegment, const TDataCenter& nodeDataCenter) const
+bool TSchedulerOperationElement::IsSchedulingSegmentCompatibleWithNode(
+    ESchedulingSegment nodeSegment,
+    const TSchedulingSegmentModule& nodeModule) const
 {
     if (TreeConfig_->SchedulingSegments->Mode == ESegmentedSchedulingMode::Disabled) {
         return true;
@@ -3736,16 +3740,16 @@ bool TSchedulerOperationElement::IsSchedulingSegmentCompatibleWithNode(EScheduli
         return false;
     }
 
-    if (IsDataCenterAwareSchedulingSegment(*SchedulingSegment())) {
-        if (!PersistentAttributes_.SchedulingSegmentDataCenter) {
-            // We have not decided on the operation's data center yet.
+    if (IsModuleAwareSchedulingSegment(*SchedulingSegment())) {
+        if (!PersistentAttributes_.SchedulingSegmentModule) {
+            // We have not decided on the operation's module yet.
             return false;
         }
 
-        return SchedulingSegment() == nodeSegment && PersistentAttributes_.SchedulingSegmentDataCenter == nodeDataCenter;
+        return SchedulingSegment() == nodeSegment && PersistentAttributes_.SchedulingSegmentModule == nodeModule;
     }
 
-    YT_VERIFY(!PersistentAttributes_.SchedulingSegmentDataCenter);
+    YT_VERIFY(!PersistentAttributes_.SchedulingSegmentModule);
 
     return *SchedulingSegment() == nodeSegment;
 }
@@ -3769,10 +3773,10 @@ void TSchedulerOperationElement::CollectOperationSchedulingSegmentContexts(
             .ResourceUsage = ResourceUsageAtUpdate_,
             .DemandShare = Attributes_.DemandShare,
             .FairShare = Attributes_.FairShare.Total,
-            .SpecifiedDataCenters = SpecifiedSchedulingSegmentDataCenters(),
             .Segment = SchedulingSegment(),
-            .DataCenter = PersistentAttributes_.SchedulingSegmentDataCenter,
-            .FailingToScheduleAtDataCenterSince = PersistentAttributes_.FailingToScheduleAtDataCenterSince,
+            .Module = PersistentAttributes_.SchedulingSegmentModule,
+            .SpecifiedModules = SpecifiedSchedulingSegmentModules(),
+            .FailingToScheduleAtModuleSince = PersistentAttributes_.FailingToScheduleAtModuleSince,
         }).second);
 }
 
@@ -3780,8 +3784,8 @@ void TSchedulerOperationElement::ApplyOperationSchedulingSegmentChanges(
     const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts)
 {
     const auto& context = GetOrCrash(operationContexts, OperationId_);
-    PersistentAttributes_.SchedulingSegmentDataCenter = context.DataCenter;
-    PersistentAttributes_.FailingToScheduleAtDataCenterSince = context.FailingToScheduleAtDataCenterSince;
+    PersistentAttributes_.SchedulingSegmentModule = context.Module;
+    PersistentAttributes_.FailingToScheduleAtModuleSince = context.FailingToScheduleAtModuleSince;
 }
 
 void TSchedulerOperationElement::CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const
@@ -3839,7 +3843,7 @@ void TSchedulerRootElement::PreUpdate(NVectorHdrf::TFairShareUpdateContext* cont
 /// 2. Update dynamic attributes based on the calculated fair share (for orchid).
 ///
 /// 3. Manage scheduling segments.
-///    We build the tree's scheduling segment state and assign eligible operations in DC-aware segments to data centers.
+///    We build the tree's scheduling segment state and assign eligible operations in module-aware segments to modules.
 void TSchedulerRootElement::PostUpdate(
     TFairSharePostUpdateContext* postUpdateContext,
 	TManageTreeSchedulingSegmentsContext* manageSegmentsContext)

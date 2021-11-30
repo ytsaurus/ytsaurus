@@ -10,24 +10,24 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr bool IsDataCenterAwareSchedulingSegment(ESchedulingSegment segment);
+constexpr bool IsModuleAwareSchedulingSegment(ESchedulingSegment segment);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
-class TDataCenterAwareValue;
+class TModuleAwareValue;
 
 template <class TValue>
-void Serialize(const TDataCenterAwareValue<TValue>& value, NYson::IYsonConsumer* consumer);
+void Serialize(const TModuleAwareValue<TValue>& value, NYson::IYsonConsumer* consumer);
 
 template <class TValue>
-void DeserializeScalarValue(TDataCenterAwareValue<TValue>& value, const NYTree::INodePtr& node);
+void DeserializeScalarValue(TModuleAwareValue<TValue>& value, const NYTree::INodePtr& node);
 
 template <class TValue>
-void DeserializeMultiDataCenterValue(TDataCenterAwareValue<TValue>& value, const NYTree::INodePtr& node);
+void DeserializeMultiModuleValue(TModuleAwareValue<TValue>& value, const NYTree::INodePtr& node);
 
 template <class TValue>
-void FormatValue(TStringBuilderBase* builder, const TDataCenterAwareValue<TValue>& value, TStringBuf /* format */);
+void FormatValue(TStringBuilderBase* builder, const TModuleAwareValue<TValue>& value, TStringBuf /* format */);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,40 +45,44 @@ void FormatValue(TStringBuilderBase* builder, const TSchedulingSegmentMap<TValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TDataCenter = std::optional<TString>;
-using TDataCenterList = std::vector<TDataCenter>;
+using TSchedulingSegmentModule = std::optional<TString>;
+using TSchedulingSegmentModuleList = std::vector<TSchedulingSegmentModule>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
-class TDataCenterAwareValue
+class TModuleAwareValue
 {
 public:
     [[nodiscard]] const TValue& GetOrDefault(const TValue& defaultValue = {}) const;
     TValue& Mutable();
     void Set(const TValue& value);
 
-    [[nodiscard]] const TValue& GetOrDefaultAt(const TDataCenter& dataCenter, const TValue& defaultValue = {}) const;
-    TValue& MutableAt(const TDataCenter& dataCenter);
-    void SetAt(const TDataCenter& dataCenter, const TValue& value);
-    [[nodiscard]] TDataCenterList GetDataCenters() const;
+    [[nodiscard]] const TValue& GetOrDefaultAt(
+        const TSchedulingSegmentModule& schedulingSegmentModule,
+        const TValue& defaultValue = {}) const;
+    TValue& MutableAt(const TSchedulingSegmentModule& schedulingSegmentModule);
+    void SetAt(const TSchedulingSegmentModule& schedulingSegmentModule, const TValue& value);
+    [[nodiscard]] TSchedulingSegmentModuleList GetModules() const;
     [[nodiscard]] TValue GetTotal() const;
 
 private:
-    bool IsMultiDataCenter_ = false;
+    bool IsMultiModule_ = false;
 
-    using TMap = THashMap<TDataCenter, TValue>;
+    using TMap = THashMap<TSchedulingSegmentModule, TValue>;
     using TMapForDeserialize = THashMap<TString, TValue>;
     TMap Map_;
 
-    [[nodiscard]] const TValue& GetOrDefaultImpl(const TDataCenter& dataCenter, const TValue& defaultValue) const;
-    TValue& MutableImpl(const TDataCenter& dataCenter);
-    void SetImpl(const TDataCenter& dataCenter, const TValue& value);
+    [[nodiscard]] const TValue& GetOrDefaultImpl(
+        const TSchedulingSegmentModule& schedulingSegmentModule,
+        const TValue& defaultValue) const;
+    TValue& MutableImpl(const TSchedulingSegmentModule& schedulingSegmentModule);
+    void SetImpl(const TSchedulingSegmentModule& schedulingSegmentModule, const TValue& value);
 
-    friend void Serialize<>(const TDataCenterAwareValue& value, NYson::IYsonConsumer* consumer);
-    friend void DeserializeScalarValue<>(TDataCenterAwareValue& value, const NYTree::INodePtr& node);
-    friend void DeserializeMultiDataCenterValue<>(TDataCenterAwareValue& value, const NYTree::INodePtr& node);
-    friend void FormatValue<>(TStringBuilderBase* builder, const TDataCenterAwareValue& value, TStringBuf format);
+    friend void Serialize<>(const TModuleAwareValue& value, NYson::IYsonConsumer* consumer);
+    friend void DeserializeScalarValue<>(TModuleAwareValue& value, const NYTree::INodePtr& node);
+    friend void DeserializeMultiModuleValue<>(TModuleAwareValue& value, const NYTree::INodePtr& node);
+    friend void FormatValue<>(TStringBuilderBase* builder, const TModuleAwareValue& value, TStringBuf format);
 
     friend class TSchedulingSegmentMap<TValue>;
 };
@@ -91,11 +95,11 @@ class TSchedulingSegmentMap
 public:
     TSchedulingSegmentMap();
 
-    [[nodiscard]] const TDataCenterAwareValue<TValue>& At(ESchedulingSegment segment) const;
-    TDataCenterAwareValue<TValue>& At(ESchedulingSegment segment);
+    [[nodiscard]] const TModuleAwareValue<TValue>& At(ESchedulingSegment segment) const;
+    TModuleAwareValue<TValue>& At(ESchedulingSegment segment);
 
 private:
-    TEnumIndexedVector<ESchedulingSegment, TDataCenterAwareValue<TValue>> Map_;
+    TEnumIndexedVector<ESchedulingSegment, TModuleAwareValue<TValue>> Map_;
 
     friend void Serialize<>(const TSchedulingSegmentMap& map, NYson::IYsonConsumer* consumer);
     friend void Deserialize<>(TSchedulingSegmentMap& map, const NYTree::INodePtr& node);
