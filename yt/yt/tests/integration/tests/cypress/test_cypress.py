@@ -3382,6 +3382,24 @@ class TestCypress(YTEnvSetup):
             set("//tmp/a", {"x": "y"})
         set("//tmp/a", {"x": "y"}, force=True)
 
+    @authors("kvk1920")
+    def test_access_control_node(self):
+        # @namespace is required
+        with pytest.raises(YtError):
+            create("access_control_node", "//tmp/acn")
+        create("access_control_node", "//tmp/acn", attributes={
+            "namespace": "kvk1920"
+        })
+        assert exists("//tmp/acn")
+        assert "kvk1920" == get("//tmp/acn/@namespace")
+        # @namespace is read-only
+        with pytest.raises(YtError):
+            set("//tmp/acn/@namespace", "kvk1901")
+
+    @authors("kvk1920")
+    def test_acn_scheme(self):
+        assert exists("//sys/schemas/access_control_node")
+
 
 ##################################################################
 
@@ -3519,6 +3537,13 @@ class TestCypressPortal(TestCypressMulticell):
 
         assert not get("//portals/p/t2/@inherit_acl")
         assert_items_equal(get("//portals/p/t2/@acl"), acl)
+
+    @authors("kvk1920")
+    def test_cross_shard_copy_acn(self):
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("access_control_node", "//tmp/acn", attributes={"namespace": "kvk1920"})
+        copy("//tmp/acn", "//portals/p/acn")
+        assert "kvk1920" == get("//portals/p/acn/@namespace")
 
 
 ################################################################################

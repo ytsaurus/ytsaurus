@@ -63,6 +63,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::AccountResourceUsageLeaseMap ||
         type == EObjectType::SchedulerPoolTreeMap ||
         type == EObjectType::Link ||
+        type == EObjectType::AccessControlNode ||
         type == EObjectType::Document ||
         type == EObjectType::LockMap ||
         type == EObjectType::TabletMap ||
@@ -109,6 +110,7 @@ bool IsUserType(EObjectType type)
         type == EObjectType::TabletAction ||
         type == EObjectType::Journal ||
         type == EObjectType::Link ||
+        type == EObjectType::AccessControlNode ||
         type == EObjectType::Document ||
         type == EObjectType::Account ||
         type == EObjectType::SchedulerPool ||

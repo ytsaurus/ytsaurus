@@ -170,6 +170,7 @@ DEFINE_ENUM(EObjectType,
     ((MapNode)                       (303))
     ((ListNode)                      (304))
     ((BooleanNode)                   (305))
+    ((AccessControlNode)             (307))
 
     // Dynamic nodes
     ((File)                          (400))
