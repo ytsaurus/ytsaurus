@@ -36,6 +36,7 @@ public class UnversionedRowSerializer implements WireRowSerializer<UnversionedRo
             UnversionedRow row,
             WireProtocolWriteable writeable,
             boolean keyFieldsOnly,
+            boolean aggregate,
             int[] idMapping
     ) {
         // keyFieldsOnly is not supported for unversioned rows

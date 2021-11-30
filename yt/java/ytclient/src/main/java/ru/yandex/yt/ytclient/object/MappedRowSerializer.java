@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
@@ -52,11 +53,12 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public void serializeRow(T row, WireProtocolWriteable writeable, boolean keyFieldsOnly, int[] idMapping) {
+    public void serializeRow(T row, WireProtocolWriteable writeable, boolean keyFieldsOnly, boolean aggregate,
+                             int[] idMapping) {
         final T compareWith = !keyFieldsOnly && supportState
                 ? ((YTreeStateSupport<? extends T>) row).getYTreeObjectState()
                 : null;
-        this.objectSerializer.serialize(row, delegate.wrap(writeable), false, keyFieldsOnly, compareWith);
+        this.objectSerializer.serialize(row, delegate.wrap(writeable, aggregate), false, keyFieldsOnly, compareWith);
         delegate.complete();
     }
 
@@ -100,7 +102,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
                 hasKeys |= field.isKeyField;
 
                 builder.add(new ColumnSchema(field.key, asType(serializer),
-                        field.isKeyField ? ColumnSortOrder.ASCENDING : null, null, null, null, null, field.isKeyField));
+                        field.isKeyField ? ColumnSortOrder.ASCENDING : null, null, null,
+                        field.aggregate, null, field.isKeyField));
             }
         }
 
@@ -119,8 +122,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
             this.direct = new YTreeConsumerDirect(tableSchema);
         }
 
-        YsonConsumer wrap(WireProtocolWriteable writeable) {
-            direct.wrap(writeable);
+        YsonConsumer wrap(WireProtocolWriteable writeable, boolean aggregate) {
+            direct.wrap(writeable, aggregate);
             this.current = null;
             this.binarySerializer = null;
             this.level = 0;
@@ -267,6 +270,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
         private ColumnWithIndex currentColumn;
         private int columnCount;
+        private boolean aggregate = false;
 
         private YTreeConsumerDirect(TableSchema tableSchema) {
             this.schema = new HashMap<>(tableSchema.getColumnsCount());
@@ -274,7 +278,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
             for (int i = 0; i < tableSchema.getColumnsCount(); i++) {
                 final ColumnSchema columnSchema = tableSchema.getColumnSchema(i);
                 if (columnSchema != null) {
-                    schema.put(columnSchema.getName(), new ColumnWithIndex(i, columnSchema.getType()));
+                    schema.put(columnSchema.getName(), new ColumnWithIndex(i, columnSchema.getType(),
+                            columnSchema.getAggregate()));
                 }
             }
         }
@@ -283,7 +288,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
             for (TRowsetDescriptor.TNameTableEntry entry : schemaDelta.getNameTableEntriesList()) {
                 if (!schema.containsKey(entry.getName())) {
                     int index = schema.size();
-                    schema.put(entry.getName(), new ColumnWithIndex(index, ColumnValueType.fromValue(entry.getType())));
+                    schema.put(entry.getName(), new ColumnWithIndex(index, ColumnValueType.fromValue(entry.getType()),
+                            null));
                 }
             }
         }
@@ -292,10 +298,11 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
             this.writeable.overwriteValueCount(this.columnCount);
         }
 
-        void wrap(WireProtocolWriteable writeable) {
+        void wrap(WireProtocolWriteable writeable, boolean aggregate) {
             // Мы еще не знаем, сколько полей нам придется записать
             this.writeable = writeable;
             this.columnCount = 0;
+            this.aggregate = aggregate;
             writeable.writeValueCount(0);
         }
 
@@ -370,14 +377,16 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         public void onEntity() {
             if (currentColumn != null) {
                 // write empty value
-                writeable.writeValueHeader(currentColumn.columnId, ColumnValueType.NULL, false, 0);
+                writeable.writeValueHeader(currentColumn.columnId, ColumnValueType.NULL,
+                        aggregate && currentColumn.aggregate != null, 0);
             }
         }
 
         @Override
         public void onInteger(long value) {
             if (currentColumn != null) {
-                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType, false, 0);
+                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType,
+                        aggregate && currentColumn.aggregate != null, 0);
                 writeable.onInteger(value);
             }
         }
@@ -385,7 +394,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         @Override
         public void onBoolean(boolean value) {
             if (currentColumn != null) {
-                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType, false, 0);
+                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType,
+                        aggregate && currentColumn.aggregate != null, 0);
                 writeable.onBoolean(value);
             }
         }
@@ -393,7 +403,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         @Override
         public void onDouble(double value) {
             if (currentColumn != null) {
-                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType, false, 0);
+                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType,
+                        aggregate && currentColumn.aggregate != null, 0);
                 writeable.onDouble(value);
             }
         }
@@ -421,7 +432,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
         void onBytesDirect(byte[] bytes) {
             if (currentColumn != null) {
-                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType, false, bytes.length);
+                writeable.writeValueHeader(currentColumn.columnId, currentColumn.columnType,
+                        aggregate && currentColumn.aggregate != null, bytes.length);
                 writeable.onBytes(bytes);
             }
         }
@@ -430,10 +442,12 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     static class ColumnWithIndex {
         private final int columnId;
         private final ColumnValueType columnType;
+        @Nullable private final String aggregate;
 
-        ColumnWithIndex(int columnId, ColumnValueType columnType) {
+        ColumnWithIndex(int columnId, ColumnValueType columnType, @Nullable String aggregate) {
             this.columnId = columnId;
             this.columnType = columnType;
+            this.aggregate = aggregate;
         }
     }
 }
