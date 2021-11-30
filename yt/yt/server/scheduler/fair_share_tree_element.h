@@ -205,6 +205,8 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TTimeCounter CumulativeAnalyzeJobsTime;
     NProfiling::TCounter ScheduleJobAttemptCount;
     NProfiling::TCounter ScheduleJobFailureCount;
+    NProfiling::TCounter ControllerScheduleJobCount;
+    NProfiling::TCounter ControllerScheduleJobTimedOutCount;
 
     TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TCounter> ControllerScheduleJobFail;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> SchedulingIndexCounters;
