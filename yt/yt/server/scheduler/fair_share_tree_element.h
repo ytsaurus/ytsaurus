@@ -83,8 +83,8 @@ struct TPersistentAttributes
 
     TJobResources AppliedResourceLimits = TJobResources::Infinite();
 
-    TDataCenter SchedulingSegmentDataCenter;
-    std::optional<TInstant> FailingToScheduleAtDataCenterSince;
+    TSchedulingSegmentModule SchedulingSegmentModule;
+    std::optional<TInstant> FailingToScheduleAtModuleSince;
 
     void ResetOnElementEnabled();
 };
@@ -922,7 +922,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<ESchedulingSegment>, SchedulingSegment);
-    DEFINE_BYREF_RW_PROPERTY(std::optional<THashSet<TString>>, SpecifiedSchedulingSegmentDataCenters);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<THashSet<TString>>, SpecifiedSchedulingSegmentModules);
 
 protected:
     TSchedulerOperationElementFixedState(
@@ -1254,7 +1254,7 @@ public:
 
     bool IsLimitingAncestorCheckEnabled() const;
 
-    bool IsSchedulingSegmentCompatibleWithNode(ESchedulingSegment nodeSegment, const TDataCenter& nodeDataCenter) const;
+    bool IsSchedulingSegmentCompatibleWithNode(ESchedulingSegment nodeSegment, const TSchedulingSegmentModule& nodeModule) const;
 
     void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const override;
 

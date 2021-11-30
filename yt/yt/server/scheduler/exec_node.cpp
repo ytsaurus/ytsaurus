@@ -49,7 +49,8 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
         Tags_,
         RunningJobStatistics_,
         SchedulingSegment_,
-        SchedulingSegmentFrozen_);
+        SchedulingSegmentFrozen_,
+        InfinibandCluster_);
 }
 
 void TExecNode::SetIOWeights(const THashMap<TString, double>& mediumToWeight)
@@ -113,6 +114,7 @@ void TExecNode::BuildAttributes(TFluentMap fluent)
         .Item("tags").Value(Tags_)
         .Item("scheduling_segment").Value(SchedulingSegment_)
         .Item("data_center").Value(NodeDescriptor_.GetDataCenter())
+        .Item("infiniband_cluster").Value(InfinibandCluster_)
         .Item("last_non_preemptive_heartbeat_statistics").Value(LastNonPreemptiveHeartbeatStatistics_)
         .Item("last_preemptive_heartbeat_statistics").Value(LastPreemptiveHeartbeatStatistics_)
         .Item("running_job_statistics").Value(RunningJobStatistics_);

@@ -19,25 +19,26 @@ struct TPoolsUpdateResult
 struct TTreeSchedulingSegmentsState
 {
     ESegmentedSchedulingMode Mode = ESegmentedSchedulingMode::Disabled;
+    ESchedulingSegmentModuleType ModuleType = ESchedulingSegmentModuleType::DataCenter;
     TDuration UnsatisfiedSegmentsRebalancingTimeout;
 
     std::optional<EJobResourceType> KeyResource;
     double TotalKeyResourceAmount = 0.0;
 
-    TDataCenterList DataCenters;
+    TSchedulingSegmentModuleList Modules;
     TSegmentToResourceAmount FairResourceAmountPerSegment;
     TSegmentToFairShare FairSharePerSegment;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationIdWithDataCenter
+struct TOperationIdWithSchedulingSegmentModule
 {
     TOperationId OperationId;
-    TDataCenter DataCenter;
+    TSchedulingSegmentModule Module;
 };
 
-using TOperationIdWithDataCenterList = std::vector<TOperationIdWithDataCenter>;
+using TOperationIdWithSchedulingSegmentModuleList = std::vector<TOperationIdWithSchedulingSegmentModule>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +103,7 @@ struct ISchedulerTree
 
     virtual ESchedulingSegment InitOperationSchedulingSegment(TOperationId operationId) = 0;
     virtual TTreeSchedulingSegmentsState GetSchedulingSegmentsState() const = 0;
-    virtual TOperationIdWithDataCenterList GetOperationSchedulingSegmentDataCenterUpdates() const = 0;
+    virtual TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const = 0;
 
     virtual void BuildOperationAttributes(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;
     virtual void BuildOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;

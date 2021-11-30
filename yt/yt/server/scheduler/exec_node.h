@@ -122,6 +122,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ESchedulingSegment, SchedulingSegment, ESchedulingSegment::Default);
     DEFINE_BYVAL_RW_PROPERTY(bool, SchedulingSegmentFrozen, false);
 
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, InfinibandCluster);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,

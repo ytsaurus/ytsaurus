@@ -122,8 +122,9 @@ struct TJobUpdate
     TString TreeId;
     // It is used to update job resources in case of EJobUpdateStatus::Running status.
     TJobResources JobResources;
-    // It is used to determine whether the job should be aborted if the operation is running in a DC-aware scheduling segment.
-    TDataCenter JobDataCenter;
+    // It is used to determine whether the job should be aborted if the operation is running in a module-aware scheduling segment.
+    std::optional<TString> JobDataCenter;
+    std::optional<TString> JobInfinibandCluster;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,7 +230,7 @@ struct ISchedulerStrategy
 
     virtual TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const = 0;
 
-    virtual THashMap<TString, TOperationIdWithDataCenterList> GetOperationSchedulingSegmentDataCenterUpdates() const = 0;
+    virtual THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> GetOperationSchedulingSegmentModuleUpdates() const = 0;
 
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,

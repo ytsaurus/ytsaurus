@@ -85,6 +85,57 @@ EJobResourceType TNodeSchedulingSegmentManager::GetSegmentBalancingKeyResource(E
     }
 }
 
+const TSchedulingSegmentModule& TNodeSchedulingSegmentManager::GetNodeModule(
+    const std::optional<TString>& nodeDataCenter,
+    const std::optional<TString>& nodeInfinibandCluster,
+    ESchedulingSegmentModuleType moduleType)
+{
+    switch (moduleType) {
+        case ESchedulingSegmentModuleType::DataCenter:
+            return nodeDataCenter;
+        case ESchedulingSegmentModuleType::InfinibandCluster:
+            return nodeInfinibandCluster;
+        default:
+            YT_ABORT();
+    }
+}
+
+const TSchedulingSegmentModule& TNodeSchedulingSegmentManager::GetNodeModule(
+    const TExecNodeDescriptor& nodeDescriptor,
+    ESchedulingSegmentModuleType moduleType)
+{
+    return GetNodeModule(nodeDescriptor.DataCenter, nodeDescriptor.InfinibandCluster, moduleType);
+}
+
+TString TNodeSchedulingSegmentManager::GetNodeTagFromModuleName(const TString& moduleName, ESchedulingSegmentModuleType moduleType)
+{
+    switch (moduleType) {
+        case ESchedulingSegmentModuleType::DataCenter:
+            return moduleName;
+        case ESchedulingSegmentModuleType::InfinibandCluster:
+            return Format("%v:%v", InfinibandClusterNameKey, moduleName);
+        default:
+            YT_ABORT();
+    }
+}
+
+void TNodeSchedulingSegmentManager::ValidateNodeTags(const TBooleanFormulaTags& tags)
+{
+    static const TString InfinibandClusterTagPrefix = InfinibandClusterNameKey + ":";
+
+    std::vector<TString> infinibandClusterTags;
+    for (const auto& tag : tags.GetSourceTags()) {
+        if (tag.StartsWith(InfinibandClusterTagPrefix)) {
+            infinibandClusterTags.push_back(tag);
+        }
+    }
+
+    if (std::ssize(infinibandClusterTags) > 1) {
+        THROW_ERROR_EXCEPTION("Node has more than one infiniband cluster tags")
+            << TErrorAttribute("infiniband_cluster_tags", infinibandClusterTags);
+    }
+}
+
 void TNodeSchedulingSegmentManager::ManageNodeSegments(TManageNodeSchedulingSegmentsContext* context)
 {
     TSensorBuffer sensorBuffer;
@@ -100,7 +151,7 @@ void TNodeSchedulingSegmentManager::ManageNodeSegments(TManageNodeSchedulingSegm
                 context,
                 treeId,
                 /*currentResourceAmountPerSegment*/ {},
-                /*totalResourceAmountPerDataCenter*/ {},
+                /*totalResourceAmountPerModule*/ {},
                 &sensorBuffer);
 
             continue;
@@ -110,22 +161,23 @@ void TNodeSchedulingSegmentManager::ManageNodeSegments(TManageNodeSchedulingSegm
         YT_VERIFY(strategyTreeState.KeyResource == keyResource);
 
         TSegmentToResourceAmount currentResourceAmountPerSegment;
-        THashMap<TDataCenter, double> totalResourceAmountPerDataCenter;
+        THashMap<TSchedulingSegmentModule, double> totalResourceAmountPerModule;
         for (auto nodeId : context->NodeIdsPerTree[treeId]) {
             const auto& node = GetOrCrash(*context->ExecNodeDescriptors, nodeId);
+            const auto& nodeModule = GetNodeModule(node, strategyTreeState.ModuleType);
             auto resourceAmountOnNode = GetNodeResourceLimit(node, keyResource);
-            auto& currentResourceAmount = IsDataCenterAwareSchedulingSegment(node.SchedulingSegment)
-                ? currentResourceAmountPerSegment.At(node.SchedulingSegment).MutableAt(node.DataCenter)
+            auto& currentResourceAmount = IsModuleAwareSchedulingSegment(node.SchedulingSegment)
+                ? currentResourceAmountPerSegment.At(node.SchedulingSegment).MutableAt(nodeModule)
                 : currentResourceAmountPerSegment.At(node.SchedulingSegment).Mutable();
             currentResourceAmount += resourceAmountOnNode;
-            totalResourceAmountPerDataCenter[node.DataCenter] += resourceAmountOnNode;
+            totalResourceAmountPerModule[nodeModule] += resourceAmountOnNode;
         }
 
         LogAndProfileSegmentsInTree(
             context,
             treeId,
             currentResourceAmountPerSegment,
-            totalResourceAmountPerDataCenter,
+            totalResourceAmountPerModule,
             &sensorBuffer);
 
         auto [isSegmentUnsatisfied, hasUnsatisfiedSegment] = FindUnsatisfiedSegmentsInTree(context, treeId, currentResourceAmountPerSegment);
@@ -228,7 +280,7 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
     TManageNodeSchedulingSegmentsContext* context,
     const TString& treeId,
     const TSegmentToResourceAmount& currentResourceAmountPerSegment,
-    const THashMap<TDataCenter, double> totalResourceAmountPerDataCenter,
+    const THashMap<TSchedulingSegmentModule, double> totalResourceAmountPerModule,
     ISensorWriter* sensorWriter) const
 {
     const auto& strategyTreeState = context->StrategySegmentsState.TreeStates[treeId];
@@ -237,15 +289,15 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
     if (segmentedSchedulingEnabled) {
         YT_LOG_DEBUG(
             "Scheduling segments state in tree "
-            "(TreeId: %v, Mode: %v, DataCenters: %v, KeyResource: %v, FairSharePerSegment: %v, TotalResourceAmount: %v, "
-            "TotalResourceAmountPerDataCenter: %v, FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
+            "(TreeId: %v, Mode: %v, Modules: %v, KeyResource: %v, FairSharePerSegment: %v, TotalResourceAmount: %v, "
+            "TotalResourceAmountPerModule: %v, FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
             treeId,
             strategyTreeState.Mode,
-            strategyTreeState.DataCenters,
+            strategyTreeState.Modules,
             GetSegmentBalancingKeyResource(strategyTreeState.Mode),
             strategyTreeState.FairSharePerSegment,
             strategyTreeState.TotalKeyResourceAmount,
-            totalResourceAmountPerDataCenter,
+            totalResourceAmountPerModule,
             strategyTreeState.FairResourceAmountPerSegment,
             currentResourceAmountPerSegment);
     } else {
@@ -258,10 +310,10 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
             auto profileResourceAmountPerSegment = [&] (const TString& sensorName, const TSegmentToResourceAmount& resourceAmountMap) {
                 const auto& valueAtSegment = resourceAmountMap.At(segment);
-                if (IsDataCenterAwareSchedulingSegment(segment)) {
-                    for (const auto& dataCenter : strategyTreeState.DataCenters) {
-                        TWithTagGuard guard(sensorWriter, TTag{"data_center", ToString(dataCenter)});
-                        sensorWriter->AddGauge(sensorName, valueAtSegment.GetOrDefaultAt(dataCenter));
+                if (IsModuleAwareSchedulingSegment(segment)) {
+                    for (const auto& schedulingSegmentModule : strategyTreeState.Modules) {
+                        TWithTagGuard guard(sensorWriter, TTag{"module", ToString(schedulingSegmentModule)});
+                        sensorWriter->AddGauge(sensorName, valueAtSegment.GetOrDefaultAt(schedulingSegmentModule));
                     }
                 } else {
                     sensorWriter->AddGauge(sensorName, valueAtSegment.GetOrDefault());
@@ -275,8 +327,8 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
     } else {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
             TWithTagGuard guard(sensorWriter, TTag{"segment", FormatEnum(segment)});
-            if (IsDataCenterAwareSchedulingSegment(segment)) {
-                guard.AddTag(TTag{"data_center", ToString(NullDataCenter)});
+            if (IsModuleAwareSchedulingSegment(segment)) {
+                guard.AddTag(TTag{"module", ToString(NullModule)});
             }
 
             sensorWriter->AddGauge("/fair_resource_amount", 0.0);
@@ -284,12 +336,12 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
         }
     }
 
-    for (const auto& dataCenter : strategyTreeState.DataCenters) {
-        auto it = totalResourceAmountPerDataCenter.find(dataCenter);
-        auto dataCenterCapacity = it != totalResourceAmountPerDataCenter.end() ? it->second : 0.0;
+    for (const auto& schedulingSegmentModule : strategyTreeState.Modules) {
+        auto it = totalResourceAmountPerModule.find(schedulingSegmentModule);
+        auto moduleCapacity = it != totalResourceAmountPerModule.end() ? it->second : 0.0;
 
-        TWithTagGuard guard(sensorWriter, TTag{"data_center", ToString(dataCenter)});
-        sensorWriter->AddGauge("/data_center_capacity", dataCenterCapacity);
+        TWithTagGuard guard(sensorWriter, TTag{"module", ToString(schedulingSegmentModule)});
+        sensorWriter->AddGauge("/module_capacity", moduleCapacity);
     }
 }
 
@@ -335,17 +387,17 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
             movedNodes.emplace_back(TNodeWithMovePenalty{nextAvailableNode, nextAvailableNodeMovePenalty}, segment);
             totalPenalty += nextAvailableNodeMovePenalty;
 
-            const auto& dataCenter = nextAvailableNode->DataCenter;
+            const auto& schedulingSegmentModule = GetNodeModule(*nextAvailableNode, strategyTreeState.ModuleType);
             currentResourceAmount += resourceAmountOnNode;
-            if (IsDataCenterAwareSchedulingSegment(segment)) {
-                ++addedNodeCountPerSegment.At(segment).MutableAt(dataCenter);
+            if (IsModuleAwareSchedulingSegment(segment)) {
+                ++addedNodeCountPerSegment.At(segment).MutableAt(schedulingSegmentModule);
             } else {
                 ++addedNodeCountPerSegment.At(segment).Mutable();
             }
 
-            if (IsDataCenterAwareSchedulingSegment(oldSegment)) {
-                currentResourceAmountPerSegment.At(oldSegment).MutableAt(dataCenter) -= resourceAmountOnNode;
-                ++removedNodeCountPerSegment.At(oldSegment).MutableAt(dataCenter);
+            if (IsModuleAwareSchedulingSegment(oldSegment)) {
+                currentResourceAmountPerSegment.At(oldSegment).MutableAt(schedulingSegmentModule) -= resourceAmountOnNode;
+                ++removedNodeCountPerSegment.At(oldSegment).MutableAt(schedulingSegmentModule);
             } else {
                 currentResourceAmountPerSegment.At(oldSegment).Mutable() -= resourceAmountOnNode;
                 ++removedNodeCountPerSegment.At(oldSegment).Mutable();
@@ -356,45 +408,45 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
     // Every node has a penalty for moving it to another segment. We collect a set of movable nodes
     // iteratively by taking the node with the lowest penalty until the remaining nodes can no longer
     // satisfy the fair resource amount determined by the strategy.
-    // In addition, the rest of the nodes are called aggressively movable if the current segment is not cross-DC.
-    // The intuition is that we should be able to compensate for a loss of such a node from one DC by moving
-    // a node from another DC to the segment.
-    THashMap<TDataCenter, TNodeWithMovePenaltyList> movableNodesPerDataCenter;
-    THashMap<TDataCenter, TNodeWithMovePenaltyList> aggressivelyMovableNodesPerDataCenter;
+    // In addition, the rest of the nodes are called aggressively movable if the current segment is not module-aware.
+    // The intuition is that we should be able to compensate for a loss of such a node from one module by moving
+    // a node from another module to the segment.
+    THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList> movableNodesPerModule;
+    THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList> aggressivelyMovableNodesPerModule;
     GetMovableNodesInTree(
         context,
         treeId,
         currentResourceAmountPerSegment,
-        &movableNodesPerDataCenter,
-        &aggressivelyMovableNodesPerDataCenter);
+        &movableNodesPerModule,
+        &aggressivelyMovableNodesPerModule);
 
-    // First, we try to satisfy all cross-DC segments, one DC at a time.
-    // During this phase we are allowed to use the nodes from |aggressivelyMovableNodesPerDataCenter|
-    // if |movableNodesPerDataCenter| is exhausted.
-    for (const auto& dataCenter : strategyTreeState.DataCenters) {
+    // First, we try to satisfy all module-aware segments, one module at a time.
+    // During this phase we are allowed to use the nodes from |aggressivelyMovableNodesPerModule|
+    // if |movableNodesPerModule| is exhausted.
+    for (const auto& schedulingSegmentModule : strategyTreeState.Modules) {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-            if (!IsDataCenterAwareSchedulingSegment(segment)) {
+            if (!IsModuleAwareSchedulingSegment(segment)) {
                 continue;
             }
 
-            auto& currentResourceAmount = currentResourceAmountPerSegment.At(segment).MutableAt(dataCenter);
-            auto fairResourceAmount = strategyTreeState.FairResourceAmountPerSegment.At(segment).GetOrDefaultAt(dataCenter);
-            trySatisfySegment(segment, currentResourceAmount, fairResourceAmount, movableNodesPerDataCenter[dataCenter]);
-            trySatisfySegment(segment, currentResourceAmount, fairResourceAmount, aggressivelyMovableNodesPerDataCenter[dataCenter]);
+            auto& currentResourceAmount = currentResourceAmountPerSegment.At(segment).MutableAt(schedulingSegmentModule);
+            auto fairResourceAmount = strategyTreeState.FairResourceAmountPerSegment.At(segment).GetOrDefaultAt(schedulingSegmentModule);
+            trySatisfySegment(segment, currentResourceAmount, fairResourceAmount, movableNodesPerModule[schedulingSegmentModule]);
+            trySatisfySegment(segment, currentResourceAmount, fairResourceAmount, aggressivelyMovableNodesPerModule[schedulingSegmentModule]);
         }
     }
 
     TNodeWithMovePenaltyList movableNodes;
-    for (const auto& [_, movableNodesAtDataCenter] : movableNodesPerDataCenter) {
-        std::move(movableNodesAtDataCenter.begin(), movableNodesAtDataCenter.end(), std::back_inserter(movableNodes));
+    for (const auto& [_, movableNodesAtModule] : movableNodesPerModule) {
+        std::move(movableNodesAtModule.begin(), movableNodesAtModule.end(), std::back_inserter(movableNodes));
     }
     SortByPenalty(movableNodes);
 
     // Second, we try to satisfy all other segments using the remaining movable nodes.
     // Note that some segments might have become unsatisfied during the first phase
-    // if we used any nodes from |aggressivelyMovableNodesPerDataCenter|.
+    // if we used any nodes from |aggressivelyMovableNodesPerModule|.
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-        if (IsDataCenterAwareSchedulingSegment(segment)) {
+        if (IsModuleAwareSchedulingSegment(segment)) {
             continue;
         }
 
@@ -430,8 +482,8 @@ void TNodeSchedulingSegmentManager::GetMovableNodesInTree(
     TManageNodeSchedulingSegmentsContext* context,
     const TString& treeId,
     const TSegmentToResourceAmount& currentResourceAmountPerSegment,
-    THashMap<TDataCenter, TNodeWithMovePenaltyList>* movableNodesPerDataCenter,
-    THashMap<TDataCenter, TNodeWithMovePenaltyList>* aggressivelyMovableNodesPerDataCenter)
+    THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* movableNodesPerModule,
+    THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* aggressivelyMovableNodesPerModule)
 {
     const auto& strategyTreeState = context->StrategySegmentsState.TreeStates[treeId];
     auto keyResource = GetSegmentBalancingKeyResource(strategyTreeState.Mode);
@@ -440,8 +492,8 @@ void TNodeSchedulingSegmentManager::GetMovableNodesInTree(
     for (auto nodeId : context->NodeIdsPerTree[treeId]) {
         const auto& node = GetOrCrash(*context->ExecNodeDescriptors, nodeId);
         auto& nodeIds = nodeIdsPerSegment.At(node.SchedulingSegment);
-        if (IsDataCenterAwareSchedulingSegment(node.SchedulingSegment)) {
-            nodeIds.MutableAt(node.DataCenter).push_back(nodeId);
+        if (IsModuleAwareSchedulingSegment(node.SchedulingSegment)) {
+            nodeIds.MutableAt(GetNodeModule(node, strategyTreeState.ModuleType)).push_back(nodeId);
         } else {
             nodeIds.Mutable().push_back(nodeId);
         }
@@ -465,12 +517,13 @@ void TNodeSchedulingSegmentManager::GetMovableNodesInTree(
                 continue;
             }
 
+            const auto& schedulingSegmentModule = GetNodeModule(*node, strategyTreeState.ModuleType);
             auto resourceAmountOnNode = GetNodeResourceLimit(*node, keyResource);
             currentResourceAmount -= resourceAmountOnNode;
             if (currentResourceAmount >= fairResourceAmount) {
-                (*movableNodesPerDataCenter)[node->DataCenter].push_back(nodeWithMovePenalty);
-            } else if (!IsDataCenterAwareSchedulingSegment(node->SchedulingSegment)) {
-                (*aggressivelyMovableNodesPerDataCenter)[node->DataCenter].push_back(nodeWithMovePenalty);
+                (*movableNodesPerModule)[schedulingSegmentModule].push_back(nodeWithMovePenalty);
+            } else if (!IsModuleAwareSchedulingSegment(node->SchedulingSegment)) {
+                (*aggressivelyMovableNodesPerModule)[schedulingSegmentModule].push_back(nodeWithMovePenalty);
             }
         }
     };
@@ -479,12 +532,12 @@ void TNodeSchedulingSegmentManager::GetMovableNodesInTree(
         const auto& currentResourceAmount = currentResourceAmountPerSegment.At(segment);
         const auto& fairResourceAmount = strategyTreeState.FairResourceAmountPerSegment.At(segment);
         const auto& nodeIds = nodeIdsPerSegment.At(segment);
-        if (IsDataCenterAwareSchedulingSegment(segment)) {
-            for (const auto& dataCenter : strategyTreeState.DataCenters) {
+        if (IsModuleAwareSchedulingSegment(segment)) {
+            for (const auto& schedulingSegmentModule : strategyTreeState.Modules) {
                 collectMovableNodes(
-                    currentResourceAmount.GetOrDefaultAt(dataCenter),
-                    fairResourceAmount.GetOrDefaultAt(dataCenter),
-                    nodeIds.GetOrDefaultAt(dataCenter));
+                    currentResourceAmount.GetOrDefaultAt(schedulingSegmentModule),
+                    fairResourceAmount.GetOrDefaultAt(schedulingSegmentModule),
+                    nodeIds.GetOrDefaultAt(schedulingSegmentModule));
             }
         } else {
             collectMovableNodes(
@@ -495,13 +548,13 @@ void TNodeSchedulingSegmentManager::GetMovableNodesInTree(
     }
 
     auto sortAndReverseMovableNodes = [&] (auto& movableNodes) {
-        for (const auto& dataCenter : strategyTreeState.DataCenters) {
-            SortByPenalty(movableNodes[dataCenter]);
-            std::reverse(movableNodes[dataCenter].begin(), movableNodes[dataCenter].end());
+        for (const auto& schedulingSegmentModule : strategyTreeState.Modules) {
+            SortByPenalty(movableNodes[schedulingSegmentModule]);
+            std::reverse(movableNodes[schedulingSegmentModule].begin(), movableNodes[schedulingSegmentModule].end());
         }
     };
-    sortAndReverseMovableNodes(*movableNodesPerDataCenter);
-    sortAndReverseMovableNodes(*aggressivelyMovableNodesPerDataCenter);
+    sortAndReverseMovableNodes(*movableNodesPerModule);
+    sortAndReverseMovableNodes(*aggressivelyMovableNodesPerModule);
 }
 
 TNodeMovePenalty TNodeSchedulingSegmentManager::GetMovePenaltyForNode(
@@ -535,11 +588,11 @@ std::pair<TSchedulingSegmentMap<bool>, bool> TNodeSchedulingSegmentManager::Find
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
         const auto& fairResourceAmount = strategyTreeState.FairResourceAmountPerSegment.At(segment);
         const auto& currentResourceAmount = currentResourceAmountPerSegment.At(segment);
-        if (IsDataCenterAwareSchedulingSegment(segment)) {
-            for (const auto& dataCenter : strategyTreeState.DataCenters) {
-                if (currentResourceAmount.GetOrDefaultAt(dataCenter) < fairResourceAmount.GetOrDefaultAt(dataCenter)) {
+        if (IsModuleAwareSchedulingSegment(segment)) {
+            for (const auto& schedulingSegmentModule : strategyTreeState.Modules) {
+                if (currentResourceAmount.GetOrDefaultAt(schedulingSegmentModule) < fairResourceAmount.GetOrDefaultAt(schedulingSegmentModule)) {
                     hasUnsatisfiedSegment = true;
-                    isSegmentUnsatisfied.At(segment).SetAt(dataCenter, true);
+                    isSegmentUnsatisfied.At(segment).SetAt(schedulingSegmentModule, true);
                 }
             }
         } else if (currentResourceAmount.GetOrDefault() < fairResourceAmount.GetOrDefault()) {
@@ -578,6 +631,7 @@ void TStrategySchedulingSegmentManager::ManageSegmentsInTree(TManageTreeScheduli
     auto& state = context->SchedulingSegmentsState;
     auto treeConfig = context->TreeConfig;
     state.Mode = treeConfig->SchedulingSegments->Mode;
+    state.ModuleType = treeConfig->SchedulingSegments->ModuleType;
     state.UnsatisfiedSegmentsRebalancingTimeout = treeConfig->SchedulingSegments->UnsatisfiedSegmentsRebalancingTimeout;
 
     if (state.Mode == ESegmentedSchedulingMode::Disabled) {
@@ -587,42 +641,42 @@ void TStrategySchedulingSegmentManager::ManageSegmentsInTree(TManageTreeScheduli
     auto keyResource = TNodeSchedulingSegmentManager::GetSegmentBalancingKeyResource(state.Mode);
     state.KeyResource = keyResource;
     state.TotalKeyResourceAmount = GetResource(context->TotalResourceLimits, keyResource);
-    for (const auto& dataCenter : treeConfig->SchedulingSegments->DataCenters) {
-        state.DataCenters.push_back(dataCenter);
+    for (const auto& schedulingSegmentModule : treeConfig->SchedulingSegments->GetModules()) {
+        state.Modules.push_back(schedulingSegmentModule);
     }
 
     double expectedTotalKeyResourceAmount = 0.0;
-    for (const auto& [_, resourceLimitsAtDataCenter] : context->ResourceLimitsPerDataCenter) {
-        expectedTotalKeyResourceAmount += GetResource(resourceLimitsAtDataCenter, keyResource);
+    for (const auto& [_, resourceLimitsAtModule] : context->ResourceLimitsPerModule) {
+        expectedTotalKeyResourceAmount += GetResource(resourceLimitsAtModule, keyResource);
     }
     YT_LOG_WARNING_IF(expectedTotalKeyResourceAmount != state.TotalKeyResourceAmount,
-        "Total key resource amount differs from the sum of provided per-DC limits, "
+        "Total key resource amount differs from the sum of provided per-module limits, "
         "operation scheduling segments distribution might be unfair "
         "(TotalKeyResourceAmount: %v, ExpectedTotalKeyResourceAmount: %v, KeyResource: %v)",
         state.TotalKeyResourceAmount,
         expectedTotalKeyResourceAmount,
         keyResource);
 
-    ResetOperationDataCenterAssignmentsInTree(context, treeId);
+    ResetOperationModuleAssignmentsInTree(context, treeId);
 
     CollectFairSharePerSegmentInTree(context);
 
-    THashMap<TDataCenter, double> totalCapacityPerDataCenter;
-    THashMap<TDataCenter, double> remainingCapacityPerDataCenter;
-    for (const auto& dataCenter : state.DataCenters) {
-        YT_VERIFY(dataCenter);
+    THashMap<TSchedulingSegmentModule, double> totalCapacityPerModule;
+    THashMap<TSchedulingSegmentModule, double> remainingCapacityPerModule;
+    for (const auto& schedulingSegmentModule : state.Modules) {
+        YT_VERIFY(schedulingSegmentModule);
 
-        auto capacity = GetResource(context->ResourceLimitsPerDataCenter[*dataCenter], keyResource);
-        totalCapacityPerDataCenter.emplace(*dataCenter, capacity);
-        remainingCapacityPerDataCenter.emplace(*dataCenter, capacity);
+        auto capacity = GetResource(context->ResourceLimitsPerModule[*schedulingSegmentModule], keyResource);
+        totalCapacityPerModule.emplace(*schedulingSegmentModule, capacity);
+        remainingCapacityPerModule.emplace(*schedulingSegmentModule, capacity);
     }
 
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-        if (IsDataCenterAwareSchedulingSegment(segment)) {
-            for (const auto& dataCenter : state.DataCenters) {
-                auto fairResourceAmount = state.FairSharePerSegment.At(segment).GetOrDefaultAt(dataCenter) * state.TotalKeyResourceAmount;
-                state.FairResourceAmountPerSegment.At(segment).SetAt(dataCenter, fairResourceAmount);
-                remainingCapacityPerDataCenter[dataCenter] -= fairResourceAmount;
+        if (IsModuleAwareSchedulingSegment(segment)) {
+            for (const auto& schedulingSegmentModule : state.Modules) {
+                auto fairResourceAmount = state.FairSharePerSegment.At(segment).GetOrDefaultAt(schedulingSegmentModule) * state.TotalKeyResourceAmount;
+                state.FairResourceAmountPerSegment.At(segment).SetAt(schedulingSegmentModule, fairResourceAmount);
+                remainingCapacityPerModule[schedulingSegmentModule] -= fairResourceAmount;
             }
         } else {
             auto fairResourceAmount = state.FairSharePerSegment.At(segment).GetOrDefault() * state.TotalKeyResourceAmount;
@@ -630,13 +684,13 @@ void TStrategySchedulingSegmentManager::ManageSegmentsInTree(TManageTreeScheduli
         }
     }
 
-    AssignOperationsToDataCentersInTree(context, treeId, totalCapacityPerDataCenter, remainingCapacityPerDataCenter);
+    AssignOperationsToModulesInTree(context, treeId, totalCapacityPerModule, remainingCapacityPerModule);
 
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-        if (IsDataCenterAwareSchedulingSegment(segment)) {
-            for (const auto& dataCenter : state.DataCenters) {
-                auto satisfactionMargin = treeConfig->SchedulingSegments->SatisfactionMargins.At(segment).GetOrDefaultAt(dataCenter);
-                auto& value = state.FairResourceAmountPerSegment.At(segment).MutableAt(dataCenter);
+        if (IsModuleAwareSchedulingSegment(segment)) {
+            for (const auto& schedulingSegmentModule : state.Modules) {
+                auto satisfactionMargin = treeConfig->SchedulingSegments->SatisfactionMargins.At(segment).GetOrDefaultAt(schedulingSegmentModule);
+                auto& value = state.FairResourceAmountPerSegment.At(segment).MutableAt(schedulingSegmentModule);
                 value = std::max(value + satisfactionMargin, 0.0);
             }
         } else {
@@ -647,7 +701,7 @@ void TStrategySchedulingSegmentManager::ManageSegmentsInTree(TManageTreeScheduli
     }
 }
 
-void TStrategySchedulingSegmentManager::ResetOperationDataCenterAssignmentsInTree(TManageTreeSchedulingSegmentsContext* context, const TString& treeId)
+void TStrategySchedulingSegmentManager::ResetOperationModuleAssignmentsInTree(TManageTreeSchedulingSegmentsContext* context, const TString& treeId)
 {
     auto Logger = CreateTreeLogger(treeId);
 
@@ -656,38 +710,38 @@ void TStrategySchedulingSegmentManager::ResetOperationDataCenterAssignmentsInTre
     auto now = TInstant::Now();
     for (auto& [operationId, operation] : context->Operations) {
         const auto& segment = operation.Segment;
-        if (!segment || !IsDataCenterAwareSchedulingSegment(*segment)) {
+        if (!segment || !IsModuleAwareSchedulingSegment(*segment)) {
             // Segment may be unset due to a race, and in this case we silently ignore the operation.
             continue;
         }
 
-        auto& dataCenter = operation.DataCenter;
-        if (!dataCenter) {
+        auto& schedulingSegmentModule = operation.Module;
+        if (!schedulingSegmentModule) {
             continue;
         }
 
         if (operation.ResourceUsage != operation.ResourceDemand) {
-            if (!operation.FailingToScheduleAtDataCenterSince) {
-                operation.FailingToScheduleAtDataCenterSince = now;
+            if (!operation.FailingToScheduleAtModuleSince) {
+                operation.FailingToScheduleAtModuleSince = now;
             }
 
-            if (*operation.FailingToScheduleAtDataCenterSince + treeConfig->SchedulingSegments->DataCenterReconsiderationTimeout < now) {
+            if (*operation.FailingToScheduleAtModuleSince + treeConfig->SchedulingSegments->ModuleReconsiderationTimeout < now) {
                 YT_LOG_DEBUG(
-                    "Operation has failed to schedule all jobs for too long, revoking its data center assignment "
-                    "(OperationId: %v, SchedulingSegment: %v, PreviousDataCenter: %v, ResourceUsage: %v, ResourceDemand: %v, Timeout: %v)",
+                    "Operation has failed to schedule all jobs for too long, revoking its module assignment "
+                    "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, Timeout: %v)",
                     operationId,
                     segment,
-                    dataCenter,
+                    schedulingSegmentModule,
                     operation.ResourceUsage,
                     operation.ResourceDemand,
-                    treeConfig->SchedulingSegments->DataCenterReconsiderationTimeout);
+                    treeConfig->SchedulingSegments->ModuleReconsiderationTimeout);
 
-                // NB: We will abort all jobs that are running in the wrong data center.
-                dataCenter.reset();
-                operation.FailingToScheduleAtDataCenterSince.reset();
+                // NB: We will abort all jobs that are running in the wrong module.
+                schedulingSegmentModule.reset();
+                operation.FailingToScheduleAtModuleSince.reset();
             }
         } else {
-            operation.FailingToScheduleAtDataCenterSince.reset();
+            operation.FailingToScheduleAtModuleSince.reset();
         }
     }
 }
@@ -706,24 +760,24 @@ void TStrategySchedulingSegmentManager::CollectFairSharePerSegmentInTree(TManage
         }
 
         auto& fairShareAtSegment = state.FairSharePerSegment.At(*segment);
-        if (IsDataCenterAwareSchedulingSegment(*segment)) {
-            auto& dataCenter = operation.DataCenter;
-            if (!dataCenter) {
+        if (IsModuleAwareSchedulingSegment(*segment)) {
+            auto& schedulingSegmentModule = operation.Module;
+            if (!schedulingSegmentModule) {
                 continue;
             }
 
-            fairShareAtSegment.MutableAt(dataCenter) += operation.FairShare[keyResource];
+            fairShareAtSegment.MutableAt(schedulingSegmentModule) += operation.FairShare[keyResource];
         } else {
             fairShareAtSegment.Mutable() += operation.FairShare[keyResource];
         }
     }
 }
 
-void TStrategySchedulingSegmentManager::AssignOperationsToDataCentersInTree(
+void TStrategySchedulingSegmentManager::AssignOperationsToModulesInTree(
     TManageTreeSchedulingSegmentsContext* context,
     const TString& treeId,
-    THashMap<TDataCenter, double> totalCapacityPerDataCenter,
-    THashMap<TDataCenter, double> remainingCapacityPerDataCenter)
+    THashMap<TSchedulingSegmentModule, double> totalCapacityPerModule,
+    THashMap<TSchedulingSegmentModule, double> remainingCapacityPerModule)
 {
     auto Logger = CreateTreeLogger(treeId);
 
@@ -731,11 +785,55 @@ void TStrategySchedulingSegmentManager::AssignOperationsToDataCentersInTree(
     auto treeConfig = context->TreeConfig;
     auto keyResource = TNodeSchedulingSegmentManager::GetSegmentBalancingKeyResource(state.Mode);
 
-    std::vector<std::pair<TOperationId, TOperationSchedulingSegmentContext*>> operationsToAssignToDataCenter;
-    operationsToAssignToDataCenter.reserve(context->Operations.size());
+    // COMPAT(eshcherbin): Remove after all GPU trees with scheduling segments have fully migrated to new module type.
+    // We don't reflect this change in runtime parameters immediately. Runtime parameters will be updated during
+    // the next scheduling segments management iteration.
+    for (auto& [operationId, operation] : context->Operations) {
+        const auto& moduleMigrationMapping = treeConfig->SchedulingSegments->ModuleMigrationMapping;
+        auto findNewModuleName = [&] (const TString& moduleName) -> std::optional<TString> {
+            auto it = moduleMigrationMapping.find(moduleName);
+            return it != moduleMigrationMapping.end() ? std::make_optional(it->second) : std::nullopt;
+        };
+
+        if (operation.Module) {
+            if (auto newModuleName = findNewModuleName(*operation.Module)) {
+                YT_LOG_INFO(
+                    "Migrated operation to new scheduling segment module (OperationId: %v, OldModuleName: %v, NewModuleName: %v)",
+                    operationId,
+                    operation.Module,
+                    newModuleName);
+
+                operation.Module = std::move(newModuleName);
+            }
+        }
+
+        // NB(eshcherbin): Specified modules should be quite rare.
+        if (operation.SpecifiedModules) {
+            THashSet<TString> newSpecifiedModules;
+            bool hasChanged = false;
+            for (const auto& specifiedModule : *operation.SpecifiedModules) {
+                auto newModuleName = findNewModuleName(specifiedModule);
+                hasChanged |= newModuleName.has_value();
+                newSpecifiedModules.emplace(std::move(newModuleName).value_or(specifiedModule));
+            }
+
+            if (hasChanged) {
+                YT_LOG_DEBUG(
+                    "Migrated operation to new specified modules (OperationId: %v, OldSpecifiedModules: %v, NewSpecifiedModules: %v)",
+                    operationId,
+                    operation.SpecifiedModules,
+                    newSpecifiedModules);
+
+                operation.SpecifiedModules = std::move(newSpecifiedModules);
+            }
+        }
+    }
+
+    std::vector<std::pair<TOperationId, TOperationSchedulingSegmentContext*>> operationsToAssignToModule;
+    operationsToAssignToModule.reserve(context->Operations.size());
     for (auto& [operationId, operation] : context->Operations) {
         const auto& segment = operation.Segment;
-        if (!segment || !IsDataCenterAwareSchedulingSegment(*segment)) {
+        if (!segment || !IsModuleAwareSchedulingSegment(*segment)) {
             continue;
         }
 
@@ -745,48 +843,48 @@ void TStrategySchedulingSegmentManager::AssignOperationsToDataCentersInTree(
         }
 
         bool demandFullySatisfied = operation.DemandShare == operation.FairShare;
-        if (operation.DataCenter || !demandFullySatisfied) {
+        if (operation.Module || !demandFullySatisfied) {
             continue;
         }
 
-        operationsToAssignToDataCenter.push_back({operationId, &operation});
+        operationsToAssignToModule.push_back({operationId, &operation});
     }
 
     std::sort(
-        operationsToAssignToDataCenter.begin(),
-        operationsToAssignToDataCenter.end(),
+        operationsToAssignToModule.begin(),
+        operationsToAssignToModule.end(),
         [keyResource] (const auto& lhs, const auto& rhs) {
             const auto& lhsOperation = *lhs.second;
             const auto& rhsOperation = *rhs.second;
-            auto lhsSpecifiedDataCenterCount = lhsOperation.SpecifiedDataCenters
-                ? lhsOperation.SpecifiedDataCenters->size()
+            auto lhsSpecifiedModuleCount = lhsOperation.SpecifiedModules
+                ? lhsOperation.SpecifiedModules->size()
                 : 0;
-            auto rhsSpecifiedDataCenterCount = rhsOperation.SpecifiedDataCenters
-                ? rhsOperation.SpecifiedDataCenters->size()
+            auto rhsSpecifiedModuleCount = rhsOperation.SpecifiedModules
+                ? rhsOperation.SpecifiedModules->size()
                 : 0;
-            if (lhsSpecifiedDataCenterCount != rhsSpecifiedDataCenterCount) {
-                return lhsSpecifiedDataCenterCount < rhsSpecifiedDataCenterCount;
+            if (lhsSpecifiedModuleCount != rhsSpecifiedModuleCount) {
+                return lhsSpecifiedModuleCount < rhsSpecifiedModuleCount;
             }
 
             return GetResource(rhsOperation.ResourceDemand, keyResource) < GetResource(lhsOperation.ResourceDemand, keyResource);
         });
 
-    for (const auto& [operationId, operation] : operationsToAssignToDataCenter) {
+    for (const auto& [operationId, operation] : operationsToAssignToModule) {
         const auto& segment = operation->Segment;
         auto operationDemand = GetResource(operation->ResourceDemand, keyResource);
 
-        std::function<bool(double, double)> isDataCenterBetter;
+        std::function<bool(double, double)> isModuleBetter;
         double initialBestRemainingCapacity;
-        switch (treeConfig->SchedulingSegments->DataCenterAssignmentHeuristic) {
-            case ESchedulingSegmentDataCenterAssignmentHeuristic::MaxRemainingCapacity:
-                isDataCenterBetter = [] (double remainingCapacity, double bestRemainingCapacity) {
+        switch (treeConfig->SchedulingSegments->ModuleAssignmentHeuristic) {
+            case ESchedulingSegmentModuleAssignmentHeuristic::MaxRemainingCapacity:
+                isModuleBetter = [] (double remainingCapacity, double bestRemainingCapacity) {
                     return bestRemainingCapacity < remainingCapacity;
                 };
                 initialBestRemainingCapacity = std::numeric_limits<double>::lowest();
                 break;
 
-            case ESchedulingSegmentDataCenterAssignmentHeuristic::MinRemainingFeasibleCapacity:
-                isDataCenterBetter = [operationDemand] (double remainingCapacity, double bestRemainingCapacity) {
+            case ESchedulingSegmentModuleAssignmentHeuristic::MinRemainingFeasibleCapacity:
+                isModuleBetter = [operationDemand] (double remainingCapacity, double bestRemainingCapacity) {
                     return remainingCapacity >= operationDemand && bestRemainingCapacity > remainingCapacity;
                 };
                 initialBestRemainingCapacity = std::numeric_limits<double>::max();
@@ -796,57 +894,57 @@ void TStrategySchedulingSegmentManager::AssignOperationsToDataCentersInTree(
                 YT_ABORT();
         }
 
-        TDataCenter bestDataCenter;
+        TSchedulingSegmentModule bestModule;
         auto bestRemainingCapacity = initialBestRemainingCapacity;
-        for (const auto& [dataCenter, remainingCapacity] : remainingCapacityPerDataCenter) {
-            YT_VERIFY(dataCenter);
+        for (const auto& [schedulingSegmentModule, remainingCapacity] : remainingCapacityPerModule) {
+            YT_VERIFY(schedulingSegmentModule);
 
-            if (const auto& specifiedDataCenters = operation->SpecifiedDataCenters) {
-                if (specifiedDataCenters->find(*dataCenter) == specifiedDataCenters->end()) {
+            if (const auto& specifiedModules = operation->SpecifiedModules) {
+                if (specifiedModules->find(*schedulingSegmentModule) == specifiedModules->end()) {
                     continue;
                 }
             }
 
-            if (isDataCenterBetter(remainingCapacity, bestRemainingCapacity)) {
-                bestDataCenter = dataCenter;
+            if (isModuleBetter(remainingCapacity, bestRemainingCapacity)) {
+                bestModule = schedulingSegmentModule;
                 bestRemainingCapacity = remainingCapacity;
             }
         }
 
-        if (!bestDataCenter) {
+        if (!bestModule) {
             YT_LOG_INFO(
-                "Failed to find a suitable data center for operation "
-                "(AvailableDataCenters: %v, SpecifiedDataCenters: %v, OperationDemand: %v, "
-                "RemainingCapacityPerDataCenter: %v, TotalCapacityPerDataCenter: %v, OperationId: %v)",
-                state.DataCenters,
-                operation->SpecifiedDataCenters,
+                "Failed to find a suitable module for operation "
+                "(AvailableModules: %v, SpecifiedModules: %v, OperationDemand: %v, "
+                "RemainingCapacityPerModule: %v, TotalCapacityPerModule: %v, OperationId: %v)",
+                state.Modules,
+                operation->SpecifiedModules,
                 operationDemand,
-                remainingCapacityPerDataCenter,
-                totalCapacityPerDataCenter,
+                remainingCapacityPerModule,
+                totalCapacityPerModule,
                 operationId);
 
             continue;
         }
 
         auto operationFairShare = operation->FairShare[keyResource];
-        state.FairSharePerSegment.At(*segment).MutableAt(operation->DataCenter) -= operationFairShare;
-        operation->DataCenter = bestDataCenter;
-        state.FairSharePerSegment.At(*segment).MutableAt(operation->DataCenter) += operationFairShare;
+        state.FairSharePerSegment.At(*segment).MutableAt(operation->Module) -= operationFairShare;
+        operation->Module = bestModule;
+        state.FairSharePerSegment.At(*segment).MutableAt(operation->Module) += operationFairShare;
 
-        state.FairResourceAmountPerSegment.At(*segment).MutableAt(operation->DataCenter) += operationDemand;
-        remainingCapacityPerDataCenter[operation->DataCenter] -= operationDemand;
+        state.FairResourceAmountPerSegment.At(*segment).MutableAt(operation->Module) += operationDemand;
+        remainingCapacityPerModule[operation->Module] -= operationDemand;
 
         YT_LOG_DEBUG(
-            "Assigned operation to a new scheduling segment data center "
-            "(SchedulingSegment: %v, DataCenter: %v, SpecifiedDataCenters: %v, "
-            "OperationDemand: %v, RemainingCapacityPerDataCenter: %v, TotalCapacityPerDataCenter: %v, "
+            "Assigned operation to a new scheduling segment module "
+            "(SchedulingSegment: %v, Module: %v, SpecifiedModules: %v, "
+            "OperationDemand: %v, RemainingCapacityPerModule: %v, TotalCapacityPerModule: %v, "
             "OperationId: %v)",
             segment,
-            operation->DataCenter,
-            operation->SpecifiedDataCenters,
+            operation->Module,
+            operation->SpecifiedModules,
             operationDemand,
-            remainingCapacityPerDataCenter,
-            totalCapacityPerDataCenter,
+            remainingCapacityPerModule,
+            totalCapacityPerModule,
             operationId);
     }
 }

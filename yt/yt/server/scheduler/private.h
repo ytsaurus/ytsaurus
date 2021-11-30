@@ -119,6 +119,8 @@ inline const NLogging::TLogger NodeShardLogger{"NodeShard"};
 
 inline constexpr char DefaultOperationTag[] = "default";
 
+inline const TString InfinibandClusterNameKey{"infiniband_cluster_tag"};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

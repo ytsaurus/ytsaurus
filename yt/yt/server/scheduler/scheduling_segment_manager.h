@@ -60,6 +60,18 @@ public:
 
     static EJobResourceType GetSegmentBalancingKeyResource(ESegmentedSchedulingMode mode);
 
+    static const TSchedulingSegmentModule& GetNodeModule(
+        const std::optional<TString>& nodeDataCenter,
+        const std::optional<TString>& nodeInfinibandCluster,
+        ESchedulingSegmentModuleType moduleType);
+    static const TSchedulingSegmentModule& GetNodeModule(
+        const TExecNodeDescriptor& nodeDescriptor,
+        ESchedulingSegmentModuleType moduleType);
+
+    static TString GetNodeTagFromModuleName(const TString& moduleName, ESchedulingSegmentModuleType moduleType);
+
+    static void ValidateNodeTags(const TBooleanFormulaTags& tags);
+
     TNodeSchedulingSegmentManager();
 
     void ManageNodeSegments(TManageNodeSchedulingSegmentsContext* context);
@@ -84,7 +96,7 @@ private:
         TManageNodeSchedulingSegmentsContext* context,
         const TString& treeId,
         const TSegmentToResourceAmount& currentResourceAmountPerSegment,
-        const THashMap<TDataCenter, double> totalResourceAmountPerDataCenter,
+        const THashMap<TSchedulingSegmentModule, double> totalResourceAmountPerModule,
         NProfiling::ISensorWriter* sensorWriter) const;
 
     void RebalanceSegmentsInTree(
@@ -101,8 +113,8 @@ private:
         TManageNodeSchedulingSegmentsContext *context,
         const TString& treeId,
         const TSegmentToResourceAmount& currentResourceAmountPerSegment,
-        THashMap<TDataCenter, TNodeWithMovePenaltyList>* movableNodesPerDataCenter,
-        THashMap<TDataCenter, TNodeWithMovePenaltyList>* aggressivelyMovableNodesPerDataCenter);
+        THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* movableNodesPerModule,
+        THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* aggressivelyMovableNodesPerModule);
 
     std::pair<TSchedulingSegmentMap<bool>, bool> FindUnsatisfiedSegmentsInTree(
         TManageNodeSchedulingSegmentsContext *context,
@@ -118,18 +130,18 @@ struct TOperationSchedulingSegmentContext
     const TJobResources& ResourceUsage;
     const TResourceVector& DemandShare;
     const TResourceVector& FairShare;
-    const std::optional<THashSet<TString>>& SpecifiedDataCenters;
     const std::optional<ESchedulingSegment>& Segment;
 
-    TDataCenter DataCenter;
-    std::optional<TInstant> FailingToScheduleAtDataCenterSince;
+    TSchedulingSegmentModule Module;
+    std::optional<THashSet<TString>> SpecifiedModules;
+    std::optional<TInstant> FailingToScheduleAtModuleSince;
 };
 
 struct TManageTreeSchedulingSegmentsContext
 {
     const TFairShareStrategyTreeConfigPtr& TreeConfig;
     const TJobResources& TotalResourceLimits;
-    THashMap<TDataCenter, TJobResources> ResourceLimitsPerDataCenter;
+    THashMap<TSchedulingSegmentModule, TJobResources> ResourceLimitsPerModule;
     THashMap<TOperationId, TOperationSchedulingSegmentContext> Operations;
 
     TTreeSchedulingSegmentsState SchedulingSegmentsState;
@@ -149,17 +161,17 @@ public:
         const TString& treeId);
 
 private:
-    static void ResetOperationDataCenterAssignmentsInTree(
+    static void ResetOperationModuleAssignmentsInTree(
         TManageTreeSchedulingSegmentsContext* context,
         const TString& treeId);
 
     static void CollectFairSharePerSegmentInTree(TManageTreeSchedulingSegmentsContext* context);
 
-    static void AssignOperationsToDataCentersInTree(
+    static void AssignOperationsToModulesInTree(
         TManageTreeSchedulingSegmentsContext* context,
         const TString& treeId,
-        THashMap<TDataCenter, double> totalCapacityPerDataCenter,
-        THashMap<TDataCenter, double> remainingCapacityPerDataCenter);
+        THashMap<TSchedulingSegmentModule, double> totalCapacityPerModule,
+        THashMap<TSchedulingSegmentModule, double> remainingCapacityPerModule);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

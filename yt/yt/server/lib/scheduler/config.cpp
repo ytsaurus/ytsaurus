@@ -1,12 +1,14 @@
 #include "config.h"
 
 #include "experiments.h"
-#include "yt/yt/server/lib/scheduler/public.h"
+#include "helpers.h"
+#include "public.h"
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 #include <yt/yt/server/scheduler/private.h>
+
+#include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
 namespace NYT::NScheduler {
 
@@ -85,41 +87,83 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("unsatisfied_segments_rebalancing_timeout", &TThis::UnsatisfiedSegmentsRebalancingTimeout)
         .Default(TDuration::Minutes(5));
 
-    registrar.Parameter("data_center_reconsideration_timeout", &TThis::DataCenterReconsiderationTimeout)
+    registrar.Parameter("module_reconsideration_timeout", &TThis::ModuleReconsiderationTimeout)
+        .Alias("data_center_reconsideration_timeout")
         .Default(TDuration::Minutes(20));
 
     registrar.Parameter("data_centers", &TThis::DataCenters)
         .Default();
 
-    registrar.Parameter("data_center_assignment_heuristic", &TThis::DataCenterAssignmentHeuristic)
-        .Default(ESchedulingSegmentDataCenterAssignmentHeuristic::MaxRemainingCapacity);
+    registrar.Parameter("infiniband_clusters", &TThis::InfinibandClusters)
+        .Default();
+
+    registrar.Parameter("module_migration_mapping", &TThis::ModuleMigrationMapping)
+        .Default();
+
+    // TODO(eshcherbin): Change default to MinRemainingFeasibleCapacity.
+    registrar.Parameter("module_assignment_heuristic", &TThis::ModuleAssignmentHeuristic)
+        .Alias("data_center_assignment_heuristic")
+        .Default(ESchedulingSegmentModuleAssignmentHeuristic::MaxRemainingCapacity);
+
+    registrar.Parameter("module_type", &TThis::ModuleType)
+        .Default(ESchedulingSegmentModuleType::DataCenter);
 
     registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
-        for (const auto& dataCenter : config->DataCenters) {
-            ValidateDataCenterName(dataCenter);
+        for (const auto& schedulingSegmentModule : config->DataCenters) {
+            ValidateDataCenterName(schedulingSegmentModule);
+        }
+        for (const auto& schedulingSegmentModule : config->InfinibandClusters) {
+            ValidateInfinibandClusterName(schedulingSegmentModule);
+        }
+    });
+
+    registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
+        auto validateModuleName = [&] (const TString& moduleName) {
+            if (!config->DataCenters.contains(moduleName) && !config->InfinibandClusters.contains(moduleName)) {
+                THROW_ERROR_EXCEPTION("Module migration mapping must only contain valid module names")
+                    << TErrorAttribute("invalid_module_name", moduleName);
+            }
+        };
+
+        for (const auto& [oldModule, newModule] : config->ModuleMigrationMapping) {
+            validateModuleName(oldModule);
+            validateModuleName(newModule);
         }
     });
 
     registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-            if (!IsDataCenterAwareSchedulingSegment(segment)) {
+            if (!IsModuleAwareSchedulingSegment(segment)) {
                 continue;
             }
 
-            for (const auto& dataCenter : config->SatisfactionMargins.At(segment).GetDataCenters()) {
-                if (!dataCenter) {
+            const auto& configuredModules = config->GetModules();
+            for (const auto& schedulingSegmentModule : config->SatisfactionMargins.At(segment).GetModules()) {
+                if (!schedulingSegmentModule) {
                     // This could never happen but I'm afraid to put YT_VERIFY here.
-                    THROW_ERROR_EXCEPTION("Satisfaction margin can be specified only for non-null data centers");
+                    THROW_ERROR_EXCEPTION("Satisfaction margin can be specified only for non-null modules");
                 }
 
-                if (config->DataCenters.find(*dataCenter) == config->DataCenters.end()) {
-                    THROW_ERROR_EXCEPTION("Satisfaction margin can be specified only for configured data centers")
-                        << TErrorAttribute("configured_data_centers", config->DataCenters)
-                        << TErrorAttribute("specified_data_center", dataCenter);
+                if (!configuredModules.contains(*schedulingSegmentModule)) {
+                    THROW_ERROR_EXCEPTION("Satisfaction margin can be specified only for configured modules")
+                        << TErrorAttribute("configured_modules", configuredModules)
+                        << TErrorAttribute("specified_module", schedulingSegmentModule);
                 }
             }
         }
     });
+}
+
+const THashSet<TString>& TFairShareStrategySchedulingSegmentsConfig::GetModules() const
+{
+    switch (ModuleType) {
+        case ESchedulingSegmentModuleType::DataCenter:
+            return DataCenters;
+        case ESchedulingSegmentModuleType::InfinibandCluster:
+            return InfinibandClusters;
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

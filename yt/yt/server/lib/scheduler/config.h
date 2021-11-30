@@ -156,11 +156,20 @@ public:
 
     TDuration UnsatisfiedSegmentsRebalancingTimeout;
 
-    TDuration DataCenterReconsiderationTimeout;
+    TDuration ModuleReconsiderationTimeout;
 
     THashSet<TString> DataCenters;
 
-    ESchedulingSegmentDataCenterAssignmentHeuristic DataCenterAssignmentHeuristic;
+    THashSet<TString> InfinibandClusters;
+
+    // COMPAT(eshcherbin)
+    THashMap<TString, TString> ModuleMigrationMapping;
+
+    ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
+
+    ESchedulingSegmentModuleType ModuleType;
+
+    const THashSet<TString>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);
 

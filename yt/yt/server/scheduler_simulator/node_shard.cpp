@@ -302,7 +302,8 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
         job->GetId(),
         job->GetTreeId(),
         TJobResources(),
-        TDataCenter(),
+        /*jobDataCenter*/ std::nullopt,
+        /*jobInfinibandCluster*/ std::nullopt,
     }});
 
     {

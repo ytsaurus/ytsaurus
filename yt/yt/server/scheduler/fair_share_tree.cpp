@@ -268,14 +268,14 @@ public:
             OperationRunning_.Fire(operationId);
         }
 
-        if (auto dataCenter = runtimeParameters->SchedulingSegmentDataCenter) {
+        if (const auto& schedulingSegmentModule = runtimeParameters->SchedulingSegmentModule) {
             YT_LOG_DEBUG(
-                "Recovering operation's scheduling segment data center assignment from runtime parameters "
-                "(OperationId: %v, DataCenter: %v)",
+                "Recovering operation's scheduling segment module assignment from runtime parameters "
+                "(OperationId: %v, SchedulingSegmentModule: %v)",
                 operationId,
-                dataCenter);
+                schedulingSegmentModule);
 
-            operationElement->PersistentAttributes().SchedulingSegmentDataCenter = dataCenter;
+            operationElement->PersistentAttributes().SchedulingSegmentModule = schedulingSegmentModule;
         }
 
         YT_LOG_INFO("Operation element registered in tree (OperationId: %v, Pool: %v, MarkedAsRunning: %v)",
@@ -485,25 +485,31 @@ public:
         // NB(eshcherbin): See YT-14393.
         {
             const auto& segment = element->SchedulingSegment();
-            const auto& dataCenter = element->PersistentAttributes().SchedulingSegmentDataCenter;
-            if (segment && IsDataCenterAwareSchedulingSegment(*segment) && dataCenter && !element->GetSchedulingTagFilter().IsEmpty()) {
+            const auto& schedulingSegmentModule = element->PersistentAttributes().SchedulingSegmentModule;
+            if (segment && IsModuleAwareSchedulingSegment(*segment) && schedulingSegmentModule && !element->GetSchedulingTagFilter().IsEmpty()) {
                 auto tagFilter = element->GetSchedulingTagFilter().GetBooleanFormula().GetFormula();
-                bool isDataCenterFilter = false;
-                for (const auto& possibleDataCenter : Config_->SchedulingSegments->DataCenters) {
+                bool isModuleFilter = false;
+                for (const auto& possibleModule : Config_->SchedulingSegments->GetModules()) {
+                    auto moduleTag = TNodeSchedulingSegmentManager::GetNodeTagFromModuleName(
+                        possibleModule,
+                        Config_->SchedulingSegments->ModuleType);
                     // NB(eshcherbin): This doesn't cover all the cases, only the most usual.
                     // Don't really want to check boolean formula satisfiability here.
-                    if (tagFilter == possibleDataCenter) {
-                        isDataCenterFilter = true;
+                    if (tagFilter == moduleTag) {
+                        isModuleFilter = true;
                         break;
                     }
                 }
 
-                if (isDataCenterFilter && tagFilter != *dataCenter) {
+                auto operationModuleTag = TNodeSchedulingSegmentManager::GetNodeTagFromModuleName(
+                    *schedulingSegmentModule,
+                    Config_->SchedulingSegments->ModuleType);
+                if (isModuleFilter && tagFilter != operationModuleTag) {
                     return TError(
-                        "Operation has a data center specified in the scheduling tag filter, which causes scheduling problems; "
-                        "use \"scheduling_segment_data_centers\" spec option instead")
+                        "Operation has a module specified in the scheduling tag filter, which causes scheduling problems; "
+                        "use \"scheduling_segment_modules\" spec option instead")
                         << TErrorAttribute("scheduling_tag_filter", tagFilter)
-                        << TErrorAttribute("available_data_centers", Config_->SchedulingSegments->DataCenters);
+                        << TErrorAttribute("available_modules", Config_->SchedulingSegments->GetModules());
                 }
             }
         }
@@ -756,16 +762,16 @@ public:
             : TTreeSchedulingSegmentsState{};
     }
 
-    TOperationIdWithDataCenterList GetOperationSchedulingSegmentDataCenterUpdates() const override
+    TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        TOperationIdWithDataCenterList result;
+        TOperationIdWithSchedulingSegmentModuleList result;
         for (const auto& [operationId, element] : OperationIdToElement_) {
             auto params = element->GetRuntimeParameters();
-            const auto& dataCenter = element->PersistentAttributes().SchedulingSegmentDataCenter;
-            if (params->SchedulingSegmentDataCenter != dataCenter) {
-                result.push_back({operationId, dataCenter});
+            const auto& schedulingSegmentModule = element->PersistentAttributes().SchedulingSegmentModule;
+            if (params->SchedulingSegmentModule != schedulingSegmentModule) {
+                result.push_back({operationId, schedulingSegmentModule});
             }
         }
 
@@ -966,7 +972,8 @@ private:
             TOperationId operationId,
             TJobId jobId,
             const TJobResources& jobResources,
-            const TDataCenter& jobDataCenter,
+            const std::optional<TString>& jobDataCenter,
+            const std::optional<TString>& jobInfinibandCluster,
             bool* shouldAbortJob) override
         {
             // NB: Should be filtered out on large clusters.
@@ -979,19 +986,23 @@ private:
                 operationElement->SetJobResourceUsage(jobId, jobResources);
 
                 const auto& operationSchedulingSegment = operationElement->SchedulingSegment();
-                if (operationSchedulingSegment && IsDataCenterAwareSchedulingSegment(*operationSchedulingSegment)) {
-                    const auto& operationDataCenter = operationElement->PersistentAttributes().SchedulingSegmentDataCenter;
-                    bool jobIsRunningInTheRightDataCenter = operationDataCenter && operationDataCenter == jobDataCenter;
-                    if (!jobIsRunningInTheRightDataCenter) {
+                if (operationSchedulingSegment && IsModuleAwareSchedulingSegment(*operationSchedulingSegment)) {
+                    const auto& operationModule = operationElement->PersistentAttributes().SchedulingSegmentModule;
+                    const auto& jobModule = TNodeSchedulingSegmentManager::GetNodeModule(
+                        jobDataCenter,
+                        jobInfinibandCluster,
+                        TreeSnapshotImpl_->TreeConfig()->SchedulingSegments->ModuleType);
+                    bool jobIsRunningInTheRightModule = operationModule && (operationModule == jobModule);
+                    if (!jobIsRunningInTheRightModule) {
                         *shouldAbortJob = true;
 
                         YT_LOG_DEBUG(
-                            "Requested to abort job because it is running in a wrong data center "
-                            "(OperationId: %v, JobId: %v, OperationDataCenter: %v, JobDataCenter: %v)",
+                            "Requested to abort job because it is running in a wrong module "
+                            "(OperationId: %v, JobId: %v, OperationModule: %v, JobModule: %v)",
                             operationId,
                             jobId,
-                            operationDataCenter,
-                            jobDataCenter);
+                            operationModule,
+                            jobModule);
                     }
                 }
             }
@@ -1195,18 +1206,21 @@ private:
             now,
             LastFairShareUpdateTime_);
 
-        THashMap<TDataCenter, TJobResources> resourceLimitsPerDataCenter;
+        THashMap<TSchedulingSegmentModule, TJobResources> resourceLimitsPerModule;
         if (Config_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
-            for (const auto& dataCenter : Config_->SchedulingSegments->DataCenters) {
-                auto tagFilter = GetNodesFilter() & TSchedulingTagFilter(MakeBooleanFormula(dataCenter));
-                resourceLimitsPerDataCenter[dataCenter] = StrategyHost_->GetResourceLimits(tagFilter);
+            for (const auto& schedulingSegmentModule : Config_->SchedulingSegments->GetModules()) {
+                auto moduleTag = TNodeSchedulingSegmentManager::GetNodeTagFromModuleName(
+                    schedulingSegmentModule,
+                    Config_->SchedulingSegments->ModuleType);
+                auto tagFilter = GetNodesFilter() & TSchedulingTagFilter(MakeBooleanFormula(moduleTag));
+                resourceLimitsPerModule[schedulingSegmentModule] = StrategyHost_->GetResourceLimits(tagFilter);
             }
         }
 
         TManageTreeSchedulingSegmentsContext manageSegmentsContext{
             .TreeConfig = Config_,
             .TotalResourceLimits = updateContext.TotalResourceLimits,
-            .ResourceLimitsPerDataCenter = std::move(resourceLimitsPerDataCenter),
+            .ResourceLimitsPerModule = std::move(resourceLimitsPerModule),
         };
 
         TFairSharePostUpdateContext fairSharePostUpdateContext;
@@ -1590,6 +1604,9 @@ private:
         {
             NProfiling::TWallTimer timer;
 
+            const auto& nodeModule = TNodeSchedulingSegmentManager::GetNodeModule(
+                context->SchedulingContext()->GetNodeDescriptor(),
+                treeConfig->SchedulingSegments->ModuleType);
             for (const auto& job : context->SchedulingContext()->RunningJobs()) {
                 auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
                 if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
@@ -1601,11 +1618,11 @@ private:
 
                 bool isJobForcefullyPreemptable = !operationElement->IsSchedulingSegmentCompatibleWithNode(
                     context->SchedulingContext()->GetSchedulingSegment(),
-                    context->SchedulingContext()->GetNodeDescriptor().DataCenter);
+                    nodeModule);
                 if (isJobForcefullyPreemptable) {
                     YT_ELEMENT_LOG_DETAILED(operationElement,
-                        "Job is forcefully preemptable because it is running on a node in a different scheduling segment or data center "
-                        "(JobId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v, DataCenter: %v)",
+                        "Job is forcefully preemptable because it is running on a node in a different scheduling segment or module "
+                        "(JobId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v, Module: %v)",
                         job->GetId(),
                         operationElement->GetId(),
                         operationElement->SchedulingSegment(),
@@ -2742,7 +2759,7 @@ private:
             .Item("pool").Value(parent->GetId())
             .Item("slot_index").Value(element->GetSlotIndex())
             .Item("scheduling_segment").Value(element->SchedulingSegment())
-            .Item("scheduling_segment_data_center").Value(element->PersistentAttributes().SchedulingSegmentDataCenter)
+            .Item("scheduling_segment_module").Value(element->PersistentAttributes().SchedulingSegmentModule)
             .Item("start_time").Value(element->GetStartTime())
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
             .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())

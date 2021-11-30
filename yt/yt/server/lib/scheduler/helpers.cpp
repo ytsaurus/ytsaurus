@@ -47,4 +47,13 @@ TSerializableAccessControlList MakeOperationArtifactAcl(const TSerializableAcces
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateInfinibandClusterName(const TString& name)
+{
+    if (name.empty()) {
+        THROW_ERROR_EXCEPTION("Infiniband cluster name cannot be empty");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

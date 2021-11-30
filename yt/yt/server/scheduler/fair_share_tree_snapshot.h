@@ -29,7 +29,8 @@ struct IFairShareTreeSnapshot
         TOperationId operationId,
         TJobId jobId,
         const TJobResources& jobResources,
-        const TDataCenter& jobDataCenter,
+        const std::optional<TString>& jobDataCenter,
+        const std::optional<TString>& jobInfinibandCluster,
         bool* shouldAbortJob) = 0;
     virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
     virtual bool HasOperation(TOperationId operationId) const = 0;

@@ -1673,6 +1673,8 @@ public:
                 << TErrorAttribute("matched_pool_trees", treeIds);
         }
 
+        TNodeSchedulingSegmentManager::ValidateNodeTags(tags);
+
         auto it = NodeIdToDescriptor_.find(nodeId);
         if (it == NodeIdToDescriptor_.end()) {
             if (NodeAddresses_.find(nodeAddress) != NodeAddresses_.end()) {
@@ -2468,7 +2470,8 @@ private:
             "io_weights",
             "scheduling_segment",
             "data_center",
-            "flavors"
+            "flavors",
+            "annotations",
         });
         batchReq->AddRequest(req, "get_nodes");
     }
@@ -4288,18 +4291,18 @@ private:
             return;
         }
 
-        PersistOperationSchedulingSegmentDataCenters();
+        PersistOperationSchedulingSegmentModules();
 
         ManageNodeSchedulingSegments();
     }
 
-    // TODO(eshcherbin): Think about storing data center in runtime parameters only.
-    // Current implementation has a lag between operation data center assignment and persisting this
+    // TODO(eshcherbin): Think about storing module in runtime parameters only.
+    // Current implementation has a lag between operation module assignment and persisting this
     // decision by updating runtime parameters at the master. This lag is acceptable and is left for
     // implementation simplicity and code readability purposes.
-    void PersistOperationSchedulingSegmentDataCenters()
+    void PersistOperationSchedulingSegmentModules()
     {
-        auto updatesPerTree = Strategy_->GetOperationSchedulingSegmentDataCenterUpdates();
+        auto updatesPerTree = Strategy_->GetOperationSchedulingSegmentModuleUpdates();
 
         {
             THashMap<TString, int> updateCountPerTree(updatesPerTree.size());
@@ -4307,15 +4310,15 @@ private:
                 updateCountPerTree.emplace(treeId, updates.size());
             }
 
-            YT_LOG_DEBUG("Updating scheduling segment data centers in operations' runtime parameters (UpdateCountPerTree: %v)",
+            YT_LOG_DEBUG("Updating scheduling segment modules in operations' runtime parameters (UpdateCountPerTree: %v)",
                 updateCountPerTree);
         }
 
         for (const auto& [treeId, updates] : updatesPerTree) {
-            for (const auto& [operationId, newDataCenter] : updates) {
+            for (const auto& [operationId, newModule] : updates) {
                 if (auto operation = FindOperation(operationId)) {
                     auto params = operation->GetRuntimeParameters();
-                    GetOrCrash(params->SchedulingOptionsPerPoolTree, treeId)->SchedulingSegmentDataCenter = newDataCenter;
+                    GetOrCrash(params->SchedulingOptionsPerPoolTree, treeId)->SchedulingSegmentModule = newModule;
                     operation->SetRuntimeParameters(params);
                     Strategy_->ApplyOperationRuntimeParameters(operation.Get());
                 }
