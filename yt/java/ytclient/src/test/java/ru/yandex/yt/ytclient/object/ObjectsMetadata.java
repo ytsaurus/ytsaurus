@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import java.util.function.Function;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
@@ -16,7 +17,6 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
-import ru.yandex.yt.ytclient.wire.WireProtocolWriter.KeyFieldsOnlyFunction;
 
 public class ObjectsMetadata<T> {
 
@@ -105,9 +105,9 @@ public class ObjectsMetadata<T> {
         return writer.finish();
     }
 
-    public List<byte[]> serializeMappedObjects(List<T> rows, KeyFieldsOnlyFunction func) {
+    public List<byte[]> serializeMappedObjects(List<T> rows, Function<Integer, Boolean> keyFieldsOnlyFunction) {
         final WireProtocolWriter writer = new WireProtocolWriter();
-        writer.writeUnversionedRowset(rows, this.mappedSerializer, func);
+        writer.writeUnversionedRowset(rows, this.mappedSerializer, keyFieldsOnlyFunction);
         return writer.finish();
     }
 

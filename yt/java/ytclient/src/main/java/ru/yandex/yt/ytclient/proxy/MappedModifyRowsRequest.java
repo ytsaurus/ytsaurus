@@ -18,6 +18,7 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest<Mapped
     private final List<T> rows = new ArrayList<>();
     private final WireRowSerializer<T> serializer;
     private boolean hasDeletes;
+    private final ArrayList<Boolean> rowAggregates = new ArrayList<>();
 
     public MappedModifyRowsRequest(String path, YTreeObjectSerializer<T> serializer) {
         this(path, MappedRowSerializer.forClass(serializer));
@@ -29,11 +30,19 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest<Mapped
     }
 
     public void addInsert(T value) {
-        this.addImpl(value, ERowModificationType.RMT_WRITE);
+        this.addInsert(value, false);
     }
 
     public void addInserts(Iterable<? extends T> values) {
-        this.addImpl(values, ERowModificationType.RMT_WRITE);
+        this.addInserts(values, false);
+    }
+
+    public void addInsert(T value, boolean aggregate) {
+        this.addImpl(value, ERowModificationType.RMT_WRITE, aggregate);
+    }
+
+    public void addInserts(Iterable<? extends T> values, boolean aggregate) {
+        this.addImpl(values, ERowModificationType.RMT_WRITE, aggregate);
     }
 
     // @see #addInsert
@@ -49,38 +58,41 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest<Mapped
     }
 
     public void addDelete(T value) {
-        this.addImpl(value, ERowModificationType.RMT_DELETE);
+        this.addImpl(value, ERowModificationType.RMT_DELETE, false);
         hasDeletes = true;
     }
 
     public void addDeletes(Iterable<? extends T> values) {
-        this.addImpl(values, ERowModificationType.RMT_DELETE);
+        this.addImpl(values, ERowModificationType.RMT_DELETE, false);
         hasDeletes = true;
     }
 
     //
 
-    private void addImpl(T value, ERowModificationType type) {
+    private void addImpl(T value, ERowModificationType type, boolean aggregate) {
         this.rows.add(value);
         this.rowModificationTypes.add(type);
+        this.rowAggregates.add(aggregate);
     }
 
     @SuppressWarnings("unchecked")
-    private void addImpl(Iterable<? extends T> values, ERowModificationType type) {
+    private void addImpl(Iterable<? extends T> values, ERowModificationType type, boolean aggregate) {
         if (values instanceof Collection) {
-            this.addImpl((Collection<? extends T>) values, type);
+            this.addImpl((Collection<? extends T>) values, type, aggregate);
         } else {
             for (T value : values) {
-                this.addImpl(value, type);
+                this.addImpl(value, type, aggregate);
             }
         }
     }
 
-    private void addImpl(Collection<? extends T> values, ERowModificationType type) {
+    private void addImpl(Collection<? extends T> values, ERowModificationType type, boolean aggregate) {
         this.rows.addAll(values);
         this.rowModificationTypes.ensureCapacity(this.rowModificationTypes.size() + values.size());
+        this.rowAggregates.ensureCapacity(this.rowAggregates.size() + values.size());
         for (T ignored : values) {
             this.rowModificationTypes.add(type);
+            this.rowAggregates.add(aggregate);
         }
     }
 
@@ -89,9 +101,10 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest<Mapped
         final WireProtocolWriter writer = new WireProtocolWriter(attachments);
         if (hasDeletes) {
             writer.writeUnversionedRowset(rows, serializer,
-                    i -> rowModificationTypes.get(i) == ERowModificationType.RMT_DELETE);
+                    i -> rowModificationTypes.get(i) == ERowModificationType.RMT_DELETE,
+                    rowAggregates::get);
         } else {
-            writer.writeUnversionedRowset(rows, serializer);
+            writer.writeUnversionedRowset(rows, serializer, (i) -> false, rowAggregates::get);
         }
         writer.finish();
     }

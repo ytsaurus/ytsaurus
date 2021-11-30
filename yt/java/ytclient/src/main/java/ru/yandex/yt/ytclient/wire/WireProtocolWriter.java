@@ -6,6 +6,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
@@ -241,21 +242,22 @@ public class WireProtocolWriter {
     }
 
     public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer, int[] idMapping) {
-        writeUnversionedRow(row, serializer, false, idMapping);
+        writeUnversionedRow(row, serializer, false, false, idMapping);
     }
 
     public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer, boolean keyFieldsOnly) {
-        writeUnversionedRow(row, serializer, keyFieldsOnly, (int[]) null);
+        writeUnversionedRow(row, serializer, keyFieldsOnly, false, (int[]) null);
     }
 
     public <T> void writeUnversionedRow(
             T row,
             WireRowSerializer<T> serializer,
             boolean keyFieldsOnly,
+            boolean aggregate,
             int[] idMapping
     ) {
         if (row != null) {
-            serializer.serializeRow(row, this.writeable, keyFieldsOnly, idMapping);
+            serializer.serializeRow(row, this.writeable, keyFieldsOnly, aggregate, idMapping);
         } else {
             writeLong(-1);
         }
@@ -310,10 +312,7 @@ public class WireProtocolWriter {
     }
 
     public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer, int[] idMapping) {
-        writeRowCount(rows.size());
-        for (T row : rows) {
-            writeUnversionedRow(row, serializer, idMapping);
-        }
+        writeUnversionedRowset(rows, serializer, (i) -> false, (i) -> false, idMapping);
     }
 
     public <T> void writeUnversionedRowsetWithoutCount(List<T> rows, WireRowSerializer<T> serializer, int[] idMapping) {
@@ -327,20 +326,29 @@ public class WireProtocolWriter {
         writeable.onBytes(serializedRows.array());
     }
 
-    public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer, KeyFieldsOnlyFunction func) {
-        writeUnversionedRowset(rows, serializer, func, (int[]) null);
+    public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer,
+                                           Function<Integer, Boolean> keyFieldsOnlyFunction,
+                                           Function<Integer, Boolean> isAggregateFunction) {
+        writeUnversionedRowset(rows, serializer, keyFieldsOnlyFunction, isAggregateFunction, null);
+    }
+
+    public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer,
+                                           Function<Integer, Boolean> func) {
+        writeUnversionedRowset(rows, serializer, func, (i) -> false, null);
     }
 
     public <T> void writeUnversionedRowset(
             List<T> rows,
             WireRowSerializer<T> serializer,
-            KeyFieldsOnlyFunction func,
+            Function<Integer, Boolean> isKeyFieldsOnlyFunction,
+            Function<Integer, Boolean> isAggregateFunction,
             int[] idMapping
     ) {
         final int rowCount = rows.size();
         writeRowCount(rowCount);
         for (int i = 0; i < rowCount; i++) {
-            writeUnversionedRow(rows.get(i), serializer, func.isKeyFieldsOnly(i), idMapping);
+            writeUnversionedRow(rows.get(i), serializer, isKeyFieldsOnlyFunction.apply(i),
+                    isAggregateFunction.apply(i), idMapping);
         }
     }
 
@@ -349,9 +357,5 @@ public class WireProtocolWriter {
         for (VersionedRow row : rows) {
             writeVersionedRow(row);
         }
-    }
-
-    public interface KeyFieldsOnlyFunction {
-        boolean isKeyFieldsOnly(int rowIndex);
     }
 }
