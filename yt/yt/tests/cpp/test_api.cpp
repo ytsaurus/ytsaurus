@@ -10,8 +10,6 @@
 #include <yt/yt/ytlib/object_client/public.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/ytlib/table_client/config.h>
-
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -30,7 +28,6 @@
 
 #include <util/datetime/base.h>
 
-#include <cstdlib>
 #include <tuple>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -754,7 +751,6 @@ class TTypeV3Test : public TApiTestBase
 
 TEST_F(TTypeV3Test, TestCreateTable)
 {
-    std::vector<TColumnSchema> columns;
     auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         TColumnSchema("key", SimpleLogicalType(ESimpleLogicalValueType::String)),
         TColumnSchema("value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
