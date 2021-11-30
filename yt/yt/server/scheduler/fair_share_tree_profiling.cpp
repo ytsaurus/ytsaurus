@@ -281,7 +281,9 @@ void TFairShareTreeProfileManager::ProfileElement(
     writer->AddGauge("/dominant_fair_share/weight_proportional", MaxComponent(detailedFairShare.WeightProportional));
     writer->AddGauge("/dominant_fair_share/total", MaxComponent(detailedFairShare.Total));
 
-    writer->AddGauge("/local_satisfaction_ratio", attributes.LocalSatisfactionRatio);
+    if (attributes.LocalSatisfactionRatio < InfiniteSatisfactionRatio) {
+        writer->AddGauge("/local_satisfaction_ratio", attributes.LocalSatisfactionRatio);
+    }
 
     ProfileResources(writer, element->GetResourceUsageAtUpdate(), "/resource_usage");
     ProfileResources(writer, element->GetResourceLimits(), "/resource_limits");
