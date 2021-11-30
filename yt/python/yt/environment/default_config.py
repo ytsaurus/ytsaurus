@@ -378,12 +378,14 @@ b"""
             };
         };
         high_latency_split_changelog = {
+            flush_period = 10;
             enable_sync = %false;
             io_engine = {
                 enable_sync = %false;
             };
         };
         low_latency_split_changelog = {
+            flush_period = 10;
             enable_sync = %false;
             io_engine = {
                 enable_sync = %false;

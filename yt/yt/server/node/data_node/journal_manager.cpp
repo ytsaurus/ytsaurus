@@ -41,6 +41,7 @@ DEFINE_ENUM(EMultiplexedRecordType,
     (Create) // create chunk
     (Append) // append record to chunk
     (Remove) // remove chunk
+    (Skip)   // record was skipped
 );
 
 #pragma pack(push, 4)
@@ -208,6 +209,7 @@ private:
         int RecordsAdded = 0;
 
         bool SealedChecked = false;
+        bool SkipRecordSeen = false;
         bool AppendSealedLogged = false;
         bool AppendSkipLogged = false;
         bool AppendLogged = false;
@@ -259,6 +261,7 @@ private:
         ScanChangelog(changelogId, [&] (TVersion version, const TMultiplexedRecord& record) {
             auto chunkId = record.Header.ChunkId;
             switch (record.Header.Type) {
+                case EMultiplexedRecordType::Skip:
                 case EMultiplexedRecordType::Append: {
                     YT_VERIFY(RemoveChunkIds_.find(chunkId) == RemoveChunkIds_.end());
                     auto it = ChunkIdToFirstRelevantVersion_.find(chunkId);
@@ -326,6 +329,7 @@ private:
                 return;
 
             switch (record.Header.Type) {
+                case EMultiplexedRecordType::Skip:
                 case EMultiplexedRecordType::Append:
                     ReplayAppendRecord(record);
                     break;
@@ -379,8 +383,13 @@ private:
 
         auto& splitEntry = it->second;
 
-        if (splitEntry.AppendSealedLogged)
+        if (splitEntry.AppendSealedLogged) {
             return;
+        }
+
+        if (splitEntry.SkipRecordSeen) {
+            return;
+        }
 
         if (!splitEntry.SealedChecked) {
             splitEntry.SealedChecked = true;
@@ -411,6 +420,15 @@ private:
                 record.Header.ChunkId,
                 recordCount,
                 record.Header.RecordId);
+        }
+
+        if (record.Header.Type == EMultiplexedRecordType::Skip) {
+            YT_LOG_INFO("Replay encountered skip record; multiplexed suffix is ignored (ChunkId: %v, RecordId: %v, RecordCount: %v)",
+                chunkId,
+                record.Header.RecordId,
+                recordCount);
+            splitEntry.SkipRecordSeen = true;
+            return;
         }
 
         if (!splitEntry.AppendLogged) {
@@ -513,7 +531,7 @@ public:
         return WriteMultiplexedRecords({record});
     }
 
-    TFuture<void> WriteAppendRecords(
+    TFuture<bool> WriteAppendRecords(
         TChunkId chunkId,
         int firstRecordId,
         TRange<TSharedRef> records)
@@ -521,15 +539,28 @@ public:
         std::vector<TMultiplexedRecord> multiplexedRecords;
         multiplexedRecords.reserve(records.size());
         auto currentRecordId = firstRecordId;
+
+        bool recordsSkipped = false;
         for (const auto& record : records) {
             TMultiplexedRecord multiplexedRecord;
-            multiplexedRecord.Header.Type = EMultiplexedRecordType::Append;
             multiplexedRecord.Header.RecordId = currentRecordId++;
             multiplexedRecord.Header.ChunkId = chunkId;
-            multiplexedRecord.Data = record;
+
+            if (Config_->BigRecordThreshold && static_cast<int>(record.Size()) <= *Config_->BigRecordThreshold) {
+                multiplexedRecord.Header.Type = EMultiplexedRecordType::Append;
+                multiplexedRecord.Data = record;
+            } else {
+                multiplexedRecord.Header.Type = EMultiplexedRecordType::Skip;
+                recordsSkipped = true;
+            }
+
             multiplexedRecords.push_back(multiplexedRecord);
         }
-        return WriteMultiplexedRecords(multiplexedRecords);
+
+        return WriteMultiplexedRecords(multiplexedRecords)
+            .Apply(BIND([recordsSkipped] {
+                return recordsSkipped;
+            }));
     }
 
     TPromise<void> RegisterBarrier()
@@ -963,7 +994,7 @@ public:
         return asyncResult.ToUncancelable();
     }
 
-    TFuture<void> AppendMultiplexedRecords(
+    TFuture<bool> AppendMultiplexedRecords(
         TChunkId chunkId,
         int firstRecordId,
         TRange<TSharedRef> records,
@@ -1239,7 +1270,7 @@ TFuture<void> TJournalManager::RemoveChangelog(
     return Impl_->RemoveChangelog(chunk, enableMultiplexing);
 }
 
-TFuture<void> TJournalManager::AppendMultiplexedRecords(
+TFuture<bool> TJournalManager::AppendMultiplexedRecords(
     TChunkId chunkId,
     int firstRecordId,
     TRange<TSharedRef> records,

@@ -39,7 +39,8 @@ public:
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing);
 
-    TFuture<void> AppendMultiplexedRecords(
+    // Returns true if some records were skipped.
+    TFuture<bool> AppendMultiplexedRecords(
         TChunkId chunkId,
         int firstRecordId,
         TRange<TSharedRef> records,

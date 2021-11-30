@@ -622,7 +622,7 @@ def _build_node_configs(node_dirs,
         ])
 
         changelog_config = {
-            "preallocate_size": 2 ** 20
+            "preallocate_size": 2 ** 20,
         }
 
         store_location_config = {
