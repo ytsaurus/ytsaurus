@@ -18,6 +18,7 @@ public abstract class RequestBase<T extends RequestBase<T>> {
     private @Nullable GUID requestId;
     private @Nullable GUID traceId;
     private boolean traceSampled = false;
+    private String userAgent = "yt/java/ytclient@";
 
     Message additionalData;
 
@@ -48,6 +49,14 @@ public abstract class RequestBase<T extends RequestBase<T>> {
     public T setTimeout(@Nullable Duration timeout) {
         this.timeout = timeout;
         return self();
+    }
+
+
+    /**
+     * Set User-Agent header value
+     */
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
     }
 
     /**
@@ -122,6 +131,7 @@ public abstract class RequestBase<T extends RequestBase<T>> {
             tracing.setTraceId(RpcUtil.toProto(traceId));
             header.setExtension(TRequestHeader.tracingExt, tracing.build());
         }
+        header.setUserAgent(userAgent);
     }
 
     public final String getArgumentsLogString() {

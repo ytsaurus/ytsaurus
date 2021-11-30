@@ -24,6 +24,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
+import ru.yandex.library.svnversion.VcsVersion;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
@@ -80,6 +81,7 @@ import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
+import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
@@ -114,6 +116,7 @@ public class ApiServiceClientImpl implements ApiServiceClient {
     private final Executor heavyExecutor;
     @Nullable private final RpcClient rpcClient;
     final RpcOptions rpcOptions;
+    private static final String USER_AGENT = calcUserAgent();
 
     public ApiServiceClientImpl(
             @Nullable RpcClient client,
@@ -151,6 +154,11 @@ public class ApiServiceClientImpl implements ApiServiceClient {
 
     public ApiServiceClientImpl(RpcClient client) {
         this(client, new RpcOptions(), ForkJoinPool.commonPool());
+    }
+
+    static String calcUserAgent() {
+        VcsVersion version = new VcsVersion(ApiServiceClientImpl.class);
+        return "yt/java/ytclient@" + version.getProgramSvnRevision();
     }
 
     /**
@@ -833,7 +841,11 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             ((TableReq<?>) req).setMutatingOptions(new MutatingOptions().setMutationId(GUID.create()));
         }
 
-        logger.debug("Starting request {}; {}", builder, req.getArgumentsLogString());
+        if (req instanceof RequestBase) {
+            ((RequestBase<?>) req).setUserAgent(USER_AGENT);
+        }
+
+        logger.debug("Starting request {}; {}; User-Agent: {}", builder, req.getArgumentsLogString(), USER_AGENT);
         req.writeHeaderTo(builder.header());
         req.writeTo(builder);
         return invoke(builder);
