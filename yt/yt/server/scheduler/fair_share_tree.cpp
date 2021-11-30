@@ -135,6 +135,7 @@ public:
         , FairShareUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_fluent_log_time"))
         , FairShareTextLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_text_log_time"))
+        , ScheduleJobsDeadlineReachedCounter_(TreeProfiler_->GetProfiler().Counter("/schedule_jobs_deadline_reached"))
     {
         RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, TreeId_, Logger);
 
@@ -1160,6 +1161,8 @@ private:
     TEventTimer FairShareFluentLogTimer_;
     TEventTimer FairShareTextLogTimer_;
 
+    TCounter ScheduleJobsDeadlineReachedCounter_;
+
     std::atomic<TCpuInstant> LastSchedulingInformationLoggedTime_ = 0;
 
     // NB: Used only in fair share logging invoker.
@@ -1510,6 +1513,10 @@ private:
                     break;
                 }
             }
+
+            if (context->SchedulingContext()->GetNow() >= schedulingDeadline) {
+                ScheduleJobsDeadlineReachedCounter_.Increment();
+            }
         }
     }
 
@@ -1683,6 +1690,10 @@ private:
                 if (scheduleJobResult.Finished) {
                     break;
                 }
+            }
+
+            if (context->SchedulingContext()->GetNow() >= schedulingDeadline) {
+                ScheduleJobsDeadlineReachedCounter_.Increment();
             }
         }
 
