@@ -5,7 +5,7 @@
 //%ENABLE_RPC_PROXY=True
 //%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100}}
 
-#include "yt/yt/tests/cpp/api_test_base.h"
+#include <yt/yt/tests/cpp/test_base/api_test_base.h>
 #include "yt/yt/tests/cpp/modify_rows_test.h"
 
 #include <yt/yt/client/api/client.h>

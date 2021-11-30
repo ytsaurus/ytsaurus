@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/tests/cpp/api_test_base.h>
+#include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
 #include <yt/yt/server/lib/hydra/config.h>
 #include <yt/yt/server/lib/hydra/changelog.h>
