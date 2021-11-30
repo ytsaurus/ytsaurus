@@ -135,6 +135,7 @@ public:
         , FairShareUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_fluent_log_time"))
         , FairShareTextLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_text_log_time"))
+        , CumulativeScheduleJobsTime_(TreeProfiler_->GetProfiler().TimeCounter("/cumulative_schedule_jobs_time"))
         , ScheduleJobsDeadlineReachedCounter_(TreeProfiler_->GetProfiler().Counter("/schedule_jobs_deadline_reached"))
     {
         RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, TreeId_, Logger);
@@ -1160,6 +1161,7 @@ private:
     TEventTimer FairShareUpdateTimer_;
     TEventTimer FairShareFluentLogTimer_;
     TEventTimer FairShareTextLogTimer_;
+    TTimeCounter CumulativeScheduleJobsTime_;
 
     TCounter ScheduleJobsDeadlineReachedCounter_;
 
@@ -1302,6 +1304,8 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl)
     {
+        NProfiling::TWallTimer scheduleJobsTimer;
+
         bool enableSchedulingInfoLogging = false;
         auto now = schedulingContext->GetNow();
         const auto& config = treeSnapshotImpl->TreeConfig();
@@ -1451,6 +1455,8 @@ private:
         }
 
         schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics());
+
+        CumulativeScheduleJobsTime_.Add(scheduleJobsTimer.GetElapsedTime());
     }
 
     void DoScheduleJobsWithoutPreemption(
