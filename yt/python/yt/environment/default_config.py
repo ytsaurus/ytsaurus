@@ -512,6 +512,11 @@ b"""
             heartbeat_period = 100;
             heartbeat_period_splay = 30;
         };
+
+        versioned_chunk_meta_cache = {
+            capacity = 1000000;
+            shard_count = 1;
+        };
     };
 
     query_agent = {
@@ -596,6 +601,10 @@ b"""
     tablet_node = {
         resource_limits ={
             slots = 0;
+        };
+
+        versioned_chunk_meta_cache = {
+            capacity = 0;
         };
     };
 
