@@ -1,4 +1,4 @@
-#include "yt/yt/tests/cpp/api_test_base.h"
+#include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>

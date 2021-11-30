@@ -7,8 +7,7 @@
 
 #include <yt/yt/core/yson/string.h>
 
-namespace NYT {
-namespace NCppTests {
+namespace NYT::NCppTests {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -122,6 +121,4 @@ THashSet<i64> TModifyRowsTest::Keys_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCppTests
-} // namespace NYT
-
+} // namespace NYT::NCppTests

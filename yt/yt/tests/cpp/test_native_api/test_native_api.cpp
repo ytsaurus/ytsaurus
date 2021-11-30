@@ -5,7 +5,7 @@
 //%ENABLE_RPC_PROXY=True
 //%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100}}
 
-#include "yt/yt/tests/cpp/api_test_base.h"
+#include <yt/yt/tests/cpp/test_base/api_test_base.h>
 #include "yt/yt/tests/cpp/modify_rows_test.h"
 
 #include <yt/yt/client/api/rowset.h>
@@ -21,12 +21,10 @@
 #include <yt/yt/ytlib/object_client/public.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -42,8 +40,6 @@
 
 #include <util/random/random.h>
 
-#include <cstdlib>
-#include <functional>
 #include <tuple>
 
 ////////////////////////////////////////////////////////////////////////////////

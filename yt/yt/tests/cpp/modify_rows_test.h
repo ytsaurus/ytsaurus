@@ -1,10 +1,8 @@
 #pragma once
 
-#include "api_test_base.h"
+#include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
-
-namespace NYT {
-namespace NCppTests {
+namespace NYT::NCppTests {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +35,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCppTests
-} // namespace NYT
-
+} // namespace NYT::NCppTests
