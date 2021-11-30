@@ -256,7 +256,7 @@ def _validate_py_schema_impl(py_schema, for_reading, field_path):
         py_schema._check_ti_types_compatible(for_reading=for_reading, field_path=field_path)
     elif isinstance(py_schema, ListSchema):
         validate_not_optional()
-        _validate_py_schema(py_schema._item, for_reading=for_reading, field_path=field_path + ".<list-element>")
+        _validate_py_schema_impl(py_schema._item, for_reading=for_reading, field_path=field_path + ".<list-element>")
     else:
         assert False
 
