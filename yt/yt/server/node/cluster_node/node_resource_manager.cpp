@@ -35,7 +35,6 @@ static const auto& Logger = ClusterNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! These categories have limits that are defined externally in relation to the resource manager and its config.
-//! Resource manager simply skips them while updating limits.
 static const THashSet<EMemoryCategory> ExternalMemoryCategories = {
     EMemoryCategory::BlockCache,
     EMemoryCategory::ChunkMeta,
@@ -333,7 +332,6 @@ TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMe
     const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
     int dynamicCategoryCount = 0;
-    TEnumIndexedVector<EMemoryCategory, i64> newLimits;
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
         auto memoryLimit = getMemoryLimit(category);
         auto& limit = limits[category];
@@ -341,7 +339,9 @@ TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMe
 
         if (ExternalMemoryCategories.contains(category)) {
             limit->Type = EMemoryLimitType::None;
-            limit->Value = memoryUsageTracker->GetLimit(category);
+            auto categoryLimit = memoryUsageTracker->GetLimit(category);
+            limit->Value = categoryLimit;
+            totalDynamicMemory -= categoryLimit;
         } else if (!memoryLimit || !memoryLimit->Type || memoryLimit->Type == EMemoryLimitType::None) {
             limit->Type = EMemoryLimitType::None;
             auto memoryUsage = memoryUsageTracker->GetUsed(category);

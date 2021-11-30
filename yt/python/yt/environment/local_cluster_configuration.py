@@ -141,6 +141,9 @@ NODE_CONFIG_PATCHES = [
                 "heartbeat_period": 300,
                 "heartbeat_period_splay": 50,
             },
+            "versioned_chunk_meta_cache": {
+                "capacity": 1000000,
+            },
         },
         "exec_agent": {
             "job_proxy_heartbeat_period": 100,
