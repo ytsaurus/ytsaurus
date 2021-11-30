@@ -776,7 +776,7 @@ public:
         const auto& controller = operation->GetControllerOrThrow();
 
         auto getOrchidAndCommit = BIND(
-            [controller, this, this_ = MakeStrong(this)] () {
+            [controller, this_ = MakeStrong(this)] () {
                 controller->Commit();
                 // Orchid servece runs on uncancellable invokers, so it is legal to use it after context cancellation.
                 controller->ZombifyOrchid();
