@@ -62,6 +62,7 @@ struct IIOEngine
         TIOEngineHandlePtr Handle;
         i64 Offset = -1;
         std::vector<TSharedRef> Buffers;
+        bool Flush = false;
     };
 
     struct TOpenRequest

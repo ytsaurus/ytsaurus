@@ -81,7 +81,8 @@ std::vector<IIOEngine::TWriteRequest> TIORequestSlicer::Slice(IIOEngine::TWriteR
     NDetail::TBuffersIterator iterator(request.Buffers);
     return SliceRequest<IIOEngine::TWriteRequest>(request, [&] (IIOEngine::TWriteRequest& slice, i64 offset, i64 sliceSize) {
         slice.Offset = offset;
-        slice.Handle = request.Handle; 
+        slice.Handle = request.Handle;
+        slice.Flush = request.Flush;
         slice.Buffers = iterator.Take(sliceSize);
     });
 }
