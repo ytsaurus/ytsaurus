@@ -1081,13 +1081,7 @@ void TClient::SetTabletParams(
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-IClientPtr CreateClient(
+TClientPtr CreateClientImpl(
     const TString& serverName,
     const TCreateClientOptions& options)
 {
@@ -1116,6 +1110,19 @@ IClientPtr CreateClient(
     return new NDetail::TClient(auth, globalTxId, CreateDefaultClientRetryPolicy(retryConfigProvider));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+IClientPtr CreateClient(
+    const TString& serverName,
+    const TCreateClientOptions& options)
+{
+    return NDetail::CreateClientImpl(serverName, options);
+}
+
 IClientPtr CreateClientFromEnv(const TCreateClientOptions& options)
 {
     auto serverName = GetEnv("YT_PROXY");
@@ -1123,7 +1130,7 @@ IClientPtr CreateClientFromEnv(const TCreateClientOptions& options)
         ythrow yexception() << "YT_PROXY is not set";
     }
 
-    return CreateClient(serverName, options);
+    return NDetail::CreateClientImpl(serverName, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
