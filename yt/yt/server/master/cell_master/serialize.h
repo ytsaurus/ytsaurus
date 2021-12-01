@@ -221,6 +221,7 @@ DEFINE_ENUM(EMasterReign,
     ((EnableCrpBuiltinAttribute)                                    (1817))  // shakurov
     ((CrpTokenCountFixes)                                           (1818))  // shakurov
     ((OneMoreChunkMergerOptimization)                               (1819))  // aleksandra-zh
+    ((DoubleSnapshotDivergenceFix)                                  (1820))  // shakurov
     // 22.1 starts here.
     ((EnableCellBalancerInConfig)                                   (1900))  // alexkolodezny
     ((RefFromTabletToDynamicStore)                                  (1901))  // ifsmirnov
