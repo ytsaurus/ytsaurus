@@ -140,7 +140,7 @@ private:
     struct TBandDescriptor
     {
         TCompactVector<TTosLevel, 8> NetworkIdToTosLevel;
-        TTosLevel DefaultTosLevel = DefaultTosLevel;
+        TTosLevel DefaultTosLevel = NYT::NBus::DefaultTosLevel;
     };
 
     const TActionQueuePtr LightQueue_ = New<TActionQueue>("RpcLight");
