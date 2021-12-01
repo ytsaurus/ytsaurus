@@ -80,327 +80,367 @@ static const THashSet<EDataNodeThrottlerKind> DataNodeCompatThrottlers = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(NClusterNode::IBootstrap* bootstrap)
-    : TBootstrapForward(bootstrap)
-    , ClusterNodeBootstrap_(bootstrap)
-{ }
-
-void TBootstrap::Initialize()
+class TBootstrap
+    : public IBootstrap
+    , public TBootstrapBase
 {
-    GetDynamicConfigManager()
-        ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
-    const auto& dynamicConfig = GetDynamicConfigManager()->GetConfig();
+public:
+    explicit TBootstrap(NClusterNode::IBootstrap* bootstrap)
+        : TBootstrapBase(bootstrap)
+        , ClusterNodeBootstrap_(bootstrap)
+    { }
 
-    IOTracker_ = NIO::CreateIOTracker(dynamicConfig->DataNode->IOTracker);
-
-    ChunkStore_ = New<TChunkStore>(GetConfig()->DataNode, this);
-
-    ChunkBlockManager_ = CreateChunkBlockManager(this);
-
-    SessionManager_ = New<TSessionManager>(GetConfig()->DataNode, this);
-
-    MasterConnector_ = CreateMasterConnector(this);
-
-    MediumUpdater_ = New<TMediumUpdater>(this);
-
-    JournalDispatcher_ = CreateJournalDispatcher(this);
-
-    ChunkStore_->Initialize();
-
-    SessionManager_->Initialize();
-
-    for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
-        if (DataNodeCompatThrottlers.contains(kind)) {
-            continue;
-        }
-
-        const auto& initialThrottlerConfig = GetConfig()->DataNode->Throttlers[kind];
-        auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
-            ? ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
-            : initialThrottlerConfig;
-        RawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
-            std::move(throttlerConfig),
-            ToString(kind),
-            DataNodeLogger,
-            DataNodeProfiler.WithPrefix("/throttlers"));
-    }
-    static const THashSet<EDataNodeThrottlerKind> InCombinedDataNodeThrottlerKinds = {
-        EDataNodeThrottlerKind::ReplicationIn,
-        EDataNodeThrottlerKind::RepairIn,
-        EDataNodeThrottlerKind::MergeIn,
-        EDataNodeThrottlerKind::AutotomyIn,
-        EDataNodeThrottlerKind::ArtifactCacheIn,
-        EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
-        EDataNodeThrottlerKind::TabletLoggingIn,
-        EDataNodeThrottlerKind::TabletSnapshotIn,
-        EDataNodeThrottlerKind::TabletStoreFlushIn,
-        EDataNodeThrottlerKind::JobIn,
-    };
-    static const THashSet<EDataNodeThrottlerKind> OutCombinedDataNodeThrottlerKinds = {
-        EDataNodeThrottlerKind::ReplicationOut,
-        EDataNodeThrottlerKind::RepairOut,
-        EDataNodeThrottlerKind::MergeOut,
-        EDataNodeThrottlerKind::AutotomyOut,
-        EDataNodeThrottlerKind::ArtifactCacheOut,
-        EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
-        EDataNodeThrottlerKind::SkynetOut,
-        EDataNodeThrottlerKind::TabletPreloadOut,
-        EDataNodeThrottlerKind::TabletRecoveryOut,
-        EDataNodeThrottlerKind::TabletReplicationOut,
-        EDataNodeThrottlerKind::JobOut,
-    };
-    for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
-        if (DataNodeCompatThrottlers.contains(kind)) {
-            continue;
-        }
-
-        auto throttler = IThroughputThrottlerPtr(RawThrottlers_[kind]);
-        if (InCombinedDataNodeThrottlerKinds.contains(kind)) {
-            throttler = CreateCombinedThrottler({GetTotalInThrottler(), throttler});
-        }
-        if (OutCombinedDataNodeThrottlerKinds.contains(kind)) {
-            throttler = CreateCombinedThrottler({GetTotalOutThrottler(), throttler});
-        }
-        Throttlers_[kind] = throttler;
-    }
-
-    // Should be created after throttlers.
-    AllyReplicaManager_ = CreateAllyReplicaManager(this);
-
-    StorageLookupThreadPool_ = New<TThreadPool>(
-        GetConfig()->DataNode->StorageLookupThreadCount,
-        "StorageLookup");
-    MasterJobThreadPool_ = New<TThreadPool>(
-        dynamicConfig->DataNode->MasterJobThreadCount,
-        "MasterJob");
-
-    BlockPeerTable_ = New<TBlockPeerTable>(this);
-
-    P2PActionQueue_ = New<TActionQueue>("P2P");
-    P2PBlockDistributor_ = New<TP2PBlockDistributor>(this);
-    P2PBlockCache_ = New<TP2PBlockCache>(
-        GetConfig()->DataNode->P2P,
-        P2PActionQueue_->GetInvoker(),
-        GetMemoryUsageTracker()->WithCategory(EMemoryCategory::P2P));
-    P2PSnooper_ = New<TP2PSnooper>(GetConfig()->DataNode->P2P);
-    P2PDistributor_ = New<TP2PDistributor>(
-        GetConfig()->DataNode->P2P,
-        P2PActionQueue_->GetInvoker(),
-        this);
-
-    DiskTracker_ = New<NProfiling::TDiskTracker>();
-    DataNodeProfiler.AddProducer("", DiskTracker_);
-
-    TableSchemaCache_ = New<TTableSchemaCache>(GetConfig()->DataNode->TableSchemaCache);
-
-    RowComparerProvider_ = NTabletClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
-
-    GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
-
-    auto createMasterJob = BIND([this] (
-        NJobAgent::TJobId jobId,
-        NJobAgent::TOperationId /*operationId*/,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        NJobTrackerClient::NProto::TJobSpec&& jobSpec) -> NJobAgent::IJobPtr
+    void Initialize() override
     {
-        return CreateMasterJob(
-            jobId,
-            std::move(jobSpec),
-            resourceLimits,
-            GetConfig()->DataNode,
-            this);
-    });
-    GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::RemoveChunk, createMasterJob);
-    GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::ReplicateChunk, createMasterJob);
-    GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::RepairChunk, createMasterJob);
-    GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::SealChunk, createMasterJob);
-    GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::MergeChunks, createMasterJob);
-    GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::AutotomizeChunk, createMasterJob);
+        GetDynamicConfigManager()
+            ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+        const auto& dynamicConfig = GetDynamicConfigManager()->GetConfig();
 
-    GetJobController()->AddHeartbeatProcessor<TMasterJobHeartbeatProcessor>(EObjectType::MasterJob, this);
-}
+        IOTracker_ = NIO::CreateIOTracker(dynamicConfig->DataNode->IOTracker);
 
-void TBootstrap::Run()
-{
-    SkynetHttpServer_ = NHttp::CreateServer(GetConfig()->CreateSkynetHttpServerConfig());
-    SkynetHttpServer_->AddHandler(
-        "/read_skynet_part",
-        MakeSkynetHttpHandler(this));
+        ChunkStore_ = New<TChunkStore>(GetConfig()->DataNode, this);
 
-    SetNodeByYPath(
-        GetOrchidRoot(),
-        "/stored_chunks",
-        CreateVirtualNode(CreateStoredChunkMapService(ChunkStore_, GetAllyReplicaManager())
-            ->Via(GetControlInvoker())));
+        ChunkBlockManager_ = CreateChunkBlockManager(this);
 
-    SetNodeByYPath(
-        GetOrchidRoot(),
-        "/ally_replica_manager",
-        CreateVirtualNode(AllyReplicaManager_->GetOrchidService()));
+        SessionManager_ = New<TSessionManager>(GetConfig()->DataNode, this);
 
-    MasterConnector_->Initialize();
+        MasterConnector_ = CreateMasterConnector(this);
 
-    MediumUpdater_->Start();
+        MediumUpdater_ = New<TMediumUpdater>(this);
 
-    P2PBlockDistributor_->Start();
-    P2PDistributor_->Start();
+        JournalDispatcher_ = CreateJournalDispatcher(this);
 
-    SkynetHttpServer_->Start();
+        ChunkStore_->Initialize();
 
-    AllyReplicaManager_->Start();
-}
+        SessionManager_->Initialize();
 
-const TChunkStorePtr& TBootstrap::GetChunkStore() const
-{
-    return ChunkStore_;
-}
+        for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+            if (DataNodeCompatThrottlers.contains(kind)) {
+                continue;
+            }
 
-const IAllyReplicaManagerPtr& TBootstrap::GetAllyReplicaManager() const
-{
-    return AllyReplicaManager_;
-}
+            const auto& initialThrottlerConfig = GetConfig()->DataNode->Throttlers[kind];
+            auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
+                ? ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
+                : initialThrottlerConfig;
+            RawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
+                std::move(throttlerConfig),
+                ToString(kind),
+                DataNodeLogger,
+                DataNodeProfiler.WithPrefix("/throttlers"));
+        }
+        static const THashSet<EDataNodeThrottlerKind> InCombinedDataNodeThrottlerKinds = {
+            EDataNodeThrottlerKind::ReplicationIn,
+            EDataNodeThrottlerKind::RepairIn,
+            EDataNodeThrottlerKind::MergeIn,
+            EDataNodeThrottlerKind::AutotomyIn,
+            EDataNodeThrottlerKind::ArtifactCacheIn,
+            EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
+            EDataNodeThrottlerKind::TabletLoggingIn,
+            EDataNodeThrottlerKind::TabletSnapshotIn,
+            EDataNodeThrottlerKind::TabletStoreFlushIn,
+            EDataNodeThrottlerKind::JobIn,
+        };
+        static const THashSet<EDataNodeThrottlerKind> OutCombinedDataNodeThrottlerKinds = {
+            EDataNodeThrottlerKind::ReplicationOut,
+            EDataNodeThrottlerKind::RepairOut,
+            EDataNodeThrottlerKind::MergeOut,
+            EDataNodeThrottlerKind::AutotomyOut,
+            EDataNodeThrottlerKind::ArtifactCacheOut,
+            EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
+            EDataNodeThrottlerKind::SkynetOut,
+            EDataNodeThrottlerKind::TabletPreloadOut,
+            EDataNodeThrottlerKind::TabletRecoveryOut,
+            EDataNodeThrottlerKind::TabletReplicationOut,
+            EDataNodeThrottlerKind::JobOut,
+        };
+        for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+            if (DataNodeCompatThrottlers.contains(kind)) {
+                continue;
+            }
 
-const IChunkBlockManagerPtr& TBootstrap::GetChunkBlockManager() const
-{
-    return ChunkBlockManager_;
-}
-
-const TSessionManagerPtr& TBootstrap::GetSessionManager() const
-{
-    return SessionManager_;
-}
-
-const IMasterConnectorPtr& TBootstrap::GetMasterConnector() const
-{
-    return MasterConnector_;
-}
-
-const TMediumUpdaterPtr& TBootstrap::GetMediumUpdater() const
-{
-    return MediumUpdater_;
-}
-
-const IThroughputThrottlerPtr& TBootstrap::GetThrottler(EDataNodeThrottlerKind kind) const
-{
-    return Throttlers_[kind];
-}
-
-const IThroughputThrottlerPtr& TBootstrap::GetInThrottler(const TWorkloadDescriptor& descriptor) const
-{
-    static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
-        {EWorkloadCategory::SystemRepair,                EDataNodeThrottlerKind::RepairIn},
-        {EWorkloadCategory::SystemReplication,           EDataNodeThrottlerKind::ReplicationIn},
-        {EWorkloadCategory::SystemArtifactCacheDownload, EDataNodeThrottlerKind::ArtifactCacheIn},
-        {EWorkloadCategory::SystemTabletCompaction,      EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn},
-        {EWorkloadCategory::SystemTabletPartitioning,    EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn},
-        {EWorkloadCategory::SystemTabletLogging,         EDataNodeThrottlerKind::TabletLoggingIn},
-        {EWorkloadCategory::SystemTabletSnapshot,        EDataNodeThrottlerKind::TabletSnapshotIn},
-        {EWorkloadCategory::SystemTabletStoreFlush,      EDataNodeThrottlerKind::TabletStoreFlushIn}
-    };
-    auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
-    return it == WorkloadCategoryToThrottlerKind.end()
-        ? GetTotalInThrottler()
-        : Throttlers_[it->second];
-}
-
-const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
-{
-    static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
-        {EWorkloadCategory::SystemRepair,                EDataNodeThrottlerKind::RepairOut},
-        {EWorkloadCategory::SystemReplication,           EDataNodeThrottlerKind::ReplicationOut},
-        {EWorkloadCategory::SystemArtifactCacheDownload, EDataNodeThrottlerKind::ArtifactCacheOut},
-        {EWorkloadCategory::SystemTabletCompaction,      EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut},
-        {EWorkloadCategory::SystemTabletPartitioning,    EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut},
-        {EWorkloadCategory::SystemTabletPreload,         EDataNodeThrottlerKind::TabletPreloadOut},
-        {EWorkloadCategory::SystemTabletRecovery,        EDataNodeThrottlerKind::TabletRecoveryOut},
-        {EWorkloadCategory::SystemTabletReplication,     EDataNodeThrottlerKind::TabletReplicationOut}
-    };
-    auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
-    return it == WorkloadCategoryToThrottlerKind.end()
-        ? GetTotalOutThrottler()
-        : Throttlers_[it->second];
-}
-
-const IJournalDispatcherPtr& TBootstrap::GetJournalDispatcher() const
-{
-    return JournalDispatcher_;
-}
-
-const IInvokerPtr& TBootstrap::GetStorageLookupInvoker() const
-{
-    return StorageLookupThreadPool_->GetInvoker();
-}
-
-const IInvokerPtr& TBootstrap::GetMasterJobInvoker() const
-{
-    return MasterJobThreadPool_->GetInvoker();
-}
-
-const TBlockPeerTablePtr& TBootstrap::GetBlockPeerTable() const
-{
-    return BlockPeerTable_;
-}
-
-const TP2PBlockDistributorPtr& TBootstrap::GetP2PBlockDistributor() const
-{
-    return P2PBlockDistributor_;
-}
-
-const TP2PBlockCachePtr& TBootstrap::GetP2PBlockCache() const
-{
-    return P2PBlockCache_;
-}
-
-const TP2PSnooperPtr& TBootstrap::GetP2PSnooper() const
-{
-    return P2PSnooper_;
-}
-
-const TTableSchemaCachePtr& TBootstrap::GetTableSchemaCache() const
-{
-    return TableSchemaCache_;
-}
-
-const NTabletClient::IRowComparerProviderPtr& TBootstrap::GetRowComparerProvider() const
-{
-    return RowComparerProvider_;
-}
-
-const NIO::IIOTrackerPtr& TBootstrap::GetIOTracker() const
-{
-    return IOTracker_;
-}
-
-void TBootstrap::OnDynamicConfigChanged(
-    const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-    const TClusterNodeDynamicConfigPtr& newConfig)
-{
-    for (auto kind : TEnumTraits<NDataNode::EDataNodeThrottlerKind>::GetDomainValues()) {
-        if (DataNodeCompatThrottlers.contains(kind)) {
-            continue;
+            auto throttler = IThroughputThrottlerPtr(RawThrottlers_[kind]);
+            if (InCombinedDataNodeThrottlerKinds.contains(kind)) {
+                throttler = CreateCombinedThrottler({GetTotalInThrottler(), throttler});
+            }
+            if (OutCombinedDataNodeThrottlerKinds.contains(kind)) {
+                throttler = CreateCombinedThrottler({GetTotalOutThrottler(), throttler});
+            }
+            Throttlers_[kind] = throttler;
         }
 
-        const auto& initialThrottlerConfig = newConfig->DataNode->Throttlers[kind]
-            ? newConfig->DataNode->Throttlers[kind]
-            : GetConfig()->DataNode->Throttlers[kind];
-        auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
-            ? ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
-            : initialThrottlerConfig;
-        RawThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
+        // Should be created after throttlers.
+        AllyReplicaManager_ = CreateAllyReplicaManager(this);
+
+        StorageLookupThreadPool_ = New<TThreadPool>(
+            GetConfig()->DataNode->StorageLookupThreadCount,
+            "StorageLookup");
+        MasterJobThreadPool_ = New<TThreadPool>(
+            dynamicConfig->DataNode->MasterJobThreadCount,
+            "MasterJob");
+
+        BlockPeerTable_ = New<TBlockPeerTable>(this);
+
+        P2PActionQueue_ = New<TActionQueue>("P2P");
+        P2PBlockDistributor_ = New<TP2PBlockDistributor>(this);
+        P2PBlockCache_ = New<TP2PBlockCache>(
+            GetConfig()->DataNode->P2P,
+            P2PActionQueue_->GetInvoker(),
+            GetMemoryUsageTracker()->WithCategory(EMemoryCategory::P2P));
+        P2PSnooper_ = New<TP2PSnooper>(GetConfig()->DataNode->P2P);
+        P2PDistributor_ = New<TP2PDistributor>(
+            GetConfig()->DataNode->P2P,
+            P2PActionQueue_->GetInvoker(),
+            this);
+
+        TableSchemaCache_ = New<TTableSchemaCache>(GetConfig()->DataNode->TableSchemaCache);
+
+        RowComparerProvider_ = NTabletClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
+
+        GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
+
+        auto createMasterJob = BIND([this] (
+            NJobAgent::TJobId jobId,
+            NJobAgent::TOperationId /*operationId*/,
+            const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+            NJobTrackerClient::NProto::TJobSpec&& jobSpec) -> NJobAgent::IJobPtr
+        {
+            return CreateMasterJob(
+                jobId,
+                std::move(jobSpec),
+                resourceLimits,
+                GetConfig()->DataNode,
+                this);
+        });
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::RemoveChunk, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::ReplicateChunk, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::RepairChunk, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::SealChunk, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::MergeChunks, createMasterJob);
+        GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::AutotomizeChunk, createMasterJob);
+
+        GetJobController()->AddHeartbeatProcessor<TMasterJobHeartbeatProcessor>(EObjectType::MasterJob, this);
     }
 
-    StorageLookupThreadPool_->Configure(
-        newConfig->DataNode->StorageLookupThreadCount.value_or(GetConfig()->DataNode->StorageLookupThreadCount));
-    MasterJobThreadPool_->Configure(newConfig->DataNode->MasterJobThreadCount);
+    void Run() override
+    {
+        SkynetHttpServer_ = NHttp::CreateServer(GetConfig()->CreateSkynetHttpServerConfig());
+        SkynetHttpServer_->AddHandler(
+            "/read_skynet_part",
+            MakeSkynetHttpHandler(this));
 
-    TableSchemaCache_->Configure(newConfig->DataNode->TableSchemaCache);
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/stored_chunks",
+            CreateVirtualNode(CreateStoredChunkMapService(ChunkStore_, GetAllyReplicaManager())
+                ->Via(GetControlInvoker())));
 
-    IOTracker_->SetConfig(newConfig->DataNode->IOTracker);
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/ally_replica_manager",
+            CreateVirtualNode(AllyReplicaManager_->GetOrchidService()));
 
-    P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
-    P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);
-    P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
-}
+        MasterConnector_->Initialize();
+
+        MediumUpdater_->Start();
+
+        P2PBlockDistributor_->Start();
+        P2PDistributor_->Start();
+
+        SkynetHttpServer_->Start();
+
+        AllyReplicaManager_->Start();
+    }
+
+    const TChunkStorePtr& GetChunkStore() const override
+    {
+        return ChunkStore_;
+    }
+
+    const IAllyReplicaManagerPtr& GetAllyReplicaManager() const override
+    {
+        return AllyReplicaManager_;
+    }
+
+    const IChunkBlockManagerPtr& GetChunkBlockManager() const override
+    {
+        return ChunkBlockManager_;
+    }
+
+    const TSessionManagerPtr& GetSessionManager() const override
+    {
+        return SessionManager_;
+    }
+
+    const IMasterConnectorPtr& GetMasterConnector() const override
+    {
+        return MasterConnector_;
+    }
+
+    const TMediumUpdaterPtr& GetMediumUpdater() const override
+    {
+        return MediumUpdater_;
+    }
+
+    const IThroughputThrottlerPtr& GetThrottler(EDataNodeThrottlerKind kind) const override
+    {
+        return Throttlers_[kind];
+    }
+
+    const IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const override
+    {
+        static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
+            {EWorkloadCategory::SystemRepair,                EDataNodeThrottlerKind::RepairIn},
+            {EWorkloadCategory::SystemReplication,           EDataNodeThrottlerKind::ReplicationIn},
+            {EWorkloadCategory::SystemArtifactCacheDownload, EDataNodeThrottlerKind::ArtifactCacheIn},
+            {EWorkloadCategory::SystemTabletCompaction,      EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn},
+            {EWorkloadCategory::SystemTabletPartitioning,    EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn},
+            {EWorkloadCategory::SystemTabletLogging,         EDataNodeThrottlerKind::TabletLoggingIn},
+            {EWorkloadCategory::SystemTabletSnapshot,        EDataNodeThrottlerKind::TabletSnapshotIn},
+            {EWorkloadCategory::SystemTabletStoreFlush,      EDataNodeThrottlerKind::TabletStoreFlushIn}
+        };
+        auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
+        return it == WorkloadCategoryToThrottlerKind.end()
+            ? GetTotalInThrottler()
+            : Throttlers_[it->second];
+    }
+
+    const IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const override
+    {
+        static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
+            {EWorkloadCategory::SystemRepair,                EDataNodeThrottlerKind::RepairOut},
+            {EWorkloadCategory::SystemReplication,           EDataNodeThrottlerKind::ReplicationOut},
+            {EWorkloadCategory::SystemArtifactCacheDownload, EDataNodeThrottlerKind::ArtifactCacheOut},
+            {EWorkloadCategory::SystemTabletCompaction,      EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut},
+            {EWorkloadCategory::SystemTabletPartitioning,    EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut},
+            {EWorkloadCategory::SystemTabletPreload,         EDataNodeThrottlerKind::TabletPreloadOut},
+            {EWorkloadCategory::SystemTabletRecovery,        EDataNodeThrottlerKind::TabletRecoveryOut},
+            {EWorkloadCategory::SystemTabletReplication,     EDataNodeThrottlerKind::TabletReplicationOut}
+        };
+        auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
+        return it == WorkloadCategoryToThrottlerKind.end()
+            ? GetTotalOutThrottler()
+            : Throttlers_[it->second];
+    }
+
+    const IJournalDispatcherPtr& GetJournalDispatcher() const override
+    {
+        return JournalDispatcher_;
+    }
+
+    const IInvokerPtr& GetStorageLookupInvoker() const override
+    {
+        return StorageLookupThreadPool_->GetInvoker();
+    }
+
+    const IInvokerPtr& GetMasterJobInvoker() const override
+    {
+        return MasterJobThreadPool_->GetInvoker();
+    }
+
+    const TBlockPeerTablePtr& GetBlockPeerTable() const override
+    {
+        return BlockPeerTable_;
+    }
+
+    const TP2PBlockDistributorPtr& GetP2PBlockDistributor() const override
+    {
+        return P2PBlockDistributor_;
+    }
+
+    const TP2PBlockCachePtr& GetP2PBlockCache() const override
+    {
+        return P2PBlockCache_;
+    }
+
+    const TP2PSnooperPtr& GetP2PSnooper() const override
+    {
+        return P2PSnooper_;
+    }
+
+    const TTableSchemaCachePtr& GetTableSchemaCache() const override
+    {
+        return TableSchemaCache_;
+    }
+
+    const NTabletClient::IRowComparerProviderPtr& GetRowComparerProvider() const override
+    {
+        return RowComparerProvider_;
+    }
+
+    const NIO::IIOTrackerPtr& GetIOTracker() const override
+    {
+        return IOTracker_;
+    }
+
+private:
+    NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
+
+    TChunkStorePtr ChunkStore_;
+    IAllyReplicaManagerPtr AllyReplicaManager_;
+
+    IChunkBlockManagerPtr ChunkBlockManager_;
+
+    TSessionManagerPtr SessionManager_;
+
+    IMasterConnectorPtr MasterConnector_;
+
+    TMediumUpdaterPtr MediumUpdater_;
+
+    TEnumIndexedVector<EDataNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
+    TEnumIndexedVector<EDataNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+
+    IJournalDispatcherPtr JournalDispatcher_;
+
+    TThreadPoolPtr StorageLookupThreadPool_;
+    TThreadPoolPtr MasterJobThreadPool_;
+
+    TActionQueuePtr P2PActionQueue_;
+    TBlockPeerTablePtr BlockPeerTable_;
+    TP2PBlockDistributorPtr P2PBlockDistributor_;
+    TP2PBlockCachePtr P2PBlockCache_;
+    TP2PSnooperPtr P2PSnooper_;
+    TP2PDistributorPtr P2PDistributor_;
+
+    TTableSchemaCachePtr TableSchemaCache_;
+
+    NTabletClient::IRowComparerProviderPtr RowComparerProvider_;
+
+    NHttp::IServerPtr SkynetHttpServer_;
+
+    NIO::IIOTrackerPtr IOTracker_;
+
+    void OnDynamicConfigChanged(
+        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& newConfig)
+    {
+        for (auto kind : TEnumTraits<NDataNode::EDataNodeThrottlerKind>::GetDomainValues()) {
+            if (DataNodeCompatThrottlers.contains(kind)) {
+                continue;
+            }
+
+            const auto& initialThrottlerConfig = newConfig->DataNode->Throttlers[kind]
+                ? newConfig->DataNode->Throttlers[kind]
+                : GetConfig()->DataNode->Throttlers[kind];
+            auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
+                ? ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
+                : initialThrottlerConfig;
+            RawThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
+        }
+
+        StorageLookupThreadPool_->Configure(
+            newConfig->DataNode->StorageLookupThreadCount.value_or(GetConfig()->DataNode->StorageLookupThreadCount));
+        MasterJobThreadPool_->Configure(newConfig->DataNode->MasterJobThreadCount);
+
+        TableSchemaCache_->Configure(newConfig->DataNode->TableSchemaCache);
+
+        IOTracker_->SetConfig(newConfig->DataNode->IOTracker);
+
+        P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
+        P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);
+        P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
