@@ -70,10 +70,6 @@ public:
 
     void SetTouchBufferCapacity(i64 touchBufferCapacity);
 
-    //! Clears the lists and releases the guard.
-    template <typename TGuard>
-    void Clear(TGuard& guard);
-
 protected:
     TDerived* AsDerived()
     {
@@ -168,7 +164,6 @@ public:
     TInsertCookie BeginInsert(const TKey& key);
     void TryRemove(const TKey& key, bool forbidResurrection = false);
     void TryRemoveValue(const TValuePtr& value, bool forbidResurrection = false);
-    void Clear();
 
     void UpdateWeight(const TKey& key);
     void UpdateWeight(const TValuePtr& value);
