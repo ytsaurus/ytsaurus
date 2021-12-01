@@ -12,6 +12,7 @@
 
 namespace NYT::NTableServer {
 
+using namespace NConcurrency;
 using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NYson;
@@ -58,13 +59,24 @@ const NTableClient::TTableSchemaPtr& TMasterTableSchema::AsTableSchema() const
 
 const TFuture<TYsonString>& TMasterTableSchema::AsYsonAsync() const
 {
-    if (!MemoizedYson_) {
-        MemoizedYson_ = BIND([schema = AsTableSchema()] {
-            return NYson::ConvertToYsonString(schema);
-        })
+    // NB: Can be called from local read threads.
+    auto readerGuard = ReaderGuard(MemoizedYsonLock_);
+    if (MemoizedYson_) {
+        return MemoizedYson_;
+    }
+
+    readerGuard.Release();
+    auto writerGuard = WriterGuard(MemoizedYsonLock_);
+    if (MemoizedYson_) {
+        return MemoizedYson_;
+    }
+
+    MemoizedYson_ = BIND([schema = AsTableSchema()] {
+        return NYson::ConvertToYsonString(schema);
+    })
         .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Run();
-    }
+
     return MemoizedYson_;
 }
 

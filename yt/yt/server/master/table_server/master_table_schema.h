@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/compact_flat_map.h>
 
+#include <library/cpp/ytalloc/core/concurrency/rw_spinlock.h>
+
 namespace NYT::NTableServer {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -66,6 +68,7 @@ private:
     NTableClient::TTableSchemaPtr TableSchema_;
 
     mutable TFuture<NYson::TYsonString> MemoizedYson_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MemoizedYsonLock_);
 
     TTableSchemaToObjectMapIterator GetTableSchemaToObjectMapIterator() const;
     void SetTableSchemaToObjectMapIterator(TTableSchemaToObjectMapIterator it);
