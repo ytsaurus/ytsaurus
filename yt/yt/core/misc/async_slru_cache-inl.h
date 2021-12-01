@@ -161,36 +161,6 @@ void TAsyncSlruCacheListManager<TItem, TDerived>::DrainTouchBuffer()
 }
 
 template <class TItem, class TDerived>
-template <class TGuard>
-void TAsyncSlruCacheListManager<TItem, TDerived>::Clear(TGuard& guard)
-{
-    TouchBufferPosition = 0;
-
-    TIntrusiveListWithAutoDelete<TItem, TDelete> youngerLruList;
-    YoungerLruList.Swap(youngerLruList);
-
-    TIntrusiveListWithAutoDelete<TItem, TDelete> olderLruList;
-    OlderLruList.Swap(olderLruList);
-
-    i64 totalYoungerWeight = 0;
-    i64 totalOlderWeight = 0;
-    for (const auto& item : youngerLruList) {
-        totalYoungerWeight += item->CachedWeight;
-    }
-    for (const auto& item : olderLruList) {
-        totalOlderWeight += item->CachedWeight;
-    }
-
-    YoungerWeightCounter -= totalYoungerWeight;
-    OlderWeightCounter -= totalOlderWeight;
-    AsDerived()->OnYoungerUpdated(-std::ssize(youngerLruList), totalYoungerWeight);
-    AsDerived()->OnOlderUpdated(-std::ssize(olderLruList), totalOlderWeight);
-
-    // NB: Lists must die outside the critical section.
-    guard.Release();
-}
-
-template <class TItem, class TDerived>
 void TAsyncSlruCacheListManager<TItem, TDerived>::Reconfigure(i64 capacity, double youngerSizeFraction)
 {
     Capacity = capacity;
@@ -281,29 +251,6 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
         Shards_[index].SetTouchBufferCapacity(touchBufferCapacity);
         Shards_[index].Reconfigure(shardCapacity, Config_->YoungerSizeFraction);
         Shards_[index].Parent = this;
-    }
-}
-
-template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
-{
-    for (int shardIndex = 0; shardIndex < Config_->ShardCount; ++shardIndex) {
-        auto& shard = Shards_[shardIndex];
-
-        auto writerGuard = WriterGuard(shard->SpinLock);
-        Size_ -= std::ssize(shard.ItemMap);
-        shard.ItemMap.clear();
-
-        if (!IsResurrectionSupported()) {
-            for (const auto& [key, rawValue] : shard.ValueMap) {
-                if (auto value = DangerousGetPtr<TValue>(rawValue)) {
-                    value->Cache_.Reset();
-                }
-            }
-            shard.ValueMap.clear();
-        }
-
-        shard.Clear(writerGuard);
     }
 }
 
