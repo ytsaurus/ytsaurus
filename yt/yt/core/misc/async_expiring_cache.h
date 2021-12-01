@@ -92,8 +92,6 @@ protected:
 private:
     const NLogging::TLogger Logger_;
 
-    TAsyncExpiringCacheConfigPtr Config_;
-
     struct TEntry
         : public TRefCounted
     {
@@ -123,6 +121,7 @@ private:
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, TEntryPtr> Map_;
+    TAsyncExpiringCacheConfigPtr Config_;
 
     NProfiling::TCounter HitCounter_;
     NProfiling::TCounter MissedCounter_;
@@ -137,7 +136,7 @@ private:
     void InvokeGetMany(
         const std::vector<TWeakPtr<TEntry>>& entries,
         const std::vector<TKey>& keys,
-        bool isPeriodicUpdate);
+        std::optional<TDuration> periodicRefreshTime);
 
     void InvokeGet(
         const TEntryPtr& entry,
@@ -149,11 +148,14 @@ private:
 
     void UpdateAll();
 
-    void ScheduleRefresh(
+    void ScheduleEntryRefresh(
         const TEntryPtr& entry,
-        const TKey& key);
+        const TKey& key,
+        std::optional<TDuration> refreshTime);
 
     TPromise<TValue> GetPromise(const TEntryPtr& entry) noexcept;
+
+    const TAsyncExpiringCacheConfigPtr& Config() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
