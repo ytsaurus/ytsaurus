@@ -620,29 +620,6 @@ private:
         }));
     }
 
-    void OnTransactionTimedOut(TTransactionId id)
-    {
-        auto* transaction = FindTransaction(id);
-        if (!transaction) {
-            return;
-        }
-
-        if (transaction->GetState() != ETransactionState::Active) {
-            return;
-        }
-
-        YT_LOG_DEBUG("Transaction timed out (TransactionId: %v)",
-            id);
-
-        const auto& transactionSupervisor = Host_->GetTransactionSupervisor();
-        transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
-            if (!error.IsOK()) {
-                YT_LOG_DEBUG(error, "Error aborting timed out transaction (TransactionId: %v)",
-                    id);
-            }
-        }));
-    }
-
     void FinishTransaction(TTransaction* transaction)
     {
         UnregisterPrepareTimestamp(transaction);
