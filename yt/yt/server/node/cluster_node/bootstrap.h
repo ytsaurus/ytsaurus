@@ -185,176 +185,11 @@ struct IBootstrap
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap
-    : public IBootstrap
-{
-public:
-    DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
-    DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
-    DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
-
-public:
-    TBootstrap(TClusterNodeConfigPtr config, NYTree::INodePtr configNode);
-    ~TBootstrap();
-
-    // IBootstrap implementation.
-    void Initialize() override;
-    void Run() override;
-    void ValidateSnapshot(const TString& fileName) override;
-    const IMasterConnectorPtr& GetMasterConnector() const override;
-    NConcurrency::TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
-        const NConcurrency::TRelativeThroughputThrottlerConfigPtr& config) const override;
-    void SetDecommissioned(bool decommissioned) override;
-
-    // IBootstrapBase implementation.
-    const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override;
-    const TNodeResourceManagerPtr& GetNodeResourceManager() const override;
-    const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const override;
-    const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const override;
-    const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override;
-    const TClusterNodeConfigPtr& GetConfig() const override;
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;
-    const IInvokerPtr& GetControlInvoker() const override;
-    const IInvokerPtr& GetJobInvoker() const override;
-    const IInvokerPtr& GetMasterConnectionInvoker() const override;
-    const IInvokerPtr& GetStorageLightInvoker() const override;
-    const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const override;
-    const NApi::NNative::IClientPtr& GetMasterClient() const override;
-    const NApi::NNative::IConnectionPtr& GetMasterConnection() const override;
-    NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) override;
-    NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
-    NObjectClient::TCellId GetCellId() const override;
-    NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const override;
-    const NObjectClient::TCellTagList& GetMasterCellTags() const override;
-    std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
-    const NDataNode::TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const override;
-    bool UseNewHeartbeats() const override;
-    void ResetAndRegisterAtMaster() override;
-    bool IsConnected() const override;
-    NNodeTrackerClient::TNodeId GetNodeId() const override;
-    TString GetLocalHostName() const override;
-    TMasterEpoch GetMasterEpoch() const override;
-    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const override;
-    NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const override;
-    std::optional<TString> GetDefaultNetworkName() const override;
-    TString GetDefaultLocalAddressOrThrow() const override;
-    const NHttp::IServerPtr& GetHttpServer() const override;
-    const NRpc::IServerPtr& GetRpcServer() const override;
-    const NChunkClient::IBlockCachePtr& GetBlockCache() const override;
-    const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const override;
-    const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override;
-    const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override;
-    const NYTree::IMapNodePtr& GetOrchidRoot() const override;
-    bool IsReadOnly() const override;
-    bool Decommissioned() const override;
-    NDataNode::TNetworkStatistics& GetNetworkStatistics() const override;
-    const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override;
-    const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const override;
-    const NJobAgent::TJobControllerPtr& GetJobController() const override;
-    NExecNode::EJobEnvironmentType GetJobEnvironmentType() const override;
-    const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const override;
-
-    bool IsDataNode() const override;
-    bool IsExecNode() const override;
-    bool IsCellarNode() const override;
-    bool IsTabletNode() const override;
-    bool IsChaosNode() const override;
-
-    NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override;
-    NDataNode::IBootstrap* GetDataNodeBootstrap() const override;
-    NExecNode::IBootstrap* GetExecNodeBootstrap() const override;
-    NChaosNode::IBootstrap* GetChaosNodeBootstrap() const override;
-    NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override;
-
-protected:
-    const TClusterNodeConfigPtr Config_;
-    const NYTree::INodePtr ConfigNode_;
-
-    NConcurrency::TActionQueuePtr ControlActionQueue_;
-    NConcurrency::TActionQueuePtr JobActionQueue_;
-    NConcurrency::TThreadPoolPtr ConnectionThreadPool_;
-    NConcurrency::TThreadPoolPtr StorageLightThreadPool_;
-    NConcurrency::TThreadPoolPtr StorageHeavyThreadPool_;
-    IPrioritizedInvokerPtr StorageHeavyInvoker_;
-    NConcurrency::TActionQueuePtr MasterCacheQueue_;
-
-    ICoreDumperPtr CoreDumper_;
-
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-
-    NYT::NBus::IBusServerPtr BusServer_;
-    NRpc::IServerPtr RpcServer_;
-    NHttp::IServerPtr HttpServer_;
-
-    NYTree::IMapNodePtr OrchidRoot_;
-
-    TNodeMemoryTrackerPtr MemoryUsageTracker_;
-    TNodeResourceManagerPtr NodeResourceManager_;
-
-    NConcurrency::IReconfigurableThroughputThrottlerPtr RawTotalInThrottler_;
-    NConcurrency::IThroughputThrottlerPtr TotalInThrottler_;
-
-    NConcurrency::IReconfigurableThroughputThrottlerPtr RawTotalOutThrottler_;
-    NConcurrency::IThroughputThrottlerPtr TotalOutThrottler_;
-
-    NConcurrency::IReconfigurableThroughputThrottlerPtr RawReadRpsOutThrottler_;
-    NConcurrency::IThroughputThrottlerPtr ReadRpsOutThrottler_;
-
-    NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;
-
-    TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
-
-    NApi::NNative::IClientPtr MasterClient_;
-    NApi::NNative::IConnectionPtr MasterConnection_;
-
-    NJobAgent::TJobControllerPtr JobController_;
-
-    IMasterConnectorPtr MasterConnector_;
-    NDataNode::TLegacyMasterConnectorPtr LegacyMasterConnector_;
-
-    NChunkClient::IBlockCachePtr BlockCache_;
-    NChunkClient::IClientBlockCachePtr ClientBlockCache_;
-
-    std::unique_ptr<NDataNode::TNetworkStatistics> NetworkStatistics_;
-
-    NDataNode::IChunkMetaManagerPtr ChunkMetaManager_;
-    NTabletNode::IVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
-
-    NDataNode::IChunkRegistryPtr ChunkRegistry_;
-    NDataNode::IBlobReaderCachePtr BlobReaderCache_;
-
-    TError UnrecognizedOptionsAlert_;
-
-    NObjectClient::TObjectServiceCachePtr ObjectServiceCache_;
-    std::vector<NObjectClient::ICachingObjectServicePtr> CachingObjectServices_;
-
-    THashSet<NNodeTrackerClient::ENodeFlavor> Flavors_;
-
-    std::unique_ptr<NCellarNode::IBootstrap> CellarNodeBootstrap_;
-    std::unique_ptr<NChaosNode::IBootstrap> ChaosNodeBootstrap_;
-    std::unique_ptr<NExecNode::IBootstrap> ExecNodeBootstrap_;
-    std::unique_ptr<NDataNode::IBootstrap> DataNodeBootstrap_;
-    std::unique_ptr<NTabletNode::IBootstrap> TabletNodeBootstrap_;
-
-    bool Decommissioned_ = false;
-
-    void DoInitialize();
-    void DoRun();
-    void DoValidateConfig();
-    void DoValidateSnapshot(const TString& fileName);
-    void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-        const TClusterNodeDynamicConfigPtr& newConfig);
-    void PopulateAlerts(std::vector<TError>* alerts);
-    void OnMasterConnected(NNodeTrackerClient::TNodeId nodeId);
-    void OnMasterDisconnected();
-};
-
 std::unique_ptr<IBootstrap> CreateBootstrap(TClusterNodeConfigPtr config, NYTree::INodePtr configNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrapForward
+class TBootstrapBase
     : public virtual IBootstrapBase
 {
 public:
@@ -363,7 +198,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
 
 public:
-    explicit TBootstrapForward(IBootstrapBase* bootstrap);
+    explicit TBootstrapBase(IBootstrapBase* bootstrap);
 
     const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const override;
