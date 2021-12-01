@@ -89,6 +89,7 @@ public:
         TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterSecondaryMasterAtSecondary, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartSecondaryMasterRegistration, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraSetCellStatistics, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraSetMulticellStatistics, Unretained(this)));
 
         RegisterLoader(
             "MulticellManager.Values",
@@ -312,6 +313,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (!IsMulticell()) {
+            return InvalidCellTag;
+        }
+
         // List candidates.
         TCompactVector<std::pair<TCellTag, i64>, MaxSecondaryMasterCells> candidates;
         auto maybeAddCandidate = [&] (TCellTag cellTag, i64 chunkCount) {
@@ -324,14 +329,9 @@ public:
             candidates.emplace_back(cellTag, chunkCount);
         };
 
-        if (IsSecondaryMaster() && !IsMulticell()) {
-            maybeAddCandidate(
-                GetCellTag(),
-                Bootstrap_->GetChunkManager()->Chunks().size());
-        } else {
-            for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
-                maybeAddCandidate(cellTag, entry.Statistics.chunk_count());
-            }
+
+        for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
+            maybeAddCandidate(cellTag, entry.Statistics.chunk_count());
         }
 
         // Sanity check.
@@ -683,7 +683,7 @@ private:
 
         auto cellTag = request->cell_tag();
         if (!IsValidSecondaryCellTag(cellTag)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Receieved registration request from an unknown secondary cell, ignored (CellTag: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received registration request from an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
             return;
         }
@@ -808,12 +808,7 @@ private:
 
                 LocalCellStatistics_ = request->statistics();
 
-                ClusterCellStatisics_ = LocalCellStatistics_;
-                for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
-                    ClusterCellStatisics_ += entry.Statistics;
-                }
-
-                ClusterCellStatisics_.set_online_node_count(LocalCellStatistics_.online_node_count());
+                RecomputeClusterCellStatistics();
             } else {
                 YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received cell statistics gossip message (CellTag: %v, %v)",
                     cellTag,
@@ -829,6 +824,49 @@ private:
         }
     }
 
+    void HydraSetMulticellStatistics(NProto::TReqSetMulticellStatistics* request) noexcept
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // NB: verifying this cell having the 'Cypress node host' role would
+        // probably be a bit too fragile.
+        YT_VERIFY(IsSecondaryMaster());
+
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received multicell statistics gossip message (%v)",
+            request->statistics());
+
+        for (const auto& cellStatistics : request->statistics()) {
+            auto cellTag = cellStatistics.cell_tag();
+            if (cellTag == GetCellTag()) {
+                // No point in overwriting local statistics - they're persisted
+                // periodically anyway.
+                continue;
+            }
+            auto* entry = GetMasterEntry(cellTag);
+            entry->Statistics = cellStatistics.statistics();
+        }
+
+        RecomputeClusterCellStatistics();
+    }
+
+    void RecomputeClusterCellStatistics()
+    {
+        ClusterCellStatisics_ = {};
+
+        auto addCellStatistics = [&] (TCellTag cellTag, const NProto::TCellStatistics& statistics) {
+            YT_ASSERT(statistics.online_node_count() == 0 || cellTag == GetPrimaryCellTag());
+
+            ClusterCellStatisics_ += statistics;
+            // TODO(shakurov): consider moving this into operator+.
+            ClusterCellStatisics_.set_online_node_count(
+                ClusterCellStatisics_.online_node_count() + statistics.online_node_count());
+        };
+
+        addCellStatistics(GetCellTag(), LocalCellStatistics_);
+        for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
+            addCellStatistics(cellTag, entry.Statistics);
+        }
+    }
 
     bool IsValidSecondaryCellTag(TCellTag cellTag)
     {
@@ -947,9 +985,7 @@ private:
             return;
         }
 
-        NProto::TReqSetCellStatistics localRequest;
-        localRequest.set_cell_tag(GetCellTag());
-        *localRequest.mutable_statistics() = GetTransientLocalCellStatistics();
+        auto localRequest = GetTransientLocalCellStatistics();
 
         YT_LOG_INFO("Sending cell statistics gossip message");
 
@@ -959,31 +995,88 @@ private:
                 ->CommitAndLog(Logger);
 
             // Send statistics to secondary cells.
-            NProto::TReqSetCellStatistics clusterRequest;
-            clusterRequest.set_cell_tag(GetCellTag());
-            *clusterRequest.mutable_statistics() = ClusterCellStatisics_;
 
-            PostToSecondaryMasters(clusterRequest, /*reliable*/ false);
+            if (GetDynamicConfig()->EnablePortalAwareCellStatisticsGossip) {
+                auto allCellTags = GetRegisteredMasterCellTags();
+                std::sort(allCellTags.begin(), allCellTags.end());
+
+                auto portalCellTags = GetRoleMasterCells(EMasterCellRole::CypressNodeHost);
+                YT_VERIFY(std::is_sorted(portalCellTags.begin(), portalCellTags.end()));
+
+                TCellTagList nonPortalCellTags;
+                std::set_difference(
+                    allCellTags.begin(),
+                    allCellTags.end(),
+                    portalCellTags.begin(),
+                    portalCellTags.end(),
+                    std::back_inserter(nonPortalCellTags));
+
+                if (!portalCellTags.empty()) {
+                    auto multicellRequest = GetMulticellStatistics();
+                    PostToMasters(multicellRequest, portalCellTags, /* reliable */ false);
+                }
+
+                if (!nonPortalCellTags.empty()) {
+                    auto clusterRequest = GetClusterCellStatistics();
+                    PostToMasters(clusterRequest, nonPortalCellTags, /* reliable */ false);
+                }
+            } else {
+                auto clusterRequest = GetClusterCellStatistics();
+                PostToSecondaryMasters(clusterRequest, /* reliable */ false);
+            }
         } else {
             PostToPrimaryMaster(localRequest, /*reliable*/ false);
         }
     }
 
-    NProto::TCellStatistics GetTransientLocalCellStatistics()
+    NProto::TReqSetCellStatistics GetTransientLocalCellStatistics()
     {
-        NProto::TCellStatistics result;
+        NProto::TReqSetCellStatistics result;
+        result.set_cell_tag(GetCellTag());
+        auto* cellStatistics = result.mutable_statistics();
+
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        result.set_chunk_count(chunkManager->Chunks().GetSize());
-        result.set_lost_vital_chunk_count(chunkManager->LostVitalChunks().size());
+        cellStatistics->set_chunk_count(chunkManager->Chunks().GetSize());
+        cellStatistics->set_lost_vital_chunk_count(chunkManager->LostVitalChunks().size());
 
         if (IsPrimaryMaster()) {
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-            result.set_online_node_count(nodeTracker->GetOnlineNodeCount());
+            cellStatistics->set_online_node_count(nodeTracker->GetOnlineNodeCount());
         }
 
         return result;
     }
 
+    NProto::TReqSetCellStatistics GetClusterCellStatistics()
+    {
+        YT_VERIFY(IsPrimaryMaster());
+
+        NProto::TReqSetCellStatistics result;
+        result.set_cell_tag(GetCellTag());
+        *result.mutable_statistics() = ClusterCellStatisics_;
+
+        return result;
+    }
+
+    NProto::TReqSetMulticellStatistics GetMulticellStatistics()
+    {
+        YT_VERIFY(IsPrimaryMaster());
+
+        NProto::TReqSetMulticellStatistics result;
+
+        auto addCellStatistics = [&] (TCellTag cellTag, const NProto::TCellStatistics& statistics) {
+            auto* cellStatistics = result.add_statistics();
+            cellStatistics->set_cell_tag(cellTag);
+            *cellStatistics->mutable_statistics() = statistics;
+        };
+
+        addCellStatistics(GetCellTag(), LocalCellStatistics_);
+        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
+            addCellStatistics(cellTag, entry.Statistics);
+        }
+
+        return result;
+    }
 
     static TFuture<void> DoSyncWithUpstream(const TWeakPtr<TImpl>& weakThis)
     {

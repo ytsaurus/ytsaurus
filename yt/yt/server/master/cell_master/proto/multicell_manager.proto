@@ -37,4 +37,9 @@ message TReqSetCellStatistics
     required TCellStatistics statistics = 2;
 }
 
+message TReqSetMulticellStatistics
+{
+    repeated TReqSetCellStatistics statistics = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
