@@ -65,6 +65,13 @@ public:
     template <class T>
     void AddSample(const NYPath::TYPath& path, const T& sample);
 
+    void ReplacePathWithSample(const NYPath::TYPath& path, i64 sample);
+
+    void ReplacePathWithSample(const NYPath::TYPath& path, const NYTree::INodePtr& sample);
+
+    template <class T>
+    void ReplacePathWithSample(const NYPath::TYPath& path, const T& sample);
+
     void Merge(const TStatistics& statistics);
 
     void AddSuffixToNames(const TString& suffix);
@@ -79,6 +86,9 @@ public:
     void Persist(const TStreamPersistenceContext& context);
 
 private:
+    template <class TCallback>
+    void ProcessNodeWithCallback(const NYPath::TYPath& path, const NYTree::INodePtr& sample, TCallback callback);
+
     TSummary& GetSummary(const NYPath::TYPath& path);
 
     friend class TStatisticsBuildingConsumer;

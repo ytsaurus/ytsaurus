@@ -7,7 +7,8 @@ from yt_env_setup import (
 from yt_commands import (
     authors, get_job, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls,
     get, set, exists,
-    create_pool, create_pool_tree, write_table, map, run_sleeping_vanilla, abort_job, get_operation_cypress_path, get_statistics, update_pool_tree_config)
+    create_pool, create_pool_tree, write_table, map, run_test_vanilla, run_sleeping_vanilla, abort_job,
+    get_operation_cypress_path, get_statistics, update_pool_tree_config)
 
 from yt_helpers import profiler_factory
 
@@ -624,3 +625,34 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: profiler.gauge("scheduler/undistributed_resources/cpu").get() == 1)
         wait(lambda: profiler.gauge("scheduler/undistributed_resource_flow/cpu").get() == 0)
         wait(lambda: profiler.gauge("scheduler/undistributed_burst_guarantee_resources/cpu").get() == 0)
+
+    @authors("pogorelov")
+    def test_total_time_metric(self):
+        create_pool("research")
+        op = run_test_vanilla(with_breakpoint("sleep 2; BREAKPOINT"), spec={"pool": "research"}, job_count=1)
+
+        research_profiler = profiler_factory().at_scheduler(
+            fixed_tags={"tree": "default", "pool": "research"})
+        total_time_counter = research_profiler.counter("scheduler/pools/metrics/total_time")
+        exec_time_counter = research_profiler.counter("scheduler/pools/metrics/exec_time")
+
+        wait_breakpoint()
+
+        job_ids = list(op.get_running_jobs())
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        abort_job(job_id)
+
+        def get_total_time_delta():
+            total_time = total_time_counter.get()
+            result = total_time - get_total_time_delta.previous_total_time
+            get_total_time_delta.previous_total_time = total_time
+            return result
+
+        get_total_time_delta.previous_total_time = 0
+
+        wait(lambda: get_total_time_delta() == 0, sleep_backoff=1)
+
+        # Total and exec times should not differ much.
+        assert total_time_counter.get() - exec_time_counter.get() < 1500

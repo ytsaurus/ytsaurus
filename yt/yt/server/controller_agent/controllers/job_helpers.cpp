@@ -201,7 +201,7 @@ void ParseStatistics(
     {
         auto endTime = std::max(jobSummary->FinishTime ? *jobSummary->FinishTime : TInstant::Now(), lastUpdateTime);
         auto duration = endTime - startTime;
-        statistics->AddSample("/time/total", duration.MilliSeconds());
+        statistics->ReplacePathWithSample("/time/total", duration.MilliSeconds());
     }
 
     jobSummary->StatisticsYson = ConvertToYsonString(statistics);
