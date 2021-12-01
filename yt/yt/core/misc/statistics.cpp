@@ -134,13 +134,35 @@ void TStatistics::AddSample(const NYPath::TYPath& path, i64 sample)
 
 void TStatistics::AddSample(const NYPath::TYPath& path, const INodePtr& sample)
 {
+    ProcessNodeWithCallback(path, sample, [this] (const auto&... args) {
+        AddSample(args...);
+    });
+}
+
+void TStatistics::ReplacePathWithSample(const NYPath::TYPath& path, const i64 sample)
+{
+    auto& summary = GetSummary(path);
+    summary.Reset();
+    summary.AddSample(sample);
+}
+
+void TStatistics::ReplacePathWithSample(const NYPath::TYPath& path, const INodePtr& sample)
+{
+    ProcessNodeWithCallback(path, sample, [this] (const auto&... args) {
+        ReplacePathWithSample(args...);
+    });
+}
+
+template <class TCallback>
+void TStatistics::ProcessNodeWithCallback(const NYPath::TYPath& path, const NYTree::INodePtr& sample, TCallback callback)
+{
     switch (sample->GetType()) {
         case ENodeType::Int64:
-            AddSample(path, sample->AsInt64()->GetValue());
+            callback(path, sample->AsInt64()->GetValue());
             break;
 
         case ENodeType::Uint64:
-            AddSample(path, static_cast<i64>(sample->AsUint64()->GetValue()));
+            callback(path, static_cast<i64>(sample->AsUint64()->GetValue()));
             break;
 
         case ENodeType::Map:
@@ -149,7 +171,7 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const INodePtr& sample)
                     THROW_ERROR_EXCEPTION("Statistic cannot have an empty name")
                         << TErrorAttribute("path_prefix", path);
                 }
-                AddSample(path + "/" + ToYPathLiteral(key), child);
+                callback(path + "/" + ToYPathLiteral(key), child);
             }
             break;
 

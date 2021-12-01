@@ -14,6 +14,12 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const T& sample)
     AddSample(path, NYTree::ConvertToNode(sample));
 }
 
+template <class T>
+void TStatistics::ReplacePathWithSample(const NYPath::TYPath& path, const T& sample)
+{
+    ReplacePathWithSample(path, NYTree::ConvertToNode(sample));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
