@@ -85,11 +85,11 @@ private:
 
 class TBootstrap
     : public IBootstrap
-    , public NClusterNode::TBootstrapBase
+    , public NClusterNode::TBootstrapForward
 {
 public:
     explicit TBootstrap(NClusterNode::IBootstrap* bootstrap)
-        : TBootstrapBase(bootstrap)
+        : TBootstrapForward(bootstrap)
         , ClusterNodeBootstrap_(bootstrap)
     { }
 
