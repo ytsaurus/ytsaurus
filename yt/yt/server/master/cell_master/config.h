@@ -191,6 +191,9 @@ public:
     // COMPAT(aleksandra-zh)
     THashMap<NObjectServer::TCellTag, EMasterCellRoles> CellRoles;
 
+    // COMPAT(shakurov): make this the default.
+    bool EnablePortalAwareCellStatisticsGossip;
+
     TDynamicMulticellManagerConfig()
     {
         RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
@@ -201,6 +204,10 @@ public:
 
         RegisterParameter("cell_descriptors", CellDescriptors)
             .Default();
+
+        RegisterParameter("enable_portal_aware_cell_statistics_gossip", EnablePortalAwareCellStatisticsGossip)
+            .Default(false)
+            .DontSerializeDefault();
 
         RegisterPostprocessor([&] () {
             for (const auto& [cellTag, cellRoles] : CellRoles) {
