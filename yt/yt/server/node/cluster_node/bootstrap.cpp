@@ -82,11 +82,9 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#ifdef __linux__
 #include <yt/yt/server/lib/containers/instance.h>
 #include <yt/yt/server/lib/containers/instance_limits_tracker.h>
 #include <yt/yt/server/lib/containers/porto_executor.h>
-#endif
 
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
 
@@ -226,971 +224,879 @@ static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap
-    : public IBootstrap
+TBootstrap::TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
+    : Config_(std::move(config))
+    , ConfigNode_(std::move(configNode))
+{ }
+
+TBootstrap::~TBootstrap()
+{ }
+
+void TBootstrap::Initialize()
 {
-public:
-    DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
-    DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
-    DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
+    ControlActionQueue_ = New<TActionQueue>("Control");
+    JobActionQueue_ = New<TActionQueue>("Job");
 
-public:
-    TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
-        : Config_(std::move(config))
-        , ConfigNode_(std::move(configNode))
-    { }
+    BIND(&TBootstrap::DoInitialize, this)
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
+}
 
-    // IBootstrap implementation.
-    void Initialize() override
-    {
-        ControlActionQueue_ = New<TActionQueue>("Control");
-        JobActionQueue_ = New<TActionQueue>("Job");
+void TBootstrap::Run()
+{
+    BIND(&TBootstrap::DoRun, this)
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
 
-        BIND(&TBootstrap::DoInitialize, this)
-            .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
+    Sleep(TDuration::Max());
+}
+
+void TBootstrap::ValidateSnapshot(const TString& fileName)
+{
+    BIND(&TBootstrap::DoValidateSnapshot, this, fileName)
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
+}
+
+const IMasterConnectorPtr& TBootstrap::GetMasterConnector() const
+{
+    return MasterConnector_;
+}
+
+TRelativeThroughputThrottlerConfigPtr TBootstrap::PatchRelativeNetworkThrottlerConfig(
+    const TRelativeThroughputThrottlerConfigPtr& config) const
+{
+    // NB: Absolute value limit suppresses relative one.
+    if (config->Limit || !config->RelativeLimit) {
+        return config;
     }
 
-    void Run() override
-    {
-        BIND(&TBootstrap::DoRun, this)
-            .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
+    auto patchedConfig = CloneYsonSerializable(config);
+    patchedConfig->Limit = *config->RelativeLimit * Config_->NetworkBandwidth;
 
-        Sleep(TDuration::Max());
-    }
+    return patchedConfig;
+}
 
-    void ValidateSnapshot(const TString& fileName) override
-    {
-        BIND(&TBootstrap::DoValidateSnapshot, this, fileName)
-            .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
-    }
+void TBootstrap::SetDecommissioned(bool decommissioned)
+{
+    Decommissioned_ = decommissioned;
+}
 
-    const IMasterConnectorPtr& GetMasterConnector() const override
-    {
-        return MasterConnector_;
-    }
+// IBootstrapBase implementation.
+const TNodeMemoryTrackerPtr& TBootstrap::GetMemoryUsageTracker() const
+{
+    return MemoryUsageTracker_;
+}
 
-    TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
-        const TRelativeThroughputThrottlerConfigPtr& config) const override
-    {
-        // NB: Absolute value limit suppresses relative one.
-        if (config->Limit || !config->RelativeLimit) {
-            return config;
+const TNodeResourceManagerPtr& TBootstrap::GetNodeResourceManager() const
+{
+    return NodeResourceManager_;
+}
+
+const NConcurrency::IThroughputThrottlerPtr& TBootstrap::GetTotalInThrottler() const
+{
+    return TotalInThrottler_;
+}
+
+const NConcurrency::IThroughputThrottlerPtr& TBootstrap::GetTotalOutThrottler() const
+{
+    return TotalOutThrottler_;
+}
+
+const NConcurrency::IThroughputThrottlerPtr& TBootstrap::GetReadRpsOutThrottler() const
+{
+    return ReadRpsOutThrottler_;
+}
+
+const TClusterNodeConfigPtr& TBootstrap::GetConfig() const
+{
+    return Config_;
+}
+
+const NClusterNode::TClusterNodeDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
+{
+    return DynamicConfigManager_;
+}
+
+const IInvokerPtr& TBootstrap::GetControlInvoker() const
+{
+    return ControlActionQueue_->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetJobInvoker() const
+{
+    return JobActionQueue_->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetMasterConnectionInvoker() const
+{
+    return MasterConnector_->GetMasterConnectionInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const
+{
+    return StorageLightThreadPool_->GetInvoker();
+}
+
+const IPrioritizedInvokerPtr& TBootstrap::GetStorageHeavyInvoker() const
+{
+    return StorageHeavyInvoker_;
+}
+
+const NApi::NNative::IClientPtr& TBootstrap::GetMasterClient() const
+{
+    return MasterClient_;
+}
+
+const NApi::NNative::IConnectionPtr& TBootstrap::GetMasterConnection() const
+{
+    return MasterConnection_;
+}
+
+IChannelPtr TBootstrap::GetMasterChannel(TCellTag cellTag)
+{
+    return MasterConnector_->GetMasterChannel(cellTag);
+}
+
+TNodeDescriptor TBootstrap::GetLocalDescriptor() const
+{
+    return MasterConnector_->GetLocalDescriptor();
+}
+
+TCellId TBootstrap::GetCellId() const
+{
+    return Config_->ClusterConnection->PrimaryMaster->CellId;
+}
+
+TCellId TBootstrap::GetCellId(TCellTag cellTag) const
+{
+    return cellTag == PrimaryMasterCellTag
+        ? GetCellId()
+        : ReplaceCellTagInId(GetCellId(), cellTag);
+}
+
+const TCellTagList& TBootstrap::GetMasterCellTags() const
+{
+    return MasterConnector_->GetMasterCellTags();
+}
+
+std::vector<TString> TBootstrap::GetMasterAddressesOrThrow(TCellTag cellTag) const
+{
+    // TODO(babenko): handle service discovery.
+    auto unwrapAddresses = [&] (const auto& optionalAddresses) {
+        if (!optionalAddresses) {
+            THROW_ERROR_EXCEPTION("Missing addresses for master cell with tag %v", cellTag);
         }
+        return *optionalAddresses;
+    };
 
-        auto patchedConfig = CloneYsonSerializable(config);
-        patchedConfig->Limit = *config->RelativeLimit * Config_->NetworkBandwidth;
+    auto cellId = GetCellId(cellTag);
 
-        return patchedConfig;
+    if (Config_->ClusterConnection->PrimaryMaster->CellId == cellId) {
+        return unwrapAddresses(Config_->ClusterConnection->PrimaryMaster->Addresses);
     }
 
-    void SetDecommissioned(bool decommissioned) override
-    {
-        Decommissioned_ = decommissioned;
-    }
-
-    // IBootstrapBase implementation.
-    const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override
-    {
-        return MemoryUsageTracker_;
-    }
-
-    const TNodeResourceManagerPtr& GetNodeResourceManager() const override
-    {
-        return NodeResourceManager_;
-    }
-
-    const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const override
-    {
-        return TotalInThrottler_;
-    }
-
-    const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const override
-    {
-        return TotalOutThrottler_;
-    }
-
-    const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override
-    {
-        return ReadRpsOutThrottler_;
-    }
-
-    const TClusterNodeConfigPtr& GetConfig() const override
-    {
-        return Config_;
-    }
-
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
-    {
-        return DynamicConfigManager_;
-    }
-
-    const IInvokerPtr& GetControlInvoker() const override
-    {
-        return ControlActionQueue_->GetInvoker();
-    }
-
-    const IInvokerPtr& GetJobInvoker() const override
-    {
-        return JobActionQueue_->GetInvoker();
-    }
-
-    const IInvokerPtr& GetMasterConnectionInvoker() const override
-    {
-        return MasterConnector_->GetMasterConnectionInvoker();
-    }
-
-    const IInvokerPtr& GetStorageLightInvoker() const override
-    {
-        return StorageLightThreadPool_->GetInvoker();
-    }
-
-    const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const override
-    {
-        return StorageHeavyInvoker_;
-    }
-
-    const NApi::NNative::IClientPtr& GetMasterClient() const override
-    {
-        return MasterClient_;
-    }
-
-    const NApi::NNative::IConnectionPtr& GetMasterConnection() const override
-    {
-        return MasterConnection_;
-    }
-
-    IChannelPtr GetMasterChannel(TCellTag cellTag) override
-    {
-        return MasterConnector_->GetMasterChannel(cellTag);
-    }
-
-    TNodeDescriptor GetLocalDescriptor() const override
-    {
-        return MasterConnector_->GetLocalDescriptor();
-    }
-
-    TCellId GetCellId() const override
-    {
-        return Config_->ClusterConnection->PrimaryMaster->CellId;
-    }
-
-    TCellId GetCellId(TCellTag cellTag) const override
-    {
-        return cellTag == PrimaryMasterCellTag
-            ? GetCellId()
-            : ReplaceCellTagInId(GetCellId(), cellTag);
-    }
-
-    const TCellTagList& GetMasterCellTags() const override
-    {
-        return MasterConnector_->GetMasterCellTags();
-    }
-
-    std::vector<TString> GetMasterAddressesOrThrow(TCellTag cellTag) const override
-    {
-        // TODO(babenko): handle service discovery.
-        auto unwrapAddresses = [&] (const auto& optionalAddresses) {
-            if (!optionalAddresses) {
-                THROW_ERROR_EXCEPTION("Missing addresses for master cell with tag %v", cellTag);
-            }
-            return *optionalAddresses;
-        };
-
-        auto cellId = GetCellId(cellTag);
-
-        if (Config_->ClusterConnection->PrimaryMaster->CellId == cellId) {
-            return unwrapAddresses(Config_->ClusterConnection->PrimaryMaster->Addresses);
+    for (const auto& secondaryMaster : Config_->ClusterConnection->SecondaryMasters) {
+        if (secondaryMaster->CellId == cellId) {
+            return unwrapAddresses(secondaryMaster->Addresses);
         }
-
-        for (const auto& secondaryMaster : Config_->ClusterConnection->SecondaryMasters) {
-            if (secondaryMaster->CellId == cellId) {
-                return unwrapAddresses(secondaryMaster->Addresses);
-            }
-        }
-
-        THROW_ERROR_EXCEPTION("Master with cell tag %v is not known", cellTag);
     }
 
-    const TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const override
-    {
-        return LegacyMasterConnector_;
+    THROW_ERROR_EXCEPTION("Master with cell tag %v is not known", cellTag);
+}
+
+const TLegacyMasterConnectorPtr& TBootstrap::GetLegacyMasterConnector() const
+{
+    return LegacyMasterConnector_;
+}
+
+bool TBootstrap::UseNewHeartbeats() const
+{
+    return MasterConnector_->UseNewHeartbeats();
+}
+
+void TBootstrap::ResetAndRegisterAtMaster()
+{
+    return MasterConnector_->ResetAndRegisterAtMaster();
+}
+
+bool TBootstrap::IsConnected() const
+{
+    return MasterConnector_->IsConnected();
+}
+
+TNodeId TBootstrap::GetNodeId() const
+{
+    return MasterConnector_->GetNodeId();
+}
+
+TString TBootstrap::GetLocalHostName() const
+{
+    return MasterConnector_->GetLocalHostName();
+}
+
+TMasterEpoch TBootstrap::GetMasterEpoch() const
+{
+    return MasterConnector_->GetEpoch();
+}
+
+const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
+{
+    return MasterConnection_->GetNodeDirectory();
+}
+
+TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
+{
+    return Config_->Addresses.empty()
+        ? DefaultNetworkPreferences
+        : GetIths<0>(Config_->Addresses);
+}
+
+std::optional<TString> TBootstrap::GetDefaultNetworkName() const
+{
+    return Config_->BusServer->DefaultNetwork;
+}
+
+TString TBootstrap::GetDefaultLocalAddressOrThrow() const
+{
+    auto addressMap = GetLocalAddresses(
+        Config_->Addresses,
+        Config_->RpcPort);
+    auto defaultNetwork = GetDefaultNetworkName();
+
+    if (!defaultNetwork) {
+        THROW_ERROR_EXCEPTION("Default network is not configured");
     }
 
-    bool UseNewHeartbeats() const override
-    {
-        return MasterConnector_->UseNewHeartbeats();
+    if (!addressMap.contains(*defaultNetwork)) {
+        THROW_ERROR_EXCEPTION("Address for the default network is not configured");
     }
 
-    void ResetAndRegisterAtMaster() override
-    {
-        return MasterConnector_->ResetAndRegisterAtMaster();
+    return addressMap[*defaultNetwork];
+}
+
+const NHttp::IServerPtr& TBootstrap::GetHttpServer() const
+{
+    return HttpServer_;
+}
+
+const NRpc::IServerPtr& TBootstrap::GetRpcServer() const
+{
+    return RpcServer_;
+}
+
+const IBlockCachePtr& TBootstrap::GetBlockCache() const
+{
+    return BlockCache_;
+}
+
+const IClientBlockCachePtr& TBootstrap::GetClientBlockCache() const
+{
+    return ClientBlockCache_;
+}
+
+const IChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const
+{
+    return ChunkMetaManager_;
+}
+
+const IVersionedChunkMetaManagerPtr& TBootstrap::GetVersionedChunkMetaManager() const
+{
+    return VersionedChunkMetaManager_;
+}
+
+const NYTree::IMapNodePtr& TBootstrap::GetOrchidRoot() const
+{
+    return OrchidRoot_;
+}
+
+bool TBootstrap::IsReadOnly() const
+{
+    // TOOD(gritukan): Make node without dynamic config read-only after YT-12933.
+    return false;
+}
+
+bool TBootstrap::Decommissioned() const
+{
+    return Decommissioned_;
+}
+
+NDataNode::TNetworkStatistics& TBootstrap::GetNetworkStatistics() const
+{
+    return *NetworkStatistics_;
+}
+
+const IChunkRegistryPtr& TBootstrap::GetChunkRegistry() const
+{
+    return ChunkRegistry_;
+}
+
+const IBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const
+{
+    return BlobReaderCache_;
+}
+
+const TJobControllerPtr& TBootstrap::GetJobController() const
+{
+    return JobController_;
+}
+
+EJobEnvironmentType TBootstrap::GetJobEnvironmentType() const
+{
+    const auto& slotManagerConfig = Config_->ExecNode->SlotManager;
+    return ConvertTo<EJobEnvironmentType>(slotManagerConfig->JobEnvironment->AsMap()->FindChild("type"));
+}
+
+const THashSet<ENodeFlavor>& TBootstrap::GetFlavors() const
+{
+    return Flavors_;
+}
+
+bool TBootstrap::IsDataNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Data);
+}
+
+bool TBootstrap::IsExecNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Exec);
+}
+
+bool TBootstrap::IsCellarNode() const
+{
+    return IsTabletNode() || IsChaosNode();
+}
+
+bool TBootstrap::IsTabletNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Tablet);
+}
+
+bool TBootstrap::IsChaosNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Chaos);
+}
+
+NCellarNode::IBootstrap* TBootstrap::GetCellarNodeBootstrap() const
+{
+    return CellarNodeBootstrap_.get();
+}
+
+NDataNode::IBootstrap* TBootstrap::GetDataNodeBootstrap() const
+{
+    return DataNodeBootstrap_.get();
+}
+
+NExecNode::IBootstrap* TBootstrap::GetExecNodeBootstrap() const
+{
+    return ExecNodeBootstrap_.get();
+}
+
+NChaosNode::IBootstrap* TBootstrap::GetChaosNodeBootstrap() const
+{
+    return ChaosNodeBootstrap_.get();
+}
+
+NTabletNode::IBootstrap* TBootstrap::GetTabletNodeBootstrap() const
+{
+    return TabletNodeBootstrap_.get();
+}
+
+void TBootstrap::DoInitialize()
+{
+    auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+
+    SetExplodeOnNullRowRowBufferDeserialization();
+
+    if (!Config_->ClusterConnection->Networks) {
+        Config_->ClusterConnection->Networks = GetLocalNetworks();
     }
 
-    bool IsConnected() const override
     {
-        return MasterConnector_->IsConnected();
+        const auto& flavors = Config_->Flavors;
+        Flavors_ = THashSet<ENodeFlavor>(flavors.begin(), flavors.end());
     }
 
-    TNodeId GetNodeId() const override
-    {
-        return MasterConnector_->GetNodeId();
+    YT_LOG_INFO("Initializing node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v, Flavors: %v)",
+        GetValues(localRpcAddresses),
+        Config_->ClusterConnection->PrimaryMaster->Addresses,
+        Config_->Tags,
+        Flavors_);
+
+    // NB: Connection thread pool is required for dynamic config manager
+    // initialization, so it is created before other thread pools.
+    ConnectionThreadPool_ = New<TThreadPool>(
+        Config_->ClusterConnection->ThreadPoolSize,
+        "Connection");
+
+    NApi::NNative::TConnectionOptions connectionOptions;
+    connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
+    connectionOptions.BlockCache = GetBlockCache();
+    MasterConnection_ = NApi::NNative::CreateConnection(
+        Config_->ClusterConnection,
+        std::move(connectionOptions));
+
+    MasterClient_ = MasterConnection_->CreateNativeClient(
+        TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+    MemoryUsageTracker_ = New<TNodeMemoryTracker>(
+        Config_->ResourceLimits->TotalMemory,
+        std::vector<std::pair<EMemoryCategory, i64>>{},
+        Logger,
+        ClusterNodeProfiler.WithPrefix("/memory_usage"));
+
+    MasterCacheQueue_ = New<TActionQueue>("MasterCache");
+    StorageHeavyThreadPool_ = New<TThreadPool>(
+        Config_->DataNode->StorageHeavyThreadCount,
+        "StorageHeavy");
+    StorageHeavyInvoker_ = CreatePrioritizedInvoker(StorageHeavyThreadPool_->GetInvoker());
+    StorageLightThreadPool_ = New<TThreadPool>(
+        Config_->DataNode->StorageLightThreadCount,
+        "StorageLight");
+
+    auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
+        return PatchRelativeNetworkThrottlerConfig(Config_->DataNode->Throttlers[kind]);
+    };
+
+    RawTotalInThrottler_ = CreateNamedReconfigurableThroughputThrottler(
+        getThrottlerConfig(EDataNodeThrottlerKind::TotalIn),
+        "TotalIn",
+        ClusterNodeLogger,
+        ClusterNodeProfiler.WithPrefix("/throttlers"));
+    TotalInThrottler_ = IThroughputThrottlerPtr(RawTotalInThrottler_);
+
+    RawTotalOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
+        getThrottlerConfig(EDataNodeThrottlerKind::TotalOut),
+        "TotalOut",
+        ClusterNodeLogger,
+        ClusterNodeProfiler.WithPrefix("/throttlers"));
+    TotalOutThrottler_ = IThroughputThrottlerPtr(RawTotalOutThrottler_);
+
+    RawReadRpsOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
+        getThrottlerConfig(EDataNodeThrottlerKind::ReadRpsOut),
+        "ReadRpsOut",
+        ClusterNodeLogger,
+        ClusterNodeProfiler.WithPrefix("/throttlers"));
+    ReadRpsOutThrottler_ = IThroughputThrottlerPtr(RawReadRpsOutThrottler_);
+
+    BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
+        Config_->DataNode->BlockCache,
+        EBlockType::UncompressedData | EBlockType::CompressedData,
+        MemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
+        DataNodeProfiler.WithPrefix("/block_cache"));
+
+    BusServer_ = CreateTcpBusServer(Config_->BusServer);
+
+    RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
+
+    auto createBatchingChunkService = [&] (const auto& config) {
+        RpcServer_->RegisterService(CreateBatchingChunkService(
+            config->CellId,
+            Config_->BatchingChunkService,
+            config,
+            MasterConnection_->GetChannelFactory()));
+    };
+
+    createBatchingChunkService(Config_->ClusterConnection->PrimaryMaster);
+    for (const auto& config : Config_->ClusterConnection->SecondaryMasters) {
+        createBatchingChunkService(config);
     }
 
-    TString GetLocalHostName() const override
-    {
-        return MasterConnector_->GetLocalHostName();
+    LegacyMasterConnector_ = New<NDataNode::TLegacyMasterConnector>(Config_->DataNode, Config_->Tags, this);
+
+    MasterConnector_ = NClusterNode::CreateMasterConnector(
+        this,
+        localRpcAddresses,
+        NYT::GetLocalAddresses(Config_->Addresses, Config_->SkynetHttpPort),
+        NYT::GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort),
+        Config_->Tags);
+    MasterConnector_->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
+    MasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
+    MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
+
+    DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
+    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+
+    ChunkRegistry_ = CreateChunkRegistry(this);
+
+    BlobReaderCache_ = CreateBlobReaderCache(this);
+
+    ChunkMetaManager_ = CreateChunkMetaManager(this);
+    VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(Config_->TabletNode->VersionedChunkMetaCache, this);
+
+    NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
+
+    RpcServer_->RegisterService(CreateArbitrageService(this));
+    NodeResourceManager_ = New<TNodeResourceManager>(this);
+
+    if (Config_->CoreDumper) {
+        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    TMasterEpoch GetMasterEpoch() const override
-    {
-        return MasterConnector_->GetEpoch();
+    auto localAddress = GetDefaultAddress(localRpcAddresses);
+
+    JobController_ = New<TJobController>(Config_->ExecNode->JobController, this);
+
+    auto timestampProviderConfig = Config_->TimestampProvider;
+    if (!timestampProviderConfig) {
+        timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->ClusterConnection->PrimaryMaster);
     }
-
-    const TNodeDirectoryPtr& GetNodeDirectory() const override
-    {
-        return MasterConnection_->GetNodeDirectory();
-    }
-
-    TNetworkPreferenceList GetLocalNetworks() const override
-    {
-        return Config_->Addresses.empty()
-            ? DefaultNetworkPreferences
-            : GetIths<0>(Config_->Addresses);
-    }
-
-    std::optional<TString> GetDefaultNetworkName() const override
-    {
-        return Config_->BusServer->DefaultNetwork;
-    }
-
-    TString GetDefaultLocalAddressOrThrow() const override
-    {
-        auto addressMap = GetLocalAddresses(
-            Config_->Addresses,
-            Config_->RpcPort);
-        auto defaultNetwork = GetDefaultNetworkName();
-
-        if (!defaultNetwork) {
-            THROW_ERROR_EXCEPTION("Default network is not configured");
-        }
-
-        if (!addressMap.contains(*defaultNetwork)) {
-            THROW_ERROR_EXCEPTION("Address for the default network is not configured");
-        }
-
-        return addressMap[*defaultNetwork];
-    }
-
-    const NHttp::IServerPtr& GetHttpServer() const override
-    {
-        return HttpServer_;
-    }
-
-    const NRpc::IServerPtr& GetRpcServer() const override
-    {
-        return RpcServer_;
-    }
-
-    const IBlockCachePtr& GetBlockCache() const override
-    {
-        return BlockCache_;
-    }
-
-    const IClientBlockCachePtr& GetClientBlockCache() const override
-    {
-        return ClientBlockCache_;
-    }
-
-    const IChunkMetaManagerPtr& GetChunkMetaManager() const override
-    {
-        return ChunkMetaManager_;
-    }
-
-    const IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override
-    {
-        return VersionedChunkMetaManager_;
-    }
-
-    const NYTree::IMapNodePtr& GetOrchidRoot() const override
-    {
-        return OrchidRoot_;
-    }
-
-    bool IsReadOnly() const override
-    {
-        // TOOD(gritukan): Make node without dynamic config read-only after YT-12933.
-        return false;
-    }
-
-    bool Decommissioned() const override
-    {
-        return Decommissioned_;
-    }
-
-    NDataNode::TNetworkStatistics& GetNetworkStatistics() const override
-    {
-        return *NetworkStatistics_;
-    }
-
-    const IChunkRegistryPtr& GetChunkRegistry() const override
-    {
-        return ChunkRegistry_;
-    }
-
-    const IBlobReaderCachePtr& GetBlobReaderCache() const override
-    {
-        return BlobReaderCache_;
-    }
-
-    const TJobControllerPtr& GetJobController() const override
-    {
-        return JobController_;
-    }
-
-    EJobEnvironmentType GetJobEnvironmentType() const override
-    {
-        const auto& slotManagerConfig = Config_->ExecNode->SlotManager;
-        return ConvertTo<EJobEnvironmentType>(slotManagerConfig->JobEnvironment->AsMap()->FindChild("type"));
-    }
-
-    const THashSet<ENodeFlavor>& GetFlavors() const override
-    {
-        return Flavors_;
-    }
-
-    bool IsDataNode() const override
-    {
-        return Flavors_.contains(ENodeFlavor::Data);
-    }
-
-    bool IsExecNode() const override
-    {
-        return Flavors_.contains(ENodeFlavor::Exec);
-    }
-
-    bool IsCellarNode() const override
-    {
-        return IsTabletNode() || IsChaosNode();
-    }
-
-    bool IsTabletNode() const override
-    {
-        return Flavors_.contains(ENodeFlavor::Tablet);
-    }
-
-    bool IsChaosNode() const override
-    {
-        return Flavors_.contains(ENodeFlavor::Chaos);
-    }
-
-    NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override
-    {
-        return CellarNodeBootstrap_.get();
-    }
-
-    NDataNode::IBootstrap* GetDataNodeBootstrap() const override
-    {
-        return DataNodeBootstrap_.get();
-    }
-
-    NExecNode::IBootstrap* GetExecNodeBootstrap() const override
-    {
-        return ExecNodeBootstrap_.get();
-    }
-
-    NChaosNode::IBootstrap* GetChaosNodeBootstrap() const override
-    {
-        return ChaosNodeBootstrap_.get();
-    }
-
-    NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override
-    {
-        return TabletNodeBootstrap_.get();
-    }
-
-private:
-    const TClusterNodeConfigPtr Config_;
-    const INodePtr ConfigNode_;
-
-    TActionQueuePtr ControlActionQueue_;
-    TActionQueuePtr JobActionQueue_;
-    TThreadPoolPtr ConnectionThreadPool_;
-    TThreadPoolPtr StorageLightThreadPool_;
-    TThreadPoolPtr StorageHeavyThreadPool_;
-    IPrioritizedInvokerPtr StorageHeavyInvoker_;
-    TActionQueuePtr MasterCacheQueue_;
-
-    ICoreDumperPtr CoreDumper_;
-
-    TMonitoringManagerPtr MonitoringManager_;
-
-    NYT::NBus::IBusServerPtr BusServer_;
-    NRpc::IServerPtr RpcServer_;
-    NHttp::IServerPtr HttpServer_;
-
-    IMapNodePtr OrchidRoot_;
-
-    TNodeMemoryTrackerPtr MemoryUsageTracker_;
-    TNodeResourceManagerPtr NodeResourceManager_;
-    TDiskTrackerPtr DiskTracker_;
-
-    IReconfigurableThroughputThrottlerPtr RawTotalInThrottler_;
-    IThroughputThrottlerPtr TotalInThrottler_;
-
-    IReconfigurableThroughputThrottlerPtr RawTotalOutThrottler_;
-    IThroughputThrottlerPtr TotalOutThrottler_;
-
-    IReconfigurableThroughputThrottlerPtr RawReadRpsOutThrottler_;
-    IThroughputThrottlerPtr ReadRpsOutThrottler_;
-
-#ifdef __linux__
-    NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;
-#endif
-
-    TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
-
-    NApi::NNative::IClientPtr MasterClient_;
-    NApi::NNative::IConnectionPtr MasterConnection_;
-
-    TJobControllerPtr JobController_;
-
-    IMasterConnectorPtr MasterConnector_;
-    TLegacyMasterConnectorPtr LegacyMasterConnector_;
-
-    IBlockCachePtr BlockCache_;
-    IClientBlockCachePtr ClientBlockCache_;
-
-    std::unique_ptr<TNetworkStatistics> NetworkStatistics_;
-
-    IChunkMetaManagerPtr ChunkMetaManager_;
-    IVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
-
-    IChunkRegistryPtr ChunkRegistry_;
-    IBlobReaderCachePtr BlobReaderCache_;
-
-    TError UnrecognizedOptionsAlert_;
-
-    TObjectServiceCachePtr ObjectServiceCache_;
-    std::vector<ICachingObjectServicePtr> CachingObjectServices_;
-
-    THashSet<ENodeFlavor> Flavors_;
-
-    std::unique_ptr<NCellarNode::IBootstrap> CellarNodeBootstrap_;
-    std::unique_ptr<NChaosNode::IBootstrap> ChaosNodeBootstrap_;
-    std::unique_ptr<NExecNode::IBootstrap> ExecNodeBootstrap_;
-    std::unique_ptr<NDataNode::IBootstrap> DataNodeBootstrap_;
-    std::unique_ptr<NTabletNode::IBootstrap> TabletNodeBootstrap_;
-
-    bool Decommissioned_ = false;
-
-    void DoInitialize()
-    {
-        auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
-
-        SetExplodeOnNullRowRowBufferDeserialization();
-
-        if (!Config_->ClusterConnection->Networks) {
-            Config_->ClusterConnection->Networks = GetLocalNetworks();
-        }
-
-        {
-            const auto& flavors = Config_->Flavors;
-            Flavors_ = THashSet<ENodeFlavor>(flavors.begin(), flavors.end());
-        }
-
-        YT_LOG_INFO("Initializing node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v, Flavors: %v)",
-            GetValues(localRpcAddresses),
-            Config_->ClusterConnection->PrimaryMaster->Addresses,
-            Config_->Tags,
-            Flavors_);
-
-        // NB: Connection thread pool is required for dynamic config manager
-        // initialization, so it is created before other thread pools.
-        ConnectionThreadPool_ = New<TThreadPool>(
-            Config_->ClusterConnection->ThreadPoolSize,
-            "Connection");
-
-        NApi::NNative::TConnectionOptions connectionOptions;
-        connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
-        connectionOptions.BlockCache = GetBlockCache();
-        MasterConnection_ = NApi::NNative::CreateConnection(
-            Config_->ClusterConnection,
-            std::move(connectionOptions));
-
-        MasterClient_ = MasterConnection_->CreateNativeClient(
-            TClientOptions::FromUser(NSecurityClient::RootUserName));
-
-        MemoryUsageTracker_ = New<TNodeMemoryTracker>(
-            Config_->ResourceLimits->TotalMemory,
-            std::vector<std::pair<EMemoryCategory, i64>>{},
-            Logger,
-            ClusterNodeProfiler.WithPrefix("/memory_usage"));
-
-        DiskTracker_ = New<TDiskTracker>();
-        ClusterNodeProfiler.AddProducer("", DiskTracker_);
-
-        MasterCacheQueue_ = New<TActionQueue>("MasterCache");
-        StorageHeavyThreadPool_ = New<TThreadPool>(
-            Config_->DataNode->StorageHeavyThreadCount,
-            "StorageHeavy");
-        StorageHeavyInvoker_ = CreatePrioritizedInvoker(StorageHeavyThreadPool_->GetInvoker());
-        StorageLightThreadPool_ = New<TThreadPool>(
-            Config_->DataNode->StorageLightThreadCount,
-            "StorageLight");
-
-        auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
-            return PatchRelativeNetworkThrottlerConfig(Config_->DataNode->Throttlers[kind]);
-        };
-
-        RawTotalInThrottler_ = CreateNamedReconfigurableThroughputThrottler(
-            getThrottlerConfig(EDataNodeThrottlerKind::TotalIn),
-            "TotalIn",
-            ClusterNodeLogger,
-            ClusterNodeProfiler.WithPrefix("/throttlers"));
-        TotalInThrottler_ = IThroughputThrottlerPtr(RawTotalInThrottler_);
-
-        RawTotalOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
-            getThrottlerConfig(EDataNodeThrottlerKind::TotalOut),
-            "TotalOut",
-            ClusterNodeLogger,
-            ClusterNodeProfiler.WithPrefix("/throttlers"));
-        TotalOutThrottler_ = IThroughputThrottlerPtr(RawTotalOutThrottler_);
-
-        RawReadRpsOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
-            getThrottlerConfig(EDataNodeThrottlerKind::ReadRpsOut),
-            "ReadRpsOut",
-            ClusterNodeLogger,
-            ClusterNodeProfiler.WithPrefix("/throttlers"));
-        ReadRpsOutThrottler_ = IThroughputThrottlerPtr(RawReadRpsOutThrottler_);
-
-        BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
-            Config_->DataNode->BlockCache,
-            EBlockType::UncompressedData | EBlockType::CompressedData,
-            MemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
-            DataNodeProfiler.WithPrefix("/block_cache"));
-
-        BusServer_ = CreateTcpBusServer(Config_->BusServer);
-
-        RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
-
-        auto createBatchingChunkService = [&] (const auto& config) {
-            RpcServer_->RegisterService(CreateBatchingChunkService(
-                config->CellId,
-                Config_->BatchingChunkService,
-                config,
-                MasterConnection_->GetChannelFactory()));
-        };
-
-        createBatchingChunkService(Config_->ClusterConnection->PrimaryMaster);
-        for (const auto& config : Config_->ClusterConnection->SecondaryMasters) {
-            createBatchingChunkService(config);
-        }
-
-        LegacyMasterConnector_ = New<NDataNode::TLegacyMasterConnector>(Config_->DataNode, Config_->Tags, this);
-
-        MasterConnector_ = NClusterNode::CreateMasterConnector(
-            this,
-            localRpcAddresses,
-            NYT::GetLocalAddresses(Config_->Addresses, Config_->SkynetHttpPort),
-            NYT::GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort),
-            Config_->Tags);
-        MasterConnector_->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
-        MasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
-        MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
-
-        DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
-
-        ChunkRegistry_ = CreateChunkRegistry(this);
-
-        BlobReaderCache_ = CreateBlobReaderCache(this);
-
-        ChunkMetaManager_ = CreateChunkMetaManager(this);
-        VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(Config_->TabletNode->VersionedChunkMetaCache, this);
-
-        NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
-
-        RpcServer_->RegisterService(CreateArbitrageService(this));
-        NodeResourceManager_ = New<TNodeResourceManager>(this);
-
-        if (Config_->CoreDumper) {
-            CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-        }
-
-        auto localAddress = GetDefaultAddress(localRpcAddresses);
-
-        JobController_ = New<TJobController>(Config_->ExecNode->JobController, this);
-
-        auto timestampProviderConfig = Config_->TimestampProvider;
-        if (!timestampProviderConfig) {
-            timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->ClusterConnection->PrimaryMaster);
-        }
-        auto timestampProvider = CreateBatchingRemoteTimestampProvider(
-            timestampProviderConfig,
-            CreateTimestampProviderChannel(timestampProviderConfig, MasterConnection_->GetChannelFactory()));
-        RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider));
-
-        ObjectServiceCache_ = New<TObjectServiceCache>(
+    auto timestampProvider = CreateBatchingRemoteTimestampProvider(
+        timestampProviderConfig,
+        CreateTimestampProviderChannel(timestampProviderConfig, MasterConnection_->GetChannelFactory()));
+    RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider));
+
+    ObjectServiceCache_ = New<TObjectServiceCache>(
+        Config_->CachingObjectService,
+        MemoryUsageTracker_->WithCategory(EMemoryCategory::MasterCache),
+        Logger,
+        ClusterNodeProfiler.WithPrefix("/master_cache"));
+
+    auto initCachingObjectService = [&] (const auto& masterConfig) {
+        return CreateCachingObjectService(
             Config_->CachingObjectService,
-            MemoryUsageTracker_->WithCategory(EMemoryCategory::MasterCache),
-            Logger,
-            ClusterNodeProfiler.WithPrefix("/master_cache"));
+            MasterCacheQueue_->GetInvoker(),
+            CreateDefaultTimeoutChannel(
+                CreatePeerChannel(
+                    masterConfig,
+                    MasterConnection_->GetChannelFactory(),
+                    EPeerKind::Follower),
+                masterConfig->RpcTimeout),
+            ObjectServiceCache_,
+            masterConfig->CellId,
+            Logger);
+    };
 
-        auto initCachingObjectService = [&] (const auto& masterConfig) {
-            return CreateCachingObjectService(
-                Config_->CachingObjectService,
-                MasterCacheQueue_->GetInvoker(),
-                CreateDefaultTimeoutChannel(
-                    CreatePeerChannel(
-                        masterConfig,
-                        MasterConnection_->GetChannelFactory(),
-                        EPeerKind::Follower),
-                    masterConfig->RpcTimeout),
-                ObjectServiceCache_,
-                masterConfig->CellId,
-                Logger);
-        };
+    CachingObjectServices_.push_back(initCachingObjectService(
+        Config_->ClusterConnection->PrimaryMaster));
 
-        CachingObjectServices_.push_back(initCachingObjectService(
-            Config_->ClusterConnection->PrimaryMaster));
+    for (const auto& masterConfig : Config_->ClusterConnection->SecondaryMasters) {
+        CachingObjectServices_.push_back(initCachingObjectService(masterConfig));
+    }
 
-        for (const auto& masterConfig : Config_->ClusterConnection->SecondaryMasters) {
-            CachingObjectServices_.push_back(initCachingObjectService(masterConfig));
+    // NB: Data Node master connector is required for chunk cache.
+    if (IsDataNode() || IsExecNode()) {
+        DataNodeBootstrap_ = NDataNode::CreateBootstrap(this);
+    }
+
+    if (IsExecNode()) {
+        ExecNodeBootstrap_ = NExecNode::CreateBootstrap(this);
+    }
+
+    if (IsCellarNode()) {
+        CellarNodeBootstrap_ = NCellarNode::CreateBootstrap(this);
+    }
+
+    if (IsChaosNode()) {
+        ChaosNodeBootstrap_ = NChaosNode::CreateBootstrap(this);
+    }
+
+    if (IsTabletNode()) {
+        TabletNodeBootstrap_ = NTabletNode::CreateBootstrap(this);
+    }
+
+    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
+
+    RpcServer_->Configure(Config_->RpcServer);
+
+    if (GetJobEnvironmentType() == EJobEnvironmentType::Porto) {
+        auto portoEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecNode->SlotManager->JobEnvironment);
+        auto portoExecutor = CreatePortoExecutor(
+            portoEnvironmentConfig->PortoExecutor,
+            "limits_tracker");
+
+        portoExecutor->SubscribeFailed(BIND([=] (const TError& error) {
+            YT_LOG_ERROR(error, "Porto executor failed");
+            ExecNodeBootstrap_->GetSlotManager()->Disable(error);
+        }));
+
+        auto self = GetSelfPortoInstance(portoExecutor);
+        if (Config_->InstanceLimitsUpdatePeriod) {
+            auto instance = portoEnvironmentConfig->UseDaemonSubcontainer
+                ? GetPortoInstance(portoExecutor, *self->GetParentName())
+                : self;
+
+            InstanceLimitsTracker_ = New<TInstanceLimitsTracker>(
+                instance,
+                GetControlInvoker(),
+                *Config_->InstanceLimitsUpdatePeriod);
+
+            InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, NodeResourceManager_)
+                .Via(GetControlInvoker()));
         }
 
-        // NB: Data Node master connector is required for chunk cache.
-        if (IsDataNode() || IsExecNode()) {
-            DataNodeBootstrap_ = NDataNode::CreateBootstrap(this);
-        }
+        if (portoEnvironmentConfig->UseDaemonSubcontainer) {
+            self->SetCpuWeight(Config_->ResourceLimits->NodeCpuWeight);
 
-        if (IsExecNode()) {
-            ExecNodeBootstrap_ = NExecNode::CreateBootstrap(this);
-        }
-
-        if (IsCellarNode()) {
-            CellarNodeBootstrap_ = NCellarNode::CreateBootstrap(this);
-        }
-
-        if (IsChaosNode()) {
-            ChaosNodeBootstrap_ = NChaosNode::CreateBootstrap(this);
-        }
-
-        if (IsTabletNode()) {
-            TabletNodeBootstrap_ = NTabletNode::CreateBootstrap(this);
-        }
-
-        RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
-
-        RpcServer_->Configure(Config_->RpcServer);
-
-    #ifdef __linux__
-        if (GetJobEnvironmentType() == EJobEnvironmentType::Porto) {
-            auto portoEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecNode->SlotManager->JobEnvironment);
-            auto portoExecutor = CreatePortoExecutor(
-                portoEnvironmentConfig->PortoExecutor,
-                "limits_tracker");
-
-            portoExecutor->SubscribeFailed(BIND([=] (const TError& error) {
-                YT_LOG_ERROR(error, "Porto executor failed");
-                ExecNodeBootstrap_->GetSlotManager()->Disable(error);
-            }));
-
-            auto self = GetSelfPortoInstance(portoExecutor);
-            if (Config_->InstanceLimitsUpdatePeriod) {
-                auto instance = portoEnvironmentConfig->UseDaemonSubcontainer
-                    ? GetPortoInstance(portoExecutor, *self->GetParentName())
-                    : self;
-
-                InstanceLimitsTracker_ = New<TInstanceLimitsTracker>(
-                    instance,
-                    GetControlInvoker(),
-                    *Config_->InstanceLimitsUpdatePeriod);
-
-                InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, NodeResourceManager_)
-                    .Via(GetControlInvoker()));
+            if (Config_->ResourceLimits->NodeDedicatedCpu) {
+                self->SetCpuGuarantee(*Config_->ResourceLimits->NodeDedicatedCpu);
             }
 
-            if (portoEnvironmentConfig->UseDaemonSubcontainer) {
-                self->SetCpuWeight(Config_->ResourceLimits->NodeCpuWeight);
-
-                if (Config_->ResourceLimits->NodeDedicatedCpu) {
-                    self->SetCpuGuarantee(*Config_->ResourceLimits->NodeDedicatedCpu);
+            NodeResourceManager_->SubscribeSelfMemoryGuaranteeUpdated(BIND([self] (i64 memoryGuarantee) {
+                try {
+                    self->SetMemoryGuarantee(memoryGuarantee);
+                    YT_LOG_DEBUG("Self memory guarantee updated (MemoryGuarantee: %v)", memoryGuarantee);
+                } catch (const std::exception& ex) {
+                    // This probably means container limits misconfiguration on host.
+                    YT_LOG_FATAL(ex, "Failed to set self memory guarantee (MemoryGuarantee: %v)", memoryGuarantee);
                 }
-
-                NodeResourceManager_->SubscribeSelfMemoryGuaranteeUpdated(BIND([self] (i64 memoryGuarantee) {
-                    try {
-                        self->SetMemoryGuarantee(memoryGuarantee);
-                        YT_LOG_DEBUG("Self memory guarantee updated (MemoryGuarantee: %v)", memoryGuarantee);
-                    } catch (const std::exception& ex) {
-                        // This probably means container limits misconfiguration on host.
-                        YT_LOG_FATAL(ex, "Failed to set self memory guarantee (MemoryGuarantee: %v)", memoryGuarantee);
-                    }
-                }));
-            }
+            }));
         }
-    #endif
-
-        if (IsDataNode() || IsExecNode()) {
-            DataNodeBootstrap_->Initialize();
-        }
-
-        if (IsExecNode()) {
-            ExecNodeBootstrap_->Initialize();
-        }
-
-        if (IsCellarNode()) {
-            CellarNodeBootstrap_->Initialize();
-        }
-
-        if (IsChaosNode()) {
-            ChaosNodeBootstrap_->Initialize();
-        }
-
-        if (IsTabletNode()) {
-            TabletNodeBootstrap_->Initialize();
-        }
-
-        // We must ensure we know actual status of job proxy binary before Run phase.
-        // Otherwise we may erroneously receive some job which we fail to run due to missing
-        // ytserver-job-proxy. This requires slot manager to be initialized before job controller
-        // in order for the first out-of-band job proxy build info update to reach job controller
-        // via signal.
-        //
-        // Swapping two lines below does not break anything, but introduces additional latency
-        // of Config_->JobController->JobProxyBuildInfoUpdatePeriod.
-        JobController_->Initialize();
     }
 
-    void DoRun()
-    {
-        auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+    if (IsDataNode() || IsExecNode()) {
+        DataNodeBootstrap_->Initialize();
+    }
 
-        YT_LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
-            GetValues(localRpcAddresses),
-            Config_->ClusterConnection->PrimaryMaster->Addresses,
-            Config_->Tags);
+    if (IsExecNode()) {
+        ExecNodeBootstrap_->Initialize();
+    }
 
-        HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+    if (IsCellarNode()) {
+        CellarNodeBootstrap_->Initialize();
+    }
 
-        DynamicConfigManager_->Start();
+    if (IsChaosNode()) {
+        ChaosNodeBootstrap_->Initialize();
+    }
 
-        NodeResourceManager_->Start();
-    #ifdef __linux__
-        if (InstanceLimitsTracker_) {
+    if (IsTabletNode()) {
+        TabletNodeBootstrap_->Initialize();
+    }
+
+    // We must ensure we know actual status of job proxy binary before Run phase.
+    // Otherwise we may erroneously receive some job which we fail to run due to missing
+    // ytserver-job-proxy. This requires slot manager to be initialized before job controller
+    // in order for the first out-of-band job proxy build info update to reach job controller
+    // via signal.
+    //
+    // Swapping two lines below does not break anything, but introduces additional latency
+    // of Config_->JobController->JobProxyBuildInfoUpdatePeriod.
+    JobController_->Initialize();
+}
+
+void TBootstrap::DoRun()
+{
+    auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+
+    YT_LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
+        GetValues(localRpcAddresses),
+        Config_->ClusterConnection->PrimaryMaster->Addresses,
+        Config_->Tags);
+
+    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+
+    DynamicConfigManager_->Start();
+
+    NodeResourceManager_->Start();
+    if (InstanceLimitsTracker_) {
+        InstanceLimitsTracker_->Start();
+    }
+
+    // Force start node directory synchronizer.
+    MasterConnection_->GetNodeDirectorySynchronizer()->Start();
+
+    NMonitoring::Initialize(
+        HttpServer_,
+        Config_->SolomonExporter,
+        &MonitoringManager_,
+        &OrchidRoot_);
+
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/config",
+        ConfigNode_);
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/job_controller",
+        CreateVirtualNode(JobController_->GetOrchidService()
+            ->Via(GetControlInvoker())));
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/cluster_connection",
+        CreateVirtualNode(MasterConnection_->GetOrchidService()));
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/dynamic_config_manager",
+        CreateVirtualNode(DynamicConfigManager_->GetOrchidService()
+            ->Via(GetControlInvoker())));
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/object_service_cache",
+        CreateVirtualNode(ObjectServiceCache_->GetOrchidService()
+            ->Via(GetControlInvoker())));
+    SetBuildAttributes(
+        OrchidRoot_,
+        "node");
+
+    RpcServer_->RegisterService(CreateOrchidService(
+        OrchidRoot_,
+        GetControlInvoker()));
+
+    YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+
+    YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+
+    // Do not start subsystems until everything is initialized.
+
+    MasterConnector_->Initialize();
+    MasterConnector_->Start();
+    LegacyMasterConnector_->Start();
+
+    DoValidateConfig();
+
+    if (IsCellarNode()) {
+        CellarNodeBootstrap_->Run();
+    }
+
+    if (IsChaosNode()) {
+        ChaosNodeBootstrap_->Run();
+    }
+
+    if (IsDataNode() || IsExecNode()) {
+        DataNodeBootstrap_->Run();
+    }
+
+    if (IsExecNode()) {
+        ExecNodeBootstrap_->Run();
+    }
+
+    if (IsTabletNode()) {
+        TabletNodeBootstrap_->Run();
+    }
+
+    RpcServer_->Start();
+    HttpServer_->Start();
+}
+
+void TBootstrap::DoValidateConfig()
+{
+    auto unrecognized = Config_->GetUnrecognizedRecursively();
+    if (unrecognized && unrecognized->GetChildCount() > 0) {
+        if (Config_->EnableUnrecognizedOptionsAlert) {
+            UnrecognizedOptionsAlert_ = TError(
+                EErrorCode::UnrecognizedConfigOption,
+                "Node config contains unrecognized options")
+                << TErrorAttribute("unrecognized", unrecognized);
+        }
+        if (Config_->AbortOnUnrecognizedOptions) {
+            YT_LOG_ERROR("Node config contains unrecognized options, aborting (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
+            YT_ABORT();
+        } else {
+            YT_LOG_WARNING("Node config contains unrecognized options (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
+        }
+    }
+}
+
+void TBootstrap::DoValidateSnapshot(const TString& fileName)
+{
+    auto reader = CreateFileSnapshotReader(
+        fileName,
+        InvalidSegmentId,
+        /*isRaw*/ false,
+        /*offset*/ std::nullopt,
+        /*skipHeader*/ true);
+
+    WaitFor(reader->Open())
+        .ThrowOnError();
+
+    ValidateTabletCellSnapshot(this, reader);
+}
+
+void TBootstrap::OnDynamicConfigChanged(
+    const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+    const TClusterNodeDynamicConfigPtr& newConfig)
+{
+    ReconfigureSingletons(Config_, newConfig);
+
+    StorageHeavyThreadPool_->Configure(
+        newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));
+    StorageLightThreadPool_->Configure(
+        newConfig->DataNode->StorageLightThreadCount.value_or(Config_->DataNode->StorageLightThreadCount));
+
+    auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
+        auto config = newConfig->DataNode->Throttlers[kind]
+            ? newConfig->DataNode->Throttlers[kind]
+            : Config_->DataNode->Throttlers[kind];
+        return PatchRelativeNetworkThrottlerConfig(std::move(config));
+    };
+    RawTotalInThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalIn));
+    RawTotalOutThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalOut));
+    RawReadRpsOutThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::ReadRpsOut));
+
+    ClientBlockCache_->Reconfigure(newConfig->DataNode->BlockCache);
+
+    VersionedChunkMetaManager_->Reconfigure(newConfig->TabletNode->VersionedChunkMetaCache);
+
+    ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
+    for (const auto& service : CachingObjectServices_) {
+        service->Reconfigure(newConfig->CachingObjectService);
+    }
+
+    if (InstanceLimitsTracker_) {
+        auto useInstanceLimitsTracker = newConfig->ResourceLimits->UseInstanceLimitsTracker;
+        if (useInstanceLimitsTracker) {
             InstanceLimitsTracker_->Start();
+        } else {
+            InstanceLimitsTracker_->Stop();
         }
-    #endif
+    }
+}
 
-        // Force start node directory synchronizer.
-        MasterConnection_->GetNodeDirectorySynchronizer()->Start();
+void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
+{
+    PopulateAlerts_.Fire(alerts);
 
-        NMonitoring::Initialize(
-            HttpServer_,
-            Config_->SolomonExporter,
-            &MonitoringManager_,
-            &OrchidRoot_);
-
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/config",
-            ConfigNode_);
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/job_controller",
-            CreateVirtualNode(JobController_->GetOrchidService()
-                ->Via(GetControlInvoker())));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/cluster_connection",
-            CreateVirtualNode(MasterConnection_->GetOrchidService()));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/dynamic_config_manager",
-            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()
-                ->Via(GetControlInvoker())));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/object_service_cache",
-            CreateVirtualNode(ObjectServiceCache_->GetOrchidService()
-                ->Via(GetControlInvoker())));
-        SetBuildAttributes(
-            OrchidRoot_,
-            "node");
-
-        RpcServer_->RegisterService(CreateOrchidService(
-            OrchidRoot_,
-            GetControlInvoker()));
-
-        YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
-
-        YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
-
-        // Do not start subsystems until everything is initialized.
-
-        MasterConnector_->Initialize();
-        MasterConnector_->Start();
-        LegacyMasterConnector_->Start();
-
-        DoValidateConfig();
-
-        if (IsCellarNode()) {
-            CellarNodeBootstrap_->Run();
-        }
-
-        if (IsChaosNode()) {
-            ChaosNodeBootstrap_->Run();
-        }
-
-        if (IsDataNode() || IsExecNode()) {
-            DataNodeBootstrap_->Run();
-        }
-
-        if (IsExecNode()) {
-            ExecNodeBootstrap_->Run();
-        }
-
-        if (IsTabletNode()) {
-            TabletNodeBootstrap_->Run();
-        }
-
-        RpcServer_->Start();
-        HttpServer_->Start();
+    // NB: Don't expect IsXXXExceeded helpers to be atomic.
+    auto totalUsed = MemoryUsageTracker_->GetTotalUsed();
+    auto totalLimit = MemoryUsageTracker_->GetTotalLimit();
+    if (totalUsed > totalLimit) {
+        alerts->push_back(TError("Total memory limit exceeded")
+            << TErrorAttribute("used", totalUsed)
+            << TErrorAttribute("limit", totalLimit));
     }
 
-    void DoValidateConfig()
-    {
-        auto unrecognized = Config_->GetUnrecognizedRecursively();
-        if (unrecognized && unrecognized->GetChildCount() > 0) {
-            if (Config_->EnableUnrecognizedOptionsAlert) {
-                UnrecognizedOptionsAlert_ = TError(
-                    EErrorCode::UnrecognizedConfigOption,
-                    "Node config contains unrecognized options")
-                    << TErrorAttribute("unrecognized", unrecognized);
-            }
-            if (Config_->AbortOnUnrecognizedOptions) {
-                YT_LOG_ERROR("Node config contains unrecognized options, aborting (Unrecognized: %v)",
-                    ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
-                YT_ABORT();
-            } else {
-                YT_LOG_WARNING("Node config contains unrecognized options (Unrecognized: %v)",
-                    ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
-            }
+    for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        auto used = MemoryUsageTracker_->GetUsed(category);
+        auto limit = MemoryUsageTracker_->GetLimit(category);
+        if (used > limit) {
+            alerts->push_back(TError("Memory limit exceeded for category %Qlv",
+                category)
+                << TErrorAttribute("used", used)
+                << TErrorAttribute("limit", limit));
         }
     }
 
-    void DoValidateSnapshot(const TString& fileName)
-    {
-        auto reader = CreateFileSnapshotReader(
-            fileName,
-            InvalidSegmentId,
-            /*isRaw*/ false,
-            /*offset*/ std::nullopt,
-            /*skipHeader*/ true);
-
-        WaitFor(reader->Open())
-            .ThrowOnError();
-
-        ValidateTabletCellSnapshot(this, reader);
+    if (!UnrecognizedOptionsAlert_.IsOK()) {
+        alerts->push_back(UnrecognizedOptionsAlert_);
     }
+}
 
-    void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-        const TClusterNodeDynamicConfigPtr& newConfig)
-    {
-        ReconfigureSingletons(Config_, newConfig);
+void TBootstrap::OnMasterConnected(TNodeId nodeId)
+{
+    MasterConnected_.Fire(nodeId);
 
-        StorageHeavyThreadPool_->Configure(
-            newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));
-        StorageLightThreadPool_->Configure(
-            newConfig->DataNode->StorageLightThreadCount.value_or(Config_->DataNode->StorageLightThreadCount));
-
-        auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
-            auto config = newConfig->DataNode->Throttlers[kind]
-                ? newConfig->DataNode->Throttlers[kind]
-                : Config_->DataNode->Throttlers[kind];
-            return PatchRelativeNetworkThrottlerConfig(std::move(config));
-        };
-        RawTotalInThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalIn));
-        RawTotalOutThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalOut));
-        RawReadRpsOutThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::ReadRpsOut));
-
-        ClientBlockCache_->Reconfigure(newConfig->DataNode->BlockCache);
-
-        VersionedChunkMetaManager_->Reconfigure(newConfig->TabletNode->VersionedChunkMetaCache);
-
-        ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
-        for (const auto& service : CachingObjectServices_) {
-            service->Reconfigure(newConfig->CachingObjectService);
-        }
-
-    #ifdef __linux__
-        if (InstanceLimitsTracker_) {
-            auto useInstanceLimitsTracker = newConfig->ResourceLimits->UseInstanceLimitsTracker;
-            if (useInstanceLimitsTracker) {
-                InstanceLimitsTracker_->Start();
-            } else {
-                InstanceLimitsTracker_->Stop();
-            }
-        }
-    #endif
+    for (const auto& cachingObjectService : CachingObjectServices_) {
+        RpcServer_->RegisterService(cachingObjectService);
     }
+}
 
-    void PopulateAlerts(std::vector<TError>* alerts)
-    {
-        PopulateAlerts_.Fire(alerts);
+void TBootstrap::OnMasterDisconnected()
+{
+    MasterDisconnected_.Fire();
 
-        // NB: Don't expect IsXXXExceeded helpers to be atomic.
-        auto totalUsed = MemoryUsageTracker_->GetTotalUsed();
-        auto totalLimit = MemoryUsageTracker_->GetTotalLimit();
-        if (totalUsed > totalLimit) {
-            alerts->push_back(TError("Total memory limit exceeded")
-                << TErrorAttribute("used", totalUsed)
-                << TErrorAttribute("limit", totalLimit));
-        }
-
-        for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-            auto used = MemoryUsageTracker_->GetUsed(category);
-            auto limit = MemoryUsageTracker_->GetLimit(category);
-            if (used > limit) {
-                alerts->push_back(TError("Memory limit exceeded for category %Qlv",
-                    category)
-                    << TErrorAttribute("used", used)
-                    << TErrorAttribute("limit", limit));
-            }
-        }
-
-        if (!UnrecognizedOptionsAlert_.IsOK()) {
-            alerts->push_back(UnrecognizedOptionsAlert_);
-        }
+    for (const auto& cachingObjectService : CachingObjectServices_) {
+        RpcServer_->UnregisterService(cachingObjectService);
     }
-
-    void OnMasterConnected(TNodeId nodeId)
-    {
-        MasterConnected_.Fire(nodeId);
-
-        for (const auto& cachingObjectService : CachingObjectServices_) {
-            RpcServer_->RegisterService(cachingObjectService);
-        }
-    }
-
-    void OnMasterDisconnected()
-    {
-        MasterDisconnected_.Fire();
-
-        for (const auto& cachingObjectService : CachingObjectServices_) {
-            RpcServer_->UnregisterService(cachingObjectService);
-        }
-    }
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1201,7 +1107,7 @@ std::unique_ptr<IBootstrap> CreateBootstrap(TClusterNodeConfigPtr config, NYTree
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
+TBootstrapForward::TBootstrapForward(IBootstrapBase* bootstrap)
     : Bootstrap_(bootstrap)
 {
     Bootstrap_->SubscribeMasterConnected(
@@ -1218,282 +1124,282 @@ TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
         }));
 }
 
-const TNodeMemoryTrackerPtr& TBootstrapBase::GetMemoryUsageTracker() const
+const TNodeMemoryTrackerPtr& TBootstrapForward::GetMemoryUsageTracker() const
 {
     return Bootstrap_->GetMemoryUsageTracker();
 }
 
-const TNodeResourceManagerPtr& TBootstrapBase::GetNodeResourceManager() const
+const TNodeResourceManagerPtr& TBootstrapForward::GetNodeResourceManager() const
 {
     return Bootstrap_->GetNodeResourceManager();
 }
 
-const IThroughputThrottlerPtr& TBootstrapBase::GetTotalInThrottler() const
+const IThroughputThrottlerPtr& TBootstrapForward::GetTotalInThrottler() const
 {
     return Bootstrap_->GetTotalInThrottler();
 }
 
-const IThroughputThrottlerPtr& TBootstrapBase::GetTotalOutThrottler() const
+const IThroughputThrottlerPtr& TBootstrapForward::GetTotalOutThrottler() const
 {
     return Bootstrap_->GetTotalOutThrottler();
 }
 
-const IThroughputThrottlerPtr& TBootstrapBase::GetReadRpsOutThrottler() const
+const IThroughputThrottlerPtr& TBootstrapForward::GetReadRpsOutThrottler() const
 {
     return Bootstrap_->GetReadRpsOutThrottler();
 }
 
-const TClusterNodeConfigPtr& TBootstrapBase::GetConfig() const
+const TClusterNodeConfigPtr& TBootstrapForward::GetConfig() const
 {
     return Bootstrap_->GetConfig();
 }
 
-const TClusterNodeDynamicConfigManagerPtr& TBootstrapBase::GetDynamicConfigManager() const
+const TClusterNodeDynamicConfigManagerPtr& TBootstrapForward::GetDynamicConfigManager() const
 {
     return Bootstrap_->GetDynamicConfigManager();
 }
 
-const IInvokerPtr& TBootstrapBase::GetControlInvoker() const
+const IInvokerPtr& TBootstrapForward::GetControlInvoker() const
 {
     return Bootstrap_->GetControlInvoker();
 }
 
-const IInvokerPtr& TBootstrapBase::GetJobInvoker() const
+const IInvokerPtr& TBootstrapForward::GetJobInvoker() const
 {
     return Bootstrap_->GetJobInvoker();
 }
 
-const IInvokerPtr& TBootstrapBase::GetMasterConnectionInvoker() const
+const IInvokerPtr& TBootstrapForward::GetMasterConnectionInvoker() const
 {
     return Bootstrap_->GetMasterConnectionInvoker();
 }
 
-const IInvokerPtr& TBootstrapBase::GetStorageLightInvoker() const
+const IInvokerPtr& TBootstrapForward::GetStorageLightInvoker() const
 {
     return Bootstrap_->GetStorageLightInvoker();
 }
 
-const IPrioritizedInvokerPtr& TBootstrapBase::GetStorageHeavyInvoker() const
+const IPrioritizedInvokerPtr& TBootstrapForward::GetStorageHeavyInvoker() const
 {
     return Bootstrap_->GetStorageHeavyInvoker();
 }
 
-const NNative::IClientPtr& TBootstrapBase::GetMasterClient() const
+const NNative::IClientPtr& TBootstrapForward::GetMasterClient() const
 {
     return Bootstrap_->GetMasterClient();
 }
 
-const NNative::IConnectionPtr& TBootstrapBase::GetMasterConnection() const
+const NNative::IConnectionPtr& TBootstrapForward::GetMasterConnection() const
 {
     return Bootstrap_->GetMasterConnection();
 }
 
-IChannelPtr TBootstrapBase::GetMasterChannel(TCellTag cellTag)
+IChannelPtr TBootstrapForward::GetMasterChannel(TCellTag cellTag)
 {
     return Bootstrap_->GetMasterChannel(cellTag);
 }
 
-TNodeDescriptor TBootstrapBase::GetLocalDescriptor() const
+TNodeDescriptor TBootstrapForward::GetLocalDescriptor() const
 {
     return Bootstrap_->GetLocalDescriptor();
 }
 
-TCellId TBootstrapBase::GetCellId() const
+TCellId TBootstrapForward::GetCellId() const
 {
     return Bootstrap_->GetCellId();
 }
 
-TCellId TBootstrapBase::GetCellId(TCellTag cellTag) const
+TCellId TBootstrapForward::GetCellId(TCellTag cellTag) const
 {
     return Bootstrap_->GetCellId(cellTag);
 }
 
-const TCellTagList& TBootstrapBase::GetMasterCellTags() const
+const TCellTagList& TBootstrapForward::GetMasterCellTags() const
 {
     return Bootstrap_->GetMasterCellTags();
 }
 
-std::vector<TString> TBootstrapBase::GetMasterAddressesOrThrow(TCellTag cellTag) const
+std::vector<TString> TBootstrapForward::GetMasterAddressesOrThrow(TCellTag cellTag) const
 {
     return Bootstrap_->GetMasterAddressesOrThrow(cellTag);
 }
 
-const TLegacyMasterConnectorPtr& TBootstrapBase::GetLegacyMasterConnector() const
+const TLegacyMasterConnectorPtr& TBootstrapForward::GetLegacyMasterConnector() const
 {
     return Bootstrap_->GetLegacyMasterConnector();
 }
 
-bool TBootstrapBase::UseNewHeartbeats() const
+bool TBootstrapForward::UseNewHeartbeats() const
 {
     return Bootstrap_->UseNewHeartbeats();
 }
 
-void TBootstrapBase::ResetAndRegisterAtMaster()
+void TBootstrapForward::ResetAndRegisterAtMaster()
 {
     return Bootstrap_->ResetAndRegisterAtMaster();
 }
 
-bool TBootstrapBase::IsConnected() const
+bool TBootstrapForward::IsConnected() const
 {
     return Bootstrap_->IsConnected();
 }
 
-TNodeId TBootstrapBase::GetNodeId() const
+TNodeId TBootstrapForward::GetNodeId() const
 {
     return Bootstrap_->GetNodeId();
 }
 
-TString TBootstrapBase::GetLocalHostName() const
+TString TBootstrapForward::GetLocalHostName() const
 {
     return Bootstrap_->GetLocalHostName();
 }
 
-TMasterEpoch TBootstrapBase::GetMasterEpoch() const
+TMasterEpoch TBootstrapForward::GetMasterEpoch() const
 {
     return Bootstrap_->GetMasterEpoch();
 }
 
-const TNodeDirectoryPtr& TBootstrapBase::GetNodeDirectory() const
+const TNodeDirectoryPtr& TBootstrapForward::GetNodeDirectory() const
 {
     return Bootstrap_->GetNodeDirectory();
 }
 
-TNetworkPreferenceList TBootstrapBase::GetLocalNetworks() const
+TNetworkPreferenceList TBootstrapForward::GetLocalNetworks() const
 {
     return Bootstrap_->GetLocalNetworks();
 }
 
-std::optional<TString> TBootstrapBase::GetDefaultNetworkName() const
+std::optional<TString> TBootstrapForward::GetDefaultNetworkName() const
 {
     return Bootstrap_->GetDefaultNetworkName();
 }
 
-TString TBootstrapBase::GetDefaultLocalAddressOrThrow() const
+TString TBootstrapForward::GetDefaultLocalAddressOrThrow() const
 {
     return Bootstrap_->GetDefaultLocalAddressOrThrow();
 }
 
-const NHttp::IServerPtr& TBootstrapBase::GetHttpServer() const
+const NHttp::IServerPtr& TBootstrapForward::GetHttpServer() const
 {
     return Bootstrap_->GetHttpServer();
 }
 
-const NRpc::IServerPtr& TBootstrapBase::GetRpcServer() const
+const NRpc::IServerPtr& TBootstrapForward::GetRpcServer() const
 {
     return Bootstrap_->GetRpcServer();
 }
 
-const IBlockCachePtr& TBootstrapBase::GetBlockCache() const
+const IBlockCachePtr& TBootstrapForward::GetBlockCache() const
 {
     return Bootstrap_->GetBlockCache();
 }
 
-const IClientBlockCachePtr& TBootstrapBase::GetClientBlockCache() const
+const IClientBlockCachePtr& TBootstrapForward::GetClientBlockCache() const
 {
     return Bootstrap_->GetClientBlockCache();
 }
 
-const IChunkMetaManagerPtr& TBootstrapBase::GetChunkMetaManager() const
+const IChunkMetaManagerPtr& TBootstrapForward::GetChunkMetaManager() const
 {
     return Bootstrap_->GetChunkMetaManager();
 }
 
-const IVersionedChunkMetaManagerPtr& TBootstrapBase::GetVersionedChunkMetaManager() const
+const IVersionedChunkMetaManagerPtr& TBootstrapForward::GetVersionedChunkMetaManager() const
 {
     return Bootstrap_->GetVersionedChunkMetaManager();
 }
 
-const IMapNodePtr& TBootstrapBase::GetOrchidRoot() const
+const IMapNodePtr& TBootstrapForward::GetOrchidRoot() const
 {
     return Bootstrap_->GetOrchidRoot();
 }
 
-bool TBootstrapBase::IsReadOnly() const
+bool TBootstrapForward::IsReadOnly() const
 {
     return Bootstrap_->IsReadOnly();
 }
 
-bool TBootstrapBase::Decommissioned() const
+bool TBootstrapForward::Decommissioned() const
 {
     return Bootstrap_->Decommissioned();
 }
 
-TNetworkStatistics& TBootstrapBase::GetNetworkStatistics() const
+TNetworkStatistics& TBootstrapForward::GetNetworkStatistics() const
 {
     return Bootstrap_->GetNetworkStatistics();
 }
 
-const IChunkRegistryPtr& TBootstrapBase::GetChunkRegistry() const
+const IChunkRegistryPtr& TBootstrapForward::GetChunkRegistry() const
 {
     return Bootstrap_->GetChunkRegistry();
 }
 
-const IBlobReaderCachePtr& TBootstrapBase::GetBlobReaderCache() const
+const IBlobReaderCachePtr& TBootstrapForward::GetBlobReaderCache() const
 {
     return Bootstrap_->GetBlobReaderCache();
 }
 
-const TJobControllerPtr& TBootstrapBase::GetJobController() const
+const TJobControllerPtr& TBootstrapForward::GetJobController() const
 {
     return Bootstrap_->GetJobController();
 }
 
-EJobEnvironmentType TBootstrapBase::GetJobEnvironmentType() const
+EJobEnvironmentType TBootstrapForward::GetJobEnvironmentType() const
 {
     return Bootstrap_->GetJobEnvironmentType();
 }
 
-const THashSet<ENodeFlavor>& TBootstrapBase::GetFlavors() const
+const THashSet<ENodeFlavor>& TBootstrapForward::GetFlavors() const
 {
     return Bootstrap_->GetFlavors();
 }
 
-bool TBootstrapBase::IsDataNode() const
+bool TBootstrapForward::IsDataNode() const
 {
     return Bootstrap_->IsDataNode();
 }
 
-bool TBootstrapBase::IsExecNode() const
+bool TBootstrapForward::IsExecNode() const
 {
     return Bootstrap_->IsExecNode();
 }
 
-bool TBootstrapBase::IsCellarNode() const
+bool TBootstrapForward::IsCellarNode() const
 {
     return Bootstrap_->IsCellarNode();
 }
 
-bool TBootstrapBase::IsTabletNode() const
+bool TBootstrapForward::IsTabletNode() const
 {
     return Bootstrap_->IsTabletNode();
 }
 
-bool TBootstrapBase::IsChaosNode() const
+bool TBootstrapForward::IsChaosNode() const
 {
     return Bootstrap_->IsChaosNode();
 }
 
-NCellarNode::IBootstrap* TBootstrapBase::GetCellarNodeBootstrap() const
+NCellarNode::IBootstrap* TBootstrapForward::GetCellarNodeBootstrap() const
 {
     return Bootstrap_->GetCellarNodeBootstrap();
 }
 
-NDataNode::IBootstrap* TBootstrapBase::GetDataNodeBootstrap() const
+NDataNode::IBootstrap* TBootstrapForward::GetDataNodeBootstrap() const
 {
     return Bootstrap_->GetDataNodeBootstrap();
 }
 
-NExecNode::IBootstrap* TBootstrapBase::GetExecNodeBootstrap() const
+NExecNode::IBootstrap* TBootstrapForward::GetExecNodeBootstrap() const
 {
     return Bootstrap_->GetExecNodeBootstrap();
 }
 
-NChaosNode::IBootstrap* TBootstrapBase::GetChaosNodeBootstrap() const
+NChaosNode::IBootstrap* TBootstrapForward::GetChaosNodeBootstrap() const
 {
     return Bootstrap_->GetChaosNodeBootstrap();
 }
 
-NTabletNode::IBootstrap* TBootstrapBase::GetTabletNodeBootstrap() const
+NTabletNode::IBootstrap* TBootstrapForward::GetTabletNodeBootstrap() const
 {
     return Bootstrap_->GetTabletNodeBootstrap();
 }

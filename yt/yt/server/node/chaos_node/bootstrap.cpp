@@ -22,11 +22,11 @@ using namespace NConcurrency;
 
 class TBootstrap
     : public IBootstrap
-    , public TBootstrapBase
+    , public TBootstrapForward
 {
 public:
     explicit TBootstrap(NClusterNode::IBootstrap* bootstrap)
-        : TBootstrapBase(bootstrap)
+        : TBootstrapForward(bootstrap)
         , ClusterNodeBootstrap_(bootstrap)
     { }
 
