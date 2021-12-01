@@ -1595,7 +1595,7 @@ void TJobController::TImpl::OnDynamicConfigChanged(
     auto jobControllerConfig = newNodeConfig->ExecNode->JobController;
     YT_ASSERT(jobControllerConfig);
     DynamicConfig_.Store(jobControllerConfig);
-    
+
     ProfilingExecutor_->SetPeriod(
         jobControllerConfig->ProfilingPeriod.value_or(
             Config_->ProfilingPeriod));
