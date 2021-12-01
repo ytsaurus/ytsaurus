@@ -62,6 +62,12 @@ func getPatchedClickHouseConfig(speclet *Speclet) (config interface{}, err error
 	if _, ok := settings["queue_max_wait_ms"]; !ok {
 		settings["queue_max_wait_ms"] = 30 * 1000
 	}
+	if _, ok := settings["max_concurrent_queries_for_user"]; !ok {
+		settings["max_concurrent_queries_for_user"] = 10 * 1000
+	}
+	if _, ok := settings["max_temporary_non_const_columns"]; !ok {
+		settings["max_temporary_non_const_columns"] = 1234
+	}
 
 	return
 }
