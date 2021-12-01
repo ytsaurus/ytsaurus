@@ -29,13 +29,6 @@ struct IDataNodeTracker
         NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response),
         IncrementalHeartbeat);
 
-    DECLARE_INTERFACE_SIGNAL(void(
-        TNode* node,
-        int mediumIndex,
-        i64 oldTokenCount,
-        i64 newTokenCount),
-        NodeConsistentReplicaPlacementTokensRedistributed);
-
     virtual void Initialize() = 0;
 
     using TCtxFullHeartbeat = NRpc::TTypedServiceContext<
