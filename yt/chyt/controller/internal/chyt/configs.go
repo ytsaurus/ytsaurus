@@ -166,6 +166,54 @@ func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *S
 				"cookie":          "$YT_JOB_COOKIE",
 			},
 		},
+		"logging": map[string]interface{}{
+			"writers": map[string]interface{}{
+				"error": map[string]interface{}{
+					"file_name": "./clickhouse.error.log",
+					"type":      "file",
+				},
+				"stderr": map[string]interface{}{
+					"type": "stderr",
+				},
+				"debug": map[string]interface{}{
+					"file_name": "./clickhouse.debug.log",
+					"type":      "file",
+				},
+				"info": map[string]interface{}{
+					"file_name": "./clickhouse.log",
+					"type":      "file",
+				},
+			},
+			"suppressed_messages": [2]string{
+				"Reinstall peer",
+				"Pass started",
+			},
+			"rules": [3](map[string]interface{}){
+				{
+					"min_level": "trace",
+					"writers": [1]string{
+						"debug",
+					},
+					"exclude_categories": [2]string{
+						"Concurrency",
+						"Bus",
+					},
+				},
+				{
+					"min_level": "info",
+					"writers": [1]string{
+						"info",
+					},
+				},
+				{
+					"min_level": "error",
+					"writers": [2]string{
+						"stderr",
+						"error",
+					},
+				},
+			},
+		},
 	}
 	ytServerClickHouseConfigPath, err := c.uploadConfig(ctx, alias, "config.yson", ytServerClickHouseConfig)
 	if err != nil {
@@ -176,9 +224,72 @@ func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *S
 		"profile_manager": map[string]interface{}{
 			"global_tags": map[string]interface{}{
 				"operation_alias": alias,
+				"cookie":          "$YT_JOB_COOKIE",
 			},
 		},
 		"cluster_connection": c.clusterConnection,
+		"log_tailer": map[string]interface{}{
+			"log_rotation": map[string]interface{}{
+				"enable":            true,
+				"rotation_delay":    15000,
+				"log_segment_count": 100,
+				"rotation_period":   900000,
+			},
+			"log_files": [2](map[string]interface{}){
+				{
+					"ttl":  604800000,
+					"path": "clickhouse.debug.log",
+				},
+				{
+					"ttl":  604800000,
+					"path": "clickhouse.log",
+				},
+			},
+			"log_writer_liveness_checker": map[string]interface{}{
+				"enable":                true,
+				"liveness_check_period": 5000,
+			},
+		},
+		"logging": map[string]interface{}{
+			"writers": map[string]interface{}{
+				"error": map[string]interface{}{
+					"file_name": "./log_tailer.error.log",
+					"type":      "file",
+				},
+				"stderr": map[string]interface{}{
+					"type": "stderr",
+				},
+				"debug": map[string]interface{}{
+					"file_name": "./log_tailer.debug.log",
+					"type":      "file",
+				},
+				"info": map[string]interface{}{
+					"file_name": "./log_tailer.log",
+					"type":      "file",
+				},
+			},
+			"rules": [3](map[string]interface{}){
+				{
+					"min_level": "trace",
+					"writers": [1]string{
+						"debug",
+					},
+				},
+				{
+					"min_level": "info",
+					"writers": [1]string{
+						"info",
+					},
+				},
+				{
+					"min_level": "error",
+					"writers": [2]string{
+						"error",
+						"stderr",
+					},
+				},
+			},
+		},
 	}
 	logTailerConfigPath, err := c.uploadConfig(ctx, alias, "log_tailer_config.yson", logTailerConfig)
 	if err != nil {
