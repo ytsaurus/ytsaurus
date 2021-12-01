@@ -507,7 +507,7 @@ public:
         RegisterParameter("clean_delay", CleanDelay)
             .Default(TDuration::Minutes(1));
         RegisterParameter("big_record_threshold", BigRecordThreshold)
-            .Default(64_KB);
+            .Default();
     }
 };
 
