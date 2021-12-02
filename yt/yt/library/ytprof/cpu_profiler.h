@@ -9,6 +9,7 @@
 #endif
 
 #include <yt/yt/library/ytprof/profile.pb.h>
+#include <yt/yt/library/ytprof/api/api.h>
 
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 
@@ -17,57 +18,8 @@
 
 #include "queue.h"
 #include "mem_reader.h"
-#include "atomic_signal_ptr.h"
 
 namespace NYT::NYTProf {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TProfilerTag final
-{
-    TString Name;
-    std::optional<TString> StringValue;
-    std::optional<i64> IntValue;
-
-    TProfilerTag(const TString& name, const TString& value)
-        : Name(name)
-        , StringValue(value)
-    { }
-
-    TProfilerTag(const TString& name, i64 value)
-        : Name(name)
-        , IntValue(value)
-    { }
-};
-
-typedef TIntrusivePtr<TProfilerTag> TProfilerTagPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Hooks for yt/yt/core fibers.
-void* AcquireFiberTagStorage();
-std::vector<std::pair<TString, std::variant<TString, i64>>> ReadFiberTags(void* storage);
-void ReleaseFiberTagStorage(void* storage);
-
-////////////////////////////////////////////////////////////////////////////////
-
-const int MaxActiveTags = 4;
-
-class TCpuProfilerTagGuard
-{
-public:
-    explicit TCpuProfilerTagGuard(TProfilerTagPtr tag);
-    ~TCpuProfilerTagGuard();
-
-    TCpuProfilerTagGuard(TCpuProfilerTagGuard&& other);
-    TCpuProfilerTagGuard(const TCpuProfilerTagGuard& other) = delete;
-
-    TCpuProfilerTagGuard& operator = (TCpuProfilerTagGuard&& other);
-    TCpuProfilerTagGuard& operator = (const TCpuProfilerTagGuard& other) = delete;
-
-private:
-    int TagIndex_ = -1;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

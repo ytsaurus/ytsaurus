@@ -19,70 +19,6 @@ namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TProfilerTag)
-
-struct TCpuProfilerTags;
-
-// This variable is referenced from signal handler.
-constinit thread_local std::atomic<TCpuProfilerTags*> CpuProfilerTagsPtr = nullptr;
-
-struct TCpuProfilerTags
-{
-    TCpuProfilerTags()
-    {
-        CpuProfilerTagsPtr = this;
-    }
-
-    ~TCpuProfilerTags()
-    {
-        CpuProfilerTagsPtr = nullptr;
-    }
-
-    std::array<TAtomicSignalPtr<TProfilerTag>, MaxActiveTags> Tags;
-};
-
-// We can't reference CpuProfilerTags from signal handler,
-// since it may trigger lazy initialization.
-thread_local TCpuProfilerTags CpuProfilerTags;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCpuProfilerTagGuard::TCpuProfilerTagGuard(TProfilerTagPtr tag)
-{
-    for (int i = 0; i < MaxActiveTags; i++) {
-        if (!CpuProfilerTags.Tags[i].IsSetFromThread()) {
-            CpuProfilerTags.Tags[i].StoreFromThread(std::move(tag));
-            TagIndex_ = i;
-            return;
-        }
-    }
-}
-
-TCpuProfilerTagGuard::~TCpuProfilerTagGuard()
-{
-    if (TagIndex_ != -1) {
-        CpuProfilerTags.Tags[TagIndex_].StoreFromThread(nullptr);
-    }
-}
-
-TCpuProfilerTagGuard::TCpuProfilerTagGuard(TCpuProfilerTagGuard&& other)
-    : TagIndex_(other.TagIndex_)
-{
-    other.TagIndex_ = -1;
-}
-
-TCpuProfilerTagGuard& TCpuProfilerTagGuard::operator = (TCpuProfilerTagGuard&& other)
-{
-    if (TagIndex_ != -1) {
-        CpuProfilerTags.Tags[TagIndex_].StoreFromThread(nullptr);
-    }
-
-    other.TagIndex_ = -1;
-    return *this;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCpuSample::operator size_t() const
 {
     size_t hash = Tid;
@@ -268,7 +204,7 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
     bool pushFiberStorage = false;
     int tagIndex = 0;
 
-    auto tagsPtr = CpuProfilerTagsPtr.load();
+    auto tagsPtr = GetCpuProfilerTags();
 
     uintptr_t threadName[2] = {};
     prctl(PR_GET_NAME, (unsigned long)threadName, 0UL, 0UL, 0UL);
@@ -291,7 +227,7 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
 
         if (tagIndex < MaxActiveTags) {
             if (tagsPtr) {
-                auto tag = tagsPtr->Tags[tagIndex].GetFromSignal();
+                auto tag = (*tagsPtr)[tagIndex].GetFromSignal();
                 tagIndex++;
                 return {reinterpret_cast<void*>(tag.Release()), true};
             } else {
