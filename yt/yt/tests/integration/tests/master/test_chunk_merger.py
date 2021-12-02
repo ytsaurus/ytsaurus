@@ -385,7 +385,7 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: not get("//tmp/t/@is_being_merged"))
 
         traversal_info1 = get("//tmp/t/@chunk_merger_traversal_info")
-        assert(traversal_info1["chunk_count"] > 0)
+        assert traversal_info1["chunk_count"] > 0
 
         write_table("<append=true>//tmp/t", {"c": "d"})
         write_table("<append=true>//tmp/t", {"q": "d"})
@@ -394,16 +394,17 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 5)
 
         traversal_info2 = get("//tmp/t/@chunk_merger_traversal_info")
-        assert(traversal_info2["chunk_count"] > traversal_info1["chunk_count"])
-        assert(traversal_info2["config_version"] == traversal_info1["config_version"])
+        assert traversal_info2["chunk_count"] > traversal_info1["chunk_count"]
+        assert traversal_info2["config_version"] == traversal_info1["config_version"]
 
         set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
         set("//sys/@config/chunk_manager/chunk_merger/max_row_count", 100)
         write_table("<append=true>//tmp/t", {"q": "d"})
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
+        wait(lambda: not get("//tmp/t/@is_being_merged"))
 
         traversal_info3 = get("//tmp/t/@chunk_merger_traversal_info")
-        assert(traversal_info3["config_version"] > traversal_info2["config_version"])
+        assert traversal_info3["config_version"] > traversal_info2["config_version"]
 
     @authors("cookiedoth")
     @pytest.mark.parametrize("enable_erasure", [False, True])
