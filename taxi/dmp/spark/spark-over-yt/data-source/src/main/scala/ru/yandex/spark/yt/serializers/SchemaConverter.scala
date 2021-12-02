@@ -7,10 +7,12 @@ import org.apache.spark.sql.v2.YtTable
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeMapNodeImpl
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
 import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode, YTreeStringNode}
 import ru.yandex.spark.yt.common.utils.TypeUtils.isTuple
+import ru.yandex.spark.yt.wrapper.YtJavaConverters
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
 
 object SchemaConverter {
@@ -28,7 +30,10 @@ object SchemaConverter {
       val fieldName = originalName.replace(".", "_")
       val stringDataType = fieldMap.getOrThrow("type_v3") match {
         case m: YTreeMapNode =>
-          m.getOrThrow("item").stringValue()
+          m.getOrThrow("type_name").stringValue() match {
+            case "optional" => m.getOrThrow("item").stringValue()
+            case _ => "yson"
+          }
         case s: YTreeStringNode =>
           s.stringValue()
       }

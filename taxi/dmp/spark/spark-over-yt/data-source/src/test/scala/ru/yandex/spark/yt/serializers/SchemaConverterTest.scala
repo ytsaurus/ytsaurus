@@ -51,6 +51,11 @@ class SchemaConverterTest extends FlatSpec with Matchers
       .addValue("datetime", TiType.datetime())
       .addValue("timestamp", TiType.timestamp())
       .addValue("interval", TiType.interval())
+      .addValue("list", TiType.list(TiType.floatType()))
+      .addValue("list2", TiType.list(TiType.list(TiType.date())))
+      .addValue("list3", TiType.list(TiType.dict(TiType.int32(), TiType.doubleType())))
+      .addValue("dict", TiType.dict(TiType.string(), TiType.bool()))
+      .addValue("dict2", TiType.dict(TiType.int64(), TiType.list(TiType.uint32())))
       .build()
 
     val res = SchemaConverter.sparkSchema(schema.toYTree)
@@ -74,7 +79,12 @@ class SchemaConverterTest extends FlatSpec with Matchers
       structField("date", DateType),
       structField("datetime", TimestampType),
       structField("timestamp", LongType),
-      structField("interval", LongType)
+      structField("interval", LongType),
+      structField("list", YsonType),
+      structField("list2", YsonType),
+      structField("list3", YsonType),
+      structField("dict", YsonType),
+      structField("dict2", YsonType)
     ))
   }
 
