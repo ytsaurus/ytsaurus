@@ -21,6 +21,7 @@
 #include <yt/yt/server/master/chunk_server/proto/chunk_autotomizer.pb.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -36,9 +37,11 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkServer::NProto;
 using namespace NConcurrency;
+using namespace NJobTrackerClient::NProto;
 using namespace NLogging;
 using namespace NHydra;
 using namespace NHiveClient;
+using namespace NNodeTrackerClient::NProto;
 using namespace NObjectServer;
 using namespace NProfiling;
 using namespace NTransactionServer;
@@ -85,6 +88,94 @@ public:
 private:
     std::vector<TChunkId> Chunks_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAutotomyJob
+    : public TJob
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, BodyChunkId);
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, TailChunkId);
+
+    DEFINE_BYVAL_RO_PROPERTY(bool, Speculative);
+    DEFINE_BYVAL_RO_PROPERTY(bool, Urgent);
+
+public:
+    TAutotomyJob(
+        TJobId jobId,
+        TChunkId bodyChunkId,
+        const TChunkSealInfo& bodySealInfo,
+        TChunkId tailChunkId,
+        bool speculative,
+        bool urgent)
+        : TJob(
+            jobId,
+            EJobType::AutotomizeChunk,
+            /*node*/ nullptr,
+            TAutotomyJob::GetResourceUsage(),
+            TChunkIdWithIndexes(bodyChunkId, GenericChunkReplicaIndex, GenericMediumIndex))
+        , BodyChunkId_(bodyChunkId)
+        , TailChunkId_(tailChunkId)
+        , Speculative_(speculative)
+        , Urgent_(urgent)
+        , BodySealInfo_(bodySealInfo)
+    { }
+
+    virtual void FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const override
+    {
+        const auto& chunkManager = bootstrap->GetChunkManager();
+
+        jobSpec->set_urgent(Urgent_);
+
+        auto* jobSpecExt = jobSpec->MutableExtension(TAutotomizeChunkJobSpecExt::autotomize_chunk_job_spec_ext);
+
+        NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+
+        auto* bodyChunk = chunkManager->FindChunk(BodyChunkId_);
+        YT_VERIFY(IsObjectAlive(bodyChunk));
+        const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+        const auto& aggregatedReplication = bodyChunk->GetAggregatedReplication(requisitionRegistry);
+        YT_VERIFY(aggregatedReplication.GetSize() == 1);
+        const auto& replication = *aggregatedReplication.begin();
+
+        ToProto(jobSpecExt->mutable_body_chunk_id(), BodyChunkId_);
+        YT_VERIFY(bodyChunk->GetOverlayed());
+        jobSpecExt->set_body_chunk_first_overlayed_row_index(BodySealInfo_.first_overlayed_row_index());
+        jobSpecExt->set_body_chunk_replica_lag_limit(bodyChunk->GetReplicaLagLimit());
+
+        const auto& bodyChunkReplicas = bodyChunk->StoredReplicas();
+        ToProto(jobSpecExt->mutable_body_chunk_replicas(), bodyChunkReplicas);
+        builder.Add(bodyChunkReplicas);
+
+        ToProto(jobSpecExt->mutable_tail_chunk_id(), TailChunkId_);
+
+        jobSpecExt->set_read_quorum(bodyChunk->GetReadQuorum());
+        jobSpecExt->set_write_quorum(bodyChunk->GetWriteQuorum());
+        jobSpecExt->set_medium_index(replication.GetMediumIndex());
+        jobSpecExt->set_erasure_codec(ToUnderlying(bodyChunk->GetErasureCodec()));
+        jobSpecExt->set_replication_factor(replication.Policy().GetReplicationFactor());
+        jobSpecExt->set_overlayed(bodyChunk->GetOverlayed());
+    }
+
+    void SetNode(TNode* node)
+    {
+        NodeAddress_ = node->GetDefaultAddress();
+    }
+
+private:
+    const TChunkSealInfo BodySealInfo_;
+
+    static TNodeResources GetResourceUsage()
+    {
+        TNodeResources resourceUsage;
+        resourceUsage.set_autotomy_slots(1);
+
+        return resourceUsage;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAutotomyJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 

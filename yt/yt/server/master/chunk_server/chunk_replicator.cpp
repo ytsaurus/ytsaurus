@@ -71,6 +71,7 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NNodeTrackerServer;
@@ -92,6 +93,189 @@ TChunkReplicator::TPerMediumChunkStatistics::TPerMediumChunkStatistics()
     , ReplicaCount{}
     , DecommissionedReplicaCount{}
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicationJob
+    : public TJob
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
+
+public:
+    TReplicationJob(
+        TJobId jobId,
+        TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes,
+        const TNodePtrWithIndexesList& targetReplicas)
+        : TJob(
+            jobId,
+            EJobType::ReplicateChunk,
+            node,
+            TReplicationJob::GetResourceUsage(chunkWithIndexes.GetPtr()),
+            ToChunkIdWithIndexes(chunkWithIndexes))
+        , TargetReplicas_(targetReplicas)
+    { }
+
+    void FillJobSpec(TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const override
+    {
+        auto* jobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
+        ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
+        jobSpecExt->set_source_medium_index(ChunkIdWithIndexes_.MediumIndex);
+
+        NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+        for (auto replica : TargetReplicas_) {
+            jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+            builder.Add(replica);
+        }
+    }
+
+private:
+    static TNodeResources GetResourceUsage(TChunk* chunk)
+    {
+        auto dataSize = chunk->GetPartDiskSpace();
+
+        TNodeResources resourceUsage;
+        resourceUsage.set_replication_slots(1);
+        resourceUsage.set_replication_data_size(dataSize);
+
+        return resourceUsage;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicationJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemovalJob
+    : public TJob
+{
+public:
+    TRemovalJob(
+        TJobId jobId,
+        TNode* node,
+        TChunk* chunk,
+        const TChunkIdWithIndexes& chunkIdWithIndexes)
+        : TJob(
+            jobId,
+            EJobType::RemoveChunk,
+            node,
+            TRemovalJob::GetResourceUsage(),
+            chunkIdWithIndexes)
+        , Chunk_(chunk)
+    { }
+
+    void FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const override
+    {
+        auto* jobSpecExt = jobSpec->MutableExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext);
+        ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
+        jobSpecExt->set_medium_index(ChunkIdWithIndexes_.MediumIndex);
+        if (!Chunk_) {
+            jobSpecExt->set_chunk_is_dead(true);
+            return;
+        }
+
+        bool isErasure = Chunk_->IsErasure();
+        for (auto replica : Chunk_->StoredReplicas()) {
+            if (replica.GetPtr()->GetDefaultAddress() == NodeAddress_) {
+                continue;
+            }
+            if (isErasure && replica.GetReplicaIndex() != ChunkIdWithIndexes_.ReplicaIndex) {
+                continue;
+            }
+            jobSpecExt->add_replicas(ToProto<ui32>(replica));
+        }
+
+        const auto& configManager = bootstrap->GetConfigManager();
+        const auto& config = configManager->GetConfig()->ChunkManager;
+        auto chunkRemovalJobExpirationDeadline = TInstant::Now() + config->ChunkRemovalJobReplicasExpirationTime;
+
+        jobSpecExt->set_replicas_expiration_deadline(::NYT::ToProto<ui64>(chunkRemovalJobExpirationDeadline));
+    }
+
+private:
+    TChunk* const Chunk_;
+
+    static TNodeResources GetResourceUsage()
+    {
+        TNodeResources resourceUsage;
+        resourceUsage.set_removal_slots(1);
+
+        return resourceUsage;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemovalJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRepairJob
+    : public TJob
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
+
+public:
+    TRepairJob(
+        TJobId jobId,
+        TNode* node,
+        i64 jobMemoryUsage,
+        TChunk* chunk,
+        const TNodePtrWithIndexesList& targetReplicas,
+        bool decommission)
+        : TJob(
+            jobId,
+            EJobType::RepairChunk,
+            node,
+            TRepairJob::GetResourceUsage(chunk, jobMemoryUsage),
+            TChunkIdWithIndexes{chunk->GetId(), GenericChunkReplicaIndex, GenericMediumIndex})
+        , TargetReplicas_(targetReplicas)
+        , Chunk_(chunk)
+        , Decommission_(decommission)
+    { }
+
+    void FillJobSpec(TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const override
+    {
+        auto* jobSpecExt = jobSpec->MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
+        jobSpecExt->set_erasure_codec(static_cast<int>(Chunk_->GetErasureCodec()));
+        ToProto(jobSpecExt->mutable_chunk_id(), Chunk_->GetId());
+        jobSpecExt->set_decommission(Decommission_);
+
+        if (Chunk_->IsJournal()) {
+            YT_VERIFY(Chunk_->IsSealed());
+            jobSpecExt->set_row_count(Chunk_->GetPhysicalSealedRowCount());
+        }
+
+        NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+
+        const auto& sourceReplicas = Chunk_->StoredReplicas();
+        builder.Add(sourceReplicas);
+        ToProto(jobSpecExt->mutable_source_replicas(), sourceReplicas);
+
+        for (auto replica : TargetReplicas_) {
+            jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+            builder.Add(replica);
+        }
+    }
+
+private:
+    TChunk* const Chunk_;
+    const bool Decommission_;
+
+    static TNodeResources GetResourceUsage(TChunk* chunk, i64 jobMemoryUsage)
+    {
+        auto dataSize = chunk->GetPartDiskSpace();
+
+        TNodeResources resourceUsage;
+        resourceUsage.set_repair_slots(1);
+        resourceUsage.set_system_memory(jobMemoryUsage);
+        resourceUsage.set_repair_data_size(dataSize);
+
+        return resourceUsage;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRepairJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 

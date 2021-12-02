@@ -15,6 +15,7 @@
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
@@ -49,6 +50,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCellMaster;
 using namespace NChunkClient::NProto;
+using namespace NJobTrackerClient::NProto;
 using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NProto;
@@ -85,6 +87,65 @@ void FromProto(TChunkMergerTraversalInfo* traversalInfo, const NProto::TTraversa
 {
     traversalInfo->ChunkCount = protoTraversalInfo.chunk_count();
     traversalInfo->ConfigVersion = protoTraversalInfo.config_version();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMergeJob::TMergeJob(
+    TJobId jobId,
+    NNodeTrackerServer::TNode* node,
+    TChunkIdWithIndexes chunkIdWithIndexes,
+    TChunkVector inputChunks,
+    TChunkMergerWriterOptions chunkMergerWriterOptions,
+    TNodePtrWithIndexesList targetReplicas)
+    : TJob(jobId, EJobType::MergeChunks, node, TMergeJob::GetResourceUsage(inputChunks), chunkIdWithIndexes)
+    , TargetReplicas_(targetReplicas)
+    , InputChunks_(std::move(inputChunks))
+    , ChunkMergerWriterOptions_(std::move(chunkMergerWriterOptions))
+{ }
+
+void TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
+{
+    auto* jobSpecExt = jobSpec->MutableExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext);
+
+    jobSpecExt->set_cell_tag(bootstrap->GetCellTag());
+
+    ToProto(jobSpecExt->mutable_output_chunk_id(), ChunkIdWithIndexes_.Id);
+    jobSpecExt->set_medium_index(ChunkIdWithIndexes_.MediumIndex);
+    *jobSpecExt->mutable_chunk_merger_writer_options() = ChunkMergerWriterOptions_;
+
+    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+
+    for (auto* chunk : InputChunks_) {
+        auto* protoChunk = jobSpecExt->add_input_chunks();
+        ToProto(protoChunk->mutable_id(), chunk->GetId());
+
+        const auto& replicas = chunk->StoredReplicas();
+        ToProto(protoChunk->mutable_source_replicas(), replicas);
+        builder.Add(replicas);
+
+        protoChunk->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
+        protoChunk->set_row_count(chunk->GetRowCount());
+    }
+
+    builder.Add(TargetReplicas_);
+    for (auto replica : TargetReplicas_) {
+        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+    }
+}
+
+TNodeResources TMergeJob::GetResourceUsage(const TChunkVector& inputChunks)
+{
+    i64 dataSize = 0;
+    for (auto chunk : inputChunks) {
+        dataSize += chunk->GetPartDiskSpace();
+    }
+
+    TNodeResources resourceUsage;
+    resourceUsage.set_merge_slots(1);
+    resourceUsage.set_merge_data_size(dataSize);
+
+    return resourceUsage;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

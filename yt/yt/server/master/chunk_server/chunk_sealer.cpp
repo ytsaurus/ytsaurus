@@ -20,6 +20,7 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
@@ -50,6 +51,7 @@ using namespace NObjectServer;
 using namespace NJournalClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
@@ -61,6 +63,56 @@ using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSealJob
+    : public TJob
+{
+public:
+    TSealJob(
+        TJobId jobId,
+        TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes)
+        : TJob(
+            jobId,
+            EJobType::SealChunk,
+            node,
+            TSealJob::GetResourceUsage(),
+            ToChunkIdWithIndexes(chunkWithIndexes))
+        , ChunkWithIndexes_(chunkWithIndexes)
+    { }
+
+    void FillJobSpec(TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const override
+    {
+        auto* chunk = ChunkWithIndexes_.GetPtr();
+        auto chunkId = GetChunkIdWithIndexes();
+
+        auto* jobSpecExt = jobSpec->MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
+        ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkId));
+        jobSpecExt->set_codec_id(::NYT::ToProto<int>(chunk->GetErasureCodec()));
+        jobSpecExt->set_medium_index(chunkId.MediumIndex);
+        jobSpecExt->set_row_count(chunk->GetPhysicalSealedRowCount());
+
+        NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+        const auto& replicas = chunk->StoredReplicas();
+        builder.Add(replicas);
+        ToProto(jobSpecExt->mutable_source_replicas(), replicas);
+    }
+
+private:
+    const TChunkPtrWithIndexes ChunkWithIndexes_;
+
+    static TNodeResources GetResourceUsage()
+    {
+        TNodeResources resourceUsage;
+        resourceUsage.set_seal_slots(1);
+
+        return resourceUsage;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSealJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
