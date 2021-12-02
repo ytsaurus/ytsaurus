@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Random;
@@ -39,7 +40,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStri
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeUnsignedLongSerializer;
 import ru.yandex.misc.enums.IntEnumResolver;
 import ru.yandex.misc.enums.StringEnumResolver;
-import ru.yandex.misc.reflection.ClassX;
 
 public class ObjectsGenerators {
 
@@ -248,8 +248,8 @@ public class ObjectsGenerators {
     private static class YTreeEnumGenerator implements NodeGenerator {
         private final String[] values;
 
-        <T extends Enum<T>> YTreeEnumGenerator(ClassX<T> clazz) {
-            this.values = clazz.getEnumConstants().stream().map(Enum::name).toArray(String[]::new);
+        <T extends Enum<T>> YTreeEnumGenerator(Class<T> clazz) {
+            this.values = Arrays.stream(clazz.getEnumConstants()).map(Enum::name).toArray(String[]::new);
         }
 
         @Override
