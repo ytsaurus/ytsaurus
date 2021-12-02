@@ -22,6 +22,7 @@ TFairShareInvokerQueue::TFairShareInvokerQueue(
         bucket.Queue = New<TMpscInvokerQueue>(
             callbackEventCount,
             bucketDescription.QueueTagSets,
+            bucketDescription.QueueProfilerTags,
             bucketDescription.BucketTagSet);
         int profilingTagCount = bucketDescription.QueueTagSets.size();
         bucket.Invokers.reserve(profilingTagCount);

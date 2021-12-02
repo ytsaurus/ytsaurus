@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/library/ytprof/api/api.h>
+
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
 
 #include <yt/yt/core/actions/invoker.h>
@@ -24,6 +26,7 @@ struct TEnqueuedAction
     NProfiling::TCpuInstant FinishedAt = 0;
     TClosure Callback;
     int ProfilingTag = 0;
+    NYTProf::TProfilerTagPtr ProfilerTag;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,12 +75,16 @@ public:
     TInvokerQueue(
         TIntrusivePtr<TEventCount> callbackEventCount,
         const std::vector<NProfiling::TTagSet>& counterTagSets,
+        const std::vector<NYTProf::TProfilerTagPtr>& profilerTags,
         const NProfiling::TTagSet& cumulativeCounterTagSet);
 
     void SetThreadId(TThreadId threadId);
 
     void Invoke(TClosure callback) override;
-    void Invoke(TClosure callback, int profilingTag);
+    void Invoke(
+        TClosure callback,
+        int profilingTag,
+        NYTProf::TProfilerTagPtr profilerTag);
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     TThreadId GetThreadId() const override;
@@ -124,6 +131,8 @@ private:
     TCountersPtr CumulativeCounters_;
 
     std::vector<IInvokerPtr> ProfilingTagSettingInvokers_;
+
+    NYTProf::TCpuProfilerTagGuard CpuProfilerTagGuard_;
 
     TCountersPtr CreateCounters(const NProfiling::TTagSet& tagSet);
 };

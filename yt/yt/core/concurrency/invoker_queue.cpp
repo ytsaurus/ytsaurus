@@ -9,6 +9,7 @@
 namespace NYT::NConcurrency {
 
 using namespace NProfiling;
+using namespace NYTProf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,15 +62,17 @@ class TProfilingTagSettingInvoker
 public:
     TProfilingTagSettingInvoker(
         TWeakPtr<TInvokerQueue<TQueueImpl>> queue,
-        int profilingTag)
+        int profilingTag,
+        TProfilerTagPtr profilerTag)
         : Queue_(std::move(queue))
         , ProfilingTag_(profilingTag)
+        , ProfilerTag_(std::move(profilerTag))
     { }
 
     void Invoke(TClosure callback) override
     {
         if (auto queue = Queue_.Lock()) {
-            queue->Invoke(std::move(callback), ProfilingTag_);
+            queue->Invoke(std::move(callback), ProfilingTag_, ProfilerTag_);
         }
     }
 
@@ -92,6 +95,7 @@ public:
 private:
     const TWeakPtr<TInvokerQueue<TQueueImpl>> Queue_;
     const int ProfilingTag_;
+    const TProfilerTagPtr ProfilerTag_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,9 +113,12 @@ template <class TQueueImpl>
 TInvokerQueue<TQueueImpl>::TInvokerQueue(
     TIntrusivePtr<TEventCount> callbackEventCount,
     const std::vector<TTagSet>& counterTagSets,
+    const std::vector<NYTProf::TProfilerTagPtr>& profilerTags,
     const TTagSet& cumulativeCounterTagSet)
     : CallbackEventCount_(std::move(callbackEventCount))
 {
+    YT_VERIFY(counterTagSets.size() == profilerTags.size());
+
     Counters_.reserve(counterTagSets.size());
     for (const auto& tagSet : counterTagSets) {
         Counters_.push_back(CreateCounters(tagSet));
@@ -122,7 +129,7 @@ TInvokerQueue<TQueueImpl>::TInvokerQueue(
     ProfilingTagSettingInvokers_.reserve(Counters_.size());
     for (int index = 0; index < std::ssize(Counters_); ++index) {
         ProfilingTagSettingInvokers_.push_back(
-            New<TProfilingTagSettingInvoker<TQueueImpl>>(MakeWeak(this), index));
+            New<TProfilingTagSettingInvoker<TQueueImpl>>(MakeWeak(this), index, profilerTags[index]));
     }
 }
 
@@ -136,11 +143,14 @@ template <class TQueueImpl>
 void TInvokerQueue<TQueueImpl>::Invoke(TClosure callback)
 {
     YT_ASSERT(Counters_.size() == 1);
-    Invoke(std::move(callback), /* profilingTag */ 0);
+    Invoke(std::move(callback), /*profilingTag*/ 0, /*profilerTag*/ nullptr);
 }
 
 template <class TQueueImpl>
-void TInvokerQueue<TQueueImpl>::Invoke(TClosure callback, int profilingTag)
+void TInvokerQueue<TQueueImpl>::Invoke(
+    TClosure callback,
+    int profilingTag,
+    TProfilerTagPtr profilerTag)
 {
     YT_ASSERT(callback);
     YT_ASSERT(profilingTag >= 0 && profilingTag < std::ssize(Counters_));
@@ -166,7 +176,8 @@ void TInvokerQueue<TQueueImpl>::Invoke(TClosure callback, int profilingTag)
         .Finished = false,
         .EnqueuedAt = tscp.Instant,
         .Callback = std::move(callback),
-        .ProfilingTag = profilingTag
+        .ProfilingTag = profilingTag,
+        .ProfilerTag = std::move(profilerTag)
     };
     QueueImpl_.Enqueue(std::move(action));
 
@@ -235,6 +246,12 @@ TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action, typena
     updateCounters(Counters_[action->ProfilingTag]);
     updateCounters(CumulativeCounters_);
 
+    if (const auto& profilerTag = action->ProfilerTag) {
+        CpuProfilerTagGuard_ = TCpuProfilerTagGuard(profilerTag);
+    } else {
+        CpuProfilerTagGuard_ = {};
+    }
+
     SetCurrentInvoker(GetProfilingTagSettingInvoker(action->ProfilingTag));
 
     return std::move(action->Callback);
@@ -243,6 +260,7 @@ TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action, typena
 template <class TQueueImpl>
 void TInvokerQueue<TQueueImpl>::EndExecute(TEnqueuedAction* action)
 {
+    CpuProfilerTagGuard_ = TCpuProfilerTagGuard{};
     SetCurrentInvoker(nullptr);
 
     YT_ASSERT(action);
@@ -299,7 +317,7 @@ bool TInvokerQueue<TQueueImpl>::IsRunning() const
 template <class TQueueImpl>
 IInvokerPtr TInvokerQueue<TQueueImpl>::GetProfilingTagSettingInvoker(int profilingTag)
 {
-    if (Counters_.size() == 1) {
+    if (ProfilingTagSettingInvokers_.empty()) {
         // Fast path.
         YT_ASSERT(profilingTag == 0);
         return this;

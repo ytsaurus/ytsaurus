@@ -10,6 +10,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/library/ytprof/api/api.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,6 +207,7 @@ private:
         TCallback<void(TMutationContext* context)> Callback;
         NProfiling::TTimeCounter CumulativeTimeCounter;
         NProfiling::TCounter MutationCounter;
+        NYTProf::TProfilerTagPtr CpuProfilerTag;
     };
 
     struct TSaverDescriptorBase

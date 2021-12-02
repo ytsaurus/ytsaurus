@@ -52,6 +52,7 @@ public:
                 QueueIndexToBucketIndex_[queueIndex] = bucketIndex;
                 QueueIndexToBucketQueueIndex_[queueIndex] = bucketQueueIndex;
                 bucketDescription.QueueTagSets.push_back(GetQueueTags(threadName, queueName));
+                bucketDescription.QueueProfilerTags.push_back(New<NYTProf::TProfilerTag>("queue", queueName));
             }
             BucketNames_.push_back(bucketName);
         }
@@ -65,6 +66,7 @@ public:
             auto& bucketDescription = bucketDescriptions.emplace_back();
             bucketDescription.BucketTagSet = GetBucketTags(threadName, queueName);
             bucketDescription.QueueTagSets.push_back(GetQueueTags(threadName, queueName));
+            bucketDescription.QueueProfilerTags.push_back(New<NYTProf::TProfilerTag>("queue", queueName));
             auto queueIndex = GetOrCrash(queueNameToIndex, queueName);
             QueueIndexToBucketIndex_[queueIndex] = nextBucketIndex++;
             QueueIndexToBucketQueueIndex_[queueIndex] = 0;
