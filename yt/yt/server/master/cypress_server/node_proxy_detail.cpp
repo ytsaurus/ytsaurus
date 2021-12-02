@@ -2785,7 +2785,7 @@ void TMapNodeProxy::ListSelf(
     }
     writer.OnEndList();
 
-    writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+    writer.Finish()
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
                 response->set_value(resultOrError.Value().ToString());

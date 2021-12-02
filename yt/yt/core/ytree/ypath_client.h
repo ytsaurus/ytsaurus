@@ -224,7 +224,7 @@ SyncExecuteVerb(
     const IYPathServicePtr& service,
     const TIntrusivePtr<TTypedRequest>& request);
 
-//! Synchronously executes |GetKey| verb. Throws if an error has occurred.
+//! Executes |GetKey| verb assuming #service handles requests synchronously. Throws if an error has occurred.
 TString SyncYPathGetKey(
     const IYPathServicePtr& service,
     const TYPath& path);
@@ -235,7 +235,7 @@ TFuture<NYson::TYsonString> AsyncYPathGet(
     const TYPath& path,
     const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
 
-//! Synchronously executes |Get| verb. Throws if an error has occurred.
+//! Executes |Get| verb assuming #service handles requests synchronously. Throws if an error has occurred.
 NYson::TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
@@ -246,26 +246,40 @@ TFuture<bool> AsyncYPathExists(
     const IYPathServicePtr& service,
     const TYPath& path);
 
-//! Synchronously executes |Exists| verb. Throws if an error has occurred.
+//! Executes |Exists| verb assuming #service handles requests synchronously. Throws if an error has occurred.
 bool SyncYPathExists(
     const IYPathServicePtr& service,
     const TYPath& path);
 
-//! Synchronously executes |Set| verb. Throws if an error has occurred.
+//! Asynchronously executes |Set| verb.
+TFuture<void> AsyncYPathSet(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    const NYson::TYsonString& value,
+    bool recursive = false);
+
+//! Executes |Set| verb assuming #service handles requests synchronously. Throws if an error has occurred.
 void SyncYPathSet(
     const IYPathServicePtr& service,
     const TYPath& path,
     const NYson::TYsonString& value,
     bool recursive = false);
 
-//! Synchronously executes |Remove| verb. Throws if an error has occurred.
+//! Asynchronously executes |Remove| verb.
+TFuture<void> AsyncYPathRemove(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    bool recursive = true,
+    bool force = false);
+
+//! Executes |Remove| verb assuming #service handles requests synchronously. Throws if an error has occurred.
 void SyncYPathRemove(
     const IYPathServicePtr& service,
     const TYPath& path,
     bool recursive = true,
     bool force = false);
 
-//! Synchronously executes |List| verb. Throws if an error has occurred.
+//! Executes |List| verb assuming #service handles requests synchronously. Throws if an error has occurred.
 std::vector<TString> SyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
