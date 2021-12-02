@@ -60,6 +60,8 @@ public:
     NReplicator::IChunkReplicaAllocatorPtr GetChunkReplicaAllocator() const;
     NReplicator::IJobTrackerPtr GetJobTracker() const;
 
+    const TJobRegistryPtr& GetJobRegistry() const;
+
     std::unique_ptr<NHydra::TMutation> CreateUpdateChunkRequisitionMutation(
         const NProto::TReqUpdateChunkRequisition& request);
     std::unique_ptr<NHydra::TMutation> CreateConfirmChunkListsRequisitionTraverseFinishedMutation(

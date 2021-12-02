@@ -93,6 +93,7 @@ void FromProto(TChunkMergerTraversalInfo* traversalInfo, const NProto::TTraversa
 
 TMergeJob::TMergeJob(
     TJobId jobId,
+    TMergeJobInfo jobInfo,
     NNodeTrackerServer::TNode* node,
     TChunkIdWithIndexes chunkIdWithIndexes,
     TChunkVector inputChunks,
@@ -100,6 +101,7 @@ TMergeJob::TMergeJob(
     TNodePtrWithIndexesList targetReplicas)
     : TJob(jobId, EJobType::MergeChunks, node, TMergeJob::GetResourceUsage(inputChunks), chunkIdWithIndexes)
     , TargetReplicas_(targetReplicas)
+    , JobInfo_(std::move(jobInfo))
     , InputChunks_(std::move(inputChunks))
     , ChunkMergerWriterOptions_(std::move(chunkMergerWriterOptions))
 { }
@@ -602,9 +604,15 @@ void TChunkMerger::ScheduleJobs(IJobSchedulingContext* context)
     const auto& resourceUsage = context->GetNodeResourceUsage();
     const auto& resourceLimits = context->GetNodeResourceLimits();
 
+    const auto& config = GetDynamicConfig();
+    if (!config->Enable) {
+        return;
+    }
+
     auto hasSpareMergeResources = [&] {
         return resourceUsage.merge_slots() < resourceLimits.merge_slots() &&
-            (resourceUsage.merge_slots() == 0 || resourceUsage.merge_data_size() < resourceLimits.merge_data_size());
+            (resourceUsage.merge_slots() == 0 || resourceUsage.merge_data_size() < resourceLimits.merge_data_size()) &&
+            context->GetJobRegistry()->GetJobCount(EJobType::MergeChunks) < config->MaxRunningJobCount;
     };
 
     while (!JobsAwaitingNodeHeartbeat_.empty() && hasSpareMergeResources()) {
@@ -637,7 +645,6 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
     buffer->AddGauge("/chunk_merger_jobs_awaiting_chunk_creation", JobsAwaitingChunkCreation_.size());
     buffer->AddGauge("/chunk_merger_jobs_undergoing_chunk_creation", JobsUndergoingChunkCreation_.size());
     buffer->AddGauge("/chunk_merger_jobs_awaiting_node_heartbeat", JobsAwaitingNodeHeartbeat_.size());
-    buffer->AddGauge("/chunk_merger_running_jobs", RunningJobs_.size());
 
     buffer->AddCounter("/chunk_merger_chunk_replacement_succeeded", ChunkReplacementSucceded_);
     buffer->AddCounter("/chunk_merger_chunk_replacement_failed", ChunkReplacementFailed_);
@@ -682,12 +689,11 @@ void TChunkMerger::OnJobCompleted(const TMergeJobPtr& job)
 {
     const auto& jobResult = job->Result();
     const auto& jobResultExt = jobResult.GetExtension(NChunkClient::NProto::TMergeChunksJobResultExt::merge_chunks_job_result_ext);
-    auto it = RunningJobs_.find(job->GetJobId());
-    if (it != RunningJobs_.end()) {
-        ++CompletedJobCountPerMode_[it->second.MergeMode];
-        if (jobResultExt.deep_merge_fallback_occurred()) {
-            ++AutoMergeFallbackJobCount_;
-        }
+
+    auto mergeMode = job->JobInfo().MergeMode;
+    ++CompletedJobCountPerMode_[mergeMode];
+    if (jobResultExt.deep_merge_fallback_occurred()) {
+        ++AutoMergeFallbackJobCount_;
     }
 
     OnJobFinished(job);
@@ -802,7 +808,6 @@ void TChunkMerger::ResetTransientState()
     JobsAwaitingChunkCreation_ = {};
     JobsUndergoingChunkCreation_ = {};
     JobsAwaitingNodeHeartbeat_ = {};
-    RunningJobs_ = {};
     RunningSessions_ = {};
     SessionsAwaitingFinalizaton_ = {};
 }
@@ -1091,6 +1096,13 @@ void TChunkMerger::ProcessTouchedNodes()
         return;
     }
 
+    // Do not create new merge jobs if too many jobs are already running.
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& jobRegistry = chunkManager->GetJobRegistry();
+    if (jobRegistry->GetJobCount(EJobType::MergeChunks) > config->MaxRunningJobCount) {
+        return;
+    }
+
     std::vector<TAccount*> accountsToRemove;
     for (auto& [account, queue] : AccountToNodeQueue_) {
         if (!account.IsAlive()) {
@@ -1103,8 +1115,7 @@ void TChunkMerger::ProcessTouchedNodes()
         while (!queue.empty() &&
             !mergeJobThrottler->IsOverdraft() &&
             account->GetChunkMergerNodeTraversals() < maxNodeCount &&
-            std::ssize(JobsAwaitingNodeHeartbeat_) < config->QueueSizeLimit &&
-            std::ssize(RunningJobs_) < config->MaxRunningJobCount)
+            std::ssize(JobsAwaitingNodeHeartbeat_) < config->QueueSizeLimit)
         {
             auto nodeId = queue.front();
             queue.pop();
@@ -1277,6 +1288,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
 
     auto job = New<TMergeJob>(
         jobInfo.JobId,
+        jobInfo,
         context->GetNode(),
         chunkIdWithIndexes,
         std::move(inputChunks),
@@ -1291,8 +1303,6 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         jobInfo.InputChunkIds,
         jobInfo.OutputChunkId);
 
-    YT_VERIFY(RunningJobs_.emplace(job->GetJobId(), std::move(jobInfo)).second);
-
     return true;
 }
 
@@ -1302,18 +1312,9 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
 
     YT_VERIFY(job->GetType() == EJobType::MergeChunks);
 
-    auto jobId = job->GetJobId();
-    auto it = RunningJobs_.find(jobId);
-    if (it == RunningJobs_.end()) {
-        YT_LOG_ALERT("Unknown job finished in chunk merger (JobId: %v)",
-            jobId);
-        return;
-    }
-
-    const auto& jobInfo = it->second;
     auto state = job->GetState();
 
-    auto result = job->GetState() == EJobState::Completed
+    auto result = state == EJobState::Completed
         ? EMergeSessionResult::OK
         : EMergeSessionResult::TransientFailure;
 
@@ -1321,15 +1322,13 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
         YT_LOG_DEBUG(
             job->Error(),
             "Chunks do not satisfy shallow merge criteria, will not try merging them again (JobId: %v)",
-            jobId);
+            job->GetJobId());
         result = EMergeSessionResult::PermanentFailure;
     }
 
     FinalizeJob(
-        std::move(jobInfo),
+        job->JobInfo(),
         result);
-
-    RunningJobs_.erase(it);
 }
 
 const TDynamicChunkMergerConfigPtr& TChunkMerger::GetDynamicConfig() const

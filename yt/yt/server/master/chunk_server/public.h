@@ -112,6 +112,7 @@ struct TChunkOwnerMergeJobCounterPtrContext;
 template <class T>
 using TChunkOwnerMergeJobCounterPtr = NObjectServer::TObjectPtr<T, TChunkOwnerMergeJobCounterPtrContext>;
 
+DECLARE_REFCOUNTED_CLASS(TJobRegistry)
 DECLARE_REFCOUNTED_CLASS(TJobTracker)
 
 DECLARE_REFCOUNTED_CLASS(TJob)

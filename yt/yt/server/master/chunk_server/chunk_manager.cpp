@@ -502,6 +502,10 @@ public:
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xffffffffffffffff);
         DefaultCacheMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xfffffffffffffffe);
+
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        Y_UNUSED(hydraFacade);
+        VERIFY_INVOKER_THREAD_AFFINITY(hydraFacade->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
     }
 
     void Initialize()
@@ -602,6 +606,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return JobTracker_.Load();
+    }
+
+    const TJobRegistryPtr& GetJobRegistry() const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return JobRegistry_;
     }
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer)
@@ -1649,6 +1660,7 @@ public:
     DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, InconsistentlyPlacedChunks);
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ForeignChunks);
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     int GetTotalReplicaCount()
     {
@@ -5216,6 +5228,11 @@ NReplicator::IChunkReplicaAllocatorPtr TChunkManager::GetChunkReplicaAllocator()
 NReplicator::IJobTrackerPtr TChunkManager::GetJobTracker() const
 {
     return Impl_->GetJobTracker();
+}
+
+const TJobRegistryPtr& TChunkManager::GetJobRegistry() const
+{
+    return Impl_->GetJobRegistry();
 }
 
 std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkRequisitionMutation(
