@@ -162,8 +162,12 @@ protected:
             YT_LOG_TRACE("Iteration started (Stack: %v)", Stack_);
 
             auto& entry = PeekStack();
-            auto* chunkList = entry.ChunkList;
+            if (!Comparator_ && (entry.LowerLimit.KeyBound() || entry.UpperLimit.KeyBound())) {
+                THROW_ERROR_EXCEPTION("Chunk tree traverser entry has key bounds "
+                    "but comparator is not provided");
+            }
 
+            auto* chunkList = entry.ChunkList;
             if (!chunkList->IsAlive() || chunkList->GetVersion() != entry.ChunkListVersion) {
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::OptimisticLockFailure,
@@ -430,9 +434,6 @@ protected:
             // Key.
             {
                 if (entry->UpperLimit.KeyBound()) {
-                    YT_LOG_ALERT_UNLESS(Comparator_, "Chunk tree traverser entry has key bounds, "
-                        "but comparator is not provided");
-
                     childLowerLimit.KeyBound() = GetLowerKeyBoundOrThrow(child, Comparator_.GetLength());
                     if (Comparator_.IsRangeEmpty(childLowerLimit.KeyBound(), entry->UpperLimit.KeyBound())) {
                         PopStack();
@@ -440,9 +441,6 @@ protected:
                     }
                     childUpperLimit.KeyBound() = GetUpperKeyBoundOrThrow(child, Comparator_.GetLength());
                 } else if (entry->LowerLimit.KeyBound()) {
-                    YT_LOG_ALERT_UNLESS(Comparator_, "Chunk tree traverser entry has key bounds, "
-                        "but comparator is not provided");
-
                     childLowerLimit.KeyBound() = GetLowerKeyBoundOrThrow(child, Comparator_.GetLength());
                 }
             }
@@ -569,11 +567,6 @@ protected:
 
             // Key.
             if (isSorted) {
-                if (entry->LowerLimit.KeyBound() || entry->UpperLimit.KeyBound()) {
-                    YT_LOG_ALERT_UNLESS(Comparator_, "Chunk tree traverser entry has key bounds, "
-                        "but comparator is not provided");
-                }
-
                 if (entry->UpperLimit.KeyBound()) {
                     if (Comparator_.IsRangeEmpty(pivotKeyLowerBound, entry->UpperLimit.KeyBound())) {
                         PopStack();
@@ -724,8 +717,6 @@ protected:
             // Key.
             {
                 if (entry->LowerLimit.KeyBound() || entry->UpperLimit.KeyBound()) {
-                    YT_VERIFY(Comparator_);
-
                     // NB: If child is a chunk list, its children can be unsorted, so we can't prune by lower or upper key bounds.
                     if (childType == EObjectType::ChunkList) {
                         childLowerLimit.KeyBound() = entry->LowerLimit.KeyBound();
@@ -789,8 +780,14 @@ protected:
                     }
 
                     if (EnforceBounds_) {
-                        YT_VERIFY(Comparator_);
-                        YT_VERIFY(!Comparator_.HasDescendingSortOrder());
+                        if (!Comparator_) {
+                            THROW_ERROR_EXCEPTION("Chunk tree traverser is visiting chunk view "
+                                "but comparator is not provided");
+                        }
+                        if (Comparator_.HasDescendingSortOrder()) {
+                            THROW_ERROR_EXCEPTION("Chunk tree traverser is visiting chunk view "
+                                "but comparator has descending sort order");
+                        }
 
                         {
                             // COMPAT(max42): YT-14140.
@@ -996,17 +993,15 @@ protected:
 
             // Key.
             if (const auto& lowerBound = lowerLimit.KeyBound()) {
-                YT_VERIFY(Comparator_);
-
                 auto it = UpperBoundWithMissingValues(
                     chunkList->Children().begin(),
                     chunkList->Children().end(),
                     lowerBound,
                     // isLess
-                    [comparator = Comparator_] (const TKeyBound& lowerBound, const TChunkTree* chunkTree) {
+                    [&] (const TKeyBound& lowerBound, const TChunkTree* chunkTree) {
                         // If corresponding range is non-empty, a chunk tree is interesting for us.
                         // Thus we are seeking for the leftmost chunk tree such that this range is non-empty.
-                        return !comparator.IsRangeEmpty(lowerBound, GetUpperKeyBoundOrThrow(chunkTree, comparator.GetLength()));
+                        return !Comparator_.IsRangeEmpty(lowerBound, GetUpperKeyBoundOrThrow(chunkTree, Comparator_.GetLength()));
                     },
                     // isMissing
                     [] (const TChunkTree* chunkTree) {
@@ -1069,15 +1064,14 @@ protected:
 
             // Key.
             if (const auto& lowerBound = lowerLimit.KeyBound()) {
-                YT_VERIFY(Comparator_);
                 auto it = std::upper_bound(
                     chunkList->Children().begin(),
                     chunkList->Children().end(),
                     lowerBound,
-                    [comparator = Comparator_] (const TKeyBound& lowerBound, const TChunkTree* chunkTree) {
+                    [&] (const TKeyBound& lowerBound, const TChunkTree* chunkTree) {
                         // This method should meet following semantics:
                         // true if requested lower bound is strictly before the pivot key lower bound.
-                        return comparator.CompareKeyBounds(lowerBound, chunkTree->AsChunkList()->GetPivotKeyBound()) < 0;
+                        return Comparator_.CompareKeyBounds(lowerBound, chunkTree->AsChunkList()->GetPivotKeyBound()) < 0;
                     });
                 childIndex = std::max(childIndex, static_cast<int>(std::distance(chunkList->Children().begin(), it) - 1));
             }
@@ -1293,14 +1287,12 @@ protected:
         // Key.
         if (const auto& lowerBound = entry.LowerLimit.KeyBound()) {
             YT_VERIFY(childLowerLimit.KeyBound());
-            YT_VERIFY(Comparator_);
             if (Comparator_.CompareKeyBounds(lowerBound, childLowerLimit.KeyBound()) > 0) {
                 startLimit->KeyBound() = lowerBound;
             }
         }
         if (const auto& upperBound = entry.UpperLimit.KeyBound()) {
             YT_VERIFY(childUpperLimit.KeyBound());
-            YT_VERIFY(Comparator_);
             if (Comparator_.CompareKeyBounds(upperBound, childUpperLimit.KeyBound()) < 0) {
                 endLimit->KeyBound() = upperBound;
             }
