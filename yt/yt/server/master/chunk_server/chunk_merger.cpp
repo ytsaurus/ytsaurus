@@ -222,13 +222,21 @@ public:
             Node_->GetChunkList()->GetId(),
             lowerLimit);
 
+        if (!IsNodeMergeable()) {
+            OnFinish(TError());
+            return;
+        }
+
+        auto* table = Node_->As<TTableNode>();
+        const auto& schema = table->GetSchema()->AsTableSchema();
+        YT_VERIFY(schema);
         TraverseChunkTree(
             std::move(callbacks),
             this,
             Node_->GetChunkList(),
             lowerLimit,
             {},
-            {});
+            schema->ToComparator());
     }
 
 private:
@@ -298,18 +306,22 @@ private:
 
     void OnFinish(const TError& error) override
     {
-        if (!IsNodeMergeable()) {
-            return;
-        }
-
         auto chunkVisitorHost = ChunkVisitorHost_.Lock();
         if (!chunkVisitorHost) {
             return;
         }
 
+        auto nodeId = Node_->GetId();
+        if (!IsNodeMergeable()) {
+            chunkVisitorHost->OnTraversalFinished(
+                nodeId,
+                EMergeSessionResult::PermanentFailure,
+                TraversalInfo_);
+            return;
+        }
+
         MaybePlanJob();
 
-        auto nodeId = Node_->GetId();
         auto result = error.IsOK() ? EMergeSessionResult::OK : EMergeSessionResult::TransientFailure;
         chunkVisitorHost->OnTraversalFinished(
             nodeId,
