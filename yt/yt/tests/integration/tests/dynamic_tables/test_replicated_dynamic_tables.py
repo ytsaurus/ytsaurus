@@ -2637,6 +2637,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with raises_yt_error(yt_error_codes.SyncReplicaNotInSync):
             insert_rows("//tmp/t", rows)
 
+    @authors("akozhikhov")
+    def test_forbid_weak_commit_ordering(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", self.SIMPLE_SCHEMA_ORDERED, mount=False)
+        with raises_yt_error():
+            set("//tmp/t/@commit_ordering", "weak")
+
 
 ##################################################################
 

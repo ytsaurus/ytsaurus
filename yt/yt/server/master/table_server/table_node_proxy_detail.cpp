@@ -1179,6 +1179,12 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             lockedTable->ValidateAllTabletsUnmounted("Cannot change table commit ordering mode");
 
             auto ordering = ConvertTo<NTransactionClient::ECommitOrdering>(value);
+            if (table->IsReplicated() && ordering != NTransactionClient::ECommitOrdering::Strong) {
+                THROW_ERROR_EXCEPTION("Replicated tables only support %Qlv commit ordering, cannot set it to %Qlv",
+                    NTransactionClient::ECommitOrdering::Strong,
+                    ordering);
+            }
+
             lockedTable->SetCommitOrdering(ordering);
 
             return true;
