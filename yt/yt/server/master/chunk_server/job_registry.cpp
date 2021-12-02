@@ -149,6 +149,11 @@ void TJobRegistry::OverrideResourceLimits(TNodeResources* resourceLimits, const 
     #undef XX
 }
 
+int TJobRegistry::GetJobCount(EJobType type) const
+{
+    return RunningJobs_[type];
+}
+
 void TJobRegistry::OnProfiling(TSensorBuffer* buffer) const
 {
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {

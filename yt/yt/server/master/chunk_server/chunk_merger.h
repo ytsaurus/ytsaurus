@@ -71,10 +71,13 @@ class TMergeJob
 public:
     DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
 
+    DEFINE_BYREF_RO_PROPERTY(TMergeJobInfo, JobInfo);
+
 public:
     using TChunkVector = TCompactVector<TChunk*, 16>;
     TMergeJob(
         TJobId jobId,
+        TMergeJobInfo jobInfo,
         NNodeTrackerServer::TNode* node,
         NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes,
         TChunkVector inputChunks,
@@ -185,9 +188,6 @@ private:
 
     // After creating chunks, before scheduling (waiting for node heartbeat to schedule jobs).
     std::queue<TMergeJobInfo> JobsAwaitingNodeHeartbeat_;
-
-    // Scheduled jobs (waiting for node heartbeat with job result).
-    THashMap<TJobId, TMergeJobInfo> RunningJobs_;
 
     // Already merged nodes waiting to be erased from NodesBeingMerged_.
     struct TMergeSessionResult

@@ -51,6 +51,8 @@ public:
 
     void OverrideResourceLimits(NNodeTrackerClient::NProto::TNodeResources* resourceLimits, const TNode& node);
 
+    int GetJobCount(EJobType type) const;
+
     void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
 
 private:
