@@ -47,39 +47,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const THashSet<EDataNodeThrottlerKind> DataNodeNetworkThrottlers = {
-    EDataNodeThrottlerKind::TotalIn,
-    EDataNodeThrottlerKind::TotalOut,
-    EDataNodeThrottlerKind::ReplicationIn,
-    EDataNodeThrottlerKind::ReplicationOut,
-    EDataNodeThrottlerKind::RepairIn,
-    EDataNodeThrottlerKind::RepairOut,
-    EDataNodeThrottlerKind::MergeIn,
-    EDataNodeThrottlerKind::MergeOut,
-    EDataNodeThrottlerKind::AutotomyIn,
-    EDataNodeThrottlerKind::AutotomyOut,
-    EDataNodeThrottlerKind::ArtifactCacheIn,
-    EDataNodeThrottlerKind::ArtifactCacheOut,
-    EDataNodeThrottlerKind::ReadRpsOut,
-    EDataNodeThrottlerKind::JobIn,
-    EDataNodeThrottlerKind::JobOut,
-    EDataNodeThrottlerKind::P2POut
-};
-
-// COMPAT(gritukan): Throttlers that were moved out of Data Node during node split.
-static const THashSet<EDataNodeThrottlerKind> DataNodeCompatThrottlers = {
-    // Cluster Node throttlers.
-    EDataNodeThrottlerKind::TotalIn,
-    EDataNodeThrottlerKind::TotalOut,
-    EDataNodeThrottlerKind::ReadRpsOut,
-    // Exec Node throttlers.
-    EDataNodeThrottlerKind::ArtifactCacheIn,
-    EDataNodeThrottlerKind::JobIn,
-    EDataNodeThrottlerKind::JobOut,
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBootstrap
     : public IBootstrap
     , public TBootstrapBase
@@ -114,22 +81,7 @@ public:
 
         SessionManager_->Initialize();
 
-        for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
-            if (DataNodeCompatThrottlers.contains(kind)) {
-                continue;
-            }
-
-            const auto& initialThrottlerConfig = GetConfig()->DataNode->Throttlers[kind];
-            auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
-                ? ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
-                : initialThrottlerConfig;
-            RawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
-                std::move(throttlerConfig),
-                ToString(kind),
-                DataNodeLogger,
-                DataNodeProfiler.WithPrefix("/throttlers"));
-        }
-        static const THashSet<EDataNodeThrottlerKind> InCombinedDataNodeThrottlerKinds = {
+        for (auto kind : {
             EDataNodeThrottlerKind::ReplicationIn,
             EDataNodeThrottlerKind::RepairIn,
             EDataNodeThrottlerKind::MergeIn,
@@ -140,8 +92,11 @@ public:
             EDataNodeThrottlerKind::TabletSnapshotIn,
             EDataNodeThrottlerKind::TabletStoreFlushIn,
             EDataNodeThrottlerKind::JobIn,
-        };
-        static const THashSet<EDataNodeThrottlerKind> OutCombinedDataNodeThrottlerKinds = {
+        }) {
+            Throttlers_[kind] = ClusterNodeBootstrap_->GetInThrottler(FormatEnum(kind));
+        }
+
+        for (auto kind : {
             EDataNodeThrottlerKind::ReplicationOut,
             EDataNodeThrottlerKind::RepairOut,
             EDataNodeThrottlerKind::MergeOut,
@@ -153,20 +108,8 @@ public:
             EDataNodeThrottlerKind::TabletRecoveryOut,
             EDataNodeThrottlerKind::TabletReplicationOut,
             EDataNodeThrottlerKind::JobOut,
-        };
-        for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
-            if (DataNodeCompatThrottlers.contains(kind)) {
-                continue;
-            }
-
-            auto throttler = IThroughputThrottlerPtr(RawThrottlers_[kind]);
-            if (InCombinedDataNodeThrottlerKinds.contains(kind)) {
-                throttler = CreateCombinedThrottler({GetTotalInThrottler(), throttler});
-            }
-            if (OutCombinedDataNodeThrottlerKinds.contains(kind)) {
-                throttler = CreateCombinedThrottler({GetTotalOutThrottler(), throttler});
-            }
-            Throttlers_[kind] = throttler;
+        }) {
+            Throttlers_[kind] = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(kind));
         }
 
         // Should be created after throttlers.
@@ -301,7 +244,7 @@ public:
         };
         auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
         return it == WorkloadCategoryToThrottlerKind.end()
-            ? GetTotalInThrottler()
+            ? GetDefaultInThrottler()
             : Throttlers_[it->second];
     }
 
@@ -319,7 +262,7 @@ public:
         };
         auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
         return it == WorkloadCategoryToThrottlerKind.end()
-            ? GetTotalOutThrottler()
+            ? GetDefaultOutThrottler()
             : Throttlers_[it->second];
     }
 
@@ -387,7 +330,6 @@ private:
 
     TMediumUpdaterPtr MediumUpdater_;
 
-    TEnumIndexedVector<EDataNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
     TEnumIndexedVector<EDataNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
     IJournalDispatcherPtr JournalDispatcher_;
@@ -414,20 +356,6 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        for (auto kind : TEnumTraits<NDataNode::EDataNodeThrottlerKind>::GetDomainValues()) {
-            if (DataNodeCompatThrottlers.contains(kind)) {
-                continue;
-            }
-
-            const auto& initialThrottlerConfig = newConfig->DataNode->Throttlers[kind]
-                ? newConfig->DataNode->Throttlers[kind]
-                : GetConfig()->DataNode->Throttlers[kind];
-            auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
-                ? ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
-                : initialThrottlerConfig;
-            RawThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
-        }
-
         StorageLookupThreadPool_->Configure(
             newConfig->DataNode->StorageLookupThreadCount.value_or(GetConfig()->DataNode->StorageLookupThreadCount));
         MasterJobThreadPool_->Configure(newConfig->DataNode->MasterJobThreadCount);

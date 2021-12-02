@@ -36,6 +36,7 @@
 #include <yt/yt/core/rpc/config.h>
 
 #include <yt/yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/fair_throttler.h>
 
 #include <yt/yt/core/http/config.h>
 
@@ -524,6 +525,12 @@ public:
     //! Is used to configure relative network throttler limits.
     i64 NetworkBandwidth;
 
+    //! Bucket configuration for in network throttlers.
+    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
+
+    //! Bucket configuration for out network throttlers.
+    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
+
     TClusterNodeConfig()
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
@@ -598,6 +605,10 @@ public:
 
         RegisterParameter("network_bandwidth", NetworkBandwidth)
             .Default(1250000000);
+        RegisterParameter("in_throttlers", InThrottlers)
+            .Default();
+        RegisterParameter("out_throttlers", OutThrottlers)
+            .Default();
 
         RegisterPostprocessor([&] {
             NNodeTrackerClient::ValidateNodeTags(Tags);
@@ -726,6 +737,12 @@ public:
     //! Master connector configuration.
     TMasterConnectorDynamicConfigPtr MasterConnector;
 
+    //! Bucket configuration for in network throttlers.
+    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
+
+    //! Bucket configuration for out network throttlers.
+    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
+
     TClusterNodeDynamicConfig()
     {
         RegisterParameter("config_annotation", ConfigAnnotation)
@@ -747,6 +764,10 @@ public:
             .DefaultNew();
         RegisterParameter("master_connector", MasterConnector)
             .DefaultNew();
+        RegisterParameter("in_throttlers", InThrottlers)
+            .Default();
+        RegisterParameter("out_throttlers", OutThrottlers)
+            .Default();
     }
 };
 

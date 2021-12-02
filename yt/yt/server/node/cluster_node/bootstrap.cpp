@@ -155,6 +155,7 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/fair_throttler.h>
 
 #include <yt/yt/core/net/address.h>
 
@@ -278,20 +279,6 @@ public:
         return MasterConnector_;
     }
 
-    TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
-        const TRelativeThroughputThrottlerConfigPtr& config) const override
-    {
-        // NB: Absolute value limit suppresses relative one.
-        if (config->Limit || !config->RelativeLimit) {
-            return config;
-        }
-
-        auto patchedConfig = CloneYsonSerializable(config);
-        patchedConfig->Limit = *config->RelativeLimit * Config_->NetworkBandwidth;
-
-        return patchedConfig;
-    }
-
     void SetDecommissioned(bool decommissioned) override
     {
         Decommissioned_ = decommissioned;
@@ -308,19 +295,24 @@ public:
         return NodeResourceManager_;
     }
 
-    const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const override
+    const NConcurrency::IThroughputThrottlerPtr& GetDefaultInThrottler() const override
     {
-        return TotalInThrottler_;
+        return DefaultInThrottler_;
     }
 
-    const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const override
+    const NConcurrency::IThroughputThrottlerPtr& GetDefaultOutThrottler() const override
     {
-        return TotalOutThrottler_;
+        return DefaultOutThrottler_;
     }
 
     const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override
     {
         return ReadRpsOutThrottler_;
+    }
+
+    const NConcurrency::IThroughputThrottlerPtr& GetAnnounceChunkReplicaRpsOutThrottler() const override
+    {
+        return AnnounceChunkReplicaRpsOutThrottler_;
     }
 
     const TClusterNodeConfigPtr& GetConfig() const override
@@ -643,14 +635,19 @@ private:
     TNodeResourceManagerPtr NodeResourceManager_;
     TDiskTrackerPtr DiskTracker_;
 
-    IReconfigurableThroughputThrottlerPtr RawTotalInThrottler_;
-    IThroughputThrottlerPtr TotalInThrottler_;
+    TFairThrottlerPtr InThrottler_;
+    IThroughputThrottlerPtr DefaultInThrottler_;
+    THashSet<TString> EnabledInThrottlers_;
 
-    IReconfigurableThroughputThrottlerPtr RawTotalOutThrottler_;
-    IThroughputThrottlerPtr TotalOutThrottler_;
+    TFairThrottlerPtr OutThrottler_;
+    IThroughputThrottlerPtr DefaultOutThrottler_;
+    THashSet<TString> EnabledOutThrottlers_;
 
     IReconfigurableThroughputThrottlerPtr RawReadRpsOutThrottler_;
     IThroughputThrottlerPtr ReadRpsOutThrottler_;
+
+    IReconfigurableThroughputThrottlerPtr RawAnnounceChunkReplicaRpsOutThrottler_;
+    IThroughputThrottlerPtr AnnounceChunkReplicaRpsOutThrottler_;
 
 #ifdef __linux__
     NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;
@@ -747,30 +744,34 @@ private:
             Config_->DataNode->StorageLightThreadCount,
             "StorageLight");
 
-        auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
-            return PatchRelativeNetworkThrottlerConfig(Config_->DataNode->Throttlers[kind]);
-        };
+        auto fairThrottlerConfig = New<TFairThrottlerConfig>();
+        fairThrottlerConfig->TotalLimit = Config_->NetworkBandwidth;
 
-        RawTotalInThrottler_ = CreateNamedReconfigurableThroughputThrottler(
-            getThrottlerConfig(EDataNodeThrottlerKind::TotalIn),
-            "TotalIn",
-            ClusterNodeLogger,
-            ClusterNodeProfiler.WithPrefix("/throttlers"));
-        TotalInThrottler_ = IThroughputThrottlerPtr(RawTotalInThrottler_);
+        InThrottler_ = New<TFairThrottler>(
+            fairThrottlerConfig,
+            ClusterNodeLogger.WithTag("Direction: %v", "In"),
+            ClusterNodeProfiler.WithPrefix("/in_throttler"));
+        DefaultInThrottler_ = GetInThrottler("default");
 
-        RawTotalOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
-            getThrottlerConfig(EDataNodeThrottlerKind::TotalOut),
-            "TotalOut",
-            ClusterNodeLogger,
-            ClusterNodeProfiler.WithPrefix("/throttlers"));
-        TotalOutThrottler_ = IThroughputThrottlerPtr(RawTotalOutThrottler_);
+        OutThrottler_ = New<TFairThrottler>(
+            fairThrottlerConfig,
+            ClusterNodeLogger.WithTag("Direction: %v", "Out"),
+            ClusterNodeProfiler.WithPrefix("/out_throttler"));
+        DefaultOutThrottler_ = GetOutThrottler("default");
 
         RawReadRpsOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
-            getThrottlerConfig(EDataNodeThrottlerKind::ReadRpsOut),
+            Config_->DataNode->ReadRpsOutThrottler,
             "ReadRpsOut",
             ClusterNodeLogger,
-            ClusterNodeProfiler.WithPrefix("/throttlers"));
+            ClusterNodeProfiler.WithPrefix("/out_read_rps_throttler"));
         ReadRpsOutThrottler_ = IThroughputThrottlerPtr(RawReadRpsOutThrottler_);
+
+        RawAnnounceChunkReplicaRpsOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
+            Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler,
+            "AnnounceChunkReplicaRpsOut",
+            ClusterNodeLogger,
+            ClusterNodeProfiler.WithPrefix("/out_announce_chunk_replica_rps_throttler"));
+        AnnounceChunkReplicaRpsOutThrottler_ = IThroughputThrottlerPtr(RawAnnounceChunkReplicaRpsOutThrottler_);
 
         BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
             Config_->DataNode->BlockCache,
@@ -1102,6 +1103,42 @@ private:
         ValidateTabletCellSnapshot(this, reader);
     }
 
+    NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) override
+    {
+        EnabledInThrottlers_.insert(bucket);
+        return InThrottler_->CreateBucketThrottler(bucket, Config_->InThrottlers[bucket]);
+    }
+
+    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TString& bucket) override
+    {
+        EnabledOutThrottlers_.insert(bucket);
+        return OutThrottler_->CreateBucketThrottler(bucket, Config_->OutThrottlers[bucket]);
+    }
+
+    void ReconfigureThrottlers(const TClusterNodeDynamicConfigPtr& newConfig)
+    {
+        auto throttlerConfig = New<TFairThrottlerConfig>();
+        throttlerConfig->TotalLimit = Config_->NetworkBandwidth;
+
+        THashMap<TString, TFairThrottlerBucketConfigPtr> inBucketsConfig;
+        for (const auto& bucket : EnabledInThrottlers_) {
+            inBucketsConfig[bucket] = Config_->InThrottlers[bucket];
+            if (newConfig->InThrottlers[bucket]) {
+                inBucketsConfig[bucket] = newConfig->InThrottlers[bucket];
+            }
+        }
+        InThrottler_->Reconfigure(throttlerConfig, inBucketsConfig);
+
+        THashMap<TString, TFairThrottlerBucketConfigPtr> outBucketsConfig;
+        for (const auto& bucket : EnabledOutThrottlers_) {
+            outBucketsConfig[bucket] = Config_->OutThrottlers[bucket];
+            if (newConfig->OutThrottlers[bucket]) {
+                outBucketsConfig[bucket] = newConfig->OutThrottlers[bucket];
+            }
+        }
+        OutThrottler_->Reconfigure(throttlerConfig, outBucketsConfig);
+    }
+
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
@@ -1113,15 +1150,14 @@ private:
         StorageLightThreadPool_->Configure(
             newConfig->DataNode->StorageLightThreadCount.value_or(Config_->DataNode->StorageLightThreadCount));
 
-        auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
-            auto config = newConfig->DataNode->Throttlers[kind]
-                ? newConfig->DataNode->Throttlers[kind]
-                : Config_->DataNode->Throttlers[kind];
-            return PatchRelativeNetworkThrottlerConfig(std::move(config));
-        };
-        RawTotalInThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalIn));
-        RawTotalOutThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalOut));
-        RawReadRpsOutThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::ReadRpsOut));
+        ReconfigureThrottlers(newConfig);
+
+        RawReadRpsOutThrottler_->Reconfigure(newConfig->DataNode->ReadRpsOutThrottler
+                ? newConfig->DataNode->ReadRpsOutThrottler
+                : Config_->DataNode->ReadRpsOutThrottler);
+        RawAnnounceChunkReplicaRpsOutThrottler_->Reconfigure(newConfig->DataNode->AnnounceChunkReplicaRpsOutThrottler
+                ? newConfig->DataNode->AnnounceChunkReplicaRpsOutThrottler
+                : Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler);
 
         ClientBlockCache_->Reconfigure(newConfig->DataNode->BlockCache);
 
@@ -1228,19 +1264,24 @@ const TNodeResourceManagerPtr& TBootstrapBase::GetNodeResourceManager() const
     return Bootstrap_->GetNodeResourceManager();
 }
 
-const IThroughputThrottlerPtr& TBootstrapBase::GetTotalInThrottler() const
+const IThroughputThrottlerPtr& TBootstrapBase::GetDefaultInThrottler() const
 {
-    return Bootstrap_->GetTotalInThrottler();
+    return Bootstrap_->GetDefaultInThrottler();
 }
 
-const IThroughputThrottlerPtr& TBootstrapBase::GetTotalOutThrottler() const
+const IThroughputThrottlerPtr& TBootstrapBase::GetDefaultOutThrottler() const
 {
-    return Bootstrap_->GetTotalOutThrottler();
+    return Bootstrap_->GetDefaultOutThrottler();
 }
 
 const IThroughputThrottlerPtr& TBootstrapBase::GetReadRpsOutThrottler() const
 {
     return Bootstrap_->GetReadRpsOutThrottler();
+}
+
+const IThroughputThrottlerPtr& TBootstrapBase::GetAnnounceChunkReplicaRpsOutThrottler() const
+{
+    return Bootstrap_->GetAnnounceChunkReplicaRpsOutThrottler();
 }
 
 const TClusterNodeConfigPtr& TBootstrapBase::GetConfig() const

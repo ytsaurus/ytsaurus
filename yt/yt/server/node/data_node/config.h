@@ -979,8 +979,11 @@ public:
     //! Writer configuration used to autotomize chunks.
     NChunkClient::TReplicationWriterConfigPtr AutotomyWriter;
 
-    //! Configuration for various Data Node throttlers.
-    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
+    //! Configuration for rps out throttler.
+    NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
+
+    //! Configuration for rps throttler of ally replica manager.
+    NConcurrency::TThroughputThrottlerConfigPtr AnnounceChunkReplicaRpsOutThrottler;
 
     //! Keeps chunk peering information.
     TBlockPeerTableConfigPtr BlockPeerTable;
@@ -1148,46 +1151,10 @@ public:
         RegisterParameter("autotomy_writer", AutotomyWriter)
             .DefaultNew();
 
-        RegisterParameter("throttlers", Throttlers)
-            .Optional();
-
-        // COMPAT(babenko): use /data_node/throttlers instead.
-        RegisterParameter("total_in_throttler", Throttlers[EDataNodeThrottlerKind::TotalIn])
-            .Optional();
-        RegisterParameter("total_out_throttler", Throttlers[EDataNodeThrottlerKind::TotalOut])
-            .Optional();
-        RegisterParameter("replication_in_throttler", Throttlers[EDataNodeThrottlerKind::ReplicationIn])
-            .Optional();
-        RegisterParameter("replication_out_throttler", Throttlers[EDataNodeThrottlerKind::ReplicationOut])
-            .Optional();
-        RegisterParameter("repair_in_throttler", Throttlers[EDataNodeThrottlerKind::RepairIn])
-            .Optional();
-        RegisterParameter("repair_out_throttler", Throttlers[EDataNodeThrottlerKind::RepairOut])
-            .Optional();
-        RegisterParameter("artifact_cache_in_throttler", Throttlers[EDataNodeThrottlerKind::ArtifactCacheIn])
-            .Optional();
-        RegisterParameter("artifact_cache_out_throttler", Throttlers[EDataNodeThrottlerKind::ArtifactCacheOut])
-            .Optional();
-        RegisterParameter("skynet_out_throttler", Throttlers[EDataNodeThrottlerKind::SkynetOut])
-            .Optional();
-        RegisterParameter("tablet_comaction_and_partitoning_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn])
-            .Optional();
-        RegisterParameter("tablet_comaction_and_partitoning_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut])
-            .Optional();
-        RegisterParameter("tablet_logging_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletLoggingIn])
-            .Optional();
-        RegisterParameter("tablet_preload_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletPreloadOut])
-            .Optional();
-        RegisterParameter("tablet_snapshot_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletSnapshotIn])
-            .Optional();
-        RegisterParameter("tablet_store_flush_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletStoreFlushIn])
-            .Optional();
-        RegisterParameter("tablet_recovery_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletRecoveryOut])
-            .Optional();
-        RegisterParameter("tablet_replication_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletReplicationOut])
-            .Optional();
-        RegisterParameter("read_rps_out_throttler", Throttlers[EDataNodeThrottlerKind::ReadRpsOut])
-            .Optional();
+        RegisterParameter("read_rps_out_throttler", ReadRpsOutThrottler)
+            .DefaultNew();
+        RegisterParameter("announce_chunk_replica_rps_out_throttler", AnnounceChunkReplicaRpsOutThrottler)
+            .DefaultNew();
 
         RegisterParameter("block_peer_table", BlockPeerTable)
             .DefaultNew();
@@ -1286,13 +1253,6 @@ public:
         });
 
         RegisterPostprocessor([&] {
-            // Instantiate default throttler configs.
-            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
-                if (!Throttlers[kind]) {
-                    Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
-                }
-            }
-
             // COMPAT(gritukan)
             if (!MasterConnector->IncrementalHeartbeatPeriod) {
                 MasterConnector->IncrementalHeartbeatPeriod = IncrementalHeartbeatPeriod;
@@ -1347,7 +1307,8 @@ public:
     //! Number of threads in MasterJob thread pool (used for master jobs execution).
     int MasterJobThreadCount;
 
-    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
+    NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr AnnounceChunkReplicaRpsOutThrottler;
 
     TSlruCacheDynamicConfigPtr ChunkMetaCache;
     TSlruCacheDynamicConfigPtr BlocksExtCache;
@@ -1392,7 +1353,9 @@ public:
             .GreaterThan(0)
             .Default(4);
 
-        RegisterParameter("throttlers", Throttlers)
+        RegisterParameter("read_rps_out_throttler", ReadRpsOutThrottler)
+            .Optional();
+        RegisterParameter("announce_chunk_replica_rps_out_throttler", AnnounceChunkReplicaRpsOutThrottler)
             .Optional();
 
         RegisterParameter("chunk_meta_cache", ChunkMetaCache)

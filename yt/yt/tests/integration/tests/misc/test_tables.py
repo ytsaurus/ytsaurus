@@ -2685,27 +2685,22 @@ class TestTables(YTEnvSetup):
         })
 
         update_nodes_dynamic_config({
-            "data_node": {
-                "throttlers": {
-                    "total_in": {
-                        "limit": 10,
-                    }
+            "in_throttlers": {
+                "default": {
+                    "limit": 10,
                 }
             }
         })
 
         rows = list([{"key": i} for i in xrange(100)])
-        write_table("//tmp/t", rows)
 
         profiler = profiler_factory().at_node(nodes[0])
-        throttler_value = profiler.counter("cluster_node/throttlers/total_in/value")
-        queue_size = profiler.gauge("cluster_node/throttlers/total_in/queue_size")
+        queue_size = profiler.gauge("cluster_node/in_throttler/queue_size")
 
-        with raises_yt_error("PutBlocks"):
-            # Timed out because of throttler.
+        with raises_yt_error("Request timed out"):
+            # Should fail by timeout
             write_table("//tmp/t", rows)
 
-        wait(lambda: throttler_value.get_delta() > 800)
         # Timed out rpc call will trigger cancellation that will free throttler queue.
         wait(lambda: queue_size.get() == 0)
 

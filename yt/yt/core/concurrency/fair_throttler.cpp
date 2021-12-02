@@ -270,6 +270,10 @@ IThroughputThrottlerPtr TFairThrottler::CreateBucketThrottler(
     const TString& name,
     TFairThrottlerBucketConfigPtr config)
 {
+    if (!config) {
+        config = New<TFairThrottlerBucketConfig>();
+    }
+
     auto guard = Guard(Lock_);
 
     if (auto it = Buckets_.find(name); it != Buckets_.end()) {
