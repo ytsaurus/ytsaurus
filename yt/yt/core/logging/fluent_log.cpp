@@ -27,15 +27,15 @@ TOneShotFluentLogEvent LogStructuredEventFluentlyToNowhere()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStructuredLogBatcher::TStructuredLogBatcher(const TLogger& logger, i64 maxBatchSize, ELogLevel level)
-    : Logger(logger)
-    , Level_(level)
+TStructuredLogBatcher::TStructuredLogBatcher(TLogger logger, i64 maxBatchSize, ELogLevel level)
+    : Logger(std::move(logger))
     , MaxBatchSize_(maxBatchSize)
+    , Level_(level)
 { }
 
 TStructuredLogBatcher::TFluent TStructuredLogBatcher::AddItemFluently()
 {
-    if (BatchYson_.size() >= MaxBatchSize_) {
+    if (std::ssize(BatchYson_) >= MaxBatchSize_) {
         Flush();
     }
     ++BatchItemCount_;

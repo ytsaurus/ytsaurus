@@ -65,7 +65,7 @@ class TStructuredLogFormatter
 public:
     TStructuredLogFormatter(
         ELogFormat format,
-        const THashMap<TString, NYTree::INodePtr>& commonFields,
+        THashMap<TString, NYTree::INodePtr> commonFields,
         bool enableControlMessages = true);
 
     i64 WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
@@ -74,7 +74,7 @@ public:
     void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const override;
 
 private:
-    ELogFormat Format_;
+    const ELogFormat Format_;
     const std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
     const THashMap<TString, NYTree::INodePtr> CommonFields_;
     const bool EnableSystemMessages_;
