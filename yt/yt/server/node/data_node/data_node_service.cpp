@@ -872,6 +872,7 @@ private:
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
         std::vector<TBlock> blocks;
+        bool readFromP2P = false;
         if (fetchFromCache || fetchFromDisk) {
             TChunkReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
@@ -886,6 +887,7 @@ private:
 
             if (!chunk && options.FetchFromCache) {
                 blocks = ReadBlocksFromP2P(chunkId, blockIndexes, chunkReaderStatistics);
+                readFromP2P = true;
             } else {
                 const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
                 auto asyncBlocks = chunkBlockManager->ReadBlockSet(
@@ -908,7 +910,13 @@ private:
 
         // NB: p2p manager might steal blocks and assign null values.
         const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
-        std::vector<TP2PSuggestion> blockPeers = p2pSnooper->OnBlockRead(chunkId, blockIndexes, &blocks);
+        bool throttledLargeBlock = false;
+        std::vector<TP2PSuggestion> blockPeers = p2pSnooper->OnBlockRead(
+            chunkId,
+            blockIndexes,
+            &blocks,
+            &throttledLargeBlock,
+            readFromP2P);
         AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
 
         if (!blocks.empty()) {
@@ -941,11 +949,15 @@ private:
         }
 
         i64 blocksSize = GetByteSize(response->Attachments());
+        if (blocksSize == 0 && throttledLargeBlock) {
+            response->set_net_throttling(true);
+        }
 
         context->SetResponseInfo(
             "HasCompleteChunk: %v, "
             "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v, "
             "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v, "
+            "ThrottledLargeBlock: %v, "
             "BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
@@ -954,6 +966,7 @@ private:
             diskThrottling,
             diskReadQueueSize,
             diskThrottlerQueueSize,
+            throttledLargeBlock,
             blocksWithData,
             response->peer_descriptors_size(),
             blocksSize);
