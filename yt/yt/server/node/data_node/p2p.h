@@ -85,7 +85,6 @@ private:
 
     NProfiling::TCounter WastedBytes_;
     NProfiling::TCounter DuplicateBytes_;
-    NProfiling::TCounter HitBytes_;
     NProfiling::TCounter MissedBlocks_;
 
     void CleanupOldSessions();
@@ -157,7 +156,9 @@ public:
     std::vector<TP2PSuggestion> OnBlockRead(
         TChunkId chunkId,
         const std::vector<int>& blockIndices,
-        std::vector<NChunkClient::TBlock>* blocks);
+        std::vector<NChunkClient::TBlock>* blocks,
+        bool* throttledLargeBlock = nullptr,
+        bool readFromP2P = false);
 
     std::vector<TP2PSuggestion> OnBlockProbe(
         TChunkId chunkId,
@@ -203,7 +204,9 @@ private:
     THashSet<TP2PChunkPtr> HotChunks_;
 
     NProfiling::TCounter ThrottledBytes_;
+    NProfiling::TCounter ThrottledLargeBlockBytes_;
     NProfiling::TCounter DistributedBytes_;
+    NProfiling::TCounter HitBytes_;
 
     TPeerList AllocatePeers();
 

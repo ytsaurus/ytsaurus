@@ -53,7 +53,6 @@ TP2PBlockCache::TP2PBlockCache(
         Config_->SessionCleaupPeriod))
     , WastedBytes_(P2PProfiler.Counter("/wasted_bytes"))
     , DuplicateBytes_(P2PProfiler.Counter("/duplicate_bytes"))
-    , HitBytes_(P2PProfiler.Counter("/hit_bytes"))
     , MissedBlocks_(P2PProfiler.Counter("/missed_blocks"))
 {
     P2PProfiler.AddFuncGauge("/active_sessions", MakeStrong(this), [this] {
@@ -184,8 +183,6 @@ std::vector<NChunkClient::TBlock> TP2PBlockCache::LookupBlocks(TChunkId chunkId,
         if (auto p2pBlock = Find({chunkId, blockIndices[i]})) {
             p2pBlock->AccessCount++;
             blocks[i] = p2pBlock->Block;
-
-            HitBytes_.Increment(p2pBlock->Block.Size());
         } else {
             MissedBlocks_.Increment();
         }
@@ -264,7 +261,9 @@ TP2PSnooper::TP2PSnooper(const TP2PConfigPtr& config)
         P2PProfiler.WithPrefix("/request_cache"))
     , Config_(config)
     , ThrottledBytes_(P2PProfiler.Counter("/throttled_bytes"))
+    , ThrottledLargeBlockBytes_(P2PProfiler.Counter("/throttled_large_block_bytes"))
     , DistributedBytes_(P2PProfiler.Counter("/distributed_bytes"))
+    , HitBytes_(P2PProfiler.Counter("/hit_bytes"))
 {
     P2PProfiler.AddFuncGauge("/hot_chunks", MakeStrong(this), [this] {
         auto guard = Guard(ChunkLock_);
@@ -303,7 +302,9 @@ TP2PConfigPtr TP2PSnooper::Config()
 std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
     TChunkId chunkId,
     const std::vector<int>& blockIndices,
-    std::vector<NChunkClient::TBlock>* blocks)
+    std::vector<NChunkClient::TBlock>* blocks,
+    bool* throttledLargeBlock,
+    bool readFromP2P)
 {
     auto config = Config();
     if (!config->Enabled) {
@@ -354,6 +355,18 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
             if (accessCount > config->SecondHotBlockThreshold) {
                 blockIsHot = true;
             }
+        }
+
+        if ((*blocks)[i].Size() >= static_cast<size_t>(config->MaxBlockSize)) {
+            ThrottledBytes_.Increment((*blocks)[i].Size());
+            ThrottledLargeBlockBytes_.Increment((*blocks)[i].Size());
+            (*blocks)[i] = {};
+
+            if (throttledLargeBlock) {
+                *throttledLargeBlock = true;
+            }
+
+            continue;
         }
 
         TPeerList blockPeers;
@@ -431,6 +444,12 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
                 .P2PSessionId = SessionId_,
                 .P2PIteration = distributedAt,
             });
+        }
+    }
+
+    if (readFromP2P) {
+        for (const auto& block : *blocks) {
+            HitBytes_.Increment(block.Size());
         }
     }
 

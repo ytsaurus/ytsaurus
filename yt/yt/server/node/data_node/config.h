@@ -51,6 +51,7 @@ public:
 
     TDuration ChunkCooldownTimeout;
     int MaxDistributedBytes;
+    int MaxBlockSize;
     int BlockCounterResetTicks;
     int HotBlockThreshold;
     int SecondHotBlockThreshold;
@@ -96,6 +97,8 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("max_distributed_bytes", MaxDistributedBytes)
             .Default(128_MB);
+        RegisterParameter("max_block_size", MaxBlockSize)
+            .Default(128_MB);
         RegisterParameter("block_counter_reset_ticks", BlockCounterResetTicks)
             .GreaterThan(0)
             .Default(150);
@@ -114,6 +117,15 @@ public:
         RegisterPreprocessor([&] {
             // Low default to prevent OOMs in yt-local.
             BlockCache->Capacity = 1_MB;
+
+            // Block cache won't accept blocks larger than Capacity / ShardCount * YoungerSizeFraction.
+            //
+            // With Capacity = 2G and default ShardCount/YoungerSizeFraction,
+            // max block size is equal to 32MB, which is too low.
+            //
+            // With adjusted defaults, max block size is equal to 256MB.
+            BlockCache->ShardCount = 4;
+            BlockCache->YoungerSizeFraction = 0.5;
 
             // Should be good enough.
             RequestCache->Capacity = 128 * 1024;
