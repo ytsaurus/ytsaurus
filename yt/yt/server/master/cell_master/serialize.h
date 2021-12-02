@@ -227,6 +227,7 @@ DEFINE_ENUM(EMasterReign,
     ((RefFromTabletToDynamicStore)                                  (1901))  // ifsmirnov
     ((ChaosDataTransfer)                                            (1902))  // savrus
     ((AccessControlNode)                                            (1903))  // kvk1920
+    ((CheckReplicatedTablesCommitOrderingIsStrong)                  (1904))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
