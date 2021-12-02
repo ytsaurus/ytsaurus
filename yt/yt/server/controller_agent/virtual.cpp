@@ -181,7 +181,7 @@ void TVirtualStaticTable::GetSelf(
     }
     writer.OnEntity();
 
-    writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+    writer.Finish()
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
                 response->set_value(resultOrError.Value().ToString());

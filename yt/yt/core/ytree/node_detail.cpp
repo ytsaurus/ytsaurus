@@ -60,7 +60,7 @@ void TNodeBase::GetSelf(
         false,
         attributeKeys);
 
-    writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+    writer.Finish()
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
                 response->set_value(resultOrError.Value().ToString());
@@ -340,7 +340,7 @@ void TMapNodeMixin::ListSelf(
     }
     writer.OnEndList();
 
-    writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+    writer.Finish()
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
                 response->set_value(resultOrError.Value().ToString());

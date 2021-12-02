@@ -97,7 +97,7 @@ void TAsyncYsonWriter::OnRaw(TFuture<TYsonString> asyncStr)
         })));
 }
 
-TFuture<TYsonString> TAsyncYsonWriter::Finish(IInvokerPtr invoker)
+TFuture<TYsonString> TAsyncYsonWriter::Finish()
 {
     FlushCurrentSegment();
 
@@ -122,15 +122,7 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish(IInvokerPtr invoker)
         return TYsonString(result, type);
     });
 
-    // TODO(shakurov): deal with this.
-    invoker = nullptr;
-
-    if (invoker) {
-        return AllSucceeded(AsyncSegments_).ApplyUnique(std::move(callback)
-            .AsyncVia(std::move(invoker)));
-    } else {
-        return AllSucceeded(AsyncSegments_).ApplyUnique(std::move(callback));
-    }
+    return AllSucceeded(AsyncSegments_).ApplyUnique(std::move(callback));
 }
 
 void TAsyncYsonWriter::FlushCurrentSegment()

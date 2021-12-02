@@ -33,7 +33,7 @@ public:
     void OnRaw(TStringBuf yson, EYsonType type) override;
     void OnRaw(TFuture<TYsonString> asyncStr) override;
 
-    TFuture<TYsonString> Finish(IInvokerPtr invoker = nullptr);
+    TFuture<TYsonString> Finish();
 
 private:
     const EYsonType Type_;
