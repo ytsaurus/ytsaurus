@@ -20,6 +20,8 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
+#include <yt/yt/library/ytprof/api/api.h>
+
 #include <yt/yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NSecurityServer {
@@ -96,6 +98,7 @@ private:
     TSecurityManagerPtr SecurityManager_;
     NRpc::TAuthenticationIdentity AuthenticationIdentity_;
     NRpc::TCurrentAuthenticationIdentityGuard AuthenticationIdentityGuard_;
+    NYTProf::TCpuProfilerTagGuard CpuProfilerTagGuard_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -430,6 +433,9 @@ public:
 
     //! Set list of aliases for subject. Throws on failure.
     void SetSubjectAliases(TSubject* subject, const std::vector<TString>& aliases);
+
+    //! Returns CPU profiler tag for a specific user.
+    NYTProf::TProfilerTagPtr GetUserCpuProfilerTag(TUser* user);
 
 private:
     class TImpl;

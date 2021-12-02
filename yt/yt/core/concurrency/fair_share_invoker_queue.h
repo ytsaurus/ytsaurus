@@ -7,6 +7,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/library/ytprof/api/api.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,6 +16,7 @@ namespace NYT::NConcurrency {
 struct TBucketDescription
 {
     std::vector<NProfiling::TTagSet> QueueTagSets;
+    std::vector<NYTProf::TProfilerTagPtr> QueueProfilerTags;
     NProfiling::TTagSet BucketTagSet;
 };
 

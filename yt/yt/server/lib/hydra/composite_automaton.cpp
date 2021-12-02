@@ -20,6 +20,7 @@ namespace NYT::NHydra {
 using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NHydra::NProto;
+using namespace NYTProf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,6 +117,7 @@ void TCompositeAutomatonPart::RegisterMethod(
         callback,
         profiler.TimeCounter("/cumulative_mutation_time"),
         profiler.Counter("/mutation_count"),
+        New<TProfilerTag>("mutation_type", type),
     };
     YT_VERIFY(Automaton_->MethodNameToDescriptor_.emplace(type, descriptor).second);
 }
@@ -481,6 +483,12 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 
         auto* descriptor = GetMethodDescriptor(mutationType);
         const auto& handler = request.Handler;
+
+        TCpuProfilerTagGuard cpuProfilerTagGuard;
+        if (!isRecovery) {
+            cpuProfilerTagGuard = TCpuProfilerTagGuard(descriptor->CpuProfilerTag);
+        }
+
         if (handler) {
             handler.Run(context);
         } else {

@@ -88,6 +88,7 @@ using namespace NObjectServer;
 using namespace NHiveServer;
 using namespace NProfiling;
 using namespace NLogging;
+using namespace NYTProf;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -124,6 +125,7 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
         user->GetName(),
         userTag ? userTag : user->GetName());
     AuthenticationIdentityGuard_ = NRpc::TCurrentAuthenticationIdentityGuard(&AuthenticationIdentity_);
+    CpuProfilerTagGuard_ = TCpuProfilerTagGuard(SecurityManager_->GetUserCpuProfilerTag(User_));
 }
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
@@ -136,6 +138,7 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
 
     AuthenticationIdentity_ = std::move(identity);
     AuthenticationIdentityGuard_ = NRpc::TCurrentAuthenticationIdentityGuard(&AuthenticationIdentity_);
+    CpuProfilerTagGuard_ = TCpuProfilerTagGuard(SecurityManager_->GetUserCpuProfilerTag(User_));
 }
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
@@ -2340,6 +2343,17 @@ public:
         }
     }
 
+    TProfilerTagPtr GetUserCpuProfilerTag(TUser* user)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return *CpuProfilerTags_
+            .FindOrInsert(
+                user->GetName(),
+                [&] { return New<TProfilerTag>("user", user->GetName()); })
+            .first;
+    }
+
     DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 
 private:
@@ -2441,6 +2455,8 @@ private:
 
     NHydra::TEntityMap<TProxyRole> ProxyRoleMap_;
     TEnumIndexedVector<EProxyKind, THashMap<TString, TProxyRole*>> ProxyRoleNameMaps_;
+
+    TSyncMap<TString, TProfilerTagPtr> CpuProfilerTags_;
 
     // COMPAT(shakurov)
     bool RecomputeAccountResourceUsage_ = false;
@@ -4764,6 +4780,11 @@ const TSecurityTagsRegistryPtr& TSecurityManager::GetSecurityTagsRegistry() cons
 void TSecurityManager::SetSubjectAliases(TSubject* subject, const std::vector<TString>& aliases)
 {
     Impl_->SetSubjectAliases(subject, aliases);
+}
+
+TProfilerTagPtr TSecurityManager::GetUserCpuProfilerTag(TUser* user)
+{
+    return Impl_->GetUserCpuProfilerTag(user);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)
