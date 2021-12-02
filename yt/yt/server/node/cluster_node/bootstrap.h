@@ -65,10 +65,11 @@ struct IBootstrapBase
     virtual const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const = 0;
     virtual const TNodeResourceManagerPtr& GetNodeResourceManager() const = 0;
 
-    // Total throttlers.
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const = 0;
-    virtual const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const = 0;
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetDefaultInThrottler() const = 0;
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetDefaultOutThrottler() const = 0;
+
     virtual const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const = 0;
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetAnnounceChunkReplicaRpsOutThrottler() const = 0;
 
     // Config stuff.
     virtual const TClusterNodeConfigPtr& GetConfig() const = 0;
@@ -177,8 +178,8 @@ struct IBootstrap
 
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 
-    virtual NConcurrency::TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
-        const NConcurrency::TRelativeThroughputThrottlerConfigPtr& config) const = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TString& bucket) = 0;
 
     virtual void SetDecommissioned(bool decommissioned) = 0;
 };
@@ -203,9 +204,11 @@ public:
     const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const override;
 
-    const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const override;
-    const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const override;
+    const NConcurrency::IThroughputThrottlerPtr& GetDefaultInThrottler() const override;
+    const NConcurrency::IThroughputThrottlerPtr& GetDefaultOutThrottler() const override;
+
     const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override;
+    const NConcurrency::IThroughputThrottlerPtr& GetAnnounceChunkReplicaRpsOutThrottler() const override;
 
     const TClusterNodeConfigPtr& GetConfig() const override;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;

@@ -82,24 +82,9 @@ public:
             TProfileManager::Get()->GetInvoker(),
             New<TSolomonRegistry>());
 
-        for (auto kind : TEnumTraits<EExecNodeThrottlerKind>::GetDomainValues()) {
-            auto config = GetConfig()->DataNode->Throttlers[GetDataNodeThrottlerKind(kind)];
-            config = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(config);
-
-            RawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
-                std::move(config),
-                ToString(kind),
-                ExecNodeLogger,
-                ExecNodeProfiler.WithPrefix("/throttlers"));
-
-            auto throttler = IThroughputThrottlerPtr(RawThrottlers_[kind]);
-            if (kind == EExecNodeThrottlerKind::ArtifactCacheIn || kind == EExecNodeThrottlerKind::JobIn) {
-                throttler = CreateCombinedThrottler({GetTotalInThrottler(), throttler});
-            } else if (kind == EExecNodeThrottlerKind::JobOut) {
-                throttler = CreateCombinedThrottler({GetTotalOutThrottler(), throttler});
-            }
-            Throttlers_[kind] = throttler;
-        }
+        Throttlers_[EExecNodeThrottlerKind::JobIn] = ClusterNodeBootstrap_->GetInThrottler("job_in");
+        Throttlers_[EExecNodeThrottlerKind::ArtifactCacheIn] = ClusterNodeBootstrap_->GetInThrottler("artifact_cache_in");
+        Throttlers_[EExecNodeThrottlerKind::JobOut] = ClusterNodeBootstrap_->GetOutThrottler("job_out");
 
         auto createSchedulerJob = BIND([this] (
             TJobId jobId,
@@ -309,15 +294,6 @@ private:
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        for (auto kind : TEnumTraits<EExecNodeThrottlerKind>::GetDomainValues()) {
-            auto dataNodeThrottlerKind = GetDataNodeThrottlerKind(kind);
-            auto config = newConfig->DataNode->Throttlers[dataNodeThrottlerKind]
-                ? newConfig->DataNode->Throttlers[dataNodeThrottlerKind]
-                : GetConfig()->DataNode->Throttlers[dataNodeThrottlerKind];
-            config = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(config);
-            RawThrottlers_[kind]->Reconfigure(std::move(config));
-        }
-
         SchedulerConnector_->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
         GetControllerAgentConnectorPool()->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
     }

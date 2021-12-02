@@ -92,41 +92,22 @@ public:
             GetConfig()->QueryAgent->FetchThreadPoolSize,
             "TabletFetch");
 
-        for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
-            auto throttlerConfig = GetConfig()->TabletNode->Throttlers[kind];
-            throttlerConfig = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(throttlerConfig);
-            RawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
-                std::move(throttlerConfig),
-                ToString(kind),
-                TabletNodeLogger,
-                TabletNodeProfiler.WithPrefix("/throttlers"));
-        }
-        static const THashSet<ETabletNodeThrottlerKind> InCombinedTabletNodeThrottlerKinds = {
+        for (auto kind : {
             ETabletNodeThrottlerKind::StoreCompactionAndPartitioningIn,
             ETabletNodeThrottlerKind::ReplicationIn,
-            ETabletNodeThrottlerKind::StaticStorePreloadIn
-        };
-        static const THashSet<ETabletNodeThrottlerKind> OutCombinedTabletNodeThrottlerKinds = {
+            ETabletNodeThrottlerKind::StaticStorePreloadIn,
+            ETabletNodeThrottlerKind::UserBackendIn,
+        }) {
+            Throttlers_[kind] = ClusterNodeBootstrap_->GetInThrottler(FormatEnum(kind));
+        }
+
+        for (auto kind : {
             ETabletNodeThrottlerKind::StoreCompactionAndPartitioningOut,
             ETabletNodeThrottlerKind::StoreFlushOut,
             ETabletNodeThrottlerKind::ReplicationOut,
-            ETabletNodeThrottlerKind::DynamicStoreReadOut
-        };
-        static const THashSet<ETabletNodeThrottlerKind> InStealingTabletNodeThrottlerKinds = {
-            ETabletNodeThrottlerKind::UserBackendIn,
-        };
-        for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
-            auto throttler = IThroughputThrottlerPtr(RawThrottlers_[kind]);
-            if (InCombinedTabletNodeThrottlerKinds.contains(kind)) {
-                throttler = CreateCombinedThrottler({GetTotalInThrottler(), throttler});
-            }
-            if (OutCombinedTabletNodeThrottlerKinds.contains(kind)) {
-                throttler = CreateCombinedThrottler({GetTotalOutThrottler(), throttler});
-            }
-            if (InStealingTabletNodeThrottlerKinds.contains(kind)) {
-                throttler = CreateStealingThrottler(throttler, GetTotalInThrottler());
-            }
-            Throttlers_[kind] = throttler;
+            ETabletNodeThrottlerKind::DynamicStoreReadOut,
+        }) {
+            Throttlers_[kind] = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(kind));
         }
 
         ColumnEvaluatorCache_ = NQueryClient::CreateColumnEvaluatorCache(GetConfig()->TabletNode->ColumnEvaluatorCache);
@@ -257,7 +238,7 @@ public:
         };
         auto it = WorkloadCategoryToThrottlerKind.find(category);
         return it == WorkloadCategoryToThrottlerKind.end()
-            ? GetTotalInThrottler()
+            ? GetDefaultInThrottler()
             : Throttlers_[it->second];
     }
 
@@ -272,7 +253,7 @@ public:
         };
         auto it = WorkloadCategoryToThrottlerKind.find(category);
         return it == WorkloadCategoryToThrottlerKind.end()
-            ? GetTotalOutThrottler()
+            ? GetDefaultOutThrottler()
             : Throttlers_[it->second];
     }
 
@@ -336,7 +317,6 @@ private:
     TThreadPoolPtr TabletFetchThreadPool_;
     ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
 
-    TEnumIndexedVector<ETabletNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
     TEnumIndexedVector<ETabletNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
     NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
@@ -355,14 +335,6 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        for (auto kind : TEnumTraits<NTabletNode::ETabletNodeThrottlerKind>::GetDomainValues()) {
-            const auto& initialThrottlerConfig = newConfig->TabletNode->Throttlers[kind]
-                ? newConfig->TabletNode->Throttlers[kind]
-                : GetConfig()->TabletNode->Throttlers[kind];
-            auto throttlerConfig = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig);
-            RawThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
-        }
-
         TableReplicatorThreadPool_->Configure(
             newConfig->TabletNode->TabletManager->ReplicatorThreadPoolSize.value_or(
                 GetConfig()->TabletNode->TabletManager->ReplicatorThreadPoolSize));

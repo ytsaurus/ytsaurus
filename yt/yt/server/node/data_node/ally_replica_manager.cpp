@@ -77,8 +77,7 @@ class TAllyReplicaManager
 public:
     explicit TAllyReplicaManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Throttler_(Bootstrap_->GetThrottler(
-            EDataNodeThrottlerKind::AnnounceChunkReplicasRpsOut))
+        , Throttler_(Bootstrap_->GetAnnounceChunkReplicaRpsOutThrottler())
         , QueueFlushExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetStorageLightInvoker(),
             BIND(&TAllyReplicaManager::FlushQueue, MakeWeak(this)),
