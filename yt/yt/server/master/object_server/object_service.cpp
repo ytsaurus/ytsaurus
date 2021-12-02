@@ -60,6 +60,7 @@
 
 #include <yt/yt/core/concurrency/quantized_executor.h>
 #include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/recursive_spinlock.h>
 
 #include <util/generic/algorithm.h>
 #include <atomic>
@@ -480,10 +481,11 @@ private:
     std::atomic<bool> ReplyScheduled_ = false;
     std::atomic<bool> LocalExecutionStarted_ = false;
     std::atomic<bool> LocalExecutionInterrupted_ = false;
-    // If this is locked, the automaton invoker is currently busy serving
+
+    // If this is locked, the system is currently busy serving
     // some local subrequest.
     // NB: only TryAcquire() is called on this lock, never Acquire().
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, LocalExecutionLock_);
+    YT_DECLARE_SPINLOCK(TRecursiveSpinLock, LocalExecutionLock_);
 
     // Has the time to backoff come?
     std::atomic<bool> BackoffAlarmTriggered_ = false;
@@ -2093,6 +2095,8 @@ private:
 
         TTryGuard guard(LocalExecutionLock_);
         if (!guard.WasAcquired()) {
+            YT_LOG_DEBUG("Failed to acquire execution lock, backing off and retrying (RequestId: %v)",
+                RequestId_);
             NConcurrency::TDelayedExecutor::Submit(
                 BIND(IgnoreResult(&TObjectService::TExecuteSession::ScheduleReplyIfNeeded), MakeStrong(this)),
                 Owner_->ScheduleReplyRetryBackoff_.load(),
