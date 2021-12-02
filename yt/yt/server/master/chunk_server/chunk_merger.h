@@ -3,6 +3,7 @@
 #include "private.h"
 #include "chunk_merger_traversal_info.h"
 #include "chunk_replacer.h"
+#include "job.h"
 #include "job_controller.h"
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_merger.pb.h>
@@ -15,6 +16,8 @@
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/master/cypress_server/public.h>
+
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -59,6 +62,36 @@ struct TChunkMergerSession
 
     TChunkMergerTraversalInfo TraversalInfo;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMergeJob
+    : public TJob
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
+
+public:
+    using TChunkVector = TCompactVector<TChunk*, 16>;
+    TMergeJob(
+        TJobId jobId,
+        NNodeTrackerServer::TNode* node,
+        NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes,
+        TChunkVector inputChunks,
+        NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions,
+        TNodePtrWithIndexesList targetReplicas);
+
+    void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+
+private:
+    const TChunkVector InputChunks_;
+    const NChunkClient::NProto::TChunkMergerWriterOptions ChunkMergerWriterOptions_;
+
+    static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(const TChunkVector& inputChunks);
+};
+
+DECLARE_REFCOUNTED_TYPE(TMergeJob)
+DEFINE_REFCOUNTED_TYPE(TMergeJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
