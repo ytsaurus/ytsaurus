@@ -39,7 +39,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         this.objectSerializer = Objects.requireNonNull(objectSerializer);
         this.tableSchema = asTableSchema(objectSerializer.getFieldMap());
         this.delegate = new YTreeConsumerProxy(tableSchema);
-        this.supportState = objectSerializer.getClazz().isAssignableTo(YTreeStateSupport.class);
+        this.supportState = YTreeStateSupport.class.isAssignableFrom(objectSerializer.getClazz());
     }
 
     public static <T> MappedRowSerializer<T> forClass(YTreeSerializer<T> serializer) {
