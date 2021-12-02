@@ -12,7 +12,6 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
@@ -191,7 +190,6 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             YTreeBinarySerializer.serialize(config, baos);
             byte[] data = baos.toByteArray();
-            IoUtils.closeQuietly(baos);
             builder.setConfig(ByteString.copyFrom(data));
         } else {
             // TODO: remove this HACK

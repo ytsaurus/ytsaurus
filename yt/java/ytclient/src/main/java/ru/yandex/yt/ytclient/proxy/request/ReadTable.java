@@ -11,7 +11,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
@@ -128,7 +127,6 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             YTreeBinarySerializer.serialize(config, baos);
             byte[] data = baos.toByteArray();
-            IoUtils.closeQuietly(baos);
             builder.setConfig(ByteString.copyFrom(data));
         }
         if (transactionalOptions != null) {

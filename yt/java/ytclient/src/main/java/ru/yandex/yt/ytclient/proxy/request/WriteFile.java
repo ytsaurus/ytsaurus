@@ -8,7 +8,6 @@ import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
@@ -79,7 +78,6 @@ public class WriteFile extends RequestBase<WriteFile> {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             YTreeBinarySerializer.serialize(config, baos);
             byte[] data = baos.toByteArray();
-            IoUtils.closeQuietly(baos);
             builder.setConfig(ByteString.copyFrom(data));
         }
         if (transactionalOptions != null) {
