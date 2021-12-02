@@ -1,0 +1,45 @@
+#pragma once
+
+#include <util/system/types.h>
+
+#include <atomic>
+
+namespace NYT::NConcurrency {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A counterpart of #TSpinLock that can be acquired from a single thread multiple times.
+class TRecursiveSpinLock
+{
+public:
+    void Acquire() noexcept;
+    bool TryAcquire() noexcept;
+   
+    void Release() noexcept;
+
+    bool IsLocked() const noexcept;
+    bool IsLockedByCurrentThread() const noexcept;
+
+private:
+    // Bits  0..31: recursion depth; if zero then the lock is not taken,
+    //              thread id can be arbitrary
+    // Bits 32..63: id of the thread owning the lock
+    using TValue = ui64;
+    std::atomic<TValue> Value_ = 0;
+
+    static constexpr int ThreadIdShift = 32;
+    static constexpr TValue RecursionDepthMask = (1ULL << ThreadIdShift) - 1;
+
+    bool TryAndTryAcquire() noexcept;
+    
+    static ui32 GetThreadId() noexcept;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NConcurrency
+
+#define RECURSIVE_SPINLOCK_INL_H_
+#include "recursive_spinlock-inl.h"
+#undef RECURSIVE_SPINLOCK_INL_H_
+
