@@ -3,6 +3,7 @@
 #include "protobuf_options.h"
 
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/json/json_writer.h>

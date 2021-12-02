@@ -4,6 +4,7 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/yt/client/table_client/column_sort_schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -1053,4 +1054,3 @@ TFuture<void> UpdatePersistentQueueTabletsState(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi
-

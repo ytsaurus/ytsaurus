@@ -23,6 +23,7 @@
 #include <yt/yt/core/concurrency/lease_manager.h>
 
 #include <yt/yt/core/yson/public.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/build/build.h>
 

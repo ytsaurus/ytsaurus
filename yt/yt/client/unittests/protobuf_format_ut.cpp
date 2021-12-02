@@ -18,6 +18,7 @@
 #include <yt/yt/client/formats/protobuf_parser.h>
 #include <yt/yt/client/formats/protobuf.h>
 #include <yt/yt/client/formats/format.h>
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/value_consumer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>

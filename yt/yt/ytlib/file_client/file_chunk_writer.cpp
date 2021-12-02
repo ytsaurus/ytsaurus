@@ -13,6 +13,8 @@
 #include <yt/yt/ytlib/chunk_client/multi_chunk_writer_base.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 
+#include <yt/yt/core/misc/blob.h>
+
 namespace NYT::NFileClient {
 
 using namespace NChunkClient;

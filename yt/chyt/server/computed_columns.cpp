@@ -6,6 +6,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/query_client/query_preparer.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 #ifdef __clang__
 #pragma clang diagnostic push

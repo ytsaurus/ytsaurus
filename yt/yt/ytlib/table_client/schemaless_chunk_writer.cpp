@@ -45,6 +45,7 @@
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schemaless_row_reorderer.h>

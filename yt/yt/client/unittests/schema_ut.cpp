@@ -3,6 +3,7 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 

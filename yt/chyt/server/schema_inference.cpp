@@ -3,6 +3,7 @@
 #include "config.h"
 #include "table.h"
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/complex_types/check_type_compatibility.h>
 
 namespace NYT::NClickHouseServer {

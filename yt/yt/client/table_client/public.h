@@ -8,7 +8,6 @@
 
 #include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <initializer_list>
 
@@ -190,9 +189,12 @@ using THunkColumnIds = TCompactVector<int, TypicalHunkColumnCount>;
 
 union TUnversionedValueData;
 
+enum class ESortOrder;
 enum class EValueType : ui8;
 enum class ESimpleLogicalValueType : ui32;
 enum class ELogicalMetatype;
+
+using TKeyColumnTypes = TCompactVector<EValueType, 16>;
 
 class TColumnFilter;
 
@@ -211,6 +213,8 @@ class TUnversionedOwningRow;
 class TVersionedRow;
 class TMutableVersionedRow;
 class TVersionedOwningRow;
+
+class TKey;
 
 using TLegacyKey = TUnversionedRow;
 using TLegacyMutableKey = TMutableUnversionedRow;
@@ -232,11 +236,16 @@ using TColumnRenameDescriptors = std::vector<TColumnRenameDescriptor>;
 
 class TColumnSchema;
 
+struct TColumnSortSchema;
+using TSortColumns = std::vector<TColumnSortSchema>;
+
 class TTableSchema;
 using TTableSchemaPtr = TIntrusivePtr<TTableSchema>;
 
 class TLockMask;
 using TLockBitmap = ui64;
+
+class TComparator;
 
 DECLARE_REFCOUNTED_CLASS(TNameTable)
 class TNameTableReader;

@@ -1,6 +1,12 @@
 #include "schema.h"
+
+#include "column_sort_schema.h"
+#include "comparator.h"
+#include "logical_type.h"
 #include "unversioned_row.h"
 #include "yt/yt/client/table_client/logical_type.h"
+
+#include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/core/yson/public.h>
 #include <yt/yt/core/yson/pull_parser_deserialize.h>
@@ -12,8 +18,6 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
-
-#include <yt/yt/client/tablet_client/public.h>
 
 namespace NYT::NTableClient {
 

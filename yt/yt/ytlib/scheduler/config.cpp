@@ -1,15 +1,12 @@
 #include "config.h"
-
-#include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include "helpers.h"
+#include "job_resources.h"
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
-
-#include <yt/yt/client/table_client/schema.h>
-
-#include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -28,6 +25,8 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 
 using NVectorHdrf::EIntegralGuaranteeType;
+
+extern const TString OperationAliasPrefix;
 
 ////////////////////////////////////////////////////////////////////////////////
 

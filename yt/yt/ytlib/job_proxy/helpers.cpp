@@ -15,6 +15,7 @@
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
+#include <yt/yt/client/table_client/column_sort_schema.h>
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>

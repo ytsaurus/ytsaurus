@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "comparator.h"
 
 namespace NYT::NTableClient {
@@ -25,8 +26,6 @@ bool operator != (const TColumnSortSchema& lhs, const TColumnSortSchema& rhs);
 void ValidateSortColumns(const std::vector<TColumnSortSchema>& columns);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using TSortColumns = std::vector<TColumnSortSchema>;
 
 void ToProto(
     NProto::TSortColumnsExt* protoSortColumns,

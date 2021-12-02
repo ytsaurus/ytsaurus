@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/query_client/functions.h>
 
 #include <yt/yt/client/complex_types/check_type_compatibility.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 #include <yt/yt/core/ytree/convert.h>
 

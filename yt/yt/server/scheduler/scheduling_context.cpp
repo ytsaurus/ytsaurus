@@ -3,6 +3,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NScheduler {
 
 using namespace NObjectClient;

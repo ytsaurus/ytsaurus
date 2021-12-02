@@ -2,9 +2,11 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/data_source.pb.h>
 
-#include <yt/yt/ytlib/table_client/schema_dictionary.h>
 #include <yt/yt/ytlib/table_client/column_filter_dictionary.h>
+#include <yt/yt/ytlib/table_client/schema_dictionary.h>
 #include <yt/yt/ytlib/table_client/virtual_value_directory.h>
+
+#include <yt/yt/client/table_client/comparator.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -289,4 +291,3 @@ void FromProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-

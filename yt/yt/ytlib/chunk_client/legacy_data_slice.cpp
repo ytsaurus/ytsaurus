@@ -5,6 +5,7 @@
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
+#include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/serialize.h>
 
@@ -713,4 +714,3 @@ TString GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-
