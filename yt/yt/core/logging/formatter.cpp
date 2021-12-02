@@ -107,11 +107,11 @@ void TCachingDateFormatter::Update(TCpuInstant instant)
 ////////////////////////////////////////////////////////////////////////////////
 
 TPlainTextLogFormatter::TPlainTextLogFormatter(
-    bool enableControlMessages,
+    bool enableSystemMessages,
     bool enableSourceLocation)
     : Buffer_(std::make_unique<TMessageBuffer>())
     , CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
-    , EnableSystemMessages_(enableControlMessages)
+    , EnableSystemMessages_(enableSystemMessages)
     , EnableSourceLocation_(enableSourceLocation)
 { }
 
@@ -196,11 +196,14 @@ void TPlainTextLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStructuredLogFormatter::TStructuredLogFormatter(ELogFormat format, const THashMap<TString, NYTree::INodePtr>& commonFields, bool enableControlMessages)
+TStructuredLogFormatter::TStructuredLogFormatter(
+    ELogFormat format,
+    THashMap<TString, NYTree::INodePtr> commonFields,
+    bool enableSystemMessages)
     : Format_(format)
     , CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
-    , CommonFields_(commonFields)
-    , EnableSystemMessages_(enableControlMessages)
+    , CommonFields_(std::move(commonFields))
+    , EnableSystemMessages_(enableSystemMessages)
 { }
 
 i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
