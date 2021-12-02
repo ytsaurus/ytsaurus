@@ -40,6 +40,7 @@
 
 #include <yt/yt/client/complex_types/check_type_compatibility.h>
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 

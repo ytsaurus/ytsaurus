@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_slice.pb.h>
 
+#include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/key_bound.h>
 
@@ -273,4 +274,3 @@ void ToProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-

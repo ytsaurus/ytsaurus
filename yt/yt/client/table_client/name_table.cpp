@@ -1,4 +1,6 @@
 #include "name_table.h"
+
+#include "column_sort_schema.h"
 #include "schema.h"
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
@@ -273,4 +275,3 @@ void FromProto(TNameTablePtr* nameTable, const NProto::TNameTableExt& protoNameT
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
-

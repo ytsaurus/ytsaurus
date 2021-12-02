@@ -1,5 +1,6 @@
 #include "columnar_chunk_meta.h"
 
+#include <yt/yt/client/table_client/key.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>

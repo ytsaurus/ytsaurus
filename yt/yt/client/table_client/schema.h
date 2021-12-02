@@ -1,14 +1,9 @@
 #pragma once
 
-#include "logical_type.h"
-#include "row_base.h"
-#include "comparator.h"
-#include "column_sort_schema.h"
+#include "public.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/range.h>
 
 #include <yt/yt/core/yson/public.h>
@@ -62,7 +57,7 @@ class TColumnSchema
 public:
     // Keep in sync with hasher below.
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
-    DEFINE_BYREF_RO_PROPERTY(TLogicalTypePtr, LogicalType, NullLogicalType());
+    DEFINE_BYREF_RO_PROPERTY(TLogicalTypePtr, LogicalType);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ESortOrder>, SortOrder);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Lock);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Expression);
@@ -131,10 +126,6 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema);
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
 
 void PrintTo(const TColumnSchema& columnSchema, std::ostream* os);
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TKeyColumnTypes = TCompactVector<EValueType, 16>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

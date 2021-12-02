@@ -38,14 +38,15 @@
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
 #include <yt/yt/client/table_client/column_sort_schema.h>
-#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_base.h>
-#include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/unversioned_reader.h>
-#include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 

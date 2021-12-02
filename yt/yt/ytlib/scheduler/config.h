@@ -1,8 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "helpers.h"
-#include "job_resources.h"
 
 #include <yt/yt/ytlib/api/native/config.h>
 
@@ -11,17 +9,12 @@
 #include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
-#include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/client/formats/format.h>
 #include <yt/yt/client/formats/config.h>
-
-#include <yt/yt/client/table_client/column_sort_schema.h>
-#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/transaction_client/public.h>
 
@@ -43,6 +36,13 @@
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 
 namespace NYT::NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+class TDiskRequest;
+class TTmpfsVolume;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

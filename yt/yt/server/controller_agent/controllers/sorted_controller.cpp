@@ -31,6 +31,7 @@
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/schema.h>
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>

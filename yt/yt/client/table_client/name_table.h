@@ -1,9 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "column_sort_schema.h"
-
-#include <yt/yt/core/misc/optional.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
 

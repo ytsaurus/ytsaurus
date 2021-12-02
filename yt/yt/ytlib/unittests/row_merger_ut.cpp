@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/table_client/overlapping_reader.h>
 #include <yt/yt/ytlib/table_client/row_merger.h>
 
+#include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/row_buffer.h>

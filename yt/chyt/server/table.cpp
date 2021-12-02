@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/ypath/rich.h>

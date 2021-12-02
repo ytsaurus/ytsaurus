@@ -2,10 +2,7 @@
 
 #include "public.h"
 #include "config.h"
-
-#include "schema.h"
-
-#include <yt/yt/client/table_client/unversioned_row.h>
+#include "unversioned_row.h"
 
 #include <yt/yt/core/misc/blob_output.h>
 #include <yt/yt/core/misc/compact_vector.h>

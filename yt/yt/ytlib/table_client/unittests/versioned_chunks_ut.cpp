@@ -20,6 +20,7 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_reader.h>

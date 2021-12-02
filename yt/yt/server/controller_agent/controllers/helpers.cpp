@@ -3,6 +3,7 @@
 #include "table.h"
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/scheduler/proto/output_result.pb.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 

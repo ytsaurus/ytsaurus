@@ -2,6 +2,7 @@
 
 #include "ql_helpers.h"
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/ytlib/query_client/column_evaluator.h>
