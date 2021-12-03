@@ -157,7 +157,7 @@ class TFluentYsonBuilder
 {
 private:
     template <class T>
-    static void WriteValue(::NYson::IYsonConsumer* consumer, const T& value)
+    static void WriteValue(NYT::NYson::IYsonConsumer* consumer, const T& value)
     {
         Serialize(value, consumer);
     }
@@ -175,16 +175,16 @@ public:
     class TFluentBase
     {
     public:
-      operator ::NYson::IYsonConsumer* () const
+      operator NYT::NYson::IYsonConsumer* () const
         {
             return Consumer;
         }
 
     protected:
-        ::NYson::IYsonConsumer* Consumer;
+        NYT::NYson::IYsonConsumer* Consumer;
         TParent Parent;
 
-        TFluentBase(::NYson::IYsonConsumer* consumer, TParent parent)
+        TFluentBase(NYT::NYson::IYsonConsumer* consumer, TParent parent)
             : Consumer(consumer)
             , Parent(std::move(parent))
         { }
@@ -208,7 +208,7 @@ public:
         using TShallowThis = TThis<TFluentYsonVoid>;
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
-        explicit TFluentFragmentBase(::NYson::IYsonConsumer* consumer, TParent parent = TParent())
+        explicit TFluentFragmentBase(NYT::NYson::IYsonConsumer* consumer, TParent parent = TParent())
             : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
@@ -260,7 +260,7 @@ public:
     public:
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
-        TAnyWithoutAttributes(::NYson::IYsonConsumer* consumer, TParent parent)
+        TAnyWithoutAttributes(NYT::NYson::IYsonConsumer* consumer, TParent parent)
             : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
@@ -404,7 +404,7 @@ public:
     public:
         using TBase = TAnyWithoutAttributes<TParent>;
 
-        explicit TAny(::NYson::IYsonConsumer* consumer, TParent parent)
+        explicit TAny(NYT::NYson::IYsonConsumer* consumer, TParent parent)
             : TBase(consumer, std::move(parent))
         { }
 
@@ -427,7 +427,7 @@ public:
         using TThis = TAttributes<TParent>;
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
-        explicit TAttributes(::NYson::IYsonConsumer* consumer, TParent parent = TParent())
+        explicit TAttributes(NYT::NYson::IYsonConsumer* consumer, TParent parent = TParent())
             : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, std::move(parent))
         { }
 
@@ -464,7 +464,7 @@ public:
         using TThis = TListType<TParent>;
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
-        explicit TListType(::NYson::IYsonConsumer* consumer, TParent parent = TParent())
+        explicit TListType(NYT::NYson::IYsonConsumer* consumer, TParent parent = TParent())
             : TFluentFragmentBase<TFluentYsonBuilder::TListType, TParent>(consumer, std::move(parent))
         { }
 
@@ -494,7 +494,7 @@ public:
         using TThis = TMapType<TParent>;
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
-        explicit TMapType(::NYson::IYsonConsumer* consumer, TParent parent = TParent())
+        explicit TMapType(NYT::NYson::IYsonConsumer* consumer, TParent parent = TParent())
             : TFluentFragmentBase<TFluentYsonBuilder::TMapType, TParent>(consumer, std::move(parent))
         { }
 
@@ -541,19 +541,19 @@ using TFluentAttributes = TFluentYsonBuilder::TAttributes<TFluentYsonVoid>;
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Create a fluent adapter to invoke methods of `consumer`.
-static inline TFluentAny BuildYsonFluently(::NYson::IYsonConsumer* consumer)
+static inline TFluentAny BuildYsonFluently(NYT::NYson::IYsonConsumer* consumer)
 {
     return TFluentAny(consumer, TFluentYsonVoid());
 }
 
 /// Create a fluent adapter to invoke methods of `consumer` describing the contents of a list.
-static inline TFluentList BuildYsonListFluently(::NYson::IYsonConsumer* consumer)
+static inline TFluentList BuildYsonListFluently(NYT::NYson::IYsonConsumer* consumer)
 {
     return TFluentList(consumer);
 }
 
 /// Create a fluent adapter to invoke methods of `consumer` describing the contents of a map.
-static inline TFluentMap BuildYsonMapFluently(::NYson::IYsonConsumer* consumer)
+static inline TFluentMap BuildYsonMapFluently(NYT::NYson::IYsonConsumer* consumer)
 {
     return TFluentMap(consumer);
 }
@@ -575,7 +575,7 @@ public:
         return Output.Str();
     }
 
-    ::NYson::IYsonConsumer* GetConsumer()
+    NYT::NYson::IYsonConsumer* GetConsumer()
     {
         return &Writer;
     }
@@ -602,7 +602,7 @@ public:
         return std::move(Node);
     }
 
-    ::NYson::IYsonConsumer* GetConsumer()
+    NYT::NYson::IYsonConsumer* GetConsumer()
     {
         return &Builder;
     }

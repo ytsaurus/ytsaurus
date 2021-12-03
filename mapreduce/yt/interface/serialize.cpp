@@ -523,7 +523,7 @@ void Deserialize(TTabletInfo& value, const TNode& node)
 void Serialize(const NTi::TTypePtr& type, NYson::IYsonConsumer* consumer)
 {
     auto yson = NTi::NIo::SerializeYson(type.Get());
-    ParseYsonStringBuffer(yson, consumer);
+    ::NYson::ParseYsonStringBuffer(yson, consumer);
 }
 
 void Deserialize(NTi::TTypePtr& type, const TNode& node)

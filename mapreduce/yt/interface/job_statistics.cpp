@@ -344,7 +344,7 @@ void WriteCustomStatisticsAny(TStringBuf path, const T& value)
 
 void WriteCustomStatistics(const TNode& statistics)
 {
-    NYson::TYsonWriter writer(GetStatisticsStream(), NYson::EYsonFormat::Binary, ::NYson::EYsonType::ListFragment);
+    ::NYson::TYsonWriter writer(GetStatisticsStream(), NYson::EYsonFormat::Binary, ::NYson::EYsonType::ListFragment);
     Serialize(statistics, &writer);
 }
 

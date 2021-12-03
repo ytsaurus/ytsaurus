@@ -1,14 +1,13 @@
 #include "consumer.h"
-#include "string.h"
-#include "parser.h"
+
+#include <library/cpp/yt/yson_string/string.h>
 
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYsonConsumerBase::OnRaw(TStringBuf str, EYsonType type)
-{
-    ParseYsonStringBuffer(str, type, this);
+void IYsonConsumer::OnRaw(const TYsonStringBuf& yson) {
+    OnRaw(yson.AsStringBuf(), yson.GetType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
