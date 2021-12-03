@@ -17,7 +17,7 @@ TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output, NYson::EYsonFor
 {
     for (size_t i = 0; i < Output_->GetStreamCount(); ++i) {
         Writers_.push_back(
-            MakeHolder<NYson::TYsonWriter>(Output_->GetStream(i), format, ::NYson::EYsonType::ListFragment));
+            MakeHolder<::NYson::TYsonWriter>(Output_->GetStream(i), format, NYT::NYson::EYsonType::ListFragment));
     }
 }
 

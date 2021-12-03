@@ -2,6 +2,7 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <library/cpp/yt/yson/public.h>
 #include <library/cpp/yt/yson_string/public.h>
 
 namespace NYT::NYson {
@@ -28,7 +29,6 @@ class TTokenizer;
 
 class TProtobufMessageType;
 
-struct IYsonConsumer;
 struct IFlushableYsonConsumer;
 struct IAsyncYsonConsumer;
 

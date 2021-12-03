@@ -8,9 +8,9 @@
 
 #include <util/generic/vector.h>
 
-namespace NYson {
+namespace NYT::NYson {
 struct IYsonConsumer;
-}
+} // namespace NYT::NYson
 
 namespace NYT {
 

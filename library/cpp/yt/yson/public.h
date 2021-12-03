@@ -1,15 +1,10 @@
-#include "consumer.h"
-#include "string.h"
-#include "parser.h"
+#pragma once
 
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYsonConsumerBase::OnRaw(TStringBuf str, EYsonType type)
-{
-    ParseYsonStringBuffer(str, type, this);
-}
+struct IYsonConsumer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
