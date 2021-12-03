@@ -26,7 +26,6 @@ namespace NYT::NConcurrency {
 static constexpr auto PollerThreadQuantum = TDuration::MilliSeconds(1000);
 static constexpr int MaxEventsPerPoll = 1024;
 static constexpr int MaxThreadCount = 64;
-static constexpr int MaxPollerThreadSpinIterations = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -380,20 +379,8 @@ private:
 
         void ThreadMainLoopStep()
         {
-            int count = 0;
-            int spinIteration = 0;
-            while (true) {
-                int subcount = WaitForPollerEvents(count == 0 ? PollerThreadQuantum : TDuration::Zero());
-                if (count == 0 && subcount == 0) {
-                    continue;
-                }
-                if (subcount == 0) {
-                    if (spinIteration++ == MaxPollerThreadSpinIterations) {
-                        break;
-                    }
-                }
-                count += subcount;
-            }
+            int count = WaitForPollerEvents(PollerThreadQuantum);
+
             count += HandleRetries();
             HandleUnregisterRequests();
 
