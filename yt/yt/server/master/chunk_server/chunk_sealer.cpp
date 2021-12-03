@@ -159,11 +159,48 @@ public:
         return Enabled_;
     }
 
+    TString GetChunkState(TChunk* chunk)
+    {
+        TString message = "{";
+        if (chunk) {
+            message += Format("Id: %v, ", chunk->GetId());
+            message += Format("Alive: %v, ", IsObjectAlive(chunk));
+            if (IsObjectAlive(chunk)) {
+                message += Format("Journal: %v, ", chunk->IsJournal());
+                if (chunk->IsJournal()) {
+                    message += Format("IsConfirmed: %v, ", chunk->IsConfirmed());
+                    if (chunk->IsConfirmed()) {
+                        message += Format("IsSealed: %v, ", chunk->IsSealed());
+                        if (!chunk->IsSealed()) {
+                            message += Format("HasEnoughReplicas: %v, ", HasEnoughReplicas(chunk));
+                            if (HasEnoughReplicas(chunk)) {
+                                message += Format("IsAttached: %v, ", IsAttached(chunk));
+                                if (IsAttached(chunk)) {
+                                    message += Format("IsLocked: %v, ", IsLocked(chunk));
+                                    if (!IsLocked(chunk)) {
+                                        message += Format("FirstUnsealed: %v", IsFirstUnsealedInChunkList(chunk));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            message += Format("Null: True");
+        }
+
+        message += "}";
+        return message;
+    }
+
     void ScheduleSeal(TChunk* chunk) override
     {
         YT_ASSERT(chunk->IsAlive());
 
+        YT_LOG_DEBUG("XXX Schedule seal (%v)", GetChunkState(chunk));
         if (IsSealNeeded(chunk)) {
+            YT_LOG_DEBUG("XXX Enqueued (%v)", GetChunkState(chunk));
             SealScanner_->EnqueueChunk(chunk);
         }
     }
@@ -343,11 +380,15 @@ private:
 
     void OnRefresh()
     {
+        YT_LOG_DEBUG("XXX OnRefresh1");
+
         OnCheckEnabled();
 
         if (!IsEnabled()) {
             return;
         }
+
+        YT_LOG_DEBUG("XXX OnRefresh2");
 
         int totalCount = 0;
         while (totalCount < GetDynamicConfig()->MaxChunksPerSeal &&
@@ -355,16 +396,21 @@ private:
         {
             auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
             if (!guard) {
+                YT_LOG_DEBUG("XXX NoGuard");
                 return;
             }
 
             ++totalCount;
             auto* chunk = SealScanner_->DequeueChunk();
             if (!chunk) {
+                YT_LOG_DEBUG("XXX NoChunk");
                 continue;
             }
 
+            YT_LOG_DEBUG("XXX Extracted (%v)", GetChunkState(chunk));
+
             if (CanBeSealed(chunk)) {
+                YT_LOG_DEBUG("XXX Enqueue seal (%v)", GetChunkState(chunk));
                 BIND(&TChunkSealer::SealChunk, MakeStrong(this), chunk->GetId(), Passed(std::move(guard)))
                     .AsyncVia(GetCurrentInvoker())
                     .Run();
@@ -393,8 +439,11 @@ private:
         TChunkId chunkId,
         TAsyncSemaphoreGuard /*guard*/)
     {
+        YT_LOG_DEBUG("XXX SealChunk (ChunkId: %v)", chunkId);
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* chunk = chunkManager->FindChunk(chunkId);
+
+        YT_LOG_DEBUG("XXX SealChunk (%v)", GetChunkState(chunk));
         if (!CanBeSealed(chunk)) {
             return;
         }
