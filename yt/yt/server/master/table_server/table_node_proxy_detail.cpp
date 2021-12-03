@@ -1164,6 +1164,11 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             lockedTable->ValidateAllTabletsUnmounted("Cannot change table atomicity mode");
 
             auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
+            if (table->IsReplicated() && atomicity != NTransactionClient::EAtomicity::Full) {
+                THROW_ERROR_EXCEPTION("Replicated tables only support %Qlv atomicity, cannot set it to %Qlv",
+                    NTransactionClient::EAtomicity::Full,
+                    atomicity);
+            }
             lockedTable->SetAtomicity(atomicity);
 
             return true;

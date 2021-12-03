@@ -177,7 +177,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         node->SetOptimizeFor(optimizeFor);
 
         if (node->IsReplicated()) {
-            // NB: This setting is not visible in attributes but crucial for replication
+            // NB: This setting may be not visible in attributes but crucial for replication
             // to work properly.
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
         }

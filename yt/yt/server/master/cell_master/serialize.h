@@ -228,6 +228,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChaosDataTransfer)                                            (1902))  // savrus
     ((AccessControlNode)                                            (1903))  // kvk1920
     ((CheckReplicatedTablesCommitOrderingIsStrong)                  (1904))  // akozhikhov
+    ((CheckReplicatedTablesAtomicityIsFull)                         (1905))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
