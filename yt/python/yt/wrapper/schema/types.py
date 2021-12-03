@@ -173,4 +173,6 @@ if is_schema_module_available():
     Uint32 = create_annotated_type(int, ti.Uint32)
     Uint64 = create_annotated_type(int, ti.Uint64)
 
+    YsonBytes = create_annotated_type(bytes, ti.Yson)
+
     OtherColumns = skiff.SkiffOtherColumns
