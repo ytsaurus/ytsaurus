@@ -128,14 +128,16 @@ EValueType GetWireType(const TLogicalTypePtr& logicalType);
 bool IsV1Type(const TLogicalTypePtr& logicalType);
 
 // Return true if this is new type expressable with EValueType::Composite type.
-bool IsV3Composite(const TLogicalTypePtr& logicalTypePtr);
+bool IsV3Composite(const TLogicalTypePtr& logicalType);
+
+EValueType GetWireType(const TLogicalTypePtr& logicalType);
 
 // Try to remove top level optional type if that doesn't change UnversionedValue representation
 // of non null types.
-TLogicalTypePtr DenullifyLogicalType(const TLogicalTypePtr& type);
+TLogicalTypePtr DenullifyLogicalType(const TLogicalTypePtr& logicalType);
 
 // Returns copy of the logical type with all tagged types replaces with its elements.
-TLogicalTypePtr DetagLogicalType(const TLogicalTypePtr& type);
+TLogicalTypePtr DetagLogicalType(const TLogicalTypePtr& logicalType);
 
 void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logicalType);
 void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLogicalType);
