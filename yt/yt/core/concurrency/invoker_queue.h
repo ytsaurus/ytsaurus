@@ -132,8 +132,6 @@ private:
 
     std::vector<IInvokerPtr> ProfilingTagSettingInvokers_;
 
-    NYTProf::TCpuProfilerTagGuard CpuProfilerTagGuard_;
-
     TCountersPtr CreateCounters(const NProfiling::TTagSet& tagSet);
 };
 

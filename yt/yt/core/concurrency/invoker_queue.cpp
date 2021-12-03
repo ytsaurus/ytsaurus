@@ -17,6 +17,10 @@ static const auto& Logger = ConcurrencyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constinit thread_local TCpuProfilerTagGuard CpuProfilerTagGuard;
+
+////////////////////////////////////////////////////////////////////////////////
+
 Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TEnqueuedAction action)
 {
     Queue_.enqueue(std::move(action));
@@ -247,9 +251,9 @@ TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action, typena
     updateCounters(CumulativeCounters_);
 
     if (const auto& profilerTag = action->ProfilerTag) {
-        CpuProfilerTagGuard_ = TCpuProfilerTagGuard(profilerTag);
+        CpuProfilerTagGuard = TCpuProfilerTagGuard(profilerTag);
     } else {
-        CpuProfilerTagGuard_ = {};
+        CpuProfilerTagGuard = {};
     }
 
     SetCurrentInvoker(GetProfilingTagSettingInvoker(action->ProfilingTag));
@@ -260,7 +264,7 @@ TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action, typena
 template <class TQueueImpl>
 void TInvokerQueue<TQueueImpl>::EndExecute(TEnqueuedAction* action)
 {
-    CpuProfilerTagGuard_ = TCpuProfilerTagGuard{};
+    CpuProfilerTagGuard = TCpuProfilerTagGuard{};
     SetCurrentInvoker(nullptr);
 
     YT_ASSERT(action);
