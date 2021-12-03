@@ -224,7 +224,7 @@ public:
         Underlying_->Dispose();
     }
 
-    bool IsThrottling() const noexcept override 
+    bool IsThrottling() const noexcept override
     {
         return Underlying_->IsThrottling();
     }
@@ -484,6 +484,9 @@ void ApplyPatch(
     const INodePtr& patch)
 {
     auto node = FindNodeByYPath(root, path);
+    if (node) {
+        node = CloneNode(node);
+    }
     if (templatePatch) {
         if (node) {
             node = PatchNode(templatePatch, node);
@@ -500,7 +503,10 @@ void ApplyPatch(
     }
     if (node) {
         ForceYPath(root, path);
-        SetNodeByYPath(root, path, node);
+        // Note that #node may be equal to one of the #root's subtrees or to one of the patches.
+        // In any case, we do not want to use it as an argument to SetNodeByYPath, since this wonderful
+        // method would change the parent of the argument node, which may lead to child-parent relation inconsistency.
+        SetNodeByYPath(root, path, CloneNode(node));
     }
 }
 
