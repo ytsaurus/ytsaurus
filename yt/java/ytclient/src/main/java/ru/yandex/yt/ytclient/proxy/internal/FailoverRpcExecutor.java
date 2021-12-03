@@ -128,7 +128,7 @@ public class FailoverRpcExecutor {
     private void onGlobalTimeout() {
         result.completeExceptionally(
                 new TimeoutException(
-                        String.format("Request has timed out; OriginalRequestId: {}", originalRequestId))
+                        String.format("Request has timed out; OriginalRequestId: %s", originalRequestId))
         );
     }
 
