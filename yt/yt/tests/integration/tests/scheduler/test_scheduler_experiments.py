@@ -415,6 +415,16 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
                         }
                     },
                 },
+                "exp_c1": {
+                    "fraction": 0.1,
+                    "ticket": "ytexp-3",
+                    "ab_treatment_group": {
+                        "fraction": 0.5,
+                        "controller_job_io_patch": {
+                            "foo_spec": "patched",
+                        }
+                    },
+                },
             },
         },
     }
@@ -578,6 +588,23 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
         assert spec["mapper"]["bar_spec"] == "original"
         assert spec["job_io"]["foo_spec"] == "patched"
         assert spec["job_io"]["bar_spec"] == "original"
+
+    @authors("max42")
+    def test_job_io_patch_for_bare_sort(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"key": 1}])
+
+        op = sort(
+            in_=["//tmp/t"],
+            out="//tmp/t",
+            sort_by=["key"],
+            spec={
+                "experiment_overrides": ["exp_c1.treatment"]
+            })
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        assert spec["sort_job_io"]["foo_spec"] == "patched"
+        assert spec["partition_job_io"]["foo_spec"] == "patched"
+        assert spec["merge_job_io"]["foo_spec"] == "patched"
 
 
 class TestControllerFeatures(YTEnvSetup):
