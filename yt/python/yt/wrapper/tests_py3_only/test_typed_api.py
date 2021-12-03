@@ -12,6 +12,7 @@ from yt.wrapper.schema import (
     Uint16,
     Uint32,
     Uint64,
+    YsonBytes,
     OtherColumns,
 )
 
@@ -969,3 +970,41 @@ class TestTypedApi(object):
 
         with pytest.raises(yt.YtError, match=r'incompatible with "input_query"'):
             yt.run_map(MapperWithTypes(Row2, TheRow), input_tables, output_tables, spec={"input_query": "*"})
+
+    @authors("ignat")
+    def test_yson_bytes(self):
+        @yt_dataclass
+        class RowWithYson:
+            pure_yson: typing.Optional[YsonBytes]
+            list_of_ysons: typing.List[typing.Optional[YsonBytes]]
+
+        schema = TableSchema.from_row_type(RowWithYson)
+
+        table = "//tmp/table"
+        yt.create("table", table, attributes={"schema": schema})
+        yt.write_table_structured(
+            table,
+            RowWithYson,
+            [
+                RowWithYson(pure_yson=b"1",
+                            list_of_ysons=[
+                                yson.dumps({"my_data": 10}),
+                                yson.dumps(["item1", yson.loads(b"<attr=10>item2")]),
+                            ]),
+            ])
+
+        typed_rows = list(yt.read_table_structured(table, RowWithYson))
+        assert len(typed_rows) == 1
+        row = typed_rows[0]
+        assert yson.loads(row.pure_yson) == 1
+        assert len(row.list_of_ysons) == 2
+        assert yson.loads(row.list_of_ysons[0]) == {"my_data": 10}
+        assert yson.loads(row.list_of_ysons[1]) == ["item1", yson.loads(b"<attr=10>item2")]
+
+        rows = list(yt.read_table(table))
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["pure_yson"] == 1
+        assert len(row["list_of_ysons"]) == 2
+        assert row["list_of_ysons"][0] == {"my_data": 10}
+        assert row["list_of_ysons"][1] == ["item1", yson.loads(b"<attr=10>item2")]

@@ -3,7 +3,7 @@
 from yt.testlib import authors
 
 from yt.wrapper.schema import TableSchema, yt_dataclass, _create_row_py_schema
-from yt.wrapper.schema.types import Uint8, Int32
+from yt.wrapper.schema.types import Uint8, Int32, YsonBytes
 from yt.wrapper.format import StructuredSkiffFormat
 
 from typing import Optional, List
@@ -27,6 +27,7 @@ class MyClass:
     my_int: int
     my_uint8: Uint8
     my_int32: Int32
+    my_yson: YsonBytes
     my_optional: Optional[int]
     my_list: List[str]
     my_subclass: MySubclass
@@ -48,6 +49,7 @@ def test_yt_dataclass():
         {"name": "my_int", "type_v3": "int64"},
         {"name": "my_uint8", "type_v3": "uint8"},
         {"name": "my_int32", "type_v3": "int32"},
+        {"name": "my_yson", "type_v3": "yson"},
         {"name": "my_optional", "type_v3": {"type_name": "optional", "item": "int64"}},
         {"name": "my_list", "type_v3": {"type_name": "list", "item": "utf8"}},
         {"name": "my_subclass", "type_v3": {"type_name": "struct", "members": [

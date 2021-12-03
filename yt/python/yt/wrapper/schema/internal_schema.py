@@ -55,11 +55,18 @@ class PrimitiveSchema(_PySchemaSerializer):
             dst_type = self._ti_type
         _check_ti_types_compatible(src_type=src_type, dst_type=dst_type, field_path=field_path)
 
+    def __repr__(self):
+        return "PrimitiveSchema(py_type={}, ti_type={}, wire_type={}, is_ti_type_optional={}"\
+            .format(self._py_type, self._ti_type, self._wire_type, self._is_ti_type_optional)
+
 
 class OptionalSchema:
     def __init__(self, item, is_ti_type_optional=True):
         self._item = item
         self._is_ti_type_optional = is_ti_type_optional
+
+    def __repr__(self):
+        return "OptionalSchema(item={}, is_ti_type_optional={})".format(self._item, self._is_ti_type_optional)
 
 
 class StructField:
@@ -67,6 +74,9 @@ class StructField:
         self._name = name
         self._py_schema = schema
         self._yt_name = yt_name if yt_name is not None else name
+
+    def __repr__(self):
+        return "StructField(name={}, py_schema={}, yt_name={})".format(self._name, self._py_schema, self._yt_name)
 
 
 class StructSchema(_PySchemaSerializer):
@@ -76,11 +86,18 @@ class StructSchema(_PySchemaSerializer):
         self._py_type = py_type
         self._is_ti_type_optional = is_ti_type_optional
 
+    def __repr__(self):
+        return "StructSchema(py_type={}, fields={}, other_columns_field={}, is_ti_type_optional={})"\
+            .format(self._py_type, self._fields, self._other_columns_field, self._is_ti_type_optional)
+
 
 class ListSchema:
     def __init__(self, item, is_ti_type_optional=False):
         self._item = item
         self._is_ti_type_optional = is_ti_type_optional
+
+    def __repr__(self):
+        return "ListSchema(item={}, is_ti_type_optional={})".format(self._item, self._is_ti_type_optional)
 
 
 class RowSchema:
@@ -109,11 +126,17 @@ class FieldMissingFromRowClass(_PySchemaSerializer):
         self._name = name
         self._ti_type = ti_type
 
+    def __repr__(self):
+        return "FieldMissingFromRowClass(name={}, ti_type={})".format(self._name, self._ti_type)
+
 
 class FieldMissingFromSchema:
     def __init__(self, name, py_type):
         self._name = name
         self._py_type = py_type
+
+    def __repr__(self):
+        return "FieldMissingFromSchema(name={}, py_type={})".format(self._name, self._py_type)
 
 
 def _get_origin(py_type):
@@ -368,6 +391,7 @@ def _ti_type_to_wire_type(ti_type):
 
             ti.String: "string32",
             ti.Utf8: "string32",
+            ti.Yson: "yson32",
 
             ti.Float: "double",
             ti.Double: "double",

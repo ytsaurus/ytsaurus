@@ -14,7 +14,7 @@ class SkiffError(YtError):
 
 if is_schema_module_available():
     from .types import (Int8, Int16, Int32, Int64, Uint8, Uint16, Uint32, Uint64,
-                        OtherColumns)
+                        YsonBytes, OtherColumns)
 
 
 def _create_row_py_schema(py_type, schema=None, control_attributes=None, column_renaming=None):
