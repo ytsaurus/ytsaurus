@@ -7,7 +7,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt.test.{LocalYtClient, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 
-import java.io.ByteArrayInputStream
+import java.io.{ByteArrayInputStream, FileNotFoundException}
 import scala.concurrent.duration._
 import scala.io.Source
 import scala.language.postfixOps
@@ -73,6 +73,13 @@ class YtFileSystemTest extends FlatSpec with Matchers with LocalYtClient with Tm
         res shouldEqual "1" * 1024 * 1024
       } finally source.close()
     } finally in.close()
+  }
+
+
+  it should "throw FileNotFoundException for non-existing paths" in {
+    intercept[FileNotFoundException] {
+      fs.open(new Path("//tmp/non-existing-path"))
+    }
   }
 
   it should "create" in {
