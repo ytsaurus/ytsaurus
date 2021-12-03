@@ -514,6 +514,14 @@ def multicell_sleep():
         time.sleep(0.5)
 
 
+def wait_for_sys_config_sync():
+    config = get("//sys/@config")
+    drivers = get_cluster_drivers()
+    wait(
+        lambda: all(get("//sys/@config", driver=driver) == config for driver in drivers)
+    )
+
+
 def master_memory_sleep():
     multicell_sleep()
     time.sleep(0.2)
@@ -2181,7 +2189,7 @@ def wait_for_nodes(driver=None):
     )
 
 
-def wait_for_chunk_replicator(driver=None):
+def wait_for_chunk_replicator_enabled(driver=None):
     print_debug("Waiting for chunk replicator to become enabled...")
     wait(lambda: get("//sys/@chunk_replicator_enabled", driver=driver))
 
