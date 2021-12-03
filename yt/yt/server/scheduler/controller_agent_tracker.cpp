@@ -977,7 +977,7 @@ private:
                         << TErrorAttribute{"controller_agent_tag", tag}
                         << TErrorAttribute{"alive_agents", aliveAgentWithCurrentTag}
                         << TErrorAttribute{"agents", agentsWithTag}
-                        << TErrorAttribute{"min_alived_agent_count", thresholds.Absolute}
+                        << TErrorAttribute{"min_alive_agent_count", thresholds.Absolute}
                         << TErrorAttribute{"min_alive_agent_ratio", thresholds.Relative});
             }
         }
