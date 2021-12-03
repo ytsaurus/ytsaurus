@@ -899,7 +899,7 @@ bool TTaggedLogicalType::IsNullable() const
 struct TTypeV3Info
 {
     ESimpleLogicalValueType V1Type;
-    EValueType StorageType;
+    EValueType WireType;
     bool Required;
     bool IsPureV1Type;
 };
@@ -949,7 +949,7 @@ bool IsV1Type(const TLogicalTypePtr& logicalType)
 
 EValueType GetWireType(const TLogicalTypePtr& logicalType)
 {
-    return GetTypeV3Info(logicalType).StorageType;
+    return GetTypeV3Info(logicalType).WireType;
 }
 
 bool IsV3Composite(const TLogicalTypePtr& logicalType)
