@@ -2640,9 +2640,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("akozhikhov")
     def test_forbid_weak_commit_ordering(self):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", self.SIMPLE_SCHEMA_ORDERED, mount=False)
         with raises_yt_error():
-            set("//tmp/t/@commit_ordering", "weak")
+            self._create_replicated_table("//tmp/t", self.SIMPLE_SCHEMA_ORDERED, commit_ordering="weak")
+
+    @authors("akozhikhov")
+    def test_forbid_none_atomicity(self):
+        self._create_cells()
+        with raises_yt_error():
+            self._create_replicated_table("//tmp/t", atomicity="none")
 
 
 ##################################################################
