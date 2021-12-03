@@ -9,10 +9,18 @@ import ru.yandex.spark.yt.fs.PathUtils.hadoopPathToYt
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
+import ru.yandex.yt.TError
 import ru.yandex.yt.ytclient.proxy.CompoundClient
+import ru.yandex.yt.ytclient.rpc.RpcError
+import ru.yandex.yt.ytree.TAttributeDictionary
 
+import java.io.FileNotFoundException
 import java.net.URI
 import java.util.UUID
+import java.util.concurrent.CompletionException
+import java.util.stream.Collectors
+import scala.annotation.tailrec
+import scala.collection.convert.ImplicitConversions.`collection AsScalaIterable`
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -35,7 +43,7 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
 
   override def getUri: URI = _uri
 
-  override def open(f: Path, bufferSize: Int): FSDataInputStream = {
+  override def open(f: Path, bufferSize: Int): FSDataInputStream = convertExceptions {
     log.debugLazy(s"Open file ${f.toUri.toString}")
     statistics.incrementReadOps(1)
     new FSDataInputStream(new YtFsInputStream(YtWrapper.readFile(hadoopPathToYt(f), timeout = _ytConf.timeout)(yt),
@@ -44,7 +52,7 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
 
   protected def create(f: Path, permission: FsPermission, overwrite: Boolean, bufferSize: Int,
                        replication: Short, blockSize: Long, progress: Progressable,
-                       statistics: FileSystem.Statistics): FSDataOutputStream = {
+                       statistics: FileSystem.Statistics): FSDataOutputStream = convertExceptions {
     log.debugLazy(s"Create new file: $f")
     statistics.incrementWriteOps(1)
     val path = hadoopPathToYt(f)
@@ -72,16 +80,18 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
     }
   }
 
-  override def append(f: Path, bufferSize: Int, progress: Progressable): FSDataOutputStream = ???
+  override def append(f: Path, bufferSize: Int, progress: Progressable): FSDataOutputStream = convertExceptions {
+    ???
+  }
 
-  override def rename(src: Path, dst: Path): Boolean = {
+  override def rename(src: Path, dst: Path): Boolean = convertExceptions {
     log.debugLazy(s"Rename $src to $dst")
     statistics.incrementWriteOps(1)
     YtWrapper.rename(hadoopPathToYt(src), hadoopPathToYt(dst))(yt)
     true
   }
 
-  override def mkdirs(f: Path, permission: FsPermission): Boolean = {
+  override def mkdirs(f: Path, permission: FsPermission): Boolean = convertExceptions {
     log.debugLazy(s"Create $f")
     statistics.incrementWriteOps(1)
     YtWrapper.createDir(hadoopPathToYt(f), ignoreExisting = true)(yt)
@@ -89,7 +99,7 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
   }
 
 
-  override def delete(f: Path, recursive: Boolean): Boolean = {
+  override def delete(f: Path, recursive: Boolean): Boolean = convertExceptions {
     log.debugLazy(s"Delete $f")
     statistics.incrementWriteOps(1)
     if (!YtWrapper.exists(hadoopPathToYt(f))(yt)) {
@@ -102,7 +112,7 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
   }
 
   def listYtDirectory(f: Path, path: String, transaction: Option[String])
-                     (implicit yt: CompoundClient): Array[FileStatus] = {
+                     (implicit yt: CompoundClient): Array[FileStatus] = convertExceptions {
     statistics.incrementReadOps(1)
     YtWrapper.listDir(path, transaction).map(name => getFileStatus(new Path(f, name)))
   }
@@ -120,4 +130,43 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
   }
 
   def internalStatistics: FileSystem.Statistics = this.statistics
+
+  def convertExceptions[T](f: => T): T = {
+    try {
+      f
+    } catch {
+      case FileNotFound(ex) => throw ex
+    }
+  }
+
+
+  private object FileNotFound {
+    private val ERR_PATH_PFX = "Error resolving path "
+    private val ERR_CODE = 500
+
+    def findFileNotFound(e: TError): Option[String] = {
+      if (e.getCode == ERR_CODE && e.getMessage.startsWith(ERR_PATH_PFX)) {
+        Some(e.getMessage.substring(ERR_PATH_PFX.length))
+      } else if (e.getInnerErrorsList.isEmpty) {
+        None
+      } else {
+        e.getInnerErrorsList.toSeq.flatMap(findFileNotFound).headOption
+      }
+    }
+
+    @tailrec
+    def unapply(ex: Throwable): Option[FileNotFoundException] = ex match {
+      case err: CompletionException if err.getCause != null =>
+        unapply(err.getCause)
+      case err: RpcError =>
+        findFileNotFound(err.getError).foreach(file => {
+          throw new FileNotFoundException(file) {
+            override def getCause: Throwable = err
+          }
+        })
+        throw err
+      case unknown: Throwable =>
+        throw unknown
+    }
+  }
 }
