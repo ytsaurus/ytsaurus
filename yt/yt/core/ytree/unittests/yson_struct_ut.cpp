@@ -97,6 +97,37 @@ typedef TIntrusivePtr<TTestConfig> TTestConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSimpleYsonSerializable
+    : public TYsonSerializable
+{
+public:
+    int IntValue;
+
+    TSimpleYsonSerializable()
+    {
+        RegisterParameter("int_value", IntValue)
+            .Default(1);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleYsonStruct
+    : public TYsonStruct
+{
+public:
+    int IntValue;
+
+    REGISTER_YSON_STRUCT(TSimpleYsonStruct);
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("int_value", &TSimpleYsonStruct::IntValue)
+            .Default(1);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TestCompleteSubconfig(TTestSubconfig* subconfig)
 {
     EXPECT_EQ(99, subconfig->MyInt);
@@ -1206,6 +1237,70 @@ TEST(TYsonStructTest, PostprocessIsPropagatedFromYsonStructToYsonSerializable)
     auto testInput = TYsonString(TStringBuf("{yson_serializable_hash_map={x={int_value=2}}}"));
     auto deserialized = ConvertTo<TIntrusivePtr<TYsonStructClass2>>(testInput);
     EXPECT_EQ(deserialized->YsonSerializableHashMap["x"]->IntValue, 10);
+}
+
+template <class T>
+TIntrusivePtr<T> CreateCustomDefault()
+{
+    auto result = New<T>();
+    result->IntValue = 10;
+    return result;
+}
+
+class TYsonStructWithNestedStructsAndCustomDefaults
+    : public TYsonStruct
+{
+public:
+    TIntrusivePtr<TSimpleYsonSerializable> YsonSerializable;
+    TIntrusivePtr<TSimpleYsonStruct> YsonStruct;
+
+    REGISTER_YSON_STRUCT(TYsonStructWithNestedStructsAndCustomDefaults);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("yson_serializable", &TThis::YsonSerializable)
+            .DefaultCtor([] () { return CreateCustomDefault<TSimpleYsonSerializable>(); });
+        registrar.Parameter("yson_struct", &TThis::YsonStruct)
+            .DefaultCtor([] () { return CreateCustomDefault<TSimpleYsonStruct>(); });
+    }
+};
+
+TEST(TYsonStructTest, TestCustomDefaultsOfNestedStructsAreDiscardedOnDeserialize)
+{
+    auto deserialized = ConvertTo<TIntrusivePtr<TYsonStructWithNestedStructsAndCustomDefaults>>(TYsonString(TStringBuf("{}")));
+    EXPECT_EQ(deserialized->YsonSerializable->IntValue, 1);
+    EXPECT_EQ(deserialized->YsonStruct->IntValue, 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYsonStructWithNestedStructsAndPreprocessors
+    : public TYsonStruct
+{
+public:
+    TIntrusivePtr<TSimpleYsonSerializable> YsonSerializable;
+    TIntrusivePtr<TSimpleYsonStruct> YsonStruct;
+
+    REGISTER_YSON_STRUCT(TYsonStructWithNestedStructsAndPreprocessors);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("yson_struct", &TThis::YsonStruct)
+            .Default();
+        registrar.Parameter("yson_serializable", &TThis::YsonSerializable)
+            .Default();
+        registrar.Preprocessor([] (TThis* s) {
+            s->YsonSerializable = CreateCustomDefault<TSimpleYsonSerializable>();
+            s->YsonStruct = CreateCustomDefault<TSimpleYsonStruct>();
+        });
+    }
+};
+
+TEST(TYsonStructTest, TestPreprocessorsEffectsOnNestedStructsArePreservedOnDeserialize)
+{
+    auto deserialized = ConvertTo<TIntrusivePtr<TYsonStructWithNestedStructsAndPreprocessors>>(TYsonString(TStringBuf("{}")));
+    EXPECT_EQ(deserialized->YsonSerializable->IntValue, 10);
+    EXPECT_EQ(deserialized->YsonStruct->IntValue, 10);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

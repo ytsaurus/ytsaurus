@@ -309,8 +309,8 @@ void InvokeForComposites(
     const F& /* func */)
 { }
 
-// TYsonStruct
-template <class T, class F, class E = typename std::enable_if<std::is_convertible<T*, TYsonStruct*>::value>::type>
+// TYsonStruct or TYsonSerializable
+template <IsYsonStructOrYsonSerializable T, class F>
 inline void InvokeForComposites(const TIntrusivePtr<T>* parameter, const F& func)
 {
     func(*parameter);
@@ -648,7 +648,7 @@ void TYsonStructParameter<TValue>::SetDefaultsInitialized(TYsonStructBase* self)
 
     NPrivate::InvokeForComposites(
         &value,
-        [] (TIntrusivePtr<TYsonStruct> obj) {
+        [] <NPrivate::IsYsonStructOrYsonSerializable T> (TIntrusivePtr<T> obj) {
             if (obj) {
                 obj->SetDefaults();
             }
