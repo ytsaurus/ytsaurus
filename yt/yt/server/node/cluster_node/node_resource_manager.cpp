@@ -38,7 +38,6 @@ static const auto& Logger = ClusterNodeLogger;
 static const THashSet<EMemoryCategory> ExternalMemoryCategories = {
     EMemoryCategory::BlockCache,
     EMemoryCategory::ChunkMeta,
-    EMemoryCategory::ChunkBlockMeta,
     EMemoryCategory::VersionedChunkMeta
 };
 
