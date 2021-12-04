@@ -1474,7 +1474,7 @@ void TServiceBase::HandleRequest(
 
     TAuthenticationContext authenticationContext{
         .Header = acceptedRequest.Header.get(),
-        .UserIP = acceptedRequest.ReplyBus->GetEndpointAddress()
+        .UserIP = acceptedRequest.ReplyBus->GetEndpointNetworkAddress()
     };
     auto asyncAuthResult = Authenticator_->Authenticate(authenticationContext);
     if (asyncAuthResult.IsSet()) {

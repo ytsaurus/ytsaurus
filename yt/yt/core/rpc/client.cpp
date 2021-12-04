@@ -490,6 +490,11 @@ TClientResponse::TClientResponse(TClientContextPtr clientContext)
     , ClientContext_(std::move(clientContext))
 { }
 
+const TString& TClientResponse::GetAddress() const
+{
+    return Address_;
+}
+
 const NProto::TResponseHeader& TClientResponse::Header() const
 {
     return Header_;
@@ -630,18 +635,22 @@ void TClientResponse::HandleAcknowledgement()
     State_.compare_exchange_strong(expected, EState::Ack);
 }
 
-void TClientResponse::HandleResponse(TSharedRefArray message)
+void TClientResponse::HandleResponse(TSharedRefArray message, TString address)
 {
     auto prevState = State_.exchange(EState::Done);
     YT_ASSERT(prevState == EState::Sent || prevState == EState::Ack);
 
-    GetInvoker()->Invoke(
-        BIND(&TClientResponse::DoHandleResponse, MakeStrong(this), Passed(std::move(message))));
+    GetInvoker()->Invoke(BIND(&TClientResponse::DoHandleResponse,
+        MakeStrong(this),
+        Passed(std::move(message)),
+        Passed(std::move(address))));
 }
 
-void TClientResponse::DoHandleResponse(TSharedRefArray message)
+void TClientResponse::DoHandleResponse(TSharedRefArray message, TString address)
 {
     NProfiling::TWallTimer timer;
+
+    Address_ = std::move(address);
 
     try {
         Deserialize(std::move(message));

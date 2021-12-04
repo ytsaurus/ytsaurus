@@ -1129,7 +1129,7 @@ private:
                 requestControl->GetMethod(),
                 requestControl->GetTotalTime());
 
-            responseHandler->HandleResponse(std::move(message));
+            responseHandler->HandleResponse(std::move(message), Bus_->GetEndpointAddress());
         }
     };
 

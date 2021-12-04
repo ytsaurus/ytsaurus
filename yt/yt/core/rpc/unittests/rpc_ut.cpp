@@ -436,6 +436,15 @@ using TAllTransports = ::testing::Types<
     TRpcOverGrpcImpl<true>
 >;
 
+using TWithoutUnixDomain = ::testing::Types<
+#ifdef _linux_
+    TRpcOverBus<TRpcOverBusImpl<true>>,
+#endif
+    TRpcOverBus<TRpcOverBusImpl<false>>,
+    TRpcOverGrpcImpl<false>,
+    TRpcOverGrpcImpl<true>
+>;
+
 using TWithoutGrpc = ::testing::Types<
 #ifdef _linux_
     TRpcOverBus<TRpcOverUnixDomainImpl>,
@@ -447,8 +456,11 @@ using TWithoutGrpc = ::testing::Types<
 template <class TImpl>
 using TRpcTest = TTestBase<TImpl>;
 template <class TImpl>
+using TNotUnixDomainTest = TTestBase<TImpl>;
+template <class TImpl>
 using TNotGrpcTest = TTestBase<TImpl>;
 TYPED_TEST_SUITE(TRpcTest, TAllTransports);
+TYPED_TEST_SUITE(TNotUnixDomainTest, TWithoutUnixDomain);
 TYPED_TEST_SUITE(TNotGrpcTest, TWithoutGrpc);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -500,6 +512,34 @@ TYPED_TEST(TRpcTest, UserTag)
     EXPECT_EQ(req->GetUser(), rsp->user());
     EXPECT_EQ(req->GetUserTag(), rsp->user_tag());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYPED_TEST(TNotUnixDomainTest, Address)
+{
+    auto testChannel = [] (IChannelPtr channel) {
+        TMyProxy proxy(std::move(channel));
+        auto req = proxy.SomeCall();
+        req->set_a(42);
+        auto rspOrError = req->Invoke().Get();
+        EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+        const auto& rsp = rspOrError.Value();
+        EXPECT_FALSE(rsp->GetAddress().empty());
+    };
+
+    testChannel(this->CreateChannel());
+
+    {
+        auto config = New<TRetryingChannelConfig>();
+        config->Load(ConvertTo<INodePtr>(TYsonString(TStringBuf(
+            "{retry_backoff_time=10}"))));
+        testChannel(CreateRetryingChannel(
+            std::move(config),
+            this->CreateChannel()));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TYPED_TEST(TNotGrpcTest, SendSimple)
 {

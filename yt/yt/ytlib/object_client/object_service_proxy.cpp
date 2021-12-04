@@ -574,7 +574,9 @@ void TObjectServiceProxy::TRspExecuteBatch::SetEmpty()
 {
     NProto::TRspExecute body;
     auto message = CreateResponseMessage(body);
-    static_cast<IClientResponseHandler*>(this)->HandleResponse(std::move(message));
+    static_cast<IClientResponseHandler*>(this)->HandleResponse(
+        std::move(message),
+        /*address*/ TString());
 }
 
 void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)

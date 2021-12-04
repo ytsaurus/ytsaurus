@@ -395,9 +395,9 @@ private:
             UnderlyingHandler_->HandleAcknowledgement();
         }
 
-        void HandleResponse(TSharedRefArray message) override
+        void HandleResponse(TSharedRefArray message, TString address) override
         {
-            UnderlyingHandler_->HandleResponse(std::move(message));
+            UnderlyingHandler_->HandleResponse(std::move(message), std::move(address));
         }
 
         void HandleError(const TError& error) override

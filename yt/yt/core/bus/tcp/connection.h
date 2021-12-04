@@ -45,7 +45,6 @@ DEFINE_ENUM(EPacketState,
     (Canceled)
 );
 
-
 class TTcpConnection
     : public IBus
     , public NConcurrency::TPollableBase
@@ -59,8 +58,8 @@ public:
         SOCKET socket,
         const TString& endpointDescription,
         const NYTree::IAttributeDictionary& endpointAttributes,
-        const NNet::TNetworkAddress& endpointAddress,
-        const std::optional<TString>& address,
+        const NNet::TNetworkAddress& endpointNetworkAddress,
+        const std::optional<TString>& endpointAddress,
         const std::optional<TString>& unixDomainSocketPath,
         IMessageHandlerPtr handler,
         NConcurrency::IPollerPtr poller);
@@ -80,7 +79,8 @@ public:
     // IBus implementation.
     const TString& GetEndpointDescription() const override;
     const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
-    const NNet::TNetworkAddress& GetEndpointAddress() const override;
+    const TString& GetEndpointAddress() const override;
+    const NNet::TNetworkAddress& GetEndpointNetworkAddress() const override;
     TTcpDispatcherStatistics GetStatistics() const override;
     TFuture<void> GetReadyFuture() const override;
     TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
@@ -158,8 +158,8 @@ private:
     const TConnectionId Id_;
     const TString EndpointDescription_;
     const NYTree::IAttributeDictionaryPtr EndpointAttributes_;
-    const NNet::TNetworkAddress EndpointAddress_;
-    const std::optional<TString> Address_;
+    const NNet::TNetworkAddress EndpointNetworkAddress_;
+    const std::optional<TString> EndpointAddress_;
     const std::optional<TString> UnixDomainSocketPath_;
     const std::optional<TString> AbstractUnixDomainSocketName_;
     const IMessageHandlerPtr Handler_;

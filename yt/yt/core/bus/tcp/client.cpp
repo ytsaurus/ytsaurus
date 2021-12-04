@@ -63,10 +63,16 @@ public:
         return Connection_->GetEndpointAttributes();
     }
 
-    const NNet::TNetworkAddress& GetEndpointAddress() const override
+    const TString& GetEndpointAddress() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetEndpointAddress();
+    }
+
+    const NNet::TNetworkAddress& GetEndpointNetworkAddress() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->GetEndpointNetworkAddress();
     }
 
     TTcpDispatcherStatistics GetStatistics() const override
@@ -113,7 +119,6 @@ public:
 
 private:
     const TTcpConnectionPtr Connection_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
