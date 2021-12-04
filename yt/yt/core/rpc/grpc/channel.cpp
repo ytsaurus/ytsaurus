@@ -44,10 +44,10 @@ class TChannel
 public:
     explicit TChannel(TChannelConfigPtr config)
         : Config_(std::move(config))
-        , EndpointDescription_(Config_->Address)
+        , EndpointAddress_(Config_->Address)
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
-                .Item("address").Value(EndpointDescription_)
+                .Item("address").Value(EndpointAddress_)
             .EndMap()))
     {
         TGrpcChannelArgs args(Config_->GrpcArguments);
@@ -66,9 +66,10 @@ public:
         }
     }
 
+    // IChannel implementation.
     const TString& GetEndpointDescription() const override
     {
-        return EndpointDescription_;
+        return EndpointAddress_;
     }
 
     const IAttributeDictionary& GetEndpointAttributes() const override
@@ -127,9 +128,15 @@ public:
         Terminated_.Unsubscribe(callback);
     }
 
+    // Custom methods.
+    const TString& GetEndpointAddress() const
+    {
+        return EndpointAddress_;
+    }
+
 private:
     const TChannelConfigPtr Config_;
-    const TString EndpointDescription_;
+    const TString EndpointAddress_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
@@ -564,7 +571,9 @@ private:
                 Request_->GetMethod(),
                 Timer_.GetElapsedTime());
 
-            responseHandler->HandleResponse(std::move(message));
+            responseHandler->HandleResponse(
+                std::move(message),
+                /*address*/ Owner_->GetEndpointAddress());
         }
     };
 };

@@ -198,7 +198,7 @@ private:
                 .EndMap()))
         { }
 
-        // IBus overrides
+        // IBus overrides.
         const TString& GetEndpointDescription() const override
         {
             return PeerAddressString_;
@@ -214,7 +214,12 @@ private:
             return {};
         }
 
-        const NNet::TNetworkAddress& GetEndpointAddress() const override
+        const TString& GetEndpointAddress() const override
+        {
+            return PeerAddressString_;
+        }
+
+        const NNet::TNetworkAddress& GetEndpointNetworkAddress() const override
         {
             return PeerAddress_;
         }

@@ -73,7 +73,13 @@ struct IBus
     //! Typically used for constructing errors.
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
-    virtual const NNet::TNetworkAddress& GetEndpointAddress() const = 0;
+    //! Returns the bus' endpoint address as it was provided by the configuration (e.g.: non-resolved FQDN).
+    //! Empty if it is not supported by the implementation (e.g.: Unix sockets).
+    virtual const TString& GetEndpointAddress() const = 0;
+
+    //! Returns the bus' endpoint network address (e.g.: resolved IP address).
+    //! Null if it is not supported by the implementation (e.g.: client-side bus).
+    virtual const NNet::TNetworkAddress& GetEndpointNetworkAddress() const = 0;
 
     virtual TTcpDispatcherStatistics GetStatistics() const = 0;
 

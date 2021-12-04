@@ -69,20 +69,20 @@ class THttpReplyBus
     : public IBus
 {
 public:
-    explicit THttpReplyBus(
+    THttpReplyBus(
         IResponseWriterPtr rsp,
-        const TString& endpointDescription,
+        TString endpointAddress,
         IAttributeDictionaryPtr endpointAttributes,
-        const TNetworkAddress& endpointAddress)
+        TNetworkAddress endpointNetworkAddress)
         : Rsp_(std::move(rsp))
-        , EndpointDescription_(endpointDescription)
+        , EndpointAddress_(std::move(endpointAddress))
         , EndpointAttributes_(std::move(endpointAttributes))
-        , EndpointAddress_(endpointAddress)
+        , EndpointNetworkAddress_(std::move(endpointNetworkAddress))
     { }
 
     const TString& GetEndpointDescription() const override
     {
-        return EndpointDescription_;
+        return EndpointAddress_;
     }
 
     const IAttributeDictionary& GetEndpointAttributes() const override
@@ -90,9 +90,14 @@ public:
         return *EndpointAttributes_;
     }
 
-    const NNet::TNetworkAddress& GetEndpointAddress() const override
+    const TString& GetEndpointAddress() const override
     {
         return EndpointAddress_;
+    }
+
+    const NNet::TNetworkAddress& GetEndpointNetworkAddress() const override
+    {
+        return EndpointNetworkAddress_;
     }
 
     TTcpDispatcherStatistics GetStatistics() const override
@@ -163,9 +168,9 @@ public:
 
 private:
     const IResponseWriterPtr Rsp_;
-    const TString EndpointDescription_;
+    const TString EndpointAddress_;
     const IAttributeDictionaryPtr EndpointAttributes_;
-    const TNetworkAddress EndpointAddress_;
+    const TNetworkAddress EndpointNetworkAddress_;
 
     TPromise<void> ReplySent_ = NewPromise<void>();
 };
@@ -203,17 +208,17 @@ public:
         }
 
         auto body = req->ReadAll();
-        auto remoteAddress = req->GetRemoteAddress();
-        auto endpointDescription = ToString(remoteAddress);
+        auto endpointNetworkAddress = req->GetRemoteAddress();
+        auto endpointAddress = ToString(endpointNetworkAddress);
         auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
-                .Item("address").Value(endpointDescription)
+                .Item("address").Value(endpointAddress)
             .EndMap());
         auto replyBus = New<THttpReplyBus>(
             rsp,
-            endpointDescription,
+            std::move(endpointAddress),
             std::move(endpointAttributes),
-            remoteAddress);
+            std::move(endpointNetworkAddress));
         auto replySent = replyBus->ReplySent();
 
         auto requestMessage = CreateRequestMessage(*header, PushEnvelope(body), {});

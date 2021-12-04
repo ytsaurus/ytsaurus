@@ -177,7 +177,13 @@ private:
             return {};
         }
 
-        const NNet::TNetworkAddress& GetEndpointAddress() const override
+        const TString& GetEndpointAddress() const override
+        {
+            static const TString EmptyAddress;
+            return EmptyAddress;
+        }
+
+        const NNet::TNetworkAddress& GetEndpointNetworkAddress() const override
         {
             return NNet::NullNetworkAddress;
         }
@@ -199,7 +205,7 @@ private:
                 if (error.IsOK()) {
                     auto memoryZone = FromProto<NYTAlloc::EMemoryZone>(header.memory_zone());
                     message = AdjustMessageMemoryZone(std::move(message), memoryZone);
-                    Handler_->HandleResponse(std::move(message));
+                    Handler_->HandleResponse(std::move(message), /*address*/ TString());
                 } else {
                     Handler_->HandleError(error);
                 }

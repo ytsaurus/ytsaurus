@@ -96,8 +96,8 @@ TTcpConnection::TTcpConnection(
     int socket,
     const TString& endpointDescription,
     const IAttributeDictionary& endpointAttributes,
-    const TNetworkAddress& endpointAddress,
-    const std::optional<TString>& address,
+    const TNetworkAddress& endpointNetworkAddress,
+    const std::optional<TString>& endpointAddress,
     const std::optional<TString>& unixDomainSocketPath,
     IMessageHandlerPtr handler,
     IPollerPtr poller)
@@ -106,8 +106,8 @@ TTcpConnection::TTcpConnection(
     , Id_(id)
     , EndpointDescription_(endpointDescription)
     , EndpointAttributes_(endpointAttributes.Clone())
+    , EndpointNetworkAddress_(endpointNetworkAddress)
     , EndpointAddress_(endpointAddress)
-    , Address_(address)
     , UnixDomainSocketPath_(unixDomainSocketPath)
     , Handler_(std::move(handler))
     , Poller_(std::move(poller))
@@ -312,7 +312,7 @@ void TTcpConnection::ResolveAddress()
     } else {
         TStringBuf hostName;
         try {
-            ParseServiceAddress(*Address_, &hostName, &Port_);
+            ParseServiceAddress(*EndpointAddress_, &hostName, &Port_);
         } catch (const std::exception& ex) {
             Abort(TError(ex).SetCode(NBus::EErrorCode::TransportError));
             return;
@@ -484,9 +484,19 @@ const IAttributeDictionary& TTcpConnection::GetEndpointAttributes() const
     return *EndpointAttributes_;
 }
 
-const TNetworkAddress& TTcpConnection::GetEndpointAddress() const
+const TString& TTcpConnection::GetEndpointAddress() const
 {
-    return EndpointAddress_;
+    if (EndpointAddress_) {
+        return *EndpointAddress_;
+    } else {
+        static const TString EmptyAddress;
+        return EmptyAddress;
+    }
+}
+
+const TNetworkAddress& TTcpConnection::GetEndpointNetworkAddress() const
+{
+    return EndpointNetworkAddress_;
 }
 
 TTcpDispatcherStatistics TTcpConnection::GetStatistics() const

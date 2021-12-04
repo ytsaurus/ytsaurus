@@ -289,8 +289,9 @@ struct IClientResponseHandler
     //! Called if the request is replied with #EErrorCode::OK.
     /*!
      *  \param message A message containing the response.
+     *  \param address Address of the response sender. Empty if it is not supported by the underlying RPC stack.
      */
-    virtual void HandleResponse(TSharedRefArray message) = 0;
+    virtual void HandleResponse(TSharedRefArray message, TString address) = 0;
 
     //! Called if the request fails.
     /*!
@@ -323,6 +324,11 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
+    //! Returns address of the response sender, as it was provided by the channel configuration (FQDN, IP address, etc).
+    //! Empty if it is not supported by the underlying RPC stack or the OK response has not been received yet.
+    //! Note: complex channels choose destination dynamically (hedging, roaming), so the address is not known beforehand.
+    const TString& GetAddress() const;
+
     const NProto::TResponseHeader& Header() const;
 
     TSharedRefArray GetResponseMessage() const;
@@ -344,7 +350,7 @@ protected:
     // IClientResponseHandler implementation.
     void HandleError(const TError& error) override;
     void HandleAcknowledgement() override;
-    void HandleResponse(TSharedRefArray message) override;
+    void HandleResponse(TSharedRefArray message, TString address) override;
     void HandleStreamingPayload(const TStreamingPayload& payload) override;
     void HandleStreamingFeedback(const TStreamingFeedback& feedback) override;
 
@@ -355,13 +361,14 @@ protected:
     const IInvokerPtr& GetInvoker();
 
 private:
+    TString Address_;
     NProto::TResponseHeader Header_;
     TSharedRefArray ResponseMessage_;
 
     void TraceResponse();
     void DoHandleError(const TError& error);
 
-    void DoHandleResponse(TSharedRefArray message);
+    void DoHandleResponse(TSharedRefArray message, TString address);
     void Deserialize(TSharedRefArray responseMessage);
 };
 
