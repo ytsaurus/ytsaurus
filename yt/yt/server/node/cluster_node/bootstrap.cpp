@@ -933,7 +933,7 @@ private:
                         YT_LOG_DEBUG("Self memory guarantee updated (MemoryGuarantee: %v)", memoryGuarantee);
                     } catch (const std::exception& ex) {
                         // This probably means container limits misconfiguration on host.
-                        YT_LOG_FATAL(ex, "Failed to set self memory guarantee (MemoryGuarantee: %v)", memoryGuarantee);
+                        YT_LOG_ALERT(ex, "Failed to set self memory guarantee (MemoryGuarantee: %v)", memoryGuarantee);
                     }
                 }));
             }

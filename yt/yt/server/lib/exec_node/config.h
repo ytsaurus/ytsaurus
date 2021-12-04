@@ -80,6 +80,9 @@ public:
     //! For testing purposes only.
     bool UseExecFromLayer;
 
+    //! Backoff time between container destruction attempts.
+    TDuration ContainerDestructionBackoff;
+
     TPortoJobEnvironmentConfig()
     {
         RegisterParameter("porto_executor", PortoExecutor)
@@ -105,6 +108,9 @@ public:
 
         RegisterParameter("use_exec_from_layer", UseExecFromLayer)
             .Default(false);
+
+        RegisterParameter("container_destruction_backoff", ContainerDestructionBackoff)
+            .Default(TDuration::Seconds(60));
     }
 };
 

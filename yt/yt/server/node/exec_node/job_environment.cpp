@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "job_directory_manager.h"
 #include "private.h"
+#include "yt/yt/core/concurrency/delayed_executor.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -325,8 +326,13 @@ public:
         , Config_(std::move(config))
         , PortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
-            "environ",
+            "env_spawn",
             ExecNodeProfiler.WithPrefix("/job_environement/porto")))
+        , DestroyPortoExecutor_(CreatePortoExecutor(
+            Config_->PortoExecutor,
+            "env_destroy",
+            ExecNodeProfiler.WithPrefix("/job_environement/porto_destroy")))
+        , ContainerDestroyFailureCounter(ExecNodeProfiler.WithPrefix("/job_environement").Counter("/container_destroy_failures"))
     {  }
 
     void CleanProcesses(int slotIndex) override
@@ -422,7 +428,14 @@ public:
 
 private:
     const TPortoJobEnvironmentConfigPtr Config_;
+
+    //! Main porto connection for contaner creation and lightweight operations.
     IPortoExecutorPtr PortoExecutor_;
+
+    //! Porto connection used for contaner destruction, which is
+    //! possibly a long operation and requires additional retries.
+    IPortoExecutorPtr DestroyPortoExecutor_;
+    NProfiling::TCounter ContainerDestroyFailureCounter;
 
     IInstancePtr MetaInstance_;
 
@@ -431,31 +444,44 @@ private:
     void DestroyAllSubcontainers(const TString& rootContainer)
     {
         YT_LOG_DEBUG("Started destroying subcontainers (RootContainer: %v)",
-            rootContainer);
-
-        auto containers = WaitFor(PortoExecutor_->ListSubcontainers(rootContainer, false))
-            .ValueOrThrow();
-
-        std::vector<TFuture<void>> futures;
-        for (const auto& container : containers) {
-            YT_LOG_DEBUG("Destroying subcontainer (Container: %v)", container);
-            futures.push_back(PortoExecutor_->DestroyContainer(container));
-        }
-
-        auto throwOnError = [&] (const TError& error) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to destroy all subcontainers of %v",
                 rootContainer);
-        };
 
-        auto result = WaitFor(AllSet(futures));
-        throwOnError(result);
-        for (const auto& error : result.Value()) {
-            if (error.IsOK() ||
-                error.FindMatching(EPortoErrorCode::ContainerDoesNotExist))
-            {
-                continue;
+        // Retry destruction until success.
+        bool destroyed = false;
+        while (!destroyed) {
+            YT_LOG_DEBUG("Start containter destruction attempt (RootContainer: %v)",
+                rootContainer);
+
+            auto containers = WaitFor(DestroyPortoExecutor_->ListSubcontainers(rootContainer, false))
+                .ValueOrThrow();
+
+            std::vector<TFuture<void>> futures;
+            for (const auto& container : containers) {
+                YT_LOG_DEBUG("Destroying subcontainer (Container: %v)", container);
+                futures.push_back(DestroyPortoExecutor_->DestroyContainer(container));
             }
-            throwOnError(error);
+
+            auto result = WaitFor(AllSet(futures));
+            if (result.IsOK()) {
+                destroyed = true;
+                for (const auto& error : result.Value()) {
+                    if (!error.IsOK() &&
+                        !error.FindMatching(EPortoErrorCode::ContainerDoesNotExist))
+                    {
+                        destroyed = false;
+                        YT_LOG_WARNING(error, "Failed to destroy subcontainers of %Qv",
+                            rootContainer);
+                    }
+                }
+            } else {
+                YT_LOG_WARNING(result, "Failed to destroy subcontainers of %Qv",
+                    rootContainer);
+            }
+
+            if (!destroyed) {
+                ContainerDestroyFailureCounter.Increment(1);
+                TDelayedExecutor::WaitForDuration(Config_->ContainerDestructionBackoff);
+            }
         }
 
         YT_LOG_DEBUG("Finished destroying subcontainers (RootContainer: %v)",
