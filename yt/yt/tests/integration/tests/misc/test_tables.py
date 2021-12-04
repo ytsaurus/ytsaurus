@@ -20,6 +20,8 @@ import yt.yson as yson
 
 import pytest
 
+from flaky import flaky
+
 import math
 import random
 
@@ -2670,6 +2672,7 @@ class TestTables(YTEnvSetup):
             assert len(sample_rows("//tmp/t2", 1, 25, 75)) == 50
 
     @authors("akozhikhov")
+    @flaky(max_runs=3)
     def test_put_blocks_timeout(self):
         nodes = ls("//sys/cluster_nodes")
         node_count = len(nodes)
