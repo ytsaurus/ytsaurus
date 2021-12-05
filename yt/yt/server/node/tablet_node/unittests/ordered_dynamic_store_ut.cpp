@@ -38,27 +38,13 @@ protected:
         i64 upperRowIndex,
         const TColumnFilter& columnFilter)
     {
-        auto reader = Store_->CreateReader(
-            Tablet_->BuildSnapshot(nullptr),
+        return ReadRowsImpl(
+            Store_,
             tabletIndex,
             lowerRowIndex,
             upperRowIndex,
             columnFilter,
-            ChunkReadOptions_,
-            /*workloadCategory*/ std::nullopt);
-
-        std::vector<TUnversionedOwningRow> allRows;
-        TRowBatchReadOptions options{
-            .MaxRowsPerRead = 100
-        };
-        while (auto batch = reader->Read(options)) {
-            auto someRows = batch->MaterializeRows();
-            YT_VERIFY(!someRows.empty());
-            for (auto row : someRows) {
-                allRows.push_back(TUnversionedOwningRow(row));
-            }
-        }
-        return allRows;
+            ChunkReadOptions_);
     }
 
 

@@ -65,6 +65,9 @@ inline TVersionedOwningRow VersionedLookupRowImpl(
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+
 class TSortedStoreManagerTestBase
     : public TStoreManagerTestBase<TSortedDynamicStoreTestBase>
 {

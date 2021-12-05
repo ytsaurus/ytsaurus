@@ -10,6 +10,39 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline std::vector<TUnversionedOwningRow> ReadRowsImpl(
+    const TOrderedDynamicStorePtr& store,
+    int tabletIndex,
+    i64 lowerRowIndex,
+    i64 upperRowIndex,
+    const TColumnFilter& columnFilter = TColumnFilter::MakeUniversal(),
+    NChunkClient::TClientChunkReadOptions chunkReadOptions = NChunkClient::TClientChunkReadOptions{})
+{
+    auto reader = store->CreateReader(
+        store->GetTablet()->BuildSnapshot(nullptr),
+        tabletIndex,
+        lowerRowIndex,
+        upperRowIndex,
+        columnFilter,
+        chunkReadOptions,
+        /*workloadCategory*/ std::nullopt);
+
+    std::vector<TUnversionedOwningRow> allRows;
+    TRowBatchReadOptions options{
+        .MaxRowsPerRead = 100
+    };
+    while (auto batch = reader->Read(options)) {
+        auto someRows = batch->MaterializeRows();
+        YT_VERIFY(!someRows.empty());
+        for (auto row : someRows) {
+            allRows.push_back(TUnversionedOwningRow(row));
+        }
+    }
+    return allRows;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOrderedDynamicStoreTestBase
     : public TDynamicStoreTestBase
 {

@@ -3,6 +3,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include "sorted_store_manager_ut_helpers.h"
+#include "ordered_dynamic_store_ut_helpers.h"
 #include "simple_transaction_supervisor.h"
 #include "simple_tablet_manager.h"
 
@@ -226,19 +227,13 @@ protected:
         return NTransactionClient::MakeTabletTransactionId(atomicity, TSimpleTabletSlot::CellTag, timestamp, hash);
     }
 
-    TUnversionedOwningRow BuildRow(const TString& yson, bool treatMissingAsNull = true)
-    {
-        return NTableClient::YsonToSchemafulRow(yson, *TabletSlot_->TabletManager()->Tablet()->GetPhysicalSchema(), treatMissingAsNull);
-    }
+    // Recall that this method may wait on blocked row.
 
-    TVersionedOwningRow VersionedLookupRow(const TLegacyOwningKey& key, int minDataVersions = 100, TTimestamp timestamp = AsyncLastCommittedTimestamp)
-    {
-        return VersionedLookupRowImpl(TabletSlot_->TabletManager()->Tablet(), key, minDataVersions, timestamp);
-    }
-
-    // Recall that  may wait on blocked row.
-
-    TFuture<void> WriteUnversionedRows(TTransactionId transactionId, std::vector<TUnversionedOwningRow> rows, TTransactionSignature signature = -1, TTransactionGeneration generation = 0)
+    TFuture<void> WriteUnversionedRows(
+        TTransactionId transactionId,
+        std::vector<TUnversionedOwningRow> rows,
+        TTransactionSignature signature = -1,
+        TTransactionGeneration generation = 0)
     {
         auto* tablet = TabletSlot_->TabletManager()->Tablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
@@ -282,7 +277,10 @@ protected:
         return asyncResult;
     }
 
-    TFuture<void> WriteVersionedRows(TTransactionId transactionId, std::vector<TVersionedOwningRow> rows, TTransactionSignature signature = -1)
+    TFuture<void> WriteVersionedRows(
+        TTransactionId transactionId,
+        std::vector<TVersionedOwningRow> rows,
+        TTransactionSignature signature = -1)
     {
         auto* tablet = TabletSlot_->TabletManager()->Tablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
