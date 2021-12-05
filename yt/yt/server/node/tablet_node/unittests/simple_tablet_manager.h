@@ -37,7 +37,7 @@ public:
         NHydra::TCompositeAutomatonPtr automaton,
         IInvokerPtr automatonInvoker);
     void InitializeTablet(TTabletOptions options);
-    void InitializeStoreManager();
+    void InitializeStoreManager(bool sorted);
 
     // ITabletWriteManagerHost
 

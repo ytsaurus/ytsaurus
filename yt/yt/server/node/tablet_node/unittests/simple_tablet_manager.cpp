@@ -3,6 +3,7 @@
 #include <yt/yt/server/node/tablet_node/structured_logger.h>
 #include <yt/yt/server/node/tablet_node/store_manager.h>
 #include <yt/yt/server/node/tablet_node/sorted_store_manager.h>
+#include <yt/yt/server/node/tablet_node/ordered_store_manager.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -70,18 +71,25 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
 
     Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
 
-    InitializeStoreManager();
+    InitializeStoreManager(sorted);
 
     StoreManager_->StartEpoch(nullptr);
     StoreManager_->Mount({}, {}, true, NProto::TMountHint{});
 }
 
-void TSimpleTabletManager::InitializeStoreManager()
+void TSimpleTabletManager::InitializeStoreManager(bool sorted)
 {
-    StoreManager_ = New<TSortedStoreManager>(
-        New<TTabletManagerConfig>(),
-        Tablet_.get(),
-        &TabletContext_);
+    if (sorted) {
+        StoreManager_ = New<TSortedStoreManager>(
+            New<TTabletManagerConfig>(),
+            Tablet_.get(),
+            &TabletContext_);
+    } else {
+        StoreManager_ = New<TOrderedStoreManager>(
+            New<TTabletManagerConfig>(),
+            Tablet_.get(),
+            &TabletContext_);
+    }
 
     Tablet_->SetStoreManager(StoreManager_);
 }
@@ -158,7 +166,7 @@ void TSimpleTabletManager::LoadValues(TLoadContext& context)
 
     Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
 
-    InitializeStoreManager();
+    InitializeStoreManager(Tablet_->GetTableSchema()->IsSorted());
 }
 
 void TSimpleTabletManager::LoadAsync(TLoadContext& context)

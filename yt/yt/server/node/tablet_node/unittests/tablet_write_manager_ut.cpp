@@ -17,8 +17,11 @@ using namespace NTableClient;
 // - Tablet write manager
 // - Transaction manager
 // NB: original transaction supervisor is not used, simple transaction supervisor is used instead.
+// Thus, 2PC logic is out of scope.
 
-class TTestTabletWriteManager
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestSortedTabletWriteManager
     : public TTabletWriteManagerTestBase
 {
 protected:
@@ -47,11 +50,9 @@ protected:
         return TVersionedOwningRow(builder.FinishRow());
     }
 
-    void RunRecoverRun(const std::function<void()>& callable)
+    TVersionedOwningRow VersionedLookupRow(const TLegacyOwningKey& key, int minDataVersions = 100, TTimestamp timestamp = AsyncLastCommittedTimestamp)
     {
-        callable();
-        HydraManager()->SaveLoad();
-        callable();
+        return VersionedLookupRowImpl(TabletSlot_->TabletManager()->Tablet(), key, minDataVersions, timestamp);
     }
 
 private:
@@ -60,9 +61,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestTabletWriteBasic = TTestTabletWriteManager;
+using TTestSortedTabletWriteBasic = TTestSortedTabletWriteManager;
 
-TEST_F(TTestTabletWriteBasic, TestSimple)
+TEST_F(TTestSortedTabletWriteBasic, TestSimple)
 {
     auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
 
@@ -105,7 +106,7 @@ TEST_F(TTestTabletWriteBasic, TestSimple)
     ExpectFullyUnlocked();
 }
 
-TEST_F(TTestTabletWriteBasic, TestConflictWithPrelockedRow)
+TEST_F(TTestSortedTabletWriteBasic, TestConflictWithPrelockedRow)
 {
     auto txId1 = MakeTabletTransactionId(TTimestamp(0x10));
 
@@ -124,7 +125,7 @@ TEST_F(TTestTabletWriteBasic, TestConflictWithPrelockedRow)
         ThrowsMessage<std::exception>(HasSubstr("lock conflict due to concurrent write")));
 }
 
-TEST_F(TTestTabletWriteBasic, TestConflictWithLockedRowByLeader)
+TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByLeader)
 {
     auto txId1 = MakeTabletTransactionId(TTimestamp(0x10));
 
@@ -144,7 +145,7 @@ TEST_F(TTestTabletWriteBasic, TestConflictWithLockedRowByLeader)
         ThrowsMessage<std::exception>(HasSubstr("lock conflict due to concurrent write")));
 }
 
-TEST_F(TTestTabletWriteBasic, TestConflictWithLockedRowByFollower)
+TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByFollower)
 {
     auto txId1 = MakeTabletTransactionId(TTimestamp(0x10));
 
@@ -166,9 +167,9 @@ TEST_F(TTestTabletWriteBasic, TestConflictWithLockedRowByFollower)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestTabletWriteBarrier = TTestTabletWriteManager;
+using TTestSortedTabletWriteBarrier = TTestSortedTabletWriteManager;
 
-TEST_F(TTestTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
+TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
 {
     auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x10));
 
@@ -185,17 +186,24 @@ TEST_F(TTestTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
 
     auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
 
-    RunRecoverRun([&] {
-        EXPECT_THAT(
-            [&] {
-                WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
-                    .ThrowOnError();
-            },
-            ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
-    });
+    EXPECT_THAT(
+        [&] {
+            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
+                .ThrowOnError();
+        },
+        ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
+
+    HydraManager()->SaveLoad();
+
+    EXPECT_THAT(
+        [&] {
+            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
+                .ThrowOnError();
+        },
+        ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
 }
 
-TEST_F(TTestTabletWriteBarrier, TestWriteBarrierUnversionedActive)
+TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedActive)
 {
     auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x10));
 
@@ -207,17 +215,24 @@ TEST_F(TTestTabletWriteBarrier, TestWriteBarrierUnversionedActive)
 
     auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
 
-    RunRecoverRun([&] {
-        EXPECT_THAT(
-            [&] {
-                WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
-                    .ThrowOnError();
-            },
-            ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
-    });
+    EXPECT_THAT(
+        [&] {
+            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
+                .ThrowOnError();
+        },
+        ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
+
+    HydraManager()->SaveLoad();
+
+    EXPECT_THAT(
+        [&] {
+            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
+                .ThrowOnError();
+        },
+        ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
 }
 
-TEST_F(TTestTabletWriteBarrier, TestWriteBarrierUnversionedInFlight)
+TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedInFlight)
 {
     auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x10));
 
@@ -241,9 +256,9 @@ TEST_F(TTestTabletWriteBarrier, TestWriteBarrierUnversionedInFlight)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestTabletWriteSignature = TTestTabletWriteManager;
+using TTestSortedTabletWriteSignature = TTestSortedTabletWriteManager;
 
-TEST_F(TTestTabletWriteSignature, TestSignaturesSuccess)
+TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
 {
     auto txId = MakeTabletTransactionId(TTimestamp(0x10));
 
@@ -275,7 +290,7 @@ TEST_F(TTestTabletWriteSignature, TestSignaturesSuccess)
     ExpectFullyUnlocked();
 }
 
-TEST_F(TTestTabletWriteSignature, TestSignaturesFailure)
+TEST_F(TTestSortedTabletWriteSignature, TestSignaturesFailure)
 {
     auto txId = MakeTabletTransactionId(TTimestamp(0x10));
 
@@ -301,8 +316,8 @@ TEST_F(TTestTabletWriteSignature, TestSignaturesFailure)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestTabletWriteGenerationSimple
-    : public TTestTabletWriteManager
+class TTestSortedTabletWriteGenerationSimple
+    : public TTestSortedTabletWriteManager
     , public testing::WithParamInterface<TStringBuf>
 { };
 
@@ -328,9 +343,9 @@ constexpr TStringBuf OneBatchExecutionPlans[] = {
     "W0_R_A0_W1_A1",
 };
 
-using TTestTabletWriteGenerationOneBatch = TTestTabletWriteGenerationSimple;
+using TTestSortedTabletWriteGenerationOneBatch = TTestSortedTabletWriteGenerationSimple;
 
-TEST_P(TTestTabletWriteGenerationOneBatch, OneBatchRetry)
+TEST_P(TTestSortedTabletWriteGenerationOneBatch, OneBatchRetry)
 {
     const auto& executionPlan = GetParam();
     auto txId = MakeTabletTransactionId(TTimestamp(0x10));
@@ -392,7 +407,7 @@ TEST_P(TTestTabletWriteGenerationOneBatch, OneBatchRetry)
     ExpectFullyUnlocked();
 }
 
-INSTANTIATE_TEST_SUITE_P(Executions, TTestTabletWriteGenerationOneBatch, testing::ValuesIn(OneBatchExecutionPlans), FormatParameter);
+INSTANTIATE_TEST_SUITE_P(Executions, TTestSortedTabletWriteGenerationOneBatch, testing::ValuesIn(OneBatchExecutionPlans), FormatParameter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -418,9 +433,9 @@ constexpr TStringBuf TwoBatchExecutionPlans[] = {
     "W0a_R_A0_W1b_W0b_R_A1_W1a_A2",
 };
 
-using TTestTabletWriteGenerationTwoBatch = TTestTabletWriteGenerationSimple;
+using TTestSortedTabletWriteGenerationTwoBatch = TTestSortedTabletWriteGenerationSimple;
 
-TEST_P(TTestTabletWriteGenerationTwoBatch, TwoBatchRetry)
+TEST_P(TTestSortedTabletWriteGenerationTwoBatch, TwoBatchRetry)
 {
     const auto& executionPlan = GetParam();
     auto txId = MakeTabletTransactionId(TTimestamp(0x10));
@@ -491,7 +506,86 @@ TEST_P(TTestTabletWriteGenerationTwoBatch, TwoBatchRetry)
     ExpectFullyUnlocked();
 }
 
-INSTANTIATE_TEST_SUITE_P(Executions, TTestTabletWriteGenerationTwoBatch, testing::ValuesIn(TwoBatchExecutionPlans), FormatParameter);
+INSTANTIATE_TEST_SUITE_P(Executions, TTestSortedTabletWriteGenerationTwoBatch, testing::ValuesIn(TwoBatchExecutionPlans), FormatParameter);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestOrderedTabletWriteManager
+    : public TTabletWriteManagerTestBase
+{
+protected:
+    TTabletOptions GetOptions() const override
+    {
+        return TTabletOptions{
+            .Schema = New<TTableSchema>(std::vector{
+                TColumnSchema(TColumnSchema("v", EValueType::Int64)),
+            })
+        };
+    }
+
+    TUnversionedOwningRow BuildRow(i64 value)
+    {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedInt64Value(value, /*id*/ 0));
+        return builder.FinishRow();
+    }
+
+    // If maybeUpperRowIndex is present, result is validated for having exactly upperRowIndex - lowerRowIndex rows.
+    std::vector<TUnversionedOwningRow> ReadRows(int lowerRowIndex, std::optional<int> maybeUpperRowIndex = std::nullopt)
+    {
+        auto upperRowIndex = maybeUpperRowIndex.value_or(std::numeric_limits<int>::max());
+
+        // Recall that read rows match extended schema prepended with tablet index and row index columns.
+        auto columnFilter = TColumnFilter{2};
+
+        auto result = ReadRowsImpl(
+            TabletSlot_->TabletManager()->Tablet()->GetActiveStore()->AsOrderedDynamic(),
+            /*tabletIndex*/ 0,
+            lowerRowIndex,
+            upperRowIndex,
+            columnFilter);
+        if (maybeUpperRowIndex) {
+            EXPECT_EQ(upperRowIndex - lowerRowIndex, static_cast<int>(result.size()));
+        }
+
+        for (auto& row : result) {
+            for (auto& value : row) {
+                const_cast<ui16&>(value.Id) -= 2;
+            }
+        }
+
+        return result;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TTestOrderedTabletWriteBasic = TTestOrderedTabletWriteManager;
+
+TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
+{
+    auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+
+    WaitFor(WriteUnversionedRows(txId, {BuildRow(1)}))
+        .ThrowOnError();
+
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    PrepareTransactionCommit(txId, true, 0x20);
+    CommitTransaction(txId, 0x30);
+
+    EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    auto result = ReadRows(0);
+    EXPECT_EQ(1u, result.size());
+    EXPECT_EQ(
+        ToString(BuildRow(1)),
+        ToString(result[0]));
+
+    ExpectFullyUnlocked();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
