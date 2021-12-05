@@ -105,7 +105,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynami
     for (int index = 0; index < Config_->ShardCount; ++index) {
         auto* shard = &Shards_[index];
         auto guard = WriterGuard(shard->SpinLock);
-
+        DrainTouchBuffer(shard);
         Trim(shard, guard);
     }
 }
