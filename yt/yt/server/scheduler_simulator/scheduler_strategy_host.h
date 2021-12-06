@@ -37,6 +37,7 @@ public:
     IInvokerPtr GetFairShareLoggingInvoker() const override;
     IInvokerPtr GetFairShareProfilingInvoker() const override;
     IInvokerPtr GetFairShareUpdateInvoker() const override;
+    IInvokerPtr GetBackgroundInvoker() const override;
     IInvokerPtr GetOrchidWorkerInvoker() const override;
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override;
 

@@ -170,6 +170,7 @@ public:
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
         , FairShareUpdatePool_(New<TThreadPool>(Config_->FairShareUpdateThreadCount, "FSUpdatePool"))
+        , BackgroundThreadPool_(New<TThreadPool>(Config_->BackgroundThreadCount, "Background"))
     {
         YT_VERIFY(config);
         YT_VERIFY(bootstrap);
@@ -289,7 +290,7 @@ public:
         NodesInfoLoggingExecutor_->Start();
 
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
-            TDispatcher::Get()->GetHeavyInvoker(),
+            GetBackgroundInvoker(),
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
             Config_->ExecNodeDescriptorsUpdatePeriod);
         UpdateExecNodeDescriptorsExecutor_->Start();
@@ -625,7 +626,7 @@ public:
             Passed(std::move(specString)),
             Config_,
             SpecTemplate_)
-            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
+            .AsyncVia(GetBackgroundInvoker())
             .Run();
     }
 
@@ -1431,6 +1432,11 @@ public:
         return FairShareUpdatePool_->GetInvoker();
     }
 
+    IInvokerPtr GetBackgroundInvoker() const override
+    {
+        return BackgroundThreadPool_->GetInvoker();
+    }
+
     IInvokerPtr GetOrchidWorkerInvoker() const override
     {
         return OrchidWorkerPool_->GetInvoker();
@@ -1896,6 +1902,7 @@ private:
     const TActionQueuePtr FairShareLoggingActionQueue_ = New<TActionQueue>("FSLogging");
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
     const TThreadPoolPtr FairShareUpdatePool_;
+    const TThreadPoolPtr BackgroundThreadPool_;
 
     std::optional<TString> ClusterName_;
 
@@ -2759,7 +2766,7 @@ private:
 
     void UpdateExecNodeDescriptors()
     {
-        VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetHeavyInvoker());
+        VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
 
         std::vector<TFuture<TRefCountedExecNodeDescriptorMapPtr>> shardDescriptorsFutures;
         for (const auto& nodeShard : NodeShards_) {
@@ -4232,7 +4239,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Y_UNUSED(WaitFor(BIND(&TImpl::TryDestroyOperations, MakeStrong(this), Passed(std::move(OperationsToDestroy_)))
-            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
+            .AsyncVia(GetBackgroundInvoker())
             .Run()));
     }
 
@@ -4243,7 +4250,7 @@ private:
         TSchedulerConfigPtr config,
         NYTree::INodePtr specTemplate) const
     {
-        VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetHeavyInvoker());
+        VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
 
         auto specNode = ConvertSpecStringToNode(specString);
 
@@ -4657,6 +4664,11 @@ const IInvokerPtr& TScheduler::GetCancelableNodeShardInvoker(int shardId) const
 const std::vector<IInvokerPtr>& TScheduler::GetNodeShardInvokers() const
 {
     return Impl_->GetNodeShardInvokers();
+}
+
+IInvokerPtr TScheduler::GetBackgroundInvoker() const
+{
+    return Impl_->GetBackgroundInvoker();
 }
 
 const std::vector<TNodeShardPtr>& TScheduler::GetNodeShards() const

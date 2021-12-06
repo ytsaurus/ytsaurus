@@ -771,6 +771,9 @@ public:
     //! The number of threads in FSUpdatePool thread pool used for running fair share tree updates concurrently.
     int FairShareUpdateThreadCount;
 
+    //! The number of threads for background activity.
+    int BackgroundThreadCount;
+
     //! This option enables special logic to handle the situation when node has changed the id.
     //! To prevent node duplication in orchid we must detect such situations and immediately remove node from old node shard.
     //! This option can cause performance issues.

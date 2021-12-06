@@ -68,6 +68,11 @@ public:
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const;
 
     const IInvokerPtr& GetCancelableNodeShardInvoker(int shardId) const;
+    
+    /*!
+     *  \note Thread affinity: any
+     */
+    IInvokerPtr GetBackgroundInvoker() const;
 
     /*!
      *  \note Thread affinity: any

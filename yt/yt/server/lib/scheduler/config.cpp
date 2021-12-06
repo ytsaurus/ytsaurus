@@ -824,6 +824,10 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(4)
         .GreaterThan(0);
 
+    registrar.Parameter("background_thread_count", &TThis::BackgroundThreadCount)
+        .Default(4)
+        .GreaterThan(0);
+
     registrar.Parameter("handle_node_id_changes_strictly", &TThis::HandleNodeIdChangesStrictly)
         .Default(true);
 
