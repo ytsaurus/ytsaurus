@@ -1744,7 +1744,7 @@ private:
 
             YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
             ControlState_ = EPeerState::Following;
-            ControlLeaderRecoveryComplete_.Fire();
+            ControlFollowerRecoveryComplete_.Fire();
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
