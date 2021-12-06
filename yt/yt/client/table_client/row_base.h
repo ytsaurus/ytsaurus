@@ -73,6 +73,10 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESimpleLogicalValueType, ui32,
     ((Uuid)        (0x100f))
 );
 
+//! Debug printers for Gtest unittests.
+void PrintTo(EValueType type, std::ostream* os);
+void PrintTo(ESimpleLogicalValueType type, std::ostream* os);
+
 inline bool IsIntegralTypeSigned(ESimpleLogicalValueType type)
 {
     switch (type) {

@@ -8,6 +8,18 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void PrintTo(EValueType type, std::ostream* os)
+{
+    *os << ToString(type);
+}
+
+void PrintTo(ESimpleLogicalValueType type, std::ostream* os)
+{
+    *os << ToString(type);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TColumnFilter::TColumnFilter()
     : Universal_(true)
 { }
