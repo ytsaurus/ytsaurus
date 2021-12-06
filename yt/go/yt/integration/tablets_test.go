@@ -28,7 +28,7 @@ func TestGenerateTimestamp(t *testing.T) {
 	suite := NewSuite(t)
 
 	RunClientTests(t, []ClientTest{
-		{"GenerateTimestamp", suite.TestGenerateTimestamp},
+		{Name: "GenerateTimestamp", Test: suite.TestGenerateTimestamp},
 	})
 }
 
@@ -42,16 +42,16 @@ func TestTabletClient(t *testing.T) {
 	suite := NewSuite(t)
 
 	RunClientTests(t, []ClientTest{
-		{"TabletTx", suite.TestTabletTx},
-		{"TabletTxDuration", suite.TestTabletTxDuration},
-		{"ExecTabletTx", suite.TestExecTabletTx},
-		{"LookupColumnFilter", suite.TestLookupColumnFilter},
-		{"ReadTimestamp", suite.TestReadTimestamp},
-		{"InsertRows_map", suite.TestInsertRows_map},
-		{"InsertRows_empty", suite.TestInsertRows_empty},
-		{"DeleteRows_empty", suite.TestDeleteRows_empty},
-		{"InsertRowsBatch", suite.TestInsertRowsBatch},
-		{"LookupRows_map", suite.TestLookupRows_map},
+		{Name: "TabletTx", Test: suite.TestTabletTx},
+		{Name: "TabletTxDuration", Test: suite.TestTabletTxDuration},
+		{Name: "ExecTabletTx", Test: suite.TestExecTabletTx},
+		{Name: "LookupColumnFilter", Test: suite.TestLookupColumnFilter},
+		{Name: "ReadTimestamp", Test: suite.TestReadTimestamp},
+		{Name: "InsertRows_map", Test: suite.TestInsertRows_map},
+		{Name: "InsertRows_empty", Test: suite.TestInsertRows_empty},
+		{Name: "DeleteRows_empty", Test: suite.TestDeleteRows_empty},
+		{Name: "InsertRowsBatch", Test: suite.TestInsertRowsBatch},
+		{Name: "LookupRows_map", Test: suite.TestLookupRows_map},
 	})
 }
 

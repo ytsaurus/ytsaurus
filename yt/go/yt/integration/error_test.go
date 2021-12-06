@@ -63,8 +63,8 @@ func TestErrorInterceptor(t *testing.T) {
 	suite := NewSuite(t)
 
 	RunClientTests(t, []ClientTest{
-		{"GetNodeErrorInterceptor", suite.TestGetNodeErrorInterceptor},
-		{"LookupErrorInterceptor", suite.TestLookupErrorInterceptor},
+		{Name: "GetNodeErrorInterceptor", Test: suite.TestGetNodeErrorInterceptor},
+		{Name: "LookupErrorInterceptor", Test: suite.TestLookupErrorInterceptor},
 	})
 }
 

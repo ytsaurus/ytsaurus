@@ -18,10 +18,10 @@ func TestMountClient(t *testing.T) {
 	suite := NewSuite(t)
 
 	RunClientTests(t, []ClientTest{
-		{"Mount", suite.TestMount},
-		{"Remount", suite.TestRemount},
-		{"Freeze", suite.TestFreeze},
-		{"Reshard", suite.TestReshard},
+		{Name: "Mount", Test: suite.TestMount},
+		{Name: "Remount", Test: suite.TestRemount},
+		{Name: "Freeze", Test: suite.TestFreeze},
+		{Name: "Reshard", Test: suite.TestReshard},
 	})
 }
 

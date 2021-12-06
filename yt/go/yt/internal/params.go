@@ -469,6 +469,13 @@ func writeUpdateOperationParametersOptions(w *yson.Writer, o *yt.UpdateOperation
 	}
 }
 
+func writeTransferPoolResourcesOptions(w *yson.Writer, o *yt.TransferPoolResourcesOptions) {
+	if o == nil {
+		return
+	}
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
 func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 	if o == nil {
 		return
@@ -2468,6 +2475,66 @@ func (p *RemoveMemberParams) MutatingOptions() **yt.MutatingOptions {
 
 func (p *RemoveMemberParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
+}
+
+type TransferPoolResourcesParams struct {
+	verb          Verb
+	srcPool       string
+	dstPool       string
+	poolTree      string
+	resourceDelta interface{}
+	options       *yt.TransferPoolResourcesOptions
+}
+
+func NewTransferPoolResourcesParams(
+	srcPool string,
+	dstPool string,
+	poolTree string,
+	resourceDelta interface{},
+	options *yt.TransferPoolResourcesOptions,
+) *TransferPoolResourcesParams {
+	if options == nil {
+		options = &yt.TransferPoolResourcesOptions{}
+	}
+	return &TransferPoolResourcesParams{
+		Verb("transfer_pool_resources"),
+		srcPool,
+		dstPool,
+		poolTree,
+		resourceDelta,
+		options,
+	}
+}
+
+func (p *TransferPoolResourcesParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *TransferPoolResourcesParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *TransferPoolResourcesParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("srcPool", p.srcPool),
+		log.Any("dstPool", p.dstPool),
+		log.Any("poolTree", p.poolTree),
+		log.Any("resourceDelta", p.resourceDelta),
+	}
+}
+
+func (p *TransferPoolResourcesParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("source_pool")
+	w.Any(p.srcPool)
+	w.MapKeyString("destination_pool")
+	w.Any(p.dstPool)
+	w.MapKeyString("pool_tree")
+	w.Any(p.poolTree)
+	w.MapKeyString("resource_delta")
+	w.Any(p.resourceDelta)
+	writeTransferPoolResourcesOptions(w, p.options)
+}
+
+func (p *TransferPoolResourcesParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }
 
 type LockNodeParams struct {

@@ -24,13 +24,13 @@ func TestTransactions(t *testing.T) {
 	suite := NewSuite(t)
 
 	RunClientTests(t, []ClientTest{
-		{"CommitTransaction", suite.TestCommitTransaction},
-		{"RollbackTransaction", suite.TestRollbackTransaction},
-		{"TransactionBackgroundPing", suite.TestTransactionBackgroundPing},
-		{"TransactionAbortByContextCancel", suite.TestTransactionAbortByContextCancel},
-		{"TransactionAbortCancel", suite.TestTransactionAbortCancel},
-		{"NestedTransactions", suite.TestNestedTransactions},
-		{"TestExecTx_retries", suite.TestExecTx_retries},
+		{Name: "CommitTransaction", Test: suite.TestCommitTransaction},
+		{Name: "RollbackTransaction", Test: suite.TestRollbackTransaction},
+		{Name: "TransactionBackgroundPing", Test: suite.TestTransactionBackgroundPing},
+		{Name: "TransactionAbortByContextCancel", Test: suite.TestTransactionAbortByContextCancel},
+		{Name: "TransactionAbortCancel", Test: suite.TestTransactionAbortCancel},
+		{Name: "NestedTransactions", Test: suite.TestNestedTransactions},
+		{Name: "TestExecTx_retries", Test: suite.TestExecTx_retries},
 	})
 }
 

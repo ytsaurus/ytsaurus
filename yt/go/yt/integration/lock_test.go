@@ -15,10 +15,10 @@ func TestLockClient(t *testing.T) {
 	suite := NewSuite(t)
 
 	RunClientTests(t, []ClientTest{
-		{"Exclusive/Exclusive", suite.TestExclusiveExclusive},
-		{"Shared/Exclusive", suite.TestSharedExclusive},
-		{"Shared/Shared", suite.TestSharedShared},
-		{"SharedAttr/SharedAttr", suite.TestSharedAttrSharedAttr},
+		{Name: "Exclusive/Exclusive", Test: suite.TestExclusiveExclusive},
+		{Name: "Shared/Exclusive", Test: suite.TestSharedExclusive},
+		{Name: "Shared/Shared", Test: suite.TestSharedShared},
+		{Name: "SharedAttr/SharedAttr", Test: suite.TestSharedAttrSharedAttr},
 	})
 }
 

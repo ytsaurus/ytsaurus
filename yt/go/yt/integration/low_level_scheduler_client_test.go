@@ -17,14 +17,14 @@ func TestLowLevelSchedulerClient(t *testing.T) {
 	suite := NewSuite(t)
 
 	RunClientTests(t, []ClientTest{
-		{"StartOperation", suite.TestStartOperation},
-		{"AbortOperation", suite.TestAbortOperation},
-		{"ResumeOperation", suite.TestResumeOperation},
-		{"FailedOperation", suite.TestFailedOperation},
-		{"CompleteOperation", suite.TestCompleteOperation},
-		{"UpdateOperationParameters", suite.TestUpdateOperationParameters},
-		{"ListOperations", suite.TestListOperations},
-		{"ListJobs", suite.TestListJobs},
+		{Name: "StartOperation", Test: suite.TestStartOperation},
+		{Name: "AbortOperation", Test: suite.TestAbortOperation},
+		{Name: "ResumeOperation", Test: suite.TestResumeOperation},
+		{Name: "FailedOperation", Test: suite.TestFailedOperation},
+		{Name: "CompleteOperation", Test: suite.TestCompleteOperation},
+		{Name: "UpdateOperationParameters", Test: suite.TestUpdateOperationParameters},
+		{Name: "ListOperations", Test: suite.TestListOperations},
+		{Name: "ListJobs", Test: suite.TestListJobs},
 	})
 }
 

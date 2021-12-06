@@ -1150,6 +1150,38 @@ func (e *Encoder) RemoveMember(
 	return
 }
 
+func (e *Encoder) TransferPoolResources(
+	ctx context.Context,
+	srcPool string,
+	dstPool string,
+	poolTree string,
+	resourceDelta interface{},
+	_ *yt.TransferPoolResourcesOptions,
+) (err error) {
+	resourceDeltaBytes, err := yson.Marshal(resourceDelta)
+	if err != nil {
+		err = xerrors.Errorf("unable to serialize resource delta: %w", err)
+		return
+	}
+
+	req := &rpc_proxy.TReqTransferPoolResources{
+		SrcPool:       &srcPool,
+		DstPool:       &dstPool,
+		PoolTree:      &poolTree,
+		ResourceDelta: resourceDeltaBytes,
+	}
+
+	call := e.newCall(MethodTransferPoolResources, NewTransferPoolResourcesRequest(req), nil)
+
+	var rsp rpc_proxy.TRspTransferPoolResources
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
 func (e *Encoder) StartOperation(
 	ctx context.Context,
 	opType yt.OperationType,
