@@ -63,6 +63,7 @@ struct IOperationsCleanerHost
 {
     virtual ~IOperationsCleanerHost() = default;
     virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) = 0;
+    virtual IInvokerPtr GetBackgroundInvoker() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,7 +116,8 @@ DEFINE_REFCOUNTED_TYPE(TOperationsCleaner)
 std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     const std::vector<TOperationId>& operationIds,
     TCallback<NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest,
-    const int parseOperationAttributesBatchSize);
+    const int parseOperationAttributesBatchSize,
+    const IInvokerPtr& invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

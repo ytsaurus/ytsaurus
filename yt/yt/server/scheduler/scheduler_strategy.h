@@ -40,6 +40,7 @@ struct ISchedulerStrategyHost
     virtual IInvokerPtr GetFairShareLoggingInvoker() const = 0;
     virtual IInvokerPtr GetFairShareProfilingInvoker() const = 0;
     virtual IInvokerPtr GetFairShareUpdateInvoker() const = 0;
+    virtual IInvokerPtr GetBackgroundInvoker() const = 0;
     virtual IInvokerPtr GetOrchidWorkerInvoker() const = 0;
     virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const = 0;
 

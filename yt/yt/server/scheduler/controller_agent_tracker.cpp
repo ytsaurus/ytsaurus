@@ -438,7 +438,7 @@ public:
                     operationInfos.emplace_back(FromProto<TOperationInfo>(operationInfoProto));
                 }
             })
-            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .AsyncVia(scheduler->GetBackgroundInvoker())
             .Run();
         WaitFor(parseOperationsFuture)
             .ThrowOnError();

@@ -1453,7 +1453,8 @@ private:
         auto operations = FetchOperationsFromCypressForCleaner(
             listOperationsResult.OperationsToArchive,
             createBatchRequest,
-            Config_->ParseOperationAttributesBatchSize);
+            Config_->ParseOperationAttributesBatchSize,
+            Host_->GetBackgroundInvoker());
 
         // Controller agent reports brief_progress only to archive,
         // but it is necessary to fill ordered_by_start_time table,
@@ -1512,7 +1513,7 @@ private:
                     maxAlertEventCountPerOperation = Config_->MaxAlertEventCountPerOperation] () mutable {
                     NDetail::DoSendOperationAlerts(std::move(client), std::move(eventsToSend), maxAlertEventCountPerOperation);
                 })
-                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .AsyncVia(Host_->GetBackgroundInvoker())
                 .Run())
                 .ThrowOnError();
             LastOperationAlertEventSendTime_ = TInstant::Now();
@@ -1616,7 +1617,8 @@ struct TOperationDataToParse final
 std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     const std::vector<TOperationId>& operationIds,
     TCallback<TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest,
-    const int parseOperationAttributesBatchSize)
+    const int parseOperationAttributesBatchSize,
+    const IInvokerPtr& invoker)
 {
     using NYT::ToProto;
 
@@ -1687,7 +1689,7 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
             }
 
             futures.push_back(processBatch
-                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .AsyncVia(invoker)
                 .Run(std::move(operationDataToParseBatch))
             );
         }

@@ -1123,7 +1123,7 @@ private:
                             chunkSize,
                             Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival
                         )
-                        .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
+                        .AsyncVia(Owner_->Bootstrap_->GetScheduler()->GetBackgroundInvoker())
                         .Run()
                     );
                 }
@@ -1301,7 +1301,8 @@ private:
             auto operations = FetchOperationsFromCypressForCleaner(
                 OperationIdsToArchive_,
                 createBatchRequest,
-                Owner_->Config_->OperationsCleaner->ParseOperationAttributesBatchSize);
+                Owner_->Config_->OperationsCleaner->ParseOperationAttributesBatchSize,
+                Owner_->Bootstrap_->GetScheduler()->GetBackgroundInvoker());
 
             for (auto& operation : operations) {
                 operationsCleaner->SubmitForArchivation(std::move(operation));

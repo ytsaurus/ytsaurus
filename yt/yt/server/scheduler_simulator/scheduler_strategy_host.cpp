@@ -58,6 +58,11 @@ IInvokerPtr TSchedulerStrategyHost::GetFairShareUpdateInvoker() const
 {
     return GetCurrentInvoker();
 }
+    
+IInvokerPtr TSchedulerStrategyHost::GetBackgroundInvoker() const
+{
+    return GetCurrentInvoker();
+}
 
 IInvokerPtr TSchedulerStrategyHost::GetOrchidWorkerInvoker() const
 {

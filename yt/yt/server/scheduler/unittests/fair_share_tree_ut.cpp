@@ -67,6 +67,11 @@ public:
         return GetCurrentInvoker();
     }
 
+    IInvokerPtr GetBackgroundInvoker() const override
+    {
+        return GetCurrentInvoker();
+    }
+
     IInvokerPtr GetOrchidWorkerInvoker() const override
     {
         return GetCurrentInvoker();
