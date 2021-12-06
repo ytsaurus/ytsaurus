@@ -229,6 +229,7 @@ DEFINE_ENUM(EMasterReign,
     ((AccessControlNode)                                            (1903))  // kvk1920
     ((CheckReplicatedTablesCommitOrderingIsStrong)                  (1904))  // akozhikhov
     ((CheckReplicatedTablesAtomicityIsFull)                         (1905))  // akozhikhov
+    ((RemovedIsResponseKeeperWarmingUp)                             (1906))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////
