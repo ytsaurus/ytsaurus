@@ -456,8 +456,6 @@ private:
                 continue;
             }
             if (auto* table = tablet->GetTable()) {
-                YT_VERIFY(IsObjectAlive(table));
-
                 if (clearedTables.insert(table).second) {
                     table->MutableTabletCountByBackupState() = {};
                 }
