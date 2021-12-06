@@ -3,6 +3,8 @@
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/property.h>
 
+#include <random>
+
 namespace NYT {
 namespace {
 
@@ -55,8 +57,8 @@ class TCountingSlruCache
     : public TAsyncSlruCacheBase<int, TSimpleCachedValue>
 {
 public:
-    explicit TCountingSlruCache(TSlruCacheConfigPtr config)
-        : TAsyncSlruCacheBase(std::move(config))
+    explicit TCountingSlruCache(TSlruCacheConfigPtr config, bool enableResurrection = true)
+        : TAsyncSlruCacheBase(std::move(config)), EnableResurrection_(enableResurrection)
     { }
 
     DEFINE_BYVAL_RO_PROPERTY(int, ItemCount, 0);
@@ -81,6 +83,14 @@ protected:
         ++TotalRemoved_;
         EXPECT_GE(ItemCount_, 0);
     }
+
+    bool IsResurrectionSupported() const override
+    {
+        return EnableResurrection_;
+    }
+
+private:
+    bool EnableResurrection_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCountingSlruCache)
@@ -404,6 +414,289 @@ TEST(TAsyncSlruCacheTest, AddThenImmediatelyRemove)
         ASSERT_FALSE(static_cast<bool>(value));
     }
 }
+
+TEST(TAsyncSlruCacheTest, TouchRemovedValue)
+{
+    constexpr int cacheSize = 100;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TCountingSlruCache>(std::move(config), /*enableResurrection*/ true);
+
+    auto value = New<TSimpleCachedValue>(
+        /*key*/ 1,
+        /*value*/ 1,
+        /*weight*/ 1);
+    {
+        auto insertCookie = cache->BeginInsert(value->GetKey());
+        ASSERT_TRUE(insertCookie.IsActive());
+        insertCookie.EndInsert(value);
+    }
+    cache->TryRemove(value->GetKey());
+
+    cache->Touch(value);
+
+    auto value2 = New<TSimpleCachedValue>(
+        /*key*/ 2,
+        /*value*/ 2,
+        /*weight*/ 1);
+    {
+        auto insertCookie = cache->BeginInsert(value2->GetKey());
+        ASSERT_TRUE(insertCookie.IsActive());
+        insertCookie.EndInsert(value2);
+    }
+    cache->TryRemove(value2->GetKey(), /*forbidResurrection*/ true);
+
+    cache->Touch(value2);
+
+    // Start and cancel insertion to forcefully drain touch buffer. If touch buffer
+    // contains already freed items due to bug, they will be put into the main linked
+    // list, and the bug won't be hidden. See also YT-15976.
+    {
+        auto insertCookie = cache->BeginInsert(3);
+        ASSERT_TRUE(insertCookie.IsActive());
+        insertCookie.Cancel(TError("Cancelled"));
+    }
+}
+
+TEST(TAsyncSlruCacheTest, TouchEvictedValue)
+{
+    constexpr int cacheSize = 1;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TCountingSlruCache>(std::move(config));
+
+    auto value = New<TSimpleCachedValue>(
+        /*key*/ 1,
+        /*value*/ 1,
+        /*weight*/ 1);
+    {
+        auto insertCookie = cache->BeginInsert(value->GetKey());
+        ASSERT_TRUE(insertCookie.IsActive());
+        insertCookie.EndInsert(value);
+    }
+
+    // Evict value.
+    auto value2 = New<TSimpleCachedValue>(
+        /*key*/ 2,
+        /*value*/ 2,
+        /*weight*/ 1);
+    {
+        auto insertCookie = cache->BeginInsert(value2->GetKey());
+        ASSERT_TRUE(insertCookie.IsActive());
+        insertCookie.EndInsert(value2);
+    }
+
+    cache->Touch(value);
+
+    // Start and cancel insertion to forcefully drain touch buffer. If touch buffer
+    // contains already freed items due to bug, they will be put into the main linked
+    // list, and the bug won't be hidden. See also YT-15976.
+    {
+        auto insertCookie = cache->BeginInsert(3);
+        ASSERT_TRUE(insertCookie.IsActive());
+        insertCookie.Cancel(TError("Cancelled"));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EStressOperation,
+    ((Find) (0))
+    ((Lookup) (1))
+    ((Touch) (2))
+    ((BeginInsert) (3))
+    ((CancelInsert) (4))
+    ((EndInsert) (5))
+    ((TryRemove) (6))
+    ((UpdateWeight) (7))
+    ((ReleaseValue) (8))
+    ((Reconfigure) (9))
+);
+
+class TAsyncSlruCacheStressTest
+    : public ::testing::TestWithParam<bool>
+{ };
+
+TEST_P(TAsyncSlruCacheStressTest, Stress)
+{
+    constexpr int cacheSize = 100;
+    constexpr int stepCount = 1'000'000;
+    constexpr double forbidResurrectionProbability = 0.25;
+
+    const bool enableResurrection = GetParam();
+
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TCountingSlruCache>(std::move(config), enableResurrection);
+
+    // Use a fixed-seed random generator for deterministic testing.
+    std::mt19937 randomGenerator(142857);
+
+    auto operationDomainValues = TEnumTraits<EStressOperation>::GetDomainValues();
+    std::vector<EStressOperation> operations(operationDomainValues.begin(), operationDomainValues.end());
+    if (!enableResurrection) {
+        operations.erase(
+            std::find(operations.begin(), operations.end(), EStressOperation::ReleaseValue));
+    }
+
+    std::uniform_int_distribution<int> weightDistribution(1, 10);
+    std::uniform_int_distribution<int> keyDistribution(1, 20);
+    std::uniform_int_distribution<int> capacityDistribution(50, 150);
+    std::uniform_real_distribution<double> youngerSizeFractionDistribution(0.0, 1.0);
+
+    std::vector<TCountingSlruCache::TInsertCookie> activeInsertCookies;
+
+    // Pointers to all the values that are either present in cache now or were in cache
+    // earlier. We hold weak pointers, allowing the values to be deleted to prevent their
+    // resurrection.
+    std::vector<TWeakPtr<TSimpleCachedValue>> cacheValues;
+
+    // Holds references to some of the values. This is needed to allow resurrection. Used
+    // only if enableResurrection is true.
+    std::vector<TSimpleCachedValuePtr> heldValues;
+
+    // For each key, stores the last inserted value with key. Can be null if we are sure
+    // that there is no value with the given key in the cache.
+    THashMap<int, TWeakPtr<TSimpleCachedValue>> lastInsertedValues;
+
+    auto pickCacheValue = [&] () -> TSimpleCachedValuePtr {
+        while (!cacheValues.empty()) {
+            size_t cacheValueIndex = randomGenerator() % cacheValues.size();
+            std::swap(cacheValues[cacheValueIndex], cacheValues.back());
+            auto value = cacheValues.back().Lock();
+            if (value) {
+                return value;
+            }
+            cacheValues.pop_back();
+        }
+        return nullptr;
+    };
+
+    for (int step = 0; step < stepCount; ++step) {
+        auto operation = operations[randomGenerator() % operations.size()];
+
+        switch (operation) {
+            case EStressOperation::Find: {
+                auto value = cache->Find(keyDistribution(randomGenerator));
+                if (value) {
+                    ASSERT_EQ(lastInsertedValues[value->GetKey()].Lock(), value);
+                }
+                break;
+            }
+            case EStressOperation::Lookup: {
+                auto key = keyDistribution(randomGenerator);
+                auto valueFuture = cache->Lookup(key);
+                if (!valueFuture) {
+                    break;
+                }
+                if (valueFuture.IsSet()) {
+                    ASSERT_TRUE(valueFuture.Get().IsOK());
+                    const auto& value = valueFuture.Get().Value();
+                    ASSERT_EQ(lastInsertedValues[key].Lock(), value);
+                } else {
+                    // The value insertion is in progress, so lastInsertedValues must contain nullptr
+                    // for our key.
+                    ASSERT_EQ(lastInsertedValues[key].Lock(), nullptr);
+                }
+                break;
+            }
+            case EStressOperation::Touch: {
+                auto value = pickCacheValue();
+                if (!value) {
+                    break;
+                }
+                cache->Touch(value);
+                break;
+            }
+            case EStressOperation::BeginInsert: {
+                int key = keyDistribution(randomGenerator);
+                auto cookie = cache->BeginInsert(key);
+                if (cookie.IsActive()) {
+                    activeInsertCookies.emplace_back(std::move(cookie));
+                    lastInsertedValues[key] = nullptr;
+                } else {
+                    auto valueFuture = cookie.GetValue();
+                    ASSERT_TRUE(static_cast<bool>(valueFuture));
+                    if (valueFuture.IsSet()) {
+                        ASSERT_TRUE(valueFuture.Get().IsOK());
+                        const auto& value = valueFuture.Get().Value();
+                        ASSERT_EQ(lastInsertedValues[value->GetKey()].Lock(), value);
+                    } else {
+                        // The value insertion is in progress, so lastInsertedValues must contain nullptr
+                        // for our key.
+                        ASSERT_EQ(lastInsertedValues[key].Lock(), nullptr);
+                    }
+                }
+                break;
+            }
+            case EStressOperation::EndInsert: {
+                if (activeInsertCookies.empty()) {
+                    break;
+                }
+                size_t cookieIndex = randomGenerator() % activeInsertCookies.size();
+                std::swap(activeInsertCookies[cookieIndex], activeInsertCookies.back());
+                auto value = New<TSimpleCachedValue>(
+                    /*key*/ activeInsertCookies.back().GetKey(),
+                    /*value*/ step,
+                    /*weight*/ weightDistribution(randomGenerator));
+                cacheValues.emplace_back(value);
+                if (enableResurrection) {
+                    heldValues.push_back(value);
+                }
+                lastInsertedValues[value->GetKey()] = value;
+                ASSERT_TRUE(activeInsertCookies.back().IsActive());
+                activeInsertCookies.back().EndInsert(std::move(value));
+                activeInsertCookies.pop_back();
+                break;
+            }
+            case EStressOperation::CancelInsert: {
+                if (activeInsertCookies.empty()) {
+                    break;
+                }
+                size_t cookieIndex = randomGenerator() % activeInsertCookies.size();
+                std::swap(activeInsertCookies[cookieIndex], activeInsertCookies.back());
+                ASSERT_TRUE(activeInsertCookies.back().IsActive());
+                activeInsertCookies.back().Cancel(TError("Cancelled"));
+                activeInsertCookies.pop_back();
+                break;
+            }
+            case EStressOperation::TryRemove: {
+                std::bernoulli_distribution distribution(forbidResurrectionProbability);
+                bool forbidResurrection = distribution(randomGenerator);
+                auto key = keyDistribution(randomGenerator);
+                cache->TryRemove(key, forbidResurrection);
+                if (!enableResurrection || forbidResurrection) {
+                    lastInsertedValues[key] = nullptr;
+                }
+                break;
+            }
+            case EStressOperation::UpdateWeight: {
+                auto value = pickCacheValue();
+                if (!value) {
+                    break;
+                }
+                value->Weight = weightDistribution(randomGenerator);
+                value->UpdateWeight();
+                break;
+            }
+            case EStressOperation::ReleaseValue: {
+                if (heldValues.empty()) {
+                    break;
+                }
+                size_t valueIndex = randomGenerator() % heldValues.size();
+                std::swap(heldValues[valueIndex], heldValues.back());
+                heldValues.pop_back();
+                break;
+            }
+            case EStressOperation::Reconfigure: {
+                auto config = New<TSlruCacheDynamicConfig>();
+                config->Capacity = capacityDistribution(randomGenerator);
+                config->YoungerSizeFraction = youngerSizeFractionDistribution(randomGenerator);
+                cache->Reconfigure(std::move(config));
+                break;
+            }
+        }
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(Stress, TAsyncSlruCacheStressTest, ::testing::Values(false, true));
 
 ////////////////////////////////////////////////////////////////////////////////
 

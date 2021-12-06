@@ -358,7 +358,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Touch(const TValuePtr& value)
     auto* shard = GetShardByKey(value->GetKey());
     auto readerGuard = ReaderGuard(shard->SpinLock);
 
-    if (!value->Item_) {
+    if (value->Cache_.Lock() != this || !value->Item_) {
         return;
     }
 
@@ -680,10 +680,8 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::DoTryRemove(
 
     shard->PopFromLists(item);
 
-    if (value) {
-        YT_VERIFY(value->Item_ == item);
-        value->Item_ = nullptr;
-    }
+    YT_VERIFY(actualValue->Item_ == item);
+    actualValue->Item_ = nullptr;
 
     delete item;
 
