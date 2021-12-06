@@ -44,6 +44,8 @@ DEFINE_ENUM(EPeerKind,
 using TRevision = ui64;
 constexpr TRevision NullRevision = 0;
 
+struct TVersion;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NElection::TCellId;

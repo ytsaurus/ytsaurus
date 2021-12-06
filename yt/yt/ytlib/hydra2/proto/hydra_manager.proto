@@ -1,0 +1,36 @@
+package NYT.NHydra2.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSnapshotMeta
+{
+    reserved 1;
+    optional int64 sequence_number = 2;
+    optional uint64 random_seed = 3;
+    optional uint64 state_hash = 4;
+    optional uint64 timestamp = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMutationHeader
+{
+    required string mutation_type = 1;
+    required uint64 timestamp = 2;
+    required uint64 random_seed = 3;
+    required int32 segment_id = 5;
+    required int32 record_id = 6;
+    optional NYT.NProto.TGuid mutation_id = 7;
+    optional int32 reign = 8 [default = 0];
+    required uint64 prev_random_seed = 9;
+    required int64 sequence_number = 10;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TVoidMutationResponse
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
