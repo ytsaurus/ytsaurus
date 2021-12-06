@@ -1,0 +1,17 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/core/profiling/profiler.h>
+
+namespace NYT::NHydra2 {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger HydraLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NHydra2
