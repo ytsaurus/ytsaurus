@@ -67,8 +67,16 @@ public:
     int EphemeralRefObject(TObject* object);
 
     //! Decrements the object ephemeral reference counter thus making it eligible for destruction.
-    //! Returns the ephemeral reference counter.
-    int EphemeralUnrefObject(TObject* object);
+    /*
+     * \note Thread affinity: Automaton or LocalRead
+     */
+    void EphemeralUnrefObject(TObject* object);
+
+    //! Decrements the object ephemeral reference counter thus making it eligible for destruction.
+    /*
+     * \note Thread affinity: any
+     */
+    void EphemeralUnrefObject(TObject* object, TEpoch epoch);
 
     //! Increments the object weak reference counter thus temporarily preventing it from being destroyed.
     //! Returns the weak reference counter.

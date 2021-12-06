@@ -154,7 +154,8 @@ public:
     int RefObject(TObject* object);
     int UnrefObject(TObject* object, int count = 1);
     int EphemeralRefObject(TObject* object);
-    int EphemeralUnrefObject(TObject* object);
+    void EphemeralUnrefObject(TObject* object);
+    void EphemeralUnrefObject(TObject* object, TEpoch epoch);
     int WeakRefObject(TObject* object);
     int WeakUnrefObject(TObject* object);
 
@@ -292,6 +293,8 @@ private:
     void Clear() override;
     void OnLeaderActive() override;
     void OnStopLeading() override;
+    void OnStartFollowing() override;
+    void OnStopFollowing() override;
 
     static TString MakeCodicilData(const TAuthenticationIdentity& identity);
     void HydraExecuteLeader(
@@ -890,9 +893,14 @@ int TObjectManager::TImpl::EphemeralRefObject(TObject* object)
     return GarbageCollector_->EphemeralRefObject(object);
 }
 
-int TObjectManager::TImpl::EphemeralUnrefObject(TObject* object)
+void TObjectManager::TImpl::EphemeralUnrefObject(TObject* object)
 {
     return GarbageCollector_->EphemeralUnrefObject(object);
+}
+
+void TObjectManager::TImpl::EphemeralUnrefObject(TObject* object, TEpoch epoch)
+{
+    GarbageCollector_->EphemeralUnrefObject(object, epoch);
 }
 
 int TObjectManager::TImpl::WeakRefObject(TObject* object)
@@ -1023,6 +1031,24 @@ void TObjectManager::TImpl::OnStopLeading()
 
     GarbageCollector_->Stop();
     MutationIdempotizer_->Stop();
+}
+
+void TObjectManager::TImpl::OnStartFollowing()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::OnStartFollowing();
+
+    GarbageCollector_->Start();
+}
+
+void TObjectManager::TImpl::OnStopFollowing()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::OnStopFollowing();
+
+    GarbageCollector_->Stop();
 }
 
 TObject* TObjectManager::TImpl::FindObject(TObjectId id)
@@ -2061,6 +2087,7 @@ void TObjectManager::TImpl::OnProfiling()
     TSensorBuffer buffer;
     buffer.AddGauge("/zombie_object_count", GarbageCollector_->GetZombieCount());
     buffer.AddGauge("/ephemeral_ghost_object_count", GarbageCollector_->GetEphemeralGhostCount());
+    buffer.AddGauge("/ephemeral_unref_queue_size", GarbageCollector_->GetEphemeralGhostUnrefQueueSize());
     buffer.AddGauge("/weak_ghost_object_count", GarbageCollector_->GetWeakGhostCount());
     buffer.AddGauge("/locked_object_count", GarbageCollector_->GetLockedCount());
     buffer.AddCounter("/created_objects", CreatedObjects_);
@@ -2211,9 +2238,14 @@ int TObjectManager::EphemeralRefObject(TObject* object)
     return Impl_->EphemeralRefObject(object);
 }
 
-int TObjectManager::EphemeralUnrefObject(TObject* object)
+void TObjectManager::EphemeralUnrefObject(TObject* object)
 {
-    return Impl_->EphemeralUnrefObject(object);
+    Impl_->EphemeralUnrefObject(object);
+}
+
+void TObjectManager::EphemeralUnrefObject(TObject* object, TEpoch epoch)
+{
+    Impl_->EphemeralUnrefObject(object, epoch);
 }
 
 int TObjectManager::WeakRefObject(TObject* object)

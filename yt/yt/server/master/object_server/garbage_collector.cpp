@@ -42,13 +42,15 @@ void TGarbageCollector::Start()
     YT_VERIFY(!SweepExecutor_);
     SweepExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::GarbageCollector),
-        BIND(&TGarbageCollector::OnSweep, MakeWeak(this)));
+        BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
+        GetDynamicConfig()->GCSweepPeriod);
     SweepExecutor_->Start();
 
     YT_VERIFY(!ObjectRemovalCellsSyncExecutor_);
     ObjectRemovalCellsSyncExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::GarbageCollector),
-        BIND(&TGarbageCollector::OnObjectRemovalCellsSync, MakeWeak(this)));
+        BIND(&TGarbageCollector::OnObjectRemovalCellsSync, MakeWeak(this)),
+        GetDynamicConfig()->ObjectRemovalCellsSyncPeriod);
     ObjectRemovalCellsSyncExecutor_->Start();
 
     CollectPromise_ = NewPromise<void>();
@@ -177,18 +179,32 @@ int TGarbageCollector::EphemeralRefObject(TObject* object)
     return ephemeralRefCounter;
 }
 
-int TGarbageCollector::EphemeralUnrefObject(TObject* object)
+void TGarbageCollector::EphemeralUnrefObject(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Bootstrap_->VerifyPersistentStateRead();
 
     YT_ASSERT(!IsRecovery());
     YT_ASSERT(object->IsTrunk());
 
-    int ephemeralRefCounter = object->EphemeralUnrefObject();
-    if (ephemeralRefCounter == 0 && object->GetObjectWeakRefCounter() == 0) {
+    bool shouldDestroyObject =
+        object->IsGhost() &&
+        object->GetObjectEphemeralRefCounter() == 1 &&
+        object->GetObjectWeakRefCounter() == 0;
+
+    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+    if (hydraFacade->IsAutomatonLocked() && shouldDestroyObject) {
+        // Object cannot be destroyed out of automaton thread, so we postpone
+        // unreference.
+        EphemeralUnrefObject(object, GetCurrentEpoch());
+        return;
+    }
+
+    if (object->EphemeralUnrefObject() == 0 && object->GetObjectWeakRefCounter() == 0) {
         --LockedObjectCount_;
 
         if (object->IsGhost()) {
+            VERIFY_THREAD_AFFINITY(AutomatonThread);
+
             YT_VERIFY(!object->IsAlive());
 
             YT_LOG_TRACE("Ephemeral ghost disposed (ObjectId: %v)",
@@ -197,7 +213,14 @@ int TGarbageCollector::EphemeralUnrefObject(TObject* object)
             delete object;
         }
     }
-    return ephemeralRefCounter;
+}
+
+void TGarbageCollector::EphemeralUnrefObject(TObject* object, TEpoch epoch)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    EphemeralGhostUnrefQueue_.Enqueue(std::make_pair(object, epoch));
+    ++EphemeralGhostUnrefQueueSize_;
 }
 
 int TGarbageCollector::WeakRefObject(TObject* object)
@@ -395,6 +418,14 @@ void TGarbageCollector::OnSweep()
     ShrinkHashTable(&EphemeralGhosts_);
     ShrinkHashTable(&WeakGhosts_);
 
+    SweepZombies();
+    SweepEphemeralGhosts();
+}
+
+void TGarbageCollector::SweepZombies()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     const auto& hydraManager = hydraFacade->GetHydraManager();
     if (Zombies_.empty() || !hydraManager->IsActiveLeader()) {
@@ -421,6 +452,23 @@ void TGarbageCollector::OnSweep()
         ->CreateDestroyObjectsMutation(request)
         ->CommitAndLog(Logger);
     Y_UNUSED(WaitFor(asyncResult));
+}
+
+void TGarbageCollector::SweepEphemeralGhosts()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    int weightLeft = GetDynamicConfig()->MaxWeightPerGCSweep;
+
+    // TODO(gritukan): Extract ghosts one by one.
+    auto objectsToUnref = EphemeralGhostUnrefQueue_.DequeueAll();
+    EphemeralGhostUnrefQueueSize_ -= std::ssize(objectsToUnref);
+    for (auto [object, epoch] : objectsToUnref) {
+        if (epoch == GetCurrentEpoch()) {
+            weightLeft -= object->GetGCWeight();
+            EphemeralUnrefObject(object);
+        }
+    }
 }
 
 void TGarbageCollector::OnObjectRemovalCellsSync()
@@ -470,17 +518,22 @@ void TGarbageCollector::OnObjectRemovalCellsSync()
 
 int TGarbageCollector::GetZombieCount() const
 {
-    return static_cast<int>(Zombies_.size());
+    return std::ssize(Zombies_);
 }
 
 int TGarbageCollector::GetEphemeralGhostCount() const
 {
-    return static_cast<int>(EphemeralGhosts_.size());
+    return std::ssize(EphemeralGhosts_);
+}
+
+int TGarbageCollector::GetEphemeralGhostUnrefQueueSize() const
+{
+    return EphemeralGhostUnrefQueueSize_;
 }
 
 int TGarbageCollector::GetWeakGhostCount() const
 {
-    return static_cast<int>(WeakGhosts_.size());
+    return std::ssize(WeakGhosts_);
 }
 
 int TGarbageCollector::GetLockedCount() const

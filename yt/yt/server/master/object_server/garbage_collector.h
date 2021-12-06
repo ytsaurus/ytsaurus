@@ -10,6 +10,7 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <yt/yt/core/profiling/profiler.h>
 
@@ -37,7 +38,18 @@ public:
     TFuture<void> Collect();
 
     int EphemeralRefObject(TObject* object);
-    int EphemeralUnrefObject(TObject* object);
+
+    /*
+     * \note Thread affinity: Automaton or LocalRead
+     * May postpone object unreferencing unless in automaton thread.
+     */
+    void EphemeralUnrefObject(TObject* object);
+
+    /*
+     * \note Thread affinity: any
+     * Always postpones object unreferencing.
+     */
+    void EphemeralUnrefObject(TObject* object, TEpoch epoch);
 
     int WeakRefObject(TObject* object);
     int WeakUnrefObject(TObject* object);
@@ -57,6 +69,7 @@ public:
 
     int GetZombieCount() const;
     int GetEphemeralGhostCount() const;
+    int GetEphemeralGhostUnrefQueueSize() const;
     int GetWeakGhostCount() const;
     int GetLockedCount() const;
 
@@ -93,12 +106,19 @@ private:
     //! Objects in |RemovalAwaitingCellsSync| life stage.
     THashSet<TObject*> RemovalAwaitingCellsSyncObjects_;
 
+    //! List of the ephemeral ghosts waiting for ephemeral unref.
+    TMpscStack<std::pair<TObject*, TEpoch>> EphemeralGhostUnrefQueue_;
+    std::atomic<int> EphemeralGhostUnrefQueueSize_ = 0;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void ClearWeakGhosts();
     void ClearEphemeralGhosts();
 
     void OnSweep();
+    void SweepZombies();
+    void SweepEphemeralGhosts();
+
     void OnObjectRemovalCellsSync();
     bool IsRecovery();
     bool IsMutationLoggingEnabled();

@@ -352,9 +352,14 @@ void TEphemeralObjectPtrContext::Ref(TObject* object)
 
 void TEphemeralObjectPtrContext::Unref(TObject* object)
 {
-    SafeUnref([=, objectManager = ObjectManager] {
-        objectManager->EphemeralUnrefObject(object);
-    });
+    if (auto epochContext = NDetail::EpochContext) {
+        if (Epoch != epochContext->CurrentEpoch) {
+            return;
+        }
+        ObjectManager->EphemeralUnrefObject(object);
+    } else {
+        ObjectManager->EphemeralUnrefObject(object, Epoch);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
