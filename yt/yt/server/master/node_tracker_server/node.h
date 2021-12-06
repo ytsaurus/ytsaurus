@@ -243,7 +243,6 @@ public:
         NCellServer::TCellBase* Cell = nullptr;
         NHydra::EPeerState PeerState = NHydra::EPeerState::None;
         int PeerId = NHydra::InvalidPeerId;
-        bool IsResponseKeeperWarmingUp = false;
 
         //! Sum of `PreloadPendingStoreCount` over all tablets in slot.
         int PreloadPendingStoreCount = 0;

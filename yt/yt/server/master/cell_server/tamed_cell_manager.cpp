@@ -1682,7 +1682,6 @@ private:
             slot.Cell = cell;
             slot.PeerState = state;
             slot.PeerId = slot.Cell->GetPeerId(node); // don't trust peerInfo, it may still be InvalidPeerId
-            slot.IsResponseKeeperWarmingUp = slotInfo.is_response_keeper_warming_up();
             slot.PreloadPendingStoreCount = slotInfo.preload_pending_store_count();
             slot.PreloadCompletedStoreCount = slotInfo.preload_completed_store_count();
             slot.PreloadFailedStoreCount = slotInfo.preload_failed_store_count();

@@ -54,7 +54,11 @@ void TNode::TCellSlot::Persist(const NCellMaster::TPersistenceContext& context)
     Persist(context, Cell);
     Persist(context, PeerState);
     Persist(context, PeerId);
-    Persist(context, IsResponseKeeperWarmingUp);
+    // COMPAT(h0pless)
+    if (context.GetVersion() < EMasterReign::RemovedIsResponseKeeperWarmingUp) {
+        bool isResponseKeeperWarmingUp;
+        Persist(context, isResponseKeeperWarmingUp);
+    }
     Persist(context, PreloadPendingStoreCount);
     Persist(context, PreloadCompletedStoreCount);
     Persist(context, PreloadFailedStoreCount);
@@ -1287,7 +1291,6 @@ void TNode::ResetDestroyedReplicasIterator()
 bool TNode::TCellSlot::IsWarmedUp() const
 {
     return
-        !IsResponseKeeperWarmingUp &&
         PreloadPendingStoreCount == 0 &&
         PreloadFailedStoreCount == 0 &&
         (PeerState == EPeerState::Leading || PeerState == EPeerState::Following);

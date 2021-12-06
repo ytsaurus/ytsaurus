@@ -572,7 +572,7 @@ TPeerId TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
         }
 
         auto* slot = cell->FindCellSlot(peerId);
-        if (slot && !slot->IsResponseKeeperWarmingUp && slot->PreloadPendingStoreCount == 0 &&
+        if (slot && slot->PreloadPendingStoreCount == 0 &&
             slot->PreloadFailedStoreCount == 0)
         {
             return peerId;
