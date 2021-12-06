@@ -57,27 +57,36 @@ def hide_fields(object, fields, prefixes, hidden_value="hidden"):
             if key in object:
                 object[key] = hidden_value
         for key, value in iteritems(object):
-            if isinstance(value, text_type if PY3 else binary_type) and any(value.startswith(prefix) for prefix in prefixes):
+            if (
+                isinstance(value, text_type if PY3 else binary_type)
+                and any(value.startswith(prefix) for prefix in prefixes)
+            ):
                 object[key] = hidden_value
             else:
                 hide_fields(value, fields, prefixes, hidden_value)
     elif isinstance(object, list):
         for index in xrange(len(object)):
             value = object[index]
-            if isinstance(value, text_type if PY3 else binary_type) and any(value.startswith(prefix) for prefix in prefixes):
+            if (
+                isinstance(value, text_type if PY3 else binary_type)
+                and any(value.startswith(prefix) for prefix in prefixes)
+            ):
                 object[index] = hidden_value
             else:
                 hide_fields(value, fields, prefixes, hidden_value)
+
 
 def hide_secure_vault(params):
     params = deepcopy(params)
     hide_fields(params, fields=("secure_vault",), prefixes=("AQAD-",))
     return params
 
+
 def hide_arguments(args):
     args = deepcopy(args)
     hide_fields(args, fields=(), prefixes=("AQAD-",))
     return args
+
 
 def hide_auth_headers(headers):
     headers = deepcopy(headers)
@@ -85,6 +94,7 @@ def hide_auth_headers(headers):
         headers["Authorization"] = "x" * 32
 
     return headers
+
 
 def hide_auth_headers_in_request_info(request_info):
     copied_request_info = None
@@ -101,6 +111,7 @@ def compose(*args):
     def compose_two(f, g):
         return lambda x: f(g(x))
     return reduce(compose_two, args)
+
 
 def parse_bool(word):
     """Converts "true" and "false" and something like this to Python bool
@@ -119,6 +130,7 @@ def parse_bool(word):
     else:
         raise YtError("Cannot parse boolean from %s" % word)
 
+
 def is_prefix(list_a, list_b):
     if len(list_a) > len(list_b):
         return False
@@ -126,6 +138,7 @@ def is_prefix(list_a, list_b):
         if list_a[i] != list_b[i]:
             return False
     return True
+
 
 def prefix(iterable, n):
     counter = 0
@@ -135,17 +148,21 @@ def prefix(iterable, n):
         counter += 1
         yield value
 
+
 def dict_depth(obj):
     if not isinstance(obj, dict):
         return 0
     else:
         return 1 + max(imap(dict_depth, itervalues(obj)))
 
+
 def first_not_none(iter):
     return next(ifilter(None, iter))
 
+
 def merge_dicts(*dicts):
     return dict(chain(*[iteritems(d) for d in dicts]))
+
 
 def merge_blobs_by_size(blobs, chunk_size):
     """Unite blobs into larger chunks."""
@@ -168,6 +185,7 @@ def merge_blobs_by_size(blobs, chunk_size):
             chunks = []
             total_size = 0
 
+
 def chunk_iter_list(lines, chunk_size):
     size = 0
     chunk = []
@@ -182,6 +200,7 @@ def chunk_iter_list(lines, chunk_size):
     if chunk:
         yield chunk
 
+
 def chunk_iter_stream(stream, chunk_size):
     while True:
         chunk = stream.read(chunk_size)
@@ -189,9 +208,11 @@ def chunk_iter_stream(stream, chunk_size):
             break
         yield chunk
 
+
 def chunk_iter_rows(stream, chunk_size):
     for blob in merge_blobs_by_size(stream._read_rows(), chunk_size):
         yield blob
+
 
 def chunk_iter_string(string, chunk_size):
     index = 0
@@ -203,18 +224,25 @@ def chunk_iter_string(string, chunk_size):
         yield string[lower_index:upper_index]
         index += 1
 
+
 def get_stream_size_or_none(stream):
-    if PY3 and isinstance(stream, (bytes, str)) or not PY3 and isinstance(stream, basestring):
+    if (
+        PY3 and isinstance(stream, (bytes, str))
+        or not PY3 and isinstance(stream, basestring)
+    ):
         return len(stream)
     return None
 
+
 def total_seconds(td):
     return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
+
 
 def generate_int64(generator=None):
     if generator is None:
         generator = random
     return generator.randint(-2**63, 2**63 - 1)
+
 
 def generate_uuid(generator=None):
     if generator is None:
@@ -225,6 +253,7 @@ def generate_uuid(generator=None):
 
     return "-".join([get_int() for _ in xrange(4)])
 
+
 def generate_traceparent(generator=None):
     if generator is None:
         generator = random
@@ -233,6 +262,7 @@ def generate_traceparent(generator=None):
         return generator.randint(0, 2**64 - 1)
 
     return "00-%016x%016x-%016x-01" % (get_int(), get_int(), get_int())
+
 
 def get_version():
     """ Returns python wrapper version """
@@ -266,8 +296,10 @@ def get_version():
 
     return VERSION
 
+
 def get_python_version():
     return sys.version_info[:3]
+
 
 def get_platform():
     if sys.platform in ("linux", "linux2"):
@@ -282,14 +314,17 @@ def get_platform():
     else:
         return None
 
+
 def get_user_info():
     try:
         return {"user": getpass.getuser()}
     except Exception:
         return {"user_id": os.getuid()}
 
+
 def get_started_by_short():
     return update({"pid": os.getpid()}, get_user_info())
+
 
 def get_started_by():
     python_version = "{0}.{1}.{2}".format(*get_python_version())
@@ -309,6 +344,7 @@ def get_started_by():
         started_by["platform"] = platform
 
     return started_by
+
 
 def is_inside_job():
     """Returns `True` if the code is currently being run in the context of a YT job."""
@@ -330,16 +366,19 @@ def forbidden_inside_job(func, *args, **kwargs):
 
     return func(*args, **kwargs)
 
+
 class DoNotReplaceAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         if not getattr(namespace, self.dest):
             setattr(namespace, self.dest, values)
+
 
 def round_up_to(num, divider):
     if num % divider == 0:
         return num
     else:
         return (1 + (num // divider)) * divider
+
 
 def get_disk_size(filepath, round=4 * 1024):
     stat = os.stat(filepath)
@@ -348,11 +387,13 @@ def get_disk_size(filepath, round=4 * 1024):
     else:
         return stat.st_size
 
+
 def get_binary_std_stream(stream):
     if PY3:
         return stream.buffer
     else:
         return stream
+
 
 def get_disk_space_from_resources(resources):
     # Backwards compatibility.
@@ -361,6 +402,7 @@ def get_disk_space_from_resources(resources):
     else:
         return resources["disk_space_per_medium"].get("default", 0)
 
+
 def set_param(params, name, value, transform=None):
     if value is not None:
         if transform is not None:
@@ -368,6 +410,7 @@ def set_param(params, name, value, transform=None):
         else:
             params[name] = value
     return params
+
 
 def remove_nones_from_dict(obj):
     result = deepcopy(obj)
@@ -378,6 +421,7 @@ def remove_nones_from_dict(obj):
         if isinstance(value, Mapping):
             result[key] = remove_nones_from_dict(value)
     return result
+
 
 def is_arcadia_python():
     try:
@@ -392,13 +436,16 @@ def is_arcadia_python():
 
 HashPair = collections.namedtuple("HashPair", ["lo", "hi"])
 
+
 def uuid_hash_pair(uuid):
     id_hi, id_lo = uuid_to_parts(uuid)
     return HashPair(yson.YsonUint64(id_lo), yson.YsonUint64(id_hi))
 
+
 def object_type_from_uuid(uuid):
     i3, i2, i1, i0 = (int(s, 16) for s in uuid.split("-"))
     return i1 & 0xffff
+
 
 def is_master_transaction(transaction_id):
     return object_type_from_uuid(transaction_id) in (1, 4)
@@ -419,6 +466,7 @@ if not PY3:
 else:
     class ThreadPoolHelper(ThreadPool):
         pass
+
 
 def escape_c(string):
     """Escapes string literal to be used in query language."""
@@ -464,6 +512,7 @@ def escape_c(string):
 
     return "".join(starmap(escape_symbol, izip(string, string[1:] + chr(0))))
 
+
 def simplify_structure(obj):
     """Replace all wrapper replacement objects (like :class:`YPath <yt.wrapper.ypath.YPath>`) in the given object
     with their YSON representations suitable for passing to the driver or to the HTTP request"""
@@ -490,12 +539,14 @@ def simplify_structure(obj):
 
     return obj
 
+
 class NullContext(object):
     def __enter__(self):
         pass
 
     def __exit__(self, type, value, traceback):
         pass
+
 
 def format_disk_space(num, suffix="B"):
     for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
@@ -504,9 +555,11 @@ def format_disk_space(num, suffix="B"):
         num /= 1024.0
     return "%.1f%s%s" % (num, "Yi", suffix)
 
+
 def is_of_iterable_type(obj):
     iterable_types = (list, types.GeneratorType, Iterator, Iterable)
     return isinstance(obj, iterable_types)
+
 
 def load_certificate(path=None):
     if path is not None:
