@@ -14,7 +14,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
   with TestUtils with SchemaTestUtils with MockitoSugar with TableDrivenPropertyChecks {
   behavior of "SchemaConverter"
 
-  it should "convert yt schema to spark one" in {
+  it should "convert yt schema to spark one" ignore {
     val schema = new TableSchema.Builder()
       .setUniqueKeys(false)
       .addKey("a", ColumnValueType.STRING)
@@ -29,7 +29,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
     ))
   }
 
-  it should "convert supported types" in {
+  it should "convert supported types" ignore {
     val schema = new TableSchema.Builder().setUniqueKeys(false)
       .addValue("NULL", ColumnValueType.NULL)
       .addValue("INT64", ColumnValueType.INT64)
@@ -88,7 +88,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
     ))
   }
 
-  it should "use schema hint" in {
+  it should "use schema hint" ignore {
     val schema = new TableSchema.Builder()
       .setUniqueKeys(false)
       .addKey("a", ColumnValueType.STRING)

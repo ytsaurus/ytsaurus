@@ -28,15 +28,7 @@ object SchemaConverter {
       val fieldMap = fieldSchema.asMap()
       val originalName = fieldMap.getOrThrow("name").stringValue()
       val fieldName = originalName.replace(".", "_")
-      val stringDataType = fieldMap.getOrThrow("type_v3") match {
-        case m: YTreeMapNode =>
-          m.getOrThrow("type_name").stringValue() match {
-            case "optional" => m.getOrThrow("item").stringValue()
-            case _ => "yson"
-          }
-        case s: YTreeStringNode =>
-          s.stringValue()
-      }
+      val stringDataType = fieldMap.getOrThrow("type").stringValue()
       val metadata = new MetadataBuilder()
       metadata.putString(MetadataFields.ORIGINAL_NAME, originalName)
       metadata.putLong(MetadataFields.KEY_ID, if (fieldMap.containsKey("sort_order")) index else -1)
