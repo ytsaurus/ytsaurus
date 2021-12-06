@@ -809,6 +809,33 @@ func (r *RemoveMemberRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
 }
 
+var _ MutatingRequest = (*TransferPoolResourcesRequest)(nil)
+
+type TransferPoolResourcesRequest struct {
+	*rpc_proxy.TReqTransferPoolResources
+}
+
+func NewTransferPoolResourcesRequest(r *rpc_proxy.TReqTransferPoolResources) *TransferPoolResourcesRequest {
+	return &TransferPoolResourcesRequest{TReqTransferPoolResources: r}
+}
+
+func (r TransferPoolResourcesRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("src_pool", r.GetSrcPool()),
+		log.String("dst_pool", r.GetDstPool()),
+		log.String("pool_tree", r.GetPoolTree()),
+		log.Any("resource_delta", r.GetResourceDelta()),
+	}
+}
+
+func (r TransferPoolResourcesRequest) Path() (string, bool) {
+	return "", false
+}
+
+func (r *TransferPoolResourcesRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
 var _ TransactionalRequest = (*LockNodeRequest)(nil)
 var _ MutatingRequest = (*LockNodeRequest)(nil)
 

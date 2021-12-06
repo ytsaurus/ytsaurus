@@ -17,18 +17,18 @@ func TestCypressClient(t *testing.T) {
 	suite := NewSuite(t)
 
 	RunClientTests(t, []ClientTest{
-		{"CreateNode", suite.TestCreateNode},
-		{"NodeExists", suite.TestNodeExists},
-		{"RemoveNode", suite.TestRemoveNode},
-		{"GetNode", suite.TestGetNode},
-		{"SetNode", suite.TestSetNode},
-		{"ListNode", suite.TestListNode},
-		{"MultisetAttributes", suite.TestMultisetAttributes},
-		{"CopyNode", suite.TestCopyNode},
-		{"MoveNode", suite.TestMoveNode},
-		{"LinkNode", suite.TestLinkNode},
-		{"CreateObject", suite.TestCreateObject},
-		{"BinaryPath", suite.TestBinaryPath},
+		{Name: "CreateNode", Test: suite.TestCreateNode},
+		{Name: "NodeExists", Test: suite.TestNodeExists},
+		{Name: "RemoveNode", Test: suite.TestRemoveNode},
+		{Name: "GetNode", Test: suite.TestGetNode},
+		{Name: "SetNode", Test: suite.TestSetNode},
+		{Name: "ListNode", Test: suite.TestListNode},
+		{Name: "MultisetAttributes", Test: suite.TestMultisetAttributes},
+		{Name: "CopyNode", Test: suite.TestCopyNode},
+		{Name: "MoveNode", Test: suite.TestMoveNode},
+		{Name: "LinkNode", Test: suite.TestLinkNode},
+		{Name: "CreateObject", Test: suite.TestCreateObject},
+		{Name: "BinaryPath", Test: suite.TestBinaryPath},
 	})
 }
 

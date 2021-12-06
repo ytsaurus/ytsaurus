@@ -22,8 +22,9 @@ func NewSuite(t *testing.T) *Suite {
 }
 
 type ClientTest struct {
-	Name string
-	Test func(t *testing.T, yc yt.Client)
+	Name    string
+	Test    func(t *testing.T, yc yt.Client)
+	SkipRPC bool
 }
 
 func RunClientTests(t *testing.T, tests []ClientTest) {
@@ -39,9 +40,13 @@ func RunClientTests(t *testing.T, tests []ClientTest) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, test := range tests {
-				t.Run(test.Name, func(t *testing.T) {
-					test.Test(t, tc.client)
-				})
+				if tc.name == "rpc" && test.SkipRPC {
+					t.Skip("rpc test is skipped")
+				} else {
+					t.Run(test.Name, func(t *testing.T) {
+						test.Test(t, tc.client)
+					})
+				}
 			}
 		})
 	}

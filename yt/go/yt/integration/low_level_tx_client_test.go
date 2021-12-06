@@ -13,10 +13,10 @@ func TestLowLevelTxClient(t *testing.T) {
 	suite := NewSuite(t)
 
 	RunClientTests(t, []ClientTest{
-		{"CommitTx", suite.TestCommitTx},
-		{"CommitTabletTx", suite.TestCommitTabletTx},
-		{"AbortTx", suite.TestAbortTx},
-		{"AbortTabletTx", suite.TestAbortTabletTx},
+		{Name: "CommitTx", Test: suite.TestCommitTx},
+		{Name: "CommitTabletTx", Test: suite.TestCommitTabletTx},
+		{Name: "AbortTx", Test: suite.TestAbortTx},
+		{Name: "AbortTabletTx", Test: suite.TestAbortTabletTx},
 	})
 }
 

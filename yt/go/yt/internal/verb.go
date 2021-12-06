@@ -36,6 +36,8 @@ const (
 	VerbAddMember    Verb = "add_member"
 	VerbRemoveMember Verb = "remove_member"
 
+	VerbTransferPoolResources Verb = "transfer_pool_resources"
+
 	VerbLock   Verb = "lock"
 	VerbUnlock Verb = "unlock"
 

@@ -553,6 +553,10 @@ type CompleteOperationOptions struct {
 type UpdateOperationParametersOptions struct {
 }
 
+type TransferPoolResourcesOptions struct {
+	*MutatingOptions
+}
+
 type ListOperationsOptions struct {
 	*MasterReadOptions
 
@@ -760,6 +764,17 @@ type AdminClient interface {
 		group string,
 		member string,
 		options *RemoveMemberOptions,
+	) (err error)
+
+	// http:verb:"transfer_pool_resources"
+	// http:params:"source_pool","destination_pool","pool_tree","resource_delta"
+	TransferPoolResources(
+		ctx context.Context,
+		srcPool string,
+		dstPool string,
+		poolTree string,
+		resourceDelta interface{},
+		options *TransferPoolResourcesOptions,
 	) (err error)
 }
 

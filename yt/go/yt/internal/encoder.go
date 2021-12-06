@@ -244,6 +244,19 @@ func (e *Encoder) RemoveMember(
 	return
 }
 
+func (e *Encoder) TransferPoolResources(
+	ctx context.Context,
+	srcPool string,
+	dstPool string,
+	poolTree string,
+	resourceDelta interface{},
+	options *yt.TransferPoolResourcesOptions,
+) (err error) {
+	call := e.newCall(NewTransferPoolResourcesParams(srcPool, dstPool, poolTree, resourceDelta, options))
+	err = e.do(ctx, call, func(res *CallResult) error { return nil })
+	return
+}
+
 func (e *Encoder) StartTx(
 	ctx context.Context,
 	options *yt.StartTxOptions,
