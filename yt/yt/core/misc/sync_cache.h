@@ -128,6 +128,7 @@ public:
         TSlruCacheConfigPtr config,
         IMemoryUsageTrackerPtr memoryTracker,
         const NProfiling::TProfiler& profiler = {});
+    ~TMemoryTrackingSyncSlruCacheBase();
 
     void Reconfigure(const TSlruCacheDynamicConfigPtr& config) override;
 

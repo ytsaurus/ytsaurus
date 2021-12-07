@@ -66,6 +66,11 @@ public:
         MemoryUsageTracker_->SetLimit(GetCapacity());
     }
 
+    ~TVersionedChunkMetaManager()
+    {
+        MemoryUsageTracker_->SetLimit(0);
+    }
+
     TFuture<TVersionedChunkMetaCacheEntryPtr> GetMeta(
         const IChunkReaderPtr& chunkReader,
         const TTableSchemaPtr& schema,

@@ -37,6 +37,8 @@ static const auto& Logger = ClusterNodeLogger;
 //! These categories have limits that are defined externally in relation to the resource manager and its config.
 static const THashSet<EMemoryCategory> ExternalMemoryCategories = {
     EMemoryCategory::BlockCache,
+    EMemoryCategory::BlocksExt,
+    EMemoryCategory::ChunkBlockMeta,
     EMemoryCategory::ChunkMeta,
     EMemoryCategory::VersionedChunkMeta
 };

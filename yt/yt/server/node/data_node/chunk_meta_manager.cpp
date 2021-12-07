@@ -73,7 +73,7 @@ public:
             Config_->BlocksExtCache,
             Bootstrap_
                 ->GetMemoryUsageTracker()
-                ->WithCategory(EMemoryCategory::ChunkBlockMeta),
+                ->WithCategory(EMemoryCategory::BlocksExt),
             DataNodeProfiler.WithPrefix("/blocks_ext_cache")))
         , BlockMetaCache_(New<TBlockMetaCache>(
             Config_->BlockMetaCache,
