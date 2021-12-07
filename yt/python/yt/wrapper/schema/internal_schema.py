@@ -168,7 +168,8 @@ def _get_list_item_type(py_type):
     return _get_args(py_type)[0]
 
 
-def _create_primitive_schema(py_type, ti_type=None, is_ti_type_optional=False):
+def _create_primitive_schema(py_type, ti_type=None, is_ti_type_optional=False, field_name=None):
+    effective_field_name = field_name if field_name is not None else "<unknown>"
     if not hasattr(_create_primitive_schema, "_default_ti_type"):
         _create_primitive_schema._default_ti_type = {
             int: ti.Int64,
@@ -196,8 +197,8 @@ def _create_primitive_schema(py_type, ti_type=None, is_ti_type_optional=False):
             ti_type = _create_primitive_schema._default_ti_type[py_type_origin]
     else:
         if not _is_py_type_compatible_with_ti_type(py_type_origin, ti_type):
-            raise YtError('Python type {} is not compatible with type "{}" from table schema'
-                          .format(py_type, ti_type))
+            raise YtError('Python type {} is not compatible with type "{}" from table schema at field "{}"'
+                          .format(py_type, ti_type, effective_field_name))
 
     return PrimitiveSchema(
         py_type_origin,
@@ -293,7 +294,7 @@ def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, al
             if field.type == types.OtherColumns:
                 other_columns_field = FieldMissingFromSchema(field.name, field.type)
             else:
-                py_schema_fields.append(StructField(field.name, _create_py_schema(field.type)))
+                py_schema_fields.append(StructField(field.name, _create_py_schema(field.type, field_name=field.name)))
         return StructSchema(py_schema_fields, py_type,
                             other_columns_field=other_columns_field, is_ti_type_optional=is_ti_type_optional)
 
@@ -309,7 +310,7 @@ def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, al
         if field is None:
             py_schema_fields.append(FieldMissingFromRowClass(yt_name, ti_type))
         else:
-            struct_field = StructField(field.name, _create_py_schema(field.type, ti_type))
+            struct_field = StructField(field.name, _create_py_schema(field.type, ti_type, field_name=field.name))
             py_schema_fields.append(struct_field)
             del name_to_field[yt_name]
     other_columns_field = None
@@ -332,7 +333,8 @@ def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, al
     )
 
 
-def _create_py_schema(py_type, ti_type=None):
+def _create_py_schema(py_type, ti_type=None, field_name=None):
+    effective_field_name = field_name if field_name is not None else "<unknown>"
     is_ti_type_optional = False
     primitive_origin, annotation = _get_primitive_type_origin_and_annotation(py_type)
     if ti_type is not None and ti_type.name == "Optional":
@@ -343,9 +345,9 @@ def _create_py_schema(py_type, ti_type=None):
         if ti_type is not None:
             if ti_type.name != "Struct":
                 raise YtError(
-                    "Schema and row class mismatch: "
+                    "Schema and row class mismatch for field \"{}\": "
                     "expected \"Struct\" type, found \"{}\""
-                    .format(ti_type)
+                    .format(field_name, ti_type)
                 )
             yt_fields = ti_type.items
         return _create_struct_schema(py_type, yt_fields, is_ti_type_optional=is_ti_type_optional)
@@ -362,17 +364,17 @@ def _create_py_schema(py_type, ti_type=None):
         else:
             if ti_type.name != "List":
                 raise YtError(
-                    "Schema and row class mismatch: "
+                    "Schema and row class mismatch for field \"{}\": "
                     "expected \"List\" type, found \"{}\""
-                    .format(ti_type)
+                    .format(field_name, ti_type)
                 )
             item_ti_type = ti_type.item
         item_py_schema = _create_py_schema(_get_list_item_type(py_type), ti_type=item_ti_type)
         return ListSchema(item_py_schema, is_ti_type_optional=is_ti_type_optional)
     elif primitive_origin is not None:
-        return _create_primitive_schema(py_type, ti_type, is_ti_type_optional=is_ti_type_optional)
+        return _create_primitive_schema(py_type, ti_type, is_ti_type_optional=is_ti_type_optional, field_name=field_name)
     else:
-        raise YtError("Cannot create py_schema from type {}".format(py_type))
+        raise YtError("Cannot create py_schema for field \"{}\" from type {}".format(effective_field_name, py_type))
 
 
 def _ti_type_to_wire_type(ti_type):
