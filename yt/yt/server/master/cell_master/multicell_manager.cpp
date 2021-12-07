@@ -814,8 +814,9 @@ private:
                     cellTag,
                     request->statistics());
 
-                auto* entry = GetMasterEntry(cellTag);
-                entry->Statistics = request->statistics();
+                if (auto* entry = FindMasterEntry(cellTag)) { // Just in case.
+                    entry->Statistics = request->statistics();
+                }
             }
         } else {
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received cell statistics gossip message (%v)",
@@ -842,8 +843,10 @@ private:
                 // periodically anyway.
                 continue;
             }
-            auto* entry = GetMasterEntry(cellTag);
-            entry->Statistics = cellStatistics.statistics();
+            // Registering every secondary cell at every secondary cell may happen too late.
+            if (auto* entry = FindMasterEntry(cellTag)) {
+                entry->Statistics = cellStatistics.statistics();
+            }
         }
 
         RecomputeClusterCellStatistics();
