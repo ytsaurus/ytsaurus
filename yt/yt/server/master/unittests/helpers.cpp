@@ -1,10 +1,47 @@
 #include "helpers.h"
 
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+
+#include <yt/yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
+
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/actions/invoker_util.h>
 
 namespace NYT {
 
+using namespace NConcurrency;
+using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NObjectServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapMock::TBootstrapMock()
+{
+    HydraFacade_ = New<THydraFacade>(TTestingTag());
+    ObjectManager_ = New<NObjectServer::TObjectManager>(TTestingTag(), this);
+}
+
+void TBootstrapMock::SetupMasterSmartpointers()
+{
+    SetupMasterBootstrap(this);
+    SetupAutomatonThread();
+
+    auto epochContext = New<TEpochContext>();
+    epochContext->CurrentEpoch = 42;
+    epochContext->CurrentEpochCounter = 42;
+    epochContext->EphemeralPtrUnrefInvoker = GetSyncInvoker();
+    SetupEpochContext(epochContext);
+}
+
+void TBootstrapMock::ResetMasterSmartpointers()
+{
+    ResetAll();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

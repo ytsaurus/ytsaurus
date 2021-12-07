@@ -326,6 +326,8 @@ void SetupAutomatonThread();
 
 void SetupEpochContext(TEpochContextPtr epochContext);
 
+void ResetAll();
+
 void BeginEpoch();
 void EndEpoch();
 TEpoch GetCurrentEpoch();

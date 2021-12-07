@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/core/test_framework/testing_tag.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +25,8 @@ class THydraFacade
     : public TRefCounted
 {
 public:
+    THydraFacade(TTestingTag);
+
     THydraFacade(
         TCellMasterConfigPtr config,
         TBootstrap* bootstrap);

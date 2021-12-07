@@ -412,6 +412,13 @@ void SetupEpochContext(TEpochContextPtr epochContext)
     NDetail::EpochContext = std::move(epochContext);
 }
 
+void ResetAll()
+{
+    NDetail::Bootstrap = nullptr;
+    NDetail::InAutomatonThread = false;
+    NDetail::EpochContext = nullptr;
+}
+
 void BeginMutation()
 {
     NDetail::AssertAutomatonThreadAffinity();

@@ -140,6 +140,10 @@ class TObjectManager::TImpl
 public:
     explicit TImpl(NCellMaster::TBootstrap* bootstrap);
 
+    TImpl(
+        TTestingTag,
+        NCellMaster::TBootstrap* bootstrap);
+
     void Initialize();
 
     void RegisterHandler(IObjectTypeHandlerPtr handler);
@@ -667,6 +671,12 @@ TObjectManager::TImpl::TImpl(TBootstrap* bootstrap)
     auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, primaryCellTag);
 }
+
+TObjectManager::TImpl::TImpl(TTestingTag tag, TBootstrap* bootstrap)
+    : TMasterAutomatonPart(tag, bootstrap)
+    , RootService_(New<TRootService>(Bootstrap_))
+    , GarbageCollector_(New<TGarbageCollector>(Bootstrap_))
+{ }
 
 void TObjectManager::TImpl::Initialize()
 {
@@ -2183,6 +2193,12 @@ void TObjectManager::TImpl::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
 
 TObjectManager::TObjectManager(NCellMaster::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
+{ }
+
+TObjectManager::TObjectManager(
+    TTestingTag tag,
+    NCellMaster::TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(tag, bootstrap))
 { }
 
 TObjectManager::~TObjectManager()

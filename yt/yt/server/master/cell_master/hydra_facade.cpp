@@ -71,6 +71,10 @@ class THydraFacade::TImpl
     : public TRefCounted
 {
 public:
+    TImpl(TTestingTag)
+        : Bootstrap_(nullptr)
+    { }
+
     TImpl(
         TCellMasterConfigPtr config,
         TBootstrap* bootstrap)
@@ -345,6 +349,10 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+THydraFacade::THydraFacade(TTestingTag tag)
+    : Impl_(New<TImpl>(tag))
+{ }
 
 THydraFacade::THydraFacade(
     TCellMasterConfigPtr config,

@@ -65,6 +65,8 @@ namespace NYT::NCellMaster {
 class TBootstrap
 {
 public:
+    TBootstrap() = default;
+
     TBootstrap(TCellMasterConfigPtr config);
     ~TBootstrap();
 
@@ -139,7 +141,7 @@ public:
         bool EnableTotalWriteCountReport,
         const TString& dumpConfigString);
 
-private:
+protected:
     const TCellMasterConfigPtr Config_;
 
     bool PrimaryMaster_ = false;

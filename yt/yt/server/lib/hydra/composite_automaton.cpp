@@ -30,6 +30,12 @@ static const size_t SnapshotPrefetchWindowSize = 64_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCompositeAutomatonPart::TCompositeAutomatonPart(TTestingTag)
+    : HydraManager_(nullptr)
+    , Automaton_(nullptr)
+    , AutomatonInvoker_(nullptr)
+{ }
+
 TCompositeAutomatonPart::TCompositeAutomatonPart(
     ISimpleHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
