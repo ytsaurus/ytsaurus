@@ -33,6 +33,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
+
 namespace NYT::NTableClient {
 
 using namespace NConcurrency;
@@ -755,15 +757,16 @@ public:
             return CreateEmptyRowBatch<TRow>();
         }
 
-        if (PreviousReader_ != CurrentReader_) {
-            PreviousReader_ = CurrentReader_;
+        auto currentReader = CurrentReader_.Load();
+        if (PreviousReader_ != currentReader) {
+            PreviousReader_ = currentReader;
         }
 
         if (FlushedToEmptyChunk_) {
             return nullptr;
         }
 
-        auto batch = CurrentReader_->Read(options);
+        auto batch = currentReader->Read(options);
 
         LastLocateRequestTimestamp_ = {};
         RetryCount_ = 0;
@@ -775,7 +778,7 @@ public:
 
         if (batch->IsEmpty()) {
             // Rows are not ready or error occurred and sneakily awaits us hiding in underlying ready event.
-            SetReadyEvent(CurrentReader_->GetReadyEvent().Apply(
+            SetReadyEvent(currentReader->GetReadyEvent().Apply(
                 BIND(&TRetryingRemoteDynamicStoreReaderBase::DispatchUnderlyingReadyEvent, MakeStrong(this))));
             return batch;
         }
@@ -790,15 +793,22 @@ public:
 
     TDataStatistics GetDataStatistics() const override
     {
-        auto dataStatistics = CurrentReader_ ? CurrentReader_->GetDataStatistics() : TDataStatistics{};
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto currentReader = CurrentReader_.Load();
+        auto dataStatistics = currentReader ? currentReader->GetDataStatistics() : TDataStatistics{};
+        auto guard = Guard(DataStatisticsLock_);
         CombineDataStatistics(&dataStatistics, AccumulatedDataStatistics_);
         return dataStatistics;
     }
 
     TCodecStatistics GetDecompressionStatistics() const override
     {
-        if (ChunkReaderFallbackOccured_ && CurrentReader_) {
-            return CurrentReader_->GetDecompressionStatistics();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto currentReader = CurrentReader_.Load();
+        if (ChunkReaderFallbackOccured_ && currentReader) {
+            return currentReader->GetDecompressionStatistics();
         }
         return {};
     }
@@ -823,7 +833,7 @@ protected:
     const TClientChunkReadOptions ChunkReadOptions_;
     const TChunkReaderMemoryManagerPtr ReaderMemoryManager_;
 
-    IReaderPtr CurrentReader_;
+    TAtomicObject<IReaderPtr> CurrentReader_;
     // NB: It is necessary to store failed reader until Read is called for the
     // new one since it may still own some rows that were read but not yet captured.
     IReaderPtr PreviousReader_;
@@ -831,6 +841,7 @@ protected:
 
     // Data statistics of all previous dynamic store readers.
     TDataStatistics AccumulatedDataStatistics_;
+    TSpinLock DataStatisticsLock_;
 
     bool ChunkReaderFallbackOccured_ = false;
     bool FlushedToEmptyChunk_ = false;
@@ -953,12 +964,15 @@ protected:
             return MakeFuture(TError("Dynamic store is missing"));
         }
 
-        CombineDataStatistics(&AccumulatedDataStatistics_, CurrentReader_->GetDataStatistics());
+        {
+            auto guard = Guard(DataStatisticsLock_);
+            CombineDataStatistics(&AccumulatedDataStatistics_, CurrentReader_.Load()->GetDataStatistics());
+        }
 
         // Dynamic store was empty and flushed to no chunk.
         if (!subresponse.has_chunk_spec()) {
             YT_LOG_DEBUG("Dynamic store located: store is flushed to no chunk");
-            CurrentReader_ = nullptr;
+            CurrentReader_.Store(nullptr);
             ChunkReaderFallbackOccured_ = true;
             FlushedToEmptyChunk_ = true;
             return VoidFuture;
@@ -1016,7 +1030,7 @@ protected:
 
     TFuture<void> OnChunkReaderCreated(const IReaderPtr& reader)
     {
-        CurrentReader_ = reader;
+        CurrentReader_.Store(reader);
         ChunkReaderFallbackOccured_ = true;
         return OpenCurrentReader();
     }
@@ -1115,7 +1129,7 @@ private:
         };
 
         try {
-            CurrentReader_ = CreateRemoteSortedDynamicStoreReader(
+            CurrentReader_.Store(CreateRemoteSortedDynamicStoreReader(
                 ChunkSpec_,
                 Schema_,
                 Config_,
@@ -1126,7 +1140,7 @@ private:
                 {} /*rpsThrottler*/,
                 chunkReadOptions,
                 ColumnFilter_,
-                Timestamp_);
+                Timestamp_));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error creating remote dynamic store reader")
                 << ex;
@@ -1135,7 +1149,7 @@ private:
 
     TFuture<void> OpenCurrentReader() override
     {
-        return CurrentReader_->Open();
+        return CurrentReader_.Load()->Open();
     }
 };
 
@@ -1237,11 +1251,11 @@ public:
 
     i64 GetTableRowIndex() const override
     {
-        if (!CurrentReader_) {
-            YT_VERIFY(FlushedToEmptyChunk_);
-            return 0;
+        if (auto currentReader = CurrentReader_.Load()) {
+            return currentReader->GetTableRowIndex();
         }
-        return CurrentReader_->GetTableRowIndex();
+        YT_VERIFY(FlushedToEmptyChunk_);
+        return 0;
     }
 
     NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
@@ -1271,7 +1285,7 @@ private:
     void UpdateContinuationToken(const IUnversionedRowBatchPtr& /*batch*/) override
     {
         YT_VERIFY(!ChunkReaderFallbackOccured_);
-        TabletRowIndex_ = CurrentReader_->GetTableRowIndex();
+        TabletRowIndex_ = CurrentReader_.Load()->GetTableRowIndex();
     }
 
     void PatchChunkSpecWithContinuationToken() override
@@ -1315,7 +1329,7 @@ private:
             .ReadSessionId = ReadSessionId_
         };
 
-        CurrentReader_ = CreateRemoteOrderedDynamicStoreReader(
+        CurrentReader_.Store(CreateRemoteOrderedDynamicStoreReader(
             ChunkSpec_,
             Schema_,
             Config_,
@@ -1327,12 +1341,12 @@ private:
             {} /*bandwidthThrottler*/,
             {} /*rpsThrottler*/,
             chunkReadOptions,
-            Columns_);
+            Columns_));
     }
 
     TFuture<void> OpenCurrentReader() override
     {
-        return CurrentReader_->GetReadyEvent();
+        return CurrentReader_.Load()->GetReadyEvent();
     }
 };
 
