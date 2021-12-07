@@ -425,6 +425,12 @@ TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::TMemoryTrackingSyncSlruCa
 }
 
 template <class TKey, class TValue, class THash>
+TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::~TMemoryTrackingSyncSlruCacheBase()
+{
+    MemoryTracker_->SetLimit(0);
+}
+
+template <class TKey, class TValue, class THash>
 void TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::OnAdded(const TValuePtr& value)
 {
     MemoryTracker_->Acquire(this->GetWeight(value));

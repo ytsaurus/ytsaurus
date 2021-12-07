@@ -40,6 +40,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((BlockCache)                  (1))
     ((ChunkMeta)                   (2))
     ((ChunkBlockMeta)             (10))
+    ((BlocksExt)                  (16))
     ((UserJobs)                    (3))
     ((TabletStatic)                (4))
     ((TabletDynamic)               (5))
