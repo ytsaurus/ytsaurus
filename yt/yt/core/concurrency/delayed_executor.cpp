@@ -4,11 +4,13 @@
 #include "thread.h"
 #include "private.h"
 
-#include <yt/yt/core/misc/mpsc_stack.h>
+#include <yt/yt/core/misc/mpsc_queue.h>
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <util/datetime/base.h>
+
+#include <util/system/compiler.h>
 
 #if defined(_linux_) && !defined(_bionic_)
 #define USE_TIMERFD
@@ -277,8 +279,8 @@ private:
         std::set<TDelayedExecutorEntryPtr, TDelayedExecutorEntry::TComparer> ScheduledEntries_;
 
         //! Enqueued from any thread, dequeued from DelayedPoller thread.
-        TMpscStack<TDelayedExecutorEntryPtr> SubmitQueue_;
-        TMpscStack<TDelayedExecutorEntryPtr> CancelQueue_;
+        TMpscQueue<TDelayedExecutorEntryPtr> SubmitQueue_;
+        TMpscQueue<TDelayedExecutorEntryPtr> CancelQueue_;
 
 #if defined(USE_TIMERFD)
         struct TMutexLocking
@@ -347,10 +349,19 @@ private:
             ScheduledEntries_.clear();
 
             // Now we handle the queued callbacks similarly.
-            SubmitQueue_.DequeueAll(false, runAbort);
+            {
+                TDelayedExecutorEntryPtr entry;
+                while (SubmitQueue_.TryDequeue(&entry)) {
+                    runAbort(entry);
+                }
+            }
 
             // As for the cancelation queue, we just drop these entries.
-            CancelQueue_.DequeueAll(false, [] (const TDelayedExecutorEntryPtr&) { });
+            {
+                TDelayedExecutorEntryPtr entry;
+                while (CancelQueue_.TryDequeue(&entry)) {
+                }
+            }
 
             // Gracefully (sic!) shut the Delayed Executor thread down
             // to ensure invocation of the callbacks scheduled above.
@@ -451,41 +462,46 @@ private:
         {
             auto now = TInstant::Now();
 
-            int submittedCallbacks = 0;
-            SubmitQueue_.DequeueAll(false, [&] (const TDelayedExecutorEntryPtr& entry) {
-                if (entry->Canceled) {
-                    return;
+            {
+                int submittedCallbacks = 0;
+                TDelayedExecutorEntryPtr entry;
+                while (SubmitQueue_.TryDequeue(&entry)) {
+                    if (entry->Canceled) {
+                        return;
+                    }
+                    if (entry->Deadline + LateWarningThreshold < now) {
+                        StaleCallbacksCounter_.Increment();
+                        YT_LOG_DEBUG("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
+                            entry->Deadline,
+                            now);
+                    }
+                    auto [it, inserted] = ScheduledEntries_.insert(entry);
+                    YT_VERIFY(inserted);
+                    entry->Iterator = it;
+                    ++submittedCallbacks;
                 }
-                if (entry->Deadline + LateWarningThreshold < now) {
-                    StaleCallbacksCounter_.Increment();
-                    YT_LOG_DEBUG("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
-                        entry->Deadline,
-                        now);
-                }
-                auto [it, inserted] = ScheduledEntries_.insert(entry);
-                YT_VERIFY(inserted);
-                entry->Iterator = it;
-                ++submittedCallbacks;
-            });
-            SubmittedCallbacksCounter_.Increment(submittedCallbacks);
+                SubmittedCallbacksCounter_.Increment(submittedCallbacks);
+            }
 
-            int canceledCallbacks = 0;
-            CancelQueue_.DequeueAll(false, [&] (const TDelayedExecutorEntryPtr& entry) {
-                if (entry->Canceled) {
-                    return;
+            {
+                int canceledCallbacks = 0;
+                TDelayedExecutorEntryPtr entry;
+                while (CancelQueue_.TryDequeue(&entry)) {
+                    if (entry->Canceled) {
+                        return;
+                    }
+                    entry->Canceled = true;
+                    TakeCallback(entry);
+                    if (entry->Iterator) {
+                        ScheduledEntries_.erase(*entry->Iterator);
+                        entry->Iterator.reset();
+                    }
+                    ++canceledCallbacks;
                 }
-                entry->Canceled = true;
-                TakeCallback(entry);
-                if (entry->Iterator) {
-                    ScheduledEntries_.erase(*entry->Iterator);
-                    entry->Iterator.reset();
-                }
-                ++canceledCallbacks;
-            });
-            CanceledCallbacksCounter_.Increment(submittedCallbacks);
+                CanceledCallbacksCounter_.Increment(canceledCallbacks);
+            }
 
             ScheduledCallbacksGauge_.Update(ScheduledEntries_.size());
-
             while (!ScheduledEntries_.empty()) {
                 auto it = ScheduledEntries_.begin();
                 const auto& entry = *it;
