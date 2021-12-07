@@ -87,7 +87,7 @@ class TChunkTreeTraverser
 public:
     struct TStackEntry
     {
-        TChunkList* ChunkList;
+        TEphemeralObjectPtr<TChunkList> ChunkList;
         int ChunkListVersion;
         int ChildIndex;
         std::optional<i64> RowIndex;
@@ -167,7 +167,7 @@ protected:
                     "but comparator is not provided");
             }
 
-            auto* chunkList = entry.ChunkList;
+            const auto& chunkList = entry.ChunkList;
             if (!chunkList->IsAlive() || chunkList->GetVersion() != entry.ChunkListVersion) {
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::OptimisticLockFailure,
@@ -241,7 +241,7 @@ protected:
 
         // Scan to the right of the current child extracing the maximum
         // segment of unsealed chunks.
-        const auto* chunkList = entry.ChunkList;
+        const auto& chunkList = entry.ChunkList;
         for (int index = entry.ChildIndex; index < static_cast<int>(chunkList->Children().size()); ++index) {
             auto* child = chunkList->Children()[index];
             if (!IsPhysicalChunkType(child->GetType())) {
@@ -268,7 +268,7 @@ protected:
     {
         YT_VERIFY(EnforceBounds_);
 
-        const auto* chunkList = entry.ChunkList;
+        const auto& chunkList = entry.ChunkList;
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
         const auto* child = chunkList->Children()[entry.ChildIndex];
         YT_VERIFY(IsJournalChunkType(child->GetType()));
@@ -341,7 +341,7 @@ protected:
     {
         YT_VERIFY(EnforceBounds_);
 
-        const auto* chunkList = entry.ChunkList;
+        const auto& chunkList = entry.ChunkList;
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
         const auto* child = chunkList->Children()[entry.ChildIndex];
         auto childType = child->GetType();
@@ -360,7 +360,7 @@ protected:
 
     TFuture<void> VisitEntryStatic(TStackEntry* entry)
     {
-        auto* chunkList = entry->ChunkList;
+        const auto& chunkList = entry->ChunkList;
         auto* child = chunkList->Children()[entry->ChildIndex];
         auto childType = child->GetType();
 
@@ -473,7 +473,7 @@ protected:
                 subtreeEndLimit);
             if (!Visitor_->OnChunk(
                 childChunk,
-                chunkList,
+                chunkList.Get(),
                 rowIndex,
                 {} /*tabletIndex*/,
                 subtreeStartLimit,
@@ -495,7 +495,7 @@ protected:
 
     void VisitEntryDynamicRoot(TStackEntry* entry)
     {
-        auto* chunkList = entry->ChunkList;
+        const auto& chunkList = entry->ChunkList;
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
         auto* child = chunkList->Children()[entry->ChildIndex];
         bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot;
@@ -629,7 +629,7 @@ protected:
 
     void VisitEntryDynamic(TStackEntry* entry)
     {
-        auto* chunkList = entry->ChunkList;
+        const auto& chunkList = entry->ChunkList;
         auto* child = chunkList->Children()[entry->ChildIndex];
         auto childType = child->GetType();
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
@@ -824,7 +824,7 @@ protected:
 
                 if (!Visitor_->OnChunk(
                     childChunk,
-                    chunkList,
+                    chunkList.Get(),
                     rowIndex,
                     tabletIndex,
                     subtreeStartLimit,
@@ -1317,7 +1317,6 @@ protected:
     {
         ++ChunkListCount_;
         YT_LOG_TRACE("Pushing new entry to stack (Entry: %v)", newEntry);
-        Context_->OnPush(newEntry.ChunkList);
         Stack_.push_back(newEntry);
     }
 
@@ -1330,17 +1329,11 @@ protected:
     {
         auto& entry = Stack_.back();
         YT_LOG_TRACE("Poping stack (Entry: %v)", entry);
-        Context_->OnPop(entry.ChunkList);
         Stack_.pop_back();
     }
 
     void Shutdown()
     {
-        std::vector<TChunkTree*> nodes;
-        for (const auto& entry : Stack_) {
-            nodes.push_back(entry.ChunkList);
-        }
-        Context_->OnShutdown(nodes);
         Stack_.clear();
     }
 
@@ -1502,26 +1495,6 @@ public:
             ->GetEpochAutomatonInvoker(ThreadQueue_);
     }
 
-    void OnPop(TChunkTree* node) override
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->EphemeralUnrefObject(node);
-    }
-
-    void OnPush(TChunkTree* node) override
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->EphemeralRefObject(node);
-    }
-
-    void OnShutdown(const std::vector<TChunkTree*>& nodes) override
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (const auto& node : nodes) {
-            objectManager->EphemeralUnrefObject(node);
-        }
-    }
-
     void OnTimeSpent(TDuration time) override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -1572,15 +1545,6 @@ public:
     {
         YT_ABORT();
     }
-
-    void OnPop(TChunkTree* /*node*/) override
-    { }
-
-    void OnPush(TChunkTree* /*node*/) override
-    { }
-
-    void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
-    { }
 
     void OnTimeSpent(TDuration /*time*/) override
     { }

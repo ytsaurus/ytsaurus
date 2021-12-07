@@ -8,6 +8,8 @@
 #include <yt/yt/core/misc/checkpointable_stream.h>
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/test_framework/testing_tag.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/library/ytprof/api/api.h>
@@ -50,6 +52,8 @@ class TCompositeAutomatonPart
     : public virtual TRefCounted
 {
 public:
+    TCompositeAutomatonPart(TTestingTag);
+
     TCompositeAutomatonPart(
         ISimpleHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,

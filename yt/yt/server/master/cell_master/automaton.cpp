@@ -76,6 +76,13 @@ TMasterAutomatonPart::TMasterAutomatonPart(
     , Bootstrap_(bootstrap)
 { }
 
+TMasterAutomatonPart::TMasterAutomatonPart(
+    TTestingTag tag,
+    TBootstrap* bootstrap)
+    : TCompositeAutomatonPart(tag)
+    , Bootstrap_(bootstrap)
+{ }
+
 bool TMasterAutomatonPart::ValidateSnapshotVersion(int version)
 {
     return NCellMaster::ValidateSnapshotReign(version);

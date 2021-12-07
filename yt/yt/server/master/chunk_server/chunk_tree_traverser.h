@@ -62,15 +62,6 @@ struct IChunkTraverserContext
     //! Returns |nullptr| if traversing cannot be preempted.
     virtual IInvokerPtr GetInvoker() const = 0;
 
-    //! Called for each #node pushed onto the stack.
-    virtual void OnPop(TChunkTree* node) = 0;
-
-    //! Called for each #node popped from the stack.
-    virtual void OnPush(TChunkTree* node) = 0;
-
-    //! Called when traversing finishes; #nodes contains all nodes from the stack.
-    virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) = 0;
-
     //! Called by the traverser to notify the context about the amount of
     //! time spent during traversing.
     virtual void OnTimeSpent(TDuration time) = 0;

@@ -59,6 +59,10 @@ protected:
         TBootstrap* bootstrap,
         EAutomatonThreadQueue queue);
 
+    TMasterAutomatonPart(
+        TTestingTag,
+        TBootstrap* bootstrap);
+
     bool ValidateSnapshotVersion(int version) override;
     int GetCurrentSnapshotVersion() override;
 };

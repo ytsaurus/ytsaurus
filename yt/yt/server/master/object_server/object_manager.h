@@ -16,6 +16,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/core/test_framework/testing_tag.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +32,10 @@ class TObjectManager
 {
 public:
     explicit TObjectManager(NCellMaster::TBootstrap* bootstrap);
+
+    TObjectManager(
+        TTestingTag,
+        NCellMaster::TBootstrap* bootstrap);
 
     ~TObjectManager();
 

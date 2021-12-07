@@ -1,4 +1,5 @@
 #include "chunk_helpers.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/chunk_server/chunk.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
@@ -34,6 +35,7 @@ namespace {
 
 using namespace NTesting;
 
+using namespace NCellMaster;
 using namespace NChunkClient::NProto;
 using namespace NCypressClient;
 using namespace NTableClient;
@@ -191,15 +193,6 @@ public:
     {
         YT_ABORT();
     }
-
-    void OnPop(TChunkTree* /*node*/) override
-    { }
-
-    void OnPush(TChunkTree* /*node*/) override
-    { }
-
-    void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
-    { }
 
     void OnTimeSpent(TDuration /*time*/) override
     { }
@@ -550,7 +543,19 @@ std::function<int()> CreateBasicKeyYielder()
 
 class TChunkTreeTraversingTest
     : public TChunkGeneratorBase
-{ };
+    , public TBootstrapMock
+{
+public:
+    void SetUp() override
+    {
+        SetupMasterSmartpointers();
+    }
+
+    void TearDown() override
+    {
+        ResetMasterSmartpointers();
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1551,7 +1556,19 @@ INSTANTIATE_TEST_SUITE_P(
 
 class TChunkTreeTraversingStressTest
     : public TChunkGeneratorBase
-{ };
+    , public TBootstrapMock
+{
+public:
+    void SetUp() override
+    {
+        SetupMasterSmartpointers();
+    }
+
+    void TearDown() override
+    {
+        ResetMasterSmartpointers();
+    }
+};
 
 TEST_F(TChunkTreeTraversingStressTest, StaticWithoutKeys)
 {
