@@ -956,7 +956,7 @@ class YTEnvSetup(object):
             dynamic_master_config["enable_descending_sort_order_dynamic"] = True
         # COMPAT(shakurov): remove after changing the default and/or removing the option.
         if self.Env.get_component_version("ytserver-master").abi >= (21, 3):
-            dynamic_master_config["enable_portal_aware_cell_statistics_gossip"] = True
+            dynamic_master_config["multicell_manager"]["enable_portal_aware_cell_statistics_gossip"] = True
 
         for response in yt_commands.execute_batch(
             [
