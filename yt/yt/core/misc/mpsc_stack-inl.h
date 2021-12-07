@@ -60,7 +60,7 @@ void TMpscStack<T>::DoEnqueue(TNode* node)
 }
 
 template <class T>
-bool TMpscStack<T>::Dequeue(T* value)
+bool TMpscStack<T>::TryDequeue(T* value)
 {
     auto* expected = Head_.load();
     do {

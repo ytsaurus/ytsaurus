@@ -17,13 +17,13 @@ TEST(TMpscStackTest, Simple)
 
     int x;
     EXPECT_FALSE(stack.IsEmpty());
-    EXPECT_TRUE(stack.Dequeue(&x));
+    EXPECT_TRUE(stack.TryDequeue(&x));
     EXPECT_EQ(2, x);
     EXPECT_FALSE(stack.IsEmpty());
-    EXPECT_TRUE(stack.Dequeue(&x));
+    EXPECT_TRUE(stack.TryDequeue(&x));
     EXPECT_EQ(1, x);
     EXPECT_TRUE(stack.IsEmpty());
-    EXPECT_FALSE(stack.Dequeue(&x));
+    EXPECT_FALSE(stack.TryDequeue(&x));
 }
 
 TEST(TMpscStackTest, DequeueAll)
@@ -50,7 +50,7 @@ TEST(TMpscStackTest, DequeueAll)
     }
 }
 
-TEST(TMpscStackTest, ConcurrentDequeue)
+TEST(TMpscStackTest, ConcurrentTryDequeue)
 {
     constexpr i64 Size = 100'000;
 
@@ -69,7 +69,7 @@ TEST(TMpscStackTest, ConcurrentDequeue)
     i64 sum = 0;
     for (int i = 0; i < 2 * Size; ++i) {
         int x = -1;
-        while (!stack.Dequeue(&x));
+        while (!stack.TryDequeue(&x));
         sum += x;
     }
 
@@ -80,7 +80,7 @@ TEST(TMpscStackTest, ConcurrentDequeue)
     EXPECT_TRUE(stack.IsEmpty());
 }
 
-TEST(TMpscStackTest, ConcurrentDequeueAll)
+TEST(TMpscStackTest, ConcurrentTryDequeueAll)
 {
     constexpr i64 Size = 100'000;
 
