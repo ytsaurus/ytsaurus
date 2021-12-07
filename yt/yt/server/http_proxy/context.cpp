@@ -728,9 +728,17 @@ void TContext::AddHeaders()
     }
 }
 
-void TContext::SetError(const TError& error)
+void TContext::SetEnrichedError(const TError& error)
 {
     Error_ = error;
+    // If request contains path (e.g. GetNode), enrich error with it.
+    if (DriverRequest_.Parameters) {
+        if (auto path = DriverRequest_.Parameters->FindChild("path")) {
+            Error_ = Error_
+                << TErrorAttribute("path", path->GetValue<TString>());
+        }
+    }
+    YT_LOG_ERROR(Error_, "Command failed");
 }
 
 void TContext::ProcessFormatsInOperationSpec()

@@ -848,34 +848,9 @@ private:
         return transaction;
     }
 
-    class TExecuteCallSessionBase
-        : public TRefCounted
-    {
-    protected:
-        const TApiServicePtr ApiService_;
-        const NLogging::TLogger& Logger;
-        const IServiceContextPtr Context_;
-
-        TExecuteCallSessionBase(
-            TApiServicePtr apiService,
-            IServiceContextPtr context)
-            : ApiService_(std::move(apiService))
-            , Logger(ApiService_->Logger)
-            , Context_(std::move(context))
-        { }
-
-        void HandleError(const TError& error)
-        {
-            Context_->Reply(TError(error.GetCode(), "Internal RPC call failed")
-                << error);
-        }
-
-        virtual void Run() = 0;
-    };
-
     template <class TContext, class TExecutor, class TResultHandler>
     class TExecuteCallSession
-        : public TExecuteCallSessionBase
+        : public TRefCounted
     {
     public:
         TExecuteCallSession(
@@ -883,15 +858,13 @@ private:
             TIntrusivePtr<TContext> context,
             TExecutor&& executor,
             TResultHandler&& resultHandler)
-            : TExecuteCallSessionBase(
-                apiService,
-                context->GetUnderlyingContext())
+            : ApiService_(std::move(apiService))
             , Context_(std::move(context))
             , Executor_(std::move(executor))
             , ResultHandler_(std::move(resultHandler))
         { }
 
-        void Run() override
+        void Run()
         {
             auto future = Executor_();
 
@@ -924,9 +897,22 @@ private:
         }
 
     private:
+        const TApiServicePtr ApiService_;
         const TIntrusivePtr<TContext> Context_;
         const TExecutor Executor_;
         const TResultHandler ResultHandler_;
+
+        void HandleError(const TError& error)
+        {
+            auto wrappedError = TError(error.GetCode(), "Internal RPC call failed")
+                << error;
+            // If request contains path (e.g. GetNode), enrich error with it.
+            if constexpr (requires { Context_->Request().path(); }) {
+                wrappedError = wrappedError
+                    << TErrorAttribute("path", Context_->Request().path());
+            }
+            Context_->Reply(wrappedError);
+        }
     };
 
     template <class TContext, class TExecutor, class TResultHandler>

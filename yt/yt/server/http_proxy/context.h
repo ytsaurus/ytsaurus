@@ -63,7 +63,7 @@ public:
     void SetupTracing();
     void AddHeaders();
 
-    void SetError(const TError& error);
+    void SetEnrichedError(const TError& error);
 
     bool TryPrepare();
     void FinishPrepare();

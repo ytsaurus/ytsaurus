@@ -20,8 +20,6 @@ using namespace NHttp;
 using namespace NProfiling;
 using namespace NSecurityClient;
 
-static const auto& Logger = HttpProxyLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TSemaphoreGuard::TSemaphoreGuard(TApi* api, const TUserCommandPair& key)
@@ -296,8 +294,7 @@ void TApi::HandleRequest(
         context->FinishPrepare();
         context->Run();
     } catch (const std::exception& ex) {
-        context->SetError(TError(ex));
-        YT_LOG_ERROR(ex, "Command failed");
+        context->SetEnrichedError(TError(ex));
     }
 
     auto finally = Finally([&] {
