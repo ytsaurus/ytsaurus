@@ -8,12 +8,14 @@
 #include "moody_camel_concurrent_queue.h"
 #include "thread.h"
 
-#include <yt/yt/core/misc/mpsc_stack.h>
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/mpsc_queue.h>
 #include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/actions/invoker_util.h>
 
 #include <util/system/thread.h>
+#include <util/system/sanitizers.h>
 
 #include <util/network/pollerimpl.h>
 
@@ -40,7 +42,8 @@ struct TPollableCookie
     }
 
     std::atomic<int> PendingUnregisterCount = -1;
-    std::atomic<bool> UnregisterLock = false;
+    std::atomic<bool> UnregisterStartedLock = false;
+    std::atomic<bool> UnregisterCompletedLock = false;
     const TPromise<void> UnregisterPromise = NewPromise<void>();
 };
 
@@ -59,7 +62,7 @@ EContPoll ToImplControl(EPollControl control)
     if (Any(control & EPollControl::ReadHup)) {
         implControl |= CONT_POLL_RDHUP;
     }
-    return EContPoll(implControl);
+    return static_cast<EContPoll>(implControl);
 }
 
 EPollControl FromImplControl(int implControl)
@@ -76,6 +79,31 @@ EPollControl FromImplControl(int implControl)
     }
     return control;
 }
+
+void* ToImplPollable(const IPollablePtr& pollable)
+{
+    return pollable.Get();
+}
+
+IPollable* FromImplPollable(void* pollable)
+{
+    return static_cast<IPollable*>(pollable);
+}
+
+struct TPollerEvent
+{
+    IPollablePtr Pollable;
+    EPollControl Control;
+};
+
+// Only makes sense for "select" backend.
+struct TMutexLocking
+{
+    using TMyMutex = TMutex;
+};
+
+using TPollerImpl = ::TPollerImpl<TMutexLocking>;
+using TPollerImplEvent = TPollerImpl::TEvent;
 
 } // namespace
 
@@ -124,39 +152,41 @@ public:
                 return;
             }
 
+            YT_LOG_INFO("Shutting down thread pool invoker");
+
             pollables.insert(pollables.end(), Pollables_.begin(), Pollables_.end());
+
             handlerThreads.insert(handlerThreads.end(), HandlerThreads_.begin(), HandlerThreads_.end());
             handlerThreads.insert(handlerThreads.end(), DyingHandlerThreads_.begin(), DyingHandlerThreads_.end());
         }
 
         Invoker_->Shutdown();
 
-        YT_LOG_INFO("Thread pool poller is waiting for pollables to shut down (PollableCount: %v)",
-            pollables.size());
-
-        std::vector<TFuture<void>> unregisterFutures;
-        for (const auto& pollable : pollables) {
-            unregisterFutures.push_back(Unregister(pollable));
-        }
-
-        AllSucceeded(unregisterFutures)
-            .Get();
-
-        YT_LOG_INFO("Shutting down poller threads");
-
         PollerThread_->Stop();
         for (const auto& thread : handlerThreads) {
             thread->Stop();
         }
 
-        YT_LOG_INFO("Thread pool poller finished");
-
-        {
-            IPollablePtr pollable;
-            while (RetryQueue_.try_dequeue(pollable));
+        for (const auto& pollable : pollables) {
+            InvokeUnregisterCompleted(pollable);
         }
 
+        {
+            auto guard = Guard(SpinLock_);
+
+            Pollables_.clear();
+            HandlerThreads_.clear();
+            DyingHandlerThreads_.clear();
+        }
+
+        DrainRetryQueue();
+        DrainPollerEventQueue();
+        PollerThread_->DrainRetryQueue();
+        PollerThread_->DrainUnregisterQueueAndList();
         Invoker_->DrainQueue();
+        for (const auto& thread : handlerThreads) {
+            thread->DrainUnregisterQueue();
+        }
     }
 
     void Reconfigure(int threadCount) override
@@ -204,55 +234,42 @@ public:
 
     bool TryRegister(const IPollablePtr& pollable) override
     {
-        {
-            auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
-            if (ShutdownStarted_.load()) {
-                YT_LOG_DEBUG("Cannot register pollable since poller is already shutting down (%v)",
-                    pollable->GetLoggingTag());
-                return false;
-            }
-
-            auto cookie = New<TPollableCookie>();
-            pollable->SetCookie(cookie);
-            YT_VERIFY(Pollables_.insert(pollable).second);
+        if (ShutdownStarted_.load()) {
+            YT_LOG_DEBUG("Cannot register pollable since poller is already shutting down (%v)",
+                pollable->GetLoggingTag());
+            return false;
         }
+
+        auto cookie = New<TPollableCookie>();
+        pollable->SetCookie(cookie);
+        InsertOrCrash(Pollables_, pollable);
 
         YT_LOG_DEBUG("Pollable registered (%v)",
             pollable->GetLoggingTag());
+
         return true;
     }
 
     TFuture<void> Unregister(const IPollablePtr& pollable) override
     {
-        TFuture<void> future;
-        bool firstTime = false;
-        {
-            auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
-            auto it = Pollables_.find(pollable);
-            if (it == Pollables_.end()) {
-                guard.Release();
-                YT_LOG_DEBUG("Pollable is not registered (%v)",
-                    pollable->GetLoggingTag());
-                return VoidFuture;
-            }
-
-            const auto& pollable = *it;
-            auto* cookie = TPollableCookie::FromPollable(pollable);
-            future = cookie->UnregisterPromise.ToFuture();
-
-            if (!cookie->UnregisterLock.exchange(true)) {
-                PollerThread_->ScheduleUnregister(pollable);
-                firstTime = true;
-            }
+        auto it = Pollables_.find(pollable);
+        if (it == Pollables_.end()) {
+            guard.Release();
+            YT_LOG_DEBUG("Pollable is not registered (%v)",
+                pollable->GetLoggingTag());
+            return VoidFuture;
         }
 
-        YT_LOG_DEBUG("Requesting pollable unregistration (%v, FirstTime: %v)",
-            pollable->GetLoggingTag(),
-            firstTime);
+        auto* cookie = TPollableCookie::FromPollable(pollable);
+        if (!cookie->UnregisterStartedLock.exchange(true) && !ShutdownStarted_.load()) {
+            PollerThread_->ScheduleUnregister(pollable);
+        }
 
-        return future;
+        return cookie->UnregisterPromise.ToFuture();
     }
 
     void Arm(int fd, const IPollablePtr& pollable, EPollControl control) override
@@ -284,13 +301,6 @@ private:
 
     const TIntrusivePtr<TEventCount> HandlerEventCount_ = New<TEventCount>();
 
-    // Only makes sense for "select" backend.
-    struct TMutexLocking
-    {
-        using TMyMutex = TMutex;
-    };
-    using TPollerImpl = ::TPollerImpl<TMutexLocking>;
-
     class TPollerThread
         : public TThread
     {
@@ -300,31 +310,37 @@ private:
             , Poller_(poller)
             , Logger(Poller_->Logger)
             , PollerEventQueueToken_(Poller_->PollerEventQueue_)
-            , RetryQueueToken_(Poller_->RetryQueue_)
+            , PollerRetryQueueToken_(Poller_->RetryQueue_)
+            , RetryQueueToken_(RetryQueue_)
         {
             PollerImpl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_EDGE_TRIGGERED | CONT_POLL_READ);
         }
 
         void ScheduleUnregister(IPollablePtr pollable)
         {
+            YT_LOG_DEBUG("Requesting pollable unregistration (%v)",
+                pollable->GetLoggingTag());
+
             UnregisterQueue_.Enqueue(std::move(pollable));
             ScheduleWakeup();
         }
 
         void Arm(int fd, const IPollablePtr& pollable, EPollControl control)
         {
-            YT_LOG_DEBUG("Arming poller (FD: %v, Control: %v, %v)",
+            YT_LOG_DEBUG("Arming poller (%v, FD: %v, Control: %v)",
+                pollable->GetLoggingTag(),
                 fd,
-                control,
-                pollable->GetLoggingTag());
-            PollerImpl_.Set(pollable.Get(), fd, ToImplControl(control));
+                control);
+
+            PollerImpl_.Set(ToImplPollable(pollable), fd, ToImplControl(control));
         }
 
         void Unarm(int fd, const IPollablePtr& pollable)
         {
-            YT_LOG_DEBUG("Unarming poller (FD: %v, %v)",
-                fd,
-                pollable->GetLoggingTag());
+            YT_LOG_DEBUG("Unarming poller (%v, FD: %v)",
+                pollable->GetLoggingTag(),
+                fd);
+
             PollerImpl_.Remove(fd);
         }
 
@@ -333,14 +349,33 @@ private:
             YT_LOG_TRACE("Scheduling poller retry (%v, Wakeup: %v)",
                 pollable->GetLoggingTag(),
                 wakeup);
+
             if (wakeup) {
-                RetryQueue_.Enqueue(pollable);
+                RetryQueue_.enqueue(pollable);
                 if (!RetryScheduled_.exchange(true)) {
                     ScheduleWakeup();
                 }
             } else {
                 Poller_->RetryQueue_.enqueue(pollable);
             }
+
+            if (Y_UNLIKELY(Poller_->ShutdownStarted_.load())) {
+                DrainRetryQueue();
+                Poller_->DrainRetryQueue();
+            }
+        }
+
+        void DrainRetryQueue()
+        {
+            IPollablePtr pollable;
+            while (RetryQueue_.try_dequeue(pollable));
+        }
+
+        void DrainUnregisterQueueAndList()
+        {
+            IPollablePtr pollable;
+            while (UnregisterQueue_.TryDequeue(&pollable));
+            UnregisterList_.clear();
         }
 
     private:
@@ -354,15 +389,19 @@ private:
         std::atomic<bool> WakeupScheduled_ = false;
 #endif
 
-        std::array<TPollerImpl::TEvent, MaxEventsPerPoll> PollerEvents_;
+        std::array<TPollerImplEvent, MaxEventsPerPoll> PollerImplEvents_;
+        std::array<TPollerEvent, MaxEventsPerPoll> PollerEvents_;
 
         moodycamel::ProducerToken PollerEventQueueToken_;
-        moodycamel::ProducerToken RetryQueueToken_;
+        moodycamel::ProducerToken PollerRetryQueueToken_;
 
-        TMpscStack<IPollablePtr> UnregisterQueue_;
+        TMpscQueue<IPollablePtr> UnregisterQueue_;
+        std::vector<IPollablePtr> UnregisterList_;
 
         std::atomic<bool> RetryScheduled_ = false;
-        TMpscStack<IPollablePtr> RetryQueue_;
+
+        moodycamel::ConcurrentQueue<IPollablePtr> RetryQueue_;
+        moodycamel::ConsumerToken RetryQueueToken_;
 
 
         virtual void StopPrologue() override
@@ -375,47 +414,80 @@ private:
             while (!IsStopping()) {
                 ThreadMainLoopStep();
             }
+            DrainRetryQueue();
+            DrainUnregisterQueueAndList();
         }
 
         void ThreadMainLoopStep()
         {
-            int count = WaitForPollerEvents(PollerThreadQuantum);
-
+            DequeueUnregisterRequests();
+            int count = 0;
+            count += HandlePollerEvents();
             count += HandleRetries();
-            HandleUnregisterRequests();
-
             Poller_->HandlerEventCount_->NotifyMany(count);
+        }
+
+        int HandlePollerEvents()
+        {
+            int count = 0;
+            bool mustDrain = !UnregisterList_.empty();
+            do {
+                int subcount = WaitForPollerEvents(mustDrain ? TDuration::Zero() : PollerThreadQuantum);
+                if (subcount == 0) {
+                    HandleUnregisterRequests();
+                    mustDrain = false;
+                }
+                count += subcount;
+            } while (mustDrain);
+            return count;
         }
 
         int WaitForPollerEvents(TDuration timeout)
         {
-            int count = PollerImpl_.Wait(PollerEvents_.data(), PollerEvents_.size(), timeout.MicroSeconds());
-            auto it = std::remove_if(
-                PollerEvents_.begin(),
-                PollerEvents_.begin() + count,
-                [] (const auto& event) {
-                    return TPollerImpl::ExtractEvent(&event) == nullptr;
-                });
-            if (it != PollerEvents_.begin()) {
-                Poller_->PollerEventQueue_.enqueue_bulk(PollerEventQueueToken_, PollerEvents_.begin(), std::distance(PollerEvents_.begin(), it));
+            int implEventCount = PollerImpl_.Wait(PollerImplEvents_.data(), PollerImplEvents_.size(), timeout.MicroSeconds());
+
+            int eventCount = 0;
+            for (int index = 0; index < implEventCount; ++index) {
+                const auto& implEvent = PollerImplEvents_[index];
+                auto control = FromImplControl(TPollerImpl::ExtractFilter(&implEvent));
+                if (auto* pollable = FromImplPollable(TPollerImpl::ExtractEvent(&implEvent))) {
+                    auto* cookie = TPollableCookie::FromPollable(pollable);
+                    YT_VERIFY(cookie->PendingUnregisterCount.load() == -1);
+                    PollerEvents_[eventCount++] = {
+                        .Pollable = pollable,
+                        .Control = control
+                    };
+                }
             }
+
+            Poller_->PollerEventQueue_.enqueue_bulk(
+                PollerEventQueueToken_,
+                std::make_move_iterator(PollerEvents_.data()),
+                eventCount);
 #ifndef _linux_
             // Drain wakeup handle in order to prevent deadlocking on pipe.
             WakeupHandle_.Clear();
             WakeupScheduled_.store(false);
 #endif
-            return count;
+            return implEventCount;
+        }
+
+        void DequeueUnregisterRequests()
+        {
+            IPollablePtr pollable;
+            while (UnregisterQueue_.TryDequeue(&pollable)) {
+                UnregisterList_.push_back(std::move(pollable));
+            }
         }
 
         void HandleUnregisterRequests()
         {
-            auto pollables = UnregisterQueue_.DequeueAll();
-            if (pollables.empty()) {
+            if (UnregisterList_.empty()) {
                 return;
             }
 
             auto guard = Guard(Poller_->SpinLock_);
-            for (const auto& pollable : pollables) {
+            for (const auto& pollable : UnregisterList_) {
                 auto* cookie = TPollableCookie::FromPollable(pollable);
                 cookie->PendingUnregisterCount = std::ssize(Poller_->HandlerThreads_) + std::ssize(Poller_->DyingHandlerThreads_);
                 for (const auto& thread : Poller_->HandlerThreads_) {
@@ -425,19 +497,29 @@ private:
                     thread->ScheduleUnregister(pollable);
                 }
             }
+
+            UnregisterList_.clear();
         }
 
         int HandleRetries()
         {
             RetryScheduled_.store(false);
-            auto pollables = RetryQueue_.DequeueAll();
+
+            std::vector<IPollablePtr> pollables;
+            {
+                IPollablePtr pollable;
+                while (RetryQueue_.try_dequeue(RetryQueueToken_, pollable)) {
+                    pollables.push_back(std::move(pollable));
+                }
+            }
+
             if (pollables.empty()) {
                 return 0;
             }
 
             std::reverse(pollables.begin(), pollables.end());
             int count = std::ssize(pollables);
-            Poller_->RetryQueue_.enqueue_bulk(RetryQueueToken_, std::make_move_iterator(pollables.begin()), count);
+            Poller_->RetryQueue_.enqueue_bulk(PollerRetryQueueToken_, std::make_move_iterator(pollables.begin()), count);
             return count;
         }
 
@@ -482,7 +564,7 @@ private:
         void MarkDying()
         {
             VERIFY_SPINLOCK_AFFINITY(Poller_->SpinLock_);
-            YT_VERIFY(Poller_->DyingHandlerThreads_.insert(this).second);
+            InsertOrCrash(Poller_->DyingHandlerThreads_, this);
             YT_VERIFY(!Dying_.exchange(true));
             CallbackEventCount_->NotifyAll();
         }
@@ -493,10 +575,15 @@ private:
             CallbackEventCount_->NotifyAll();
         }
 
+        void DrainUnregisterQueue()
+        {
+            IPollablePtr pollable;
+            while (UnregisterQueue_.TryDequeue(&pollable));
+        }
+
     protected:
         void OnStop() override
         {
-            DequeueUnregisterRequests();
             HandleUnregisterRequests();
         }
 
@@ -509,10 +596,9 @@ private:
             }
 
             bool didAnything = false;
-            didAnything |= DequeueUnregisterRequests();
             didAnything |= HandlePollerEvents();
             didAnything |= HandleRetries();
-            HandleUnregisterRequests();
+            didAnything |= HandleUnregisterRequests();
             if (didAnything) {
                 return DummyCallback_;
             }
@@ -535,8 +621,7 @@ private:
         moodycamel::ConsumerToken RetryQueueToken_;
         moodycamel::ConsumerToken PollerEventQueueToken_;
 
-        TMpscStack<IPollablePtr> UnregisterQueue_;
-        std::vector<IPollablePtr> UnregisterList_;
+        TMpscQueue<IPollablePtr> UnregisterQueue_;
 
         std::atomic<bool> Dying_ = false;
 
@@ -545,19 +630,17 @@ private:
         {
             bool gotEvent = false;
             while (true) {
-                TPollerImpl::TEvent event;
+                TPollerEvent event;
                 if (!Poller_->PollerEventQueue_.try_dequeue(PollerEventQueueToken_, event)) {
                     break;
                 }
                 gotEvent = true;
-                auto control = FromImplControl(TPollerImpl::ExtractFilter(&event));
-                auto* pollable = static_cast<IPollable*>(TPollerImpl::ExtractEvent(&event));
-                auto* cookie = TPollableCookie::FromPollable(pollable);
-                if (!cookie->UnregisterLock.load()) {
+                auto* cookie = TPollableCookie::FromPollable(event.Pollable);
+                if (!cookie->UnregisterStartedLock.load()) {
                     YT_LOG_TRACE("Got pollable event (Pollable: %v, Control: %v)",
-                        pollable->GetLoggingTag(),
-                        control);
-                    pollable->OnEvent(control);
+                        event.Pollable->GetLoggingTag(),
+                        event.Control);
+                    event.Pollable->OnEvent(event.Control);
                 }
             }
             return gotEvent;
@@ -573,59 +656,50 @@ private:
                 }
                 gotRetry = true;
                 auto* cookie = TPollableCookie::FromPollable(pollable);
-                if (!cookie->UnregisterLock.load()) {
+                if (!cookie->UnregisterStartedLock.load()) {
                     pollable->OnEvent(EPollControl::Retry);
                 }
             }
             return gotRetry;
         }
 
-        bool DequeueUnregisterRequests()
-        {
-            YT_VERIFY(UnregisterList_.empty());
-            UnregisterList_ = UnregisterQueue_.DequeueAll();
-            return !UnregisterList_.empty();
-        }
-
-        void HandleUnregisterRequests()
+        bool HandleUnregisterRequests()
         {
             std::vector<IPollablePtr> deadPollables;
-            for (const auto& pollable : UnregisterList_) {
-                auto* cookie = TPollableCookie::FromPollable(pollable);
-                auto pendingUnregisterCount = --cookie->PendingUnregisterCount;
-                YT_VERIFY(pendingUnregisterCount >= 0);
-                if (pendingUnregisterCount == 0) {
-                    deadPollables.push_back(pollable);
+            bool didAnything = false;
+            {
+                IPollablePtr pollable;
+                while (UnregisterQueue_.TryDequeue(&pollable)) {
+                    didAnything = true;
+                    auto* cookie = TPollableCookie::FromPollable(pollable);
+                    auto pendingUnregisterCount = --cookie->PendingUnregisterCount;
+                    YT_VERIFY(pendingUnregisterCount >= 0);
+                    if (pendingUnregisterCount == 0) {
+                        deadPollables.push_back(pollable);
+                    }
                 }
             }
 
             if (!deadPollables.empty()) {
-                for (const auto& pollable : deadPollables) {
-                    pollable->OnShutdown();
-                    YT_LOG_DEBUG("Pollable unregistered (%v)",
-                        pollable->GetLoggingTag());
-                }
-
                 {
                     auto guard = Guard(Poller_->SpinLock_);
                     for (const auto& pollable : deadPollables) {
-                        YT_VERIFY(Poller_->Pollables_.erase(pollable) == 1);
+                        EraseOrCrash(Poller_->Pollables_, pollable);
                     }
                 }
 
                 for (const auto& pollable : deadPollables) {
-                    auto* cookie = TPollableCookie::FromPollable(pollable);
-                    cookie->UnregisterPromise.Set();
+                    Poller_->InvokeUnregisterCompleted(pollable);
                 }
             }
 
-            UnregisterList_.clear();
+            return didAnything;
         }
 
         void MarkDead()
         {
             auto guard = Guard(Poller_->SpinLock_);
-            YT_VERIFY(Poller_->DyingHandlerThreads_.erase(this) == 1);
+            EraseOrCrash(Poller_->DyingHandlerThreads_, this);
         }
     };
 
@@ -648,7 +722,7 @@ private:
         void Invoke(TClosure callback) override
         {
             Callbacks_.enqueue(std::move(callback));
-            if (ShutdownStarted_.load()) {
+            if (Y_UNLIKELY(ShutdownStarted_.load())) {
                 DrainQueue();
                 return;
             }
@@ -698,13 +772,39 @@ private:
     std::atomic<bool> ShutdownStarted_ = false;
 
     moodycamel::ConcurrentQueue<IPollablePtr> RetryQueue_;
-    moodycamel::ConcurrentQueue<TPollerImpl::TEvent> PollerEventQueue_;
+    moodycamel::ConcurrentQueue<TPollerEvent> PollerEventQueue_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     THashSet<IPollablePtr> Pollables_;
     TPollerThreadPtr PollerThread_;
     std::vector<THandlerThreadPtr> HandlerThreads_;
     THashSet<THandlerThreadPtr> DyingHandlerThreads_;
+
+
+    void InvokeUnregisterCompleted(const IPollablePtr& pollable)
+    {
+        auto* cookie = TPollableCookie::FromPollable(pollable);
+        if (cookie->UnregisterCompletedLock.exchange(true)) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Pollable unregistered (%v)",
+            pollable->GetLoggingTag());
+        pollable->OnShutdown();
+        cookie->UnregisterPromise.Set();
+    }
+
+    void DrainRetryQueue()
+    {
+        IPollablePtr pollable;
+        while (RetryQueue_.try_dequeue(pollable));
+    }
+
+    void DrainPollerEventQueue()
+    {
+        TPollerEvent event;
+        while (PollerEventQueue_.try_dequeue(event));
+    }
 };
 
 IPollerPtr CreateThreadPoolPoller(
