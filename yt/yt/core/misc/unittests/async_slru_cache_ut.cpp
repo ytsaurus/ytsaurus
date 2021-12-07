@@ -3,10 +3,14 @@
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/property.h>
 
+#include <yt/yt/library/profiling/testing.h>
+
 #include <random>
 
 namespace NYT {
 namespace {
+
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,14 +40,58 @@ class TSimpleSlruCache
     : public TAsyncSlruCacheBase<int, TSimpleCachedValue>
 {
 public:
-    explicit TSimpleSlruCache(TSlruCacheConfigPtr config)
-        : TAsyncSlruCacheBase(std::move(config))
+    explicit TSimpleSlruCache(TSlruCacheConfigPtr config, TProfiler profiler = {})
+        : TAsyncSlruCacheBase(std::move(config), std::move(profiler))
     { }
+
+    struct TGhostCountersState
+    {
+        i64 SyncHitWeight;
+        i64 AsyncHitWeight;
+        i64 MissedWeight;
+        i64 SyncHit;
+        i64 AsyncHit;
+        i64 Missed;
+
+        TGhostCountersState operator -(const TGhostCountersState& other) const
+        {
+            return TGhostCountersState {
+                .SyncHitWeight = SyncHitWeight - other.SyncHitWeight,
+                .AsyncHitWeight = AsyncHitWeight - other.AsyncHitWeight,
+                .MissedWeight = MissedWeight - other.MissedWeight,
+                .SyncHit = SyncHit - other.SyncHit,
+                .AsyncHit = AsyncHit - other.AsyncHit,
+                .Missed = Missed - other.Missed
+            };
+        }
+    };
+
+    TGhostCountersState ReadSmallGhostCounters() const
+    {
+        return ReadGhostCounters(GetSmallGhostCounters());
+    }
+
+    TGhostCountersState ReadLargeGhostCounters() const
+    {
+        return ReadGhostCounters(GetLargeGhostCounters());
+    }
 
 protected:
     i64 GetWeight(const TSimpleCachedValuePtr& value) const override
     {
         return value->Weight;
+    }
+
+    static TGhostCountersState ReadGhostCounters(const TGhostCounters& ghostCounters)
+    {
+        return TGhostCountersState {
+            .SyncHitWeight = TTesting::ReadCounter(ghostCounters.SyncHitWeightCounter),
+            .AsyncHitWeight = TTesting::ReadCounter(ghostCounters.AsyncHitWeightCounter),
+            .MissedWeight = TTesting::ReadCounter(ghostCounters.MissedWeightCounter),
+            .SyncHit = TTesting::ReadCounter(ghostCounters.SyncHitCounter),
+            .AsyncHit = TTesting::ReadCounter(ghostCounters.AsyncHitCounter),
+            .Missed = TTesting::ReadCounter(ghostCounters.MissedCounter)
+        };
     }
 };
 
@@ -83,7 +131,6 @@ protected:
         ++TotalRemoved_;
         EXPECT_GE(ItemCount_, 0);
     }
-
     bool IsResurrectionSupported() const override
     {
         return EnableResurrection_;
@@ -493,6 +540,171 @@ TEST(TAsyncSlruCacheTest, TouchEvictedValue)
         auto insertCookie = cache->BeginInsert(3);
         ASSERT_TRUE(insertCookie.IsActive());
         insertCookie.Cancel(TError("Cancelled"));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TAsyncSlruGhostCacheTest, InsertSmall)
+{
+    constexpr int cacheSize = 10;
+    constexpr int numStages = 3;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TSimpleSlruCache>(std::move(config), TProfiler{"/cache"});
+
+    auto oldSmallCounters = cache->ReadSmallGhostCounters();
+    auto oldLargeCounters = cache->ReadLargeGhostCounters();
+
+    for (int stage = 0; stage < numStages; ++stage) {
+        for (int index = 0; index < cacheSize / 2; ++index) {
+            auto cookie = cache->BeginInsert(index);
+            if (!cookie.IsActive()) {
+                ASSERT_NE(stage, 0);
+                continue;
+            }
+            ASSERT_EQ(stage, 0);
+            cookie.EndInsert(New<TSimpleCachedValue>(
+                /*key*/ index,
+                /*value*/ 42,
+                /*weight*/ 1));
+        }
+    }
+
+    auto smallCount = cache->ReadSmallGhostCounters() - oldSmallCounters;
+    auto largeCount = cache->ReadLargeGhostCounters() - oldLargeCounters;
+
+    EXPECT_EQ(smallCount.SyncHit, cacheSize / 2 * (numStages - 1));
+    EXPECT_EQ(smallCount.Missed, cacheSize / 2);
+    EXPECT_EQ(largeCount.SyncHit, cacheSize / 2 * (numStages - 1));
+    EXPECT_EQ(largeCount.Missed, cacheSize / 2);
+}
+
+TEST(TAsyncSlruGhostCacheTest, InsertLarge)
+{
+    constexpr int cacheSize = 10;
+    constexpr int numStages = 3;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TSimpleSlruCache>(std::move(config), TProfiler{"/cache"});
+
+    auto oldSmallCounters = cache->ReadSmallGhostCounters();
+    auto oldLargeCounters = cache->ReadLargeGhostCounters();
+
+    for (int stage = 0; stage < numStages; ++stage) {
+        for (int index = 0; index < 2 * cacheSize; ++index) {
+            auto cookie = cache->BeginInsert(index);
+            ASSERT_TRUE(cookie.IsActive());
+            cookie.EndInsert(New<TSimpleCachedValue>(
+                /*key*/ index,
+                /*value*/ 42,
+                /*weight*/ 1));
+        }
+    }
+
+    auto smallCount = cache->ReadSmallGhostCounters() - oldSmallCounters;
+    auto largeCount = cache->ReadLargeGhostCounters() - oldLargeCounters;
+
+    EXPECT_EQ(smallCount.SyncHit, 0);
+    EXPECT_EQ(smallCount.Missed, 2 * cacheSize * numStages);
+    EXPECT_EQ(largeCount.SyncHit, 2 * cacheSize * (numStages - 1));
+    EXPECT_EQ(largeCount.Missed, 2 * cacheSize);
+}
+
+TEST(TAsyncSlruGhostCacheTest, Weights)
+{
+    constexpr int cacheSize = 100;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TSimpleSlruCache>(std::move(config), TProfiler{"/cache"});
+
+    auto value = New<TSimpleCachedValue>(
+        /*key*/ 1,
+        /*value*/ 42,
+        /*weight*/ 64);
+
+    {
+        auto oldSmallCounters = cache->ReadSmallGhostCounters();
+        auto oldLargeCounters = cache->ReadLargeGhostCounters();
+
+        auto firstCookie = cache->BeginInsert(1);
+        ASSERT_TRUE(firstCookie.IsActive());
+
+        auto secondCookie = cache->BeginInsert(1);
+        ASSERT_TRUE(!secondCookie.IsActive());
+
+        firstCookie.EndInsert(value);
+
+        auto smallCount = cache->ReadSmallGhostCounters() - oldSmallCounters;
+        auto largeCount = cache->ReadLargeGhostCounters() - oldLargeCounters;
+
+        EXPECT_EQ(smallCount.SyncHit, 0);
+        EXPECT_EQ(smallCount.AsyncHit, 1);
+        EXPECT_EQ(smallCount.AsyncHitWeight, 64);
+        EXPECT_EQ(smallCount.Missed, 1);
+        EXPECT_EQ(smallCount.MissedWeight, 64);
+
+        EXPECT_EQ(largeCount.SyncHit, 0);
+        EXPECT_EQ(largeCount.AsyncHit, 1);
+        EXPECT_EQ(largeCount.AsyncHitWeight, 64);
+        EXPECT_EQ(largeCount.Missed, 1);
+        EXPECT_EQ(largeCount.MissedWeight, 64);
+    }
+
+    {
+        auto oldSmallCounters = cache->ReadSmallGhostCounters();
+        auto oldLargeCounters = cache->ReadLargeGhostCounters();
+
+        value->Weight = 90;
+        value->UpdateWeight();
+
+        auto smallCount = cache->ReadSmallGhostCounters() - oldSmallCounters;
+        auto largeCount = cache->ReadLargeGhostCounters() - oldLargeCounters;
+
+        EXPECT_EQ(smallCount.SyncHit, 0);
+        EXPECT_EQ(smallCount.AsyncHit, 0);
+        EXPECT_EQ(smallCount.AsyncHitWeight, 0);
+        EXPECT_EQ(smallCount.Missed, 0);
+        EXPECT_EQ(smallCount.MissedWeight, 0);
+
+        EXPECT_EQ(largeCount.SyncHit, 0);
+        EXPECT_EQ(largeCount.AsyncHit, 0);
+        EXPECT_EQ(largeCount.AsyncHitWeight, 0);
+        EXPECT_EQ(largeCount.Missed, 0);
+        EXPECT_EQ(largeCount.MissedWeight, 26);
+    }
+}
+
+TEST(TAsyncSlruGhostCacheTest, Lookups)
+{
+    constexpr int cacheSize = 100;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TSimpleSlruCache>(std::move(config), TProfiler{"/cache"});
+
+    for (int index = 0; index < 6; ++index) {
+        auto cookie = cache->BeginInsert(index);
+        ASSERT_TRUE(cookie.IsActive());
+        cookie.EndInsert(New<TSimpleCachedValue>(
+            /*key*/ index,
+            /*value*/ 42,
+            /*weight*/ 50));
+    }
+
+    {
+        auto oldSmallCounters = cache->ReadSmallGhostCounters();
+        auto oldLargeCounters = cache->ReadLargeGhostCounters();
+
+        for (int index = 0; index < 6; ++index) {
+            cache->Lookup(index);
+        }
+
+        auto smallCount = cache->ReadSmallGhostCounters() - oldSmallCounters;
+        auto largeCount = cache->ReadLargeGhostCounters() - oldLargeCounters;
+
+        EXPECT_EQ(smallCount.SyncHit, 1);
+        EXPECT_EQ(smallCount.SyncHitWeight, 50);
+        EXPECT_EQ(smallCount.Missed, 5);
+
+        EXPECT_EQ(largeCount.SyncHit, 4);
+        EXPECT_EQ(largeCount.SyncHitWeight, 200);
+        EXPECT_EQ(largeCount.Missed, 2);
     }
 }
 
