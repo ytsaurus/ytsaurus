@@ -1039,6 +1039,7 @@ class YTEnvSetup(object):
                     for node in nodes
                 ],
                 driver=driver,
+                verbose=False,
             )
             for response in responses:
                 output = yt_commands.get_batch_output(response)
