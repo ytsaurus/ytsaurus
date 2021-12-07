@@ -788,6 +788,46 @@ TEST(TSolomonRegistry, ExtensionTag)
     ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store;medium=ssd_blobs;location_id=store0;device=sdb;model=M5100}"));
 }
 
+struct TBlinkingProducer
+    : ISensorProducer
+{
+    bool Report = true;
+
+    void CollectSensors(ISensorWriter* writer)
+    {
+        if (Report) {
+            writer->AddCounter("/c", 1);
+            writer->AddGauge("/g", 1);
+        }
+
+        Report = !Report;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBlinkingProducer)
+
+TEST(TSolomonRegistry, ProducerRemoveSupport)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+
+    TProfiler r(impl, "/d");
+
+    auto p0 = New<TBlinkingProducer>();
+    r.AddProducer("/no_remove", p0);
+
+    auto p1 = New<TBlinkingProducer>();
+    r.WithProducerRemoveSupport().AddProducer("/remove", p1);
+
+    auto result = CollectSensors(impl);
+    ASSERT_EQ(result.Counters.size(), 2u);
+    ASSERT_EQ(result.Gauges.size(), 2u);
+
+    result = CollectSensors(impl);
+    ASSERT_EQ(result.Counters.size(), 1u);
+    ASSERT_EQ(result.Gauges.size(), 1u);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

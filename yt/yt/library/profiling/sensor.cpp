@@ -315,8 +315,20 @@ TProfiler TProfiler::WithRenameDisabled() const
     if (!Enabled_) {
         return {};
     }
+
     auto opts = Options_;
     opts.DisableSensorsRename = true;
+    return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
+}
+
+TProfiler TProfiler::WithProducerRemoveSupport() const
+{
+    if (!Enabled_) {
+        return {};
+    }
+
+    auto opts = Options_;
+    opts.ProducerRemoveSupport = true;
     return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 

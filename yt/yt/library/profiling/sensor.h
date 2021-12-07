@@ -136,6 +136,7 @@ struct TSensorOptions
     bool DisableSensorsRename = false;
     bool DisableDefault = false;
     bool DisableProjections = false;
+    bool ProducerRemoveSupport = false;
 
     TDuration HistogramMin;
     TDuration HistogramMax;
@@ -223,6 +224,13 @@ public:
 
     //! WithRenameDisabled disables sensors name normalization.
     TProfiler WithRenameDisabled() const;
+
+    //! WithProducerRemoveSupport removes sensors that was absent on producer iteration.
+    /*!
+     *  By default, if sensor is absent on producer iteration, profiler keeps repeating
+     *  previous sensor value.
+     */
+    TProfiler WithProducerRemoveSupport() const;
 
     //! WithHot sets hot flag on all sensors created using returned registry.
     /*!

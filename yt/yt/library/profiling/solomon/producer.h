@@ -19,15 +19,21 @@ struct TProducerCounters final
     TTagSet ProducerTags;
     TSensorOptions Options;
 
-    THashMap<TString, TGauge> Gauges;
-    THashMap<TString, std::pair<i64, TCounter>> Counters;
-    THashMap<TTag, TProducerCountersPtr> Tags;
+    THashMap<TString, std::pair<TGauge, i64>> Gauges;
+    THashMap<TString, std::tuple<TCounter, i64, i64>> Counters;
+    THashMap<TTag, std::pair<TProducerCountersPtr, i64>> Tags;
+
+    void ClearOutdated(i64 lastIteration);
+    bool IsEmpty() const;
 };
 
 class TCounterWriter final : public ISensorWriter
 {
 public:
-    TCounterWriter(IRegistryImplPtr registry, TProducerCountersPtr counters);
+    TCounterWriter(
+        IRegistryImplPtr registry,
+        TProducerCountersPtr counters,
+        i64 iteration);
 
     void PushTag(const TTag& tag) override;
     void PopTag() override;
@@ -37,6 +43,7 @@ public:
 private:
     IRegistryImplPtr Registry_;
     std::vector<TProducerCountersPtr> Counters_;
+    i64 Iteration_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,6 +68,7 @@ struct TProducerState final
     const TWeakPtr<ISensorProducer> Producer;
     TWeakPtr<TSensorBuffer> LastBuffer;
 
+    i64 LastUpdateIteration = 0;
     TProducerCountersPtr Counters;
 };
 
