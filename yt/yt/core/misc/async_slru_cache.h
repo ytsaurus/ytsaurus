@@ -63,7 +63,7 @@ public:
 
     TIntrusiveListWithAutoDelete<TItem, TDelete> TrimNoDelete();
 
-    bool Touch(TItem* item);
+    bool TouchItem(TItem* item);
     void DrainTouchBuffer();
 
     void Reconfigure(i64 capacity, double youngerSizeFraction);
@@ -136,6 +136,8 @@ public:
         TIntrusivePtr<TAsyncSlruCacheBase> Cache_;
         TValueFuture ValueFuture_;
         std::atomic<bool> Active_;
+        bool InsertedIntoSmallGhost_ = false;
+        bool InsertedIntoLargeGhost_ = false;
 
         TInsertCookie(
             const TKey& key,
@@ -186,6 +188,23 @@ protected:
 
     virtual bool IsResurrectionSupported() const;
 
+protected:
+    struct TGhostCounters
+    {
+        NProfiling::TCounter SyncHitWeightCounter;
+        NProfiling::TCounter AsyncHitWeightCounter;
+        NProfiling::TCounter MissedWeightCounter;
+        NProfiling::TCounter SyncHitCounter;
+        NProfiling::TCounter AsyncHitCounter;
+        NProfiling::TCounter MissedCounter;
+
+        explicit TGhostCounters(const NProfiling::TProfiler& profiler);
+    };
+
+    //! For testing purposes only.
+    const TGhostCounters& GetSmallGhostCounters() const;
+    const TGhostCounters& GetLargeGhostCounters() const;
+
 private:
     friend class TAsyncCacheValueBase<TKey, TValue, THash>;
 
@@ -206,6 +225,59 @@ private:
         bool Younger = false;
     };
 
+    struct TGhostItem
+        : public TIntrusiveListItem<TGhostItem>
+    {
+        explicit TGhostItem(TKey key)
+            : Key(std::move(key))
+        { }
+
+        TKey Key;
+        TWeakPtr<TValue> Value;
+        i64 CachedWeight;
+        //! Counter for accurate calculation of AsyncHitWeight.
+        //! It can be updated concurrently under the ReadLock.
+        std::atomic<int> AsyncHitCount = 0;
+        bool Younger = false;
+        bool Inserted = false;
+    };
+
+    class TGhostShard : private TAsyncSlruCacheListManager<TGhostItem, TGhostShard>
+    {
+    public:
+        using TValuePtr = TIntrusivePtr<TValue>;
+
+        void Find(const TKey& key);
+        void Lookup(const TKey& key);
+        void Touch(const TValuePtr& value);
+
+        bool BeginInsert(const TKey& key);
+        void CancelInsert(const TKey& key);
+        void EndInsert(const TValuePtr& value, i64 weight);
+
+        //! If value is null, remove by key. Otherwise, remove by value. Note that value.GetKey() == key
+        //! must hold in the latter case.
+        void TryRemove(const TKey& key, const TValuePtr& value);
+
+        void UpdateWeight(const TKey& key, i64 newWeight);
+
+        using TAsyncSlruCacheListManager<TGhostItem, TGhostShard>::SetTouchBufferCapacity;
+
+        void Reconfigure(i64 capacity, double youngerSizeFraction);
+
+        DEFINE_BYVAL_RW_PROPERTY(TGhostCounters*, Counters);
+
+    private:
+        friend class TAsyncSlruCacheListManager<TGhostItem, TGhostShard>;
+
+        YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock);
+
+        THashMap<TKey, TGhostItem*, THash> ItemMap_;
+
+        bool DoLookup(const TKey& key, bool allowAsyncHits);
+        void Trim(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
+    };
+
     class TShard : public TAsyncSlruCacheListManager<TItem, TShard>
     {
     public:
@@ -215,6 +287,9 @@ private:
         THashMap<TKey, TItem*, THash> ItemMap;
 
         TAsyncSlruCacheBase* Parent;
+
+        TGhostShard SmallGhost;
+        TGhostShard LargeGhost;
 
         //! Trims the lists and releases the guard. Returns the list of evicted items.
         std::vector<TValuePtr> Trim(
@@ -258,6 +333,8 @@ private:
     std::atomic<i64> OlderWeightCounter_ = 0;
     std::atomic<i64> YoungerSizeCounter_ = 0;
     std::atomic<i64> OlderSizeCounter_ = 0;
+    TGhostCounters SmallGhostCounters_;
+    TGhostCounters LargeGhostCounters_;
 
     TShard* GetShardByKey(const TKey& key) const;
 
@@ -269,8 +346,8 @@ private:
     //! insertedValue must be the value, insertion of which caused trim. Otherwise, insertedValue must be nullptr.
     void NotifyOnTrim(const std::vector<TValuePtr>& evictedValues, const TValuePtr& insertedValue);
 
-    void EndInsert(TValuePtr value);
-    void CancelInsert(const TKey& key, const TError& error);
+    void EndInsert(const TInsertCookie& insertCookie, TValuePtr value);
+    void CancelInsert(const TInsertCookie& insertCookie, const TError& error);
     void Unregister(const TKey& key);
 };
 

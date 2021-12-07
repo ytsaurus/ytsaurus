@@ -131,7 +131,7 @@ TIntrusiveListWithAutoDelete<TItem, TDelete> TAsyncSlruCacheListManager<TItem, T
 }
 
 template <class TItem, class TDerived>
-bool TAsyncSlruCacheListManager<TItem, TDerived>::Touch(TItem* item)
+bool TAsyncSlruCacheListManager<TItem, TDerived>::TouchItem(TItem* item)
 {
     if (item->Empty()) {
         return false;
@@ -224,6 +224,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     , SyncHitCounter_(profiler.Counter("/hit_count_sync"))
     , AsyncHitCounter_(profiler.Counter("/hit_count_async"))
     , MissedCounter_(profiler.Counter("/missed_count"))
+    , SmallGhostCounters_(profiler.WithPrefix("/small_ghost_cache"))
+    , LargeGhostCounters_(profiler.WithPrefix("/large_ghost_cache"))
 {
     static_assert(
         std::is_base_of_v<TAsyncCacheValueBase<TKey, TValue, THash>, TValue>,
@@ -248,9 +250,24 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     i64 shardCapacity = std::max<i64>(1, Config_->Capacity / Config_->ShardCount);
     i64 touchBufferCapacity = Config_->TouchBufferCapacity / Config_->ShardCount;
     for (int index = 0; index < Config_->ShardCount; ++index) {
-        Shards_[index].SetTouchBufferCapacity(touchBufferCapacity);
-        Shards_[index].Reconfigure(shardCapacity, Config_->YoungerSizeFraction);
-        Shards_[index].Parent = this;
+        auto& shard = Shards_[index];
+
+        shard.SmallGhost.SetCounters(&SmallGhostCounters_);
+        shard.LargeGhost.SetCounters(&LargeGhostCounters_);
+
+        shard.SetTouchBufferCapacity(touchBufferCapacity);
+        shard.SmallGhost.SetTouchBufferCapacity(touchBufferCapacity);
+        shard.LargeGhost.SetTouchBufferCapacity(touchBufferCapacity);
+
+        shard.Reconfigure(shardCapacity, Config_->YoungerSizeFraction);
+        shard.SmallGhost.Reconfigure(
+            static_cast<i64>(shardCapacity * Config_->SmallGhostCacheRatio),
+            Config_->YoungerSizeFraction);
+        shard.LargeGhost.Reconfigure(
+            static_cast<i64>(shardCapacity * Config_->LargeGhostCacheRatio),
+            Config_->YoungerSizeFraction);
+
+        shard.Parent = this;
     }
 }
 
@@ -265,6 +282,13 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynam
     for (int shardIndex = 0; shardIndex < Config_->ShardCount; ++shardIndex) {
         auto& shard = Shards_[shardIndex];
 
+        shard.SmallGhost.Reconfigure(
+            static_cast<i64>(shardCapacity * Config_->SmallGhostCacheRatio),
+            youngerSizeFraction);
+        shard.LargeGhost.Reconfigure(
+            static_cast<i64>(shardCapacity * Config_->LargeGhostCacheRatio),
+            youngerSizeFraction);
+
         auto writerGuard = WriterGuard(shard.SpinLock);
         shard.Reconfigure(shardCapacity, youngerSizeFraction);
         shard.DrainTouchBuffer();
@@ -277,6 +301,9 @@ typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtr
 TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 {
     auto* shard = GetShardByKey(key);
+
+    shard->SmallGhost.Find(key);
+    shard->LargeGhost.Find(key);
 
     auto readerGuard = ReaderGuard(shard->SpinLock);
 
@@ -293,7 +320,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
         return nullptr;
     }
 
-    bool needToDrain = shard->Touch(item);
+    bool needToDrain = shard->TouchItem(item);
 
     SyncHitWeightCounter_.Increment(item->CachedWeight);
     SyncHitCounter_.Increment();
@@ -345,6 +372,10 @@ typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
 TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     auto* shard = GetShardByKey(key);
+
+    shard->SmallGhost.Lookup(key);
+    shard->LargeGhost.Lookup(key);
+
     auto valueFuture = DoLookup(shard, key);
     if (!valueFuture) {
         MissedCounter_.Increment();
@@ -356,13 +387,17 @@ template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::Touch(const TValuePtr& value)
 {
     auto* shard = GetShardByKey(value->GetKey());
+
+    shard->SmallGhost.Touch(value);
+    shard->LargeGhost.Touch(value);
+
     auto readerGuard = ReaderGuard(shard->SpinLock);
 
     if (value->Cache_.Lock() != this || !value->Item_) {
         return;
     }
 
-    auto needToDrain = shard->Touch(value->Item_);
+    auto needToDrain = shard->TouchItem(value->Item_);
 
     readerGuard.Release();
 
@@ -383,7 +418,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
 
     if (auto itemIt = itemMap.find(key); itemIt != itemMap.end()) {
         auto* item = itemIt->second;
-        bool needToDrain = shard->Touch(item);
+        bool needToDrain = shard->TouchItem(item);
         auto valueFuture = item->GetValueFuture();
 
         if (item->Value) {
@@ -421,7 +456,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
     if (auto itemIt = itemMap.find(key); itemIt != itemMap.end()) {
         auto* item = itemIt->second;
 
-        shard->Touch(item);
+        shard->TouchItem(item);
         auto valueFuture = item->GetValueFuture();
 
         if (item->Value) {
@@ -466,6 +501,24 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
     auto* shard = GetShardByKey(key);
 
     if (auto valueFuture = DoLookup(shard, key)) {
+        if (valueFuture.IsSet() && valueFuture.Get().IsOK()) {
+            bool smallInserted = shard->SmallGhost.BeginInsert(key);
+            bool largeInserted = shard->LargeGhost.BeginInsert(key);
+            if (smallInserted || largeInserted) {
+                const auto& value = valueFuture.Get().Value();
+                i64 weight = GetWeight(value);
+                if (smallInserted) {
+                    shard->SmallGhost.EndInsert(value, weight);
+                }
+                if (largeInserted) {
+                    shard->LargeGhost.EndInsert(value, weight);
+                }
+            }
+        } else {
+            shard->SmallGhost.Lookup(key);
+            shard->LargeGhost.Lookup(key);
+        }
+
         return TInsertCookie(
             key,
             nullptr,
@@ -484,7 +537,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
         auto itemIt = itemMap.find(key);
         if (itemIt != itemMap.end()) {
             auto* item = itemIt->second;
-            shard->Touch(item);
+            shard->TouchItem(item);
             auto valueFuture = item->GetValueFuture();
 
             if (item->Value) {
@@ -493,6 +546,23 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             } else {
                 AsyncHitCounter_.Increment();
                 item->AsyncHitCount.fetch_add(1);
+            }
+
+            auto value = item->Value;
+            i64 weight = item->CachedWeight;
+
+            guard.Release();
+
+            if (value) {
+                if (shard->SmallGhost.BeginInsert(key)) {
+                    shard->SmallGhost.EndInsert(value, weight);
+                }
+                if (shard->LargeGhost.BeginInsert(key)) {
+                    shard->LargeGhost.EndInsert(value, weight);
+                }
+            } else {
+                shard->SmallGhost.Lookup(key);
+                shard->LargeGhost.Lookup(key);
             }
 
             return TInsertCookie(
@@ -512,11 +582,16 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 
             MissedCounter_.Increment();
 
-            return TInsertCookie(
+            guard.Release();
+
+            auto insertCookie = TInsertCookie(
                 key,
                 this,
                 std::move(valueFuture),
                 true);
+            insertCookie.InsertedIntoSmallGhost_ = shard->SmallGhost.BeginInsert(key);
+            insertCookie.InsertedIntoLargeGhost_ = shard->LargeGhost.BeginInsert(key);
+            return insertCookie;
         }
 
         if (auto value = DangerousGetPtr(valueIt->second)) {
@@ -534,6 +609,15 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             // NB: Releases the lock.
             NotifyOnTrim(shard->Trim(guard), value);
 
+            guard.Release();
+
+            if (shard->SmallGhost.BeginInsert(key)) {
+                shard->SmallGhost.EndInsert(value, weight);
+            }
+            if (shard->LargeGhost.BeginInsert(key)) {
+                shard->LargeGhost.EndInsert(value, weight);
+            }
+
             return TInsertCookie(
                 key,
                 nullptr,
@@ -550,7 +634,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 }
 
 template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value)
+void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(const TInsertCookie& insertCookie, TValuePtr value)
 {
     YT_VERIFY(value);
     auto key = value->GetKey();
@@ -579,13 +663,28 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value)
     // NB: Releases the lock.
     NotifyOnTrim(shard->Trim(guard), value);
 
+    if (insertCookie.InsertedIntoSmallGhost_) {
+        shard->SmallGhost.EndInsert(value, weight);
+    }
+    if (insertCookie.InsertedIntoLargeGhost_) {
+        shard->LargeGhost.EndInsert(value, weight);
+    }
+
     promise.Set(value);
 }
 
 template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError& error)
+void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TInsertCookie& insertCookie, const TError& error)
 {
+    const auto& key = insertCookie.Key_;
     auto* shard = GetShardByKey(key);
+
+    if (insertCookie.InsertedIntoSmallGhost_) {
+        shard->SmallGhost.CancelInsert(key);
+    }
+    if (insertCookie.InsertedIntoLargeGhost_) {
+        shard->LargeGhost.CancelInsert(key);
+    }
 
     auto guard = WriterGuard(shard->SpinLock);
 
@@ -642,6 +741,9 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::DoTryRemove(
     bool forbidResurrection)
 {
     auto* shard = GetShardByKey(key);
+
+    shard->SmallGhost.TryRemove(key, value);
+    shard->LargeGhost.TryRemove(key, value);
 
     auto guard = WriterGuard(shard->SpinLock);
 
@@ -721,6 +823,9 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::UpdateWeight(const TKey& key)
     }
 
     NotifyOnTrim(shard->Trim(guard), nullptr);
+
+    shard->SmallGhost.UpdateWeight(key, newWeight);
+    shard->LargeGhost.UpdateWeight(key, newWeight);
 }
 
 template <class TKey, class TValue, class THash>
@@ -728,7 +833,6 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::UpdateWeight(const TValuePtr& val
 {
     UpdateWeight(value->GetKey());
 }
-
 
 template <class TKey, class TValue, class THash>
 auto TAsyncSlruCacheBase<TKey, TValue, THash>::GetShardByKey(const TKey& key) const -> TShard*
@@ -755,6 +859,275 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::IsResurrectionSupported() const
 {
     return true;
 }
+
+template <class TKey, class TValue, class THash>
+auto TAsyncSlruCacheBase<TKey, TValue, THash>::GetSmallGhostCounters() const -> const TGhostCounters&
+{
+    return SmallGhostCounters_;
+}
+
+template <class TKey, class TValue, class THash>
+auto TAsyncSlruCacheBase<TKey, TValue, THash>::GetLargeGhostCounters() const -> const TGhostCounters&
+{
+    return LargeGhostCounters_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash>
+bool TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::DoLookup(const TKey& key, bool allowAsyncHits)
+{
+    auto readerGuard = ReaderGuard(SpinLock);
+
+    auto itemIt = ItemMap_.find(key);
+    if (itemIt == ItemMap_.end()) {
+        return false;
+    }
+
+    auto* item = itemIt->second;
+    if (!allowAsyncHits && !item->Inserted) {
+        return false;
+    }
+
+    bool needToDrain = this->TouchItem(item);
+
+    if (item->Inserted) {
+        Counters_->SyncHitWeightCounter.Increment(item->CachedWeight);
+        Counters_->SyncHitCounter.Increment();
+    } else {
+        Counters_->AsyncHitCounter.Increment();
+        item->AsyncHitCount.fetch_add(1);
+    }
+
+    readerGuard.Release();
+
+    if (needToDrain) {
+        auto writerGuard = WriterGuard(SpinLock);
+        this->DrainTouchBuffer();
+    }
+
+    return true;
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::Find(const TKey& key)
+{
+    if (!DoLookup(key, false)) {
+        Counters_->MissedCounter.Increment();
+    }
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::Lookup(const TKey& key)
+{
+    if (!DoLookup(key, true)) {
+        Counters_->MissedCounter.Increment();
+    }
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::Touch(const TValuePtr& value)
+{
+    auto readerGuard = ReaderGuard(SpinLock);
+
+    if (!value) {
+        return;
+    }
+
+    auto itemIt = ItemMap_.find(value->GetKey());
+    if (itemIt == ItemMap_.end() || itemIt->second->Value.Lock() != value) {
+        return;
+    }
+    auto* item = itemIt->second;
+
+    auto needToDrain = this->TouchItem(item);
+
+    readerGuard.Release();
+
+    if (needToDrain) {
+        auto writerGuard = WriterGuard(SpinLock);
+        this->DrainTouchBuffer();
+    }
+}
+
+template <class TKey, class TValue, class THash>
+bool TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::BeginInsert(const TKey& key)
+{
+    if (DoLookup(key, true)) {
+        return false;
+    }
+
+    auto guard = WriterGuard(SpinLock);
+
+    this->DrainTouchBuffer();
+
+    auto itemIt = ItemMap_.find(key);
+    if (itemIt != ItemMap_.end()) {
+        auto* item = itemIt->second;
+        this->TouchItem(item);
+
+        if (item->Inserted) {
+            Counters_->SyncHitWeightCounter.Increment(item->CachedWeight);
+            Counters_->SyncHitCounter.Increment();
+        } else {
+            Counters_->AsyncHitCounter.Increment();
+            item->AsyncHitCount.fetch_add(1);
+        }
+
+        return false;
+    }
+
+    auto* item = new TGhostItem(key);
+    Counters_->MissedCounter.Increment();
+    YT_VERIFY(ItemMap_.emplace(key, item).second);
+
+    return true;
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::CancelInsert(const TKey& key)
+{
+    auto guard = WriterGuard(SpinLock);
+
+    this->DrainTouchBuffer();
+
+    auto itemIt = ItemMap_.find(key);
+    YT_VERIFY(itemIt != ItemMap_.end());
+
+    auto* item = itemIt->second;
+    YT_VERIFY(!item->Inserted);
+
+    ItemMap_.erase(itemIt);
+
+    delete item;
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::EndInsert(const TValuePtr& value, i64 weight)
+{
+    YT_VERIFY(value);
+    auto key = value->GetKey();
+
+    auto guard = WriterGuard(SpinLock);
+
+    this->DrainTouchBuffer();
+
+    auto* item = GetOrCrash(ItemMap_, key);
+
+    YT_VERIFY(!item->Inserted);
+
+    item->Value = value;
+    item->Inserted = true;
+
+    this->PushToYounger(item, weight);
+    // MissedCounter_ and AsyncHitCounter_ have already been incremented in BeginInsert.
+    Counters_->MissedWeightCounter.Increment(weight);
+    Counters_->AsyncHitWeightCounter.Increment(weight * item->AsyncHitCount.load());
+
+    // NB: Releases the lock.
+    Trim(guard);
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::TryRemove(const TKey& key, const TValuePtr& value)
+{
+    auto guard = WriterGuard(SpinLock);
+
+    this->DrainTouchBuffer();
+
+    auto itemIt = ItemMap_.find(key);
+    if (itemIt == ItemMap_.end()) {
+        return;
+    }
+
+    auto* item = itemIt->second;
+    if (!item->Inserted) {
+        return;
+    }
+    auto actualValue = item->Value.Lock();
+    // If value is null, it means that we don't care about the removed value and remove just by key.
+    // If actualValue is null, then it refers to the value removed from the main cache, and always
+    // doesn't match our provided value. Otherwise, just compare the values. Note that the condition
+    // can be simplified just to (value && value != actualValue), but is retained as-is to make the
+    // intention more clear.
+    if (value && (!actualValue || value != actualValue)) {
+        return;
+    }
+    actualValue.Reset();
+
+    ItemMap_.erase(itemIt);
+
+    this->PopFromLists(item);
+
+    delete item;
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::UpdateWeight(const TKey& key, i64 newWeight)
+{
+    auto guard = WriterGuard(SpinLock);
+
+    this->DrainTouchBuffer();
+
+    auto itemIt = ItemMap_.find(key);
+    if (itemIt == ItemMap_.end()) {
+        return;
+    }
+
+    auto item = itemIt->second;
+    if (!item->Inserted) {
+        return;
+    }
+
+    i64 weightDelta = newWeight - item->CachedWeight;
+
+    TAsyncSlruCacheListManager<TGhostItem, TGhostShard>::UpdateWeight(item, weightDelta);
+
+    // If item weight increases, it means that some parts of the item were missing in cache,
+    // so add delta to missed weight.
+    if (weightDelta > 0) {
+        Counters_->MissedWeightCounter.Increment(weightDelta);
+    }
+
+    // NB: Releases the lock.
+    Trim(guard);
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::Reconfigure(i64 capacity, double youngerSizeFraction)
+{
+    auto writerGuard = WriterGuard(SpinLock);
+    TAsyncSlruCacheListManager<TGhostItem, TGhostShard>::Reconfigure(capacity, youngerSizeFraction);
+    this->DrainTouchBuffer();
+    Trim(writerGuard);
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::Trim(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard)
+{
+    auto evictedItems = this->TrimNoDelete();
+    for (const auto& item : evictedItems) {
+        YT_VERIFY(ItemMap_.erase(item.Key) == 1);
+    }
+
+    // NB. Evicted items must die outside of critical section.
+    guard.Release();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash>
+TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostCounters::TGhostCounters(
+    const NProfiling::TProfiler& profiler)
+    : SyncHitWeightCounter(profiler.Counter("/hit_weight_sync"))
+    , AsyncHitWeightCounter(profiler.Counter("/hit_weight_async"))
+    , MissedWeightCounter(profiler.Counter("/missed_weight"))
+    , SyncHitCounter(profiler.Counter("/hit_count_sync"))
+    , AsyncHitCounter(profiler.Counter("/hit_count_async"))
+    , MissedCounter(profiler.Counter("/missed_count"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
 std::vector<typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtr>
@@ -883,7 +1256,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::Cancel(const TErro
         return;
     }
 
-    Cache_->CancelInsert(Key_, error);
+    Cache_->CancelInsert(*this, error);
 }
 
 template <class TKey, class TValue, class THash>
@@ -894,7 +1267,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePt
         return;
     }
 
-    Cache_->EndInsert(value);
+    Cache_->EndInsert(*this, value);
 }
 
 template <class TKey, class TValue, class THash>
