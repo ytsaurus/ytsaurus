@@ -18,6 +18,8 @@ from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
 
+import yt.wrapper
+
 import pytest
 
 from flaky import flaky
@@ -2956,6 +2958,19 @@ class TestTablesRpcProxy(TestTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("proxy_type", ["http", "rpc"])
+    def test_path_in_error_attributes(self, proxy_type):
+        try:
+            if proxy_type == "http":
+                client = yt.wrapper.YtClient(proxy=self.Env.get_proxy_address())
+                client.get("//tmp/t/@id")
+            else:
+                get("//tmp/t/@id")
+        except YtError as err:
+            attrs = err.inner_errors[0]["attributes"]
+            assert attrs.get("path", "") == "//tmp/t/@id"
 
 
 ##################################################################
