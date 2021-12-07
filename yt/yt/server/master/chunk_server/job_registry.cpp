@@ -78,7 +78,7 @@ void TJobRegistry::RegisterJob(const TJobPtr& job)
 
     JobThrottler_->Acquire(1);
 
-    YT_LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Address: %v)",
+    YT_LOG_TRACE("Job registered (JobId: %v, JobType: %v, Address: %v)",
         job->GetJobId(),
         job->GetType(),
         job->NodeAddress());
@@ -116,7 +116,7 @@ void TJobRegistry::OnJobFinished(TJobPtr job)
         chunkManager->ScheduleChunkRefresh(chunk);
     }
 
-    YT_LOG_DEBUG("Job unregistered (JobId: %v, JobType: %v, Address: %v)",
+    YT_LOG_TRACE("Job unregistered (JobId: %v, JobType: %v, Address: %v)",
         job->GetJobId(),
         job->GetType(),
         job->NodeAddress());
