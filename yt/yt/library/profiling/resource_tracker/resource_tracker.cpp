@@ -179,7 +179,10 @@ TResourceTracker::TResourceTracker()
     });
 
     Profiler.AddProducer("", CgroupTracker_);
-    Profiler.WithSparse().AddProducer("", MakeStrong(this));
+
+    Profiler
+        .WithProducerRemoveSupport()
+        .AddProducer("", MakeStrong(this));
 }
 
 void TResourceTracker::CollectSensors(ISensorWriter* writer)

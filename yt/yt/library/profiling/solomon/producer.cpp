@@ -24,14 +24,62 @@ static auto& Logger = SolomonLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCounterWriter::TCounterWriter(IRegistryImplPtr registry, TProducerCountersPtr counters)
+void TProducerCounters::ClearOutdated(i64 lastIteration)
+{
+    std::vector<TString> countersToRemove;
+    for (const auto& [name, counter] : Counters) {
+        if (std::get<1>(counter) != lastIteration) {
+            countersToRemove.push_back(name);
+        }
+    }
+    for (const auto& name : countersToRemove) {
+        Counters.erase(name);
+    }
+
+    std::vector<TString> gaugesToRemove;
+    for (const auto& [name, gauge] : Gauges) {
+        if (gauge.second != lastIteration) {
+            gaugesToRemove.push_back(name);
+        }
+    }
+    for (const auto& name : gaugesToRemove) {
+        Gauges.erase(name);
+    }
+
+    std::vector<TTag> tagsToRemove;
+    for (auto& [tag, set] : Tags) {
+        set.first->ClearOutdated(lastIteration);
+
+        if (set.second != lastIteration || set.first->IsEmpty()) {
+            tagsToRemove.push_back(tag);
+        }
+    }
+    for (const auto& tag : tagsToRemove) {
+        Tags.erase(tag);
+    }
+}
+
+bool TProducerCounters::IsEmpty() const
+{
+    return Counters.empty() && Gauges.empty() && Tags.empty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCounterWriter::TCounterWriter(
+    IRegistryImplPtr registry,
+    TProducerCountersPtr counters,
+    i64 iteration)
     : Registry_(registry)
     , Counters_{{counters}}
+    , Iteration_{iteration}
 { }
 
 void TCounterWriter::PushTag(const TTag& tag)
 {
-    auto& nested = Counters_.back()->Tags[tag];
+    auto& [nested, iteration] = Counters_.back()->Tags[tag];
+    iteration = Iteration_;
+
     if (!nested) {
         nested = New<TProducerCounters>();
         nested->Prefix = Counters_.back()->Prefix;
@@ -39,6 +87,7 @@ void TCounterWriter::PushTag(const TTag& tag)
         nested->Options = Counters_.back()->Options;
         nested->ProducerTags.AddTag(tag);
     }
+
     Counters_.push_back(nested);
 }
 
@@ -49,7 +98,9 @@ void TCounterWriter::PopTag()
 
 void TCounterWriter::AddGauge(const TString& name, double value)
 {
-    auto& gauge = Counters_.back()->Gauges[name];
+    auto& [gauge, iteration] = Counters_.back()->Gauges[name];
+    iteration = Iteration_;
+
     if (!gauge) {
         TProfiler profiler{
             Counters_.back()->Prefix,
@@ -61,13 +112,16 @@ void TCounterWriter::AddGauge(const TString& name, double value)
 
         gauge = profiler.Gauge(name);
     }
+
     gauge.Update(value);
 }
 
 void TCounterWriter::AddCounter(const TString& name, i64 value)
 {
-    auto& counter = Counters_.back()->Counters[name];
-    if (!counter.second) {
+    auto& [counter, iteration, lastValue] = Counters_.back()->Counters[name];
+    iteration = Iteration_;
+
+    if (!counter) {
         TProfiler profiler{
             Counters_.back()->Prefix,
             "",
@@ -76,16 +130,16 @@ void TCounterWriter::AddCounter(const TString& name, i64 value)
             Counters_.back()->Options,
         };
 
-        counter.second = profiler.Counter(name);
+        counter = profiler.Counter(name);
     }
 
-    if (value >= counter.first) {
-        auto delta = value - counter.first;
-        counter.second.Increment(delta);
-        counter.first = value;
+    if (value >= lastValue) {
+        auto delta = value - lastValue;
+        counter.Increment(delta);
+        lastValue = value;
     } else {
         // Some producers use counter incorrectly.
-        counter.first = value;
+        lastValue = value;
     }
 }
 
@@ -113,7 +167,6 @@ void TProducerSet::Collect(IRegistryImplPtr profiler, IInvokerPtr invoker)
                 collectDuration.Record(TInstant::Now() - startTime);
             });
 
-            TCounterWriter writer(profiler, producer->Counters);
             try {
                 auto buffer = owner->GetBuffer();
                 if (buffer) {
@@ -122,8 +175,12 @@ void TProducerSet::Collect(IRegistryImplPtr profiler, IInvokerPtr invoker)
                         return;
                     }
 
+                    TCounterWriter writer(profiler, producer->Counters, ++producer->LastUpdateIteration);
                     buffer->WriteTo(&writer);
                     producer->LastBuffer = buffer;
+                    if (producer->Counters->Options.ProducerRemoveSupport) {
+                        producer->Counters->ClearOutdated(producer->LastUpdateIteration);
+                    }
                 } else {
                     producer->Counters->Counters.clear();
                     producer->Counters->Gauges.clear();
