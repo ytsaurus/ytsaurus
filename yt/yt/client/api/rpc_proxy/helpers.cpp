@@ -1116,7 +1116,7 @@ template void ToProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 NProto::EOperationType ConvertOperationTypeToProto(
-    const NScheduler::EOperationType& operationType)
+    NScheduler::EOperationType operationType)
 {
     switch (operationType) {
         case NScheduler::EOperationType::Map:
@@ -1137,13 +1137,12 @@ NProto::EOperationType ConvertOperationTypeToProto(
             return NProto::EOperationType::OT_JOIN_REDUCE;
         case NScheduler::EOperationType::Vanilla:
             return NProto::EOperationType::OT_VANILLA;
-        default:
-            YT_ABORT();
     }
+    YT_ABORT();
 }
 
 NScheduler::EOperationType ConvertOperationTypeFromProto(
-    const NProto::EOperationType& proto)
+    NProto::EOperationType proto)
 {
     switch (proto) {
         case NProto::EOperationType::OT_MAP:
@@ -1164,13 +1163,14 @@ NScheduler::EOperationType ConvertOperationTypeFromProto(
             return NScheduler::EOperationType::JoinReduce;
         case NProto::EOperationType::OT_VANILLA:
             return NScheduler::EOperationType::Vanilla;
-        default:
-            YT_ABORT();
+        case NProto::EOperationType::OT_UNKNOWN:
+            THROW_ERROR_EXCEPTION("Protobuf contains unknown value for operation type");
     }
+    YT_ABORT();
 }
 
 NProto::EOperationState ConvertOperationStateToProto(
-    const NScheduler::EOperationState& operationState)
+    NScheduler::EOperationState operationState)
 {
     switch (operationState) {
         case NScheduler::EOperationState::None:
@@ -1207,13 +1207,14 @@ NProto::EOperationState ConvertOperationStateToProto(
             return NProto::EOperationState::OS_FAILING;
         case NScheduler::EOperationState::Failed:
             return NProto::EOperationState::OS_FAILED;
-        default:
-            YT_ABORT();
+        case NScheduler::EOperationState::ReviveInitializing:
+            return NProto::EOperationState::OS_REVIVE_INITIALIZING;
     }
+    YT_ABORT();
 }
 
 NScheduler::EOperationState ConvertOperationStateFromProto(
-    const NProto::EOperationState& proto)
+    NProto::EOperationState proto)
 {
     switch (proto) {
         case NProto::EOperationState::OS_NONE:
@@ -1250,13 +1251,16 @@ NScheduler::EOperationState ConvertOperationStateFromProto(
             return NScheduler::EOperationState::Failing;
         case NProto::EOperationState::OS_FAILED:
             return NScheduler::EOperationState::Failed;
-        default:
-            YT_ABORT();
+        case NProto::EOperationState::OS_REVIVE_INITIALIZING:
+            return NScheduler::EOperationState::ReviveInitializing;
+        case NProto::EOperationState::OS_UNKNOWN:
+            THROW_ERROR_EXCEPTION("Protobuf contains unknown value for operation state");
     }
+    YT_ABORT();
 }
 
 NProto::EJobType ConvertJobTypeToProto(
-    const NJobTrackerClient::EJobType& jobType)
+    NJobTrackerClient::EJobType jobType)
 {
     switch (jobType) {
         case NJobTrackerClient::EJobType::Map:
@@ -1305,13 +1309,14 @@ NProto::EJobType ConvertJobTypeToProto(
             return NProto::EJobType::JT_MERGE_CHUNKS;
         case NJobTrackerClient::EJobType::AutotomizeChunk:
             return NProto::EJobType::JT_AUTOTOMIZE_CHUNK;
-        default:
-            YT_ABORT();
+        case NJobTrackerClient::EJobType::ShallowMerge:
+            return NProto::EJobType::JT_SHALLOW_MERGE;
     }
+    YT_ABORT();
 }
 
 NJobTrackerClient::EJobType ConvertJobTypeFromProto(
-    const NProto::EJobType& proto)
+    NProto::EJobType proto)
 {
     switch (proto) {
         case NProto::EJobType::JT_MAP:
@@ -1360,13 +1365,16 @@ NJobTrackerClient::EJobType ConvertJobTypeFromProto(
             return NJobTrackerClient::EJobType::MergeChunks;
         case NProto::EJobType::JT_AUTOTOMIZE_CHUNK:
             return NJobTrackerClient::EJobType::AutotomizeChunk;
-        default:
-            YT_ABORT();
+        case NProto::EJobType::JT_SHALLOW_MERGE:
+            return NJobTrackerClient::EJobType::ShallowMerge;
+        case NProto::EJobType::JT_UNKNOWN:
+            THROW_ERROR_EXCEPTION("Protobuf contains unknown value for job type");
     }
+    YT_ABORT();
 }
 
 NProto::EJobState ConvertJobStateToProto(
-    const NJobTrackerClient::EJobState& jobState)
+    NJobTrackerClient::EJobState jobState)
 {
     switch (jobState) {
         case NJobTrackerClient::EJobState::Waiting:
@@ -1385,13 +1393,12 @@ NProto::EJobState ConvertJobStateToProto(
             return NProto::EJobState::JS_LOST;
         case NJobTrackerClient::EJobState::None:
             return NProto::EJobState::JS_NONE;
-        default:
-            YT_ABORT();
     }
+    YT_ABORT();
 }
 
 NJobTrackerClient::EJobState ConvertJobStateFromProto(
-    const NProto::EJobState& proto)
+    NProto::EJobState proto)
 {
     switch (proto) {
         case NProto::EJobState::JS_WAITING:
@@ -1410,9 +1417,10 @@ NJobTrackerClient::EJobState ConvertJobStateFromProto(
             return NJobTrackerClient::EJobState::Lost;
         case NProto::EJobState::JS_NONE:
             return NJobTrackerClient::EJobState::None;
-        default:
-            YT_ABORT();
+        case NProto::EJobState::JS_UNKNOWN:
+            THROW_ERROR_EXCEPTION("Protobuf contains unknown value for job state");
     }
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -81,6 +81,8 @@ enum ETabletReadKind
 
 enum EOperationType
 {
+    OT_UNKNOWN = 100;
+
     OT_MAP = 0;
     OT_MERGE = 1;
     OT_ERASE = 2;
@@ -94,6 +96,8 @@ enum EOperationType
 
 enum EOperationState
 {
+    OS_UNKNOWN = 100;
+
     OS_NONE = 0;
     OS_STARTING = 1;
     OS_ORPHANED = 2;
@@ -111,6 +115,7 @@ enum EOperationState
     OS_ABORTED = 14;
     OS_FAILING = 15;
     OS_FAILED = 16;
+    OS_REVIVE_INITIALIZING = 17;
 }
 
 enum EOperationSortDirection
@@ -122,6 +127,8 @@ enum EOperationSortDirection
 
 enum EJobType
 {
+    JT_UNKNOWN = 1000;
+
     JT_MAP = 1;
     JT_PARTITION_MAP = 2;
     JT_SORTED_MERGE = 3;
@@ -138,6 +145,7 @@ enum EJobType
     JT_ORDERED_MAP = 14;
     JT_JOIN_REDUCE = 15;
     JT_VANILLA = 16;
+    JT_SHALLOW_MERGE = 17;
     JT_SCHEDULER_UNKNOWN = 98;
 
     // Master jobs
@@ -151,6 +159,8 @@ enum EJobType
 
 enum EJobState
 {
+    JS_UNKNOWN = 100;
+
     JS_WAITING = 0;
     JS_RUNNING = 1;
     JS_ABORTING = 2;

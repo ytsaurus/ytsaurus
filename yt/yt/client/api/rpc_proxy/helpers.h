@@ -174,28 +174,28 @@ void ToProto(
     const std::optional<TStringContainer>& attributes);
 
 NProto::EOperationType ConvertOperationTypeToProto(
-    const NScheduler::EOperationType& operationType);
+    NScheduler::EOperationType operationType);
 
 NScheduler::EOperationType ConvertOperationTypeFromProto(
-    const NProto::EOperationType& proto);
+    NProto::EOperationType proto);
 
 NProto::EOperationState ConvertOperationStateToProto(
-    const NScheduler::EOperationState& operationState);
+    NScheduler::EOperationState operationState);
 
 NScheduler::EOperationState ConvertOperationStateFromProto(
-    const NProto::EOperationState& proto);
+    NProto::EOperationState proto);
 
 NProto::EJobType ConvertJobTypeToProto(
-    const NJobTrackerClient::EJobType& jobType);
+    NJobTrackerClient::EJobType jobType);
 
 NJobTrackerClient::EJobType ConvertJobTypeFromProto(
-    const NProto::EJobType& proto);
+    NProto::EJobType proto);
 
 NProto::EJobState ConvertJobStateToProto(
-    const NJobTrackerClient::EJobState& jobState);
+    NJobTrackerClient::EJobState jobState);
 
 NJobTrackerClient::EJobState ConvertJobStateFromProto(
-    const NProto::EJobState& proto);
+    NProto::EJobState proto);
 
 } // namespace NProto
 
