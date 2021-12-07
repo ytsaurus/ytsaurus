@@ -67,10 +67,16 @@ public:
         });
     }
 
+    ~TTcpBusServerBase()
+    {
+        CloseServerSocket();
+    }
+
     void Start()
     {
         OpenServerSocket();
         if (!Poller_->TryRegister(this)) {
+            CloseServerSocket();
             THROW_ERROR_EXCEPTION("Cannot register server pollable");
         }
         ArmPoller();
@@ -119,7 +125,7 @@ protected:
     const IMessageHandlerPtr Handler_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, ControlSpinLock_);
-    int ServerSocket_ = INVALID_SOCKET;
+    SOCKET ServerSocket_ = INVALID_SOCKET;
 
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ConnectionsSpinLock_);
     THashSet<TTcpConnectionPtr> Connections_;
@@ -272,22 +278,20 @@ protected:
         }
     }
 
-    void UnarmPoller()
-    {
-        auto guard = Guard(ControlSpinLock_);
-        if (ServerSocket_ == INVALID_SOCKET) {
-            return;
-        }
-        Poller_->Unarm(ServerSocket_, this);
-    }
-
     void ArmPoller()
     {
         auto guard = Guard(ControlSpinLock_);
-        if (ServerSocket_ == INVALID_SOCKET) {
-            return;
+        if (ServerSocket_ != INVALID_SOCKET) {
+            Poller_->Arm(ServerSocket_, this, EPollControl::Read | EPollControl::EdgeTriggered);
         }
-        Poller_->Arm(ServerSocket_, this, EPollControl::Read | EPollControl::EdgeTriggered);
+    }
+
+    void UnarmPoller()
+    {
+        auto guard = Guard(ControlSpinLock_);
+        if (ServerSocket_ != INVALID_SOCKET) {
+            Poller_->Unarm(ServerSocket_, this);
+        }
     }
 
     const TString& GetNetworkNameForAddress(const TNetworkAddress& address)
@@ -440,7 +444,6 @@ private:
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     TIntrusivePtr<TServer> Server_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -188,6 +188,8 @@ private:
         const TString LoggingTag_;
     };
 
+    using TPollablePtr = TIntrusivePtr<TPollable>;
+
     const TDialerConfigPtr Config_;
     const IPollerPtr Poller_;
     const TNetworkAddress Address_;
@@ -201,7 +203,7 @@ private:
     bool Finished_ = false;
     TDuration Timeout_;
     TDelayedExecutorCookie TimeoutCookie_;
-    TIntrusivePtr<TPollable> Pollable_;
+    TPollablePtr Pollable_;
 
     void CloseSocket()
     {

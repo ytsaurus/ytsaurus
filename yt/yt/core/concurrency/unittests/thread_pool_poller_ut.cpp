@@ -12,11 +12,19 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+void ExpectSuccessfullySetFuture(const TFuture<T>& future)
+{
+    YT_VERIFY(future.WithTimeout(TDuration::Seconds(15)).Get().IsOK());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPollableMock
     : public IPollable
 {
 public:
-    explicit TPollableMock(TString loggingTag = "")
+    explicit TPollableMock(TString loggingTag = {})
         : LoggingTag_(std::move(loggingTag))
     { }
 
@@ -83,12 +91,6 @@ public:
         Poller->Shutdown();
     }
 
-    template <class T>
-    void ExpectSuccessfullySetFuture(const TFuture<T>& future)
-    {
-        YT_VERIFY(future.WithTimeout(TDuration::Seconds(15)).Get().IsOK());
-    }
-
 protected:
     const int InitialThreadCount = 4;
 
@@ -112,7 +114,7 @@ TEST_F(TThreadPoolPollerTest, SimplePollable)
 
 TEST_F(TThreadPoolPollerTest, SimpleCallback)
 {
-    TPromise<void> promise = NewPromise<void>();
+    auto promise = NewPromise<void>();
     auto callback = BIND([=] { promise.Set(); });
 
     Poller->GetInvoker()->Invoke(callback);

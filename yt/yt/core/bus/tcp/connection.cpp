@@ -139,15 +139,15 @@ void TTcpConnection::Close()
                 << *EndpointAttributes_);
         }
 
-        if (Socket_ != INVALID_SOCKET) {
-            if (State_ == EState::Open) {
-                Poller_->Unarm(Socket_, this);
-                UpdateConnectionCount(-1);
-            }
-            UpdateTcpStatistics(true);
-            CloseSocket(Socket_);
-            Socket_ = INVALID_SOCKET;
+        if (State_ == EState::Open) {
+            UpdateConnectionCount(-1);
         }
+
+        UpdateTcpStatistics(true);
+
+        UnarmPoller();
+
+        CloseSocket();
 
         State_ = EState::Closed;
         PendingControl_.store(static_cast<ui64>(EPollControl::Offline));
@@ -248,6 +248,8 @@ const TString& TTcpConnection::GetLoggingTag() const
 
 void TTcpConnection::UpdateConnectionCount(int delta)
 {
+    VERIFY_SPINLOCK_AFFINITY(Lock_);
+
     switch (ConnectionType_) {
         case EConnectionType::Client:
             Counters_->ClientConnections.fetch_add(delta, std::memory_order_relaxed);
@@ -284,11 +286,12 @@ void TTcpConnection::Open()
         LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
     }
 
-    UpdateConnectionCount(1);
+    UpdateConnectionCount(+1);
 
     // Go online and start event processing.
     auto previousPendingControl = static_cast<EPollControl>(PendingControl_.fetch_and(~static_cast<ui64>(EPollControl::Offline)));
-    Poller_->Arm(Socket_, this, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered);
+
+    ArmPoller();
 
     // Something might be pending already, for example Terminate.
     if (Any(previousPendingControl & ~EPollControl::Offline)) {
@@ -363,6 +366,7 @@ void TTcpConnection::SetupNetwork(const TString& networkName)
 
 void TTcpConnection::Abort(const TError& error)
 {
+    // Fast path.
     if (State_ == EState::Aborted || State_ == EState::Closed) {
         return;
     }
@@ -378,8 +382,9 @@ void TTcpConnection::Abort(const TError& error)
             return;
         }
 
-        if (State_ == EState::Open && Socket_ != INVALID_SOCKET) {
-            Poller_->Unarm(Socket_, this);
+        UnarmPoller();
+
+        if (State_ == EState::Open) {
             UpdateConnectionCount(-1);
         }
 
@@ -1312,6 +1317,33 @@ bool TTcpConnection::IsSocketError(ssize_t result)
         result != EINPROGRESS;
 }
 
+void TTcpConnection::CloseSocket()
+{
+    VERIFY_SPINLOCK_AFFINITY(Lock_);
+
+    if (Socket_ != INVALID_SOCKET) {
+        NNet::CloseSocket(Socket_);
+        Socket_ = INVALID_SOCKET;
+    }
+}
+
+void TTcpConnection::ArmPoller()
+{
+    VERIFY_SPINLOCK_AFFINITY(Lock_);
+    YT_VERIFY(Socket_ != INVALID_SOCKET);
+
+    Poller_->Arm(Socket_, this, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered);
+}
+
+void TTcpConnection::UnarmPoller()
+{
+    VERIFY_SPINLOCK_AFFINITY(Lock_);
+
+    if (Socket_ != INVALID_SOCKET) {
+        Poller_->Unarm(Socket_, this);
+    }
+}
+
 void TTcpConnection::InitSocketTosLevel(TTosLevel tosLevel)
 {
     if (TosLevel_ == BlackHoleTosLevel && tosLevel != BlackHoleTosLevel) {
@@ -1343,6 +1375,10 @@ void TTcpConnection::UpdateTcpStatistics(bool force)
         }
 
         LastTcpStatisticsUpdate_ = now;
+    }
+
+    if (Socket_ == INVALID_SOCKET) {
+        return;
     }
 
 #ifdef _linux_
