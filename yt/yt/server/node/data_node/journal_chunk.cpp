@@ -60,7 +60,8 @@ TJournalChunk::TJournalChunk(
     TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
     : TChunkBase(
-        bootstrap,
+        bootstrap->GetChunkMetaManager(),
+        bootstrap->GetChunkRegistry(),
         location,
         descriptor.Id)
     , Bootstrap_(bootstrap)

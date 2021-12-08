@@ -93,6 +93,7 @@ private:
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
 
+    NClusterNode::IBootstrapBase* Bootstrap_;
     NChunkClient::NProto::TChunkInfo Info_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, BlocksExtLock_);

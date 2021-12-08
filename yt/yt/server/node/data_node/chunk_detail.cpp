@@ -25,19 +25,20 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkBase::TChunkBase(
-    IBootstrapBase* bootstrap,
+    IChunkMetaManagerPtr chunkMetaManager,
+    IChunkRegistryPtr chunkRegistry,
     TLocationPtr location,
     TChunkId id)
-    : Bootstrap_(bootstrap)
+    : ChunkMetaManager_(chunkMetaManager)
+    , ChunkRegistry_(chunkRegistry)
     , Location_(location)
     , Id_(id)
 { }
 
 TChunkBase::~TChunkBase()
 {
-    const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
-    chunkMetaManager->RemoveCachedMeta(Id_);
-    chunkMetaManager->RemoveCachedBlocksExt(Id_);
+    ChunkMetaManager_->RemoveCachedMeta(Id_);
+    ChunkMetaManager_->RemoveCachedBlocksExt(Id_);
 }
 
 TChunkId TChunkBase::GetId() const
@@ -135,8 +136,7 @@ void TChunkBase::ReleaseReadLock()
         lockCount);
 
     if (scheduleReaderSweep) {
-        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
-        chunkRegistry->ScheduleChunkReaderSweep(this);
+        ChunkRegistry_->ScheduleChunkReaderSweep(this);
     }
 
     if (removeNow) {
@@ -246,8 +246,7 @@ void TChunkBase::TrySweepReader()
     if (readerSweepLatch != 1) {
         guard.Release();
         // Re-schedule the sweep right away.
-        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
-        chunkRegistry->ScheduleChunkReaderSweep(this);
+        ChunkRegistry_->ScheduleChunkReaderSweep(this);
         return;
     }
 

@@ -3,8 +3,6 @@
 #include "public.h"
 #include "chunk.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
@@ -62,7 +60,8 @@ public:
     void TrySweepReader() override;
 
 protected:
-    NClusterNode::IBootstrapBase* const Bootstrap_;
+    const IChunkMetaManagerPtr ChunkMetaManager_;
+    const IChunkRegistryPtr ChunkRegistry_;
     const TLocationPtr Location_;
     const TChunkId Id_;
 
@@ -97,9 +96,9 @@ protected:
 
     using TReadMetaSessionPtr = TIntrusivePtr<TReadMetaSession>;
 
-
     TChunkBase(
-        NClusterNode::IBootstrapBase* bootstrap,
+        IChunkMetaManagerPtr chunkMetaManager,
+        IChunkRegistryPtr chunkRegistry,
         TLocationPtr location,
         TChunkId id);
     ~TChunkBase();
@@ -123,4 +122,3 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-
