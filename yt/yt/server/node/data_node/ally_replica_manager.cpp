@@ -491,13 +491,16 @@ private:
         int delayedPromotedCount = 0;
 
         if (EnableLazyAnnouncements_) {
-            for (auto& announcement : nodeState->LazyAnnouncements) {
-                if (!IsOutdated(announcement)) {
-                    ++lazyPromotedCount;
-                    nodeState->ImmediateAnnouncements.push_back(std::move(announcement));
+            if (!nodeState->LazyAnnouncements.empty()) {
+                for (auto& announcement : nodeState->LazyAnnouncements) {
+                    if (!IsOutdated(announcement)) {
+                        ++lazyPromotedCount;
+                        nodeState->ImmediateAnnouncements.push_back(std::move(announcement));
+                    }
                 }
+                nodeState->LazyAnnouncements.clear();
+                nodeState->LazyAnnouncements.shrink_to_fit();
             }
-            nodeState->LazyAnnouncements.clear();
         }
 
         auto it = nodeState->DelayedAnnouncements.begin();
@@ -676,6 +679,10 @@ private:
                 state->ImmediateAnnouncements.erase(
                     state->ImmediateAnnouncements.begin(),
                     state->ImmediateAnnouncements.begin() + state->InFlightAnnouncementCount);
+
+                if (state->ImmediateAnnouncements.empty()) {
+                    state->ImmediateAnnouncements.shrink_to_fit();
+                }
             } else {
                 YT_LOG_DEBUG(rspOrError, "Failed to report replica announcements to node (Address: %v)",
                     nodeDescriptor.GetDefaultAddress());
