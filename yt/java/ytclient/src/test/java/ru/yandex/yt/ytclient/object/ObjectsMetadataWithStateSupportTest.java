@@ -39,7 +39,13 @@ public class ObjectsMetadataWithStateSupportTest<T extends YTreeStateSupport<T>>
         toSave.forEach(YTreeStateSupport.saveProxy(value -> {
             // В таком режиме будут сериализованы только ключевые поля
             final T newValue = metadata.getyTreeSerializer().newInstance();
-            keyFields.forEach(key -> key.field.set(newValue, key.field.get(value)));
+            keyFields.forEach(key -> {
+                try {
+                    key.field.set(newValue, key.field.get(value));
+                } catch (IllegalAccessException | IllegalArgumentException ex) {
+                    throw new RuntimeException(ex);
+                }
+            });
             expect.add(newValue);
         }));
 
