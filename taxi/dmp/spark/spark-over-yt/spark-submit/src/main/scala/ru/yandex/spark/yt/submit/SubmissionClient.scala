@@ -216,6 +216,7 @@ class SubmissionClient(proxy: String,
   }
 
   private def versionSubdir(version: String): String = {
-    if (version.contains("SNAPSHOT") || version.contains("beta")) SNAPSHOTS_SUBDIR else RELEASES_SUBDIR
+    if (version.contains("SNAPSHOT") || version.contains("beta") || version.contains("dev")) SNAPSHOTS_SUBDIR
+    else RELEASES_SUBDIR
   }
 }

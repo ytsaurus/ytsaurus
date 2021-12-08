@@ -71,7 +71,7 @@ object SparkPackagePlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(
     sparkHome := (ThisBuild / baseDirectory).value / "spark",
     (ThisBuild / sparkVersionPyFile) := sparkHome.value / "python" / "pyspark" / "version.py",
-    sparkIsSnapshot := isSnapshot.value || version.value.contains("beta"),
+    sparkIsSnapshot := isSnapshot.value || version.value.contains("beta") || version.value.contains("dev"),
     sparkReleaseGlobalConfig := !sparkIsSnapshot.value,
     sparkReleaseLinks := !sparkIsSnapshot.value,
     sparkLocalConfigs := {
