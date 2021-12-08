@@ -321,6 +321,10 @@ private:
         void CancelInsert(const TKey& key);
         void EndInsert(const TValuePtr& value, i64 weight);
 
+        //! Inserts the value back to the cache immediately. Called when the value is resurected in the
+        //! main cache.
+        void Resurrect(const TValuePtr& value, i64 weight);
+
         //! If value is null, remove by key. Otherwise, remove by value. Note that value.GetKey() == key
         //! must hold in the latter case.
         void TryRemove(const TKey& key, const TValuePtr& value);
