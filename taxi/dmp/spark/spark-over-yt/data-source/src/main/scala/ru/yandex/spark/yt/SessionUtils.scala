@@ -95,7 +95,7 @@ object SessionUtils {
   private def remoteGlobalConfigPath: String = "//home/spark/conf/global"
 
   private def remoteVersionConfigPath(sparkClusterVersion: String): String = {
-    val snapshot = Set("SNAPSHOT", "beta")
+    val snapshot = Set("SNAPSHOT", "beta", "dev")
     val subDir = if (snapshot.exists(sparkClusterVersion.contains)) "snapshots" else "releases"
     s"//home/spark/conf/$subDir/$sparkClusterVersion/spark-launch-conf"
   }

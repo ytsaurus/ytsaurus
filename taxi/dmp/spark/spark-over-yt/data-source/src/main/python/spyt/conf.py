@@ -165,7 +165,7 @@ def _get_or_else(d, key, default):
 
 
 def _version_subdir(version):
-    return SNAPSHOTS_SUBDIR if "SNAPSHOT" in version or "beta" in version else RELEASES_SUBDIR
+    return SNAPSHOTS_SUBDIR if "SNAPSHOT" in version or "beta" in version or "dev" in version else RELEASES_SUBDIR
 
 
 def _get_version_conf_path(cluster_version):
