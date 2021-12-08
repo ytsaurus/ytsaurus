@@ -48,6 +48,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Manages lists for TAsyncSlruCacheBase. It contains two lists, Younger and Older,
+//! and TouchBuffer.
+//!
+//! TouchBuffer is a temporary buffer to keep items which were touched recently. It is
+//! used for optimization, to allow touching items without holding a write lock. The
+//! following important invariant must hold: any item it TouchBuffer must be also present
+//! in either Younger or Older. In particular, TouchBuffer must not contain items that
+//! were already freed. So, it's IMPORTANT to call DrainTouchBuffer() before removing
+//! anything.
+//!
+//! Younger and Older store the items in a linked list. The rules are as follows:
+//! - When an item is inserted, it's pushed to the head Younger.
+//! - When an item is touched, it's moved to the head of Older.
+//! - Total weight of Older cannot exceed (capacity * (1 - youngerSizeFraction)).
+//! - Total weight of all items cannot exceed capacity.
+//! - The items from the tail of Older are evicted to the head of Younger.
+//! - The items from the tail of Younger are removed from this ListManager.
 template <class TItem, class TDerived>
 class TAsyncSlruCacheListManager
 {
@@ -64,6 +81,11 @@ public:
     TIntrusiveListWithAutoDelete<TItem, TDelete> TrimNoDelete();
 
     bool TouchItem(TItem* item);
+
+    //! Drains touch buffer. You MUST call this function before trying to remove anything from the
+    //! lists (i.e. calling PopFromLists() or TrimNoDelete()), otherwise you may catch use-after-free
+    //! bugs. It's not necessary to call it when moving from Younger to Older or from Older to Younger,
+    //! though.
     void DrainTouchBuffer();
 
     void Reconfigure(i64 capacity, double youngerSizeFraction);
@@ -101,6 +123,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Base class for asynchronous caches.
+//!
+//! The cache is asynchronous. It means that the items are not inserted immediately. Instead,
+//! one may call BeginInsert() to indicate that the item is being inserted. Then, the caller
+//! may either insert the item or cancel the insertion.
+//!
+//! It is divided onto shards. Each shard behaves as a small cache independent of others. The
+//! item is put into a shard according to hash of its key.
+//!
+//! The cache also optionally supports resurrection. If you try to lookup a value in the cache
+//! which is already evicted but it still present in memory (because someone else holds a strong
+//! pointer to this value), it returns back to the cache. This behavior may be overloaded by
+//! overriding IsResurrectionSupported() function.
+//!
+//! This cache is quite complex and has many invariants. Read about them below and change the
+//! code carefully.
 template <class TKey, class TValue, class THash = THash<TKey>>
 class TAsyncSlruCacheBase
     : public virtual TRefCounted
@@ -186,9 +224,12 @@ protected:
     virtual void OnAdded(const TValuePtr& value);
     virtual void OnRemoved(const TValuePtr& value);
 
+    //! Returns true if resurrection is supported. Note that the function must always returns the same value.
     virtual bool IsResurrectionSupported() const;
 
 protected:
+    //! Counters for ghost shards. This struct is per-cache, not per-shard. So, there are two such structs per
+    //! cache: one for small ghost shards and one for large ghost shards.
     struct TGhostCounters
     {
         NProfiling::TCounter SyncHitWeightCounter;
@@ -233,6 +274,9 @@ private:
         { }
 
         TKey Key;
+        //! The value associated with this item. If Inserted == true and Value is null, then we refer to some
+        //! old item freed from the memory. If the main cache was bigger, than the item would be present in it.
+        //! So, we still need to keep such items in ghost shards.
         TWeakPtr<TValue> Value;
         i64 CachedWeight;
         //! Counter for accurate calculation of AsyncHitWeight.
@@ -242,7 +286,27 @@ private:
         bool Inserted = false;
     };
 
-    class TGhostShard : private TAsyncSlruCacheListManager<TGhostItem, TGhostShard>
+    //! Ghost shard does not store any values really. They just simulate the cache with a different capacity and
+    //! update the corresponding counters. It is used to estimate what would happen if the cache had different
+    //! capacity, thus helping to tweak cache capacity. See YT-15782.
+    //!
+    //! Ghost shards are lighter than ordinary shards and don't contain ValueMap, only ItemMap. Each value in
+    //! the ghost shard is in one of the following states:
+    //!
+    //! 1. Inserting. The item is present in ItemMap, but not present in the lists. The item in ItemMap has
+    //!    Inserted == false. You MUST NOT remove or update the item in this state in any place except CancelInsert()
+    //!    or EndInsert(). If CancelInsert() is called, then the state becomes Destroyed. If EndInsert() is called,
+    //!    then the state becomes Inserted.
+    //! 2. Inserted. The value is present in both ItemMap and lists. The item in ItemMap has Inserted == true.
+    //!    Its state can be changed only to Destroyed. The value is stored as weak pointer here, so ghost shards do
+    //!    not hold values. If the value is removed, then we just assume that there was some old value with the
+    //!    given key, but don't know which one.
+    //! 3. Destroyed. The value is not present in ItemMap, and the corresponding item is removed from the lists and
+    //!    freed.
+    //!
+    //! Ghost shards do not support resurrection.
+    class TGhostShard
+        : private TAsyncSlruCacheListManager<TGhostItem, TGhostShard>
     {
     public:
         using TValuePtr = TIntrusivePtr<TValue>;
@@ -251,6 +315,8 @@ private:
         void Lookup(const TKey& key);
         void Touch(const TValuePtr& value);
 
+        //! If BeginInsert() returns true, then it must be paired with either CancelInsert() or EndInsert()
+        //! called with the same key. Do not call CancelInsert() or EndInsert() without matching BeginInsert().
         bool BeginInsert(const TKey& key);
         void CancelInsert(const TKey& key);
         void EndInsert(const TValuePtr& value, i64 weight);
@@ -278,12 +344,39 @@ private:
         void Trim(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
     };
 
+    //! Cache shard. Each shard is a small cache that can store a subset of keys. It consists of lists (see
+    //! TAsyncSlruCacheListManager), ValueMap and ItemMap (see below).
+    //!
+    //! The values in the shard may be in various states:
+    //!
+    //! 1. Inserting. The item is present in ItemMap, but isn't added into the lists. ValueMap doesn't contain
+    //!    the value corresponding to this item, as there's no such value yet. Value in the item is null. You
+    //!    MUST NOT remove or update the item in this state in any place except CancelInsert() or EndInsert().
+    //!    If CancelInsert() is called, then the state becomes Destroyed. If EndInsert() is called, then the state
+    //!    becomes Inserted.
+    //! 2. Inserted. The item is present in ItemMap and in the lists, and the corresponding value is present in
+    //!    ValueMap. Value in the item must be non-null. Value->Item_ and Value->Cache_ must be set. The state
+    //!    can be only changed to Ready for Resurrection or Destroying.
+    //! 3. Ready for Resurrection. The item is freed and removed from ItemMap and the lists. ValueMap holds the
+    //!    corresponding value. value->Cache_ must be non-null, and value->Item_ must be null. The state can be
+    //!    changed to Inserted if resurrection happens, or Destroying if it didn't happen when refcount of the
+    //!    value reached zero.
+    //! 4. Destroying. The refcount of the value reached zero. It's not present in ItemMap and the lists, but is
+    //!    still present in ValueMap. It's not allowed to return such value into the cache, and its state can be
+    //!    only changed to Destroyed. To distinguish between Ready for Resurrection and Destroying, one may use
+    //!    DangerousGetPtr() on the pointer from ValueMap. If it returned null, then the state is Destroying.
+    //! 5. Destroyed. The value and its corresponding item are freed and are not present anywhere.
     class TShard : public TAsyncSlruCacheListManager<TItem, TShard>
     {
     public:
         YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock);
 
+        //! Holds pointers to values for any given key. They are stored to allow resurrection. When the value
+        //! is freed, it will be removed from ValueMap. When the value is in Destroying state, the value will still
+        //! reside in ValueMap, you need to be careful with it.
         THashMap<TKey, TValue*, THash> ValueMap;
+
+        //! Holds pointers to items in the lists for any given key.
         THashMap<TKey, TItem*, THash> ItemMap;
 
         TAsyncSlruCacheBase* Parent;
