@@ -172,6 +172,10 @@ public:
         Persist(context, ShuffleMultiChunkPoolInputs);
         Persist(context, ShuffleMultiInputChunkMappings);
 
+        if (context.GetVersion() >= ESnapshotVersion::FixSimpleSort) {
+            Persist(context, *IntermediateChunkSchema_);
+        }
+
         Persist(context, PartitionTasks);
         Persist(context, SimpleSortTask);
         Persist(context, IntermediateSortTask);
@@ -207,7 +211,7 @@ protected:
 
     i64 TotalOutputRowCount;
 
-    TTableSchemaPtr IntermediateChunkSchema_;
+    TTableSchemaPtr IntermediateChunkSchema_ = New<TTableSchema>();
 
     // Forward declarations.
     class TPartitionTask;
