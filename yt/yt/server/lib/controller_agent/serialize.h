@@ -42,6 +42,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ValueCountStatistics)                 (300619))
     // 21.3 start here
     ((HostObjects)                          (300701))
+    ((FixSimpleSort)                        (300702))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
