@@ -42,9 +42,18 @@ public:
 
     void ValidateReadPermissions(const std::vector<NYPath::TRichYPath>& paths, const TString& user);
 
+    //! Get object attributes via local cache.
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
         const std::vector<NYPath::TYPath>& paths,
         const NApi::NNative::IClientPtr& client);
+    //! Invalidate object attribute entries in local cache.
+    void InvalidateCachedObjectAttributes(
+        const std::vector<NYPath::TYPath>& paths);
+    //! Invalidate object attribute entries on the whole clique via rpc requests.
+    void InvalidateCachedObjectAttributesGlobally(
+        const std::vector<NYPath::TYPath>& paths,
+        EInvalidateCacheMode mode,
+        TDuration timeout);
 
     const NObjectClient::TObjectAttributeCachePtr& GetObjectAttributeCache() const;
 

@@ -169,6 +169,28 @@ DEFINE_REFCOUNTED_TYPE(TConcatTablesSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCachingSettings
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Specifies how to invalidate cached attributes after table is modified (write/drop).
+    EInvalidateCacheMode TableAttributesInvalidateMode;
+    //! Timeout for outgoing 'InvalidateCachedObjectAttributes' RPC requests to other instances.
+    TDuration InvalidateRequestTimeout;
+
+    //! TODO(dakovalkov): Support per query options to disable caches (CHYT-498).
+    // bool UseTableAttributesCache;
+    // bool UsePermissionCache;
+    // bool UseBlockCache;
+    // bool UseColumnarStatisticsCache;
+
+    TCachingSettings();
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingSettings)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class will be accessible either via settings or via default_settings.
 class TQuerySettings
     : public NYTree::TYsonSerializable
@@ -202,6 +224,8 @@ public:
     NTableClient::TTableWriterConfigPtr TableWriter;
 
     bool EnableReaderTracing;
+
+    TCachingSettingsPtr Caching;
 
     TQuerySettings();
 };

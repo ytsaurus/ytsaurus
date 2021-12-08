@@ -142,8 +142,14 @@ public:
     void dropTable(DB::ContextPtr context, const String& name, bool /* noDelay */) override
     {
         auto* queryContext = GetQueryContext(context);
-        WaitFor(queryContext->Client()->RemoveNode(TYPath(name)))
+        auto path = TYPath(name);
+
+        WaitFor(queryContext->Client()->RemoveNode(path))
             .ThrowOnError();
+
+        auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+        auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
+        queryContext->Host->InvalidateCachedObjectAttributesGlobally({path}, invalidateMode, timeout);
     }
 
     DB::ASTPtr getCreateTableQueryImpl(const String& name, DB::ContextPtr context, bool throwOnError) const override

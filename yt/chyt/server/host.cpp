@@ -45,6 +45,7 @@
 #include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -316,6 +317,61 @@ public:
         }
 
         return attributes;
+    }
+
+    void InvalidateCachedObjectAttributes(const std::vector<TYPath>& paths)
+    {
+        YT_LOG_DEBUG("Invalidating locally cached table attributes (PathCount: %v)", paths.size());
+
+        for (const auto& path : paths) {
+            TableAttributeCache_->InvalidateActive(path);
+        }
+    }
+
+    void InvalidateCachedObjectAttributesGlobally(const std::vector<TYPath>& paths, EInvalidateCacheMode mode, TDuration timeout)
+    {
+        YT_LOG_DEBUG("Invalidating cached table attributes in clique (PathCount: %v, Mode: %v, Timeout: %v)",
+            paths.size(),
+            mode,
+            timeout);
+
+        if (mode == EInvalidateCacheMode::None) {
+            return;
+        }
+
+        InvalidateCachedObjectAttributes(paths);
+
+        if (mode == EInvalidateCacheMode::Local) {
+            return;
+        }
+
+        auto instances = Discovery_->List();
+
+        using TResponse = NRpc::TTypedClientResponse<TRspInvalidateCachedObjectAttributes>::TResult;
+        std::vector<TFuture<TResponse>> futures;
+        futures.reserve(instances.size());
+
+        for (auto [instanceId, attributes] : instances) {
+            if (instanceId == ToString(Config_->InstanceId)) {
+                // We have already invalidated attributes locally.
+                continue;
+            }
+
+            auto channel = ChannelFactory_->CreateChannel(
+                attributes->Get<TString>("host") + ":" + ToString(attributes->Get<ui64>("rpc_port")));
+            TClickHouseServiceProxy proxy(channel);
+
+            auto req = proxy.InvalidateCachedObjectAttributes();
+            req->SetTimeout(timeout);
+            NYT::ToProto(req->mutable_table_paths(), paths);
+
+            futures.push_back(req->Invoke());
+        }
+
+        if (mode == EInvalidateCacheMode::Sync) {
+            WaitFor(AllSet(futures))
+                .ThrowOnError();
+        }
     }
 
     const TObjectAttributeCachePtr& GetObjectAttributeCache() const
@@ -789,6 +845,19 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttribute
     const IClientPtr& client)
 {
     return Impl_->GetObjectAttributes(paths, client);
+}
+
+void THost::InvalidateCachedObjectAttributes(const std::vector<NYPath::TYPath>& paths)
+{
+    Impl_->InvalidateCachedObjectAttributes(paths);
+}
+
+void THost::InvalidateCachedObjectAttributesGlobally(
+    const std::vector<NYPath::TYPath>& paths,
+    EInvalidateCacheMode mode,
+    TDuration timeout)
+{
+    Impl_->InvalidateCachedObjectAttributesGlobally(paths, mode, timeout);
 }
 
 const TObjectAttributeCachePtr&     THost::GetObjectAttributeCache() const

@@ -92,6 +92,7 @@ DECLARE_REFCOUNTED_CLASS(TQueryRegistryConfig);
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryHeader);
 DECLARE_REFCOUNTED_CLASS(TInvokerLivenessChecker);
 DECLARE_REFCOUNTED_CLASS(TConcatTablesSettings);
+DECLARE_REFCOUNTED_CLASS(TCachingSettings);
 
 struct TValue;
 class TSubquerySpec;
@@ -179,6 +180,13 @@ DEFINE_ENUM(ETypeMismatchMode,
     ((Throw)     (0))
     ((Drop)      (1))
     ((ReadAsAny) (2))
+);
+
+DEFINE_ENUM(EInvalidateCacheMode,
+    ((None)  (0))
+    ((Local) (1))
+    ((Async) (2))
+    ((Sync)  (3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

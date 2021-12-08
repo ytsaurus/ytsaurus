@@ -22,6 +22,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
     NTableClient::TTableWriterConfigPtr config,
     TCompositeSettingsPtr compositeSettings,
     NApi::NNative::IClientPtr client,
+    std::function<void()> onFinished,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +35,7 @@ DB::BlockOutputStreamPtr CreateDynamicTableBlockOutputStream(
     TDynamicTableSettingsPtr settings,
     TCompositeSettingsPtr compositeSettings,
     NApi::NNative::IClientPtr client,
+    std::function<void()> onFinished,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
