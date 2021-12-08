@@ -103,6 +103,15 @@ TExecutionSettings::TExecutionSettings()
     RegisterParameter("distributed_insert_stage", DistributedInsertStage)
         .Default(EDistributedInsertStage::WithMergeableState);
 }
+////////////////////////////////////////////////////////////////////////////////
+
+TCachingSettings::TCachingSettings()
+{
+    RegisterParameter("table_attributes_invalidate_mode", TableAttributesInvalidateMode)
+        .Default(EInvalidateCacheMode::Sync);
+    RegisterParameter("invalidate_request_timeout", InvalidateRequestTimeout)
+        .Default(TDuration::Seconds(5));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,6 +160,9 @@ TQuerySettings::TQuerySettings()
 
     RegisterParameter("enable_reader_tracing", EnableReaderTracing)
         .Default(false);
+
+    RegisterParameter("caching", Caching)
+        .DefaultNew();
 
     RegisterPreprocessor([&] {
         TableReader->GroupSize = 20_MB;

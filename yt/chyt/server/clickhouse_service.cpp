@@ -26,6 +26,7 @@ public:
         , Host_(host)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessGossip));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(InvalidateCachedObjectAttributes));
     }
 
 private:
@@ -46,6 +47,17 @@ private:
             state);
 
         Host_->HandleIncomingGossip(request->instance_id(), static_cast<EInstanceState>(request->instance_state()));
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, InvalidateCachedObjectAttributes)
+    {
+        auto paths = FromProto<std::vector<TString>>(request->table_paths());
+
+        context->SetRequestInfo("Paths: %v", paths);
+
+        Host_->InvalidateCachedObjectAttributes(paths);
+
         context->Reply();
     }
 };

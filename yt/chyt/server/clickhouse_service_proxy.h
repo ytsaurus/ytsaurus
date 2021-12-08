@@ -15,6 +15,7 @@ public:
     DEFINE_RPC_PROXY(TClickHouseServiceProxy, ClickHouseService);
 
     DEFINE_RPC_PROXY_METHOD(NProto, ProcessGossip);
+    DEFINE_RPC_PROXY_METHOD(NProto, InvalidateCachedObjectAttributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

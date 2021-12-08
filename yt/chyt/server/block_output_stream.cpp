@@ -37,12 +37,14 @@ public:
         TTableSchemaPtr schema,
         std::vector<DB::DataTypePtr> dataTypes,
         const TCompositeSettingsPtr& compositeSettings,
+        std::function<void()> onFinished,
         const TLogger& logger)
         : NameTable_(New<TNameTable>())
         , Logger(logger)
         , Schema_(std::move(schema))
         , DataTypes_(std::move(dataTypes))
         , CompositeSettings_(std::move(compositeSettings))
+        , OnFinished_(std::move(onFinished))
     {
         HeaderBlock_ = ToHeaderBlock(*Schema_, New<TCompositeSettings>());
 
@@ -65,6 +67,11 @@ public:
         DoWriteRows(std::move(rowRange));
     }
 
+    void writeSuffix() override
+    {
+        OnFinished_();
+    }
+
 protected:
     TNameTablePtr NameTable_;
     TLogger Logger;
@@ -79,6 +86,7 @@ private:
     std::vector<int> PositionToId_;
     DB::Block HeaderBlock_;
     TCompositeSettingsPtr CompositeSettings_;
+    std::function<void()> OnFinished_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,8 +102,14 @@ public:
         TTableWriterConfigPtr config,
         TCompositeSettingsPtr compositeSettings,
         NNative::IClientPtr client,
+        std::function<void()> onFinished,
         const TLogger& logger)
-        : TBlockOutputStreamBase(std::move(schema), std::move(dataTypes), std::move(compositeSettings), logger)
+        : TBlockOutputStreamBase(
+            std::move(schema),
+            std::move(dataTypes),
+            std::move(compositeSettings),
+            std::move(onFinished),
+            logger)
     {
         Writer_ = WaitFor(CreateSchemalessTableWriter(
             std::move(config),
@@ -114,6 +128,8 @@ public:
         WaitFor(Writer_->Close())
             .ThrowOnError();
         YT_LOG_INFO("Writer closed");
+
+        TBlockOutputStreamBase::writeSuffix();
     }
 
 private:
@@ -141,8 +157,14 @@ public:
         TDynamicTableSettingsPtr dynamicTableSettings,
         TCompositeSettingsPtr compositeSettings,
         NNative::IClientPtr client,
+        std::function<void()> onFinished,
         const TLogger& logger)
-        : TBlockOutputStreamBase(std::move(schema), std::move(dataTypes), std::move(compositeSettings), logger)
+        : TBlockOutputStreamBase(
+            std::move(schema),
+            std::move(dataTypes),
+            std::move(compositeSettings),
+            std::move(onFinished),
+            logger)
         , Path_(std::move(path))
         , DynamicTableSettings_(std::move(dynamicTableSettings))
         , Client_(std::move(client))
@@ -243,6 +265,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
     TTableWriterConfigPtr config,
     TCompositeSettingsPtr compositeSettings,
     NNative::IClientPtr client,
+    std::function<void()> onFinished,
     const TLogger& logger)
 {
     return std::make_shared<TStaticTableBlockOutputStream>(
@@ -252,6 +275,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
         std::move(config),
         std::move(compositeSettings),
         std::move(client),
+        std::move(onFinished),
         logger);
 }
 
@@ -264,6 +288,7 @@ DB::BlockOutputStreamPtr CreateDynamicTableBlockOutputStream(
     TDynamicTableSettingsPtr dynamicTableSettings,
     TCompositeSettingsPtr compositeSettings,
     NNative::IClientPtr client,
+    std::function<void()> onFinished,
     const TLogger& logger)
 {
     return std::make_shared<TDynamicTableBlockOutputStream>(
@@ -273,6 +298,7 @@ DB::BlockOutputStreamPtr CreateDynamicTableBlockOutputStream(
         std::move(dynamicTableSettings),
         std::move(compositeSettings),
         std::move(client),
+        std::move(onFinished),
         logger);
 }
 

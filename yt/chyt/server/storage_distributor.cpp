@@ -976,7 +976,7 @@ public:
     DB::SinkToStoragePtr write(
         const DB::ASTPtr& /*ptr*/,
         const DB::StorageMetadataPtr& /*metadata_snapshot*/,
-        DB::ContextPtr /*context*/) override
+        DB::ContextPtr context) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -997,6 +997,21 @@ public:
             table->Schema,
             dataTypes);
 
+        // Callback to invalidate cached object attributes after the query is completed.
+        auto invalidateCachedObjectAttributesCallback = [context, path = path.GetPath()] () {
+            auto* queryContext = GetQueryContext(context);
+            auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+            auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
+
+            if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
+                // Write in secondary query means distributed insert select.
+                // In this case we should only invalidate local cache to avoid quadratic number of rpc requests.
+                invalidateMode = std::min(invalidateMode, EInvalidateCacheMode::Local);
+            }
+
+            queryContext->Host->InvalidateCachedObjectAttributesGlobally({path}, invalidateMode, timeout);
+        };
+
         DB::BlockOutputStreamPtr outputStream;
 
         if (table->Dynamic) {
@@ -1007,6 +1022,7 @@ public:
                 QueryContext_->Settings->DynamicTable,
                 QueryContext_->Settings->Composite,
                 QueryContext_->Client(),
+                std::move(invalidateCachedObjectAttributesCallback),
                 QueryContext_->Logger);
         } else {
             // Set append if it is not set.
@@ -1018,6 +1034,7 @@ public:
                 QueryContext_->Settings->TableWriter,
                 QueryContext_->Settings->Composite,
                 QueryContext_->Client(),
+                std::move(invalidateCachedObjectAttributesCallback),
                 QueryContext_->Logger);
         }
 
@@ -1030,7 +1047,7 @@ public:
 
         // First, validate if SELECT part is suitable for distributed INSERT SELECT.
 
-        auto queryContext = GetQueryContext(context);
+        auto* queryContext = GetQueryContext(context);
         auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
         const auto& executionSettings = storageContext->Settings->Execution;
 
@@ -1123,8 +1140,15 @@ public:
 
         preparer.Fire();
 
+        // Callback to invalidate cached object attributes after the query is completed.
+        auto invalidateCachedObjectAttributesCallback = [queryContext, path = table->Path.GetPath()] () {
+            auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+            auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
+            queryContext->Host->InvalidateCachedObjectAttributesGlobally({path}, invalidateMode, timeout);
+        };
+
         // Finally, build pipeline of all those pipes.
-        auto pipeline = preparer.ExtractPipeline([] {});
+        auto pipeline = preparer.ExtractPipeline(std::move(invalidateCachedObjectAttributesCallback));
 
         return std::move(pipeline);
     }

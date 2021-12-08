@@ -465,7 +465,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
             if remove_method == "yt":
                 remove("//tmp/t")
             else:
-                clique.make_query('drop table "//tmp/t"')
+                # Test assumes that there is no sync cache invalidation.
+                settings = {"chyt.caching.table_attributes_invalidate_mode": "none"}
+                clique.make_query('drop table "//tmp/t"', settings=settings)
             cached_description = clique.make_query('describe "//tmp/t"')
             assert cached_description == old_description
             create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
@@ -496,6 +498,72 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description[0]["name"] == "b"
+
+    @authors("dakovalkov")
+    def test_invalidate_cached_object_attributes(self):
+        # Will never expire.
+        patch = get_object_attribute_cache_config(100500, 100500, None)
+
+        table_attributes = {"schema": [{"name": "a", "type": "int64"}]}
+
+        with Clique(2, config_patch=patch) as clique:
+            instances = clique.get_active_instances()
+            assert len(instances) == 2
+
+            create("table", "//tmp/t0", attributes=table_attributes)
+
+            for instance in instances:
+                # Warm up cache.
+                assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 1}]
+
+            # Disable cache invalidation (old behavior).
+            settings = {"chyt.caching.table_attributes_invalidate_mode": "none"}
+            clique.make_direct_query(instances[0], 'drop table "//tmp/t0"', settings=settings)
+
+            # All instances should see the table in cache.
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 1}]
+
+            create("table", "//tmp/t0", attributes=table_attributes)
+
+            # Invalidate cache only on initiator (without any rpc requests).
+            settings = {"chyt.caching.table_attributes_invalidate_mode": "local"}
+            clique.make_direct_query(instances[0], 'drop table "//tmp/t0"', settings=settings)
+
+            # Instance 0 should invalidate its local cache.
+            assert clique.make_direct_query(instances[0], 'exists "//tmp/t0"') == [{"result": 0}]
+            # Instance 1 should still see the table in cache.
+            assert clique.make_direct_query(instances[1], 'exists "//tmp/t0"') == [{"result": 1}]
+
+            create("table", "//tmp/t0", attributes=table_attributes)
+            for instance in instances:
+                # Warm up cache
+                assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 1}]
+
+            # Invalidate cache synchronously on all instances.
+            settings = {"chyt.caching.table_attributes_invalidate_mode": "sync"}
+            clique.make_direct_query(instances[0], 'drop table"//tmp/t0"', settings=settings)
+
+            # Now all instances should invalidate cache.
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 0}]
+
+    @authors("dakovalkov")
+    def test_sequential_io_queries(self):
+        create("table", "//tmp/t0", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t0", [{"a": 1}])
+
+        # Will never expire.
+        patch = get_object_attribute_cache_config(100500, 100500, None)
+
+        with Clique(2, config_patch=patch) as clique:
+            for i in range(10):
+                clique.make_query('create table "//tmp/t{}" engine=YtTable() as select * from "//tmp/t{}"'.format(i + 1, i))
+                assert read_table("//tmp/t{}".format(i + 1)) == [{"a": 1}]
+
+            for i in range(10):
+                clique.make_query('insert into "//tmp/t{}" select * from "//tmp/t{}"'.format(i + 1, i))
+                assert read_table("//tmp/t{}".format(i + 1)) == [{"a": 1}] * (i + 2)
 
     @authors("evgenstf")
     def test_concat_directory_with_mixed_objects(self):
