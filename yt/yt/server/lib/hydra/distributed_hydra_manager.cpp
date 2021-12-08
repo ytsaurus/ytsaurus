@@ -1,19 +1,21 @@
 #include "distributed_hydra_manager.h"
 #include "private.h"
-#include "automaton.h"
-#include "changelog.h"
 #include "checkpointer.h"
-#include "config.h"
 #include "decorated_automaton.h"
-#include "hydra_manager.h"
-#include "hydra_service.h"
 #include "lease_tracker.h"
 #include "mutation_committer.h"
-#include "mutation_context.h"
 #include "recovery.h"
-#include "snapshot.h"
 #include "snapshot_discovery.h"
-#include "state_hash_checker.h"
+
+#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/hydra_service.h>
+#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/config.h>

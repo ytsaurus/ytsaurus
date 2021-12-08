@@ -1,5 +1,5 @@
-#include "lazy_changelog.h"
-#include "changelog.h"
+#include <yt/yt/server/lib/hydra_common/lazy_changelog.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 

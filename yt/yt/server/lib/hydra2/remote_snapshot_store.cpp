@@ -1,8 +1,10 @@
-#include "remote_snapshot_store.h"
 #include "private.h"
-#include "config.h"
 #include "file_snapshot_store.h"
-#include "snapshot.h"
+#include "remote_snapshot_store.h"
+
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/config.h>
@@ -13,8 +15,8 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/ytlib/hydra2/proto/hydra_manager.pb.h>
-#include <yt/yt/ytlib/hydra2/config.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/config.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -38,7 +40,8 @@ using namespace NElection;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NApi;
-using namespace NHydra2::NProto;
+using namespace NHydra::NProto;
+using namespace NHydra;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////

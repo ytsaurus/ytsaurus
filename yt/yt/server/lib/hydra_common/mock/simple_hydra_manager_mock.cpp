@@ -1,7 +1,7 @@
 #include "simple_hydra_manager_mock.h"
 
-#include <yt/yt/server/lib/hydra2/composite_automaton.h>
-#include <yt/yt/server/lib/hydra2/mutation_context.h>
+#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/mutation_context.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -11,7 +11,7 @@
 
 #include <util/stream/mem.h>
 
-namespace NYT::NHydra2 {
+namespace NYT::NHydra {
 
 using namespace NConcurrency;
 using namespace NLogging;
@@ -213,4 +213,4 @@ TCancelableContextPtr TSimpleHydraManagerMock::GetAutomatonCancelableContext() c
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra2
+} // namespace NYT::NHydra

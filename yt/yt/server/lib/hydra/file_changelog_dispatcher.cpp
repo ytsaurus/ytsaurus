@@ -1,8 +1,10 @@
-#include "file_changelog_dispatcher.h"
 #include "private.h"
-#include "changelog.h"
-#include "config.h"
 #include "sync_file_changelog.h"
+#include "file_changelog_dispatcher.h"
+
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+
 #include "yt/yt/library/profiling/sensor.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>

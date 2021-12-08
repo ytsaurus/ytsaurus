@@ -1,9 +1,9 @@
-#include "hydra_service.h"
-#include "hydra_manager.h"
+#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/hydra_service.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
 
-#include <yt/yt/ytlib/hydra2/proto/hydra_service.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_service.pb.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -11,6 +11,7 @@ namespace NYT::NHydra2 {
 
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 

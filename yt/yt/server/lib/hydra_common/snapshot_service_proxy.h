@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/hydra2/proto/snapshot_service.pb.h>
+#include <yt/yt/server/lib/hydra_common/proto/snapshot_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 
-namespace NYT::NHydra2 {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,4 +23,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra2
+} // namespace NYT::NHydra

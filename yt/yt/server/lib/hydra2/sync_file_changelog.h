@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/io/public.h>
 
-#include <yt/yt/ytlib/hydra2/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/core/misc/ref.h>
 
@@ -30,7 +30,7 @@ public:
     TSyncFileChangelog(
         const NIO::IIOEnginePtr& ioEngine,
         const TString& fileName,
-        TFileChangelogConfigPtr config);
+        NHydra::TFileChangelogConfigPtr config);
 
     ~TSyncFileChangelog();
 
@@ -39,7 +39,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    const TFileChangelogConfigPtr& GetConfig();
+    const NHydra::TFileChangelogConfigPtr& GetConfig();
 
     //! Returns the data file name of the changelog.
     /*

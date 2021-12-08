@@ -7,10 +7,12 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 
-#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/lazy_changelog.h>
+#include <yt/yt/server/lib/hydra_common/file_helpers.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
+
 #include <yt/yt/server/lib/hydra/file_changelog_dispatcher.h>
-#include <yt/yt/server/lib/hydra/file_helpers.h>
-#include <yt/yt/server/lib/hydra/lazy_changelog.h>
 #include <yt/yt/server/lib/hydra/private.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>

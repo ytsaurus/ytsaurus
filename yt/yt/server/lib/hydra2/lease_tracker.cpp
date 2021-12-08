@@ -1,7 +1,8 @@
 #include "lease_tracker.h"
 #include "private.h"
-#include "config.h"
 #include "decorated_automaton.h"
+
+#include <yt/yt/server/lib/hydra_common/config.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
@@ -115,7 +116,7 @@ private:
             epochContext->EpochId,
             alivePeerIds);
 
-        THydraServiceProxy proxy(channel);
+        NHydra::THydraServiceProxy proxy(channel);
         auto req = proxy.PingFollower();
         req->SetTimeout(Owner_->Config_->LeaderLeaseTimeout);
         ToProto(req->mutable_epoch_id(), epochContext->EpochId);
@@ -136,7 +137,7 @@ private:
     void OnResponse(
         TPeerId followerId,
         bool voting,
-        const THydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
+        const NHydra::THydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
@@ -187,7 +188,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaseTracker::TLeaseTracker(
-    TDistributedHydraManagerConfigPtr config,
+    NHydra::TDistributedHydraManagerConfigPtr config,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     TLeaderLeasePtr lease,

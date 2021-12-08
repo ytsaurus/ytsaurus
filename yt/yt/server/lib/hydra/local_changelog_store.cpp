@@ -1,8 +1,10 @@
-#include "local_changelog_store.h"
 #include "private.h"
-#include "changelog.h"
-#include "config.h"
+#include "local_changelog_store.h"
 #include "file_changelog_dispatcher.h"
+
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
 

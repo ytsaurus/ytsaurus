@@ -2,7 +2,7 @@
 
 #include <yt/yt/client/object_client/public.h>
 
-#include <yt/yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 namespace NYT::NSchedulerPoolServer {
 

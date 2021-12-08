@@ -6,7 +6,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_replica.h>
 
-#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra_common/entity_map.h>
 
 #include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 

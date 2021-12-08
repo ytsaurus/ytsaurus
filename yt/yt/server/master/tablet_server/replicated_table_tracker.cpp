@@ -27,7 +27,7 @@
 
 #include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 
 #include <yt/yt/server/master/hive/cluster_directory_synchronizer.h>
 #include <yt/yt/server/lib/hive/config.h>

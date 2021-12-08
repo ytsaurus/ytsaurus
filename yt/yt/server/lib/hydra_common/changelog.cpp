@@ -1,6 +1,6 @@
-#include "changelog.h"
+#include <yt/yt/server/lib/hydra_common/changelog.h>
 
-namespace NYT::NHydra2 {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -8,7 +8,7 @@ TFuture<IChangelogPtr> IChangelogStore::TryOpenChangelog(int id)
 {
     return OpenChangelog(id)
         .Apply(BIND([] (const TErrorOr<IChangelogPtr>& result) -> IChangelogPtr {
-            if (!result.IsOK() && result.FindMatching(EErrorCode::NoSuchChangelog)) {
+            if (!result.IsOK() && result.FindMatching(NHydra::EErrorCode::NoSuchChangelog)) {
                 return IChangelogPtr(nullptr);
             }
             return result.ValueOrThrow();
@@ -17,4 +17,4 @@ TFuture<IChangelogPtr> IChangelogStore::TryOpenChangelog(int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra2
+} // namespace NYT::NHydra

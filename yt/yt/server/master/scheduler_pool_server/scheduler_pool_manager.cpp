@@ -17,7 +17,7 @@
 
 #include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 
 #include <yt/yt/server/master/object_server/map_object.h>
 #include <yt/yt/server/master/object_server/map_object_type_handler.h>
@@ -260,8 +260,8 @@ public:
         YT_VERIFY(dstPool);
 
         YT_LOG_DEBUG(
-            "Transfering pool resources (SrcPool: %Qv, DstPool: %Qv, ResourceDelta: %v)", 
-            srcPool->GetName(), 
+            "Transfering pool resources (SrcPool: %Qv, DstPool: %Qv, ResourceDelta: %v)",
+            srcPool->GetName(),
             dstPool->GetName(),
             ConvertToYsonString(resourceDelta, EYsonFormat::Text));
 

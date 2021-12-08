@@ -1,7 +1,9 @@
 #pragma once
 
 #include "private.h"
-#include "distributed_hydra_manager.h"
+
+#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/ytlib/election/public.h>
 

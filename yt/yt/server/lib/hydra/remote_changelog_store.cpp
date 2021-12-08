@@ -1,9 +1,10 @@
+#include "private.h"
 #include "remote_changelog_store.h"
 
-#include "private.h"
-#include "changelog.h"
-#include "config.h"
-#include "lazy_changelog.h"
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/lazy_changelog.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 

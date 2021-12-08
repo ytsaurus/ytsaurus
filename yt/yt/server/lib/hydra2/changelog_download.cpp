@@ -1,12 +1,13 @@
 #include "changelog_download.h"
-#include "private.h"
-#include "changelog.h"
 #include "changelog_discovery.h"
-#include "config.h"
+#include "private.h"
+
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/yt/ytlib/hydra2/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -14,6 +15,7 @@ namespace NYT::NHydra2 {
 
 using namespace NElection;
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 

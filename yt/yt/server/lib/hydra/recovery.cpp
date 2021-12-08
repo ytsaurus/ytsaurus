@@ -1,10 +1,12 @@
 #include "recovery.h"
-#include "changelog.h"
 #include "changelog_download.h"
 #include "config.h"
 #include "decorated_automaton.h"
-#include "snapshot.h"
 #include "changelog_discovery.h"
+
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>

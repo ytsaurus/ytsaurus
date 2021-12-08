@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

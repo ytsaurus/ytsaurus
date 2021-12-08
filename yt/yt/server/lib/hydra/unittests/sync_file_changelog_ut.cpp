@@ -1,9 +1,10 @@
 #include <yt/yt/server/lib/io/io_engine.h>
 
-#include <yt/yt/server/lib/hydra/changelog.h>
-#include <yt/yt/server/lib/hydra/config.h>
-#include <yt/yt/server/lib/hydra/format.h>
-#include <yt/yt/server/lib/hydra/file_helpers.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/format.h>
+#include <yt/yt/server/lib/hydra_common/file_helpers.h>
+
 #include <yt/yt/server/lib/hydra/sync_file_changelog.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>

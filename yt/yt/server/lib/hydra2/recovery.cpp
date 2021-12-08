@@ -1,16 +1,18 @@
 #include "recovery.h"
-#include "changelog.h"
 #include "changelog_download.h"
 #include "config.h"
 #include "decorated_automaton.h"
-#include "snapshot.h"
 #include "changelog_discovery.h"
+
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
-#include <yt/yt/ytlib/hydra2/proto/hydra_manager.pb.h>
-#include <yt/yt/ytlib/hydra2/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -25,7 +27,8 @@ namespace NYT::NHydra2 {
 using namespace NRpc;
 using namespace NElection;
 using namespace NConcurrency;
-using namespace NHydra2::NProto;
+using namespace NHydra;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

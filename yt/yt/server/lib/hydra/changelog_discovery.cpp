@@ -1,6 +1,7 @@
 #include "changelog_discovery.h"
 #include "private.h"
-#include "config.h"
+
+#include <yt/yt/server/lib/hydra_common/config.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>

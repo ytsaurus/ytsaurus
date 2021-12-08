@@ -14,8 +14,8 @@
 #include <yt/yt/server/lib/hive/transaction_manager_detail.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra/hydra_manager.h>
-#include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/mutation.h>
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 

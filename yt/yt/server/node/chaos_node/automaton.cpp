@@ -4,7 +4,7 @@
 #include "chaos_slot.h"
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 

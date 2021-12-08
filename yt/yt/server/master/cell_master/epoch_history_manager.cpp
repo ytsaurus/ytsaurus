@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/master/cell_master/epoch_history_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra_common/mutation.h>
 
 #include <yt/yt/core/misc/serialize.h>
 

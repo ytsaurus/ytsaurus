@@ -1,9 +1,10 @@
 #pragma once
 
 #include "private.h"
-#include "mutation_context.h"
 #include "decorated_automaton.h"
-#include "distributed_hydra_manager.h"
+
+#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 
 #include <yt/yt/ytlib/election/public.h>
 

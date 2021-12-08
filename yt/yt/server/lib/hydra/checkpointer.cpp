@@ -1,10 +1,11 @@
 #include "checkpointer.h"
-#include "changelog.h"
-#include "config.h"
 #include "decorated_automaton.h"
 #include "mutation_committer.h"
-#include "snapshot.h"
 #include "snapshot_discovery.h"
+
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 

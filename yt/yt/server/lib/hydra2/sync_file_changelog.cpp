@@ -1,12 +1,14 @@
 #include "sync_file_changelog.h"
-#include "async_file_changelog_index.h"
-#include "config.h"
-#include "file_helpers.h"
-#include "format.h"
+
+#include <yt/yt/server/lib/hydra_common/async_file_changelog_index.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/file_helpers.h>
+#include <yt/yt/server/lib/hydra_common/format.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
 
-#include <yt/yt/ytlib/hydra2/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -24,9 +26,10 @@
 
 namespace NYT::NHydra2 {
 
-using namespace NHydra2::NProto;
+using namespace NHydra::NProto;
 using namespace NIO;
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,7 +112,7 @@ public:
                 dataFile->Seek(0, sSet);
                 if (static_cast<ssize_t>(dataFile->Load(&header, FileHeaderSize_)) != FileHeaderSize_) {
                     THROW_ERROR_EXCEPTION(
-                        NHydra2::EErrorCode::ChangelogIOError,
+                        NHydra::EErrorCode::ChangelogIOError,
                         "Changelog header cannot be read");
                 }
             });
@@ -407,7 +410,7 @@ private:
     {
         if (!Open_) {
             THROW_ERROR_EXCEPTION(
-                NHydra2::EErrorCode::InvalidChangelogState,
+                NHydra::EErrorCode::InvalidChangelogState,
                 "Changelog is not open");
         }
     }
@@ -417,7 +420,7 @@ private:
     {
         if (Open_) {
             THROW_ERROR_EXCEPTION(
-                NHydra2::EErrorCode::InvalidChangelogState,
+                NHydra::EErrorCode::InvalidChangelogState,
                 "Changelog is already open");
         }
     }
@@ -437,7 +440,7 @@ private:
 
             if (++index >= MaxLockRetries) {
                 THROW_ERROR_EXCEPTION(
-                    NHydra2::EErrorCode::ChangelogIOError,
+                    NHydra::EErrorCode::ChangelogIOError,
                     "Cannot flock %Qv",
                     FileName_)
                     << error;
@@ -624,7 +627,7 @@ private:
             if (!recordInfoOrError.IsOK()) {
                 if (TruncatedRecordCount_ && RecordCount_ < *TruncatedRecordCount_) {
                     THROW_ERROR_EXCEPTION(
-                        NHydra2::EErrorCode::BrokenChangelog,
+                        NHydra::EErrorCode::BrokenChangelog,
                         "Broken record found in truncated changelog %v",
                         FileName_)
                         << TErrorAttribute("record_id", RecordCount_)
@@ -683,7 +686,7 @@ private:
             file.Seek(offset, sSet);
             if (file.Load(&header, sizeof(header)) != sizeof(header)) {
                 THROW_ERROR_EXCEPTION(
-                    NHydra2::EErrorCode::ChangelogIOError,
+                    NHydra::EErrorCode::ChangelogIOError,
                     "Record header cannot be read");
             }
 
@@ -955,7 +958,7 @@ private:
 
                 if (header.RecordId != recordId) {
                     THROW_ERROR_EXCEPTION(
-                        NHydra2::EErrorCode::BrokenChangelog,
+                        NHydra::EErrorCode::BrokenChangelog,
                         "Record data id mismatch in %v", FileName_)
                         << TErrorAttribute("expected", header.RecordId)
                         << TErrorAttribute("actual", recordId);
@@ -972,7 +975,7 @@ private:
                 auto checksum = GetChecksum(data);
                 if (header.Checksum != checksum) {
                     THROW_ERROR_EXCEPTION(
-                        NHydra2::EErrorCode::BrokenChangelog,
+                        NHydra::EErrorCode::BrokenChangelog,
                         "Record data checksum mismatch in %v", FileName_)
                         << TErrorAttribute("record_id", header.RecordId);
                 }

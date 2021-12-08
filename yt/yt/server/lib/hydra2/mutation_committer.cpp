@@ -1,11 +1,12 @@
 #include "mutation_committer.h"
 #include "private.h"
-#include "changelog.h"
-#include "config.h"
 #include "decorated_automaton.h"
 #include "checkpointer.h"
-#include "mutation_context.h"
-#include "serialize.h"
+
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra_common/serialize.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
@@ -28,6 +29,7 @@ using namespace NYTree;
 using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NTracing;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -622,7 +624,7 @@ TFuture<void> TFollowerCommitter::DoAcceptMutations(
     auto currentVersion = DecoratedAutomaton_->GetLoggedVersion();
     if (currentVersion != expectedVersion) {
         return MakeFuture(TError(
-            NHydra2::EErrorCode::OutOfOrderMutations,
+            NHydra::EErrorCode::OutOfOrderMutations,
             "Out-of-order mutations received by follower: expected %v, actual %v",
             expectedVersion,
             currentVersion));

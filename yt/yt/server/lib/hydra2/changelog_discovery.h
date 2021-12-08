@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/ytlib/election/public.h>
 
@@ -12,8 +12,8 @@ namespace NYT::NHydra2 {
 
 struct TChangelogInfo
 {
-    TPeerId PeerId = InvalidPeerId;
-    int ChangelogId = InvalidSegmentId;
+    NElection::TPeerId PeerId =  NElection::InvalidPeerId;
+    int ChangelogId = NHydra::InvalidSegmentId;
     int RecordCount = -1;
 };
 
@@ -22,7 +22,7 @@ struct TChangelogInfo
  *  If none are found, then |InvalidSegmentId| is returned in the info.
  */
 TFuture<TChangelogInfo> DiscoverChangelog(
-    TDistributedHydraManagerConfigPtr config,
+    NHydra::TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     int changelogId,
     int minRecordCount);
@@ -39,7 +39,7 @@ struct TChangelogQuorumInfo
 
 //! Given #changelogId, computes the quorum info.
 TFuture<TChangelogQuorumInfo> ComputeChangelogQuorumInfo(
-    TDistributedHydraManagerConfigPtr config,
+    NHydra::TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     int changelogId,
     int localRecordCount);

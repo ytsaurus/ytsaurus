@@ -1,9 +1,11 @@
-#include "file_snapshot_store.h"
 #include "private.h"
-#include "config.h"
-#include "file_helpers.h"
-#include "format.h"
-#include "snapshot.h"
+#include "file_snapshot_store.h"
+
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/file_helpers.h>
+#include <yt/yt/server/lib/hydra_common/format.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -22,7 +24,8 @@ namespace NYT::NHydra2 {
 
 using namespace NFS;
 using namespace NCompression;
-using namespace NHydra2::NProto;
+using namespace NHydra;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
