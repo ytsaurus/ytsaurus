@@ -73,6 +73,26 @@ TEST_F(TP2PTest, SnoopNoNodes)
     }
 }
 
+TEST_F(TP2PTest, LargeBlockRead)
+{
+    std::vector<TNodeId> peers = {42, 43, 44, 45, 46};
+    Snooper->SetEligiblePeers(peers);
+
+    auto chunk0 = TChunkId::Create();
+
+    auto bigBlock = TBlock{TSharedRef::FromString(TString(Config->MaxBlockSize + 100, 'x'))};
+    std::vector<TBlock> blocks{bigBlock};
+
+    for (int i = 0; i < Config->HotBlockThreshold; i++) {
+        ASSERT_TRUE(Snooper->OnBlockRead(chunk0, {0}, &blocks).empty());
+        ASSERT_TRUE(blocks[0]);
+    }
+
+    auto suggestions = Snooper->OnBlockRead(chunk0, {0}, &blocks);
+    ASSERT_TRUE(suggestions.empty());
+    ASSERT_FALSE(blocks[0]);
+}
+
 TEST_F(TP2PTest, MaxBytesPerNode)
 {
     std::vector<TNodeId> peers = {42, 43, 44, 45, 46};
