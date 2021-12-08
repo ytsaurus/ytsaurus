@@ -85,6 +85,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NApi;
 using namespace NQueryClient;
+using namespace NTracing;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -1957,7 +1958,11 @@ public:
         , Logger(TableClientLogger.WithTag("Path: %v, TransactionId: %v",
             richPath.GetPath(),
             TransactionId_))
+        , TraceContext_(CreateTraceContextFromCurrent("TableWriter"))
+        , FinishGuard_(TraceContext_)
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         if (Transaction_) {
             StartListenTransaction(Transaction_);
         }
@@ -1965,6 +1970,8 @@ public:
 
     TFuture<void> Open()
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         return BIND(&TSchemalessTableWriter::DoOpen, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
             .Run();
@@ -1972,6 +1979,8 @@ public:
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         if (IsAborted()) {
             return false;
         }
@@ -1988,6 +1997,8 @@ public:
 
     TFuture<void> Close() override
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         return BIND(&TSchemalessTableWriter::DoClose, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
             .Run();
@@ -2021,6 +2032,9 @@ private:
     TTableUploadOptions TableUploadOptions_;
     ITransactionPtr UploadTransaction_;
     ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
+
+    const TTraceContextPtr TraceContext_;
+    const TTraceContextFinishGuard FinishGuard_;
 
     TTableSchemaPtr GetChunkSchema() const
     {
@@ -2168,6 +2182,12 @@ private:
             Options_->OptimizeFor = TableUploadOptions_.OptimizeFor;
             Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema->HasComputedColumns();
             Options_->TableSchema = GetSchema();
+
+            auto baggage = TraceContext_->UnpackOrCreateBaggage();
+            baggage->Set("object_path", userObject.GetPath());
+            baggage->Set("object_id", userObject.ObjectId);
+            baggage->Set("account@", Options_->Account);
+            TraceContext_->PackBaggage(baggage);
 
             auto chunkWriterConfig = attributes.FindYson("chunk_writer");
             if (chunkWriterConfig) {

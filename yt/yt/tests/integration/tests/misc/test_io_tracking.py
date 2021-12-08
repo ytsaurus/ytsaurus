@@ -496,6 +496,51 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_write_static_table(self, optimize_for):
+        data1, data_size = self.generate_large_data()
+        data2, _ = self.generate_large_data()
+
+        create_account("gepardo")
+        create_account("some_other_account")
+
+        create("table", "//tmp/table1", attributes={"optimize_for": optimize_for})
+        yt_commands.set("//tmp/table1/@account", "gepardo")
+
+        create("table", "//tmp/table2", attributes={"optimize_for": optimize_for})
+        yt_commands.set("//tmp/table2/@account", "some_other_account")
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        write_table("//tmp/table1", data1)
+        write_table("//tmp/table2", data2)
+        raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier,
+                                             filter=lambda event: event.get("data_node_method@") == "FinishChunk")
+
+        raw_events.sort(key=lambda event: event["object_path"])
+        event1, event2 = raw_events
+
+        disk_space = get("//tmp/table1/@resource_usage/disk_space")
+        min_data_bound = 0.95 * data_size
+        max_data_bound = 1.05 * disk_space
+        assert min_data_bound < max_data_bound
+
+        assert min_data_bound <= event1["byte_count"] <= max_data_bound
+        assert event1["io_count"] > 0
+        assert event1["account@"] == "gepardo"
+        assert event1["object_path"] == "//tmp/table1"
+        assert event1["api_method@"] == "write_table"
+        assert event1["proxy_type@"] == self._get_proxy_type()
+        assert "object_id" in event1
+
+        assert min_data_bound <= event2["byte_count"] <= max_data_bound
+        assert event2["io_count"] > 0
+        assert event2["account@"] == "some_other_account"
+        assert event2["object_path"] == "//tmp/table2"
+        assert event2["api_method@"] == "write_table"
+        assert event2["proxy_type@"] == self._get_proxy_type()
+        assert "object_id" in event2
+
+    @authors("gepardo")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_static_table(self, optimize_for):
         data1, data_size = self.generate_large_data()
         data2, _ = self.generate_large_data()

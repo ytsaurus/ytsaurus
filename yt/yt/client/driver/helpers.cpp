@@ -3,9 +3,14 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/guid.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/core/ytree/helpers.h>
+
 namespace NYT::NDriver {
 
 using namespace NObjectClient;
+using namespace NTracing;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +45,18 @@ TErrorOr<TEtag> ParseEtag(TStringBuf etagString)
 TString ToString(const TEtag& Etag)
 {
     return Format("%v:%v", Etag.Id, Etag.Revision);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PutMethodInfoInTraceContext(const TStringBuf& methodName)
+{
+    if (auto traceContext = GetCurrentTraceContext()) {
+        auto baggage = traceContext->UnpackOrCreateBaggage();
+        baggage->Set("api_method@", methodName);
+        baggage->Set("proxy_type@", "http");
+        traceContext->PackBaggage(baggage);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

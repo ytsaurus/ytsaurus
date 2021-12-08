@@ -6,6 +6,7 @@
 #include "proxy_coordinator.h"
 #include "security_manager.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/misc/format_manager.h>
 
@@ -3990,14 +3991,7 @@ private:
             options.OmitInaccessibleColumns,
             NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat));
 
-        // TODO(gepardo): move this code into a helper shared across different RPC proxy methods.
-        const auto& traceContext = GetCurrentTraceContext();
-        if (traceContext) {
-            auto baggage = traceContext->UnpackOrCreateBaggage();
-            baggage->Set("api_method@", "read_table");
-            baggage->Set("proxy_type@", "rpc");
-            traceContext->PackBaggage(baggage);
-        }
+        PutMethodInfoInTraceContext("read_table");
 
         auto tableReader = WaitFor(client->CreateTableReader(path, options))
             .ValueOrThrow();
@@ -4066,6 +4060,8 @@ private:
         context->SetRequestInfo(
             "Path: %v",
             path);
+
+        PutMethodInfoInTraceContext("write_table");
 
         auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
             .ValueOrThrow();
