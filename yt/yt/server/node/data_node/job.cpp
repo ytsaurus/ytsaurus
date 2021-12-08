@@ -2,7 +2,6 @@
 
 #include "bootstrap.h"
 #include "private.h"
-#include "block_peer_table.h"
 #include "chunk_block_manager.h"
 #include "chunk.h"
 #include "chunk_store.h"

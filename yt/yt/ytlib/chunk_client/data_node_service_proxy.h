@@ -23,7 +23,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, CancelChunk);
     DEFINE_RPC_PROXY_METHOD(NProto, PutBlocks);
     DEFINE_RPC_PROXY_METHOD(NProto, SendBlocks);
-    DEFINE_RPC_PROXY_METHOD(NProto, PopulateCache);
     DEFINE_RPC_PROXY_METHOD(NProto, UpdateP2PBlocks);
     DEFINE_RPC_PROXY_METHOD(NProto, FlushBlocks);
     DEFINE_RPC_PROXY_METHOD(NProto, ProbeChunkSet);
