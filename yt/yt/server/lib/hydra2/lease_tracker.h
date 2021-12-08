@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/yt/ytlib/hydra2/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/ytlib/election/public.h>
 
@@ -80,7 +80,7 @@ class TLeaseTracker
 {
 public:
     TLeaseTracker(
-        TDistributedHydraManagerConfigPtr config,
+        NHydra::TDistributedHydraManagerConfigPtr config,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         TLeaderLeasePtr lease,
@@ -101,7 +101,7 @@ public:
 private:
     class TFollowerPinger;
 
-    const TDistributedHydraManagerConfigPtr Config_;
+    const NHydra::TDistributedHydraManagerConfigPtr Config_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
     const TLeaderLeasePtr Lease_;

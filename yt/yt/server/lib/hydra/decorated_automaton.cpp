@@ -1,11 +1,12 @@
 #include "decorated_automaton.h"
-#include "automaton.h"
-#include "changelog.h"
-#include "config.h"
-#include "serialize.h"
-#include "snapshot.h"
 #include "snapshot_discovery.h"
-#include "state_hash_checker.h"
+
+#include <yt/yt/server/lib/hydra_common/automaton.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/serialize.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
 
 #include <yt/yt/server/lib/misc/fork_executor.h>
 

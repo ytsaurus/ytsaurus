@@ -1,7 +1,7 @@
 #include "mailbox.h"
 #include "hive_manager.h"
 
-//#include <yt/yt/server/lib/hydra/composite_automaton.h>
+//#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 
 #include <yt/yt/ytlib/hive/proto/hive_service.pb.h>
 

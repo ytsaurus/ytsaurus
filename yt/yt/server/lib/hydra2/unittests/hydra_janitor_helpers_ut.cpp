@@ -1,5 +1,5 @@
-#include <yt/yt/server/lib/hydra2/hydra_janitor_helpers.h>
-#include <yt/yt/server/lib/hydra2/config.h>
+#include <yt/yt/server/lib/hydra_common/hydra_janitor_helpers.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -8,6 +8,8 @@
 
 namespace NYT::NHydra2 {
 namespace {
+
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 

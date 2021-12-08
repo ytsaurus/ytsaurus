@@ -12,25 +12,25 @@
 #include <yt/yt/server/lib/hive/mailbox.h>
 #include <yt/yt/server/lib/hive/transaction_supervisor.h>
 
-#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/snapshot_store_thunk.h>
+#include <yt/yt/server/lib/hydra_common/changelog_store_factory_thunk.h>
+
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra/hydra_manager.h>
 #include <yt/yt/server/lib/hydra/remote_changelog_store.h>
 #include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
-#include <yt/yt/server/lib/hydra/snapshot.h>
+#include <yt/yt/server/lib/hydra/remote_changelog_store.h>
+#include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/election_manager_thunk.h>
 #include <yt/yt/server/lib/election/alien_cell_peer_channel_factory.h>
-
-#include <yt/yt/server/lib/hydra/changelog.h>
-#include <yt/yt/server/lib/hydra/remote_changelog_store.h>
-#include <yt/yt/server/lib/hydra/snapshot.h>
-#include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
-#include <yt/yt/server/lib/hydra/hydra_manager.h>
-#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra/changelog_store_factory_thunk.h>
-#include <yt/yt/server/lib/hydra/snapshot_store_thunk.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>

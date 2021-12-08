@@ -1,8 +1,10 @@
 #include "sync_file_changelog.h"
-#include "async_file_changelog_index.h"
-#include "config.h"
-#include "file_helpers.h"
-#include "format.h"
+
+#include <yt/yt/server/lib/hydra_common/async_file_changelog_index.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/file_helpers.h>
+#include <yt/yt/server/lib/hydra_common/format.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
 

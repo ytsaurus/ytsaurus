@@ -45,7 +45,7 @@
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/yt/server/lib/hydra/hydra_context.h>
+#include <yt/yt/server/lib/hydra_common/hydra_context.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>

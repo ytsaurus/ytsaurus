@@ -1,12 +1,13 @@
 #include <yt/yt/server/lib/io/io_engine.h>
 
-#include <yt/yt/server/lib/hydra2/changelog.h>
-#include <yt/yt/server/lib/hydra2/config.h>
-#include <yt/yt/server/lib/hydra2/format.h>
-#include <yt/yt/server/lib/hydra2/file_helpers.h>
-#include <yt/yt/server/lib/hydra2/sync_file_changelog.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/format.h>
+#include <yt/yt/server/lib/hydra_common/file_helpers.h>
 
-#include <yt/yt/ytlib/hydra2/proto/hydra_manager.pb.h>
+#include <yt/yt/server/lib/hydra/sync_file_changelog.h>
+
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -26,7 +27,8 @@ namespace NYT::NHydra2 {
 namespace {
 
 using namespace NIO;
-using namespace NHydra2::NProto;
+using namespace NHydra;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

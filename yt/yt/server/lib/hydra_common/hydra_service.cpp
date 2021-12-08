@@ -1,5 +1,5 @@
-#include "hydra_service.h"
 #include "hydra_manager.h"
+#include "hydra_service.h"
 
 #include <yt/yt/server/lib/election/election_manager.h>
 

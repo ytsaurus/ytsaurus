@@ -1,7 +1,8 @@
 #pragma once
 
 #include "private.h"
-#include "distributed_hydra_manager.h"
+
+#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 
 #include <yt/yt/ytlib/election/public.h>
 
@@ -26,15 +27,15 @@ class TRecoveryBase
 {
 protected:
     TRecoveryBase(
-        TDistributedHydraManagerConfigPtr config,
-        const TDistributedHydraManagerOptions& options,
-        const TDistributedHydraManagerDynamicOptions& dynamicOptions,
+        NHydra::TDistributedHydraManagerConfigPtr config,
+        const NHydra::TDistributedHydraManagerOptions& options,
+        const NHydra::TDistributedHydraManagerDynamicOptions& dynamicOptions,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        IChangelogStorePtr changelogStore,
-        ISnapshotStorePtr snapshotStore,
+        NHydra::IChangelogStorePtr changelogStore,
+        NHydra::ISnapshotStorePtr snapshotStore,
         NRpc::TResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
-        TVersion syncVersion,
+        NHydra::TVersion syncVersion,
         NLogging::TLogger logger);
 
     //! Must be derived by the inheritors to control the recovery behavior.
@@ -42,18 +43,18 @@ protected:
 
     //! Recovers to the desired state by first loading an appropriate snapshot
     //! and then applying changelogs, if necessary.
-    void RecoverToVersion(TVersion targetVersion);
+    void RecoverToVersion(NHydra::TVersion targetVersion);
 
 
-    const TDistributedHydraManagerConfigPtr Config_;
-    const TDistributedHydraManagerOptions Options_;
-    const TDistributedHydraManagerDynamicOptions DynamicOptions_;
+    const NHydra::TDistributedHydraManagerConfigPtr Config_;
+    const NHydra::TDistributedHydraManagerOptions Options_;
+    const NHydra::TDistributedHydraManagerDynamicOptions DynamicOptions_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
-    const IChangelogStorePtr ChangelogStore_;
-    const ISnapshotStorePtr SnapshotStore_;
+    const NHydra::IChangelogStorePtr ChangelogStore_;
+    const NHydra::ISnapshotStorePtr SnapshotStore_;
     const NRpc::TResponseKeeperPtr ResponseKeeper_;
     TEpochContext* const EpochContext_;
-    const TVersion SyncVersion_;
+    const NHydra::TVersion SyncVersion_;
     const NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -61,14 +62,14 @@ protected:
 private:
     //! Synchronizes the changelog at follower with the leader, i.e.
     //! downloads missing records or truncates redundant ones.
-    void SyncChangelog(IChangelogPtr changelog, int changelogId);
+    void SyncChangelog(NHydra::IChangelogPtr changelog, int changelogId);
 
     //! Applies records from a given changes up to a given one.
     /*!
      *  The current segment id should match that of #changeLog.
      *  The methods ensures that no mutation is applied twice.
      */
-    bool ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId);
+    bool ReplayChangelog(NHydra::IChangelogPtr changelog, int changelogId, int targetRecordId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,12 +84,12 @@ class TLeaderRecovery
 {
 public:
     TLeaderRecovery(
-        TDistributedHydraManagerConfigPtr config,
-        const TDistributedHydraManagerOptions& options,
-        const TDistributedHydraManagerDynamicOptions& dynamicOptions,
+        NHydra::TDistributedHydraManagerConfigPtr config,
+        const NHydra::TDistributedHydraManagerOptions& options,
+        const NHydra::TDistributedHydraManagerDynamicOptions& dynamicOptions,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        IChangelogStorePtr changelogStore,
-        ISnapshotStorePtr snapshotStore,
+        NHydra::IChangelogStorePtr changelogStore,
+        NHydra::ISnapshotStorePtr snapshotStore,
         NRpc::TResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
         NLogging::TLogger logger);
@@ -117,15 +118,15 @@ class TFollowerRecovery
 {
 public:
     TFollowerRecovery(
-        TDistributedHydraManagerConfigPtr config,
-        const TDistributedHydraManagerOptions& options,
-        const TDistributedHydraManagerDynamicOptions& dynamicOptions,
+        NHydra::TDistributedHydraManagerConfigPtr config,
+        const NHydra::TDistributedHydraManagerOptions& options,
+        const NHydra::TDistributedHydraManagerDynamicOptions& dynamicOptions,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        IChangelogStorePtr changelogStore,
-        ISnapshotStorePtr snapshotStore,
+        NHydra::IChangelogStorePtr changelogStore,
+        NHydra::ISnapshotStorePtr snapshotStore,
         NRpc::TResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
-        TVersion syncVersion,
+        NHydra::TVersion syncVersion,
         NLogging::TLogger logger);
 
     //! Performs follower recovery bringing the follower up-to-date and synchronized with the leader.
@@ -133,14 +134,14 @@ public:
 
     //! Postpones an incoming request for changelog rotation.
     //! Returns |false| is no more postponed are can be accepted; the caller must back off and retry.
-    bool PostponeChangelogRotation(TVersion version);
+    bool PostponeChangelogRotation(NHydra::TVersion version);
 
     //! Postpones incoming mutations.
     //! Returns |false| is no more postponed are can be accepted; the caller must back off and retry.
-    bool PostponeMutations(TVersion version, const std::vector<TSharedRef>& recordsData);
+    bool PostponeMutations(NHydra::TVersion version, const std::vector<TSharedRef>& recordsData);
 
     //! Notifies the recovery process about the latest committed version available at leader.
-    void SetCommittedVersion(TVersion version);
+    void SetCommittedVersion(NHydra::TVersion version);
 
 private:
     struct TPostponedMutation
@@ -156,8 +157,8 @@ private:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::vector<TPostponedAction> PostponedActions_;
     bool NoMorePostponedActions_ = false;
-    TVersion PostponedVersion_;
-    TVersion CommittedVersion_;
+    NHydra::TVersion PostponedVersion_;
+    NHydra::TVersion CommittedVersion_;
 
     void DoRun();
 

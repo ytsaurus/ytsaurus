@@ -1,11 +1,12 @@
 #include "changelog_discovery.h"
 #include "private.h"
-#include "config.h"
+
+#include <yt/yt/server/lib/hydra_common/config.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
-#include <yt/yt/ytlib/hydra2/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -21,7 +22,7 @@ class TDiscoverChangelogSession
 {
 public:
     TDiscoverChangelogSession(
-        TDistributedHydraManagerConfigPtr config,
+        NHydra::TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
         int changelogId,
         int minRecordCount)
@@ -46,7 +47,7 @@ public:
     }
 
 private:
-    const TDistributedHydraManagerConfigPtr Config_;
+    const NHydra::TDistributedHydraManagerConfigPtr Config_;
     const NElection::TCellManagerPtr CellManager_;
     const int ChangelogId_;
     const int MinRecordCount_;
@@ -69,7 +70,7 @@ private:
                 peerId,
                 ChangelogId_);
 
-            THydraServiceProxy proxy(channel);
+            NHydra::THydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.LookupChangelog();
@@ -86,7 +87,7 @@ private:
 
     void OnResponse(
         TPeerId peerId,
-        const THydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
+        const NHydra::THydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v)",
@@ -125,7 +126,7 @@ private:
 };
 
 TFuture<TChangelogInfo> DiscoverChangelog(
-    TDistributedHydraManagerConfigPtr config,
+    NHydra::TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     int changelogId,
     int minRecordCount)
@@ -145,7 +146,7 @@ class TComputeQuorumInfoSession
 {
 public:
     TComputeQuorumInfoSession(
-        TDistributedHydraManagerConfigPtr config,
+        NHydra::TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
         int changelogId,
         int localRecordCount)
@@ -171,7 +172,7 @@ public:
     }
 
 private:
-    const TDistributedHydraManagerConfigPtr Config_;
+    const NHydra::TDistributedHydraManagerConfigPtr Config_;
     const NElection::TCellManagerPtr CellManager_;
     const int ChangelogId_;
 
@@ -219,7 +220,7 @@ private:
             YT_LOG_DEBUG("Requesting changelog info (PeerId: %v)",
                 peerId);
 
-            THydraServiceProxy proxy(channel);
+            NHydra::THydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.LookupChangelog();
@@ -234,7 +235,7 @@ private:
 
     void OnResponse(
         TPeerId peerId,
-        const THydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
+        const NHydra::THydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
             const auto& rsp = rspOrError.Value();
@@ -272,7 +273,7 @@ private:
 };
 
 TFuture<TChangelogQuorumInfo> ComputeChangelogQuorumInfo(
-    TDistributedHydraManagerConfigPtr config,
+    NHydra::TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     int changelogId,
     int localRecordCount)

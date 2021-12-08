@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
-#include "snapshot.h"
+#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
 
 #include <yt/yt/ytlib/election/public.h>
 
@@ -10,13 +10,6 @@
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TRemoteSnapshotParams
-    : public TSnapshotParams
-{
-    TPeerId PeerId = InvalidPeerId;
-    int SnapshotId = InvalidSegmentId;
-};
 
 //! Looks for the latest snapshot within the cell up to a given id.
 /*!

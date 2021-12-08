@@ -2,8 +2,9 @@
 
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
-#include <yt/yt/server/lib/hydra/config.h>
-#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+
 #include <yt/yt/server/lib/hydra/remote_changelog_store.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
+
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/ytlib/election/public.h>
 
@@ -11,7 +13,7 @@ namespace NYT::NHydra2 {
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> DownloadSnapshot(
-    TDistributedHydraManagerConfigPtr config,
+    NHydra::TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     TFileSnapshotStorePtr fileStore,
     int snapshotId);

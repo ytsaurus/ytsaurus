@@ -1,6 +1,8 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
+
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/core/compression/public.h>
 
@@ -14,7 +16,7 @@ class TFileSnapshotStore
     : public TRefCounted
 {
 public:
-    explicit TFileSnapshotStore(TLocalSnapshotStoreConfigPtr config);
+    explicit TFileSnapshotStore(NHydra::TLocalSnapshotStoreConfigPtr config);
     void Initialize();
 
     ~TFileSnapshotStore();
@@ -22,11 +24,11 @@ public:
     bool CheckSnapshotExists(int snapshotId);
     int GetLatestSnapshotId(int maxSnapshotId);
 
-    ISnapshotReaderPtr CreateReader(int snapshotId);
-    ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset);
+    NHydra::ISnapshotReaderPtr CreateReader(int snapshotId);
+    NHydra::ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset);
 
-    ISnapshotWriterPtr CreateWriter(int snapshotId, const NProto::TSnapshotMeta& meta);
-    ISnapshotWriterPtr CreateRawWriter(int snapshotId);
+    NHydra::ISnapshotWriterPtr CreateWriter(int snapshotId, const NHydra::NProto::TSnapshotMeta& meta);
+    NHydra::ISnapshotWriterPtr CreateRawWriter(int snapshotId);
 
 private:
     class TImpl;
@@ -38,18 +40,18 @@ DEFINE_REFCOUNTED_TYPE(TFileSnapshotStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISnapshotReaderPtr CreateFileSnapshotReader(
+NHydra::ISnapshotReaderPtr CreateFileSnapshotReader(
     const TString& fileName,
     int snapshotId,
     bool raw,
     std::optional<i64> offset = std::nullopt,
     bool skipHeader = false);
 
-ISnapshotWriterPtr CreateFileSnapshotWriter(
+NHydra::ISnapshotWriterPtr CreateFileSnapshotWriter(
     const TString& fileName,
     NCompression::ECodec codec,
     int snapshotId,
-    const NProto::TSnapshotMeta& meta,
+    const NHydra::NProto::TSnapshotMeta& meta,
     bool raw);
 
 ////////////////////////////////////////////////////////////////////////////////

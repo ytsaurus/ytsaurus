@@ -15,12 +15,14 @@
 #include <yt/yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
-#include <yt/yt/server/lib/hydra/changelog.h>
-#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
+
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/local_hydra_janitor.h>
 #include <yt/yt/server/lib/hydra/private.h>
-#include <yt/yt/server/lib/hydra/snapshot.h>
 
 #include <yt/yt/server/master/object_server/object.h>
 #include <yt/yt/server/master/object_server/private.h>

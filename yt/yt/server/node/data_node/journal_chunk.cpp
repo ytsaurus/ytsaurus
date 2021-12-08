@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra/sync_file_changelog.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>

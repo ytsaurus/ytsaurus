@@ -46,8 +46,8 @@
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
-#include <yt/yt/server/lib/hydra/composite_automaton.h>
-#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/entity_map.h>
 
 #include <yt/yt/server/master/node_tracker_server/config.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>

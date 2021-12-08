@@ -13,7 +13,7 @@
 
 #include <yt/yt/server/lib/cell_server/proto/cell_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra/hydra_context.h>
+#include <yt/yt/server/lib/hydra_common/hydra_context.h>
 
 #include <yt/yt/server/lib/cellar_agent/helpers.h>
 

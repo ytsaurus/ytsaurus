@@ -38,9 +38,9 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
-#include <yt/yt/server/lib/hydra/hydra_context.h>
-#include <yt/yt/server/lib/hydra/entity_map.h>
-#include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra_common/hydra_context.h>
+#include <yt/yt/server/lib/hydra_common/entity_map.h>
+#include <yt/yt/server/lib/hydra_common/mutation.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 

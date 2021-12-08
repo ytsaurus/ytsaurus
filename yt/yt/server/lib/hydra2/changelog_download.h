@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/ytlib/election/public.h>
 
@@ -11,9 +11,9 @@ namespace NYT::NHydra2 {
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> DownloadChangelog(
-    TDistributedHydraManagerConfigPtr config,
+    NHydra::TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
-    IChangelogStorePtr changelogStore,
+    NHydra::IChangelogStorePtr changelogStore,
     int changelogId,
     int recordCount);
 

@@ -1,19 +1,21 @@
 #include "distributed_hydra_manager.h"
 #include "private.h"
-#include "automaton.h"
-#include "changelog.h"
 #include "checkpointer.h"
-#include "config.h"
 #include "decorated_automaton.h"
-#include "hydra_manager.h"
-#include "hydra_service.h"
 #include "lease_tracker.h"
 #include "mutation_committer.h"
-#include "mutation_context.h"
 #include "recovery.h"
-#include "snapshot.h"
 #include "snapshot_discovery.h"
-#include "state_hash_checker.h"
+
+#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/hydra_service.h>
+#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/config.h>
@@ -21,7 +23,7 @@
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
-#include <yt/yt/ytlib/hydra2/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -50,6 +52,7 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -350,12 +353,12 @@ public:
             auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
             if (loggedVersion.SegmentId == lastSnapshotId) {
                 return MakeFuture<int>(TError(
-                    NHydra2::EErrorCode::ReadOnlySnapshotBuilt,
+                    NHydra::EErrorCode::ReadOnlySnapshotBuilt,
                     "The requested read-only snapshot is already built")
                     << TErrorAttribute("snapshot_id", lastSnapshotId));
             }
             return MakeFuture<int>(TError(
-                NHydra2::EErrorCode::ReadOnlySnapshotBuildFailed,
+                NHydra::EErrorCode::ReadOnlySnapshotBuildFailed,
                 "Cannot build a snapshot in read-only mode"));
         }
 
@@ -587,7 +590,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, LookupChangelog)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -602,7 +605,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, ReadChangeLog)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ReadChangeLog)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -633,7 +636,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, AcceptMutations)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, AcceptMutations)
     {
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto startVersion = TVersion::FromRevision(request->start_revision());
@@ -725,7 +728,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, PingFollower)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, PingFollower)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -778,7 +781,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, BuildSnapshot)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, BuildSnapshot)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         Y_UNUSED(response);
@@ -810,7 +813,7 @@ private:
 
         if (DecoratedAutomaton_->GetLoggedVersion() != version) {
             auto error = TError(
-                NHydra2::EErrorCode::InvalidVersion,
+                NHydra::EErrorCode::InvalidVersion,
                 "Invalid logged version")
                 << TErrorAttribute("expected_version", ToString(version))
                 << TErrorAttribute("actual_version", ToString(DecoratedAutomaton_->GetLoggedVersion()));
@@ -829,7 +832,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, ForceBuildSnapshot)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ForceBuildSnapshot)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -850,7 +853,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, RotateChangelog)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, RotateChangelog)
     {
         Y_UNUSED(response);
 
@@ -886,7 +889,7 @@ private:
                     try {
                         if (DecoratedAutomaton_->GetLoggedVersion() != version) {
                             THROW_ERROR_EXCEPTION(
-                                NHydra2::EErrorCode::InvalidVersion,
+                                NHydra::EErrorCode::InvalidVersion,
                                 "Invalid logged version: expected %v, actual %v",
                                 version,
                                 DecoratedAutomaton_->GetLoggedVersion());
@@ -950,7 +953,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, SyncWithLeader)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, SyncWithLeader)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -976,7 +979,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, ForceSyncWithLeader)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ForceSyncWithLeader)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -985,7 +988,7 @@ private:
         context->ReplyFrom(SyncWithLeader());
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, CommitMutation)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, CommitMutation)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1021,7 +1024,7 @@ private:
             }));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, PrepareLeaderSwitch)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, PrepareLeaderSwitch)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1062,7 +1065,7 @@ private:
         epochContext->LeaderSwitchStarted = true;
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Poke)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, Poke)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1074,7 +1077,7 @@ private:
             }));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, AbandonLeaderLease)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, AbandonLeaderLease)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1094,7 +1097,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, ReportMutationsStateHashes)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ReportMutationsStateHashes)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1111,7 +1114,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, ForceRestart)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ForceRestart)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1143,7 +1146,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetPeerState)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, GetPeerState)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1975,7 +1978,7 @@ private:
         auto currentEpochId = ControlEpochContext_->EpochId;
         if (epochId != currentEpochId) {
             THROW_ERROR_EXCEPTION(
-                NHydra2::EErrorCode::InvalidEpoch,
+                NHydra::EErrorCode::InvalidEpoch,
                 "Invalid epoch: expected %v, received %v",
                 currentEpochId,
                 epochId);

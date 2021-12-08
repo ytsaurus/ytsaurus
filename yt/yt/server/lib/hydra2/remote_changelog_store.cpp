@@ -1,17 +1,18 @@
+#include "private.h"
 #include "remote_changelog_store.h"
 
-#include "private.h"
-#include "changelog.h"
-#include "config.h"
-#include "lazy_changelog.h"
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/lazy_changelog.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
 #include <yt/yt/ytlib/api/native/journal_reader.h>
 #include <yt/yt/ytlib/api/native/journal_writer.h>
 
-#include <yt/yt/ytlib/hydra2/proto/hydra_manager.pb.h>
-#include <yt/yt/ytlib/hydra2/config.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/config.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
@@ -34,7 +35,8 @@ using namespace NLogging;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
-using namespace NHydra2::NProto;
+using namespace NHydra;
+using namespace NHydra::NProto;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 
@@ -190,7 +192,7 @@ private:
                 auto result = WaitFor(Client_->GetNode(path, options));
                 if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION(
-                        NHydra2::EErrorCode::NoSuchChangelog,
+                        NHydra::EErrorCode::NoSuchChangelog,
                         "Changelog does not exist in remote store")
                         << TErrorAttribute("changelog_path", Path_)
                         << TErrorAttribute("store_id", id);

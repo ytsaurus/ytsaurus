@@ -1,6 +1,6 @@
 #include "commit.h"
 
-#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 
 #include <yt/yt/core/misc/serialize.h>
 

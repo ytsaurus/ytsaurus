@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/server/lib/security_server/public.h>
 
@@ -12,7 +12,7 @@
 
 #include <yt/yt/client/ypath/public.h>
 
-namespace NYT::NHydra2 {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,4 +32,4 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra2
+} // namespace NYT::NHydra

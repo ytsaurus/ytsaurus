@@ -1,7 +1,7 @@
 #include "yson_intern_registry.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra_common/mutation_context.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>

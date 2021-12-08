@@ -23,8 +23,8 @@
 #include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
 #include <yt/yt/server/lib/hive/transaction_manager_detail.h>
 
-#include <yt/yt/server/lib/hydra/composite_automaton.h>
-#include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/mutation.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 #include <yt/yt/server/lib/transaction_server/private.h>

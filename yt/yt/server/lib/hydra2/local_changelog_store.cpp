@@ -1,12 +1,14 @@
-#include "local_changelog_store.h"
 #include "private.h"
-#include "changelog.h"
-#include "config.h"
+#include "local_changelog_store.h"
 #include "file_changelog_dispatcher.h"
+
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
 
-#include <yt/yt/ytlib/hydra2/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/fs.h>
@@ -14,7 +16,8 @@
 namespace NYT::NHydra2 {
 
 using namespace NConcurrency;
-using namespace NHydra2::NProto;
+using namespace NHydra;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -292,7 +295,7 @@ private:
             auto path = GetChangelogPath(Config_->Path, id);
             if (!NFS::Exists(path)) {
                 cookie.Cancel(TError(
-                    NHydra2::EErrorCode::NoSuchChangelog,
+                    NHydra::EErrorCode::NoSuchChangelog,
                     "No such changelog %v",
                     id));
             } else {

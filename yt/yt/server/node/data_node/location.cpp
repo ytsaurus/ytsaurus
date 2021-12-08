@@ -17,8 +17,8 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/lib/hydra/changelog.h>
-#include <yt/yt/server/lib/hydra/private.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 #include <yt/yt/server/lib/misc/private.h>

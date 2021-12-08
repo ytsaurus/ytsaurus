@@ -1,8 +1,10 @@
-#include "local_hydra_janitor.h"
-#include "config.h"
-#include "file_helpers.h"
 #include "private.h"
-#include "hydra_janitor_helpers.h"
+#include "local_hydra_janitor.h"
+
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/file_helpers.h>
+#include <yt/yt/server/lib/hydra_common/hydra_janitor_helpers.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -11,6 +13,7 @@
 namespace NYT::NHydra2 {
 
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/server/lib/hydra_common/public.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
-#include <yt/yt/ytlib/hydra2/private.h>
+#include <yt/yt/ytlib/hydra/private.h>
 
 #include <yt/yt/core/misc/lazy_ptr.h>
 
@@ -14,8 +15,6 @@ namespace NYT::NHydra2 {
 
 DECLARE_REFCOUNTED_STRUCT(TEpochContext)
 
-struct TRemoteSnapshotParams;
-
 DECLARE_REFCOUNTED_CLASS(TSyncFileChangelog)
 DECLARE_REFCOUNTED_CLASS(TDecoratedAutomaton)
 DECLARE_REFCOUNTED_CLASS(TLeaderRecovery)
@@ -25,19 +24,23 @@ DECLARE_REFCOUNTED_CLASS(TLeaseTracker)
 DECLARE_REFCOUNTED_CLASS(TLeaderCommitter)
 DECLARE_REFCOUNTED_CLASS(TFollowerCommitter)
 DECLARE_REFCOUNTED_CLASS(TCheckpointer)
-DECLARE_REFCOUNTED_CLASS(TStateHashChecker)
-
+DECLARE_REFCOUNTED_CLASS(TFileSnapshotStore)
+DECLARE_REFCOUNTED_CLASS(TLocalHydraJanitor)
+DECLARE_REFCOUNTED_CLASS(TFileChangelog)
 DECLARE_REFCOUNTED_STRUCT(IChangelogDiscarder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString SnapshotExtension;
-extern const TString ChangelogExtension;
-extern const TString ChangelogIndexExtension;
-extern const NProfiling::TProfiler HydraProfiler;
+using NElection::TCellId;
+using NElection::NullCellId;
+using NElection::TPeerId;
+using NElection::InvalidPeerId;
+using NElection::TPeerPriority;
+using NElection::TEpochId;
 
-IInvokerPtr GetHydraIOInvoker();
-void ShutdownHydraIOInvoker();
+using NHydra::EPeerState;
+using NHydra::EErrorCode;
+using NHydra::HydraLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

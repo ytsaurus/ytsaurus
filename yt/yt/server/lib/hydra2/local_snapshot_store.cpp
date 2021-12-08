@@ -1,10 +1,12 @@
-#include "local_snapshot_store.h"
 #include "private.h"
-#include "config.h"
-#include "file_snapshot_store.h"
-#include "snapshot.h"
 #include "snapshot_discovery.h"
 #include "snapshot_download.h"
+#include "file_snapshot_store.h"
+#include "local_snapshot_store.h"
+
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
@@ -14,7 +16,8 @@ namespace NYT::NHydra2 {
 
 using namespace NElection;
 using namespace NConcurrency;
-using namespace NHydra2::NProto;
+using namespace NHydra;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +39,7 @@ public:
     TFuture<void> Open() override
     {
         return BIND(&TLocalSnapshotReader::DoOpen, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(NHydra::GetHydraIOInvoker())
             .Run();
     }
 
@@ -82,11 +85,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLocalSnapshotStore
-    : public ISnapshotStore
+    : public NHydra::ISnapshotStore
 {
 public:
     TLocalSnapshotStore(
-        TDistributedHydraManagerConfigPtr config,
+        NHydra::TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
         TFileSnapshotStorePtr fileStore)
         : Config_(config)
@@ -94,7 +97,7 @@ public:
         , FileStore_(fileStore)
     { }
 
-    ISnapshotReaderPtr CreateReader(int snapshotId) override
+    NHydra::ISnapshotReaderPtr CreateReader(int snapshotId) override
     {
         return New<TLocalSnapshotReader>(
             Config_,
@@ -103,7 +106,7 @@ public:
             snapshotId);
     }
 
-    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
+    NHydra::ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
     {
         return FileStore_->CreateWriter(snapshotId, meta);
     }
@@ -111,12 +114,12 @@ public:
     TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TLocalSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(NHydra::GetHydraIOInvoker())
             .Run(maxSnapshotId);
     }
 
 private:
-    const TDistributedHydraManagerConfigPtr Config_;
+    const NHydra::TDistributedHydraManagerConfigPtr Config_;
     const TCellManagerPtr CellManager_;
     const TFileSnapshotStorePtr FileStore_;
 
@@ -135,8 +138,8 @@ private:
 
 };
 
-ISnapshotStorePtr CreateLocalSnapshotStore(
-    TDistributedHydraManagerConfigPtr config,
+NHydra::ISnapshotStorePtr CreateLocalSnapshotStore(
+    NHydra::TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TFileSnapshotStorePtr fileStore)
 {

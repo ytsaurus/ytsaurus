@@ -1,8 +1,8 @@
 #include "snapshot_discovery.h"
 #include "private.h"
-#include "config.h"
 
-#include <yt/yt/server/lib/hydra2/snapshot_service_proxy.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/snapshot_service_proxy.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
@@ -12,6 +12,7 @@ namespace NYT::NHydra2 {
 
 using namespace NElection;
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 

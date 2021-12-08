@@ -1,18 +1,19 @@
 #include "decorated_automaton.h"
-#include "automaton.h"
-#include "changelog.h"
-#include "config.h"
-#include "serialize.h"
-#include "snapshot.h"
 #include "snapshot_discovery.h"
-#include "state_hash_checker.h"
+
+#include <yt/yt/server/lib/hydra_common/automaton.h>
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/serialize.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
 
 #include <yt/yt/server/lib/misc/fork_executor.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/yt/ytlib/hydra2/proto/hydra_manager.pb.h>
-#include <yt/yt/ytlib/hydra2/proto/hydra_service.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_service.pb.h>
 
 #include <yt/yt/core/actions/invoker_detail.h>
 
@@ -48,11 +49,14 @@ namespace NYT::NHydra2 {
 
 using namespace NConcurrency;
 using namespace NElection;
-using namespace NHydra2::NProto;
+using namespace NHydra;
+using namespace NHydra::NProto;
 using namespace NLogging;
 using namespace NPipes;
 using namespace NProfiling;
 using namespace NRpc;
+
+using NHydra::EPeerState;
 
 ////////////////////////////////////////////////////////////////////////////////
 

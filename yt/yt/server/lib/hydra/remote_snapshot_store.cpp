@@ -1,8 +1,10 @@
-#include "remote_snapshot_store.h"
 #include "private.h"
-#include "config.h"
 #include "file_snapshot_store.h"
-#include "snapshot.h"
+#include "remote_snapshot_store.h"
+
+#include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/config.h>

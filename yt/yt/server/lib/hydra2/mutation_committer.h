@@ -1,13 +1,14 @@
 #pragma once
 
 #include "private.h"
-#include "mutation_context.h"
 #include "decorated_automaton.h"
-#include "distributed_hydra_manager.h"
+
+#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 
 #include <yt/yt/ytlib/election/public.h>
 
-#include <yt/yt/ytlib/hydra2/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/client/hydra/version.h>
 
@@ -45,8 +46,8 @@ public:
 
 protected:
     TCommitterBase(
-        TDistributedHydraManagerConfigPtr config,
-        const TDistributedHydraManagerOptions& options,
+        NHydra::TDistributedHydraManagerConfigPtr config,
+        const NHydra::TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
@@ -55,8 +56,8 @@ protected:
     virtual void DoSuspendLogging() = 0;
     virtual void DoResumeLogging() = 0;
 
-    const TDistributedHydraManagerConfigPtr Config_;
-    const TDistributedHydraManagerOptions Options_;
+    const NHydra::TDistributedHydraManagerConfigPtr Config_;
+    const NHydra::TDistributedHydraManagerOptions Options_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
 
@@ -88,8 +89,8 @@ class TLeaderCommitter
 {
 public:
     TLeaderCommitter(
-        TDistributedHydraManagerConfigPtr config,
-        const TDistributedHydraManagerOptions& options,
+        NHydra::TDistributedHydraManagerConfigPtr config,
+        const NHydra::TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
@@ -102,7 +103,7 @@ public:
      *  A distributed commit is completed when the mutation is received, applied,
      *  and flushed to the changelog by a quorum of replicas.
      */
-    TFuture<TMutationResponse> Commit(TMutationRequest&& request);
+    TFuture<NHydra::TMutationResponse> Commit(NHydra::TMutationRequest&& request);
 
     //! Sends out the current batch of mutations.
     void Flush();
@@ -125,12 +126,12 @@ private:
     class TBatch;
     using TBatchPtr = TIntrusivePtr<TBatch>;
 
-    TFuture<TMutationResponse> LogLeaderMutation(
+    TFuture<NHydra::TMutationResponse> LogLeaderMutation(
         TInstant timestamp,
-        TMutationRequest&& request);
+        NHydra::TMutationRequest&& request);
 
-    void OnBatchCommitted(const TErrorOr<TVersion>& errorOrVersion);
-    TIntrusivePtr<TBatch> GetOrCreateBatch(TVersion version);
+    void OnBatchCommitted(const TErrorOr<NHydra::TVersion>& errorOrVersion);
+    TIntrusivePtr<TBatch> GetOrCreateBatch(NHydra::TVersion version);
     void AddToBatch(
         const TDecoratedAutomaton::TPendingMutation& pendingMutation,
         TSharedRef recordData,
@@ -150,14 +151,14 @@ private:
     {
         TPendingMutation(
             TInstant timestamp,
-            TMutationRequest&& request)
+            NHydra::TMutationRequest&& request)
             : Timestamp(timestamp)
             , Request(request)
         { }
 
         TInstant Timestamp;
-        TMutationRequest Request;
-        TPromise<TMutationResponse> CommitPromise = NewPromise<TMutationResponse>();
+        NHydra::TMutationRequest Request;
+        TPromise<NHydra::TMutationResponse> CommitPromise = NewPromise<NHydra::TMutationResponse>();
     };
 
     std::vector<TPendingMutation> PendingMutations_;
@@ -182,8 +183,8 @@ class TFollowerCommitter
 {
 public:
     TFollowerCommitter(
-        TDistributedHydraManagerConfigPtr config,
-        const TDistributedHydraManagerOptions& options,
+        NHydra::TDistributedHydraManagerConfigPtr config,
+        const NHydra::TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
@@ -191,18 +192,18 @@ public:
 
     //! Logs a batch of mutations at the follower.
     TFuture<void> AcceptMutations(
-        TVersion expectedVersion,
+        NHydra::TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 
     //! Forwards a given mutation to the leader via RPC.
-    TFuture<TMutationResponse> Forward(TMutationRequest&& request);
+    TFuture<NHydra::TMutationResponse> Forward(NHydra::TMutationRequest&& request);
 
     //! Cleans things up, aborts all pending mutations with a human-readable error.
     void Stop();
 
 private:
     TFuture<void> DoAcceptMutations(
-        TVersion expectedVersion,
+        NHydra::TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 
     void DoSuspendLogging() override;
@@ -211,7 +212,7 @@ private:
     struct TPendingMutation
     {
         std::vector<TSharedRef> RecordsData;
-        TVersion ExpectedVersion;
+        NHydra::TVersion ExpectedVersion;
         TPromise<void> Promise;
     };
 

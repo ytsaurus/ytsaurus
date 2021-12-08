@@ -9,7 +9,7 @@
 #include <yt/yt/server/master/cell_master/multi_phase_cell_sync_session.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
-#include <yt/yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra_common/mutation_context.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 

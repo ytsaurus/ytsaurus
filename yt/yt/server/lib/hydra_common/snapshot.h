@@ -54,6 +54,13 @@ struct TSnapshotParams
     i64 UncompressedLength = -1;
 };
 
+struct TRemoteSnapshotParams
+    : public TSnapshotParams
+{
+    TPeerId PeerId = InvalidPeerId;
+    int SnapshotId = InvalidSegmentId;
+};
+
 //! Manages a collection snapshots.
 struct ISnapshotStore
     : public virtual TRefCounted

@@ -1,8 +1,10 @@
-#include "local_snapshot_service.h"
 #include "private.h"
 #include "file_snapshot_store.h"
-#include "snapshot.h"
-#include "snapshot_service_proxy.h"
+#include "local_snapshot_service.h"
+
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/snapshot_service_proxy.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 

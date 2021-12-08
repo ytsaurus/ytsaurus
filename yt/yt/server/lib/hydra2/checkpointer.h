@@ -1,7 +1,9 @@
 #pragma once
 
 #include "private.h"
-#include "distributed_hydra_manager.h"
+
+#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/ytlib/election/public.h>
 
@@ -24,8 +26,8 @@ class TCheckpointer
 {
 public:
     TCheckpointer(
-        TDistributedHydraManagerConfigPtr config,
-        const TDistributedHydraManagerOptions& options,
+        NHydra::TDistributedHydraManagerConfigPtr config,
+        const NHydra::TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger);
@@ -36,7 +38,7 @@ public:
     struct TBuildSnapshotResult
     {
         TRotateChangelogResult RotateChangelogResult;
-        TFuture<TRemoteSnapshotParams> SnapshotConstructionResult;
+        TFuture<NHydra::TRemoteSnapshotParams> SnapshotConstructionResult;
         int SnapshotId;
     };
 
@@ -67,8 +69,8 @@ public:
     bool CanRotateChangelogs() const;
 
 private:
-    const TDistributedHydraManagerConfigPtr Config_;
-    const TDistributedHydraManagerOptions Options_;
+    const NHydra::TDistributedHydraManagerConfigPtr Config_;
+    const NHydra::TDistributedHydraManagerOptions Options_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
     const NLogging::TLogger Logger;

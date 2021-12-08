@@ -2143,10 +2143,10 @@ std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
     const std::vector<TAlienCellDescriptorLite>& alienCellDescriptors,
     const TSyncAlienCellOptions& options)
 {
-    auto channel = GetMasterChannelOrThrow(options.ReadFrom, PrimaryMasterCellTag); 
+    auto channel = GetMasterChannelOrThrow(options.ReadFrom, PrimaryMasterCellTag);
     auto proxy = TChaosMasterServiceProxy(channel);
     auto req = proxy.SyncAlienCells();
-    
+
     ToProto(req->mutable_cell_descriptors(), alienCellDescriptors);
 
     auto res = WaitFor(req->Invoke())
@@ -2237,7 +2237,7 @@ TPullRowsResult TClient::DoPullRows(
         req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
         req->set_mount_revision(tabletInfo->MountRevision);
         req->set_max_rows_per_read(options.TabletRowsPerRead);
-        req->set_upper_timestamp(options.UpperTimestamp); 
+        req->set_upper_timestamp(options.UpperTimestamp);
         ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
         ToProto(req->mutable_cell_id(), tabletInfo->CellId);
         ToProto(req->mutable_start_replication_progress(), request.Progress);
@@ -2299,10 +2299,10 @@ IChannelPtr TClient::GetChaosChannel(TCellId chaosCellId)
         return channel;
     }
 
-    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTag); 
+    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTag);
     auto proxy = TChaosMasterServiceProxy(channel);
     auto req = proxy.GetCellDescriptors();
-    
+
     ToProto(req->mutable_cell_ids(), std::vector<TCellId>{chaosCellId});
 
     auto res = WaitFor(req->Invoke())

@@ -1,8 +1,10 @@
-#include "local_snapshot_service.h"
 #include "private.h"
 #include "file_snapshot_store.h"
-#include "snapshot.h"
-#include "snapshot_service_proxy.h"
+#include "local_snapshot_service.h"
+
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/snapshot_service_proxy.h>
+#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -11,6 +13,8 @@ namespace NYT::NHydra2 {
 using namespace NRpc;
 using namespace NElection;
 using namespace NConcurrency;
+using namespace NHydra;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +40,7 @@ public:
 private:
     const TFileSnapshotStorePtr FileStore_;
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, LookupSnapshot)
     {
         int maxSnapshotId = request->max_snapshot_id();
         bool exactId = request->exact_id();
@@ -52,7 +56,7 @@ private:
             snapshotId = FileStore_->GetLatestSnapshotId(maxSnapshotId);
             if (snapshotId == InvalidSegmentId) {
                 THROW_ERROR_EXCEPTION(
-                    NHydra2::EErrorCode::NoSuchSnapshot,
+                    NHydra::EErrorCode::NoSuchSnapshot,
                     "No appropriate snapshots in store");
             }
         }
@@ -73,7 +77,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, ReadSnapshot)
+    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ReadSnapshot)
     {
         int snapshotId = request->snapshot_id();
         i64 offset = request->offset();

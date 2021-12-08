@@ -16,7 +16,7 @@
 
 #include <yt/yt/server/lib/hive/public.h>
 
-#include <yt/yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra_common/public.h>
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/chaos_node/config.h>

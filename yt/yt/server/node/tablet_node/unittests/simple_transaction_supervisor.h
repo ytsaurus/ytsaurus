@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/hive/public.h>
 
-#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 
 namespace NYT::NHiveServer {
 

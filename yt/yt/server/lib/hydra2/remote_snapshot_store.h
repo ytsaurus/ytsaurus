@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/client/api/public.h>
 
@@ -10,7 +10,7 @@
 
 #include <yt/yt/client/ypath/public.h>
 
-namespace NYT::NHydra2 {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,4 +28,4 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra2
+} // namespace NYT::NHydra

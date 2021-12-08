@@ -6,7 +6,7 @@
 #include "replication_card.h"
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra/hydra_service.h>
+#include <yt/yt/server/lib/hydra_common/hydra_service.h>
 
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 
