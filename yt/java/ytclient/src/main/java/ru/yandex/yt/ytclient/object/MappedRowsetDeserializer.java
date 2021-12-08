@@ -338,7 +338,11 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
         } else {
             parentObject = restoreFlattenStack(wrapper.parent);
         }
-        wrapper.objectField.field.set(parentObject, object);
+        try {
+            wrapper.objectField.field.set(parentObject, object);
+        } catch (IllegalAccessException ex) {
+            throw new RuntimeException(ex);
+        }
         return object;
     }
 
