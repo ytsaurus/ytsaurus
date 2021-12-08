@@ -1,5 +1,6 @@
 #include "table_commands.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/skynet.h>
@@ -47,6 +48,7 @@ static NLogging::TLogger WithCommandTag(
     return logger.WithTag("Command: %v",
         context->Request().CommandName);
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadTableCommand::TReadTableCommand()
@@ -90,13 +92,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         Options.Config->GroupSize = 1;
     }
 
-    // TODO(gepardo): move this code into a helper shared across different HTTP proxy methods.
-    if (auto traceContext = GetCurrentTraceContext()) {
-        auto baggage = traceContext->UnpackOrCreateBaggage();
-        baggage->Set("api_method@", "read_table");
-        baggage->Set("proxy_type@", "http");
-        traceContext->PackBaggage(baggage);
-    }
+    PutMethodInfoInTraceContext("read_table");
 
     auto reader = WaitFor(context->GetClient()->CreateTableReader(
         Path,
@@ -276,6 +272,8 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
     // XXX(babenko): temporary workaround; this is how it actually works but not how it is intended to be.
     Options.PingAncestors = true;
     Options.Config = config;
+
+    PutMethodInfoInTraceContext("write_table");
 
     auto apiWriter = WaitFor(context->GetClient()->CreateTableWriter(
         Path,
