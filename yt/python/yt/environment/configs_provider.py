@@ -1088,7 +1088,7 @@ def init_logging(path, name,
     if enable_debug_logging:
         config["rules"].append({
             "min_level": "debug",
-            "exclude_categories": ["Bus"],
+            "exclude_categories": ["Bus", "Concurrency"],
             "writers": ["debug"],
         })
         config["writers"]["debug"] = {
