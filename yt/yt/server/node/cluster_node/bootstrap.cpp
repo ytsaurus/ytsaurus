@@ -32,8 +32,6 @@
 #include <yt/yt/server/node/data_node/master_connector.h>
 #include <yt/yt/server/node/data_node/medium_updater.h>
 #include <yt/yt/server/node/data_node/network_statistics.h>
-#include <yt/yt/server/node/data_node/p2p_block_distributor.h>
-#include <yt/yt/server/node/data_node/block_peer_table.h>
 #include <yt/yt/server/node/data_node/private.h>
 #include <yt/yt/server/node/data_node/session_manager.h>
 #include <yt/yt/server/node/data_node/table_schema_cache.h>

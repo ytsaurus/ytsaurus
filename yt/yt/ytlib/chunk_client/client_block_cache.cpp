@@ -110,12 +110,9 @@ public:
             std::move(memoryTracker),
             profiler)
         , Type_(type)
-        , P2PHitWeight_(profiler.Counter("/p2p_hit_weight"))
-        , P2PSuccessWeight_(profiler.Counter("/p2p_success_weight"))
-        , P2PWastedWeight_(profiler.Counter("/p2p_wasted_weight"))
     { }
 
-    void PutBlock(const TBlockId& id, const TBlock& block, bool p2p)
+    void PutBlock(const TBlockId& id, const TBlock& block)
     {
         if (GetCapacity() == 0) {
             // Shortcut when cache is disabled.
@@ -124,7 +121,7 @@ public:
 
         auto cookie = BeginInsert(id);
         if (cookie.IsActive()) {
-            auto entry = New<TAsyncBlockCacheEntry>(id, TCachedBlock(block, p2p));
+            auto entry = New<TAsyncBlockCacheEntry>(id, TCachedBlock(block));
             cookie.EndInsert(std::move(entry));
 
             YT_LOG_DEBUG("Block is put into cache (BlockId: %v, BlockType: %v, BlockSize: %v)",
@@ -151,7 +148,6 @@ public:
             YT_LOG_TRACE("Block cache hit (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
-            OnAccess(block);
             return block->GetCachedBlock();
         } else {
             YT_LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
@@ -173,11 +169,6 @@ public:
         }
 
         auto cookie = BeginInsert(id);
-        if (!cookie.IsActive()) {
-            if (auto entry = cookie.GetValue().TryGet(); entry && entry->IsOK()) {
-                OnAccess(entry->Value());
-            }
-        }
         return std::make_unique<TCachedBlockCookie>(std::move(cookie));
     }
 
@@ -207,34 +198,6 @@ private:
 
         return entry->GetCachedBlock().Block.Size();
     }
-
-    void OnRemoved(const TAsyncBlockCacheEntryPtr& entry) override
-    {
-        TMemoryTrackingAsyncSlruCacheBase<TBlockId, TAsyncBlockCacheEntry>::OnRemoved(entry);
-
-        auto block = entry->GetCachedBlock();
-        if (block.P2P && !entry->Used) {
-            P2PWastedWeight_.Increment(block.Block.Size());
-        }
-    }
-
-    void OnAccess(const TAsyncBlockCacheEntryPtr& entry)
-    {
-        auto block = entry->GetCachedBlock();
-        if (!block.P2P) {
-            return;
-        }
-
-        if (!entry->Used.exchange(true)) {
-            P2PSuccessWeight_.Increment(block.Block.Size());
-        }
-
-        P2PHitWeight_.Increment(block.Block.Size());
-    }
-
-    NProfiling::TCounter P2PHitWeight_;
-    NProfiling::TCounter P2PSuccessWeight_;
-    NProfiling::TCounter P2PWastedWeight_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPerTypeClientBlockCache)
@@ -278,17 +241,7 @@ public:
         const TBlock& data) override
     {
         if (const auto& cache = FindPerTypeCache(type)) {
-            cache->PutBlock(id, data, false);
-        }
-    }
-
-    void PutP2PBlock(
-        const TBlockId& id,
-        EBlockType type,
-        const TBlock& data) override
-    {
-        if (const auto& cache = FindPerTypeCache(type)) {
-            cache->PutBlock(id, data, true);
+            cache->PutBlock(id, data);
         }
     }
 

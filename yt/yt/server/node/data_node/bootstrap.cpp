@@ -2,7 +2,6 @@
 
 #include "ally_replica_manager.h"
 #include "blob_reader_cache.h"
-#include "block_peer_table.h"
 #include "chunk_block_manager.h"
 #include "chunk_meta_manager.h"
 #include "chunk_registry.h"
@@ -13,7 +12,6 @@
 #include "journal_dispatcher.h"
 #include "master_connector.h"
 #include "medium_updater.h"
-#include "p2p_block_distributor.h"
 #include "p2p.h"
 #include "private.h"
 #include "session_manager.h"
@@ -122,10 +120,7 @@ public:
             dynamicConfig->DataNode->MasterJobThreadCount,
             "MasterJob");
 
-        BlockPeerTable_ = New<TBlockPeerTable>(this);
-
         P2PActionQueue_ = New<TActionQueue>("P2P");
-        P2PBlockDistributor_ = New<TP2PBlockDistributor>(this);
         P2PBlockCache_ = New<TP2PBlockCache>(
             GetConfig()->DataNode->P2P,
             P2PActionQueue_->GetInvoker(),
@@ -187,7 +182,6 @@ public:
 
         MediumUpdater_->Start();
 
-        P2PBlockDistributor_->Start();
         P2PDistributor_->Start();
 
         SkynetHttpServer_->Start();
@@ -281,16 +275,6 @@ public:
         return MasterJobThreadPool_->GetInvoker();
     }
 
-    const TBlockPeerTablePtr& GetBlockPeerTable() const override
-    {
-        return BlockPeerTable_;
-    }
-
-    const TP2PBlockDistributorPtr& GetP2PBlockDistributor() const override
-    {
-        return P2PBlockDistributor_;
-    }
-
     const TP2PBlockCachePtr& GetP2PBlockCache() const override
     {
         return P2PBlockCache_;
@@ -338,8 +322,6 @@ private:
     TThreadPoolPtr MasterJobThreadPool_;
 
     TActionQueuePtr P2PActionQueue_;
-    TBlockPeerTablePtr BlockPeerTable_;
-    TP2PBlockDistributorPtr P2PBlockDistributor_;
     TP2PBlockCachePtr P2PBlockCache_;
     TP2PSnooperPtr P2PSnooper_;
     TP2PDistributorPtr P2PDistributor_;

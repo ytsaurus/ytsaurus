@@ -10,8 +10,6 @@
 #include "location.h"
 #include "legacy_master_connector.h"
 #include "network_statistics.h"
-#include "block_peer_table.h"
-#include "p2p_block_distributor.h"
 #include "p2p.h"
 #include "session.h"
 #include "session_manager.h"
@@ -159,10 +157,6 @@ public:
             .SetConcurrencyLimit(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PopulateCache)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000)
             .SetCancelable(true));
@@ -465,33 +459,6 @@ private:
         context->ReplyFrom(result.AsVoid());
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PopulateCache)
-    {
-        context->SetRequestInfo("BlockCount: %v", request->blocks_size());
-
-        ValidateConnected();
-
-        auto blocks = GetRpcAttachedBlocks(request, true /* validateChecksums */);
-
-        if (std::ssize(blocks) != request->blocks_size()) {
-            THROW_ERROR_EXCEPTION("Number of attached blocks is different from blocks field length")
-                << TErrorAttribute("attached_block_count", blocks.size())
-                << TErrorAttribute("blocks_length", request->blocks_size());
-        }
-
-        const auto& blockCache = Bootstrap_->GetClientBlockCache();
-        for (size_t index = 0; index < blocks.size(); ++index) {
-            const auto& block = blocks[index];
-            const auto& protoBlock = request->blocks(index);
-            auto blockId = FromProto<TBlockId>(protoBlock.block_id());
-            blockCache->PutP2PBlock(blockId, EBlockType::CompressedData, block);
-        }
-
-        response->set_expiration_deadline(ToProto<i64>(Config_->PeerUpdateExpirationTime.ToDeadLine()));
-
-        context->Reply();
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdateP2PBlocks)
     {
         auto sessionId = FromProto<TGuid>(request->session_id());
@@ -547,41 +514,6 @@ private:
         blockCache->FinishSessionIteration(sessionId, request->iteration());
 
         context->Reply();
-    }
-
-    template <class TContext>
-    void SuggestPeersWithBlocks(
-        const TContext& context,
-        TNodeId requesterNodeId = InvalidNodeId,
-        TInstant requesterExpirationTime = {})
-    {
-        const auto* request = &context->Request();
-        auto* response = &context->Response();
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
-
-        const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
-        for (int blockIndex : request->block_indexes()) {
-            auto blockId = TBlockId(chunkId, blockIndex);
-            auto peerList = requesterNodeId == InvalidNodeId
-                ? blockPeerTable->FindPeerList(blockId)
-                : blockPeerTable->GetOrCreatePeerList(blockId);
-            if (peerList) {
-                if (auto peers = peerList->GetPeers(); !peers.empty()) {
-                    auto* peerDescriptor = response->add_peer_descriptors();
-                    peerDescriptor->set_block_index(blockIndex);
-                    for (auto peer : peers) {
-                        peerDescriptor->add_node_ids(peer);
-                    }
-                    YT_LOG_DEBUG("Block peers suggested (BlockId: %v, PeerCount: %v)",
-                        blockId,
-                        peers.size());
-                }
-            }
-            if (requesterNodeId != InvalidNodeId) {
-                // Register the peer we're replying to.
-                peerList->AddPeer(requesterNodeId, requesterExpirationTime);
-            }
-        }
     }
 
     template <class TContext>
@@ -777,7 +709,6 @@ private:
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
 
-        SuggestPeersWithBlocks(context);
         SuggestAllyReplicas(context);
 
         const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
@@ -858,14 +789,6 @@ private:
             IncrementReadThrottlingCounter(context);
         }
 
-        bool hasRequester = request->has_peer_node_id() && request->has_peer_expiration_deadline();
-        auto requesterNodeId = hasRequester ? request->peer_node_id() : InvalidNodeId;
-        auto requesterExpirationDeadline = hasRequester ? FromProto<TInstant>(request->peer_expiration_deadline()) : TInstant();
-
-        SuggestPeersWithBlocks(
-            context,
-            requesterNodeId,
-            requesterExpirationDeadline);
         SuggestAllyReplicas(context);
         WaitP2PBarriers(request);
 
@@ -897,14 +820,6 @@ private:
 
                 blocks = WaitFor(asyncBlocks)
                     .ValueOrThrow();
-            }
-        }
-
-        for (int index = 0; index < std::ssize(blocks) && index < std::ssize(blockIndexes); ++index) {
-            if (const auto& block = blocks[index]) {
-                Bootstrap_->GetP2PBlockDistributor()->OnBlockRequested(
-                    TBlockId(chunkId, blockIndexes[index]),
-                    block.Size());
             }
         }
 

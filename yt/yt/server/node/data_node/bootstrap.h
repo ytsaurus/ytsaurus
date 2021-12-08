@@ -45,8 +45,6 @@ struct IBootstrap
     virtual const IInvokerPtr& GetMasterJobInvoker() const = 0;
 
     // P2P stuff.
-    virtual const TBlockPeerTablePtr& GetBlockPeerTable() const = 0;
-    virtual const TP2PBlockDistributorPtr& GetP2PBlockDistributor() const = 0;
     virtual const TP2PBlockCachePtr& GetP2PBlockCache() const = 0;
     virtual const TP2PSnooperPtr& GetP2PSnooper() const = 0;
 

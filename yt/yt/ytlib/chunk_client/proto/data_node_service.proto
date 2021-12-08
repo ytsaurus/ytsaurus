@@ -131,30 +131,6 @@ message TRspFlushBlocks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This request is used to distribute blocks around the cluster by TP2PBlockDistributor.
-// Blocks are sent as attachments. If node accepts to put blocks in her cache
-// (currently node does not have an option to decline), it responds with an expiration deadline,
-// such that the originator node can mention her as a peer within this time (cf. TBlockPeerUpdater).
-
-message TReqPopulateCache
-{
-    message TBlock
-    {
-        required TBlockId block_id = 1;
-        optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor source_descriptor = 2;
-    }
-
-    repeated TBlock blocks = 1;
-    repeated fixed64 block_checksums = 2;
-}
-
-message TRspPopulateCache
-{
-    required uint64 expiration_deadline = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqUpdateP2PBlocks
 {
     required int32 source_node_id = 7;

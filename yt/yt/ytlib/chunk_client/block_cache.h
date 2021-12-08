@@ -14,13 +14,11 @@ namespace NYT::NChunkClient {
 struct TCachedBlock
 {
     TBlock Block;
-    bool P2P = false;
 
     TCachedBlock() = default;
 
     explicit TCachedBlock(
-        TBlock block,
-        bool p2p = false);
+        TBlock block);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
