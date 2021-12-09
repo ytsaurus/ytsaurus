@@ -2383,6 +2383,7 @@ private:
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
             .Item("error").Value(error)
+            .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
             .DoIf(progress.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("progress").Value(progress);
             })
