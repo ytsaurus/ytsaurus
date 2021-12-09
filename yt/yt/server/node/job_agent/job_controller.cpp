@@ -158,7 +158,7 @@ private:
     THashMap<EJobType, TMasterJobFactory> MasterJobFactoryMap_;
     THashMap<EObjectType, TJobHeartbeatProcessorBasePtr> JobHeartbeatProcessors_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, JobMapLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, IJobPtr> JobMap_;
 
     // Map of jobs to hold after remove. It is used to prolong lifetime of stderrs and job specs.

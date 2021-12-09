@@ -65,7 +65,7 @@ private:
     THashMap<TString, TInstant> BannedUntil_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
     NApi::TListNodeOptions ListOptions_;
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
     NApi::ITransactionPtr Transaction_;
     const NLogging::TLogger Logger;
     std::optional<std::pair<TString, NYTree::IAttributeDictionaryPtr>> NameAndAttributes_;

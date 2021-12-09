@@ -119,7 +119,7 @@ private:
 
     using TEntryPtr = TIntrusivePtr<TEntry>;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, TEntryPtr> Map_;
     TAsyncExpiringCacheConfigPtr Config_;
 

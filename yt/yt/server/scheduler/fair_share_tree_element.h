@@ -1073,7 +1073,7 @@ private:
         TJobResources ResourceUsage;
     };
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, JobPropertiesMapLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, JobPropertiesMapLock_);
     THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     TInstant LastScheduleJobSuccessTime_;
 

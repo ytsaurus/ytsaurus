@@ -189,7 +189,7 @@ private:
 
     TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
 
     TPromise<void> DoGetReadyEvent() const
     {

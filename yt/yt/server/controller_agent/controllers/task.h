@@ -392,7 +392,7 @@ private:
     // NB: this field is used in BuildJobSpecProto which is run in an non-serialized invoker,
     // so access it only under the following spinlock.
     THashMap<NTableClient::TTableSchemaPtr, TString> TableSchemaToProtobufTableSchema_;
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, TableSchemaToProtobufTableSchemaLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, TableSchemaToProtobufTableSchemaLock_);
 
     std::unique_ptr<IHistogram> EstimatedInputDataWeightHistogram_;
     std::unique_ptr<IHistogram> InputDataWeightHistogram_;

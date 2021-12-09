@@ -2864,7 +2864,7 @@ struct IOperation
     /// If operation is completed successfully the returned future contains void value.
     /// If operation is completed with error future contains @ref NYT::TOperationFailedError.
     /// In rare cases when error occurred while waiting (e.g. YT become unavailable) future might contain other exception.
-    virtual NThreading::TFuture<void> Watch() = 0;
+    virtual ::NThreading::TFuture<void> Watch() = 0;
 
     ///
     /// @brief Get information about failed jobs.

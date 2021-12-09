@@ -131,7 +131,7 @@ public:
 private:
     const TCpuDuration ExpireTime_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
     //! Maps user name to (error, deadline) pairs.
     THashMap<TString, std::pair<TError, TCpuInstant>> Map_;
 };

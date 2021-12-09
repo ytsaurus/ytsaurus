@@ -33,7 +33,7 @@ private:
         TTableReplicaIdList SyncReplicaIds;
     };
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
     THashMap<NTabletClient::TTabletId, TTabletSyncReplicaIds> TabletIdToSyncReplicaIds_;
 
 

@@ -119,7 +119,7 @@ private:
         NConcurrency::TLease Lease;
     };
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, StickyTransactionLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, StickyTransactionLock_);
     THashMap<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
 
     void OnStickyTransactionLeaseExpired(TTransactionId transactionId, TWeakPtr<ITransaction> weakTransaction)

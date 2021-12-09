@@ -23,6 +23,7 @@
 namespace NYT::NRpc {
 
 using namespace NConcurrency;
+using namespace NThreading;
 using namespace NYTree;
 
 using NYT::FromProto;
@@ -165,7 +166,7 @@ private:
     const size_t ClientStickinessRandomNumber_ = RandomNumber<size_t>();
     const TPromise<void> PeersSetPromise_ = NewPromise<void>();
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     bool Terminated_ = false;
     TDiscoverySessionPtr CurrentDiscoverySession_;
     TDelayedExecutorCookie RediscoveryCookie_;

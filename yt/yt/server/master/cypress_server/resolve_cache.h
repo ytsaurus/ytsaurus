@@ -25,7 +25,7 @@ struct TResolveCacheNode
     TResolveCacheNode* Parent = nullptr;
 
     // These fields are mutated in automaton thread and are read in any thread.
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
     THashMap<TString, TResolveCacheNodePtr>::iterator ParentKeyToChildIt;
 
     struct TLinkPayload
@@ -91,7 +91,7 @@ private:
         THashMap<TNodeId, TResolveCacheNodePtr> IdToNode;
 
         //! Protects #IdToNode_ and #ResolveCacheNode_ for nodes.
-        YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock);
+        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
     };
 
     constexpr static int ShardCount = 256;

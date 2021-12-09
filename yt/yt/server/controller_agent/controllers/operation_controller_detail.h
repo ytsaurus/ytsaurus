@@ -1037,7 +1037,7 @@ private:
     std::atomic<int> CachedPendingJobCount = {0};
     int CachedTotalJobCount = 0;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, CachedNeededResourcesLock);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock);
     TJobResources CachedNeededResources;
 
     TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededJobResources;
@@ -1066,7 +1066,7 @@ private:
     NYson::TYsonString DoBuildUnavailableInputChunksYson();
 
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::MapFragment);
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
     NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;
 
     //! Maps an intermediate chunk id to its originating completed job.
@@ -1372,7 +1372,7 @@ private:
         const TRange<TTable>& tables,
         TTransactionIdFunc tableToTransactionId,
         TCellTagFunc tableToCellTag) const;
-    
+
     void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) override;
     void StartWaitingJobInfoFromNode(std::unique_ptr<TJobSummary> jobSummary);
 

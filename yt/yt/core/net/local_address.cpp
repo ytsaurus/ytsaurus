@@ -2,9 +2,9 @@
 
 #include "config.h"
 
-#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
-
 #include <yt/yt/core/misc/proc.h>
+
+#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -43,7 +43,7 @@ const char* ReadLocalHostName() noexcept
 
 void WriteLocalHostName(TStringBuf hostName) noexcept
 {
-    static NConcurrency::TForkAwareSpinLock Lock;
+    static NThreading::TForkAwareSpinLock Lock;
     auto guard = Guard(Lock);
 
     char* ptr = LocalHostNamePtr.load(std::memory_order_relaxed);

@@ -204,7 +204,7 @@ private:
         ui64 DequeuedActionCount = 0;
     };
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, InvokerQueueStatesLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, InvokerQueueStatesLock_);
     std::vector<TInvokerQueueState> InvokerQueueStates_;
 
     IFairShareCallbackQueuePtr Queue_;

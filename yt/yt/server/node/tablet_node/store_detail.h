@@ -267,7 +267,7 @@ protected:
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
     TInstant LastCompactionTimestamp_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, VersionedChunkMetaLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, VersionedChunkMetaLock_);
     TWeakPtr<TVersionedChunkMetaCacheEntry> CachedWeakVersionedChunkMeta_;
 
     // Cached for fast retrieval from ChunkMeta_.
@@ -294,7 +294,7 @@ protected:
     virtual NTableClient::TKeyComparer GetKeyComparer() = 0;
 
 private:
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ReaderLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ReaderLock_);
     NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
     TReaders CachedReaders_;
     THashMap<std::optional<EWorkloadCategory>, TReaders> CachedRemoteReaderAdapters_;

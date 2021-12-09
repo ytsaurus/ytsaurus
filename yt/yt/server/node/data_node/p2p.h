@@ -131,7 +131,7 @@ struct TP2PChunk
     std::atomic<NProfiling::TCpuInstant> LastAccessTime;
     std::atomic<bool> Hot = false;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, BlocksLock);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, BlocksLock);
     std::vector<TBlockAccessCounter> Blocks;
 
     YT_DECLARE_SPINLOCK(TSpinLock, PeersLock);

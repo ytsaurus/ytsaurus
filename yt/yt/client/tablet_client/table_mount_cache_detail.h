@@ -28,7 +28,7 @@ private:
 
     std::atomic<NProfiling::TCpuInstant> ExpiredEntriesSweepDeadline_ = 0;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MapLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MapLock_);
     THashMap<TTabletId, TWeakPtr<TTabletInfo>> Map_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, GCLock_);

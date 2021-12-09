@@ -49,7 +49,7 @@ private:
     const IInvokerPtr ProfilingInvoker_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-     
+
     struct TUnregisterOperationCounters
     {
         TEnumIndexedVector<EOperationState, NProfiling::TCounter> FinishedCounters;
@@ -75,7 +75,7 @@ private:
 
         NProfiling::TBufferedProducerPtr BufferedProducer;
     };
-    
+
     struct TPoolProfilingEntry
     {
         TUnregisterOperationCounters UnregisterOperationCounters;
@@ -96,8 +96,8 @@ private:
     TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
 
     THashMap<TOperationId, TOperationProfilingEntry> OperationIdToProfilingEntry_;
-    
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, PoolNameToProfilingEntryLock_);
+
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, PoolNameToProfilingEntryLock_);
     THashMap<TString, TPoolProfilingEntry> PoolNameToProfilingEntry_;
 
     NProfiling::TBufferedProducerPtr DistributedResourcesBufferedProducer_;

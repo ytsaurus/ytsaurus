@@ -67,7 +67,7 @@ protected:
 
     std::atomic<int> Version_ = 0;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, LifetimeLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, LifetimeLock_);
     std::atomic<int> ReadLockCounter_ = 0;
     int UpdateLockCounter_ = 0;
     TFuture<void> RemovedFuture_;
@@ -106,7 +106,7 @@ protected:
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
 
-    virtual void ReleaseReader(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& writerGuard);
+    virtual void ReleaseReader(NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard);
 
     static NChunkClient::TRefCountedChunkMetaPtr FilterMeta(
         NChunkClient::TRefCountedChunkMetaPtr meta,

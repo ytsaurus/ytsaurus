@@ -25,7 +25,7 @@ public:
     TJobResources GetNeededResources() const;
     TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
     TJobResources GetAggregatedMinNeededJobResources() const;
-    
+
     void UpdateMinNeededJobResources();
 
     void ComputeMaxConcurrentControllerScheduleJobCallsPerNodeShard();
@@ -66,7 +66,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    NConcurrency::TReaderWriterSpinLock ConfigLock_;
+    NThreading::TReaderWriterSpinLock ConfigLock_;
     TAtomicObject<TFairShareStrategyOperationControllerConfigPtr> Config_;
 
     struct TStateShard
@@ -84,7 +84,7 @@ private:
     std::atomic<NProfiling::TCpuDuration> ScheduleJobControllerThrottlingBackoff_;
     std::atomic<NProfiling::TCpuInstant> ScheduleJobBackoffDeadline_ = ::Min<NProfiling::TCpuInstant>();
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SaturatedTentativeTreesLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SaturatedTentativeTreesLock_);
     THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;
 };
 

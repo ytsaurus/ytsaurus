@@ -378,7 +378,7 @@ private:
         TEnumIndexedVector<EPeerKind, IChannelPtr> Channels;
     };
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellId, TEntry> RegisteredCellMap_;
     THashSet<TCellId> UnregisteredCellIds_;
 

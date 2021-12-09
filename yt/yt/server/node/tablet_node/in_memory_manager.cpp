@@ -209,7 +209,7 @@ private:
 
     const TAsyncSemaphorePtr PreloadSemaphore_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, InterceptedDataSpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, InterceptedDataSpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
 

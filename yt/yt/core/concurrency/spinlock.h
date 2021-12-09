@@ -3,7 +3,7 @@
 #include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/port.h>
 
-#include <library/cpp/ytalloc/core/concurrency/rw_spinlock.h>
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/system/compiler.h>
 #include <util/system/spinlock.h>
@@ -93,7 +93,7 @@ struct TProfilingSpinlockTraits<
     decltype(static_cast<TUnderlying*>(nullptr)->AcquireReader())
 >
 {
-    using TType = TProfilingReaderWriterSpinlockWrapperImpl<TReaderWriterSpinLock>;
+    using TType = TProfilingReaderWriterSpinlockWrapperImpl<NThreading::TReaderWriterSpinLock>;
 };
 
 template <class TUnderlying>
@@ -117,9 +117,9 @@ using TSpinlockGuard = TGuard<TProfilingSpinlockWrapper<TUnderlying>>;
 template <class TUnderlying>
 using TSpinlockTryGuard = TTryGuard<TProfilingSpinlockWrapper<TUnderlying>>;
 template <class TUnderlying>
-using TSpinlockReaderGuard = TReaderGuard<TProfilingSpinlockWrapper<TUnderlying>>;
+using TSpinlockReaderGuard = NThreading::TReaderGuard<TProfilingSpinlockWrapper<TUnderlying>>;
 template <class TUnderlying>
-using TSpinlockWriterGuard = TWriterGuard<TProfilingSpinlockWrapper<TUnderlying>>;
+using TSpinlockWriterGuard = NThreading::TWriterGuard<TProfilingSpinlockWrapper<TUnderlying>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

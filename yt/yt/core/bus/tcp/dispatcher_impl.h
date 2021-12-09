@@ -61,7 +61,7 @@ private:
     void DisableNetworking();
     bool IsNetworkingDisabled();
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, PollerLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, PollerLock_);
     TTcpDispatcherConfigPtr Config_ = New<TTcpDispatcherConfig>();
     NConcurrency::IPollerPtr AcceptorPoller_;
     NConcurrency::IPollerPtr XferPoller_;

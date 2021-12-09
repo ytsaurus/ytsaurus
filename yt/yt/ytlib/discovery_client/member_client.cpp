@@ -150,7 +150,7 @@ private:
     const NLogging::TLogger Logger;
     const TServerAddressPoolPtr AddressPool_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
     TMemberClientConfigPtr Config_;
 
     std::atomic<i64> Priority_ = std::numeric_limits<i64>::max();

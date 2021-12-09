@@ -262,7 +262,7 @@ private:
     const TTabletNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, TabletSnapshotsSpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, TabletSnapshotsSpinLock_);
     THashMultiMap<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

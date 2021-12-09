@@ -23,8 +23,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// XXX:columnar
-static const i64 MaxRowsPerRead = 1024;
+static constexpr i64 MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -324,7 +323,7 @@ private:
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
 
     struct TSession
     {

@@ -871,7 +871,7 @@ private:
     const TGroupNodePtr Root_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
     THashMap<TGroupId, TGroupNodePtr> IdToNode_;
 
     std::pair<TGroupNodePtr, TYPath> ResolvePath(const TYPath& path)

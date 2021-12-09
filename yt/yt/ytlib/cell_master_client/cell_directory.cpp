@@ -289,7 +289,7 @@ private:
 
     /*const*/ THashMap<TCellTag, TEnumIndexedVector<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellTag, EMasterCellRoles> CellRoleMap_;
     TEnumIndexedVector<EMasterCellRole, TCellTagList> RoleCells_;
     TRandomGenerator RandomGenerator_;

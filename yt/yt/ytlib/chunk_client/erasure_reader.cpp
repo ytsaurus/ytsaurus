@@ -86,7 +86,7 @@ private:
     const IInvokerPtr ReaderInvoker_ = CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker());
 
     TPartIndexSet BannedPartIndices_;
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, IndicesLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, IndicesLock_);
     std::vector<TInstant> SlowReaderBanTimes_;
     TPeriodicExecutorPtr ExpirationTimesExecutor_;
 };

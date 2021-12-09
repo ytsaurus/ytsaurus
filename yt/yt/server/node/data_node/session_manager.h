@@ -53,7 +53,7 @@ private:
     const TDataNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SessionMapLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TSessionId, ISessionPtr> SessionMap_;
 
     std::atomic<bool> DisableWriteSessions_ = false;

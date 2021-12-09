@@ -4,7 +4,7 @@
 #include "source_location.h"
 #include "singleton.h"
 
-#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
+#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
 namespace NYT {
 
@@ -107,7 +107,7 @@ private:
     // -1 if already destroyed
     static thread_local int LocalSlotsSize_;
 
-    mutable NConcurrency::TForkAwareSpinLock SpinLock_;
+    mutable NThreading::TForkAwareSpinLock SpinLock_;
     std::map<TKey, TRefCountedTypeCookie> KeyToCookie_;
     std::map<TRefCountedTypeKey, size_t> TypeKeyToObjectSize_;
     std::vector<TKey> CookieToKey_;

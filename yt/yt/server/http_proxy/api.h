@@ -108,7 +108,7 @@ private:
 
     TString GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, BanCacheLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, BanCacheLock_);
     THashMap<TString, TInstant> BanCache_;
 
     struct TProfilingCounters

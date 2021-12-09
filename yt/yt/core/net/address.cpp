@@ -887,7 +887,7 @@ private:
 
     std::atomic<bool> HasCachedLocalAddresses_ = {false};
     std::vector<TNetworkAddress> CachedLocalAddresses_;
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, CacheLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, CacheLock_);
 
     const TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
 

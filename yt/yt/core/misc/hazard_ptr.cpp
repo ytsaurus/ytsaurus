@@ -11,7 +11,8 @@
 
 #include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
-#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
+
+#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
 #include <pthread.h>
 
@@ -142,7 +143,7 @@ private:
 
     TDeleteQueue<TRetiredPtr> DeleteQueue_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ThreadRegistryLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ThreadRegistryLock_);
     TIntrusiveLinkedList<THazardThreadState, THazardThreadStateToRegistryNode> ThreadRegistry_;
     pthread_key_t ThreadDtorKey_;
 
@@ -175,7 +176,7 @@ THazardPointerManager::THazardPointerManager()
         THazardPointerManager::Get()->DestroyThread(ptr);
     });
 
-    NConcurrency::TForkAwareSpinLock::AtFork(
+    NThreading::TForkAwareSpinLock::AtFork(
         this,
         [] (void* cookie) {
             static_cast<THazardPointerManager*>(cookie)->BeforeFork();

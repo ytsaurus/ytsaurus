@@ -32,6 +32,7 @@
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;
+using namespace NThreading;
 using namespace NClusterNode;
 using namespace NNodeTrackerClient;
 using namespace NIO;

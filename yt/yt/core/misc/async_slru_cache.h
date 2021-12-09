@@ -340,12 +340,12 @@ private:
     private:
         friend class TAsyncSlruCacheListManager<TGhostItem, TGhostShard>;
 
-        YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock);
+        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock);
 
         THashMap<TKey, TGhostItem*, THash> ItemMap_;
 
         bool DoLookup(const TKey& key, bool allowAsyncHits);
-        void Trim(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
+        void Trim(NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& guard);
     };
 
     //! Cache shard. Each shard is a small cache that can store a subset of keys. It consists of lists (see
@@ -373,7 +373,7 @@ private:
     class TShard : public TAsyncSlruCacheListManager<TItem, TShard>
     {
     public:
-        YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock);
+        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock);
 
         //! Holds pointers to values for any given key. They are stored to allow resurrection. When the value
         //! is freed, it will be removed from ValueMap. When the value is in Destroying state, the value will still
@@ -390,7 +390,7 @@ private:
 
         //! Trims the lists and releases the guard. Returns the list of evicted items.
         std::vector<TValuePtr> Trim(
-            NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
+            NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& guard);
 
     protected:
         void OnYoungerUpdated(i64 deltaCount, i64 deltaWeight);

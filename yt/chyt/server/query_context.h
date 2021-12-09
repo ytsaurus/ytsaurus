@@ -134,13 +134,13 @@ private:
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);
 
     //! Spinlock controlling lazy client creation.
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ClientLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ClientLock_);
 
     //! Native client for the user that initiated the query. Created on first use.
     mutable NApi::NNative::IClientPtr Client_;
 
     //! Spinlock controlling select query context map.
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, StorageToStorageContextLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, StorageToStorageContextLock_);
     THashMap<const DB::IStorage*, TStorageContextPtr> StorageToStorageContext_;
 };
 

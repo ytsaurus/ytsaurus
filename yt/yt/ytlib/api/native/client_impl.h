@@ -555,12 +555,12 @@ private:
 
     struct TReplicaClient final
     {
-        YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock);
+        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
         NApi::IClientPtr Client;
         TFuture<NApi::IClientPtr> AsyncClient;
     };
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ReplicaClientsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
     THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
     const NRpc::IChannelPtr& GetOperationArchiveChannel(EMasterChannelKind kind);

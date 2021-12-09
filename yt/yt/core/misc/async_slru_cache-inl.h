@@ -1132,7 +1132,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::Reconfigure(i64 capa
 }
 
 template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::Trim(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard)
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostShard::Trim(NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& guard)
 {
     auto evictedItems = this->TrimNoDelete();
     for (const auto& item : evictedItems) {
@@ -1161,7 +1161,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TGhostCounters::TGhostCounters(
 template <class TKey, class TValue, class THash>
 std::vector<typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtr>
 TAsyncSlruCacheBase<TKey, TValue, THash>::TShard::Trim(
-    NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard)
+    NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& guard)
 {
     auto evictedItems = this->TrimNoDelete();
 

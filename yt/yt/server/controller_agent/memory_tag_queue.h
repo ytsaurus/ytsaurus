@@ -48,7 +48,7 @@ private:
 
     int AllocatedTagCount_ = DefaultMemoryTagCount;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
     //! A queue of spare tags.
     std::queue<NYTAlloc::TMemoryTag> AvailableTags_;

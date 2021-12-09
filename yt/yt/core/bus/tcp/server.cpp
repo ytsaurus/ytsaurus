@@ -127,7 +127,7 @@ protected:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, ControlSpinLock_);
     SOCKET ServerSocket_ = INVALID_SOCKET;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ConnectionsSpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ConnectionsSpinLock_);
     THashSet<TTcpConnectionPtr> Connections_;
 
     NLogging::TLogger Logger = BusLogger;

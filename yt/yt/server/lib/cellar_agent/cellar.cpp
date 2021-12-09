@@ -118,7 +118,7 @@ public:
         occupier->SetOccupant(occupant);
         occupant->Initialize();
         ++OccupantCount_;
-        YT_VERIFY(OccupantCount_ <= std::ssize(Occupants_));   
+        YT_VERIFY(OccupantCount_ <= std::ssize(Occupants_));
 
         {
             auto guard = WriterGuard(CellIdToOccupantLock_);
@@ -159,13 +159,13 @@ public:
         return occupant->Finalize()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TError&) {
                 VERIFY_THREAD_AFFINITY(ControlThread);
-             
+
                 if (occupant->GetIndex() < std::ssize(Occupants_) && Occupants_[occupant->GetIndex()] == occupant) {
                     Occupants_[occupant->GetIndex()].Reset();
                     --OccupantCount_;
                     YT_VERIFY(OccupantCount_ >= 0);
                 }
-             
+
                 {
                     auto guard = WriterGuard(CellIdToOccupantLock_);
                     if (auto it = CellIdToOccupant_.find(occupant->GetCellId()); it && it->second == occupant) {
@@ -259,7 +259,7 @@ private:
     int OccupantCount_ = 0;
     std::vector<ICellarOccupantPtr> Occupants_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, CellIdToOccupantLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, CellIdToOccupantLock_);
     THashMap<TCellId, ICellarOccupantPtr> CellIdToOccupant_;
 
     ICellarOccupierProviderPtr OccupierProvider_;

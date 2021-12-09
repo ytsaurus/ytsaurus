@@ -1038,7 +1038,7 @@ private:
 
     TOperationIdToOperationMap IdToOperation_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     struct TFilteredExecNodeDescriptors

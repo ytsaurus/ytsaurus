@@ -145,7 +145,7 @@ private:
     }
 
 protected:
-    NThreading::TBlockingQueue<T> Rows_;
+    ::NThreading::TBlockingQueue<T> Rows_;
 
 protected:
     void AddRowError() {

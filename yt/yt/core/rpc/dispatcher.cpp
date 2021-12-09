@@ -150,7 +150,7 @@ private:
 
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     TEnumIndexedVector<EMultiplexingBand, TBandDescriptor> BandToDescriptor_;
 
     // Using linear search in vector since number of networks is very small.

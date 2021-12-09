@@ -3,7 +3,6 @@
 #include "timing.h"
 
 #include <yt/yt/core/concurrency/profiling_helpers.h>
-#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler_thread.h>
 #include <yt/yt/core/concurrency/invoker_queue.h>
@@ -23,6 +22,8 @@
 #include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
+
+#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
 #include <util/generic/iterator_range.h>
 
@@ -124,7 +125,7 @@ public:
 
     TTagId RegisterTag(const TStringTag& tag)
     {
-        TGuard<TForkAwareSpinLock> guard(TagSpinLock_);
+        auto guard = Guard(TagSpinLock_);
         auto pair = std::make_pair(tag.Key, tag.Value);
         auto it = TagToId_.find(pair);
         if (it != TagToId_.end()) {
@@ -142,11 +143,11 @@ public:
 
     TStringTag LookupTag(TTagId tag)
     {
-        TGuard<TForkAwareSpinLock> guard(TagSpinLock_);
+        auto guard = Guard(TagSpinLock_);
         return GetTag(tag);
     }
 
-    TForkAwareSpinLock& GetTagSpinLock()
+    NThreading::TForkAwareSpinLock& GetTagSpinLock()
     {
         return TagSpinLock_;
     }
@@ -344,7 +345,7 @@ private:
 
             {
                 const auto& profilingManager = TProfileManager::Get()->Impl_;
-                TGuard<TForkAwareSpinLock> tagGuard(profilingManager->GetTagSpinLock());
+                auto tagGuard = Guard(profilingManager->GetTagSpinLock());
                 for (auto& [tagId, tag] : tagIdToValue) {
                     tag = profilingManager->GetTag(tagId);
                 }
@@ -422,7 +423,7 @@ private:
     THashMap<TYPath, TBucketPtr> PathToBucket_;
     TIdGenerator SampleIdGenerator_;
 
-    TForkAwareSpinLock TagSpinLock_;
+    NThreading::TForkAwareSpinLock TagSpinLock_;
     std::vector<TStringTag> IdToTag_;
     std::atomic<int> RegisteredTagCount_ = 0;
     THashMap<std::pair<TString, TString>, int> TagToId_;
@@ -501,7 +502,7 @@ private:
         if (bucket->AddSample(storedSample) == 1) {
             THashMultiMap<TString, TString> tags;
             {
-                TGuard<TForkAwareSpinLock> guard(TagSpinLock_);
+                auto guard = Guard(TagSpinLock_);
                 for (auto tagId : storedSample.TagIds) {
                     const auto& tag = GetTag(tagId);
                     tags.emplace(tag.Key, tag.Value);
