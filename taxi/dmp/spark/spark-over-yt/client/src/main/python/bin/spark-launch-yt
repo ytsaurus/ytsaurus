@@ -19,7 +19,7 @@ try:
     from spyt.standalone import start_spark_cluster, find_spark_cluster, SparkDefaultArguments, SpytEnablers
     from spyt import utils as spark_utils
     sys.path.insert(0, os.path.join(spark_home, "bin", "python"))
-except ModuleNotFoundError as err:
+except Exception as err:
     print("Spyt modules not found, falling back to pysark: %s " % err)
     sys.path.insert(0, os.path.join(spark_home, "bin", "python"))
     from yt.wrapper import YtClient
