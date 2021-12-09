@@ -65,10 +65,12 @@ def _add_master(discovery, spark_args, rest, client=None):
     }, spark_args)
 
 
-def _add_shs(discovery, spark_args, client=None):
-    _add_conf({
-        "spark.rest.shs": SparkDiscovery.get(discovery.shs(), client=client)
-    }, spark_args)
+def _add_shs_option(discovery, spark_args, client=None):
+    shs = SparkDiscovery.getOption(discovery.shs(), client=client)
+    if shs is not None:
+        _add_conf({
+            "spark.rest.shs": shs
+        }, spark_args)
 
 
 def _add_base_spark_conf(client, discovery, spark_args):
@@ -167,7 +169,7 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, python
         raise RuntimeError('No permission for reading cluster, actual permission status is ' + str(permission_status))
     discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
     _add_master(discovery, spark_base_args, rest=True, client=client)
-    _add_shs(discovery, spark_base_args, client=client)
+    _add_shs_option(discovery, spark_base_args, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
     _add_spyt_deps(spyt_version, spark_base_args, discovery, client)
     _add_python_version(python_version, spark_base_args, client)
@@ -208,7 +210,7 @@ def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None
     spark_base_args = [spark_shell_path]
     discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
     _add_master(discovery, spark_base_args, rest=False, client=client)
-    _add_shs(discovery, spark_base_args, client=client)
+    _add_shs_option(discovery, spark_base_args, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
     _add_conf({"spark.ui.showConsoleProgress": "true"}, spark_base_args)
     _add_spyt_deps(spyt_version, spark_base_args, discovery, client)
