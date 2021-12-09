@@ -3,7 +3,6 @@
 #include <yt/yt/core/misc/free_list.h>
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/compact_vector.h>
-#include <yt/yt/core/misc/intrusive_linked_list.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/shutdown.h>
@@ -13,6 +12,8 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
+
+#include <library/cpp/yt/containers/intrusive_linked_list.h>
 
 #include <pthread.h>
 
