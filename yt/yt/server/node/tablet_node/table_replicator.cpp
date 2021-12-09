@@ -68,7 +68,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const int TabletRowsPerRead = 1000;
-static const auto HardErrorAttribute = TErrorAttribute("hard", true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,7 +103,7 @@ public:
         , Logger(TabletNodeLogger.WithTag("%v, ReplicaId: %v",
             tablet->GetLoggingTag(),
             ReplicaId_))
-        , ReplicationLogParser_(CreateReplicationLogParser(TableSchema_, MountConfig_, Logger))
+        , ReplicationLogParser_(CreateReplicationLogParser(TableSchema_, MountConfig_, workloadCategory, Logger))
         , WorkloadCategory_(workloadCategory)
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeOutThrottler),
@@ -316,9 +315,9 @@ private:
 
                 if (!readReplicationBatch()) {
                     checkPrevReplicationRowIndex = false;
-                    startRowIndex = ComputeStartRowIndex(
+                    startRowIndex = ReplicationLogParser_->ComputeStartRowIndex(
                         tabletSnapshot,
-                        replicaSnapshot,
+                        replicaSnapshot->StartReplicationTimestamp,
                         chunkReadOptions);
                     YT_VERIFY(readReplicationBatch());
                 }
@@ -394,111 +393,6 @@ private:
                 DoSoftBackoff(error);
             }
         }
-    }
-
-    TTimestamp ReadLogRowTimestamp(
-        const TTabletSnapshotPtr& tabletSnapshot,
-        const TClientChunkReadOptions& chunkReadOptions,
-        i64 rowIndex)
-    {
-        auto reader = CreateSchemafulRangeTabletReader(
-            tabletSnapshot,
-            TColumnFilter(),
-            MakeRowBound(rowIndex),
-            MakeRowBound(rowIndex + 1),
-            /*timestampRange*/ {},
-            chunkReadOptions,
-            /*tabletThrottlerKind*/ std::nullopt,
-            WorkloadCategory_);
-
-        TRowBatchReadOptions readOptions{
-            .MaxRowsPerRead = 1
-        };
-
-        IUnversionedRowBatchPtr batch;
-        while (true) {
-            batch = reader->Read(readOptions);
-            if (!batch) {
-                THROW_ERROR_EXCEPTION("Missing row %v in replication log of tablet %v",
-                    rowIndex,
-                    tabletSnapshot->TabletId)
-                    << HardErrorAttribute;
-            }
-
-            if (batch->IsEmpty()) {
-                YT_LOG_DEBUG(
-                    "Waiting for log row from tablet reader (RowIndex: %v)",
-                    rowIndex);
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
-                continue;
-            }
-
-            // One row is enough.
-            break;
-        }
-
-        auto readerRows = batch->MaterializeRows();
-        YT_VERIFY(readerRows.size() == 1);
-
-        i64 actualRowIndex = GetLogRowIndex(readerRows[0]);
-        TTimestamp timestamp = GetLogRowTimestamp(readerRows[0]);
-        YT_VERIFY(actualRowIndex == rowIndex);
-
-        YT_LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %llx)",
-            rowIndex,
-            timestamp);
-
-        return timestamp;
-    }
-
-    i64 ComputeStartRowIndex(
-        const TTabletSnapshotPtr& tabletSnapshot,
-        const TTableReplicaSnapshotPtr& replicaSnapshot,
-        const TClientChunkReadOptions& chunkReadOptions)
-    {
-        auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
-        auto totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
-
-        auto rowIndexLo = trimmedRowCount;
-        auto rowIndexHi = totalRowCount;
-        if (rowIndexLo == rowIndexHi) {
-            THROW_ERROR_EXCEPTION("No replication log rows are available")
-                << HardErrorAttribute;
-        }
-
-        auto startReplicationTimestamp = replicaSnapshot->StartReplicationTimestamp;
-
-        YT_LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %llx, RowIndexLo: %v, RowIndexHi: %v)",
-            startReplicationTimestamp,
-            rowIndexLo,
-            rowIndexHi);
-
-        while (rowIndexLo < rowIndexHi - 1) {
-            auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
-            auto timestampMid = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, rowIndexMid);
-            if (timestampMid <= startReplicationTimestamp) {
-                rowIndexLo = rowIndexMid;
-            } else {
-                rowIndexHi = rowIndexMid;
-            }
-        }
-
-        auto startRowIndex = rowIndexLo;
-        auto startTimestamp = NullTimestamp;
-        while (startRowIndex < totalRowCount) {
-            startTimestamp = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, startRowIndex);
-            if (startTimestamp > startReplicationTimestamp) {
-                break;
-            }
-            ++startRowIndex;
-        }
-
-        YT_LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %llx)",
-            startRowIndex,
-            startTimestamp);
-
-        return startRowIndex;
     }
 
     bool ReadReplicationBatch(

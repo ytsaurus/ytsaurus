@@ -14,6 +14,8 @@ namespace NYT::NTabletNode {
 i64 GetLogRowIndex(NTableClient::TUnversionedRow logRow);
 TTimestamp GetLogRowTimestamp(NTableClient::TUnversionedRow logRow);
 
+TLegacyOwningKey MakeRowBound(i64 rowIndex);
+
 TUnversionedRow BuildLogRow(
     NTableClient::TUnversionedRow row,
     NApi::ERowModificationType changeType,
@@ -38,6 +40,11 @@ struct IReplicationLogParser
         i64* rowIndex,
         TTimestamp* timestamp,
         bool isVersioned) = 0;
+
+    virtual i64 ComputeStartRowIndex(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        NTransactionClient::TTimestamp startReplicationTimestamp,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReplicationLogParser)
@@ -45,7 +52,8 @@ DEFINE_REFCOUNTED_TYPE(IReplicationLogParser)
 IReplicationLogParserPtr CreateReplicationLogParser(
     NTableClient::TTableSchemaPtr tableSchema,
     TTableMountConfigPtr mountConfig,
-    const NLogging::TLogger& logger);
+    EWorkloadCategory workloadCategory,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

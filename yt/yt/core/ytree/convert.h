@@ -23,6 +23,7 @@ template <class T>
 NYson::TYsonString ConvertToYsonString(const T& value, EYsonFormat format);
 
 // Provide shared instantiations for commonly used types.
+extern template NYson::TYsonString ConvertToYsonString<bool>(const bool&);
 extern template NYson::TYsonString ConvertToYsonString<int>(const int&);
 extern template NYson::TYsonString ConvertToYsonString<long>(const long&);
 extern template NYson::TYsonString ConvertToYsonString<unsigned int>(const unsigned int&);

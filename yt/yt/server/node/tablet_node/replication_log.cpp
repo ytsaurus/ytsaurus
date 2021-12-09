@@ -1,6 +1,8 @@
 #include "replication_log.h"
 
 #include "tablet.h"
+#include "tablet_reader.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -11,6 +13,8 @@
 namespace NYT::NTabletNode {
 
 using namespace NApi;
+using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTabletClient;
 
@@ -26,6 +30,13 @@ TTimestamp GetLogRowTimestamp(TUnversionedRow logRow)
 {
     YT_ASSERT(logRow[2].Type == EValueType::Uint64);
     return logRow[2].Data.Uint64;
+}
+
+TLegacyOwningKey MakeRowBound(i64 rowIndex)
+{
+    return MakeUnversionedOwningRow(
+        -1, // tablet id, fake
+        rowIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,7 +130,8 @@ public:
     TReplicationLogParser(
         TTableSchemaPtr tableSchema,
         TTableMountConfigPtr mountConfig,
-        const NLogging::TLogger& logger)
+        EWorkloadCategory workloadCategory,
+        NLogging::TLogger logger)
         : IsSorted_(tableSchema->IsSorted())
         , PreserveTabletIndex_(mountConfig->PreserveTabletIndex)
         , TabletIndexColumnId_(tableSchema->ToReplicationLog()->GetColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
@@ -127,7 +139,8 @@ public:
             tableSchema->HasTimestampColumn()
                 ? std::make_optional(tableSchema->GetColumnIndex(TimestampColumnName))
                 : std::nullopt)
-        , Logger(logger)
+        , WorkloadCategory_(workloadCategory)
+        , Logger(std::move(logger))
     { }
 
     std::optional<int> GetTimestampColumnId() override
@@ -174,11 +187,59 @@ public:
         }
     }
 
+    i64 ComputeStartRowIndex(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        NTransactionClient::TTimestamp startReplicationTimestamp,
+        const TClientChunkReadOptions& chunkReadOptions) override
+    {
+        auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
+        auto totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
+
+        auto rowIndexLo = trimmedRowCount;
+        auto rowIndexHi = totalRowCount;
+        if (rowIndexLo == rowIndexHi) {
+            THROW_ERROR_EXCEPTION("No replication log rows are available")
+                << HardErrorAttribute;
+        }
+
+        YT_LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %llx, RowIndexLo: %v, RowIndexHi: %v)",
+            startReplicationTimestamp,
+            rowIndexLo,
+            rowIndexHi);
+
+        while (rowIndexLo < rowIndexHi - 1) {
+            auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
+            auto timestampMid = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, rowIndexMid);
+            if (timestampMid <= startReplicationTimestamp) {
+                rowIndexLo = rowIndexMid;
+            } else {
+                rowIndexHi = rowIndexMid;
+            }
+        }
+
+        auto startRowIndex = rowIndexLo;
+        auto startTimestamp = NullTimestamp;
+        while (startRowIndex < totalRowCount) {
+            startTimestamp = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, startRowIndex);
+            if (startTimestamp > startReplicationTimestamp) {
+                break;
+            }
+            ++startRowIndex;
+        }
+
+        YT_LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %llx)",
+            startRowIndex,
+            startTimestamp);
+
+        return startRowIndex;
+    }
+
 private:
     const bool IsSorted_;
     const bool PreserveTabletIndex_;
     const int TabletIndexColumnId_;
     const std::optional<int> TimestampColumnId_;
+    const EWorkloadCategory WorkloadCategory_;
     const NLogging::TLogger Logger;
     
     void ParseOrderedLogRow(
@@ -382,6 +443,61 @@ private:
 
         *result = replicationRow.ToTypeErasedRow();
     }
+
+    TTimestamp ReadLogRowTimestamp(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const TClientChunkReadOptions& chunkReadOptions,
+        i64 rowIndex)
+    {
+        auto reader = CreateSchemafulRangeTabletReader(
+            tabletSnapshot,
+            TColumnFilter(),
+            MakeRowBound(rowIndex),
+            MakeRowBound(rowIndex + 1),
+            /*timestampRange*/ {},
+            chunkReadOptions,
+            /*tabletThrottlerKind*/ std::nullopt,
+            WorkloadCategory_);
+
+        TRowBatchReadOptions readOptions{
+            .MaxRowsPerRead = 1
+        };
+
+        IUnversionedRowBatchPtr batch;
+        while (true) {
+            batch = reader->Read(readOptions);
+            if (!batch) {
+                THROW_ERROR_EXCEPTION("Missing row %v in replication log of tablet %v",
+                    rowIndex,
+                    tabletSnapshot->TabletId)
+                    << HardErrorAttribute;
+            }
+
+            if (batch->IsEmpty()) {
+                YT_LOG_DEBUG("Waiting for log row from tablet reader (RowIndex: %v)",
+                    rowIndex);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
+
+            // One row is enough.
+            break;
+        }
+
+        auto readerRows = batch->MaterializeRows();
+        YT_VERIFY(readerRows.size() == 1);
+
+        i64 actualRowIndex = GetLogRowIndex(readerRows[0]);
+        auto timestamp = GetLogRowTimestamp(readerRows[0]);
+        YT_VERIFY(actualRowIndex == rowIndex);
+
+        YT_LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %llx)",
+            rowIndex,
+            timestamp);
+
+        return timestamp;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -389,9 +505,14 @@ private:
 IReplicationLogParserPtr CreateReplicationLogParser(
     TTableSchemaPtr tableSchema,
     TTableMountConfigPtr mountConfig,
-    const NLogging::TLogger& logger)
+    EWorkloadCategory workloadCategory,
+    NLogging::TLogger logger)
 {
-    return New<TReplicationLogParser>(std::move(tableSchema), std::move(mountConfig), logger);
+    return New<TReplicationLogParser>(
+        std::move(tableSchema),
+        std::move(mountConfig),
+        workloadCategory,
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

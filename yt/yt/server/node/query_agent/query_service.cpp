@@ -770,6 +770,10 @@ private:
             .ReadSessionId = TReadSessionId::Create(),
         };
 
+        TRowBatchReadOptions rowBatchReadOptions{
+            .MaxRowsPerRead = request->max_rows_per_read()
+        };
+
         context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, ResponseCodec: %v, ReadSessionId: %v",
             tabletId,
             startReplicationRowIndex,
@@ -806,21 +810,17 @@ private:
                 snapshotStore->ValidateTabletAccess(tabletSnapshot, AsyncLastCommittedTimestamp);
                 tabletSnapshot->ValidateMountRevision(mountRevision);
 
-                auto logParser = CreateReplicationLogParser(tabletSnapshot->TableSchema, tabletSnapshot->Settings.MountConfig, Logger);
+                auto logParser = CreateReplicationLogParser(
+                    tabletSnapshot->TableSchema,
+                    tabletSnapshot->Settings.MountConfig,
+                    EWorkloadCategory::SystemTabletReplication,
+                    Logger);
                 TWireProtocolWriter writer;
 
-                // TODO(savrus): Use binary search based on progress timestamp.
-                auto currentRowIndex = startReplicationRowIndex.value_or(tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load());
-
-                auto reader = CreateSchemafulRangeTabletReader(
+                auto currentRowIndex = startReplicationRowIndex.value_or(logParser->ComputeStartRowIndex(
                     tabletSnapshot,
-                    TColumnFilter(),
-                    MakeRowBound(currentRowIndex),
-                    MakeRowBound(std::numeric_limits<i64>::max()),
-                    /* timestampRange */ {},
-                    chunkReadOptions,
-                    /* tabletThrottlerKind */ std::nullopt,
-                    EWorkloadCategory::SystemTabletReplication);
+                    GetReplicationProgressMinTimestamp(progress),
+                    chunkReadOptions));
 
                 auto rowBuffer = New<TRowBuffer>();
                 i64 totalRowCount = 0;
@@ -828,85 +828,19 @@ private:
                 i64 responseDataWeight = 0;
                 auto maxTimestamp = MinTimestamp;
 
-                TRowBatchReadOptions readOptions{
-                    .MaxRowsPerRead = request->max_rows_per_read()
-                };
-
-                // TODO(savrus): limit total read row count/data weight per PullRows request (and don't forget about tx atomicity).
-
-                bool hasMoreData = true;
-                while (hasMoreData) {
-                    auto batch = reader->Read(readOptions);
-                    hasMoreData = static_cast<bool>(batch);
-                    if (!batch) {
-                        break;
-                    }
-
-                    if (batch->IsEmpty()) {
-                        YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
-                            currentRowIndex);
-
-                        WaitFor(reader->GetReadyEvent())
-                            .ThrowOnError();
-                        continue;
-                    }
-
-                    auto range = batch->MaterializeRows();
-                    auto readerRows = std::vector<TUnversionedRow>(range.begin(), range.end());
-
-                    for (const auto& row : readerRows) {
-                        ++currentRowIndex;
-
-                        TTypeErasedRow replicationRow;
-                        NApi::ERowModificationType modificationType;
-                        i64 rowIndex;
-                        TTimestamp timestamp;
-                        logParser->ParseLogRow(
-                            tabletSnapshot,
-                            row,
-                            rowBuffer,
-                            &replicationRow,
-                            &modificationType,
-                            &rowIndex,
-                            &timestamp,
-                            /*isVersioned*/ true);
-
-                        auto vrow = TVersionedRow(replicationRow);
-
-                        // Check that row fits into requested row range.
-                        if (CompareRows(progress.UpperKey.Begin(), progress.UpperKey.End(), vrow.BeginKeys(), vrow.EndKeys()) < 0 ||
-                            CompareRows(progress.Segments[0].LowerKey.Begin(), progress.Segments[0].LowerKey.End(), vrow.BeginKeys(), vrow.EndKeys()) > 0)
-                        {
-                            continue;
-                        }
-
-                        // Check that row fits into requested timestamp range.
-                        {
-                            auto it = std::upper_bound(
-                                progress.Segments.begin(),
-                                progress.Segments.end(),
-                                vrow,
-                                [] (const auto& row, const auto& segment) {
-                                   return CompareRows(segment.LowerKey.Begin(), segment.LowerKey.End(), row.BeginKeys(), row.EndKeys()) > 0;
-                                });
-                            --it;
-
-                            YT_VERIFY(it >= progress.Segments.begin());
-
-                            if (timestamp <= it->Timestamp) {
-                                continue;
-                            }
-                        }
-
-                        maxTimestamp = std::max(maxTimestamp, timestamp);
-
-                        writer.WriteVersionedRow(vrow);
-                        ++responseRowCount;
-                        responseDataWeight += GetDataWeight(vrow);
-                    }
-
-                    totalRowCount += readerRows.size();
-                }
+                ReadReplicationBatch(
+                    tabletSnapshot,
+                    chunkReadOptions,
+                    rowBatchReadOptions,
+                    progress,
+                    logParser,
+                    rowBuffer,
+                    currentRowIndex,
+                    &writer,
+                    &totalRowCount,
+                    &responseRowCount,
+                    &responseDataWeight,
+                    &maxTimestamp);
 
                 // TODO(savrus): Check here that we read all rows or reached upperTimestamp in log.
                 if (upperTimestamp && responseRowCount == 0) {
@@ -1565,11 +1499,121 @@ private:
         context->Reply();
     }
 
-    static TLegacyOwningKey MakeRowBound(i64 rowIndex)
+    void ReadReplicationBatch(
+        const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
+        const TClientChunkReadOptions& chunkReadOptions,
+        const TRowBatchReadOptions& rowBatchReadOptions,
+        const TReplicationProgress& progress,
+        const IReplicationLogParserPtr& logParser,
+        const TRowBufferPtr& rowBuffer,
+        i64 currentRowIndex,
+        TWireProtocolWriter* writer,
+        i64* totalRowCount,
+        i64* batchRowCount,
+        i64* batchDataWeight,
+        TTimestamp* maxTimestamp)
     {
-        return MakeUnversionedOwningRow(
-            -1, // tablet id, fake
-            rowIndex);
+        auto reader = CreateSchemafulRangeTabletReader(
+            tabletSnapshot,
+            TColumnFilter(),
+            MakeRowBound(currentRowIndex),
+            MakeRowBound(std::numeric_limits<i64>::max()),
+            /* timestampRange */ {},
+            chunkReadOptions,
+            /* tabletThrottlerKind */ std::nullopt,
+            EWorkloadCategory::SystemTabletReplication);
+
+        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+        TTimestamp prevTimestamp = MinTimestamp;
+        int timestampCount = 0;
+
+        bool tooMuch = false;
+        while (!tooMuch) {
+            auto batch = reader->Read(rowBatchReadOptions);
+            if (!batch) {
+                break;
+            }
+
+            if (batch->IsEmpty()) {
+                YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
+                    currentRowIndex);
+
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
+
+            auto range = batch->MaterializeRows();
+            auto readerRows = std::vector<TUnversionedRow>(range.begin(), range.end());
+
+            for (const auto& replicationLogRow : readerRows) {
+                ++currentRowIndex;
+
+                TTypeErasedRow replicationRow;
+                NApi::ERowModificationType modificationType;
+                i64 rowIndex;
+                TTimestamp timestamp;
+
+                logParser->ParseLogRow(
+                    tabletSnapshot,
+                    replicationLogRow,
+                    rowBuffer,
+                    &replicationRow,
+                    &modificationType,
+                    &rowIndex,
+                    &timestamp,
+                    /*isVersioned*/ true);
+
+                auto row = TVersionedRow(replicationRow);
+
+                // Check that row fits into requested row range.
+                if (CompareRows(progress.UpperKey.Begin(), progress.UpperKey.End(), row.BeginKeys(), row.EndKeys()) < 0 ||
+                    CompareRows(progress.Segments[0].LowerKey.Begin(), progress.Segments[0].LowerKey.End(), row.BeginKeys(), row.EndKeys()) > 0)
+                {
+                    continue;
+                }
+
+                // Check that row fits into requested timestamp range.
+                {
+                    auto it = std::upper_bound(
+                        progress.Segments.begin(),
+                        progress.Segments.end(),
+                        row,
+                        [] (const auto& row, const auto& segment) {
+                           return CompareRows(segment.LowerKey.Begin(), segment.LowerKey.End(), row.BeginKeys(), row.EndKeys()) > 0;
+                        });
+                    --it;
+
+                    YT_VERIFY(it >= progress.Segments.begin());
+
+                    if (timestamp <= it->Timestamp) {
+                        continue;
+                    }
+                }
+
+                if (timestamp != prevTimestamp) {
+                    // TODO(savrus): Throttle pulled data.
+
+                    if (*batchRowCount >= mountConfig->MaxRowsPerReplicationCommit ||
+                        *batchDataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
+                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
+                    {
+                        tooMuch = true;
+                        break;
+                    }
+
+                    ++timestampCount;
+                }
+
+                writer->WriteVersionedRow(row);
+                *maxTimestamp = std::max(*maxTimestamp, timestamp);
+                *batchRowCount += 1;
+                *batchDataWeight += GetDataWeight(row);
+                prevTimestamp = timestamp;
+            }
+
+            *totalRowCount += readerRows.size();
+        }
     }
 };
 
