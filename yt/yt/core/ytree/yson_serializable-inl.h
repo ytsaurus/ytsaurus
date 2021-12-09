@@ -345,7 +345,8 @@ concept SupportsDontSerializeDefaultImpl =
     std::is_arithmetic_v<T> ||
     std::is_same_v<T, TString> ||
     std::is_same_v<T, TDuration> ||
-    std::is_same_v<T, TGuid>;
+    std::is_same_v<T, TGuid> ||
+    std::is_same_v<T, std::optional<std::vector<TString>>>;
 
 template <class T>
 concept SupportsDontSerializeDefault =

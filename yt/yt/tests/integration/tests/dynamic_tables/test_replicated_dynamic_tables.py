@@ -2601,8 +2601,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 cluster,
                 replica_table,
                 attributes={"mode": mode})
-            self._create_replica_table(replica_table, replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
-            sync_enable_table_replica(replica_id)
+            driver = self.replica_driver if cluster == self.REPLICA_CLUSTER_NAME else self.primary_driver
+            self._create_replica_table(
+                replica_table,
+                replica_id,
+                schema=self.SIMPLE_SCHEMA_SORTED,
+                replica_driver=driver)
             return replica_id
 
         replica1 = _create_replica("//tmp/t1", "//tmp/r1", "primary", "sync")
@@ -2611,10 +2615,55 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         replica3 = _create_replica("//tmp/t2", "//tmp/r3", "primary", "async")
         replica4 = _create_replica("//tmp/t2", "//tmp/r4", self.REPLICA_CLUSTER_NAME, "sync")
 
+        sync_enable_table_replica(replica1)
+        sync_enable_table_replica(replica2)
+        sync_enable_table_replica(replica3)
+        sync_enable_table_replica(replica4)
+
         wait(lambda: get("#{}/@mode".format(replica1)) == get("#{}/@mode".format(replica3)))
-        assert lambda: get("#{}/@mode".format(replica2)) == get("#{}/@mode".format(replica4))
-        assert lambda: get("#{}/@mode".format(replica1)) != get("#{}/@mode".format(replica2))
-        assert lambda: get("#{}/@mode".format(replica3)) != get("#{}/@mode".format(replica4))
+        assert get("#{}/@mode".format(replica2)) == get("#{}/@mode".format(replica4))
+        assert get("#{}/@mode".format(replica1)) != get("#{}/@mode".format(replica2))
+        assert get("#{}/@mode".format(replica3)) != get("#{}/@mode".format(replica4))
+
+        if get("#{}/@mode".format(replica1)) == "async":
+            expected_sync_cluster = "primary"
+            expected_replica1_mode = "sync"
+            expected_replica2_mode = "async"
+        else:
+            expected_sync_cluster = self.REPLICA_CLUSTER_NAME
+            expected_replica1_mode = "async"
+            expected_replica2_mode = "sync"
+        set("//tmp/t1/@replicated_table_options/preferred_sync_replica_clusters", [expected_sync_cluster])
+        set("//tmp/t2/@replicated_table_options/preferred_sync_replica_clusters", [expected_sync_cluster])
+
+        wait(lambda:
+             get("#{}/@mode".format(replica1)) == expected_replica1_mode and
+             get("#{}/@mode".format(replica2)) == expected_replica2_mode and
+             get("#{}/@mode".format(replica3)) == expected_replica1_mode and
+             get("#{}/@mode".format(replica4)) == expected_replica2_mode)
+
+    @authors("akozhikhov")
+    def test_preferred_replica_clusters(self):
+        self._create_cells()
+
+        self._create_replicated_table(
+            "//tmp/t",
+            schema=self.SIMPLE_SCHEMA_SORTED,
+            replicated_table_options={"enable_replicated_table_tracker": True},
+            external_cell_tag=1)
+
+        replica1 = create_table_replica("//tmp/t", "primary", "//tmp/r1", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r1", replica1, schema=self.SIMPLE_SCHEMA_SORTED, replica_driver=self.primary_driver)
+
+        replica2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r2", replica2, schema=self.SIMPLE_SCHEMA_SORTED)
+
+        sync_enable_table_replica(replica1)
+        sync_enable_table_replica(replica2)
+
+        set("//tmp/t/@replicated_table_options/preferred_sync_replica_clusters", [self.REPLICA_CLUSTER_NAME])
+        wait(lambda: get("#{}/@mode".format(replica1)) == "async")
+        assert get("#{}/@mode".format(replica2)) == "sync"
 
     @authors("akozhikhov")
     def test_forbid_write_if_not_in_sync(self):
