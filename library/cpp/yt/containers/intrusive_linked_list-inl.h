@@ -1,8 +1,11 @@
+#pragma once
 #ifndef INTRUSIVE_LINKED_LIST_INL_H_
 #error "Direct inclusion of this file is not allowed, include intrusive_linked_list.h"
 // For the sake of sane code completion.
 #include "intrusive_linked_list.h"
 #endif
+
+#include <library/cpp/yt/assert/assert.h>
 
 namespace NYT {
 
@@ -49,7 +52,7 @@ void TIntrusiveLinkedList<TItem, TItemToNode>::PushBack(TItem* item)
 template <class TItem, class TItemToNode>
 void TIntrusiveLinkedList<TItem, TItemToNode>::PopBack()
 {
-    YT_ASSERT(Back_);
+    Y_ASSERT(Back_);
     if (Front_ == Back_) {
         Front_ = Back_ = nullptr;
     } else {
@@ -77,7 +80,7 @@ void TIntrusiveLinkedList<TItem, TItemToNode>::PushFront(TItem* item)
 template <class TItem, class TItemToNode>
 void TIntrusiveLinkedList<TItem, TItemToNode>::PopFront()
 {
-    YT_ASSERT(Front_);
+    Y_ASSERT(Front_);
     if (Front_ == Back_) {
         Front_ = Back_ = nullptr;
     } else {

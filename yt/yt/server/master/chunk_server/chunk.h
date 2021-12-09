@@ -24,7 +24,8 @@
 #include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/compact_flat_map.h>
 #include <yt/yt/core/misc/compact_vector.h>
-#include <yt/yt/core/misc/intrusive_linked_list.h>
+
+#include <library/cpp/yt/containers/intrusive_linked_list.h>
 
 namespace NYT::NChunkServer {
 

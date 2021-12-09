@@ -13,7 +13,6 @@
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/intrusive_linked_list.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -24,6 +23,8 @@
 #include <util/generic/xrange.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
+
+#include <library/cpp/yt/containers/intrusive_linked_list.h>
 
 #include <array>
 
@@ -297,7 +298,7 @@ public:
         });
         return obj;
     }
-    
+
 
 private:
     struct TState : public TRefCounted
@@ -316,20 +317,20 @@ struct TIOEngineSensors
     {
         // Single request time.
         NProfiling::TEventTimer Timer;
-        
+
         // Cumulative execution time of all requests.
         NProfiling::TTimeCounter TotalTimeCounter;
-        
+
         // Total requests count.
         NProfiling::TCounter Counter;
-        
+
         // Currently executing requests count.
         TInflightCounter InflightCounter;
     };
 
     NProfiling::TCounter WrittenBytesCounter;
     NProfiling::TCounter ReadBytesCounter;
-    
+
     TRequestSensors ReadSensors;
     TRequestSensors WriteSensors;
     TRequestSensors SyncSensors;
@@ -348,7 +349,7 @@ public:
     }
 
     TRequestStatsGuard(TRequestStatsGuard&& other) = default;
-    
+
     ~TRequestStatsGuard()
     {
         auto duration = Timer_.GetElapsedTime();
@@ -578,7 +579,7 @@ private:
         Sensors.ReadBytesCounter = Profiler.Counter("/read_bytes");
 
         auto makeRequestSensors = [] (TProfiler profiler) {
-            TIOEngineSensors::TRequestSensors sensors; 
+            TIOEngineSensors::TRequestSensors sensors;
             sensors.Timer = profiler.Timer("/time");
             sensors.TotalTimeCounter = profiler.TimeCounter("/total_time");
             sensors.Counter = profiler.Counter("/request_count");
@@ -630,8 +631,8 @@ class TFixedPriorityExecutor
 {
 public:
     TFixedPriorityExecutor(
-            TIntrusivePtr<TThreadPoolIOEngineConfig> config, 
-            const TString& locationId, 
+            TIntrusivePtr<TThreadPoolIOEngineConfig> config,
+            const TString& locationId,
             NLogging::TLogger)
         : ReadThreadPool_(New<TThreadPool>(config->ReadThreadCount, Format("IOR:%v", locationId)))
         , WriteThreadPool_(New<TThreadPool>(config->WriteThreadCount, Format("IOW:%v", locationId)))
@@ -660,8 +661,8 @@ class TFairShareThreadPool
 {
 public:
     TFairShareThreadPool(
-            TIntrusivePtr<TThreadPoolIOEngineConfig> config, 
-            const TString& locationId, 
+            TIntrusivePtr<TThreadPoolIOEngineConfig> config,
+            const TString& locationId,
             NLogging::TLogger logger)
         : ReadThreadPool_(CreateTwoLevelFairShareThreadPool(config->ReadThreadCount, Format("FSH:%v", locationId)))
         , WriteThreadPool_(New<TThreadPool>(config->WriteThreadCount, Format("IOW:%v", locationId)))
@@ -815,7 +816,7 @@ public:
     virtual TFuture<void> FlushFileRange(
         TFlushFileRangeRequest request,
         EWorkloadCategory category,
-        TSessionId sessionId) override 
+        TSessionId sessionId) override
     {
         std::vector<TFuture<void>> futures;
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
@@ -884,7 +885,7 @@ private:
             THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "Unexpected end-of-file in read request");
         }
     }
-    
+
     void DoWrite(
         const TWriteRequest& request,
         TWallTimer timer)
@@ -907,7 +908,7 @@ private:
         AddWriteWaitTimeSample(timer.GetElapsedTime());
 
         auto fileOffset = request.Offset;
-        
+
         NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
 
@@ -1078,8 +1079,8 @@ private:
                 ythrow TFileError();
             }
         });
-#else 
-    
+#else
+
     Y_UNUSED(request);
 
 #endif
