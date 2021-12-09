@@ -10,10 +10,11 @@ import ru.yandex.misc.reflection.ClassX
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yson.YsonConsumer
-import ru.yandex.yt.ytclient.`object`.{WireRowDeserializer, WireValueDeserializer}
+import ru.yandex.yt.ytclient.`object`.{UnversionedRowSerializer, WireRowDeserializer, WireValueDeserializer}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.{ObjectType, WriteTable}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import ru.yandex.yt.ytclient.wire.UnversionedRow
 
 import java.io.{ByteArrayInputStream, InputStream}
 import java.nio.charset.StandardCharsets
@@ -102,6 +103,30 @@ trait TestUtils {
     }
     YtWrapper.createTable(path, options ++ Map("schema" -> schema, "optimize_for" -> optimizeFor.node), None)
     val writer = yt.writeTable(new WriteTable[String](path, serializer)).join()
+
+    @tailrec
+    def write(): Unit = {
+      if (!writer.write(rows.asJava, physicalSchema)) {
+        writer.readyEvent().join()
+        write()
+      }
+    }
+
+    write()
+    writer.close().join()
+  }
+
+  def writeTableFromURow(rows: Seq[UnversionedRow], path: String,
+                         physicalSchema: TableSchema, optimizeFor: OptimizeMode = OptimizeMode.Scan,
+                         options: Map[String, YTreeNode] = Map.empty)
+                        (implicit yt: CompoundClient): Unit = {
+    import scala.collection.JavaConverters._
+
+    YtWrapper.createTable(path, options ++ Map("schema" -> physicalSchema.toYTree,
+      "optimize_for" -> optimizeFor.node), None)
+
+    val writer = yt.writeTable(new WriteTable[UnversionedRow](path,
+      new UnversionedRowSerializer(physicalSchema))).join()
 
     @tailrec
     def write(): Unit = {

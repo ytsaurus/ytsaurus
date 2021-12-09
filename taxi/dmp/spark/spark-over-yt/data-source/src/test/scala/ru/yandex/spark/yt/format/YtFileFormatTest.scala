@@ -10,7 +10,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtUtils
 import org.apache.spark.sql.yson.UInt64Long.{fromStringUdf, toStringUdf}
 import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
-import org.apache.spark.sql.{AnalysisException, Row, SaveMode}
+import org.apache.spark.sql.{AnalysisException, DataFrameReader, Row, SaveMode}
 import org.apache.spark.status.api.v1
 import org.mockito.Mockito
 import org.mockito.scalatest.MockitoSugar
@@ -29,6 +29,7 @@ import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.GetNode
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import ru.yandex.yt.ytclient.wire.{UnversionedRow, UnversionedValue}
 
 import java.nio.charset.StandardCharsets
 import java.sql.{Date, Timestamp}
@@ -154,18 +155,25 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     )
   }
 
+  private def testEnabledAndDisabledArrow(f: DataFrameReader => Unit): Unit = {
+    f(spark.read.enableArrow)
+    f(spark.read.disableArrow)
+  }
+
   it should "read float datatype" in {
     Seq(Some(0.3f), Some(0.5f), None)
-      .toDF("c").write.yt(tmpPath)
+      .toDF("c").write.optimizeFor(OptimizeMode.Scan).yt(tmpPath)
 
-    val res = spark.read.yt(tmpPath)
+    testEnabledAndDisabledArrow { reader =>
+      val res = reader.yt(tmpPath)
 
-    res.columns should contain theSameElementsAs Seq("c")
-    res.select("c").collect() should contain theSameElementsAs Seq(
-      Row(0.3f),
-      Row(0.5f),
-      Row(null)
-    )
+      res.columns should contain theSameElementsAs Seq("c")
+      res.select("c").collect() should contain theSameElementsAs Seq(
+        Row(0.3f),
+        Row(0.5f),
+        Row(null)
+      )
+    }
   }
 
   it should "write several partitions" in {
@@ -476,7 +484,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
   it should "enable batch for yson types" in {
     writeTableFromYson(Seq(
       """{value = {a = 1; b = "a"}}""",
-      """{value = {a = 2; b = "b"}}""",
+      """{value = {a = 2; b = "b"}}"""
     ), tmpPath, anySchema)
 
     val res = spark.read.enableArrow(true).schemaHint(
@@ -523,6 +531,46 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
       Row(1, "a", 0.3),
       Row(2, "b", 0.5)
     )
+  }
+
+  it should "read primitives in any column" in {
+    val data = Seq(
+      Seq[Any](0L, 0.0, 0.0f, false, 0.toByte, UInt64Long(0)),
+      Seq[Any](65L, 1.5, 7.2f, true, 3.toByte, UInt64Long(4)))
+
+    val preparedData = Seq(
+      Seq[Any](0L, 0.0, 0.0, false, 0L, UInt64Long(0).toLong),
+      Seq[Any](65L, 1.5, 7.2, true, 3L, UInt64Long(4).toLong))
+
+    writeTableFromURow(
+      preparedData.map(x => new UnversionedRow(java.util.List.of[UnversionedValue](
+        new UnversionedValue(0, ColumnValueType.INT64, false, x(0)),
+        new UnversionedValue(1, ColumnValueType.DOUBLE, false, x(1)),
+        new UnversionedValue(2, ColumnValueType.DOUBLE, false, x(2)),
+        new UnversionedValue(3, ColumnValueType.BOOLEAN, false, x(3)),
+        new UnversionedValue(4, ColumnValueType.INT64, false, x(4)),
+        new UnversionedValue(5, ColumnValueType.UINT64, false, x(5)),
+      ))),
+      tmpPath, new TableSchema.Builder()
+        .setUniqueKeys(false)
+        .addValue("int64", ColumnValueType.ANY)
+        .addValue("double", ColumnValueType.ANY)
+        .addValue("float", ColumnValueType.ANY)
+        .addValue("boolean", ColumnValueType.ANY)
+        .addValue("int8", ColumnValueType.ANY)
+        .addValue("uint64", ColumnValueType.ANY)
+        .build())
+
+    val schemaHint = StructType(Seq(
+      StructField("int64", LongType), StructField("double", DoubleType), StructField("float", FloatType),
+      StructField("boolean", BooleanType), StructField("int8", ByteType), StructField("uint64", UInt64Type)))
+
+    val arrowRes = spark.read.enableArrow.schemaHint(schemaHint).yt(tmpPath).collect()
+    val wireRes = spark.read.disableArrow.schemaHint(schemaHint).yt(tmpPath).collect()
+    val ans = data.map(Row.fromSeq)
+
+    arrowRes should contain theSameElementsAs ans
+    wireRes should contain theSameElementsAs ans
   }
 
   it should "read wire" in {
