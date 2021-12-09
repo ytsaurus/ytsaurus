@@ -12,13 +12,21 @@ if spark_home is None:
     except:
         raise RuntimeError("Unable to find SPARK_HOME automatically from {}".format(os.path.realpath(__file__)))
 
-sys.path.insert(0, os.path.join(spark_home, "bin", "python"))
-
-from yt.wrapper import YtClient
-from yt.wrapper.cli_helpers import ParseStructuredArgument
-from yt.wrapper.http_helpers import get_user_name
-from spyt.standalone import start_spark_cluster, find_spark_cluster, SparkDefaultArguments, SpytEnablers
-from spyt import utils as spark_utils
+try:
+    from yt.wrapper import YtClient
+    from yt.wrapper.cli_helpers import ParseStructuredArgument
+    from yt.wrapper.http_helpers import get_user_name
+    from spyt.standalone import start_spark_cluster, find_spark_cluster, SparkDefaultArguments, SpytEnablers
+    from spyt import utils as spark_utils
+    sys.path.insert(0, os.path.join(spark_home, "bin", "python"))
+except ModuleNotFoundError as err:
+    print("Spyt modules not found, falling back to pysark: %s " % err)
+    sys.path.insert(0, os.path.join(spark_home, "bin", "python"))
+    from yt.wrapper import YtClient
+    from yt.wrapper.cli_helpers import ParseStructuredArgument
+    from yt.wrapper.http_helpers import get_user_name
+    from spyt.standalone import start_spark_cluster, find_spark_cluster, SparkDefaultArguments, SpytEnablers
+    from spyt import utils as spark_utils
 
 
 def main():
@@ -44,6 +52,7 @@ def main():
     parser.add_argument("--spark-cluster-version", required=False)
     parser.add_argument("--worker-log-update-interval", required=False, default="10m")
     parser.add_argument("--shs-location", required=False)
+    parser.add_argument("--preemption_mode", required=False, default="normal")
 
     default_enablers = SpytEnablers()
     group = parser.add_mutually_exclusive_group(required=False)
@@ -110,7 +119,8 @@ def main():
                             enable_profiling=args.enable_profiling,
                             enable_mtn=args.enable_mtn
                         ),
-                        client=yt_client)
+                        client=yt_client,
+                        preemption_mode=args.preemption_mode)
 
 
 if __name__ == '__main__':
