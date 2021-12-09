@@ -236,7 +236,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                network_project, tvm_id, tvm_secret,
                                advanced_event_log, worker_log_transfer, worker_log_json_mode,
                                worker_log_update_interval,
-                               pool, enablers, client):
+                               pool, enablers, client,
+                               preemption_mode):
     if ssd_limit:
         spark_home = "."
     else:
@@ -284,6 +285,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             "enable_mtn": enablers.enable_mtn
         }
     }
+
+    operation_spec['preemption_mode'] = preemption_mode
 
     environment = config["environment"]
     environment["YT_PROXY"] = get_proxy_url(required=True, client=client)
@@ -389,7 +392,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         network_project=None, abort_existing=False, tvm_id=None, tvm_secret=None,
                         advanced_event_log=False, worker_log_transfer=False, worker_log_json_mode=False,
                         worker_log_update_interval=SparkDefaultArguments.SPARK_WORKER_LOG_UPDATE_INTERVAL,
-                        params=None, shs_location=None, spark_cluster_version=None, enablers=None, client=None):
+                        params=None, shs_location=None, spark_cluster_version=None, enablers=None, client=None,
+                        preemption_mode="normal"):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -420,6 +424,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param shs_location: hard set path to log directory
     :param enablers: ...
     :param client: YtClient
+    :param preemption_mode 'normal' or 'graceful' for graceful preemption
     :return:
     """
     spark_discovery = SparkDiscovery(discovery_path=discovery_path)
@@ -474,7 +479,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                                               worker_log_update_interval=worker_log_update_interval,
                                               pool=pool,
                                               enablers=enablers,
-                                              client=client)
+                                              client=client,
+                                              preemption_mode=preemption_mode)
 
     spark_discovery.create(client)
     op = run_operation(spec_builder, sync=False, client=client)
