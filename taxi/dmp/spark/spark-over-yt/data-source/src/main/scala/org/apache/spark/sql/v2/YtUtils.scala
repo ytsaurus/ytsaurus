@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.YPathEnriched.ypath
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.{YPathEnriched, YtPath}
-import ru.yandex.spark.yt.serializers.SchemaConverter
+import ru.yandex.spark.yt.serializers.{SchemaConverter, SchemaConverterConfig}
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
@@ -54,9 +54,11 @@ object YtUtils {
 
   private def getSchema(sparkSession: SparkSession, path: YPathEnriched, parameters: Map[String, String])
                        (implicit client: CompoundClient): StructType = {
+    val config = SchemaConverterConfig(sparkSession)
+    val parsingTypeV3 = parameters.get("parsingtypev3").map(_.toBoolean).getOrElse(config.parsingTypeV3)
     val schemaHint = SchemaConverter.schemaHint(parameters)
     val schemaTree = YtWrapper.attribute(path.toYPath, "schema", path.transaction)
-    val sparkSchema = SchemaConverter.sparkSchema(schemaTree, schemaHint)
+    val sparkSchema = SchemaConverter.sparkSchema(schemaTree, schemaHint, parsingTypeV3)
     getCompatibleSchema(sparkSession, sparkSchema)
   }
 

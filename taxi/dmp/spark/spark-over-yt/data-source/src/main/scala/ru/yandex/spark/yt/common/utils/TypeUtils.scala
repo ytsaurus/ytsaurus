@@ -14,4 +14,8 @@ object TypeUtils {
     val expectedTupleFieldNames = (1 to struct.length).map(n => s"_$n")
     structFieldNames == expectedTupleFieldNames
   }
+
+  def isVariant(struct: StructType): Boolean = {
+    struct.fields.forall(f => f.name.startsWith("_v"))
+  }
 }

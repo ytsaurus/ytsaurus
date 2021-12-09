@@ -10,6 +10,6 @@ class YtLogicalTypeMapConfigEntry(name: String, default: Option[Map[String, YtLo
   }
 
   override def set(value: Map[String, YtLogicalType]): String = {
-    toJsonTyped[Map[String, String]](value.mapValues(_.name))
+    toJsonTyped[Map[String, String]](value.mapValues(_.alias.name))
   }
 }
