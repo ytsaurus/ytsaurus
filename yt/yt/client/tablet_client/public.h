@@ -184,6 +184,7 @@ DEFINE_ENUM(ETabletServiceFeatures,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTableMountCacheConfig)
+DECLARE_REFCOUNTED_CLASS(TTableMountCacheDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteDynamicStoreReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TRetryingRemoteDynamicStoreReaderConfig)
 

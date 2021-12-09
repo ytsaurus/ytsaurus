@@ -309,7 +309,7 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
     if (!newConfig->ControllerAgentConnector && !oldConfig->ControllerAgentConnector) {
         return;
     }
-    
+
     Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_{MakeStrong(this)}, newConfig{std::move(newConfig)}] {
         if (newConfig->ControllerAgentConnector) {
             HeartbeatsEnabled_ = newConfig->ControllerAgentConnector->EnableHeartbeats;

@@ -93,9 +93,33 @@ public:
     bool BatchUpdate;
 
     TAsyncExpiringCacheConfig();
+
+    TAsyncExpiringCacheConfigPtr ApplyDynamic(
+        const TAsyncExpiringCacheDynamicConfigPtr& dynamicConfig) const;
+
+protected:
+    void ApplyDynamicInplace(const TAsyncExpiringCacheDynamicConfigPtr& dynamicConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncExpiringCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAsyncExpiringCacheDynamicConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    std::optional<TDuration> ExpireAfterAccessTime;
+    std::optional<TDuration> ExpireAfterSuccessfulUpdateTime;
+    std::optional<TDuration> ExpireAfterFailedUpdateTime;
+    std::optional<TDuration> RefreshTime;
+
+    std::optional<bool> BatchUpdate;
+
+    TAsyncExpiringCacheDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TAsyncExpiringCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

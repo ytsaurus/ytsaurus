@@ -239,6 +239,14 @@ TConnectionConfig::TConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TConnectionDynamicConfig::TConnectionDynamicConfig()
+{
+    RegisterParameter("sync_replica_cache", SyncReplicaCache)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRemoteTimestampProviderConfigPtr CreateRemoteTimestampProviderConfig(TMasterConnectionConfigPtr config)
 {
     auto timestampProviderConfig = New<TRemoteTimestampProviderConfig>();

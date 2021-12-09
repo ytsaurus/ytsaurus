@@ -242,6 +242,12 @@ void TTableMountCacheBase::Clear()
     YT_LOG_DEBUG("Table mount info cache cleared");
 }
 
+void TTableMountCacheBase::Reconfigure(const TTableMountCacheConfigPtr& config)
+{
+    TAsyncExpiringCache::Reconfigure(config);
+    YT_LOG_DEBUG("Table mount info cache reconfigured");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletClient

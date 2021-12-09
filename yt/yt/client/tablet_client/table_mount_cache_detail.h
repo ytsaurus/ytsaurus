@@ -60,6 +60,8 @@ public:
 
     void Clear() override;
 
+    void Reconfigure(const TTableMountCacheConfigPtr& config) override;
+
 protected:
     const TTableMountCacheConfigPtr Config_;
     const NLogging::TLogger Logger;

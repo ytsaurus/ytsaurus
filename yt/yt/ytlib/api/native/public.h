@@ -19,6 +19,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletSyncReplicaCache)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TClockServersConfig)
 DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
+DECLARE_REFCOUNTED_CLASS(TConnectionDynamicConfig)
 
 struct TConnectionOptions;
 

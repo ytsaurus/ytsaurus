@@ -72,6 +72,45 @@ TAsyncExpiringCacheConfig::TAsyncExpiringCacheConfig()
     });
 }
 
+void TAsyncExpiringCacheConfig::ApplyDynamicInplace(
+    const TAsyncExpiringCacheDynamicConfigPtr& dynamicConfig)
+{
+    ExpireAfterAccessTime = dynamicConfig->ExpireAfterAccessTime.value_or(ExpireAfterAccessTime);
+    ExpireAfterSuccessfulUpdateTime = dynamicConfig->ExpireAfterSuccessfulUpdateTime.value_or(ExpireAfterSuccessfulUpdateTime);
+    ExpireAfterFailedUpdateTime = dynamicConfig->ExpireAfterFailedUpdateTime.value_or(ExpireAfterFailedUpdateTime);
+    RefreshTime = dynamicConfig->RefreshTime.has_value()
+        ? dynamicConfig->RefreshTime
+        : RefreshTime;
+    BatchUpdate = dynamicConfig->BatchUpdate.value_or(BatchUpdate);
+}
+
+TAsyncExpiringCacheConfigPtr TAsyncExpiringCacheConfig::ApplyDynamic(
+    const TAsyncExpiringCacheDynamicConfigPtr& dynamicConfig) const
+{
+    auto config = New<TAsyncExpiringCacheConfig>();
+
+    config->ApplyDynamicInplace(dynamicConfig);
+
+    config->Postprocess();
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAsyncExpiringCacheDynamicConfig::TAsyncExpiringCacheDynamicConfig()
+{
+    RegisterParameter("expire_after_access_time", ExpireAfterAccessTime)
+        .Optional();
+    RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
+        .Optional();
+    RegisterParameter("expire_after_failed_update_time", ExpireAfterFailedUpdateTime)
+        .Optional();
+    RegisterParameter("refresh_time", RefreshTime)
+        .Optional();
+    RegisterParameter("batch_update", BatchUpdate)
+        .Optional();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

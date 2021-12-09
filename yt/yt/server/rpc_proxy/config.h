@@ -205,6 +205,8 @@ public:
 
     TAccessCheckerDynamicConfigPtr AccessChecker;
 
+    NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
+
     TProxyDynamicConfig()
     {
         RegisterParameter("api", Api)
@@ -216,6 +218,9 @@ public:
             .Default();
 
         RegisterParameter("access_checker", AccessChecker)
+            .DefaultNew();
+
+        RegisterParameter("cluster_connection", ClusterConnection)
             .DefaultNew();
 
         // COMPAT(gritukan, levysotsky)

@@ -15,15 +15,25 @@ public:
     //! If entry is requested for the first time then allow only client who requested the entry to wait for it.
     bool RejectIfEntryIsRequestedButNotReady;
 
+    TTableMountCacheConfig();
 
-    TTableMountCacheConfig()
-    {
-        RegisterParameter("reject_if_entry_is_requested_but_not_ready", RejectIfEntryIsRequestedButNotReady)
-            .Default(false);
-    }
+    TTableMountCacheConfigPtr ApplyDynamic(const TTableMountCacheDynamicConfigPtr& dynamicConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableMountCacheDynamicConfig
+    : public TAsyncExpiringCacheDynamicConfig
+{
+public:
+    std::optional<bool> RejectIfEntryIsRequestedButNotReady;
+
+    TTableMountCacheDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableMountCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,27 +52,7 @@ public:
     // Testing option.
     double StreamingSubrequestFailureProbability;
 
-    TRemoteDynamicStoreReaderConfig()
-    {
-        RegisterParameter("client_read_timeout", ClientReadTimeout)
-            .Default(TDuration::Seconds(20));
-        RegisterParameter("server_read_timeout", ServerReadTimeout)
-            .Default(TDuration::Seconds(20));
-        RegisterParameter("client_write_timeout", ClientWriteTimeout)
-            .Default(TDuration::Seconds(20));
-        RegisterParameter("server_write_timeout", ServerWriteTimeout)
-            .Default(TDuration::Seconds(20));
-        RegisterParameter("max_rows_per_server_read", MaxRowsPerServerRead)
-            .GreaterThan(0)
-            .Default(1024);
-
-        RegisterParameter("window_size", WindowSize)
-            .Default(16_MB)
-            .GreaterThan(0);
-
-        RegisterParameter("streaming_subrequest_failure_probability", StreamingSubrequestFailureProbability)
-            .Default(0);
-    }
+    TRemoteDynamicStoreReaderConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteDynamicStoreReaderConfig)
@@ -79,14 +69,7 @@ public:
     //! Time to wait between making another locate request.
     TDuration LocateRequestBackoffTime;
 
-    TRetryingRemoteDynamicStoreReaderConfig()
-    {
-        RegisterParameter("retry_count", RetryCount)
-            .Default(10)
-            .GreaterThan(0);
-        RegisterParameter("locate_request_backoff_time", LocateRequestBackoffTime)
-            .Default(TDuration::Seconds(10));
-    }
+    TRetryingRemoteDynamicStoreReaderConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRetryingRemoteDynamicStoreReaderConfig)
