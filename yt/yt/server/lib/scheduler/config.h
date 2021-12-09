@@ -169,6 +169,8 @@ public:
 
     ESchedulingSegmentModuleType ModuleType;
 
+    bool EnableInfinibandClusterTagValidation;
+
     const THashSet<TString>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);

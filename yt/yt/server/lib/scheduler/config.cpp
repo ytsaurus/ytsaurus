@@ -108,6 +108,9 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("module_type", &TThis::ModuleType)
         .Default(ESchedulingSegmentModuleType::DataCenter);
 
+    registrar.Parameter("enable_infiniband_cluster_tag_validation", &TThis::EnableInfinibandClusterTagValidation)
+        .Default(false);
+
     registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
         for (const auto& schedulingSegmentModule : config->DataCenters) {
             ValidateDataCenterName(schedulingSegmentModule);

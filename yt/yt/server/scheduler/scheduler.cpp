@@ -1679,8 +1679,6 @@ public:
                 << TErrorAttribute("matched_pool_trees", treeIds);
         }
 
-        TNodeSchedulingSegmentManager::ValidateNodeTags(tags);
-
         auto it = NodeIdToDescriptor_.find(nodeId);
         if (it == NodeIdToDescriptor_.end()) {
             if (NodeAddresses_.find(nodeAddress) != NodeAddresses_.end()) {
@@ -4336,6 +4334,8 @@ private:
 
     void ManageNodeSchedulingSegments()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YT_LOG_DEBUG("Started managing node scheduling segments");
 
         TManageNodeSchedulingSegmentsContext context;
@@ -4356,6 +4356,13 @@ private:
         }
 
         NodeSchedulingSegmentManager_.ManageNodeSegments(&context);
+
+        TError error;
+        if (!context.Errors.empty()) {
+            error = TError("Found errors during node scheduling segments management")
+                << std::move(context.Errors);
+        }
+        SetSchedulerAlert(ESchedulerAlertType::ManageNodeSchedulingSegments, error);
 
         int totalMovedNodeCount = 0;
         for (const auto& movedNodesInShard : context.MovedNodesPerNodeShard) {

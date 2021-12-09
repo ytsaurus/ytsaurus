@@ -119,23 +119,6 @@ TString TNodeSchedulingSegmentManager::GetNodeTagFromModuleName(const TString& m
     }
 }
 
-void TNodeSchedulingSegmentManager::ValidateNodeTags(const TBooleanFormulaTags& tags)
-{
-    static const TString InfinibandClusterTagPrefix = InfinibandClusterNameKey + ":";
-
-    std::vector<TString> infinibandClusterTags;
-    for (const auto& tag : tags.GetSourceTags()) {
-        if (tag.StartsWith(InfinibandClusterTagPrefix)) {
-            infinibandClusterTags.push_back(tag);
-        }
-    }
-
-    if (std::ssize(infinibandClusterTags) > 1) {
-        THROW_ERROR_EXCEPTION("Node has more than one infiniband cluster tags")
-            << TErrorAttribute("infiniband_cluster_tags", infinibandClusterTags);
-    }
-}
-
 void TNodeSchedulingSegmentManager::ManageNodeSegments(TManageNodeSchedulingSegmentsContext* context)
 {
     TSensorBuffer sensorBuffer;
@@ -155,6 +138,10 @@ void TNodeSchedulingSegmentManager::ManageNodeSegments(TManageNodeSchedulingSegm
                 &sensorBuffer);
 
             continue;
+        }
+
+        if (strategyTreeState.ValidateInfinibandClusterTags) {
+            ValidateInfinibandClusterTagsInTree(context, treeId);
         }
 
         auto keyResource = GetSegmentBalancingKeyResource(strategyTreeState.Mode);
@@ -272,6 +259,58 @@ void TNodeSchedulingSegmentManager::ResetTree(TManageNodeSchedulingSegmentsConte
                 .NodeId = nodeId,
                 .Segment = ESchedulingSegment::Default
             });
+        }
+    }
+}
+
+void TNodeSchedulingSegmentManager::ValidateInfinibandClusterTagsInTree(
+    TManageNodeSchedulingSegmentsContext* context,
+    const TString& treeId) const
+{
+    static const TString InfinibandClusterTagPrefix = InfinibandClusterNameKey + ":";
+
+    const auto& strategyTreeState = context->StrategySegmentsState.TreeStates[treeId];
+    auto validateNode = [&] (const TExecNodeDescriptor& node) -> TError {
+        if (!node.InfinibandCluster || !strategyTreeState.InfinibandClusters.contains(*node.InfinibandCluster)) {
+            return TError("Node's infiniband cluster is invalid or missing")
+                << TErrorAttribute("node_infiniband_cluster", node.InfinibandCluster)
+                << TErrorAttribute("configured_infiniband_clusters", strategyTreeState.InfinibandClusters);
+        }
+
+        std::vector<TString> infinibandClusterTags;
+        for (const auto& tag : node.Tags.GetSourceTags()) {
+            if (tag.StartsWith(InfinibandClusterTagPrefix)) {
+                infinibandClusterTags.push_back(tag);
+            }
+        }
+
+        if (infinibandClusterTags.empty()) {
+            return TError("Node has no infiniband cluster tags");
+        }
+
+        if (std::ssize(infinibandClusterTags) > 1) {
+            return TError("Node has more than one infiniband cluster tags")
+                << TErrorAttribute("infiniband_cluster_tags", infinibandClusterTags);
+        }
+
+        const auto& tag = infinibandClusterTags[0];
+        if (tag != GetNodeTagFromModuleName(*node.InfinibandCluster, ESchedulingSegmentModuleType::InfinibandCluster)) {
+            return TError("Node's infiniband cluster tag doesn't match its infiniband cluster from annotations")
+                << TErrorAttribute("infiniband_cluster", node.InfinibandCluster)
+                << TErrorAttribute("infiniband_cluster_tag", tag);
+        }
+
+        return {};
+    };
+
+    for (auto nodeId : context->NodeIdsPerTree[treeId]) {
+        const auto& node = GetOrCrash(*context->ExecNodeDescriptors, nodeId);
+        auto error = validateNode(node);
+        if (!error.IsOK()) {
+            error = error << TErrorAttribute("node_address", node.Address);
+            context->Errors.push_back(TError("Node infiniband cluster tags validation failed in tree %Qv", treeId)
+                << std::move(error));
+            break;
         }
     }
 }
@@ -629,10 +668,12 @@ void TStrategySchedulingSegmentManager::ManageSegmentsInTree(TManageTreeScheduli
     auto Logger = CreateTreeLogger(treeId);
 
     auto& state = context->SchedulingSegmentsState;
-    auto treeConfig = context->TreeConfig;
-    state.Mode = treeConfig->SchedulingSegments->Mode;
-    state.ModuleType = treeConfig->SchedulingSegments->ModuleType;
-    state.UnsatisfiedSegmentsRebalancingTimeout = treeConfig->SchedulingSegments->UnsatisfiedSegmentsRebalancingTimeout;
+    auto config = context->TreeConfig->SchedulingSegments;
+    // TODO(eshcherbin): Should just pass the scheduling segments config instead of copying all necessary options here.
+    state.Mode = config->Mode;
+    state.ModuleType = config->ModuleType;
+    state.UnsatisfiedSegmentsRebalancingTimeout = config->UnsatisfiedSegmentsRebalancingTimeout;
+    state.ValidateInfinibandClusterTags = config->EnableInfinibandClusterTagValidation;
 
     if (state.Mode == ESegmentedSchedulingMode::Disabled) {
         return;
@@ -641,9 +682,10 @@ void TStrategySchedulingSegmentManager::ManageSegmentsInTree(TManageTreeScheduli
     auto keyResource = TNodeSchedulingSegmentManager::GetSegmentBalancingKeyResource(state.Mode);
     state.KeyResource = keyResource;
     state.TotalKeyResourceAmount = GetResource(context->TotalResourceLimits, keyResource);
-    for (const auto& schedulingSegmentModule : treeConfig->SchedulingSegments->GetModules()) {
+    for (const auto& schedulingSegmentModule : config->GetModules()) {
         state.Modules.push_back(schedulingSegmentModule);
     }
+    state.InfinibandClusters = config->InfinibandClusters;
 
     double expectedTotalKeyResourceAmount = 0.0;
     for (const auto& [_, resourceLimitsAtModule] : context->ResourceLimitsPerModule) {
@@ -689,12 +731,12 @@ void TStrategySchedulingSegmentManager::ManageSegmentsInTree(TManageTreeScheduli
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
         if (IsModuleAwareSchedulingSegment(segment)) {
             for (const auto& schedulingSegmentModule : state.Modules) {
-                auto satisfactionMargin = treeConfig->SchedulingSegments->SatisfactionMargins.At(segment).GetOrDefaultAt(schedulingSegmentModule);
+                auto satisfactionMargin = config->SatisfactionMargins.At(segment).GetOrDefaultAt(schedulingSegmentModule);
                 auto& value = state.FairResourceAmountPerSegment.At(segment).MutableAt(schedulingSegmentModule);
                 value = std::max(value + satisfactionMargin, 0.0);
             }
         } else {
-            auto satisfactionMargin = treeConfig->SchedulingSegments->SatisfactionMargins.At(segment).GetOrDefault();
+            auto satisfactionMargin = config->SatisfactionMargins.At(segment).GetOrDefault();
             auto& value = state.FairResourceAmountPerSegment.At(segment).Mutable();
             value = std::max(value + satisfactionMargin, 0.0);
         }

@@ -44,6 +44,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((TooFewControllerAgentsAlive)                  (12))
     ((UpdateUserToDefaultPoolMap)                   (13))
     ((OperationAlertArchivation)                    (14))
+    ((ManageNodeSchedulingSegments)                 (15))
 );
 
 DEFINE_ENUM(EOperationAlertType,
