@@ -168,7 +168,6 @@ int TGarbageCollector::EphemeralRefObject(TObject* object)
 {
     Bootstrap_->VerifyPersistentStateRead();
 
-    YT_ASSERT(!Bootstrap_->GetHydraFacade()->GetHydraManager() || !IsRecovery());
     YT_ASSERT(object->IsAlive());
     YT_ASSERT(object->IsTrunk());
 
@@ -183,7 +182,6 @@ void TGarbageCollector::EphemeralUnrefObject(TObject* object)
 {
     Bootstrap_->VerifyPersistentStateRead();
 
-    YT_ASSERT(!Bootstrap_->GetHydraFacade()->GetHydraManager() || !IsRecovery());
     YT_ASSERT(object->IsTrunk());
 
     bool shouldDestroyObject =
