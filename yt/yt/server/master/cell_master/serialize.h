@@ -230,6 +230,7 @@ DEFINE_ENUM(EMasterReign,
     ((CheckReplicatedTablesCommitOrderingIsStrong)                  (1904))  // akozhikhov
     ((CheckReplicatedTablesAtomicityIsFull)                         (1905))  // akozhikhov
     ((RemovedIsResponseKeeperWarmingUp)                             (1906))  // h0pless
+    ((ChunkViewModifier)                                            (1907))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_placement.h"
 #include "chunk_replica.h"
+#include "chunk_view.h"
 #include "chunk_requisition.h"
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h> // XXX: forward declaration
@@ -175,7 +176,7 @@ public:
         TChunkList* tabletChunkList,
         const std::vector<TChunkTree*>& children);
 
-    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TLegacyReadRange readRange);
+    TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier);
     TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange);
 
     TChunk* CreateChunk(

@@ -13,35 +13,59 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkViewModifier
+{
+public:
+    //! Denotes the portion of the chunk to be read. May contain only keys.
+    //! Lower bound inclusive, upper bound exclusive.
+    DEFINE_BYREF_RO_PROPERTY(NChunkClient::TLegacyReadRange, ReadRange);
+
+    //! Denotes the id of the transaction that references override timestamp.
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TTransactionId, TransactionId);
+
+public:
+    void SetReadRange(NChunkClient::TLegacyReadRange readRange);
+
+    TChunkViewModifier WithReadRange(NChunkClient::TLegacyReadRange readRange) &&;
+    TChunkViewModifier WithTransactionId(NObjectClient::TTransactionId transactionId) &&;
+
+    TChunkViewModifier RestrictedWith(const TChunkViewModifier& other) const;
+
+    NChunkClient::TLegacyReadLimit GetAdjustedLowerReadLimit(NChunkClient::TLegacyReadLimit readLimit) const;
+    NChunkClient::TLegacyReadLimit GetAdjustedUpperReadLimit(NChunkClient::TLegacyReadLimit readLimit) const;
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
+    friend int CompareButForReadRange(const TChunkViewModifier& lhs, const TChunkViewModifier& rhs);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkView
     : public TChunkTree
     , public TRefTracked<TChunkView>
 {
     DEFINE_BYVAL_RO_PROPERTY(TChunkTree*, UnderlyingTree);
 
-    //! Denotes the portion of the chunk to be read. May contain only keys.
-    //! Lower bound inclusive, upper bound exclusive.
-    DEFINE_BYREF_RO_PROPERTY(NChunkClient::TLegacyReadRange, ReadRange);
-
-    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TTransactionId, TransactionId);
-
     using TParents = TCompactVector<TChunkList*, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
+
+    DEFINE_BYREF_RW_PROPERTY(TChunkViewModifier, Modifier);
+
+    DECLARE_BYREF_RO_PROPERTY(NChunkClient::TLegacyReadRange, ReadRange);
+    DECLARE_BYVAL_RO_PROPERTY(NObjectClient::TTransactionId, TransactionId);
 
 public:
     using TChunkTree::TChunkTree;
 
     void SetUnderlyingTree(TChunkTree* underlyingTree);
-    void SetReadRange(NChunkClient::TLegacyReadRange readRange);
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
-    NChunkClient::TLegacyReadLimit GetAdjustedLowerReadLimit(NChunkClient::TLegacyReadLimit readLimit) const;
-    NChunkClient::TLegacyReadLimit GetAdjustedUpperReadLimit(NChunkClient::TLegacyReadLimit readLimit) const;
 
     NChunkClient::TLegacyReadRange GetCompleteReadRange() const;
 

@@ -794,8 +794,8 @@ protected:
                             auto legacySubtreeStartLimit = ReadLimitToLegacyReadLimit(subtreeStartLimit);
                             auto legacySubtreeEndLimit = ReadLimitToLegacyReadLimit(subtreeEndLimit);
 
-                            legacySubtreeStartLimit = chunkView->GetAdjustedLowerReadLimit(legacySubtreeStartLimit);
-                            legacySubtreeEndLimit = chunkView->GetAdjustedUpperReadLimit(legacySubtreeEndLimit);
+                            legacySubtreeStartLimit = chunkView->Modifier().GetAdjustedLowerReadLimit(legacySubtreeStartLimit);
+                            legacySubtreeEndLimit = chunkView->Modifier().GetAdjustedUpperReadLimit(legacySubtreeEndLimit);
 
                             subtreeStartLimit = ReadLimitFromLegacyReadLimit(legacySubtreeStartLimit, /* isUpper */ false, Comparator_.GetLength());
                             subtreeEndLimit = ReadLimitFromLegacyReadLimit(legacySubtreeEndLimit, /* isUpper */ true, Comparator_.GetLength());

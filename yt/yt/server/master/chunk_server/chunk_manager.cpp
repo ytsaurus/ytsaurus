@@ -1006,13 +1006,14 @@ public:
         return chunk;
     }
 
-    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TLegacyReadRange readRange, TTransactionId transactionId = {})
+    TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier)
     {
         switch (underlyingTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk: {
                 auto* underlyingChunk = underlyingTree->AsChunk();
-                auto* chunkView = DoCreateChunkView(underlyingChunk, std::move(readRange), transactionId);
+                auto transactionId = modifier.GetTransactionId();
+                auto* chunkView = DoCreateChunkView(underlyingChunk, std::move(modifier));
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk view created (ChunkViewId: %v, ChunkId: %v, TransactionId: %v)",
                     chunkView->GetId(),
                     underlyingChunk->GetId(),
@@ -1023,7 +1024,8 @@ public:
             case EObjectType::SortedDynamicTabletStore:
             case EObjectType::OrderedDynamicTabletStore: {
                 auto* underlyingStore = underlyingTree->AsDynamicStore();
-                auto* chunkView = DoCreateChunkView(underlyingStore , std::move(readRange), transactionId);
+                auto transactionId = modifier.GetTransactionId();
+                auto* chunkView = DoCreateChunkView(underlyingStore, std::move(modifier));
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk view created (ChunkViewId: %v, DynamicStoreId: %v, TransactionId: %v)",
                     chunkView->GetId(),
                     underlyingStore->GetId(),
@@ -1032,14 +1034,16 @@ public:
             }
 
             case EObjectType::ChunkView: {
-                YT_VERIFY(!transactionId);
+                YT_VERIFY(!modifier.GetTransactionId());
 
-                auto* underlyingChunkView = underlyingTree->AsChunkView();
-                auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange));
+                auto* baseChunkView = underlyingTree->AsChunkView();
+                auto* underlyingTree = baseChunkView->GetUnderlyingTree();
+                auto adjustedModifier = baseChunkView->Modifier().RestrictedWith(modifier);
+                auto* chunkView = DoCreateChunkView(underlyingTree, std::move(adjustedModifier));
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk view created (ChunkViewId: %v, ChunkId: %v, BaseChunkViewId: %v)",
                     chunkView->GetId(),
-                    underlyingChunkView->GetUnderlyingTree()->GetId(),
-                    underlyingChunkView->GetId());
+                    underlyingTree->GetId(),
+                    baseChunkView->GetId());
                 return chunkView;
             }
 
@@ -1050,7 +1054,9 @@ public:
 
     TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange)
     {
-        return CreateChunkView(chunkView->GetUnderlyingTree(), readRange, chunkView->GetTransactionId());
+        auto modifier = TChunkViewModifier(chunkView->Modifier())
+            .WithReadRange(readRange);
+        return CreateChunkView(chunkView->GetUnderlyingTree(), std::move(modifier));
     }
 
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, TTablet* tablet)
@@ -2371,8 +2377,7 @@ private:
         ++ChunkListsDestroyed_;
     }
 
-
-    TChunkView* DoCreateChunkView(TChunkTree* underlyingTree, NChunkClient::TLegacyReadRange readRange, TTransactionId transactionId)
+    TChunkView* DoCreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier)
     {
         auto treeType = underlyingTree->GetType();
         YT_VERIFY(IsBlobChunkType(treeType) || IsDynamicTabletStoreType(treeType));
@@ -2382,24 +2387,19 @@ private:
         auto id = objectManager->GenerateId(EObjectType::ChunkView);
         auto chunkViewHolder = TPoolAllocator::New<TChunkView>(id);
         auto* chunkView = ChunkViewMap_.Insert(id, std::move(chunkViewHolder));
+
         chunkView->SetUnderlyingTree(underlyingTree);
         SetChunkTreeParent(chunkView, underlyingTree);
-        chunkView->SetReadRange(std::move(readRange));
-        Bootstrap_->GetObjectManager()->RefObject(underlyingTree);
-        if (transactionId) {
-            auto& transactionManager = Bootstrap_->GetTransactionManager();
-            transactionManager->CreateOrRefTimestampHolder(transactionId);
-            chunkView->SetTransactionId(transactionId);
-        }
-        return chunkView;
-    }
 
-    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TLegacyReadRange readRange)
-    {
-        readRange.LowerLimit() = underlyingChunkView->GetAdjustedLowerReadLimit(readRange.LowerLimit());
-        readRange.UpperLimit() = underlyingChunkView->GetAdjustedUpperReadLimit(readRange.UpperLimit());
-        auto transactionId = underlyingChunkView->GetTransactionId();
-        return DoCreateChunkView(underlyingChunkView->GetUnderlyingTree(), readRange, transactionId);
+        if (modifier.GetTransactionId()) {
+            auto& transactionManager = Bootstrap_->GetTransactionManager();
+            transactionManager->CreateOrRefTimestampHolder(modifier.GetTransactionId());
+        }
+
+        chunkView->Modifier() = std::move(modifier);
+        Bootstrap_->GetObjectManager()->RefObject(underlyingTree);
+
+        return chunkView;
     }
 
     void DestroyChunkView(TChunkView* chunkView)
@@ -2412,7 +2412,7 @@ private:
         objectManager->UnrefObject(underlyingTree);
 
         auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->UnrefTimestampHolder(chunkView->GetTransactionId());
+        transactionManager->UnrefTimestampHolder(chunkView->Modifier().GetTransactionId());
 
         ++ChunkViewsDestroyed_;
     }
@@ -3649,7 +3649,9 @@ private:
 
                 if (transactionId) {
                     // Bulk insert. Inserted chunks inherit transaction timestamp.
-                    auto chunkView = CreateChunkView(child->AsChunk(), NChunkClient::TLegacyReadRange(), transactionId);
+                    auto chunkView = CreateChunkView(
+                        child->AsChunk(),
+                        TChunkViewModifier().WithTransactionId(transactionId));
                     children.push_back(chunkView);
                 } else {
                     // Remote copy. Inserted chunks preserve original timestamps.
@@ -5364,9 +5366,9 @@ void TChunkManager::AttachToTabletChunkList(
 
 TChunkView* TChunkManager::CreateChunkView(
     TChunkTree* underlyingTree,
-    NChunkClient::TLegacyReadRange readRange)
+    TChunkViewModifier modifier)
 {
-    return Impl_->CreateChunkView(underlyingTree, std::move(readRange));
+    return Impl_->CreateChunkView(underlyingTree, std::move(modifier));
 }
 
 TChunk* TChunkManager::CreateChunk(

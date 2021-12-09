@@ -12,6 +12,109 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkViewModifier TChunkViewModifier::WithReadRange(NChunkClient::TLegacyReadRange readRange) &&
+{
+    SetReadRange(std::move(readRange));
+    return *this;
+}
+
+TChunkViewModifier TChunkViewModifier::WithTransactionId(NObjectClient::TTransactionId transactionId) &&
+{
+    SetTransactionId(transactionId);
+    return *this;
+}
+
+void TChunkViewModifier::SetReadRange(NChunkClient::TLegacyReadRange readRange)
+{
+    YT_VERIFY(!readRange.LowerLimit().HasOffset());
+    YT_VERIFY(!readRange.UpperLimit().HasOffset());
+    YT_VERIFY(!readRange.LowerLimit().HasChunkIndex());
+    YT_VERIFY(!readRange.UpperLimit().HasChunkIndex());
+    YT_VERIFY(!readRange.LowerLimit().HasRowIndex());
+    YT_VERIFY(!readRange.UpperLimit().HasRowIndex());
+
+    if (readRange.UpperLimit().HasLegacyKey()) {
+        const auto& key = readRange.UpperLimit().GetLegacyKey();
+        YT_VERIFY(key != NTableClient::MaxKey());
+    }
+
+    ReadRange_ = std::move(readRange);
+}
+
+TChunkViewModifier TChunkViewModifier::RestrictedWith(const TChunkViewModifier& other) const
+{
+    TChunkViewModifier copy(*this);
+
+    if (!other.ReadRange().LowerLimit().IsTrivial() || !other.ReadRange().UpperLimit().IsTrivial()) {
+        copy.ReadRange_ = TLegacyReadRange(
+            GetAdjustedLowerReadLimit(other.ReadRange().LowerLimit()),
+            GetAdjustedUpperReadLimit(other.ReadRange().UpperLimit())
+        );
+    }
+
+    if (other.TransactionId_) {
+        copy.TransactionId_ = other.TransactionId_;
+    }
+
+    return copy;
+}
+
+TLegacyReadLimit TChunkViewModifier::GetAdjustedLowerReadLimit(TLegacyReadLimit readLimit) const
+{
+    if (ReadRange_.LowerLimit().HasLegacyKey()) {
+        readLimit.MergeLowerLegacyKey(ReadRange_.LowerLimit().GetLegacyKey());
+    }
+    return readLimit;
+}
+
+TLegacyReadLimit TChunkViewModifier::GetAdjustedUpperReadLimit(TLegacyReadLimit readLimit) const
+{
+    if (ReadRange_.UpperLimit().HasLegacyKey()) {
+        readLimit.MergeUpperLegacyKey(ReadRange_.UpperLimit().GetLegacyKey());
+    }
+    return readLimit;
+}
+
+void TChunkViewModifier::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, ReadRange_);
+    Save(context, TransactionId_);
+}
+
+void TChunkViewModifier::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, ReadRange_);
+    Load(context, TransactionId_);
+}
+
+int CompareButForReadRange(const TChunkViewModifier& lhs, const TChunkViewModifier& rhs)
+{
+    // When ChunkView gets new attributes one should consider them
+    // here and merge only views with identical attributes.
+
+    if (lhs.GetTransactionId() != rhs.GetTransactionId()) {
+        return lhs.GetTransactionId() < rhs.GetTransactionId() ? -1 : 1;
+    }
+
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TLegacyReadRange& TChunkView::ReadRange() const
+{
+    return Modifier_.ReadRange();
+}
+
+TTransactionId TChunkView::GetTransactionId() const
+{
+    return Modifier_.GetTransactionId();
+}
+
 void TChunkView::SetUnderlyingTree(TChunkTree* underlyingTree)
 {
     YT_VERIFY(underlyingTree);
@@ -33,23 +136,6 @@ void TChunkView::SetUnderlyingTree(TChunkTree* underlyingTree)
     UnderlyingTree_ = underlyingTree;
 }
 
-void TChunkView::SetReadRange(TLegacyReadRange readRange)
-{
-    YT_VERIFY(!readRange.LowerLimit().HasOffset());
-    YT_VERIFY(!readRange.UpperLimit().HasOffset());
-    YT_VERIFY(!readRange.LowerLimit().HasChunkIndex());
-    YT_VERIFY(!readRange.UpperLimit().HasChunkIndex());
-    YT_VERIFY(!readRange.LowerLimit().HasRowIndex());
-    YT_VERIFY(!readRange.UpperLimit().HasRowIndex());
-
-    ReadRange_ = std::move(readRange);
-
-    if (readRange.UpperLimit().HasLegacyKey()) {
-        const auto& key = readRange.UpperLimit().GetLegacyKey();
-        YT_VERIFY(key != NTableClient::MaxKey());
-    }
-}
-
 TString TChunkView::GetLowercaseObjectName() const
 {
     return Format("chunk view %v", GetId());
@@ -67,9 +153,8 @@ void TChunkView::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
 
     Save(context, UnderlyingTree_);
-    Save(context, ReadRange_);
     Save(context, Parents_);
-    Save(context, TransactionId_);
+    Save(context, Modifier_);
 }
 
 void TChunkView::Load(NCellMaster::TLoadContext& context)
@@ -84,32 +169,30 @@ void TChunkView::Load(NCellMaster::TLoadContext& context)
     } else {
         Load(context, UnderlyingTree_);
     }
-    Load(context, ReadRange_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < EMasterReign::ChunkViewModifier) {
+        auto readRange = Load<TLegacyReadRange>(context);
+        Modifier_.SetReadRange(std::move(readRange));
+    }
     Load(context, Parents_);
-    Load(context, TransactionId_);
-}
-
-TLegacyReadLimit TChunkView::GetAdjustedLowerReadLimit(TLegacyReadLimit readLimit) const
-{
-    if (ReadRange_.LowerLimit().HasLegacyKey()) {
-        readLimit.MergeLowerLegacyKey(ReadRange_.LowerLimit().GetLegacyKey());
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < EMasterReign::ChunkViewModifier) {
+        auto transactionId = Load<TTransactionId>(context);
+        Modifier_.SetTransactionId(transactionId);
     }
-    return readLimit;
-}
 
-TLegacyReadLimit TChunkView::GetAdjustedUpperReadLimit(TLegacyReadLimit readLimit) const
-{
-    if (ReadRange_.UpperLimit().HasLegacyKey()) {
-        readLimit.MergeUpperLegacyKey(ReadRange_.UpperLimit().GetLegacyKey());
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::ChunkViewModifier) {
+        Load(context, Modifier_);
     }
-    return readLimit;
 }
 
 TLegacyReadRange TChunkView::GetCompleteReadRange() const
 {
     return {
-        GetAdjustedLowerReadLimit(TLegacyReadLimit(GetMinKeyOrThrow(UnderlyingTree_))),
-        GetAdjustedUpperReadLimit(TLegacyReadLimit(GetUpperBoundKeyOrThrow(UnderlyingTree_)))
+        Modifier_.GetAdjustedLowerReadLimit(TLegacyReadLimit(GetMinKeyOrThrow(UnderlyingTree_))),
+        Modifier_.GetAdjustedUpperReadLimit(TLegacyReadLimit(GetUpperBoundKeyOrThrow(UnderlyingTree_)))
     };
 }
 
@@ -132,20 +215,13 @@ TChunkTreeStatistics TChunkView::GetStatistics() const
 
 int CompareButForReadRange(const TChunkView* lhs, const TChunkView* rhs)
 {
-    // When ChunkView gets new attributes one should consider them
-    // here and merge only views with identical attributes.
-
     const auto& lhsChunkId = lhs->GetUnderlyingTree()->GetId();
     const auto& rhsChunkId = rhs->GetUnderlyingTree()->GetId();
-    const auto& lhsTransactionId = lhs->GetTransactionId();
-    const auto& rhsTransactionId = rhs->GetTransactionId();
 
     if (lhsChunkId != rhsChunkId) {
         return lhsChunkId < rhsChunkId ? -1 : 1;
-    } else if  (lhsTransactionId != rhsTransactionId) {
-        return lhsTransactionId < rhsTransactionId ? -1 : 1;
     } else {
-        return 0;
+        return CompareButForReadRange(lhs->Modifier(), rhs->Modifier());
     }
 }
 
