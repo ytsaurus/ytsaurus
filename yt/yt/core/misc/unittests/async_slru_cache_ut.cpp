@@ -708,6 +708,110 @@ TEST(TAsyncSlruGhostCacheTest, Lookups)
     }
 }
 
+TEST(TAsyncSlruGhostCacheTest, MoveConstructCookie)
+{
+    constexpr int cacheSize = 100;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TSimpleSlruCache>(std::move(config), TProfiler{"/cache"});
+
+    for (int index = 0; index < 5; ++index) {
+        auto originalCookie = cache->BeginInsert(index);
+        ASSERT_TRUE(originalCookie.IsActive());
+
+        auto newCookie = std::move(originalCookie);
+        ASSERT_FALSE(originalCookie.IsActive());
+        ASSERT_TRUE(newCookie.IsActive());
+
+        newCookie.EndInsert(New<TSimpleCachedValue>(
+            /*key*/ index,
+            /*value*/ 42,
+            /*weight*/ 1));
+    }
+
+    {
+        auto oldSmallCounters = cache->ReadSmallGhostCounters();
+        auto oldLargeCounters = cache->ReadLargeGhostCounters();
+
+        for (int index = 0; index < 5; ++index) {
+            cache->Lookup(index);
+        }
+
+        auto smallCount = cache->ReadSmallGhostCounters() - oldSmallCounters;
+        auto largeCount = cache->ReadLargeGhostCounters() - oldLargeCounters;
+
+        EXPECT_EQ(smallCount.SyncHit, 5);
+        EXPECT_EQ(smallCount.AsyncHit, 0);
+        EXPECT_EQ(smallCount.Missed, 0);
+
+        EXPECT_EQ(largeCount.SyncHit, 5);
+        EXPECT_EQ(largeCount.AsyncHit, 0);
+        EXPECT_EQ(largeCount.Missed, 0);
+    }
+}
+
+TEST(TAsyncSlruGhostCacheTest, MoveAssignCookie)
+{
+    constexpr int cacheSize = 100;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TSimpleSlruCache>(std::move(config), TProfiler{"/cache"});
+
+    // Ensure that all the necessary items are present in large ghost, but absent in main
+    // cache and small ghost.
+     for (int index = 0; index < 5; ++index) {
+        auto cookie = cache->BeginInsert(index);
+        ASSERT_TRUE(cookie.IsActive());
+        cookie.EndInsert(New<TSimpleCachedValue>(
+            /*key*/ index,
+            /*value*/ 42,
+            /*weight*/ 1));
+     }
+     {
+        auto cookie = cache->BeginInsert(43);
+        ASSERT_TRUE(cookie.IsActive());
+        cookie.EndInsert(New<TSimpleCachedValue>(
+            /*key*/ 43,
+            /*value*/ 100500,
+            /*weight*/ 101));
+     }
+
+    for (int index = 0; index < 5; ++index) {
+        auto otherCookie = cache->BeginInsert(index);
+        ASSERT_TRUE(otherCookie.IsActive());
+
+        auto cookie = cache->BeginInsert(42);
+        ASSERT_TRUE(cookie.IsActive());
+
+        cookie = std::move(otherCookie);
+        ASSERT_FALSE(otherCookie.IsActive());
+        ASSERT_TRUE(cookie.IsActive());
+
+        cookie.EndInsert(New<TSimpleCachedValue>(
+            /*key*/ index,
+            /*value*/ 42,
+            /*weight*/ 1));
+    }
+
+    {
+        auto oldSmallCounters = cache->ReadSmallGhostCounters();
+        auto oldLargeCounters = cache->ReadLargeGhostCounters();
+
+        for (int index = 0; index < 5; ++index) {
+            cache->Lookup(index);
+        }
+
+        auto smallCount = cache->ReadSmallGhostCounters() - oldSmallCounters;
+        auto largeCount = cache->ReadLargeGhostCounters() - oldLargeCounters;
+
+        EXPECT_EQ(smallCount.SyncHit, 5);
+        EXPECT_EQ(smallCount.AsyncHit, 0);
+        EXPECT_EQ(smallCount.Missed, 0);
+
+        EXPECT_EQ(largeCount.SyncHit, 5);
+        EXPECT_EQ(largeCount.AsyncHit, 0);
+        EXPECT_EQ(largeCount.Missed, 0);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EStressOperation,

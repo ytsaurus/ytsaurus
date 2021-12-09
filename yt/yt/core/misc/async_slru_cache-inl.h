@@ -1236,6 +1236,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(TInsertCo
     , Cache_(std::move(other.Cache_))
     , ValueFuture_(std::move(other.ValueFuture_))
     , Active_(other.Active_.exchange(false))
+    , InsertedIntoSmallGhost_(std::exchange(other.InsertedIntoSmallGhost_, false))
+    , InsertedIntoLargeGhost_(std::exchange(other.InsertedIntoLargeGhost_, false))
 { }
 
 template <class TKey, class TValue, class THash>
@@ -1253,6 +1255,8 @@ typename TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie& TAsyncSlruCach
         Cache_ = std::move(other.Cache_);
         ValueFuture_ = std::move(other.ValueFuture_);
         Active_ = other.Active_.exchange(false);
+        InsertedIntoSmallGhost_ = std::exchange(other.InsertedIntoSmallGhost_, false);
+        InsertedIntoLargeGhost_ = std::exchange(other.InsertedIntoLargeGhost_, false);
     }
     return *this;
 }
