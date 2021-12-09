@@ -6,6 +6,7 @@ namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template TYsonString ConvertToYsonString<bool>(const bool&);
 template TYsonString ConvertToYsonString<int>(const int&);
 template TYsonString ConvertToYsonString<long>(const long&);
 template TYsonString ConvertToYsonString<unsigned int>(const unsigned int&);
