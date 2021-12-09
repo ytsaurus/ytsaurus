@@ -15,6 +15,7 @@ func TestAdminClient(t *testing.T) {
 
 	RunClientTests(t, []ClientTest{
 		{Name: "AddRemoveMember", Test: suite.TestAddRemoveMember},
+		{Name: "TransferAccountResources", Test: suite.TestTransferAccountResources},
 		{Name: "TransferPoolResources", Test: suite.TestTransferPoolResources, SkipRPC: true},
 	})
 }
@@ -37,6 +38,51 @@ func (s *Suite) TestAddRemoveMember(t *testing.T, yc yt.Client) {
 	err = yc.RemoveMember(s.Ctx, group, user, nil)
 	require.NoError(t, err)
 	require.False(t, s.MemberOf(t, user, group))
+}
+
+func (s *Suite) TestTransferAccountResources(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	mebibyte := 1024 * 1024
+	from := "account-from-" + guid.New().String()
+	_ = s.CreateAccount(t, from, map[string]interface{}{
+		"resource_limits": map[string]interface{}{
+			"disk_space_per_medium": map[string]interface{}{
+				"default": 10 * mebibyte,
+			},
+			"node_count":  20,
+			"chunk_count": 30,
+		},
+	})
+
+	to := "account-to-" + guid.New().String()
+	_ = s.CreateAccount(t, to, map[string]interface{}{
+		"resource_limits": map[string]interface{}{
+			"disk_space_per_medium": map[string]interface{}{
+				"default": 5 * mebibyte,
+			},
+			"node_count":  10,
+			"chunk_count": 15,
+		},
+	})
+
+	err := yc.TransferAccountResources(s.Ctx, from, to, map[string]interface{}{
+		"disk_space_per_medium": map[string]interface{}{
+			"default": 3 * mebibyte,
+		},
+		"node_count":  6,
+		"chunk_count": 9,
+	}, nil)
+
+	require.NoError(t, err)
+
+	require.Equal(t, 7*mebibyte, s.getAccountResourceAttribute(t, yc, from, "disk_space_per_medium/default"))
+	require.Equal(t, 14, s.getAccountResourceAttribute(t, yc, from, "node_count"))
+	require.Equal(t, 21, s.getAccountResourceAttribute(t, yc, from, "chunk_count"))
+
+	require.Equal(t, 8*mebibyte, s.getAccountResourceAttribute(t, yc, to, "disk_space_per_medium/default"))
+	require.Equal(t, 16, s.getAccountResourceAttribute(t, yc, to, "node_count"))
+	require.Equal(t, 24, s.getAccountResourceAttribute(t, yc, to, "chunk_count"))
 }
 
 func (s *Suite) TestTransferPoolResources(t *testing.T, yc yt.Client) {
@@ -79,26 +125,32 @@ func (s *Suite) TestTransferPoolResources(t *testing.T, yc yt.Client) {
 	}, nil)
 
 	require.NoError(t, err)
-	require.Equal(t, 6.0, s.getDoubleAttribute(t, yc, poolTree, from, "strong_guarantee_resources/cpu"))
-	require.Equal(t, 12.0, s.getDoubleAttribute(t, yc, poolTree, from, "integral_guarantees/resource_flow/cpu"))
-	require.Equal(t, 18.0, s.getDoubleAttribute(t, yc, poolTree, from, "integral_guarantees/burst_guarantee_resources/cpu"))
-	require.Equal(t, 24.0, s.getDoubleAttribute(t, yc, poolTree, from, "max_running_operation_count"))
-	require.Equal(t, 30.0, s.getDoubleAttribute(t, yc, poolTree, from, "max_operation_count"))
+	require.Equal(t, 6.0, s.getPoolAttribute(t, yc, poolTree, from, "strong_guarantee_resources/cpu"))
+	require.Equal(t, 12.0, s.getPoolAttribute(t, yc, poolTree, from, "integral_guarantees/resource_flow/cpu"))
+	require.Equal(t, 18.0, s.getPoolAttribute(t, yc, poolTree, from, "integral_guarantees/burst_guarantee_resources/cpu"))
+	require.Equal(t, 24.0, s.getPoolAttribute(t, yc, poolTree, from, "max_running_operation_count"))
+	require.Equal(t, 30.0, s.getPoolAttribute(t, yc, poolTree, from, "max_operation_count"))
 
-	require.Equal(t, 14.0, s.getDoubleAttribute(t, yc, poolTree, to, "strong_guarantee_resources/cpu"))
-	require.Equal(t, 28.0, s.getDoubleAttribute(t, yc, poolTree, to, "integral_guarantees/resource_flow/cpu"))
-	require.Equal(t, 42.0, s.getDoubleAttribute(t, yc, poolTree, to, "integral_guarantees/burst_guarantee_resources/cpu"))
-	require.Equal(t, 56.0, s.getDoubleAttribute(t, yc, poolTree, to, "max_running_operation_count"))
-	require.Equal(t, 70.0, s.getDoubleAttribute(t, yc, poolTree, to, "max_operation_count"))
+	require.Equal(t, 14.0, s.getPoolAttribute(t, yc, poolTree, to, "strong_guarantee_resources/cpu"))
+	require.Equal(t, 28.0, s.getPoolAttribute(t, yc, poolTree, to, "integral_guarantees/resource_flow/cpu"))
+	require.Equal(t, 42.0, s.getPoolAttribute(t, yc, poolTree, to, "integral_guarantees/burst_guarantee_resources/cpu"))
+	require.Equal(t, 56.0, s.getPoolAttribute(t, yc, poolTree, to, "max_running_operation_count"))
+	require.Equal(t, 70.0, s.getPoolAttribute(t, yc, poolTree, to, "max_operation_count"))
 }
 
-func (s *Suite) getDoubleAttribute(t *testing.T, yc yt.Client, poolTree string, pool string, attribute string) float64 {
+func (s *Suite) getPoolAttribute(t *testing.T, yc yt.Client, poolTree string, pool string, attribute string) float64 {
+	t.Helper()
 	var result float64
-	require.NoError(t, yc.GetNode(
-		s.Ctx,
-		ypath.Path("//sys/pool_trees/"+poolTree+"/"+pool).Attr(attribute),
-		&result,
-		nil))
+	path := ypath.Path("//sys/pool_trees").Child(poolTree).Child(pool).Attr(attribute)
+	require.NoError(t, yc.GetNode(s.Ctx, path, &result, nil))
+	return result
+}
+
+func (s *Suite) getAccountResourceAttribute(t *testing.T, yc yt.Client, account string, attribute string) int {
+	t.Helper()
+	var result int
+	path := ypath.Path("//sys/accounts").Child(account).Attr("resource_limits").Child(attribute)
+	require.NoError(t, yc.GetNode(s.Ctx, path, &result, nil))
 	return result
 }
 
@@ -141,6 +193,18 @@ func (s *Suite) MemberOf(t *testing.T, user, group string) bool {
 	}
 
 	return false
+}
+
+func (s *Suite) CreateAccount(t *testing.T, accountName string, attributes map[string]interface{}) yt.NodeID {
+	t.Helper()
+
+	attributes["name"] = accountName
+	id, err := s.YT.CreateObject(s.Ctx, yt.NodeAccount, &yt.CreateObjectOptions{
+		Attributes: attributes,
+	})
+
+	require.NoError(t, err)
+	return id
 }
 
 func (s *Suite) CreatePool(t *testing.T, poolName string, poolTree string, attributes map[string]interface{}) yt.NodeID {

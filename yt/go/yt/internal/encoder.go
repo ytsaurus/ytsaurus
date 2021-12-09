@@ -257,6 +257,18 @@ func (e *Encoder) TransferPoolResources(
 	return
 }
 
+func (e *Encoder) TransferAccountResources(
+	ctx context.Context,
+	srcAccount string,
+	dstAccount string,
+	resourceDelta interface{},
+	options *yt.TransferAccountResourcesOptions,
+) (err error) {
+	call := e.newCall(NewTransferAccountResourcesParams(srcAccount, dstAccount, resourceDelta, options))
+	err = e.do(ctx, call, func(res *CallResult) error { return nil })
+	return
+}
+
 func (e *Encoder) StartTx(
 	ctx context.Context,
 	options *yt.StartTxOptions,
