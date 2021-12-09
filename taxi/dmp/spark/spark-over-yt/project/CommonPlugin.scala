@@ -33,7 +33,11 @@ object CommonPlugin extends AutoPlugin {
       "com.google.protobuf.**" -> "shadeddatasource.com.google.protobuf.@1",
       "NYT.**" -> "shadeddatasource.NYT.@1"
     ).inAll)
+
+    lazy val printTestClasspath = taskKey[Unit]("")
   }
+
+  import autoImport._
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     externalResolvers := Resolver.combineDefaultResolvers(resolvers.value.toVector, mavenCentral = false),
@@ -47,6 +51,7 @@ object CommonPlugin extends AutoPlugin {
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
+    javacOptions ++= Seq("-source", "11", "-target", "11"),
     assembly / assemblyMergeStrategy := {
       case x if x endsWith "io.netty.versions.properties" => MergeStrategy.first
       case x if x endsWith "Log4j2Plugins.dat" => MergeStrategy.last
@@ -84,6 +89,9 @@ object CommonPlugin extends AutoPlugin {
     },
     credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
     libraryDependencies ++= testDeps,
-    Test / fork := true
+    Test / fork := true,
+    printTestClasspath := {
+      (Test / dependencyClasspath).value.files.foreach(f => println(f.getAbsolutePath))
+    }
   )
 }
