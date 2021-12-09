@@ -64,7 +64,7 @@ private:
 
     const NApi::TConnectionOptions ConnectionOptions_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
     THashMap<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
     THashMap<TString, TCluster> NameToCluster_;
 

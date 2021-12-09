@@ -298,7 +298,7 @@ private:
         std::atomic<bool> WakeupScheduled_ = false;
 #endif
 
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
         TActionQueuePtr DelayedQueue_;
         IInvokerPtr DelayedInvoker_;
 

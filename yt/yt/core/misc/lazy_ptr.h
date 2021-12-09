@@ -22,7 +22,7 @@ const TCallback<TIntrusivePtr<T>()>& DefaultRefCountedFactory()
 }
 
 //! Intrusive ptr with lazy creation and double-checked locking.
-template <class T, class TLock = TAdaptiveLock>
+template <class T, class TLock = NThreading::TSpinLock>
 class TLazyIntrusivePtr
     : public TPointerCommon<TLazyIntrusivePtr<T, TLock>, T>
 {

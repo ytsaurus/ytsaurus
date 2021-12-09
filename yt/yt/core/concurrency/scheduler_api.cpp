@@ -184,7 +184,7 @@ public:
 
 private:
     std::atomic<bool> Canceled_ = {false};
-    TAdaptiveLock Lock_;
+    NThreading::TSpinLock Lock_;
     TError CancelationError_;
     TFuture<void> Future_;
     TFiberId Id_;

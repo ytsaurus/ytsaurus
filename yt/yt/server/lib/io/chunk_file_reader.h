@@ -96,11 +96,11 @@ private:
     const bool UseDirectIO_;
     IBlocksExtCache* const BlocksExtCache_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, DataFileLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, DataFileLock_);
     TFuture<TIOEngineHandlePtr> DataFileFuture_;
     TIOEngineHandlePtr DataFile_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, ChunkFragmentReadsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ChunkFragmentReadsLock_);
     TFuture<void> ChunkFragmentReadsPreparedFuture_;
     // Permanently caches blocks extension for readers with PrepareToReadChunkFragments invoked.
     NChunkClient::TRefCountedBlocksExtPtr BlocksExt_;

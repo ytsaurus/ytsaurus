@@ -94,7 +94,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
 
     struct TUserBucket
     {

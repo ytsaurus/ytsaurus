@@ -1092,7 +1092,7 @@ private:
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, JobMetricsDeltaPerTreeLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, JobMetricsDeltaPerTreeLock_);
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
     // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
@@ -1150,7 +1150,7 @@ private:
 
     std::vector<TStreamDescriptor> StandardStreamDescriptors_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, ProgressLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ProgressLock_);
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
@@ -1208,7 +1208,7 @@ private:
 
     THashSet<NNodeTrackerClient::TNodeId> BannedNodeIds_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, AlertsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, AlertsLock_);
     TOperationAlertMap Alerts_;
 
     bool IsLegacyLivePreviewSuppressed = false;

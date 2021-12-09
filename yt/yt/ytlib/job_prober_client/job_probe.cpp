@@ -59,10 +59,10 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
         const auto& rsp = rspOrError.Value();
-        
+
         return TPollJobShellResponse {
             .Result = TYsonString(rsp->result()),
-            .LoggingContext = rsp->has_logging_context() 
+            .LoggingContext = rsp->has_logging_context()
                 ? TYsonString(rsp->logging_context(), NYson::EYsonType::MapFragment)
                 : TYsonString(),
         };
@@ -125,7 +125,7 @@ private:
     const TTcpBusClientConfigPtr TcpBusClientConfig_;
     const TJobId JobId_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
 

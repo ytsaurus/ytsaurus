@@ -128,7 +128,7 @@ private:
     TInstant StartTime_;
     TInstant FinishTime_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, PhaseLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PhaseLock_);
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
     TInstant LastPhaseTime_;
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);

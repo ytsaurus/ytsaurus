@@ -64,7 +64,7 @@ private:
 
     std::atomic<bool> NeedToReconfigure_ = false;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, WeightsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, WeightsLock_);
     std::vector<double> Weights_;
 
     TBucket* CurrentBucket_ = nullptr;

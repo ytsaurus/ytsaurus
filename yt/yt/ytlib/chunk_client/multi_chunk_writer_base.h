@@ -97,7 +97,7 @@ private:
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     NProto::TDataStatistics DataStatistics_;
     TCodecStatistics CodecStatistics;
 

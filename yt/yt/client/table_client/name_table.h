@@ -35,7 +35,7 @@ public:
     std::vector<TString> GetNames() const;
 
 private:
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
 
     bool EnableColumnNameValidation_ = false;
 

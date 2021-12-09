@@ -77,7 +77,7 @@ private:
 
     TRandomGenerator RandomGenerator_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     bool Started_ = false;
     bool Stopped_ = false;
     TPromise<void> SyncPromise_ = NewPromise<void>();

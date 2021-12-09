@@ -279,7 +279,7 @@ private:
 
     std::atomic<TMasterEpoch> Epoch_ = 0;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, LocalDescriptorLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, LocalDescriptorLock_);
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     NApi::ITransactionPtr LeaseTransaction_;

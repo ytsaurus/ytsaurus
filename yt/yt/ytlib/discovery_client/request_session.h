@@ -37,7 +37,7 @@ private:
     const TGroupId GroupId_;
     const TListMembersOptions Options_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
     THashMap<TMemberId, TMemberInfo> IdToMember_;
     int SuccessCount_ = 0;
 
@@ -64,7 +64,7 @@ private:
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TGroupId GroupId_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
     TGroupMeta GroupMeta_;
     int SuccessCount_ = 0;
 

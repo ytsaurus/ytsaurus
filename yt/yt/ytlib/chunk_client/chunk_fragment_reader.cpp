@@ -127,13 +127,15 @@ public:
         std::vector<TChunkFragmentRequest> requests) override;
 
 private:
-    struct TPeerAccessInfo
+    struct TPeerAccessInfo final
         : public TPeerInfo
     {
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
         TNodeId NodeId;
         TInstant LastSuccessfulAccessTime;
     };
+
+    using TPeerAccessInfoPtr = TIntrusivePtr<TPeerAccessInfo>;
 
     class TSessionBase;
     class TReadFragmentsSession;
@@ -155,7 +157,7 @@ private:
     // TODO(akozhikhov): Implement lock sharding.
     YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ChunkIdToPeerAccessInfoLock_);
     // NB: It is used for fast path and eviction of obsolete chunks.
-    THashMap<TChunkId, TPeerAccessInfo> ChunkIdToPeerAccessInfo_;
+    THashMap<TChunkId, TPeerAccessInfoPtr> ChunkIdToPeerAccessInfo_;
 
     TErrorOr<TPeerInfo> GetPeerInfo(TNodeId nodeId) noexcept
     {
@@ -526,14 +528,15 @@ private:
                     continue;
                 }
 
-                auto entryGuard = Guard(peerInfoIt->second.Lock);
+                const auto& peerAccessInfo = peerInfoIt->second;
+                auto entryGuard = Guard(peerAccessInfo->Lock);
 
-                YT_VERIFY(peerInfoIt->second.Channel);
+                YT_VERIFY(peerAccessInfo->Channel);
 
-                auto [it, emplaced] = PeerToRequestInfo_.try_emplace(peerInfoIt->second.NodeId);
+                auto [it, emplaced] = PeerToRequestInfo_.try_emplace(peerAccessInfo->NodeId);
                 if (emplaced) {
-                    it->second.PeerInfo = peerInfoIt->second;
-                    nodeIds.push_back(peerInfoIt->second.NodeId);
+                    it->second.PeerInfo = *peerAccessInfo;
+                    nodeIds.push_back(peerAccessInfo->NodeId);
                 }
                 it->second.ChunkFragmentSetInfos.push_back({
                     .ChunkId = chunkId,
@@ -1057,7 +1060,7 @@ private:
         int updateCount = 0;
         int reinsertCount = 0;
         std::vector<std::pair<TNodeId, TChunkId>> failedEntries;
-        std::vector<std::pair<TChunkId, TPeerAccessInfo>> newEntries;
+        std::vector<std::pair<TChunkId, TPeerAccessInfoPtr>> newEntries;
         {
             auto readerGuard = ReaderGuard(Reader_->ChunkIdToPeerAccessInfoLock_);
 
@@ -1091,26 +1094,26 @@ private:
                     }
 
                     if (it == Reader_->ChunkIdToPeerAccessInfo_.end()) {
-                        newEntries.emplace_back(
-                            chunkId,
-                            TPeerAccessInfo{
-                                {requestInfo.PeerInfo},
-                                .NodeId = nodeId,
-                                .LastSuccessfulAccessTime = now
-                            });
+                        auto newPeerAccessInfo = New<TPeerAccessInfo>();
+                        static_cast<TPeerInfo&>(*newPeerAccessInfo) = requestInfo.PeerInfo;
+                        newPeerAccessInfo->NodeId = nodeId;
+                        newPeerAccessInfo->LastSuccessfulAccessTime = now;
+                        newEntries.emplace_back(chunkId, std::move(newPeerAccessInfo));
                         continue;
                     }
 
-                    auto entryGuard = Guard(it->second.Lock);
+                    const auto& peerAccessInfo = it->second;
 
-                    it->second.LastSuccessfulAccessTime = now;
-                    if (nodeId == it->second.NodeId) {
+                    auto entryGuard = Guard(peerAccessInfo->Lock);
+
+                    peerAccessInfo->LastSuccessfulAccessTime = now;
+                    if (nodeId == peerAccessInfo->NodeId) {
                         ++updateCount;
                     } else {
                         ++reinsertCount;
-                        it->second.NodeId = nodeId;
-                        it->second.Address = requestInfo.PeerInfo.Address;
-                        it->second.Channel = requestInfo.PeerInfo.Channel;
+                        peerAccessInfo->NodeId = nodeId;
+                        peerAccessInfo->Address = requestInfo.PeerInfo.Address;
+                        peerAccessInfo->Channel = requestInfo.PeerInfo.Channel;
                     }
                 }
                 YT_VERIFY(failedChunkCount == std::ssize(failedChunkIndexes));
@@ -1127,7 +1130,7 @@ private:
             for (auto [nodeId, chunkId] : failedEntries) {
                 auto it = Reader_->ChunkIdToPeerAccessInfo_.find(chunkId);
                 if (it != Reader_->ChunkIdToPeerAccessInfo_.end() &&
-                    it->second.NodeId == nodeId)
+                    it->second->NodeId == nodeId)
                 {
                     Reader_->ChunkIdToPeerAccessInfo_.erase(it);
                     ++eraseCount;
@@ -1280,10 +1283,10 @@ private:
             auto readerGuard = ReaderGuard(Reader_->ChunkIdToPeerAccessInfoLock_);
 
             for (const auto& [chunkId, peerAccessInfo] : Reader_->ChunkIdToPeerAccessInfo_) {
-                auto entryGuard = Guard(peerAccessInfo.Lock);
+                auto entryGuard = Guard(peerAccessInfo->Lock);
 
-                YT_VERIFY(peerAccessInfo.LastSuccessfulAccessTime);
-                if (IsChunkObsolete(peerAccessInfo, now)) {
+                YT_VERIFY(peerAccessInfo->LastSuccessfulAccessTime);
+                if (IsChunkObsolete(*peerAccessInfo, now)) {
                     ObsoleteChunkIds_.push_back(chunkId);
                 } else {
                     ChunkIds_.push_back(chunkId);
@@ -1464,15 +1467,16 @@ private:
 
                 auto it = Reader_->ChunkIdToPeerAccessInfo_.find(chunkId);
                 if (it != Reader_->ChunkIdToPeerAccessInfo_.end()) {
-                    auto entryGuard = Guard(it->second.Lock);
+                    const auto& peerAccessInfo = it->second;
+                    auto entryGuard = Guard(peerAccessInfo->Lock);
 
                     const auto& probingInfo = probingInfos[chunkBestNodeIndex[chunkIndex]];
-                    if (it->second.NodeId != probingInfo.NodeId) {
-                        it->second.NodeId = probingInfo.NodeId;
+                    if (peerAccessInfo->NodeId != probingInfo.NodeId) {
+                        peerAccessInfo->NodeId = probingInfo.NodeId;
 
                         const auto& peerInfo = probingInfo.PeerInfoOrError.Value();
-                        it->second.Address = peerInfo.Address;
-                        it->second.Channel = peerInfo.Channel;
+                        peerAccessInfo->Address = peerInfo.Address;
+                        peerAccessInfo->Channel = peerInfo.Channel;
                     }
                 }
             }
@@ -1500,7 +1504,7 @@ private:
             for (auto chunkId : ObsoleteChunkIds_) {
                 auto it = Reader_->ChunkIdToPeerAccessInfo_.find(chunkId);
                 if (it != Reader_->ChunkIdToPeerAccessInfo_.end() &&
-                    IsChunkObsolete(it->second, now))
+                    IsChunkObsolete(*it->second, now))
                 {
                     Reader_->ChunkIdToPeerAccessInfo_.erase(it);
                 }

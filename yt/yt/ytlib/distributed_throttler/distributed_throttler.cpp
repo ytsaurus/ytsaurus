@@ -177,7 +177,7 @@ private:
 
     TAtomicObject<IChannelPtr> LeaderChannel_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, HistoricUsageAggregatorLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
     THistoricUsageAggregator HistoricUsageAggregator_;
 
     void UpdateHistoricUsage(i64 count)

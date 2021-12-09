@@ -124,7 +124,7 @@ protected:
     const IPollerPtr Poller_;
     const IMessageHandlerPtr Handler_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, ControlSpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ControlSpinLock_);
     SOCKET ServerSocket_ = INVALID_SOCKET;
 
     YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ConnectionsSpinLock_);
@@ -442,7 +442,7 @@ public:
 private:
     const TTcpBusServerConfigPtr Config_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     TIntrusivePtr<TServer> Server_;
 };
 

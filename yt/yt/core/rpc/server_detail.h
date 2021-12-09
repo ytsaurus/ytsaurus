@@ -143,7 +143,7 @@ protected:
     virtual void LogResponse() = 0;
 
 private:
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, ResponseLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ResponseLock_);
     TSharedRefArray ResponseMessage_; // cached
     mutable TPromise<TSharedRefArray> AsyncResponseMessage_; // created on-demand
 

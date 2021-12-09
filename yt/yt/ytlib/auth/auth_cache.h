@@ -26,7 +26,7 @@ private:
     {
         const TKey Key;
 
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
         TContext Context;
         TFuture<TValue> Future;
         TPromise<TValue> Promise;

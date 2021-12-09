@@ -606,7 +606,7 @@ private:
 
     TPromise<TExecutorInfo> ExecutorPreparedPromise_ = NewPromise<TExecutorInfo>();
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, StatisticsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, StatisticsLock_);
     TStatistics CustomStatistics_;
 
     TCoreWatcherPtr CoreWatcher_;
@@ -902,7 +902,7 @@ private:
         }
         return response;
     }
-                
+
     std::vector<pid_t> GetPidsForInerrupt() const
     {
         std::vector<pid_t> pids;

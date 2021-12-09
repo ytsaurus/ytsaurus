@@ -54,7 +54,7 @@ private:
             THttpServerImpl* const Owner_;
         };
 
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
         TCallback Callback_;
     };
 

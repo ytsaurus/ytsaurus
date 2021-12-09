@@ -27,7 +27,7 @@ public:
 private:
     struct TTabletSyncReplicaIds
     {
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
 
         TInstant CachedSyncReplicasAt;
         TTableReplicaIdList SyncReplicaIds;

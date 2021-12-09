@@ -232,7 +232,7 @@ private:
     const IInvokerPtr Invoker_;
     const TClosure ProcessQueueCallback_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
 
     //! Number of records flushed to the underlying sync changelog.
     int FlushedRecordCount_ = 0;

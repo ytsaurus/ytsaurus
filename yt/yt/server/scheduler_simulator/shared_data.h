@@ -183,7 +183,7 @@ public:
 private:
     std::ofstream OutputStream_;
     bool HeaderPrinted_ = false;
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
 };
 
 

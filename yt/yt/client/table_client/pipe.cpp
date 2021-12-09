@@ -19,7 +19,7 @@ struct TSchemafulPipeBufferTag
 struct TSchemafulPipe::TData
     : public TRefCounted
 {
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock);
 
     const TRowBufferPtr RowBuffer;
     TRingQueue<TUnversionedRow> RowQueue;

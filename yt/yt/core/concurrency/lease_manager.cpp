@@ -21,7 +21,7 @@ struct TLeaseEntry
     TDuration Timeout;
     TClosure OnExpired;
     NConcurrency::TDelayedExecutorCookie Cookie;
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock);
 
     TLeaseEntry(TDuration timeout, TClosure onExpired)
         : Timeout(timeout)

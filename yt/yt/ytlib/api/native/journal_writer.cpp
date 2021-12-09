@@ -248,7 +248,7 @@ private:
 
         using TBatchPtr = TIntrusivePtr<TBatch>;
 
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, CurrentBatchSpinLock_);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, CurrentBatchSpinLock_);
         TError Error_;
         TBatchPtr CurrentBatch_;
         TDelayedExecutorCookie CurrentBatchFlushCookie_;

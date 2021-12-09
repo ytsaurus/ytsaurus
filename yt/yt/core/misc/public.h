@@ -108,8 +108,6 @@ using TFingerprint = ui64;
 
 constexpr TChecksum NullChecksum = 0;
 
-constexpr size_t CacheLineSize = 64;
-
 template <class T, size_t N>
 class TCompactVector;
 

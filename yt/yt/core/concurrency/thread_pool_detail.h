@@ -32,7 +32,7 @@ protected:
 
     IInvokerPtr FinalizerInvoker_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TSchedulerThreadPtr> Threads_;
 
 

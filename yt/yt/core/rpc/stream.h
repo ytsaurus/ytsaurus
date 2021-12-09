@@ -62,7 +62,7 @@ private:
         size_t CompressedSize;
     };
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
     TSlidingWindow<TWindowPacket> Window_;
     TRingQueue<TQueueEntry> Queue_;
     TError Error_;
@@ -77,7 +77,7 @@ private:
         const TStreamingPayload& payload,
         const std::vector<TSharedRef>& decompressedAttachments);
     void DoAbort(
-        NConcurrency::TSpinlockGuard<TAdaptiveLock>& guard,
+        NConcurrency::TSpinlockGuard<NThreading::TSpinLock>& guard,
         const TError& error,
         bool fireAborted = true);
     void OnTimeout();
@@ -131,7 +131,7 @@ private:
         NConcurrency::TDelayedExecutorCookie TimeoutCookie;
     };
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
     std::atomic<size_t> CompressionSequenceNumber_ = {0};
     TSlidingWindow<TWindowPacket> Window_;
     TError Error_;
@@ -147,11 +147,11 @@ private:
 
     void OnWindowPacketsReady(
         TMutableRange<TWindowPacket> packets,
-        NConcurrency::TSpinlockGuard<TAdaptiveLock>& guard);
-    void MaybeInvokePullCallback(NConcurrency::TSpinlockGuard<TAdaptiveLock>& guard);
+        NConcurrency::TSpinlockGuard<NThreading::TSpinLock>& guard);
+    void MaybeInvokePullCallback(NConcurrency::TSpinlockGuard<NThreading::TSpinLock>& guard);
     bool CanPullMore(bool first) const;
     void DoAbort(
-        NConcurrency::TSpinlockGuard<TAdaptiveLock>& guard,
+        NConcurrency::TSpinlockGuard<NThreading::TSpinLock>& guard,
         const TError& error,
         bool fireAborted = true);
     void OnTimeout();
@@ -228,7 +228,7 @@ private:
     NConcurrency::IAsyncZeroCopyInputStreamPtr FeedbackStream_;
     bool FeedbackEnabled_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     TRingQueue<TPromise<void>> ConfirmationQueue_;
     TError Error_;
 

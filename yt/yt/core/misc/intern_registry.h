@@ -53,7 +53,7 @@ private:
         bool operator() (const TInternedObjectData<T>* lhs, const T& rhs) const;
     };
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
 
     using TProfilerSet = THashSet<TInternedObjectData<T>*, THash, TEqual>;
     TProfilerSet Registry_;

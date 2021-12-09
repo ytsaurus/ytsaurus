@@ -358,7 +358,7 @@ private:
     IBootstrap* const Bootstrap_;
     const IThroughputThrottlerPtr Throttler_;
 
-    TConcurrentHashMap<TChunkId, TAllyReplicasInfo, 32, TAdaptiveLock> AllyReplicasInfos_;
+    TConcurrentHashMap<TChunkId, TAllyReplicasInfo, 32, NThreading::TSpinLock> AllyReplicasInfos_;
 
     struct TNodeState
     {

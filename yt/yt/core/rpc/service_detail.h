@@ -825,7 +825,7 @@ private:
 
     struct TRequestBucket
     {
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
         THashMap<TRequestId, TServiceContext*> RequestIdToContext;
         THashMap<TRequestId, TPendingPayloadsEntry> RequestIdToPendingPayloads;
     };
@@ -835,7 +835,7 @@ private:
 
     struct TReplyBusBucket
     {
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
         THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts;
     };
 
@@ -857,7 +857,7 @@ private:
 
     std::atomic<bool> EnablePerUserProfiling_ = false;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, HistogramConfigLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, HistogramConfigLock_);
     THistogramConfigPtr HistogramTimerProfiling{};
 
     std::atomic<bool> EnableErrorCodeCounting = false;

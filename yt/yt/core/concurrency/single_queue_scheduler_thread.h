@@ -59,7 +59,7 @@ protected:
 
     TEnqueuedAction CurrentAction_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
 
     std::atomic<bool> Suspending_ = false;
 

@@ -281,7 +281,7 @@ private:
 
     TAtomicObject<TError> Alert_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, MediumLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, MediumLock_);
     TAtomicObject<TString> MediumName_;
     std::atomic<NChunkClient::TMediumDescriptor*> CurrentMediumDescriptor_ = nullptr;
     std::vector<std::unique_ptr<NChunkClient::TMediumDescriptor>> MediumDescriptors_;
@@ -304,7 +304,7 @@ private:
 
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, LockedChunksLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunks_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
@@ -376,7 +376,7 @@ private:
         i64 DiskSpace;
     };
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, TrashMapSpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, TrashMapSpinLock_);
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
     std::atomic<i64> TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;

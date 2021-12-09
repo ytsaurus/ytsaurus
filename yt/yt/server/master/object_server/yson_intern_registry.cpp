@@ -46,7 +46,7 @@ private:
 
     using TInternedSet = THashSet<TInternedYsonStringData*, THash, TEqual>;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
     TInternedSet InternedValues_;
 
     void UnregisterInternedYsonStringData(TInternedSet::iterator iterator)

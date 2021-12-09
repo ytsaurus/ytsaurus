@@ -117,7 +117,7 @@ private:
     const EInMemoryMode Mode_;
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 };
 

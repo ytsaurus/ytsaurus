@@ -3,6 +3,7 @@
 #include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/port.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/system/compiler.h>
@@ -15,7 +16,7 @@ namespace NYT::NConcurrency {
 
 /*
  *  Use YT_DECLARE_SPINLOCK to declare a spinlock.
- *  Typical examples of supported types are TSpinLock, TAdaptiveLock, and TReaderWriterSpinLock.
+ *  Typical examples of supported types are TSpinLock, NThreading::TSpinLock, and TReaderWriterSpinLock.
  *
  *  If YT_ENABLE_SPINLOCK_PROFILING is set then the original spinlock type
  *  is wrapped into TProfilingSpinlockWrapper. This wrapper captures the source location

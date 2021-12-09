@@ -844,7 +844,7 @@ private:
     std::atomic<bool> Sending_ = {false};
     std::atomic<bool> Dropped_ = {false};
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
     size_t CurrentSize_ = 0;
 

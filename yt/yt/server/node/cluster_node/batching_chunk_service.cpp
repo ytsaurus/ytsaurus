@@ -170,7 +170,7 @@ private:
         TChunkServiceProxy LeaderProxy_;
         TChunkServiceProxy FollowerProxy_;
 
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
         TBatchPtr CurrentBatch_;
 
 

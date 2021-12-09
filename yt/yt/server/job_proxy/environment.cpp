@@ -116,7 +116,7 @@ private:
 
     mutable std::atomic<TInstant> LastUpdateTime_ = {};
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     mutable TResourceUsage ResourceUsage_;
     mutable std::optional<TCpuStatistics> CachedCpuStatistics_;
     mutable std::optional<TMemoryStatistics> CachedMemoryStatistics_;
@@ -220,7 +220,7 @@ public:
         , Options_(options)
         , SlotContainerName_(slotContainerName)
         , PortoExecutor_(std::move(portoExecutor))
-    { 
+    {
         if (Options_.EnableCudaGpuCoreDump && Options_.SlotCoreWatcherDirectory) {
             auto slotGpuCorePipeFile = NFS::CombinePaths(*Options_.SlotCoreWatcherDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
             Envirnoment_.push_back("CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1");
@@ -258,7 +258,7 @@ public:
     {
         try {
             if (auto instance = GetUserJobInstance()) {
-                instance->Stop();    
+                instance->Stop();
             }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to stop user container");
@@ -268,7 +268,7 @@ public:
     void SetIOThrottle(i64 operations) override
     {
         if (auto instance = GetUserJobInstance()) {
-            instance->SetIOThrottle(operations);    
+            instance->SetIOThrottle(operations);
         }
     }
 
@@ -330,7 +330,7 @@ public:
             }
         }
 
-        if (!devices.empty() && NFS::Exists("/dev/kvm")) {	
+        if (!devices.empty() && NFS::Exists("/dev/kvm")) {
             devices.push_back(TDevice{
                 .DeviceName = "/dev/kvm",
                 .Enabled = true});
@@ -392,7 +392,7 @@ public:
 
         launcher->SetEnablePorto(Options_.EnablePorto);
         launcher->SetIsolate(Options_.EnablePorto != EEnablePorto::Full);
-        
+
         if (Options_.EnablePortoMemoryTracking) {
             // NB(psushin): typically we don't use memory cgroups for memory usage tracking, since memory cgroups are expensive and
             // shouldn't be created too often. But for special reasons (e.g. Nirvana) we still make a backdoor to track memory via cgroups.
@@ -459,7 +459,7 @@ private:
     const TUserJobEnvironmentOptions Options_;
     const TString SlotContainerName_;
     const IPortoExecutorPtr PortoExecutor_;
-    
+
     std::vector<TString> Envirnoment_;
 
     TAtomicObject<IInstancePtr> Instance_;
@@ -514,9 +514,9 @@ public:
     }
 
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
-        TGuid jobId, 
+        TGuid jobId,
         const TUserJobEnvironmentOptions& options) override
-    {  
+    {
         return New<TPortoUserJobEnvironment>(
             jobId,
             Config_,
@@ -575,7 +575,7 @@ public:
         return {};
     }
 
-    void CleanProcesses() override 
+    void CleanProcesses() override
     {
         if (auto process = Process_.Load()) {
             process->Kill(9);
@@ -619,7 +619,7 @@ public:
             auto pid = process->GetProcessId();
             return GetPidsUnderParent(pid);
         }
-        
+
         return {};
     }
 
@@ -652,7 +652,7 @@ public:
     {
         YT_LOG_WARNING("Cpu guarantees are not supported in simple job environment");
     }
-    
+
     void SetCpuLimit(double /* value */) override
     {
         YT_LOG_WARNING("Cpu limits are not supported in simple job environment");

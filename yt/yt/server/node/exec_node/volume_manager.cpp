@@ -409,7 +409,7 @@ private:
 
     std::atomic<int> LayerImportsInProgress_ = 0;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
 
@@ -1102,7 +1102,7 @@ public:
             .Item("cached_layer_count").Value(GetSize())
             .Item("tmpfs_cache").DoMap([&] (auto fluentMap) {
                 auto guard1 = Guard(TmpfsCacheDataSpinLock_);
-                auto guard2 = Guard(TmpfsCacheAlerTAdaptiveLock_);
+                auto guard2 = Guard(TmpfsCacheAlertSpinLock_);
                 fluentMap
                     .Item("layer_count").Value(CachedTmpfsLayers_.size())
                     .Item("alert").Value(TmpfsCacheAlert_);
@@ -1118,11 +1118,11 @@ private:
 
     THashMap<TYPath, TFetchedArtifactKey> CachedLayerDescriptors_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, TmpfsCacheDataSpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, TmpfsCacheDataSpinLock_);
     THashMap<TArtifactKey, TLayerPtr> CachedTmpfsLayers_;
     TPeriodicExecutorPtr UpdateTmpfsLayersExecutor_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, TmpfsCacheAlerTAdaptiveLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, TmpfsCacheAlertSpinLock_);
     TError TmpfsCacheAlert_;
 
     IPortoExecutorPtr TmpfsPortoExecutor_;
@@ -1444,7 +1444,7 @@ private:
 
     void SetTmpfsAlert(const TError& error)
     {
-        auto guard = Guard(TmpfsCacheAlerTAdaptiveLock_);
+        auto guard = Guard(TmpfsCacheAlertSpinLock_);
         if (error.IsOK() && !TmpfsCacheAlert_.IsOK()) {
             YT_LOG_INFO("Tmpfs layer cache alert reset");
         } else if (!error.IsOK()) {
@@ -1456,7 +1456,7 @@ private:
 
     void PopulateTmpfsAlert(std::vector<TError>* errors)
     {
-        auto guard = Guard(TmpfsCacheAlerTAdaptiveLock_);
+        auto guard = Guard(TmpfsCacheAlertSpinLock_);
         if (!TmpfsCacheAlert_.IsOK()) {
             errors->push_back(TmpfsCacheAlert_);
         }
@@ -1555,7 +1555,7 @@ private:
     const TPortoVolumeManagerPtr Owner_;
     const TLayerLocationPtr Location_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TLayerPtr> Layers_;
 
     int ActiveCount_= 1;
@@ -1570,7 +1570,7 @@ private:
         }
     }
 
-    void ReleaseLayers(TSpinlockGuard<TAdaptiveLock>&& guard)
+    void ReleaseLayers(TSpinlockGuard<NThreading::TSpinLock>&& guard)
     {
         std::vector<TLayerPtr> layers;
         std::swap(layers, Layers_);

@@ -242,7 +242,7 @@ private:
         std::atomic<bool> Finished_ = false;
         std::atomic<bool> Success_ = false;
 
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
         THashSet<TString> RequestedAddresses_;
         THashSet<TString> RequestingAddresses_;
         std::vector<TError> DiscoveryErrors_;

@@ -677,7 +677,7 @@ private:
 
         struct TBucket
         {
-            YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+            YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
             IBusPtr Bus;
             bool Terminated = false;
             THashMap<TRequestId, TClientRequestControlPtr> ActiveRequestMap;
@@ -1189,7 +1189,7 @@ private:
             return TotalTime_;
         }
 
-        bool IsActive(const TSpinlockGuard<TAdaptiveLock>&) const
+        bool IsActive(const TSpinlockGuard<NThreading::TSpinLock>&) const
         {
             return static_cast<bool>(ResponseHandler_);
         }
@@ -1211,12 +1211,12 @@ private:
             TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
         }
 
-        IClientResponseHandlerPtr GetResponseHandler(const TSpinlockGuard<TAdaptiveLock>&)
+        IClientResponseHandlerPtr GetResponseHandler(const TSpinlockGuard<NThreading::TSpinLock>&)
         {
             return ResponseHandler_;
         }
 
-        IClientResponseHandlerPtr Finalize(const TSpinlockGuard<TAdaptiveLock>&)
+        IClientResponseHandlerPtr Finalize(const TSpinlockGuard<NThreading::TSpinLock>&)
         {
             TotalTime_ = DoProfile(MethodMetadata_->TotalTimeCounter);
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);

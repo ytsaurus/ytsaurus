@@ -121,7 +121,7 @@ std::optional<TString> GetParentName(const TString& name)
     if (slashPosition == TString::npos) {
         return "";
     }
-    
+
     return name.substr(0, slashPosition);
 }
 
@@ -130,7 +130,7 @@ std::optional<TString> GetParentName(const TString& name)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortoInstanceLauncher
-    : public IInstanceLauncher 
+    : public IInstanceLauncher
 {
 public:
     TPortoInstanceLauncher(const TString& name, IPortoExecutorPtr executor)
@@ -149,12 +149,12 @@ public:
         };
     }
 
-    const TString& GetName() const override 
+    const TString& GetName() const override
     {
         return Spec_.Name;
     }
 
-    bool HasRoot() const override 
+    bool HasRoot() const override
     {
         return static_cast<bool>(Spec_.RootFS);
     }
@@ -211,7 +211,7 @@ public:
 
     void EnableMemoryTracking() override
     {
-        Spec_.CGroupControllers.push_back("memory");   
+        Spec_.CGroupControllers.push_back("memory");
     }
 
     void SetGroup(int groupId) override
@@ -244,7 +244,7 @@ public:
             commandBuilder.AppendString("'");
             commandBuilder.AppendString(NDetail::EscapeForWordexp(value.c_str()));
             commandBuilder.AppendString("' ");
-        };	
+        };
 
         append(path);
         for (const auto& arg : args) {
@@ -474,10 +474,10 @@ public:
         SetProperty("io_ops_limit", operations);
     }
 
-    TString GetStderr() const override	
-    {	
-        return *WaitFor(Executor_->GetContainerProperty(Name_, "stderr"))	
-            .ValueOrThrow();	
+    TString GetStderr() const override
+    {
+        return *WaitFor(Executor_->GetContainerProperty(Name_, "stderr"))
+            .ValueOrThrow();
     }
 
     TString GetName() const override
@@ -526,7 +526,7 @@ public:
                 continue;
             }
 
-            // Pid cgroups are returned in short form. 
+            // Pid cgroups are returned in short form.
             auto processPidCgroup = cgroups["pids"];
             if (!processPidCgroup.empty() && instanceCgroup.EndsWith(processPidCgroup)) {
                 pids.push_back(pid);
@@ -536,7 +536,7 @@ public:
         return pids;
     }
 
-    TFuture<void> Wait() override 
+    TFuture<void> Wait() override
     {
         return Executor_->PollContainer(Name_)
             .Apply(BIND([] (int status) {
@@ -552,7 +552,7 @@ private:
 
     bool Destroyed_ = false;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, ContextSwitchMapLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ContextSwitchMapLock_);
     mutable i64 TotalContextSwitches_ = 0;
     mutable THashMap<TString, i64> ContextSwitchMap_;
 
@@ -604,7 +604,7 @@ TString GetSelfContainerName(const IPortoExecutorPtr& executor)
 
         if (absoluteName.length() < absoluteNamespace.length()) {
             YT_VERIFY(absoluteName + "/" == absoluteNamespace);
-            return "";    
+            return "";
         } else {
             YT_VERIFY(absoluteName.StartsWith(absoluteNamespace));
             return absoluteName.substr(absoluteNamespace.length());
