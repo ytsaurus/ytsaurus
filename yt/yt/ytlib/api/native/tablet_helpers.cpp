@@ -278,6 +278,12 @@ bool IsReplicaSync(
     const NQueryClient::NProto::TReplicaInfo& replicaInfo,
     const NQueryClient::NProto::TTabletInfo& tabletInfo)
 {
+    auto replicaStatus = FromProto<ETableReplicaStatus>(replicaInfo.status());
+    if (replicaStatus != ETableReplicaStatus::Unknown) {
+        return replicaStatus == ETableReplicaStatus::SyncInSync;
+    }
+
+    // COMPAT(akozhikhov).
     return
         FromProto<ETableReplicaMode>(replicaInfo.mode()) == ETableReplicaMode::Sync &&
         replicaInfo.current_replication_row_index() >= tabletInfo.total_row_count() + tabletInfo.delayed_lockless_row_count();

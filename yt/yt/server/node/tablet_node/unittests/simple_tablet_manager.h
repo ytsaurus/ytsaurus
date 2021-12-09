@@ -45,6 +45,7 @@ public:
     void OnTabletRowUnlocked(TTablet* tablet) override;
     TTablet* GetTabletOrThrow(TTabletId id) override;
     TTablet* FindTablet(const TTabletId& id) const override;
+    const NHydra::TReadOnlyEntityMap<TTablet>& Tablets() const override;
     TTransactionManagerPtr GetTransactionManager() const override;
     NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const override;
     TTabletManagerConfigPtr GetConfig() const override;
@@ -57,19 +58,41 @@ public:
     TTablet* Tablet();
 
 private:
-    std::unique_ptr<TTablet> Tablet_;
+    class TTabletMapTraits
+    {
+    public:
+        explicit TTabletMapTraits(TSimpleTabletManager* owner)
+            : Owner_(owner)
+        { }
+
+        std::unique_ptr<TTablet> Create(TTabletId id) const
+        {
+            return std::make_unique<TTablet>(id, &Owner_->TabletContext_);
+        }
+
+    private:
+        TSimpleTabletManager* const Owner_;
+    };
+
+    // This invoker helps to deal with TabletMap_ thread affinity verifications.
+    const IInvokerPtr AutomatonInvoker_;
 
     const TTransactionManagerPtr TransactionManager_;
     NTabletClient::TDynamicTabletCellOptionsPtr DynamicOptions_ = New<NTabletClient::TDynamicTabletCellOptions>();
     TTabletManagerConfigPtr Config_ = New<TTabletManagerConfig>();
 
+    NHydra::TEntityMap<TTablet, TTabletMapTraits> TabletMap_;
+
     IStoreManagerPtr StoreManager_;
     TTabletContextMock TabletContext_;
 
+    void LoadKeys(TLoadContext& context);
     void LoadValues(TLoadContext& context);
     void LoadAsync(TLoadContext& context);
+    void SaveKeys(TSaveContext& context);
     void SaveValues(TSaveContext& context);
     TCallback<void(TSaveContext&)> SaveAsync();
+
     void Clear() override;
 };
 

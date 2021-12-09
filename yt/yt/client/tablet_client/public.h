@@ -146,6 +146,18 @@ DEFINE_ENUM(ETableReplicaState,
     ((Enabled)                  (3))
 );
 
+DEFINE_ENUM(ETableReplicaStatus,
+    ((Unknown)                  (0))
+
+    ((SyncInSync)               (1))
+    ((SyncCatchingUp)           (2))
+    ((SyncNotWritable)          (3))
+
+    ((AsyncInSync)              (4))
+    ((AsyncCatchingUp)          (5))
+    ((AsyncNotWritable)         (6))
+);
+
 DEFINE_ENUM(ETabletActionKind,
     ((Move)                     (0))
     ((Reshard)                  (1))

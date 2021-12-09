@@ -151,6 +151,7 @@ message TReplicaInfo
     required int32 mode = 3; // ETableReplicaMode
     required int64 current_replication_row_index = 4;
     optional NYT.NProto.TError replication_error = 5;
+    optional int32 status = 6; // ETableReplicaStatus
 }
 
 message TTabletInfo

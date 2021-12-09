@@ -993,6 +993,7 @@ private:
                 protoReplicaInfo->set_last_replication_timestamp(lastReplicationTimestamp);
                 protoReplicaInfo->set_mode(static_cast<int>(replicaSnapshot->RuntimeData->Mode.load()));
                 protoReplicaInfo->set_current_replication_row_index(replicaSnapshot->RuntimeData->CurrentReplicationRowIndex.load());
+                protoReplicaInfo->set_status(static_cast<int>(replicaSnapshot->RuntimeData->Status.load()));
 
                 if (request->request_errors()) {
                     if (auto error = replicaSnapshot->RuntimeData->Error.Load(); !error.IsOK()) {

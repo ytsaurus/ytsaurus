@@ -30,6 +30,7 @@
 namespace NYT::NTabletNode {
 
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NLogging;
 using namespace NClusterNode;
@@ -377,6 +378,10 @@ public:
                 PrepareLockedRows(transaction);
             }
         }
+
+        for (const auto& [tabletId, tablet] : Host_->Tablets()) {
+            tablet->RecomputeReplicaStatuses();
+        }
     }
 
 private:
@@ -679,6 +684,20 @@ private:
         }
     }
 
+    void ValidateReplicaStatus(ETableReplicaStatus expected, TTablet* tablet, const TTableReplicaInfo& replicaInfo) const
+    {
+        YT_LOG_ALERT_IF(
+            IsMutationLoggingEnabled() && replicaInfo.GetStatus() != expected,
+            "Table replica status mismatch "
+            "(Expected: %v, Actual: %v, CurrentReplicationRowIndex: %v, TotalRowCount: %v, DelayedLocklessRowCount: %v, Mode: %v)",
+            expected,
+            replicaInfo.GetStatus(),
+            replicaInfo.GetCurrentReplicationRowIndex(),
+            tablet->GetTotalRowCount(),
+            tablet->GetDelayedLocklessRowCount(),
+            replicaInfo.GetMode());
+    }
+
     void ValidateReplicaWritable(TTablet* tablet, const TTableReplicaInfo& replicaInfo)
     {
         auto currentReplicationRowIndex = replicaInfo.GetCurrentReplicationRowIndex();
@@ -699,6 +718,11 @@ private:
                     }
                 } else {
                     if (currentReplicationRowIndex < totalRowCount + delayedLocklessRowCount) {
+                        if (replicaInfo.GetState() == ETableReplicaState::Enabled) {
+                            ValidateReplicaStatus(ETableReplicaStatus::SyncCatchingUp, tablet, replicaInfo);
+                        } else {
+                            ValidateReplicaStatus(ETableReplicaStatus::SyncNotWritable, tablet, replicaInfo);
+                        }
                         THROW_ERROR_EXCEPTION(
                             "Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
                             replicaInfo.GetId(),
@@ -720,17 +744,20 @@ private:
                     }
                 }
                 if (replicaInfo.GetState() != ETableReplicaState::Enabled) {
+                    ValidateReplicaStatus(ETableReplicaStatus::SyncNotWritable, tablet, replicaInfo);
                     THROW_ERROR_EXCEPTION(
                         "Replica %v is not synchronously writeable since it is in %Qlv state",
                          replicaInfo.GetId(),
                          replicaInfo.GetState());
                 }
+                ValidateReplicaStatus(ETableReplicaStatus::SyncInSync, tablet, replicaInfo);
                 YT_VERIFY(!replicaInfo.GetPreparedReplicationTransactionId());
                 break;
             }
 
             case ETableReplicaMode::Async:
                 if (currentReplicationRowIndex > totalRowCount) {
+                    ValidateReplicaStatus(ETableReplicaStatus::AsyncNotWritable, tablet, replicaInfo);
                     THROW_ERROR_EXCEPTION(
                         "Replica %v of tablet %v is not asynchronously writeable: some synchronous writes are still in progress",
                         replicaInfo.GetId(),
@@ -738,10 +765,17 @@ private:
                         << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
                         << TErrorAttribute("total_row_count", totalRowCount);
                 }
+
+                if (currentReplicationRowIndex >= totalRowCount + delayedLocklessRowCount) {
+                    ValidateReplicaStatus(ETableReplicaStatus::AsyncInSync, tablet, replicaInfo);
+                } else {
+                    ValidateReplicaStatus(ETableReplicaStatus::AsyncCatchingUp, tablet, replicaInfo);
+                }
+
                 break;
 
-                default:
-                    YT_ABORT();
+            default:
+                YT_ABORT();
         }
     }
 
@@ -836,6 +870,7 @@ private:
             auto oldDelayedLocklessRowCount = tablet->GetDelayedLocklessRowCount();
             auto newDelayedLocklessRowCount = oldDelayedLocklessRowCount + rowCount;
             tablet->SetDelayedLocklessRowCount(newDelayedLocklessRowCount);
+            tablet->RecomputeReplicaStatuses();
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Delayed lockless rows prepared (TransactionId: %v, TabletId: %v, DelayedLocklessRowCount: %v -> %v)",
                 transaction->GetId(),
@@ -1016,6 +1051,7 @@ private:
             auto oldDelayedLocklessRowCount = tablet->GetDelayedLocklessRowCount();
             auto newDelayedLocklessRowCount = oldDelayedLocklessRowCount - rowCount;
             tablet->SetDelayedLocklessRowCount(newDelayedLocklessRowCount);
+            tablet->RecomputeReplicaStatuses();
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Delayed lockless rows committed (TransactionId: %v, TabletId: %v, DelayedLocklessRowCount: %v -> %v)",
                 transaction->GetId(),
@@ -1087,6 +1123,7 @@ private:
                 auto oldDelayedLocklessRowCount = tablet->GetDelayedLocklessRowCount();
                 auto newDelayedLocklessRowCount = oldDelayedLocklessRowCount - rowCount;
                 tablet->SetDelayedLocklessRowCount(newDelayedLocklessRowCount);
+                tablet->RecomputeReplicaStatuses();
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Delayed lockless rows aborted (TransactionId: %v, TabletId: %v, DelayedLocklessRowCount: %v -> %v)",
                     transaction->GetId(),
