@@ -436,8 +436,8 @@ void EndMutation()
     YT_ASSERT(NDetail::IsInMutation());
     YT_ASSERT(!NDetail::IsInTeardown());
 
-    --NDetail::InMutationCounter;
     NDetail::DoFlushObjectUnrefs();
+    YT_VERIFY(--NDetail::InMutationCounter >= 0);
 }
 
 void BeginTeardown()
