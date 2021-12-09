@@ -60,14 +60,12 @@ struct TOperationStatistics
     NScheduler::EOperationType OperationType;
     TString OperationState;
     bool InTimeframe = false;
-
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
 };
 
 class TSharedOperationStatistics
 {
 public:
-    explicit TSharedOperationStatistics(const std::vector<TOperationDescription>& operations);
+    explicit TSharedOperationStatistics(std::vector<TOperationDescription> operations);
 
     void OnJobStarted(NScheduler::TOperationId operationId, TDuration duration);
 
@@ -85,8 +83,20 @@ public:
     const TOperationDescription& GetOperationDescription(NScheduler::TOperationId operationId) const;
 
 private:
-    const THashMap<NScheduler::TOperationId, TOperationDescription> OperationDescriptionById_;
-    const THashMap<NScheduler::TOperationId, TMutable<TOperationStatistics>> OperationStorage_;
+    struct TOperationStatisticsWithLock final
+    {
+        TOperationStatistics Value;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+    };
+
+    using TOperationDescriptionMap = THashMap<NScheduler::TOperationId, TOperationDescription>;
+    using TOperationStatisticsMap = THashMap<NScheduler::TOperationId, TIntrusivePtr<TOperationStatisticsWithLock>>;
+
+    static TOperationDescriptionMap CreateOperationDescriptionMap(std::vector<TOperationDescription> operations);
+    static TOperationStatisticsMap CreateOperationsStorageMap(const TOperationDescriptionMap& operationDescriptions);
+
+    const TOperationDescriptionMap IdToOperationDescription_;
+    const TOperationStatisticsMap IdToOperationStorage_;
 };
 
 

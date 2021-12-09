@@ -52,101 +52,84 @@ bool operator<(const TNodeShardEvent& lhs, const TNodeShardEvent& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-THashMap<TOperationId, TOperationDescription> CreateOperationDescriptionByIdMap(
-    const std::vector<TOperationDescription>& operations)
-{
-    THashMap<NScheduler::TOperationId, TOperationDescription> operationDescriptionById;
-    for (const auto& operation : operations) {
-        operationDescriptionById[operation.Id] = operation;
-    }
-    return operationDescriptionById;
-}
-
-THashMap<TOperationId, TMutable<TOperationStatistics>> CreateOperationsStorage(
-    const THashMap<TOperationId, TOperationDescription>& operationDescriptionById)
-{
-    THashMap<TOperationId, TMutable<TOperationStatistics>> operationStorage;
-
-    for (const auto& [operationId, description] : operationDescriptionById) {
-        operationStorage.emplace(operationId, TOperationStatistics());
-    }
-
-    return operationStorage;
-}
-
-} // namespace
-
-
-TSharedOperationStatistics::TSharedOperationStatistics(const std::vector<TOperationDescription>& operations)
-    : OperationDescriptionById_(CreateOperationDescriptionByIdMap(operations))
-    , OperationStorage_(CreateOperationsStorage(OperationDescriptionById_))
+TSharedOperationStatistics::TSharedOperationStatistics(std::vector<TOperationDescription> operations)
+    : IdToOperationDescription_(CreateOperationDescriptionMap(std::move(operations)))
+    , IdToOperationStorage_(CreateOperationsStorageMap(IdToOperationDescription_))
 { }
 
 void TSharedOperationStatistics::OnJobStarted(TOperationId operationId, TDuration duration)
 {
-    auto& stats = OperationStorage_.at(operationId);
-    {
-        auto guard = Guard(stats->Lock);
-        ++stats->JobCount;
-        stats->JobMaxDuration = std::max(stats->JobMaxDuration, duration);
-    }
+    auto& [stats, lock] = *GetOrCrash(IdToOperationStorage_, operationId);
+    auto guard = Guard(lock);
+    ++stats.JobCount;
+    stats.JobMaxDuration = std::max(stats.JobMaxDuration, duration);
 }
 
 void TSharedOperationStatistics::OnJobPreempted(TOperationId operationId, TDuration duration)
 {
-    auto& stats = OperationStorage_.at(operationId);
-    {
-        auto guard = Guard(stats->Lock);
-        --stats->JobCount;
-        ++stats->PreemptedJobCount;
-        stats->JobsTotalDuration += duration;
-        stats->PreemptedJobsTotalDuration += duration;
-    }
+    auto& [stats, lock] = *GetOrCrash(IdToOperationStorage_, operationId);
+    auto guard = Guard(lock);
+    --stats.JobCount;
+    ++stats.PreemptedJobCount;
+    stats.JobsTotalDuration += duration;
+    stats.PreemptedJobsTotalDuration += duration;
 }
 
 void TSharedOperationStatistics::OnJobFinished(TOperationId operationId, TDuration duration)
 {
-    auto& stats = OperationStorage_.at(operationId);
-    {
-        auto guard = Guard(stats->Lock);
-        stats->JobsTotalDuration += duration;
-    }
+    auto& [stats, lock] = *GetOrCrash(IdToOperationStorage_, operationId);
+    auto guard = Guard(lock);
+    stats.JobsTotalDuration += duration;
 }
 
 void TSharedOperationStatistics::OnOperationStarted(TOperationId /*operationId*/)
-{
-    // Nothing to do.
-}
+{ }
 
 TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
     TOperationId operationId,
     TDuration startTime,
     TDuration finishTime)
 {
-    auto& stats = OperationStorage_.at(operationId);
-    {
-        auto guard = Guard(stats->Lock);
+    auto& [stats, lock] = *GetOrCrash(IdToOperationStorage_, operationId);
+    auto guard = Guard(lock);
+    stats.StartTime = startTime;
+    stats.FinishTime = finishTime;
 
-        stats->StartTime = startTime;
-        stats->FinishTime = finishTime;
+    const auto& operationDescription = GetOrCrash(IdToOperationDescription_, operationId);
 
-        const auto& operationDescription = GetOrCrash(OperationDescriptionById_, operationId);
+    stats.RealDuration = operationDescription.Duration;
+    stats.OperationType = operationDescription.Type;
+    stats.OperationState = operationDescription.State;
+    stats.InTimeframe = operationDescription.InTimeframe;
 
-        stats->RealDuration = operationDescription.Duration;
-        stats->OperationType = operationDescription.Type;
-        stats->OperationState = operationDescription.State;
-        stats->InTimeframe = operationDescription.InTimeframe;
-
-        return std::move(*stats);
-    }
+    return std::move(stats);
 }
 
 const TOperationDescription& TSharedOperationStatistics::GetOperationDescription(TOperationId operationId) const
 {
     // No synchronization needed.
-    return GetOrCrash(OperationDescriptionById_, operationId);
+    return GetOrCrash(IdToOperationDescription_, operationId);
+}
+
+auto TSharedOperationStatistics::CreateOperationDescriptionMap(
+    std::vector<TOperationDescription> operations) -> TOperationDescriptionMap
+{
+    TOperationDescriptionMap operationDescriptionById;
+    for (auto&& operation : operations) {
+        auto operationId = operation.Id;
+        EmplaceOrCrash(operationDescriptionById, operationId, std::move(operation));
+    }
+    return operationDescriptionById;
+}
+
+auto TSharedOperationStatistics::CreateOperationsStorageMap(
+    const TOperationDescriptionMap& operationDescriptionById) -> TOperationStatisticsMap
+{
+    TOperationStatisticsMap operationStorage;
+    for (const auto& [operationId, _] : operationDescriptionById) {
+        EmplaceOrCrash(operationStorage, operationId, New<TOperationStatisticsWithLock>());
+    }
+    return operationStorage;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
