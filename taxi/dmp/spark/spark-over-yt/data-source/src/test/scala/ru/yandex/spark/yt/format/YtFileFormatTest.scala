@@ -8,7 +8,6 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.SQLConf._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtUtils
-import org.apache.spark.sql.yson.UInt64Long.{fromStringUdf, toStringUdf}
 import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
 import org.apache.spark.sql.{AnalysisException, DataFrameReader, Row, SaveMode}
 import org.apache.spark.status.api.v1
@@ -338,6 +337,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
       Logger.getRootLogger.setLevel(Level.WARN)
     }
   }
+
 
   it should "read int32" in {
     import scala.collection.JavaConverters._

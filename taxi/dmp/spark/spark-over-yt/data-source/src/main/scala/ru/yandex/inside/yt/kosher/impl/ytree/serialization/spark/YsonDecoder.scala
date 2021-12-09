@@ -1,28 +1,26 @@
 package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
-import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization._
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
 import ru.yandex.misc.lang.number.UnsignedLong
 import ru.yandex.yson.YsonError
 
 import scala.annotation.tailrec
 
-class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
+class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) extends YsonBaseReader
+  with MapParser with ListParser with VariantParser {
+
   val input = new YsonByteReader(bytes)
 
   @tailrec
-  final def readToken(allowEof: Boolean): Byte = {
+  override final def parseToken(allowEof: Boolean): Byte = {
     if (!input.isAtEnd) {
-      val b = readByte()
+      val b = parseByte()
       if (!Character.isWhitespace(b & 0xff)) {
         b
       } else {
-        readToken(allowEof)
+        parseToken(allowEof)
       }
     } else if (!allowEof) {
       throw new YsonError("Unexpected EOF")
@@ -31,7 +29,7 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
     }
   }
 
-  def readByte(): Byte = {
+  private def parseByte(): Byte = {
     if (input.isAtEnd) {
       throw new YsonError("Unexpected EOF")
     } else {
@@ -39,120 +37,73 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
     }
   }
 
+  // primitives
 
-  private def readList(endToken: Byte, allowEof: Boolean)(f: (Integer, Byte) => Unit): Unit = {
-    @tailrec
-    def read(i: Int, requireSeparator: Boolean = false): Unit = {
-      val token = readToken(allowEof)
-      token match {
-        case t if t == endToken => // end reading
-        case YsonTags.ITEM_SEPARATOR => read(i)
-        case _ =>
-          if (requireSeparator) unexpectedToken(token, "ITEM_SEPARATOR")
-          f(i, token)
-          read(i + 1, requireSeparator = true)
-      }
-    }
-
-    read(0)
-  }
-
-  def parseSomeList(endToken: Byte, allowEof: Boolean, elementType: IndexedDataType): ArrayData = {
-    val res = Array.newBuilder[Any]
-    readList(endToken, allowEof) { (_, token) =>
-      val element = parseNode(token, allowEof, elementType)
-      res += element
-    }
-    ArrayData.toArrayData(res.result())
-  }
-
-  def parseNoneList(endToken: Byte, allowEof: Boolean): Int = {
-    readList(endToken, allowEof) { (_, token) =>
-      parseNode(token, allowEof, IndexedDataType.NoneType)
-    }
-    1
-  }
-
-  def parseBinaryList(endToken: Byte, allowEof: Boolean): Array[Byte] = {
-    val pos = input.position
-    readList(endToken, allowEof) { (_, token) =>
-      parseNode(token, allowEof, IndexedDataType.AtomicType(BinaryType))
-    }
-    bytes.slice(pos, input.position)
-  }
-
-  def readVarInt64: Long = {
+  def parseVarInt64: Long = {
     input.readSInt64
   }
 
-  def readInt64AsBytes: Array[Byte] = {
+  def parseInt64AsBytes: Array[Byte] = {
     input.readRawVarint64AsBytes
   }
 
-  def readUInt64: Long = {
+  def parseUInt64: Long = {
     input.readRawVarint64
   }
 
-  private def unexpectedToken(token: Byte, expected: String): Unit = {
-    throw new YsonError(String.format(
-      "Unexpected token '%s', expected '%s'", token.toChar.toString, expected
-    ))
+  def parseVarInt32: Int = {
+    input.readSInt32
   }
 
-  def parseStruct(endToken: Byte, allowEof: Boolean, schema: IndexedDataType.StructType): InternalRow = {
-    @tailrec
-    def read(res: Array[Any], key: Option[String] = None,
-             requireKeyValueSeparator: Boolean = false,
-             requireItemSeparator: Boolean = false): Array[Any] = {
-      val token = readToken(allowEof)
-      token match {
-        case t if t == endToken => res
-        case YsonTags.KEY_VALUE_SEPARATOR =>
-          if (requireItemSeparator) unexpectedToken(YsonTags.KEY_VALUE_SEPARATOR, "ITEM_SEPARATOR")
-          read(res, key, requireKeyValueSeparator = false, requireItemSeparator)
-        case YsonTags.ITEM_SEPARATOR =>
-          if (requireKeyValueSeparator) unexpectedToken(YsonTags.ITEM_SEPARATOR, "KEY_VALUE_SEPARATOR")
-          read(res, key, requireKeyValueSeparator, requireItemSeparator = false)
-        case token =>
-          if (requireItemSeparator) unexpectedToken(token, "ITEM_SEPARATOR")
-          if (requireKeyValueSeparator) unexpectedToken(token, "KEY_VALUE_SEPARATOR")
-          key match {
-            case Some(k) =>
-              val field = schema.map.get(k)
-              field match {
-                case Some(StructFieldMeta(index, fieldType, _)) =>
-                  res(index) = parseNode(token, allowEof, fieldType)
-                  read(res, None, requireItemSeparator = true)
-                case None =>
-                  parseNode(token, allowEof, IndexedDataType.NoneType)
-                  read(res, None, requireItemSeparator = false)
-              }
+  def parseRawBytes(size: Int): Array[Byte] = {
+    input.readRawBytes(size)
+  }
 
-            case None =>
-              val k = parseNode(token, allowEof, IndexedDataType.ScalaStringType)
-              read(res, Some(k.asInstanceOf[String]), requireKeyValueSeparator = true)
-          }
-      }
+  def parseBinary: Array[Byte] = {
+    val size = parseVarInt32
+    if (size < 0) throw new YsonError("Negative binary string length")
+    parseRawBytes(size)
+  }
+
+  def parseDouble: Double = {
+    input.readDouble
+  }
+
+  // binary
+
+  def parseYsonListAsSparkBinary(allowEof: Boolean): Array[Byte] = {
+    val pos = input.position
+    parseYsonListAsNone(allowEof)
+    bytes.slice(pos, input.position)
+  }
+
+  def parseYsonMapAsSparkBinary(endToken: Byte, allowEof: Boolean): Array[Byte] = {
+    val pos = input.position
+    parseYsonMapAsNone(endToken, allowEof)
+    bytes.slice(pos, input.position)
+  }
+
+  // skip
+
+  @tailrec
+  final def skip(token: Byte, allowEof: Boolean, skipTo: Seq[Byte]): YsonDecoder = {
+    token match {
+      case b if b != skipTo.head =>
+        closeToken(b) match {
+          case Some(innerSkipTo) =>
+            skip(parseToken(allowEof), allowEof, innerSkipTo +: skipTo)
+          case None =>
+            skip(parseToken(allowEof), allowEof, skipTo)
+        }
+
+      case _ if skipTo.lengthCompare(1) > 0 =>
+        skip(parseToken(allowEof), allowEof, skipTo.tail)
+      case _ => this
     }
-
-    new GenericInternalRow(read(new Array[Any](schema.map.size)))
   }
 
-  private def readTuple(endToken: Byte, allowEof: Boolean, schema: IndexedDataType.TupleType): Array[Any] = {
-    val res = new Array[Any](schema.length)
-    readList(endToken, allowEof) { (index, token) =>
-      if (index < schema.length) {
-        val fieldType = schema(index)
-        res(index) = parseNode(token, allowEof, fieldType)
-      } else {
-        parseNode(token, allowEof, IndexedDataType.NoneType)
-      }
-    }
-    res
-  }
-
-  def parseTuple(endToken: Byte, allowEof: Boolean, schema: IndexedDataType.TupleType): InternalRow = {
-    new GenericInternalRow(readTuple(endToken, allowEof, schema))
+  def skip(token: Byte, allowEof: Boolean, skipTo: Byte): Unit = {
+    skip(token, allowEof, Seq(skipTo))
   }
 
   def closeToken(token: Byte): Option[Byte] = {
@@ -163,111 +114,24 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
     }
   }
 
-  private def parseMap(endToken: Byte, allowEof: Boolean)
-                      (keyParser: Byte => Any)(valueParser: Byte => Any): ArrayBasedMapData = {
-    @tailrec
-    def read(resKeys: Seq[Any], resValues: Seq[Any],
-             key: Option[Any] = None,
-             requireKeyValueSeparator: Boolean = false,
-             requireItemSeparator: Boolean = false): (Seq[Any], Seq[Any]) = {
-      val token = readToken(allowEof)
-      token match {
-        case t if t == endToken => (resKeys, resValues)
-        case YsonTags.KEY_VALUE_SEPARATOR =>
-          if (requireItemSeparator) unexpectedToken(YsonTags.KEY_VALUE_SEPARATOR, "ITEM_SEPARATOR")
-          read(resKeys, resValues, key, requireKeyValueSeparator = false, requireItemSeparator)
-        case YsonTags.ITEM_SEPARATOR =>
-          if (requireKeyValueSeparator) unexpectedToken(YsonTags.ITEM_SEPARATOR, "KEY_VALUE_SEPARATOR")
-          read(resKeys, resValues, key, requireKeyValueSeparator, requireItemSeparator = false)
-        case token =>
-          if (requireItemSeparator) unexpectedToken(token, "ITEM_SEPARATOR")
-          if (requireKeyValueSeparator) unexpectedToken(token, "KEY_VALUE_SEPARATOR")
-          key match {
-            case Some(_) =>
-              val value = valueParser(token)
-              read(resKeys, value +: resValues, None, requireItemSeparator = true)
-            case None =>
-              val k = keyParser(token)
-              read(k +: resKeys, resValues, Some(k), requireKeyValueSeparator = true)
-          }
-      }
-    }
+  // parse node
 
-    val (keys, values) = read(Nil, Nil)
-    new ArrayBasedMapData(ArrayData.toArrayData(keys), ArrayData.toArrayData(values))
+  override def parseNode(first: Byte, allowEof: Boolean, dataType: IndexedDataType): Any = {
+    val newFirst = if (first == YsonTags.BEGIN_ATTRIBUTES) {
+      parseYsonMapAsNone(YsonTags.END_ATTRIBUTES, allowEof)
+      parseToken(allowEof)
+    } else first
+    parseWithoutAttributes(newFirst, allowEof, dataType)
   }
 
-  def parseSomeMap(endToken: Byte, allowEof: Boolean,
-                   schema: IndexedDataType.MapType, storedAsList: Boolean): ArrayBasedMapData = {
-    def parseFromList(): ArrayBasedMapData = {
-      var resKeys: Seq[Any] = Nil
-      var resValues: Seq[Any] = Nil
-      val structSchema = StructType(List(
-        StructField("_1", schema.keyType.sparkDataType),
-        StructField("_2", schema.valueType.sparkDataType)
-      ))
-      val pairType = IndexedDataType.TupleType(Seq(schema.keyType, schema.valueType), structSchema)
-      readList(endToken, allowEof) { (_, token) =>
-        val keyValue = readTuple(endToken, allowEof, pairType)
-        val key = keyValue(0)
-        if (key == null) unexpectedToken(YsonTags.ENTITY, "NODE")
-        val value = keyValue(1)
-        resKeys = key +: resKeys
-        resValues = value +: resValues
-      }
-      new ArrayBasedMapData(ArrayData.toArrayData(resKeys), ArrayData.toArrayData(resValues))
-    }
-
-    if (storedAsList) {
-      parseFromList()
-    } else {
-      parseMap(endToken, allowEof)(parseNode(_, allowEof, schema.keyType))(parseNode(_, allowEof, schema.valueType))
-    }
-  }
-
-  def parseNoneMap(endToken: Byte, allowEof: Boolean): Int = {
-    parseMap(endToken, allowEof) { token =>
-      parseNode(token, allowEof, IndexedDataType.NoneType)
-      1
-    } { token =>
-      parseNode(token, allowEof, IndexedDataType.NoneType)
-      None
-    }
-    1
-  }
-
-  def parseBinaryMap(endToken: Byte, allowEof: Boolean): Array[Byte] = {
-    val pos = input.position
-    parseMap(endToken, allowEof) {
-      parseNode(_, allowEof, IndexedDataType.AtomicType(BinaryType))
-    } {
-      parseNode(_, allowEof, IndexedDataType.AtomicType(BinaryType))
-    }
-    bytes.slice(pos, input.position)
-  }
-
-  def readVarInt32: Int = {
-    input.readSInt32
-  }
-
-  def readRawBytes(size: Int): Array[Byte] = {
-    input.readRawBytes(size)
-  }
-
-  def readBinary: Array[Byte] = {
-    val size = readVarInt32
-    if (size < 0) throw new YsonError("Negative binary string length")
-    readRawBytes(size)
-  }
-
-  def readDouble: Double = {
-    input.readDouble
+  def parseNode(): Any = {
+    parseNode(parseToken(allowEof = false), allowEof = true, dataType)
   }
 
   def parseWithoutAttributes(first: Byte, allowEof: Boolean, dataType: IndexedDataType): Any = {
     first match {
       case YsonTags.BINARY_STRING =>
-        val s = readBinary
+        val s = parseBinary
         dataType match {
           case IndexedDataType.ScalaStringType => new String(s)
           case IndexedDataType.AtomicType(BinaryType) => s
@@ -275,24 +139,24 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
         }
       case YsonTags.BINARY_INT =>
         dataType.sparkDataType match {
-          case IntegerType => readVarInt64.toInt
-          case BinaryType => first +: readInt64AsBytes
-          case _ => readVarInt64
+          case IntegerType => parseVarInt64.toInt
+          case BinaryType => first +: parseInt64AsBytes
+          case _ => parseVarInt64
         }
       case YsonTags.BINARY_UINT =>
         dataType.sparkDataType match {
-          case LongType => readUInt64
-          case IntegerType => readUInt64.toInt
-          case DoubleType => UnsignedLong.valueOf(readUInt64).doubleValue()
-          case BinaryType => first +: readInt64AsBytes
+          case LongType => parseUInt64
+          case IntegerType => parseUInt64.toInt
+          case DoubleType => UnsignedLong.valueOf(parseUInt64).doubleValue()
+          case BinaryType => first +: parseInt64AsBytes
           case NullType =>
-            readUInt64
+            parseUInt64
             null
         }
       case YsonTags.BINARY_DOUBLE =>
         dataType.sparkDataType match {
-          case BinaryType => first +: readRawBytes(8)
-          case _ => readDouble
+          case BinaryType => first +: parseRawBytes(8)
+          case _ => parseDouble
         }
       case YsonTags.BINARY_FALSE =>
         dataType.sparkDataType match {
@@ -306,20 +170,23 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
         }
       case YsonTags.BEGIN_LIST =>
         dataType match {
-          case IndexedDataType.ArrayType(elementType, _) => parseSomeList(YsonTags.END_LIST, allowEof = false, elementType)
-          case map: IndexedDataType.MapType => parseSomeMap(YsonTags.END_LIST, allowEof = false, map, storedAsList = true)
-          case tuple: IndexedDataType.TupleType => parseTuple(YsonTags.END_LIST, allowEof = false, tuple)
-          case IndexedDataType.AtomicType(BinaryType) => first +: parseBinaryList(YsonTags.END_LIST, allowEof = false)
-          case IndexedDataType.NoneType => parseNoneList(YsonTags.END_LIST, allowEof = false)
+          case IndexedDataType.ArrayType(elementType, _) => parseYsonListAsSparkList(allowEof = false, elementType)
+          case map: IndexedDataType.MapType => parseYsonListAsSparkMap(allowEof = false, map)
+          case struct: IndexedDataType.StructType => parseYsonListAsSparkStruct(allowEof = false, struct)
+          case tuple: IndexedDataType.TupleType => parseYsonListAsSparkTuple(allowEof = false, tuple)
+          case IndexedDataType.AtomicType(BinaryType) => first +: parseYsonListAsSparkBinary(allowEof = false)
+          case IndexedDataType.NoneType => parseYsonListAsNone(allowEof = false)
+          case variant: IndexedDataType.VariantOverTupleType => parseYsonVariantAsSparkTuple(allowEof = false, variant)
+          case variant: IndexedDataType.VariantOverStructType => parseYsonVariantAsSparkStruct(allowEof = false, variant)
           case _ => throw new IllegalArgumentException(s"Unsupported data type: $dataType for yson list")
         }
 
       case YsonTags.BEGIN_MAP =>
         dataType match {
-          case struct: IndexedDataType.StructType => parseStruct(YsonTags.END_MAP, allowEof = false, struct)
-          case map: IndexedDataType.MapType => parseSomeMap(YsonTags.END_MAP, allowEof = false, map, storedAsList = false)
-          case IndexedDataType.AtomicType(BinaryType) => first +: parseBinaryMap(YsonTags.END_MAP, allowEof = false)
-          case IndexedDataType.NoneType => parseNoneMap(YsonTags.END_MAP, allowEof = false)
+          case struct: IndexedDataType.StructType => parseYsonMapAsSparkStruct(allowEof = false, struct)
+          case map: IndexedDataType.MapType => parseYsonMapAsSparkMap(allowEof = false, map)
+          case IndexedDataType.AtomicType(BinaryType) => first +: parseYsonMapAsSparkBinary(YsonTags.END_MAP, allowEof = false)
+          case IndexedDataType.NoneType => parseYsonMapAsNone(YsonTags.END_MAP, allowEof = false)
           case _ => throw new IllegalArgumentException(s"Unsupported data type: $dataType for yson map")
         }
       case YsonTags.ENTITY =>
@@ -335,39 +202,6 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
       //        else if (first == '%') consumer.onBoolean(readBooleanValue)
       //        else throw new YsonUnexpectedToken(first, "NODE")
     }
-  }
-
-  @tailrec
-  final def skip(token: Byte, allowEof: Boolean, skipTo: Seq[Byte]): YsonDecoder = {
-    token match {
-      case b if b != skipTo.head =>
-        closeToken(b) match {
-          case Some(innerSkipTo) =>
-            skip(readToken(allowEof), allowEof, innerSkipTo +: skipTo)
-          case None =>
-            skip(readToken(allowEof), allowEof, skipTo)
-        }
-
-      case _ if skipTo.lengthCompare(1) > 0 =>
-        skip(readToken(allowEof), allowEof, skipTo.tail)
-      case _ => this
-    }
-  }
-
-  def skip(token: Byte, allowEof: Boolean, skipTo: Byte): Unit = {
-    skip(token, allowEof, Seq(skipTo))
-  }
-
-  def parseNode(first: Byte, allowEof: Boolean, dataType: IndexedDataType): Any = {
-    val newFirst = if (first == YsonTags.BEGIN_ATTRIBUTES) {
-      parseNoneMap(YsonTags.END_ATTRIBUTES, allowEof)
-      readToken(allowEof)
-    } else first
-    parseWithoutAttributes(newFirst, allowEof, dataType)
-  }
-
-  def parseNode(): Any = {
-    parseNode(readToken(allowEof = false), allowEof = true, dataType)
   }
 }
 

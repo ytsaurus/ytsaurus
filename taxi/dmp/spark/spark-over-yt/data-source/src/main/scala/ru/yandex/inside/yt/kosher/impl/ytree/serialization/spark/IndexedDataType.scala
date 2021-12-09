@@ -35,6 +35,14 @@ object IndexedDataType {
     def length: Int = dataTypes.length
   }
 
+  case class VariantOverStructType(inner: IndexedDataType.StructType) extends IndexedDataType {
+    override def sparkDataType: DataType = inner.sparkDataType
+  }
+
+  case class VariantOverTupleType(inner: IndexedDataType.TupleType) extends IndexedDataType {
+    override def sparkDataType: DataType = inner.sparkDataType
+  }
+
   case class AtomicType(sparkDataType: DataType) extends IndexedDataType
 
   case object ScalaStringType extends IndexedDataType {

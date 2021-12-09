@@ -25,6 +25,8 @@ object SparkYtConfiguration {
 
     case object ArrowEnabled extends BooleanConfigEntry(s"$prefix.arrow.enabled", Some(true))
 
+    case object ParsingTypeV3 extends BooleanConfigEntry(s"$prefix.parsingTypeV3.enabled", Some(false))
+
     object KeyColumnsFilterPushdown {
       private val prefix: String = s"${Read.prefix}.keyColumnsFilterPushdown"
 

@@ -37,6 +37,8 @@ case class YtTable(name: String,
 object YtTable {
   @tailrec
   def supportsDataType(dataType: DataType): Boolean = dataType match {
+    case _: NullType => true
+
     case _: AtomicType => true
 
     case st: StructType => st.forall { f => supportsInnerDataType(f.dataType) }

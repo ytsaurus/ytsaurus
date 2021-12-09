@@ -23,19 +23,19 @@ class YsonDecoderTest extends FlatSpec with Matchers with ScalaCheckPropertyChec
   "YsonDecoderTest" should "skip" in {
     decoder(Array(1, 2, 3, 4, 5))
       .skip(1.toByte, allowEof = false, Seq(3.toByte))
-      .readToken(allowEof = false) shouldEqual 4
+      .parseToken(allowEof = false) shouldEqual 4
 
     decoder(Array(1, BEGIN_LIST, 3, 4, END_LIST, 3, 5))
       .skip(1.toByte, allowEof = false, Seq(3.toByte))
-      .readToken(allowEof = false) shouldEqual 5
+      .parseToken(allowEof = false) shouldEqual 5
 
     decoder(Array(1, BEGIN_LIST, 3, 4, BEGIN_MAP, 3, 5, BEGIN_LIST, 3, 6, END_LIST, 3, 7, END_MAP, 3, 8, END_LIST, 3, 14))
       .skip(1.toByte, allowEof = false, Seq(3.toByte))
-      .readToken(allowEof = false) shouldEqual 14
+      .parseToken(allowEof = false) shouldEqual 14
 
     decoder(Array(1, BEGIN_LIST, 3, 4, BEGIN_MAP, 3, 5, BEGIN_LIST, 3, 6, END_LIST, 3, 7, END_MAP, 3, 8, END_LIST, 3, 14, END_MAP, 3, 15))
       .skip(BEGIN_MAP, allowEof = false, Seq(3.toByte))
-      .readToken(allowEof = false) shouldEqual 15
+      .parseToken(allowEof = false) shouldEqual 15
   }
 
   it should "decode bytes" in {
