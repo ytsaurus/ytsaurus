@@ -406,6 +406,134 @@ TEST_F(TBatchWithRetriesTest, TestCorrectRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TParallelBatchWithRetriesTest
+    : public TBatchWithRetriesTest
+{
+protected:
+    int InvokeAndGetRetryCount(
+        TYPathRequestPtr request,
+        int requestCount,
+        TErrorCode errorCode,
+        int maxRetryCount,
+        int subbatchSize,
+        int maxParallelSubbatchCount)
+    {
+        auto config = New<TReqExecuteBatchWithRetriesConfig>();
+        config->RetryCount = maxRetryCount;
+        config->StartBackoff = TDuration::MilliSeconds(100);
+        config->BackoffMultiplier = 1;
+
+        std::atomic<int> retryCount = 0;
+        auto needRetry = [&retryCount, errorCode] (int /* currentRetry */, const TError& error) {
+            if (error.FindMatching(errorCode)) {
+                ++retryCount;
+                return true;
+            }
+            return false;
+        };
+
+        auto channel = dynamic_cast<NApi::NNative::IClient*>(Client_.Get())->
+            GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        TObjectServiceProxy proxy(channel);
+
+        auto batchRequest = proxy.ExecuteBatchWithRetriesInParallel(config, BIND(needRetry), subbatchSize, maxParallelSubbatchCount);
+        
+        for (int i = 0; i < requestCount; ++i) {
+            batchRequest->AddRequest(request);
+        }
+
+        auto response = WaitFor(batchRequest->Invoke());
+        response.ThrowOnError();
+
+        return retryCount;
+    }
+};
+
+TEST_F(TParallelBatchWithRetriesTest, TestRetryCount)
+{
+    auto tablePath = GenerateTablePath();
+    auto request = GetRequest(tablePath);
+    ASSERT_EQ(
+        15,
+        InvokeAndGetRetryCount(
+            request,
+            /* requestCount */ 3,
+            NYTree::EErrorCode::ResolveError,
+            /* maxRetryCount */ 5,
+            /* subbatchSize */ 10,
+            /* maxParallelSubbatchCount */ 1));
+}
+
+TEST_F(TParallelBatchWithRetriesTest, TestCorrectRequest)
+{
+    auto tablePath = GenerateTablePath();
+    auto badRequest = GetRequest(tablePath);
+    ASSERT_EQ(
+        15,
+        InvokeAndGetRetryCount(
+            badRequest,
+            /* requestCount */ 3,
+            NYTree::EErrorCode::ResolveError,
+            /* maxRetryCount */ 5,
+            /* subbatchSize */ 10,
+            /* maxParallelSubbatchCount */ 1));
+
+    ASSERT_EQ(
+        15,
+        InvokeAndGetRetryCount(
+            badRequest,
+            /* requestCount */ 3,
+            NYTree::EErrorCode::ResolveError,
+            /* maxRetryCount */ 5,
+            /* subbatchSize */ 1,
+            /* maxParallelSubbatchCount */ 3));
+
+    ASSERT_EQ(
+        15,
+        InvokeAndGetRetryCount(
+            badRequest,
+            /* requestCount */ 3,
+            NYTree::EErrorCode::ResolveError,
+            /* maxRetryCount */ 5,
+            /* subbatchSize */ 2,
+            /* maxParallelSubbatchCount */ 2));
+
+    auto createRequest = CreateRequest(tablePath);
+    ASSERT_EQ(
+        10,
+        InvokeAndGetRetryCount(
+            createRequest,
+            /* requestCount */ 3,
+            NYTree::EErrorCode::AlreadyExists,
+            /* maxRetryCount */ 5,
+            /* subbatchSize */ 2,
+            /* maxParallelSubbatchCount */ 2));
+
+    auto createRequest2 = CreateRequest(tablePath);
+    ASSERT_EQ(
+        15,
+        InvokeAndGetRetryCount(
+            createRequest2,
+            /* requestCount */ 3,
+            NYTree::EErrorCode::AlreadyExists,
+            /* maxRetryCount */ 5,
+            /* subbatchSize */ 2,
+            /* maxParallelSubbatchCount */ 2));
+
+    auto goodRequest = GetRequest(tablePath);
+    ASSERT_EQ(
+        0,
+        InvokeAndGetRetryCount(
+            goodRequest,
+            /* requestCount */ 3,
+            NYTree::EErrorCode::ResolveError,
+            /* maxRetryCount */ 5,
+            /* subbatchSize */ 2,
+            /* maxParallelSubbatchCount */ 2));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVersionedWriteTest
     : public TDynamicTablesTestBase
 {
