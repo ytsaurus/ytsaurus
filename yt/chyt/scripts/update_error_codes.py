@@ -7,7 +7,7 @@ import argparse
 import subprocess
 
 def parse_clickhouse_error_codes():
-    with open("../../../../clickhouse/src/Common/ErrorCodes.cpp", "r") as fd:
+    with open("../../../../contrib/clickhouse/src/Common/ErrorCodes.cpp", "r") as fd:
         result = dict()
         for line in fd:
             match = re.match(".*extern const int ([^ ]*) = ([0-9]*);", line)
