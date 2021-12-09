@@ -95,7 +95,7 @@ trait TestUtils {
         YTreeNodeUtils.walk(node, consumer, false)
       }
 
-      override def getClazz: ClassX[String] = ClassX.wrap(classOf[String])
+      override def getClazz: Class[String] = classOf[String]
 
       override def deserialize(node: YTreeNode): String = ???
 

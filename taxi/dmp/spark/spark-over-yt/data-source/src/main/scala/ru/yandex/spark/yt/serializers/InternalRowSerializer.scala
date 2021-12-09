@@ -34,36 +34,37 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
     } else id
   }
 
-  private def writeHeader(writeable: WireProtocolWriteable, idMapping: Array[Int],
+  private def writeHeader(writeable: WireProtocolWriteable, idMapping: Array[Int], aggregate: Boolean,
                           i: Int, length: Int): Unit = {
-    writeable.writeValueHeader(valueId(i, idMapping), tableSchema.getColumnType(i), false, length)
+    writeable.writeValueHeader(valueId(i, idMapping), tableSchema.getColumnType(i), aggregate, length)
   }
 
-  private def writeBytes(writeable: WireProtocolWriteable, idMapping: Array[Int],
+  private def writeBytes(writeable: WireProtocolWriteable, idMapping: Array[Int], aggregate: Boolean,
                          i: Int, bytes: Array[Byte]): Unit = {
-    writeHeader(writeable, idMapping, i, bytes.length)
+    writeHeader(writeable, idMapping, aggregate, i, bytes.length)
     writeable.onBytes(bytes)
   }
 
   override def serializeRow(row: InternalRow,
                             writeable: WireProtocolWriteable,
                             keyFieldsOnly: Boolean,
+                            aggregate: Boolean,
                             idMapping: Array[Int]): Unit = {
     writeable.writeValueCount(row.numFields)
     for {
       i <- 0 until row.numFields
     } {
       if (row.isNullAt(i)) {
-        writeable.writeValueHeader(valueId(i, idMapping), ColumnValueType.NULL, false, 0)
+        writeable.writeValueHeader(valueId(i, idMapping), ColumnValueType.NULL, aggregate, 0)
       } else {
         schema(i).dataType match {
-          case BinaryType | YsonType => writeBytes(writeable, idMapping, i, row.getBinary(i))
-          case StringType => writeBytes(writeable, idMapping, i, row.getUTF8String(i).getBytes)
+          case BinaryType | YsonType => writeBytes(writeable, idMapping, aggregate, i, row.getBinary(i))
+          case StringType => writeBytes(writeable, idMapping, aggregate, i, row.getUTF8String(i).getBytes)
           case t@(ArrayType(_, _) | StructType(_) | MapType(_, _, _)) =>
             val skipNulls = schema(i).metadata.contains("skipNulls") && schema(i).metadata.getBoolean("skipNulls")
-            writeBytes(writeable, idMapping, i, YsonEncoder.encode(row.get(i, schema(i).dataType), t, skipNulls))
+            writeBytes(writeable, idMapping, aggregate, i, YsonEncoder.encode(row.get(i, schema(i).dataType), t, skipNulls))
           case atomic =>
-            writeHeader(writeable, idMapping, i, 0)
+            writeHeader(writeable, idMapping, aggregate, i, 0)
             atomic match {
               case ByteType => writeable.onInteger(row.getByte(i))
               case ShortType => writeable.onInteger(row.getShort(i))

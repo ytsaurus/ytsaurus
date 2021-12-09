@@ -25,7 +25,7 @@ class YsonRowConverter(schema: StructType, skipNulls: Boolean) extends YTreeSeri
   private val indexedFields = schema.zipWithIndex
   private val entityNode = new YTreeEntityNodeImpl(new EmptyMap)
 
-  override def getClazz: ClassX[Row] = ClassX.wrap(classOf[Row])
+  override def getClazz: Class[Row] = classOf[Row]
 
   override def getColumnValueType: ColumnValueType = ColumnValueType.ANY
 
