@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/hydra_common/entity_map.h>
+
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
@@ -25,6 +27,7 @@ struct ITabletWriteManagerHost
 
     virtual TTablet* GetTabletOrThrow(TTabletId id) = 0;
     virtual TTablet* FindTablet(const TTabletId& id) const = 0;
+    virtual const NHydra::TReadOnlyEntityMap<TTablet>& Tablets() const = 0;
 
     virtual TTransactionManagerPtr GetTransactionManager() const = 0;
     virtual NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const = 0;

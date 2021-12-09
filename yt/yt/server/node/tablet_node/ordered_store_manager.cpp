@@ -96,6 +96,7 @@ void TOrderedStoreManager::Mount(
         createDynamicStore,
         mountHint);
     Tablet_->UpdateTotalRowCount();
+    Tablet_->RecomputeReplicaStatuses();
 }
 
 bool TOrderedStoreManager::ExecuteWrites(

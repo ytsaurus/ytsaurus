@@ -425,6 +425,45 @@ void TTableReplicaInfo::MergeFromStatistics(const TTableReplicaStatistics& stati
     RuntimeData_->MergeFrom(statistics);
 }
 
+ETableReplicaStatus TTableReplicaInfo::GetStatus() const
+{
+    return RuntimeData_->Status;
+}
+
+void TTableReplicaInfo::RecomputeReplicaStatus()
+{
+    auto totalRowCount = Tablet_->GetTotalRowCount();
+    auto delayedLocklessRowCount = Tablet_->GetDelayedLocklessRowCount();
+
+    ETableReplicaStatus newStatus;
+    switch (GetMode()) {
+        case ETableReplicaMode::Sync:
+            if (State_ != ETableReplicaState::Enabled) {
+                newStatus = ETableReplicaStatus::SyncNotWritable;
+            } else if (GetCurrentReplicationRowIndex() >= totalRowCount + delayedLocklessRowCount) {
+                newStatus = ETableReplicaStatus::SyncInSync;
+            } else {
+                newStatus = ETableReplicaStatus::SyncCatchingUp;
+            }
+            break;
+
+        case ETableReplicaMode::Async:
+            if (GetCurrentReplicationRowIndex() > totalRowCount) {
+                newStatus = ETableReplicaStatus::AsyncNotWritable;
+            } else if (GetCurrentReplicationRowIndex() >= totalRowCount + delayedLocklessRowCount) {
+                newStatus = ETableReplicaStatus::AsyncInSync;
+            } else {
+                newStatus = ETableReplicaStatus::AsyncCatchingUp;
+            }
+            break;
+
+        default:
+            YT_ABORT();
+    }
+
+    RuntimeData_->Status = newStatus;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablet::TTablet(
@@ -1859,6 +1898,13 @@ TTabletHunkWriterOptionsPtr TTablet::CreateFallbackHunkWriterOptions(const TTabl
 const TRowCachePtr& TTablet::GetRowCache() const
 {
     return RowCache_;
+}
+
+void TTablet::RecomputeReplicaStatuses()
+{
+    for (auto& [replicaId, replicaInfo] : Replicas()) {
+        replicaInfo.RecomputeReplicaStatus();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -371,12 +371,12 @@ public:
             ->GetLatestTimestamp();
     }
 
-    // FindTablet must override an interface method, so we inline
+    // FindTablet and Tablets must override corresponding interface methods, so we inline
     // DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet) here.
 
     TTablet* FindTablet(const TTabletId& id) const override;
     TTablet* GetTablet(const TTabletId& id) const;
-    const TReadOnlyEntityMap<TTablet>& Tablets() const;
+    const TReadOnlyEntityMap<TTablet>& Tablets() const override;
 
 private:
     const ITabletSlotPtr Slot_;
@@ -1876,6 +1876,7 @@ private:
         } else {
             DisableTableReplica(tablet, replicaInfo);
         }
+        replicaInfo->RecomputeReplicaStatus();
     }
 
     void HydraAlterTableReplica(TReqAlterTableReplica* request)
@@ -1908,10 +1909,12 @@ private:
             } else {
                 DisableTableReplica(tablet, replicaInfo);
             }
+            replicaInfo->RecomputeReplicaStatus();
         }
 
         if (mode) {
             replicaInfo->SetMode(*mode);
+            replicaInfo->RecomputeReplicaStatus();
         }
 
         if (atomicity) {
@@ -2120,6 +2123,7 @@ private:
 
         replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
         replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
+        replicaInfo->RecomputeReplicaStatus();
 
         AdvanceReplicatedTrimmedRowCount(tablet, transaction);
 
@@ -3047,6 +3051,7 @@ private:
             replicaInfo.SetPreserveTimestamps(descriptor.preserve_timestamps());
         }
         replicaInfo.MergeFromStatistics(descriptor.statistics());
+        replicaInfo.RecomputeReplicaStatus();
 
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);

@@ -75,6 +75,7 @@ struct TRuntimeTableReplicaData
     std::atomic<bool> PreserveTimestamps = true;
     std::atomic<NTransactionClient::EAtomicity> Atomicity = NTransactionClient::EAtomicity::Full;
     TAtomicObject<TError> Error;
+    std::atomic<NTabletClient::ETableReplicaStatus> Status = NTabletClient::ETableReplicaStatus::Unknown;
 
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFrom(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
@@ -352,6 +353,9 @@ public:
     void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFromStatistics(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
 
+    NTabletClient::ETableReplicaStatus GetStatus() const;
+    void RecomputeReplicaStatus();
+
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();
 
@@ -596,6 +600,8 @@ public:
     static TTabletHunkWriterOptionsPtr CreateFallbackHunkWriterOptions(const TTabletStoreWriterOptionsPtr& storeWriterOptions);
 
     const TRowCachePtr& GetRowCache() const;
+
+    void RecomputeReplicaStatuses();
 
 private:
     ITabletContext* const Context_;

@@ -16,6 +16,7 @@ using namespace NTableClient;
 using namespace NCypressClient;
 using namespace NTabletClient;
 using namespace NQueryClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,15 +29,25 @@ TSimpleTabletManager::TSimpleTabletManager(
         NullCellId,
         std::move(hydraManager),
         std::move(automaton),
-        std::move(automatonInvoker))
+        automatonInvoker)
+    , AutomatonInvoker_(std::move(automatonInvoker))
     , TransactionManager_(std::move(transactionManager))
+    , TabletMap_(TTabletMapTraits(this))
 {
+    RegisterLoader(
+        "SimpleTabletManager.Keys",
+        BIND(&TSimpleTabletManager::LoadKeys, Unretained(this)));
     RegisterLoader(
         "SimpleTabletManager.Values",
         BIND(&TSimpleTabletManager::LoadValues, Unretained(this)));
     RegisterLoader(
         "SimpleTabletManager.Async",
         BIND(&TSimpleTabletManager::LoadAsync, Unretained(this)));
+
+    RegisterSaver(
+        ESyncSerializationPriority::Keys,
+        "SimpleTabletManager.Keys",
+        BIND(&TSimpleTabletManager::SaveKeys, Unretained(this)));
     RegisterSaver(
         ESyncSerializationPriority::Values,
         "SimpleTabletManager.Values",
@@ -53,7 +64,7 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
 
     auto nameTable = TNameTable::FromSchema(*options.Schema);
 
-    Tablet_ = std::make_unique<TTablet>(
+    auto tablet = std::make_unique<TTablet>(
         NullTabletId,
         TTableSettings::CreateNew(),
         0,
@@ -69,7 +80,13 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
         TTableReplicaId(),
         0);
 
-    Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
+    tablet->SetStructuredLogger(CreateMockPerTabletStructuredLogger(tablet.get()));
+    WaitFor(BIND([&, tablet = std::move(tablet)] () mutable {
+        TabletMap_.Insert(NullTabletId, std::move(tablet));
+    })
+        .AsyncVia(AutomatonInvoker_)
+        .Run())
+        .ThrowOnError();
 
     InitializeStoreManager(sorted);
 
@@ -79,26 +96,27 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
 
 void TSimpleTabletManager::InitializeStoreManager(bool sorted)
 {
+    auto* tablet = TabletMap_.Get(NullTabletId);
     if (sorted) {
         StoreManager_ = New<TSortedStoreManager>(
             New<TTabletManagerConfig>(),
-            Tablet_.get(),
+            tablet,
             &TabletContext_);
     } else {
         StoreManager_ = New<TOrderedStoreManager>(
             New<TTabletManagerConfig>(),
-            Tablet_.get(),
+            tablet,
             &TabletContext_);
     }
 
-    Tablet_->SetStoreManager(StoreManager_);
+    tablet->SetStoreManager(StoreManager_);
 }
 
 TTablet* TSimpleTabletManager::GetTabletOrThrow(TTabletId id)
 {
     YT_VERIFY(id == NullTabletId);
 
-    return Tablet_.get();
+    return TabletMap_.Get(NullTabletId);
 }
 
 void TSimpleTabletManager::OnTabletUnlocked(TTablet* /*tablet*/)
@@ -111,7 +129,12 @@ TTablet* TSimpleTabletManager::FindTablet(const TTabletId& id) const
 {
     YT_VERIFY(id == NullTabletId);
 
-    return Tablet_.get();
+    return TabletMap_.Get(id);
+}
+
+const NHydra::TReadOnlyEntityMap<TTablet>& TSimpleTabletManager::Tablets() const
+{
+    return TabletMap_;
 }
 
 TTransactionManagerPtr TSimpleTabletManager::GetTransactionManager() const
@@ -153,44 +176,63 @@ TCellId TSimpleTabletManager::GetCellId() const
 
 TTablet* TSimpleTabletManager::Tablet()
 {
-    return Tablet_.get();
+    return TabletMap_.Get(NullTabletId);
+}
+
+void TSimpleTabletManager::LoadKeys(TLoadContext& context)
+{
+    using NYT::Load;
+
+    TabletMap_.LoadKeys(context);
 }
 
 void TSimpleTabletManager::LoadValues(TLoadContext& context)
 {
     using NYT::Load;
 
-    Tablet_ = std::make_unique<TTablet>(NullTabletId, &TabletContext_);
+    TabletMap_.LoadValues(context);
 
-    Load(context, *Tablet_);
+    auto* tablet = TabletMap_.Get(NullTabletId);
 
-    Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
+    tablet->SetStructuredLogger(CreateMockPerTabletStructuredLogger(tablet));
 
-    InitializeStoreManager(Tablet_->GetTableSchema()->IsSorted());
+    InitializeStoreManager(tablet->GetTableSchema()->IsSorted());
 }
 
 void TSimpleTabletManager::LoadAsync(TLoadContext& context)
 {
-    Tablet_->AsyncLoad(context);
+    TabletMap_.Get(NullTabletId)->AsyncLoad(context);
+}
+
+void TSimpleTabletManager::SaveKeys(TSaveContext& context)
+{
+    using NYT::Save;
+
+    TabletMap_.SaveKeys(context);
 }
 
 void TSimpleTabletManager::SaveValues(TSaveContext& context)
 {
     using NYT::Save;
 
-    Save(context, *Tablet_);
+    TabletMap_.SaveValues(context);
 }
 
 TCallback<void(TSaveContext&)> TSimpleTabletManager::SaveAsync()
 {
-    return Tablet_->AsyncSave();
+    return TabletMap_.Get(NullTabletId)->AsyncSave();
 }
 
 void TSimpleTabletManager::Clear()
 {
     TCompositeAutomatonPart::Clear();
 
-    Tablet_.reset();
+    WaitFor(BIND([&] {
+        TabletMap_.Clear();
+    })
+        .AsyncVia(AutomatonInvoker_)
+        .Run())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
