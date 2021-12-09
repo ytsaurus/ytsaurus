@@ -835,6 +835,100 @@ TObjectServiceProxy::ExecuteBatchWithRetries(
     return batchReq;
 }
 
+TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallelPtr
+TObjectServiceProxy::ExecuteBatchWithRetriesInParallel(
+    TReqExecuteBatchWithRetriesConfigPtr config,
+    TCallback<bool(int, const TError&)> needRetry,
+    int subbatchSize,
+    int maxParallelSubbatchCount)
+{
+    YT_VERIFY(maxParallelSubbatchCount > 0);
+    std::vector<TReqExecuteBatchWithRetriesPtr> parallelReqs;
+    for (int i = 0; i < maxParallelSubbatchCount; ++i) {    
+        auto batchReq = ExecuteBatchWithRetries(
+            config,
+            needRetry,
+            subbatchSize);
+        PrepareBatchRequest(batchReq);
+        parallelReqs.push_back(std::move(batchReq));
+    }
+    return New<TReqExecuteBatchWithRetriesInParallel>(
+        Channel_,
+        subbatchSize,
+        StickyGroupSizeCache_,
+        std::move(parallelReqs));
+}
+
+TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::TReqExecuteBatchWithRetriesInParallel(
+    NRpc::IChannelPtr channel,
+    int subbatchSize,
+    TStickyGroupSizeCachePtr stickyGroupSizeCache,
+    std::vector<TReqExecuteBatchWithRetriesPtr> parallelReqs)
+    : TReqExecuteBatchBase(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
+    , ParallelReqs_(std::move(parallelReqs))
+{ }
+
+TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
+TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::Invoke()
+{
+    auto needsRoundUp = std::ssize(InnerRequestDescriptors_) % std::ssize(ParallelReqs_) != 0;
+    auto reqsPerParallelReq = std::ssize(InnerRequestDescriptors_) / std::ssize(ParallelReqs_) + needsRoundUp;
+    for (int i = 0; i < std::ssize(InnerRequestDescriptors_); ++i) {
+        const auto& req = InnerRequestDescriptors_[i];
+        auto parallelReqIndex = i / reqsPerParallelReq;
+        YT_VERIFY(parallelReqIndex < std::ssize(ParallelReqs_));
+        ParallelReqs_[parallelReqIndex]->AddRequestMessage(
+            req.Message,
+            req.Key,
+            req.Tag,
+            req.Hash);
+    }
+
+    std::vector<TFuture<TRspExecuteBatchPtr>> parallelReqFutures;
+    for (auto& parallelReq : ParallelReqs_) {
+        parallelReqFutures.push_back(parallelReq->Invoke());
+    }
+    
+    return AllSucceeded(std::move(parallelReqFutures)).Apply(
+        BIND(&TReqExecuteBatchWithRetriesInParallel::OnParallelResponses, MakeStrong(this)));
+}
+
+TObjectServiceProxy::TRspExecuteBatchPtr
+TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::OnParallelResponses(
+    const TErrorOr<std::vector<TRspExecuteBatchPtr>>& parallelRspsOrError)
+{
+    auto fullResponse = New<TRspExecuteBatch>(
+        CreateClientContext(),
+        InnerRequestDescriptors_,
+        StickyGroupSizeCache_);
+
+    if (!parallelRspsOrError.IsOK()) {
+        fullResponse->GetPromise().Set(parallelRspsOrError);
+        return fullResponse;
+    }
+
+    const auto& parallelRsps = parallelRspsOrError.Value();
+
+    auto globalIndex = 0;
+    for (const auto& parallelRsp : parallelRsps) {
+        for (auto i = 0; i < parallelRsp->GetSize(); ++i) {
+            if (parallelRsp->IsResponseReceived(i)) {
+                auto revision = parallelRsp->GetRevision(i);
+                auto attachmentRange = parallelRsp->GetResponseAttachmentRange(i);
+                fullResponse->SetResponseReceived(globalIndex, revision, attachmentRange);
+            } else if (parallelRsp->IsResponseUncertain(i)) {
+                fullResponse->SetResponseUncertain(globalIndex);
+            }
+            ++globalIndex;
+        }
+    }
+
+    fullResponse->SetPromise({});
+    return fullResponse;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TBatchReqPtr>
 void TObjectServiceProxy::PrepareBatchRequest(const TBatchReqPtr& batchReq)
 {

@@ -23,6 +23,7 @@ namespace NYT::NObjectClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int DefaultSubbatchSize = 100;
+static constexpr int DefaultMaxParallelSubbatchCount = 10;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,12 +51,14 @@ public:
     class TReqExecuteBatchBase;
     class TReqExecuteBatch;
     class TReqExecuteBatchWithRetries;
+    class TReqExecuteBatchWithRetriesInParallel;
     class TRspExecuteBatch;
 
     //! Mimics the types introduced by |DEFINE_RPC_PROXY_METHOD|.
     using TReqExecuteBatchBasePtr = TIntrusivePtr<TReqExecuteBatchBase>;
     using TReqExecuteBatchPtr = TIntrusivePtr<TReqExecuteBatch>;
     using TReqExecuteBatchWithRetriesPtr = TIntrusivePtr<TReqExecuteBatchWithRetries>;
+    using TReqExecuteBatchWithRetriesInParallelPtr = TIntrusivePtr<TReqExecuteBatchWithRetriesInParallel>;
     using TRspExecuteBatchPtr = TIntrusivePtr<TRspExecuteBatch>;
     using TErrorOrRspExecuteBatchPtr = TErrorOr<TRspExecuteBatchPtr>;
 
@@ -255,6 +258,26 @@ public:
         TCallback<bool(const TError&)> NeedRetry_;
     };
 
+    class TReqExecuteBatchWithRetriesInParallel
+        : public TReqExecuteBatchBase
+    {
+    public:
+        TReqExecuteBatchWithRetriesInParallel(
+            NRpc::IChannelPtr channel,
+            int subbatchSize,
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
+            std::vector<TReqExecuteBatchWithRetriesPtr> parallelReqs);
+
+        //! Starts the asynchronous invocation.
+        TFuture<TRspExecuteBatchPtr> Invoke();
+
+    private:
+        TRspExecuteBatchPtr OnParallelResponses(const TErrorOr<std::vector<TRspExecuteBatchPtr>>& parallelRsps);
+
+    private:
+        std::vector<TReqExecuteBatchWithRetriesPtr> ParallelReqs_;
+    };
+
     //! A response to a batched request.
     /*!
      *  This class holds a vector of messages representing responses to individual
@@ -336,6 +359,7 @@ public:
         friend class TReqExecuteSubbatch;
         friend class TReqExecuteBatch;
         friend class TReqExecuteBatchWithRetries;
+        friend class TReqExecuteBatchWithRetriesInParallel;
 
         struct TResponseMeta
         {
@@ -404,6 +428,13 @@ public:
         TReqExecuteBatchWithRetriesConfigPtr config,
         TCallback<bool(int, const TError&)> needRetry = BIND(IsRetriableObjectServiceError),
         int subbatchSize = DefaultSubbatchSize);
+
+    //! Same as ExecuteBatchWithRetries, but allows to send several subbatches in parallel.
+    TReqExecuteBatchWithRetriesInParallelPtr ExecuteBatchWithRetriesInParallel(
+        TReqExecuteBatchWithRetriesConfigPtr config,
+        TCallback<bool(int, const TError&)> needRetry = BIND(IsRetriableObjectServiceError),
+        int subbatchSize = DefaultSubbatchSize,
+        int maxParallelSubbatchCount = DefaultMaxParallelSubbatchCount);
 
     template <class TBatchReqPtr>
     void PrepareBatchRequest(const TBatchReqPtr& batchReq);
