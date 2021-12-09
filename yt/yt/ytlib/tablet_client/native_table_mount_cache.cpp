@@ -424,6 +424,8 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TTableMountCache)
 
+////////////////////////////////////////////////////////////////////////////////
+
 ITableMountCachePtr CreateNativeTableMountCache(
     TTableMountCacheConfigPtr config,
     IConnectionPtr connection,

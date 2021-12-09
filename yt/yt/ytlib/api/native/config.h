@@ -172,6 +172,19 @@ DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TConnectionDynamicConfig
+    : public NApi::TConnectionDynamicConfig
+{
+public:
+    TAsyncExpiringCacheDynamicConfigPtr SyncReplicaCache;
+
+    TConnectionDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TConnectionDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 NTransactionClient::TRemoteTimestampProviderConfigPtr CreateRemoteTimestampProviderConfig(TMasterConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -39,7 +39,7 @@ class TStructuredLoggingTopicConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    //! Global switch for enabling or disabling paritcular structured logging topic.
+    //! Global switch for enabling or disabling particular structured logging topic.
     bool Enable;
 
     //! List of methods for which structured logging is not emitted.

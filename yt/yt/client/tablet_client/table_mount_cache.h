@@ -153,6 +153,8 @@ struct ITableMountCache
         bool forceRetry) = 0;
 
     virtual void Clear() = 0;
+
+    virtual void Reconfigure(const TTableMountCacheConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITableMountCache)

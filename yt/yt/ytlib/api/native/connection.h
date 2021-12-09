@@ -99,6 +99,8 @@ struct IConnection
         NElection::TCellId dstCellId) = 0;
 
     virtual const NLogging::TLogger& GetLogger() = 0;
+
+    virtual void Reconfigure(const TConnectionDynamicConfigPtr& dynamicConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

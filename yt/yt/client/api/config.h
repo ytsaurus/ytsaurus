@@ -73,6 +73,23 @@ DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TConnectionDynamicConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    NTabletClient::TTableMountCacheDynamicConfigPtr TableMountCache;
+
+    TConnectionDynamicConfig()
+    {
+        RegisterParameter("table_mount_cache", TableMountCache)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TConnectionDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPersistentQueuePollerConfig
     : public virtual NYTree::TYsonSerializable
 {

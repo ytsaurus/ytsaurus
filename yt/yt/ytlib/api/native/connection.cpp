@@ -550,6 +550,12 @@ public:
         return Logger;
     }
 
+    void Reconfigure(const TConnectionDynamicConfigPtr& dynamicConfig) override
+    {
+        SyncReplicaCache_->Reconfigure(Config_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
+        TableMountCache_->Reconfigure(Config_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
+    }
+
 private:
     const TConnectionConfigPtr Config_;
     const TConnectionOptions Options_;
