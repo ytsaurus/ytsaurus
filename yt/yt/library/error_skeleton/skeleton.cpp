@@ -14,12 +14,22 @@ static RE2 GuidPattern = RE2("[0-9a-f]+-[0-9a-f]+-[0-9a-f]+-[0-9a-f]+");
 static RE2 PathPattern = RE2("//[^ ]*");
 static RE2 AddressPattern = RE2("[a-z0-9-.]+.yp-c.yandex.net:[0-9]+");
 static RE2 SemicolonPattern = RE2(";");
+static RE2 KeyPattern = RE2("([Kk]ey) \"[\\w-]+\"");
+static RE2 TimestampPattern = RE2("([Tt]imestamp) [[:xdigit:]]+");
+static RE2 AccountPattern = RE2("([Aa]ccount) \"[\\w-]+\"");
+static RE2 AttributePattern = RE2("([Aa]ttribute) \"[\\w-]+\"");
+static RE2 ReferencePattern = RE2("([Rr]eference) \"[\\w-]+\"");
 
 static std::vector<std::pair<RE2*, TString>> Replacements{
     {&GuidPattern, "<guid>"},
     {&PathPattern, "<path>"},
     {&AddressPattern, "<address>"},
     {&SemicolonPattern, ""},
+    {&KeyPattern, "\\1 <key>"},
+    {&TimestampPattern, "\\1 <timestamp>"},
+    {&AccountPattern, "\\1 <account>"},
+    {&AttributePattern, "\\1 <attribute>"},
+    {&ReferencePattern, "\\1 <reference>"},
 };
 
 TString GetErrorFingerprint(const TError& error)
