@@ -83,7 +83,7 @@ private:
 
     std::vector<TString> GpuDevices_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<int, NJobAgent::TGpuInfo> HealthyGpuInfoMap_;
     THashSet<int> LostGpuDeviceNumbers_;
 

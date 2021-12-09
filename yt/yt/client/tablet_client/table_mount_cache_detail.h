@@ -31,7 +31,7 @@ private:
     YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MapLock_);
     THashMap<TTabletId, TWeakPtr<TTabletInfo>> Map_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, GCLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, GCLock_);
     std::queue<TTabletId> GCQueue_;
     std::vector<TTabletId> ExpiredTabletIds_;
 

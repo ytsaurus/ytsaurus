@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <library/cpp/yt/threading/public.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -66,7 +68,7 @@ private:
     };
 
     // Avoid false sharing.
-    char Padding[CacheLineSize - sizeof(TAtomicUint128)];
+    char Padding[NThreading::CacheLineSize - sizeof(TAtomicUint128)];
 
 public:
     TFreeList();

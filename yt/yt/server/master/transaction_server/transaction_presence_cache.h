@@ -10,6 +10,8 @@
 
 #include <library/cpp/containers/concurrent_hash/concurrent_hash.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NTransactionServer {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -99,8 +101,8 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    using TTransactionPresenceMap = TConcurrentHashMap<TTransactionId, ETransactionPresence, 256, TAdaptiveLock>;
-    using TTransactionReplicationSubscriptionMap = TConcurrentHashMap<TTransactionId, TPromise<void>, 256, TAdaptiveLock>;
+    using TTransactionPresenceMap = TConcurrentHashMap<TTransactionId, ETransactionPresence, 256, NThreading::TSpinLock>;
+    using TTransactionReplicationSubscriptionMap = TConcurrentHashMap<TTransactionId, TPromise<void>, 256, NThreading::TSpinLock>;
 
     NCellMaster::TBootstrap* const Bootstrap_;
 

@@ -349,7 +349,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     static auto keepAliveSpace = TSharedRef::FromString(" ");
 
     // TODO(prime@): this code should be removed, once HTTP framing is deployed.
-    auto writeLock = std::make_shared<TAdaptiveLock>();
+    auto writeLock = std::make_shared<NThreading::TSpinLock>();
     auto writeRequested = std::make_shared<bool>(false);
     auto writeStopped = NewPromise<void>();
 

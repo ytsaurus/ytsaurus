@@ -50,7 +50,7 @@ public:
 private:
     const bool Lazy_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
     std::deque<std::pair<i64, TTraceContextPtr>> Blocked_;
     THashMap<TTraceContextPtr, i64> Background_;
 };

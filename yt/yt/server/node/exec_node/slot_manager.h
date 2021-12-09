@@ -130,7 +130,7 @@ private:
 
     THashSet<int> FreeSlots_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts_;
     //! If we observe too many consecutive aborts, we disable user slots on
     //! the node until restart and fire alert.

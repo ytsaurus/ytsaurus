@@ -71,7 +71,7 @@ public:
 private:
     using TBuckets = std::vector<TRingQueue<TClosure>>;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
 
     TBuckets Buckets_;
     std::vector<TCpuDuration> ExcessTimes_;

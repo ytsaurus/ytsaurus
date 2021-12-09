@@ -219,7 +219,7 @@ private:
     std::atomic<bool> Serialized_ = false;
 
     std::atomic<bool> HeaderPrepared_ = false;
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, HeaderPreparationLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, HeaderPreparationLock_);
     NProto::TRequestHeader Header_;
 
     mutable TSharedRefArray SerializedHeaderlessMessage_;

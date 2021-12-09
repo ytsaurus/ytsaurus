@@ -148,7 +148,7 @@ private:
     struct TState
         : public TRefCounted
     {
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock);
         std::deque<TPromise<IPersistentQueueRowsetPtr>> Promises;
         std::deque<TBatch> Batches;
         int BatchesRowCount = 0;
@@ -230,7 +230,7 @@ private:
     const NLogging::TLogger Logger;
     const IInvokerPtr Invoker_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     TStatePtr State_;
 
     std::vector<TPeriodicExecutorPtr> PollExecutors_;
@@ -514,7 +514,7 @@ private:
     }
 
 
-    void TryFulfillPromises(const TStatePtr& state, TSpinlockGuard<TAdaptiveLock>* guard)
+    void TryFulfillPromises(const TStatePtr& state, TSpinlockGuard<NThreading::TSpinLock>* guard)
     {
         if (state->Failed) {
             return;

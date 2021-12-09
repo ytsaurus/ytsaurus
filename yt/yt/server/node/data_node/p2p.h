@@ -74,7 +74,7 @@ private:
     YT_DECLARE_SPINLOCK(TSpinLock, ConfigLock_);
     TP2PConfigPtr DynamicConfig_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
     THashMap<TGuid, TP2PSession> ActiveSessions_;
     std::atomic<int> ActiveWaiters_ = {0};
 

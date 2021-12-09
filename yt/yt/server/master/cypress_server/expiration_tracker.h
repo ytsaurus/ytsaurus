@@ -45,7 +45,7 @@ private:
         TCypressNodeExpirationMap ExpirationMap;
         THashSet<TCypressNode*> ExpiredNodes;
 
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
     };
 
     constexpr static int ShardCount = 256;

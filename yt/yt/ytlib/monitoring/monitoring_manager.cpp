@@ -101,7 +101,7 @@ private:
     TActionQueuePtr ActionQueue_ = New<TActionQueue>("Monitoring");
     TPeriodicExecutorPtr PeriodicExecutor_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<TString, NYson::TYsonProducer> PathToProducer_;
     IMapNodePtr Root_;
 

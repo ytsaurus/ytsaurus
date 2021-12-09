@@ -326,7 +326,7 @@ private:
         const TSendOptions Options_;
         const IClientRequestPtr Request_;
 
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, ResponseHandlerLock_);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ResponseHandlerLock_);
         IClientResponseHandlerPtr ResponseHandler_;
 
         grpc_completion_queue* const CompletionQueue_;

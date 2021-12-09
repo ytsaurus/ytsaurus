@@ -120,7 +120,7 @@ private:
     bool ReadStarted_ = false;
     bool SlowPathScheduled_ = false;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, ReplicasLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ReplicasLock_);
 
     void OnGotReplicaMeta(int index, const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {

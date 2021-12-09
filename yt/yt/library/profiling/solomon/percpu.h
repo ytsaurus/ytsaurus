@@ -5,11 +5,9 @@
 
 #include <yt/yt/core/profiling/tscp.h>
 
+#include <library/cpp/yt/threading/public.h>
+
 namespace NYT::NProfiling {
-
-////////////////////////////////////////////////////////////////////////////////
-
-constexpr size_t CacheLineSize = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,11 +16,11 @@ class TPerCpuCounter
 {
 public:
     void Increment(i64 delta) override;
-    
+
     i64 GetValue() override;
 
 private:
-    struct alignas(CacheLineSize) TShard
+    struct alignas(NThreading::CacheLineSize) TShard
     {
         std::atomic<i64> Value = 0;
     };
@@ -39,11 +37,11 @@ class TPerCpuTimeCounter
 {
 public:
     void Add(TDuration delta) override;
-    
+
     TDuration GetValue() override;
 
 private:
-    struct alignas(CacheLineSize) TShard
+    struct alignas(NThreading::CacheLineSize) TShard
     {
         std::atomic<TDuration::TValue> Value = 0;
     };
@@ -73,7 +71,7 @@ private:
         static TWrite Unpack(__int128 i);
     };
 
-    struct alignas(CacheLineSize) TShard
+    struct alignas(NThreading::CacheLineSize) TShard
     {
 #ifdef __clang__
         std::atomic<__int128> Value = {};
@@ -105,7 +103,7 @@ public:
     TSummarySnapshot<T> GetSummaryAndReset() override;
 
 private:
-    struct alignas(CacheLineSize) TShard
+    struct alignas(NThreading::CacheLineSize) TShard
     {
         TSpinLock Lock;
         TSummarySnapshot<T> Value;

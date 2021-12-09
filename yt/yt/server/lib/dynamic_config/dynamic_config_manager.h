@@ -77,7 +77,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     TError UpdateError_;
     TError UnrecognizedOptionError_;
     TInstant LastConfigUpdateTime_;

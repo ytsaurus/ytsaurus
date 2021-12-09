@@ -821,7 +821,7 @@ private:
         NTableServer::TReplicatedTableOptionsPtr Config_;
         TTableCollocationId CollocationId_;
 
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
         std::vector<TReplicaPtr> Replicas_;
 
         TFuture<TCheckResult> CheckFuture_;
@@ -829,7 +829,7 @@ private:
 
     using TTablePtr = TIntrusivePtr<TTable>;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
     THashMap<TObjectId, TTablePtr> Tables_;
 
     struct TClusterConnectionInfo
@@ -838,7 +838,7 @@ private:
         NApi::IClientPtr Client;
     };
 
-    TAdaptiveLock ClusterToConnectionLock_;
+    NThreading::TSpinLock ClusterToConnectionLock_;
     THashMap<TString, TClusterConnectionInfo> ClusterToConnection_;
 
     TPeriodicExecutorPtr UpdaterExecutor_;
@@ -877,7 +877,7 @@ private:
         Enabled_ = true;
     }
 
-    IClientPtr CreateClient(TStringBuf clusterName, IConnectionPtr connection, const TGuard<TAdaptiveLock>& /*guard*/)
+    IClientPtr CreateClient(TStringBuf clusterName, IConnectionPtr connection, const TGuard<NThreading::TSpinLock>& /*guard*/)
     {
         YT_VERIFY(connection);
 

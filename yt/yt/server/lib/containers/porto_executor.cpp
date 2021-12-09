@@ -350,7 +350,7 @@ private:
         NProfiling::TCounter FailureCounter;
     };
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, CommandLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, CommandLock_);
     THashMap<TString, TCommandEntry> CommandToEntry_;
 
     static const std::vector<TString> ContainerRequestVars_;
@@ -584,7 +584,7 @@ private:
         const auto& container = portoWaitResponse.name();
         const auto& state = portoWaitResponse.state();
         if (state != "dead" && state != "stopped") {
-            result.TrySet(TError("Container finished with unexpected state") 
+            result.TrySet(TError("Container finished with unexpected state")
                 << TErrorAttribute("container_name", container)
                 << TErrorAttribute("container_state", state));
             return;
@@ -593,14 +593,14 @@ private:
         GetContainerProperty(container, "exit_status").Apply(BIND(
             [=, this_ = MakeStrong(this)] (const TErrorOr<std::optional<TString>>& errorOrExitCode) {
                 if (!errorOrExitCode.IsOK()) {
-                    result.TrySet(TError("Container finished, but exit status is unknown") 
+                    result.TrySet(TError("Container finished, but exit status is unknown")
                         << errorOrExitCode);
                     return;
                 }
 
                 const auto& optionalExitCode = errorOrExitCode.Value();
                 if (!optionalExitCode) {
-                    result.TrySet(TError("Container finished, but exit status is unknown") 
+                    result.TrySet(TError("Container finished, but exit status is unknown")
                         << TErrorAttribute("container_name", container)
                         << TErrorAttribute("container_state", state));
                     return;

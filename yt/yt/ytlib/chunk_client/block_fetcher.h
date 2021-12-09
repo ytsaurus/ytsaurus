@@ -100,7 +100,7 @@ private:
     struct TWindowSlot
     {
         // Created lazily in GetBlockPromise.
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, BlockPromiseLock);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, BlockPromiseLock);
         TPromise<TBlock> BlockPromise;
 
         std::atomic<int> RemainingFetches = 0;

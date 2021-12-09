@@ -56,7 +56,7 @@ inline void TReaderWriterSpinLock::ReleaseWriter() noexcept
 
 inline bool TReaderWriterSpinLock::IsLocked() const noexcept
 {
-    return Value_.load() != 0;
+    return Value_.load() != UnlockedValue;
 }
 
 inline bool TReaderWriterSpinLock::IsLockedByReader() const noexcept
@@ -100,14 +100,14 @@ inline bool TReaderWriterSpinLock::TryAcquireReaderForkFriendly() noexcept
 
 inline bool TReaderWriterSpinLock::TryAcquireWriter() noexcept
 {
-    TValue expected = 0;
+    auto expected = UnlockedValue;
     return Value_.compare_exchange_weak(expected, WriterMask, std::memory_order_acquire);
 }
 
 inline bool TReaderWriterSpinLock::TryAndTryAcquireWriter() noexcept
 {
     auto oldValue = Value_.load(std::memory_order_relaxed);
-    if (oldValue != 0) {
+    if (oldValue != UnlockedValue) {
         return false;
     }
     return TryAcquireWriter();

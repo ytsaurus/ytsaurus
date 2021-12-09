@@ -70,7 +70,7 @@ public:
 private:
     std::atomic<double> ByteRate_ = 0;
     std::atomic<TInstant> LastUpdateTime_ = TInstant::Zero();
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
 
     i64 ComputeExtraSpace() const;
 };

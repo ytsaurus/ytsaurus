@@ -182,7 +182,7 @@ private:
     // Actually stores NConcurrency::EPollControl.
     std::atomic<ui64> PendingControl_ = static_cast<ui64>(NConcurrency::EPollControl::Offline);
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
 
     SOCKET Socket_ = INVALID_SOCKET;
 
@@ -192,7 +192,7 @@ private:
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, QueuedMessagesDiscardLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, QueuedMessagesDiscardLock_);
     TMpscStack<TQueuedMessage> QueuedMessages_;
     std::atomic<size_t> PendingOutPayloadBytes_ = 0;
 

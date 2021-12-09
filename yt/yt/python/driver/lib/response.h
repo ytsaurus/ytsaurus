@@ -50,7 +50,7 @@ private:
     std::unique_ptr<NYson::IFlushableYsonConsumer> ResponseParametersYsonWriter_;
     std::atomic<bool> ResponseParametersFinished_ = {false};
 
-    static TAdaptiveLock DestructionSpinLock_;
+    static NThreading::TSpinLock DestructionSpinLock_;
     static std::atomic<bool> ShuttingDown_;
 };
 

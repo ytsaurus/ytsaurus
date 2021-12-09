@@ -559,7 +559,7 @@ private:
 
     NLogging::TLogger Logger = HydraLogger;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     std::set<int> SnapshotIds_;
 
 

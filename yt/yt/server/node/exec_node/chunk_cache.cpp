@@ -445,7 +445,7 @@ private:
         TChunkDescriptor Descriptor;
     };
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, RegisteredChunkMapLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, RegisteredChunkMapLock_);
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
 
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);

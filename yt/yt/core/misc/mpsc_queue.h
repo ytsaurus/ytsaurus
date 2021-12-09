@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <library/cpp/yt/threading/public.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,13 +34,13 @@ protected:
     TMpscQueueHook* TryDequeueImpl() noexcept;
 
 private:
-    alignas(CacheLineSize) TMpscQueueHook Stub_;
+    alignas(NThreading::CacheLineSize) TMpscQueueHook Stub_;
 
     //! Producer-side.
-    alignas(CacheLineSize) std::atomic<TMpscQueueHook*> Head_;
+    alignas(NThreading::CacheLineSize) std::atomic<TMpscQueueHook*> Head_;
 
     //! Consumer-side.
-    alignas(CacheLineSize) TMpscQueueHook* Tail_;
+    alignas(NThreading::CacheLineSize) TMpscQueueHook* Tail_;
 };
 
 template <class T, TMpscQueueHook T::*Hook>

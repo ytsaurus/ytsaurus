@@ -95,7 +95,7 @@ private:
     const NHiveClient::TCellDirectoryPtr CellDirectory_;
     const TCellTrackerPtr DownedCellTracker_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     THashSet<TTransaction::TImpl*> AliveTransactions_;
 
 
@@ -485,7 +485,7 @@ private:
     EAtomicity Atomicity_ = EAtomicity::Full;
     EDurability Durability_ = EDurability::Sync;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
 
     ETransactionState State_ = ETransactionState::Initializing;
 

@@ -55,7 +55,7 @@ private:
 
     const TThreadId UniqueThreadId_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     std::atomic<bool> Started_ = false;
     std::atomic<bool> Stopping_ = false;
     TShutdownCookie ShutdownCookie_;

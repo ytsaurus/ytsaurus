@@ -79,7 +79,7 @@ public:
         return cookie;
     }
 
-    bool TryRemove(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<TAdaptiveLock>* guard)
+    bool TryRemove(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<NThreading::TSpinLock>* guard)
     {
         if (!IsValidCookie(cookie)) {
             return false;
@@ -313,7 +313,7 @@ protected:
     std::atomic<int> FutureRefCount_;
 
     //! Protects the following section of members.
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     std::atomic<bool> Canceled_ = false;
     TError CancelationError_;
     std::atomic<bool> Set_;
@@ -389,7 +389,7 @@ protected:
         });
     }
 
-    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<TAdaptiveLock>* guard);
+    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<NThreading::TSpinLock>* guard);
 
     void WaitUntilSet() const;
     bool CheckIfSet() const;
@@ -497,7 +497,7 @@ private:
         Result_ = error;
     }
 
-    bool DoUnsubscribe(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<TAdaptiveLock>* guard) override
+    bool DoUnsubscribe(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<NThreading::TSpinLock>* guard) override
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
         return
@@ -1895,7 +1895,7 @@ private:
     const TFutureCombinerOptions Options_;
     const TPromise<T> Promise_ = NewPromise<T>();
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, ErrorsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ErrorsLock_);
     std::vector<TError> Errors_;
 
     void OnFutureSet(const TErrorOr<T>& result)
@@ -2088,7 +2088,7 @@ private:
 
     std::atomic<int> ResponseCount_ = 0;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, ErrorsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ErrorsLock_);
     std::vector<TError> Errors_;
 
     void OnFutureSet(int /*index*/, const TErrorOr<T>& result)

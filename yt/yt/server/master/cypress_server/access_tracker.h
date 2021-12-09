@@ -52,7 +52,7 @@ private:
         NCypressClient::NProto::TReqTouchNodes TouchNodesRequest;
         std::vector<NObjectClient::TObjectId> TouchedNodes;
 
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
     };
 
     constexpr static int ShardCount = 256;

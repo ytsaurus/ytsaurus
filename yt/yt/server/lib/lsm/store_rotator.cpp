@@ -141,7 +141,7 @@ private:
     double ForcedRotationMemoryRatio_;
     i64 MinForcedFlushDataSize_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
 
     TLsmActionBatch ScanTabletForImmediateRotation(TTablet* tablet)
     {

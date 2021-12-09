@@ -24,7 +24,7 @@ public:
     TFuture<T> Dequeue();
 
 private:
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
 
     TRingQueue<TFuture<T>> ValueQueue_;
     TRingQueue<TPromise<T>> PromiseQueue_;

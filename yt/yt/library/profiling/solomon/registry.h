@@ -147,7 +147,7 @@ private:
     std::function<int(const TString&)> GridFactor_;
     TProfiler SelfProfiler_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, DynamicTagsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, DynamicTagsLock_);
     std::vector<TTag> DynamicTags_;
 
     std::atomic<bool> Disabled_ = false;

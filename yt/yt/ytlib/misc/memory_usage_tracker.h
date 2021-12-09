@@ -54,8 +54,8 @@ public:
         std::optional<TPoolTag> poolTag = {});
 
 private:
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, PoolMapSpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PoolMapSpinLock_);
 
     std::atomic<i64> TotalLimit_;
 

@@ -181,7 +181,7 @@ public:
 
 private:
     //! Guards device ids.
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     //! Set of all seen device ids.
     mutable THashSet<TString> DeviceIds_;
 

@@ -257,7 +257,7 @@ private:
         }
     };
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TEntry> Heap_;
 
     void DoExecute()
@@ -366,7 +366,7 @@ public:
 private:
     const int MaxConcurrentInvocations_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     TRingQueue<TClosure> Queue_;
     int Semaphore_ = 0;
 
@@ -498,7 +498,7 @@ private:
     std::atomic<bool> SchedulingMore_ = {false};
     std::atomic<int> ActiveInvocationCount_ = {0};
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
 
     TLockFreeQueue<TClosure> Queue_;
 

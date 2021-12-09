@@ -82,7 +82,7 @@ private:
 
     TPromise<void> InitializedPromise_ = NewPromise<void>();
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, KeyMappingSpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, KeyMappingSpinLock_);
     using TKeyMappingOrError = TErrorOr<THashMap<TString, IYPathServicePtr>>;
     TKeyMappingOrError KeyMapping_;
 

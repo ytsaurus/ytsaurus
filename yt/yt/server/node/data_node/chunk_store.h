@@ -147,7 +147,7 @@ private:
         std::multimap<TInstant, NChunkClient::TPlacementId>::iterator DeadlineIterator;
     };
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, PlacementLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PlacementLock_);
     THashMap<NChunkClient::TPlacementId, TPlacementInfo> PlacementIdToInfo_;
     std::multimap<TInstant, NChunkClient::TPlacementId> DeadlineToPlacementId_;
 

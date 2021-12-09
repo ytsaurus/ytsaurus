@@ -226,7 +226,7 @@ private:
     std::atomic<i64> QueueTotalCount_ = 0;
 
     //! Protects the section immediately following it.
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     // -1 indicates no limit
     std::atomic<double> Limit_;
     std::atomic<TDuration> Period_;
@@ -331,7 +331,7 @@ private:
         ProcessRequests(std::move(guard));
     }
 
-    void ProcessRequests(TSpinlockGuard<TAdaptiveLock> guard)
+    void ProcessRequests(TSpinlockGuard<NThreading::TSpinLock> guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 

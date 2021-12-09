@@ -53,7 +53,7 @@ public:
         IBootstrap* bootstrap,
         TControllerAgentDescriptor agentDescriptor,
         bool sendJobInfoToAgent);
-    
+
     ~TJob() override;
 
     void Start() override;
@@ -65,12 +65,12 @@ public:
     void PrepareArtifact(
         const TString& artifactName,
         const TString& pipePath) override;
-    
+
     void OnArtifactPreparationFailed(
         const TString& artifactName,
         const TString& artifactPath,
         const TError& error) override;
-    
+
     void OnArtifactsPrepared() override;
 
     void OnJobPrepared() override;
@@ -275,7 +275,7 @@ private:
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, JobProbeLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, JobProbeLock_);
     NJobProberClient::IJobProbePtr JobProbe_;
 
     std::vector<std::pair<TString, NNet::TIP6Address>> ResolvedNodeAddresses_;

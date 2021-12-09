@@ -77,7 +77,7 @@ void TPeriodicExecutor::Start()
     }
 }
 
-void TPeriodicExecutor::DoStop(NConcurrency::TSpinlockGuard<TAdaptiveLock>& guard)
+void TPeriodicExecutor::DoStop(NConcurrency::TSpinlockGuard<NThreading::TSpinLock>& guard)
 {
     if (!Started_) {
         return;

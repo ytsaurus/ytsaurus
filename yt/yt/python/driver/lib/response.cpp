@@ -15,9 +15,9 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::atomic<bool> TDriverResponseHolder::ShuttingDown_;
-TAdaptiveLock TDriverResponseHolder::DestructionSpinLock_;
+NThreading::TSpinLock TDriverResponseHolder::DestructionSpinLock_;
 
-TAdaptiveLock AliveDriverResponseHoldersLock;
+NThreading::TSpinLock AliveDriverResponseHoldersLock;
 THashSet<TDriverResponseHolder*> AliveDriverResponseHolders;
 
 TDriverResponseHolder::TDriverResponseHolder()

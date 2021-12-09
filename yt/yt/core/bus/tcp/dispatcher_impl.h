@@ -77,7 +77,7 @@ private:
 
     NConcurrency::TSyncMap<TString, TNetworkStatistics> NetworkStatistics_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, PeriodicExecutorsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PeriodicExecutorsLock_);
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     NConcurrency::TPeriodicExecutorPtr LivenessCheckExecutor_;
 

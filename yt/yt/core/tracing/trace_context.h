@@ -204,7 +204,7 @@ private:
 
     std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = 0;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
     TTagList Tags_;
     TLogList Logs_;
     TAsyncChildrenList AsyncChildren_;

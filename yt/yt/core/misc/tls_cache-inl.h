@@ -62,7 +62,7 @@ public:
 
 private:
     TCache<TSynchronizedTrait<TTrait>> Cache_;
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
 };
 
 template <typename TBaseTrait>

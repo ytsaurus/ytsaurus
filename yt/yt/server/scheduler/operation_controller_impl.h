@@ -17,13 +17,13 @@ public:
         TBootstrap* bootstrap,
         TSchedulerConfigPtr config,
         const TOperationPtr& operation);
-    
+
     void AssignAgent(const TControllerAgentPtr& agent) override;
-    
+
     bool RevokeAgent() override;
-    
+
     TControllerAgentPtr FindAgent() const override;
-    
+
     TFuture<TOperationControllerInitializeResult> Initialize(const std::optional<TOperationTransactions>& transactions) override;
     TFuture<TOperationControllerPrepareResult> Prepare() override;
     TFuture<TOperationControllerMaterializeResult> Materialize() override;
@@ -34,7 +34,7 @@ public:
     TFuture<void> Register(const TOperationPtr& operation) override;
     TFuture<TOperationControllerUnregisterResult> Unregister() override;
     TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override;
-    
+
     void OnJobStarted(const TJobPtr& job) override;
     void OnJobCompleted(
         const TJobPtr& job,
@@ -54,23 +54,23 @@ public:
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status,
         bool shouldLogJob) override;
-    
+
     void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
     void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) override;
     void OnMaterializationFinished(const TErrorOr<TOperationControllerMaterializeResult>& resultOrError) override;
     void OnRevivalFinished(const TErrorOr<TOperationControllerReviveResult>& resultOrError) override;
     void OnCommitFinished(const TErrorOr<TOperationControllerCommitResult>& resultOrError) override;
-    
+
     void SetControllerRuntimeData(const TControllerRuntimeDataPtr& controllerData) override;
-    
+
     TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
         const TString& treeId,
         const TFairShareStrategyTreeConfigPtr& treeConfig) override;
-    
+
     void UpdateMinNeededJobResources() override;
-    
+
     TJobResources GetNeededResources() const override;
     TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
     int GetPendingJobCount() const override;
@@ -85,7 +85,7 @@ private:
 
     TControllerRuntimeDataPtr ControllerRuntimeData_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
 
     TIncarnationId IncarnationId_;
     TWeakPtr<TControllerAgent> Agent_;
@@ -102,22 +102,22 @@ private:
     TPromise<TOperationControllerCommitResult> PendingCommitResult_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    
+
     bool EnqueueJobEvent(TSchedulerToAgentJobEvent&& event);
     void EnqueueOperationEvent(TSchedulerToAgentOperationEvent&& event);
     void EnqueueScheduleJobRequest(TScheduleJobRequestPtr&& event);
-    
+
     TSchedulerToAgentJobEvent BuildEvent(
         ESchedulerToAgentJobEventType eventType,
         const TJobPtr& job,
         bool logAndProfile,
         NJobTrackerClient::NProto::TJobStatus* status);
-    
+
     // TODO(ignat): move to inl
     template <class TResponse, class TRequest>
     TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
         const TIntrusivePtr<TRequest>& request);
-    
+
     void ProcessControllerAgentError(const TError& error);
 };
 

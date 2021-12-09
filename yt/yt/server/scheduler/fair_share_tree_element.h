@@ -1077,7 +1077,7 @@ private:
     THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     TInstant LastScheduleJobSuccessTime_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, PreemptionStatusStatisticsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PreemptionStatusStatisticsLock_);
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
     const NLogging::TLogger Logger;

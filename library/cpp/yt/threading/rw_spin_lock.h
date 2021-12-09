@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <util/system/rwlock.h>
 
 #include <atomic>
@@ -80,11 +82,12 @@ public:
     bool IsLockedByWriter() const noexcept;
 
 private:
-    using TValue = ui64;
-    std::atomic<TValue> Value_ = 0;
-
+    using TValue = ui32;
+    static constexpr TValue UnlockedValue = 0;
     static constexpr TValue WriterMask = 1;
     static constexpr TValue ReaderDelta = 2;
+
+    std::atomic<TValue> Value_ = UnlockedValue;
 
 
     bool TryAndTryAcquireReader() noexcept;
@@ -99,7 +102,7 @@ class TPaddedReaderWriterSpinLock
 {
 private:
     [[maybe_unused]]
-    char Padding_[64 - sizeof(TReaderWriterSpinLock)];
+    char Padding_[CacheLineSize - sizeof(TReaderWriterSpinLock)];
 };
 
 ////////////////////////////////////////////////////////////////////////////////

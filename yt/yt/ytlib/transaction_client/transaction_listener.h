@@ -41,7 +41,7 @@ protected:
 private:
     std::atomic<bool> Aborted_ = {false};
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TTransactionId> IgnoredTransactionIds_;
     std::vector<TTransactionId> AbortedTransactionIds_;
     THashMap<TTransactionId, NConcurrency::TPeriodicExecutorPtr> TransactionIdToProbeExecutor_;
