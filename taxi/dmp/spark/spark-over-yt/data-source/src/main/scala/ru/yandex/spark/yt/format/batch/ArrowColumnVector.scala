@@ -4,11 +4,11 @@ import org.apache.arrow.vector._
 import org.apache.arrow.vector.complex.{BaseRepeatedValueVector, ListVector, StructVector}
 import org.apache.arrow.vector.dictionary.Dictionary
 import org.apache.arrow.vector.holders.NullableVarCharHolder
-import org.apache.spark.sql.types.{BinaryType, DataType, Decimal, StringType}
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarArray, ColumnarMap}
 import org.apache.spark.unsafe.types.UTF8String
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.{ArrayType => IArrayType, AtomicType => IAtomicType}
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.{IndexedDataType, YsonDecoder}
 
 class ArrowColumnVector(dataType: IndexedDataType,
                         vector: ValueVector,
@@ -46,7 +46,6 @@ class ArrowColumnVector(dataType: IndexedDataType,
             case IAtomicType(_: BinaryType) => BinaryAccessor(keys, v)
             case IAtomicType(_: StringType) => StringBinaryAccessor(keys, v)
             case _ => YsonAccessor(keys, v)
-
           }
         case v: DateDayVector => DateAccessor(keys, v)
         case v: TimeStampMicroTZVector => TimestampAccessor(keys, v)
@@ -316,6 +315,19 @@ class ArrowColumnVector(dataType: IndexedDataType,
     override def getBinary(rowId: Int): Array[Byte] = {
       values.getObject(id(rowId))
     }
+
+    private def getImpl[T](rowId: Int, sparkType: DataType): T = {
+      YsonDecoder.decode(getBinary(rowId), IAtomicType(sparkType)).asInstanceOf[T]
+    }
+
+    override def getBoolean(rowId: Int): Boolean = getImpl(rowId, BooleanType)
+    override def getFloat(rowId: Int): Float = getImpl[Double](rowId, DoubleType).toFloat
+    override def getDouble(rowId: Int): Double = getImpl(rowId, DoubleType)
+    override def getUTF8String(rowId: Int): UTF8String = getImpl(rowId, StringType)
+    override def getByte(rowId: Int): Byte = getImpl[Long](rowId, LongType).toByte
+    override def getShort(rowId: Int): Short = getImpl[Long](rowId, LongType).toShort
+    override def getInt(rowId: Int): Int = getImpl[Long](rowId, LongType).toInt
+    override def getLong(rowId: Int): Long = getImpl(rowId, LongType)
   }
 
   private case object NullAccessor extends ArrowVectorAccessor {
