@@ -4,6 +4,8 @@
 
 #include <mapreduce/yt/interface/protobuf_file_options_ut.pb.h>
 
+#include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
+
 #include <library/cpp/testing/unittest/registar.h>
 
 using namespace NYT;
@@ -117,17 +119,25 @@ Y_UNIT_TEST_SUITE(ProtobufFileOptions)
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema()
                 .Name("DefaultVariant")
-                .Type(defaultVariantType))
+                .Type(defaultVariantType)
+            )
             .AddColumn(TColumnSchema()
                 .Name("NoDefault")
-                .Type(noDefaultType))
+                .Type(noDefaultType)
+            )
             .AddColumn(TColumnSchema()
                 .Name("SerializationProtobuf")
                 .Type(NTi::Optional(NTi::Struct({
                     {"x1", NTi::Optional(NTi::Int64())},
                     {"y1", NTi::Optional(NTi::String())},
                     {"z1", NTi::Optional(NTi::String())},
-                })))));
+                })))
+            )
+            .AddColumn(TColumnSchema()
+                .Name("MemberOfTopLevelOneof")
+                .Type(NTi::Optional(NTi::Int64()))
+            )
+        );
     }
 }
 
@@ -193,7 +203,7 @@ Y_UNIT_TEST_SUITE(ProtobufFormatFileOptions)
         const auto format = TFormat::Protobuf<NTestingFileOptions::TWithOneof>();
         auto columns = GetColumns(format);
 
-        UNIT_ASSERT_VALUES_EQUAL(columns.Size(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(columns.Size(), 4);
 
         {
             const auto& column = columns[0];
@@ -251,6 +261,11 @@ Y_UNIT_TEST_SUITE(ProtobufFormatFileOptions)
             UNIT_ASSERT_VALUES_EQUAL(column["fields"][0]["name"], "x1");
             UNIT_ASSERT_VALUES_EQUAL(column["fields"][1]["name"], "y1");
             UNIT_ASSERT_VALUES_EQUAL(column["fields"][2]["name"], "z1");
+        }
+        {
+            const auto& column = columns[3];
+            UNIT_ASSERT_VALUES_EQUAL(column["name"], "MemberOfTopLevelOneof");
+            UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "int64");
         }
     }
 }

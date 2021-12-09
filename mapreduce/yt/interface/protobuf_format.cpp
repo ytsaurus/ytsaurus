@@ -10,6 +10,7 @@
 
 #include <util/generic/hash_set.h>
 #include <util/generic/stack.h>
+#include <util/generic/overloaded.h>
 
 #include <util/stream/output.h>
 #include <util/stream/file.h>
@@ -51,7 +52,6 @@ using TMessageOption = std::variant<
 struct TOtherColumns
 { };
 
-using TTypePtrOrOtherColumns = std::variant<NTi::TTypePtr, TOtherColumns>;
 using TValueTypeOrOtherColumns = std::variant<EValueType, TOtherColumns>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -500,6 +500,11 @@ TProtobufOneofOptions GetOneofOptions(
         options = GetDefaultOneofOptions(oneofDescriptor->containing_type());
     }
     ParseProtobufOneofOptions(oneofDescriptor->options().GetRepeatedExtension(oneof_flags), &options);
+
+    if (oneofDescriptor->is_synthetic()) {
+        options.Mode = EProtobufOneofMode::SeparateFields;
+    }
+
     auto variantFieldName = oneofDescriptor->options().GetExtension(variant_field_name);
     switch (options.Mode) {
         case EProtobufOneofMode::SeparateFields:
@@ -973,6 +978,15 @@ TNode MakeProtoFormatConfigWithDescriptors(const TVector<const Descriptor*>& des
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TTypePtrOrOtherColumns = std::variant<NTi::TTypePtr, TOtherColumns>;
+
+struct TMember {
+    TString Name;
+    TTypePtrOrOtherColumns TypeOrOtherColumns;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TValueTypeOrOtherColumns GetScalarFieldType(
     const FieldDescriptor& fieldDescriptor,
     const TProtobufFieldOptions& options)
@@ -1036,58 +1050,117 @@ void SortFields(TVector<const FieldDescriptor*>& fieldDescriptors, EProtobufFiel
     Y_FAIL();
 }
 
-TTypePtrOrOtherColumns GetFieldType(
-    const FieldDescriptor& fieldDescriptor,
-    const TProtobufFieldOptions& defaultOptions,
-    TCycleChecker& cycleChecker);
-
-void AddStructMember(
-    const FieldDescriptor& fieldDescriptor,
-    const FieldDescriptor& innerFieldDescriptor,
-    TTypePtrOrOtherColumns typeOrOtherColumns,
-    TVector<NTi::TStructType::TOwnedMember>* members)
+NTi::TTypePtr CreateStruct(TStringBuf fieldName, TVector<TMember> members)
 {
-    if (std::holds_alternative<TOtherColumns>(typeOrOtherColumns)) {
-        ythrow TApiUsageError() <<
-            "Could not deduce YT type for field " << innerFieldDescriptor.name() << " of " <<
-            "embedded message field " << fieldDescriptor.full_name() << " " <<
-            "(note that " << EWrapperFieldFlag::OTHER_COLUMNS << " fields " <<
-            "are not allowed inside embedded messages)";
-    } else if (std::holds_alternative<NTi::TTypePtr>(typeOrOtherColumns)) {
-        members->push_back(NTi::TStructType::TOwnedMember(
-            GetColumnName(innerFieldDescriptor),
-            std::get<NTi::TTypePtr>(std::move(typeOrOtherColumns))));
-    } else {
-        Y_FAIL();
+    TVector<NTi::TStructType::TOwnedMember> structMembers;
+    structMembers.reserve(members.size());
+    for (auto& member : members) {
+        std::visit(TOverloaded{
+            [&] (TOtherColumns) {
+                ythrow TApiUsageError() <<
+                    "Could not deduce YT type for field " << member.Name << " of " <<
+                    "embedded message field " << fieldName << " " <<
+                    "(note that " << EWrapperFieldFlag::OTHER_COLUMNS << " fields " <<
+                    "are not allowed inside embedded messages)";
+            },
+            [&] (NTi::TTypePtr& type) {
+                structMembers.emplace_back(std::move(member.Name), std::move(type));
+            },
+        }, member.TypeOrOtherColumns);
     }
+    return NTi::Struct(std::move(structMembers));
 }
 
-void AddOneofField(
-    const FieldDescriptor& fieldDescriptor,
+TMaybe<TVector<TString>> InferColumnFilter(const ::google::protobuf::Descriptor& descriptor)
+{
+    auto isOtherColumns = [] (const ::google::protobuf::FieldDescriptor& field) {
+        return GetFieldOptions(&field).Type == EProtobufType::OtherColumns;
+    };
+
+    TVector<TString> result;
+    result.reserve(descriptor.field_count());
+    for (int i = 0; i < descriptor.field_count(); ++i) {
+        const auto& field = *descriptor.field(i);
+        if (isOtherColumns(field)) {
+            return {};
+        }
+        result.push_back(GetColumnName(field));
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableSchemaInferrer
+{
+public:
+    TTableSchemaInferrer(bool keepFieldsWithoutExtension)
+        : KeepFieldsWithoutExtension_(keepFieldsWithoutExtension)
+    { }
+
+    TTableSchema InferSchema(const Descriptor& messageDescriptor);
+
+private:
+    TTypePtrOrOtherColumns GetFieldType(
+        const FieldDescriptor& fieldDescriptor,
+        const TProtobufFieldOptions& defaultOptions);
+
+    void ProcessOneofField(
+        TStringBuf containingFieldName,
+        const OneofDescriptor& oneofDescriptor,
+        const TProtobufFieldOptions& defaultFieldOptions,
+        const TProtobufOneofOptions& defaultOneofOptions,
+        EProtobufFieldSortOrder fieldSortOrder,
+        TVector<TMember>* members);
+
+    TVector<TMember> GetMessageMembers(
+        TStringBuf containingFieldName,
+        const Descriptor& fieldDescriptor,
+        TProtobufFieldOptions defaultFieldOptions,
+        std::optional<EProtobufFieldSortOrder> overrideFieldSortOrder = std::nullopt);
+
+    NTi::TTypePtr GetMessageType(
+        const FieldDescriptor& fieldDescriptor,
+        TProtobufFieldOptions defaultFieldOptions);
+
+    NTi::TTypePtr GetMapType(
+        const FieldDescriptor& fieldDescriptor,
+        const TProtobufFieldOptions& fieldOptions);
+
+private:
+    const bool KeepFieldsWithoutExtension_;
+    TCycleChecker CycleChecker_;
+};
+
+void TTableSchemaInferrer::ProcessOneofField(
+    TStringBuf containingFieldName,
     const OneofDescriptor& oneofDescriptor,
     const TProtobufFieldOptions& defaultFieldOptions,
     const TProtobufOneofOptions& defaultOneofOptions,
     EProtobufFieldSortOrder fieldSortOrder,
-    TVector<NTi::TStructType::TOwnedMember>* members,
-    TCycleChecker& cycleChecker)
+    TVector<TMember>* members)
 {
     auto oneofOptions = GetOneofOptions(&oneofDescriptor, defaultOneofOptions);
 
-    auto addFields = [&] (TVector<NTi::TStructType::TOwnedMember>* members, bool removeOptionality) {
+    auto addFields = [&] (TVector<TMember>* members, bool removeOptionality) {
         TVector<const FieldDescriptor*> fieldDescriptors;
         for (int i = 0; i < oneofDescriptor.field_count(); ++i) {
             fieldDescriptors.push_back(oneofDescriptor.field(i));
         }
         SortFields(fieldDescriptors, fieldSortOrder);
         for (auto innerFieldDescriptor : fieldDescriptors) {
-            auto type = GetFieldType(
+            auto typeOrOtherColumns = GetFieldType(
                 *innerFieldDescriptor,
-                defaultFieldOptions,
-                cycleChecker);
-            if (removeOptionality && std::holds_alternative<NTi::TTypePtr>(type) && std::get<NTi::TTypePtr>(type)->IsOptional()) {
-                type = std::get<NTi::TTypePtr>(type)->AsOptional()->GetItemType();
+                defaultFieldOptions);
+            if (auto* maybeType = std::get_if<NTi::TTypePtr>(&typeOrOtherColumns);
+                maybeType && removeOptionality && (*maybeType)->IsOptional())
+            {
+                typeOrOtherColumns = (*maybeType)->AsOptional()->GetItemType();
             }
-            AddStructMember(fieldDescriptor, *innerFieldDescriptor, std::move(type), members);
+            members->push_back(TMember{
+                GetColumnName(*innerFieldDescriptor),
+                std::move(typeOrOtherColumns),
+            });
         }
     };
 
@@ -1096,24 +1169,29 @@ void AddOneofField(
             addFields(members, /* removeOptionality */ false);
             return;
         case EProtobufOneofMode::Variant: {
-            TVector<NTi::TStructType::TOwnedMember> variantMembers;
+            TVector<TMember> variantMembers;
             addFields(&variantMembers, /* removeOptionality */ true);
-            members->emplace_back(
+            members->push_back(TMember{
                 oneofOptions.VariantFieldName,
-                NTi::Optional(NTi::Variant(NTi::Struct(std::move(variantMembers)))));
+                NTi::Optional(
+                    NTi::Variant(
+                        CreateStruct(containingFieldName, std::move(variantMembers))
+                    )
+                )
+            });
             return;
         }
     }
     Y_FAIL();
 }
 
-NTi::TTypePtr GetMessageType(
-    const FieldDescriptor& fieldDescriptor,
+TVector<TMember> TTableSchemaInferrer::GetMessageMembers(
+    TStringBuf containingFieldName,
+    const Descriptor& messageDescriptor,
     TProtobufFieldOptions defaultFieldOptions,
-    TCycleChecker& cycleChecker)
+    std::optional<EProtobufFieldSortOrder> overrideFieldSortOrder)
 {
-    const auto& messageDescriptor = *fieldDescriptor.message_type();
-    auto guard = cycleChecker.Enter(&messageDescriptor);
+    auto guard = CycleChecker_.Enter(&messageDescriptor);
     defaultFieldOptions = GetDefaultFieldOptions(&messageDescriptor, defaultFieldOptions);
     auto messageOptions = GetMessageOptions(&messageDescriptor);
     auto defaultOneofOptions = GetDefaultOneofOptions(&messageDescriptor);
@@ -1121,39 +1199,59 @@ NTi::TTypePtr GetMessageType(
     TVector<const FieldDescriptor*> fieldDescriptors;
     fieldDescriptors.reserve(messageDescriptor.field_count());
     for (int i = 0; i < messageDescriptor.field_count(); ++i) {
+        if (!KeepFieldsWithoutExtension_ && !HasNameExtension(*messageDescriptor.field(i))) {
+            continue;
+        }
         fieldDescriptors.push_back(messageDescriptor.field(i));
     }
-    SortFields(fieldDescriptors, messageOptions.FieldSortOrder);
 
-    TVector<NTi::TStructType::TOwnedMember> members;
+    auto fieldSortOrder = overrideFieldSortOrder.value_or(messageOptions.FieldSortOrder);
+    SortFields(fieldDescriptors, fieldSortOrder);
+
+    TVector<TMember> members;
     THashSet<const OneofDescriptor*> visitedOneofs;
     for (const auto innerFieldDescriptor : fieldDescriptors) {
         auto oneofDescriptor = innerFieldDescriptor->containing_oneof();
         if (!oneofDescriptor) {
-            auto type = GetFieldType(
+            auto typeOrOtherColumns = GetFieldType(
                 *innerFieldDescriptor,
-                defaultFieldOptions,
-                cycleChecker);
-            AddStructMember(fieldDescriptor, *innerFieldDescriptor, std::move(type), &members);
+                defaultFieldOptions);
+            members.push_back(TMember{
+                GetColumnName(*innerFieldDescriptor),
+                std::move(typeOrOtherColumns),
+            });
         } else if (!visitedOneofs.contains(oneofDescriptor)) {
-            AddOneofField(
-                fieldDescriptor,
+            ProcessOneofField(
+                containingFieldName,
                 *oneofDescriptor,
                 defaultFieldOptions,
                 defaultOneofOptions,
                 messageOptions.FieldSortOrder,
-                &members,
-                cycleChecker);
+                &members);
             visitedOneofs.insert(oneofDescriptor);
         }
     }
-    return NTi::Struct(std::move(members));
+
+    return members;
 }
 
-NTi::TTypePtr GetMapType(
+NTi::TTypePtr TTableSchemaInferrer::GetMessageType(
     const FieldDescriptor& fieldDescriptor,
-    const TProtobufFieldOptions& fieldOptions,
-    TCycleChecker& cycleChecker)
+    TProtobufFieldOptions defaultFieldOptions)
+{
+    Y_VERIFY(fieldDescriptor.message_type());
+    const auto& messageDescriptor = *fieldDescriptor.message_type();
+    auto members = GetMessageMembers(
+        fieldDescriptor.full_name(),
+        messageDescriptor,
+        defaultFieldOptions);
+
+    return CreateStruct(fieldDescriptor.full_name(), std::move(members));
+}
+
+NTi::TTypePtr TTableSchemaInferrer::GetMapType(
+    const FieldDescriptor& fieldDescriptor,
+    const TProtobufFieldOptions& fieldOptions)
 {
     Y_VERIFY(fieldDescriptor.is_map());
     switch (fieldOptions.MapMode) {
@@ -1163,7 +1261,7 @@ NTi::TTypePtr GetMapType(
             if (fieldOptions.MapMode == EProtobufMapMode::ListOfStructs) {
                 embeddedOptions.SerializationMode = EProtobufSerializationMode::Yt;
             }
-            auto list = NTi::List(GetMessageType(fieldDescriptor, embeddedOptions, cycleChecker));
+            auto list = NTi::List(GetMessageType(fieldDescriptor, embeddedOptions));
             switch (fieldOptions.ListMode) {
                 case EProtobufListMode::Required:
                     return list;
@@ -1181,7 +1279,7 @@ NTi::TTypePtr GetMapType(
             auto key = std::get<EValueType>(keyVariant);
             TProtobufFieldOptions embeddedOptions;
             embeddedOptions.SerializationMode = EProtobufSerializationMode::Yt;
-            auto valueVariant = GetFieldType(*message->field(1), embeddedOptions, cycleChecker);
+            auto valueVariant = GetFieldType(*message->field(1), embeddedOptions);
             Y_VERIFY(std::holds_alternative<NTi::TTypePtr>(valueVariant));
             auto value = std::get<NTi::TTypePtr>(valueVariant);
             Y_VERIFY(value->IsOptional());
@@ -1196,10 +1294,9 @@ NTi::TTypePtr GetMapType(
     }
 }
 
-TTypePtrOrOtherColumns GetFieldType(
+TTypePtrOrOtherColumns TTableSchemaInferrer::GetFieldType(
     const FieldDescriptor& fieldDescriptor,
-    const TProtobufFieldOptions& defaultOptions,
-    TCycleChecker& cycleChecker)
+    const TProtobufFieldOptions& defaultOptions)
 {
     auto fieldOptions = GetFieldOptions(&fieldDescriptor, defaultOptions);
     if (fieldOptions.Type) {
@@ -1211,9 +1308,9 @@ TTypePtrOrOtherColumns GetFieldType(
         fieldOptions.SerializationMode == EProtobufSerializationMode::Yt)
     {
         if (fieldDescriptor.is_map()) {
-            return GetMapType(fieldDescriptor, fieldOptions, cycleChecker);
+            return GetMapType(fieldDescriptor, fieldOptions);
         } else {
-            type = GetMessageType(fieldDescriptor, TProtobufFieldOptions{}, cycleChecker);
+            type = GetMessageType(fieldDescriptor, TProtobufFieldOptions{});
         }
     } else {
         auto scalarType = GetScalarFieldType(fieldDescriptor, fieldOptions);
@@ -1245,21 +1342,32 @@ TTypePtrOrOtherColumns GetFieldType(
     Y_FAIL();
 }
 
-TMaybe<TVector<TString>> InferColumnFilter(const ::google::protobuf::Descriptor& descriptor)
+TTableSchema TTableSchemaInferrer::InferSchema(const Descriptor& messageDescriptor)
 {
-    auto isOtherColumns = [] (const ::google::protobuf::FieldDescriptor& field) {
-        return GetFieldOptions(&field).Type == EProtobufType::OtherColumns;
-    };
+    TTableSchema result;
 
-    TVector<TString> result;
-    result.reserve(descriptor.field_count());
-    for (int i = 0; i < descriptor.field_count(); ++i) {
-        const auto& field = *descriptor.field(i);
-        if (isOtherColumns(field)) {
-            return {};
-        }
-        result.push_back(GetColumnName(field));
+    auto defaultFieldOptions = GetDefaultFieldOptions(&messageDescriptor);
+    auto members = GetMessageMembers(
+        messageDescriptor.full_name(),
+        messageDescriptor,
+        defaultFieldOptions,
+        // Use special sort order for top level messages.
+        /*overrideFieldSortOrder*/ EProtobufFieldSortOrder::AsInProtoFile);
+
+    for (auto& member : members) {
+        std::visit(TOverloaded{
+            [&] (TOtherColumns) {
+                result.Strict(false);
+            },
+            [&] (NTi::TTypePtr& type) {
+                result.AddColumn(TColumnSchema()
+                    .Name(std::move(member.Name))
+                    .Type(std::move(type))
+                );
+            },
+        }, member.TypeOrOtherColumns);
     }
+
     return result;
 }
 
@@ -1267,31 +1375,8 @@ TTableSchema CreateTableSchemaImpl(
     const Descriptor& messageDescriptor,
     bool keepFieldsWithoutExtension)
 {
-    TTableSchema result;
-
-    auto defaultFieldOptions = GetDefaultFieldOptions(&messageDescriptor);
-    TCycleChecker cycleChecker;
-    auto guard = cycleChecker.Enter(&messageDescriptor);
-    for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
-        const auto& fieldDescriptor = *messageDescriptor.field(fieldIndex);
-        if (!keepFieldsWithoutExtension && !HasNameExtension(fieldDescriptor)) {
-            continue;
-        }
-
-        auto type = GetFieldType(fieldDescriptor, defaultFieldOptions, cycleChecker);
-        if (std::holds_alternative<TOtherColumns>(type)) {
-            result.Strict(false);
-        } else if (std::holds_alternative<NTi::TTypePtr>(type)) {
-            TColumnSchema column;
-            column.Name(GetColumnName(fieldDescriptor));
-            column.Type(std::move(std::get<NTi::TTypePtr>(type)));
-            result.AddColumn(std::move(column));
-        } else {
-            Y_FAIL();
-        }
-    }
-
-    return result;
+    TTableSchemaInferrer inferrer(keepFieldsWithoutExtension);
+    return inferrer.InferSchema(messageDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

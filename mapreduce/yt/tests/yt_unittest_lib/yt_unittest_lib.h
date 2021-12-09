@@ -5,6 +5,8 @@
 
 #include <mapreduce/yt/common/config.h>
 
+#include <library/cpp/yson/node/node_io.h>
+
 #include <util/generic/bt_exception.h>
 
 #include <util/datetime/base.h>
@@ -148,6 +150,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+TString ToYson(const T& x)
+{
+    TNode result;
+    TNodeBuilder builder(&result);
+    Serialize(x, &builder);
+    return NodeToYsonString(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTesting
 } // namespace NYT
 
@@ -157,3 +170,9 @@ template <>
 void Out<NYT::NTesting::TOwningYaMRRow>(IOutputStream& out, const NYT::NTesting::TOwningYaMRRow& row);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#define ASSERT_SERIALIZABLES_EQUAL(a, b) \
+    UNIT_ASSERT_EQUAL_C(a, b, NYT::NTesting::ToYson(a) << " != " << NYT::NTesting::ToYson(b))
+
+#define ASSERT_SERIALIZABLES_UNEQUAL(a, b) \
+    UNIT_ASSERT_UNEQUAL_C(a, b, NYT::NTesting::ToYson(a) << " == " << NYT::NTesting::ToYson(b))

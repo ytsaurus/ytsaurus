@@ -397,6 +397,11 @@ TProtobufOneofOptions GetOneofOptions(
         options = GetDefaultOneofOptions(oneofDescriptor->containing_type());
     }
     ParseProtobufOneofOptions(oneofDescriptor->options().GetRepeatedExtension(oneof_flags), &options);
+
+    if (oneofDescriptor->is_synthetic()) {
+        options.Mode = EProtobufOneofMode::SeparateFields;
+    }
+
     auto variantFieldName = oneofDescriptor->options().GetExtension(variant_field_name);
     switch (options.Mode) {
         case EProtobufOneofMode::SeparateFields:

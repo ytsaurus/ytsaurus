@@ -42,6 +42,7 @@ using namespace NYT::NTesting;
         UNIT_TEST(ProtobufSchemaInferring_Options); \
         UNIT_TEST(ProtobufWriteRead_Enum); \
         UNIT_TEST(ProtoClashingEnums_YT_13714); \
+        UNIT_TEST(Proto3Optional); \
     UNIT_TEST_SUITE_END()
 
 template <typename TRow>
@@ -886,15 +887,76 @@ public:
         UNIT_ASSERT_VALUES_EQUAL(readValues.size(), 1);
         UNIT_ASSERT_VALUES_EQUAL(readValues[0].ShortUtf8DebugString(), originalRow.ShortUtf8DebugString());
     }
+
+    void Proto3Optional()
+    {
+        TTestFixture fixture;
+        TConfig::Get()->ProtobufFormatWithDescriptors = WithDescriptors;
+
+        // TODO(levysotsky): Enable this test after YT-15121 is deployed.
+        if (WithDescriptors) {
+            return;
+        }
+
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto testTable = workingDir + "/table";
+
+        TWithOptional row;
+        row.SetOptionalField(42);
+        row.SetNonOptionalField(12);
+
+        {
+            auto writer = client->CreateTableWriter<TWithOptional>(
+                TRichYPath(testTable)
+                    .Schema(CreateTableSchema<TWithOptional>())
+            );
+            writer->AddRow(row);
+            writer->Finish();
+        }
+
+        TTableSchema schema;
+        Deserialize(schema, client->Get(testTable + "/@schema"));
+
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("OptionalField").Type(NTi::Optional(NTi::Int64())))
+            .AddColumn(TColumnSchema().Name("Dummy").Type(
+                NTi::Optional(
+                    NTi::Variant(
+                        NTi::Struct({
+                            {"FieldInsideOneof", NTi::Int64()},
+                        })
+                    )
+                )
+            ))
+            .AddColumn(TColumnSchema().Name("EmbeddedField").Type(
+                NTi::Optional(
+                    NTi::Struct({
+                        {"OptionalField", NTi::Optional(NTi::Int64())},
+                    })
+                )
+            ))
+            .AddColumn(TColumnSchema().Name("NonOptionalField").Type(NTi::Optional(NTi::Int64())))
+        );
+
+        TVector<TWithOptional> readValues;
+        auto reader = client->CreateTableReader<TWithOptional>(testTable);
+        for (const auto& cursor : *reader) {
+            readValues.push_back(cursor.GetRow());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(readValues.size(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(readValues[0].ShortUtf8DebugString(), row.ShortUtf8DebugString());
+    }
 };
 
 // TODO(levysotsky): Uncomment when packages are updated to fresh version.
-// class ProtobufTableIoTestWithDescriptors
-//     : public TProtobufTableIoTest<true>
-// {
-//     DECLARE_PROTOBUF_TABLE_IO_SUITE(ProtobufTableIoTestWithDescriptors);
-// };
-// UNIT_TEST_SUITE_REGISTRATION(ProtobufTableIoTestWithDescriptors);
+class ProtobufTableIoTestWithDescriptors
+    : public TProtobufTableIoTest<true>
+{
+    DECLARE_PROTOBUF_TABLE_IO_SUITE(ProtobufTableIoTestWithDescriptors);
+};
+UNIT_TEST_SUITE_REGISTRATION(ProtobufTableIoTestWithDescriptors);
 
 class ProtobufTableIoTestWithTables
     : public TProtobufTableIoTest<false>

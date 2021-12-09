@@ -3,9 +3,10 @@
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/protobuf_table_schema_ut.pb.h>
 
-#include <library/cpp/yson/node/node_io.h>
-
 #include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
+#include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
+
+#include <library/cpp/yson/node/node_io.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 

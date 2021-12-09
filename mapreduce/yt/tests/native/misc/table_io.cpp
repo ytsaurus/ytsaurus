@@ -1666,11 +1666,11 @@ Y_UNIT_TEST_SUITE(StreamReaders)
         row1.SetHost("http://www.example.com");
         row1.SetPath("/");
         row1.SetHttpCode(302);
-        
+
         TRowVer1 row2;
         row2.SetString_1("String");
         row2.SetUint32_2(32);
-        
+
         TUrlRow row3;
         row3.SetHost("http://www.example.com");
         row3.SetPath("/");
@@ -1738,7 +1738,7 @@ Y_UNIT_TEST_SUITE(StreamReaders)
         row.SetHost("http://www.example.com");
         row.SetPath("/");
         row.SetHttpCode(302);
-        
+
         auto data = SerializeProto(row) +
             "\xFF\xFF\xFF\xFF" + TString("\x01\x00\x00\x00", 4) + // Table index
             SerializeProto(row) +

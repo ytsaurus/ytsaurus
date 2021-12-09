@@ -4,6 +4,9 @@
 #include "util/generic/fwd.h"
 
 #include <mapreduce/yt/interface/protobuf_table_schema_ut.pb.h>
+#include <mapreduce/yt/interface/proto3_ut.pb.h>
+
+#include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 
@@ -384,6 +387,43 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
                     {"y1", NTi::Optional(NTi::String())},
                     {"x1", NTi::Optional(NTi::Int64())},
                     {"z1", NTi::Optional(NTi::String())},
-                })))));
+                }))))
+            .AddColumn(TColumnSchema()
+                .Name("TopLevelOneof")
+                .Type(
+                    NTi::Optional(
+                        NTi::Variant(NTi::Struct({
+                            {"MemberOfTopLevelOneof", NTi::Int64()}
+                        }))
+                    )
+                ))
+        );
+    }
+}
+
+Y_UNIT_TEST_SUITE(ProtoSchemaTest_Proto3)
+{
+    Y_UNIT_TEST(TWithOptional)
+    {
+        const auto schema = CreateTableSchema<NTestingProto3::TWithOptional>();
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema()
+                .Name("x").Type(NTi::Optional(NTi::Int64()))
+            )
+        );
+    }
+
+    Y_UNIT_TEST(TWithOptionalMessage)
+    {
+        const auto schema = CreateTableSchema<NTestingProto3::TWithOptionalMessage>();
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema()
+                .Name("x").Type(
+                    NTi::Optional(
+                        NTi::Struct({{"x", NTi::Optional(NTi::Int64())}})
+                    )
+                )
+            )
+        );
     }
 }
