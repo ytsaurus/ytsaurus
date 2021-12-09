@@ -632,7 +632,7 @@ private:
 
         TFuture<TCheckResult> Check(
             TBootstrap* bootstrap,
-            std::optional<THashSet<TString>> referenceSyncReplicaClusters)
+            std::optional<THashSet<TString>> referenceReplicaClusters)
         {
             if (!CheckFuture_ || CheckFuture_.IsSet()) {
                 std::vector<TReplicaPtr> syncReplicas;
@@ -640,6 +640,7 @@ private:
                 int maxSyncReplicaCount;
                 int minSyncReplicaCount;
 
+                std::optional<std::vector<TString>> preferredSyncReplicaClusters;
                 {
                     auto guard = Guard(Lock_);
                     std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Config_->GetEffectiveMinMaxReplicaCount(static_cast<int>(Replicas_.size()));
@@ -651,6 +652,16 @@ private:
                         } else {
                             asyncReplicas.push_back(replica);
                         }
+                    }
+                    if (!referenceReplicaClusters) {
+                        preferredSyncReplicaClusters = Config_->PreferredSyncReplicaClusters;
+                    }
+                }
+
+                if (preferredSyncReplicaClusters) {
+                    referenceReplicaClusters.emplace();
+                    for (const auto& clusterName : *preferredSyncReplicaClusters) {
+                        referenceReplicaClusters->insert(clusterName);
                     }
                 }
 
@@ -671,7 +682,7 @@ private:
                         asyncReplicas,
                         maxSyncReplicaCount,
                         minSyncReplicaCount,
-                        referenceSyncReplicaClusters = std::move(referenceSyncReplicaClusters),
+                        referenceReplicaClusters = std::move(referenceReplicaClusters),
                         id = Id_
                     ] (const std::vector<TError>& results) mutable {
                         std::vector<TReplicaPtr> badSyncReplicas;
@@ -731,10 +742,14 @@ private:
                             ++currentSyncReplicaCount;
                         }
 
-                        for (int index = Max(0, minSyncReplicaCount - currentSyncReplicaCount); index < static_cast<int>(badSyncReplicas.size()); ++index) {
+                        for (int index = Max(0, minSyncReplicaCount - currentSyncReplicaCount);
+                            index < static_cast<int>(badSyncReplicas.size());
+                            ++index)
+                        {
                             futures.push_back(badSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                             ++switchCount;
                         }
+
                         for (int index = maxSyncReplicaCount; index < static_cast<int>(goodSyncReplicas.size()); ++index) {
                             futures.push_back(goodSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                             ++switchCount;
@@ -743,38 +758,51 @@ private:
                         }
                         goodSyncReplicas.resize(currentSyncReplicaCount);
 
-                        if (referenceSyncReplicaClusters) {
+                        // NB: We use hash map here so the bizzare case of multiple replicas
+                        // on a single replica cluster would be processed in a more reliable way.
+                        THashMap<TString, int> actualSyncReplicaClusterMap;
+                        for (const auto& replica : goodSyncReplicas) {
+                            ++actualSyncReplicaClusterMap[replica->GetClusterName()];
+                        }
+
+                        if (referenceReplicaClusters) {
                             std::vector<TReplicaPtr> undesiredSyncReplicas;
-                            std::vector<TReplicaPtr> desiredAsyncReplicas;
                             for (const auto& replica : goodSyncReplicas) {
-                                if (!referenceSyncReplicaClusters->contains(replica->GetClusterName())) {
+                                if (!referenceReplicaClusters->contains(replica->GetClusterName())) {
                                     undesiredSyncReplicas.push_back(replica);
                                 }
                             }
+
+                            std::vector<TReplicaPtr> desiredAsyncReplicas;
                             for (const auto& replica : goodAsyncReplicas) {
-                                if (referenceSyncReplicaClusters->contains(replica->GetClusterName())) {
+                                if (referenceReplicaClusters->contains(replica->GetClusterName())) {
                                     desiredAsyncReplicas.push_back(replica);
                                 }
                             }
 
+                            // NB: These swaps preserve min/max sync replica count bounds.
                             while (!undesiredSyncReplicas.empty() && !desiredAsyncReplicas.empty()) {
+                                --actualSyncReplicaClusterMap[undesiredSyncReplicas.back()->GetClusterName()];
+                                ++actualSyncReplicaClusterMap[desiredAsyncReplicas.back()->GetClusterName()];
+
                                 futures.push_back(undesiredSyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Async));
                                 undesiredSyncReplicas.pop_back();
                                 futures.push_back(desiredAsyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
                                 desiredAsyncReplicas.pop_back();
-                                switchCount += 2;
-                            }
 
-                            referenceSyncReplicaClusters.reset();
-                        } else {
-                            referenceSyncReplicaClusters.emplace();
-                            for (const auto& replica : goodSyncReplicas) {
-                                referenceSyncReplicaClusters->insert(replica->GetClusterName());
+                                switchCount += 2;
                             }
                         }
 
-                        return AllSucceeded(futures)
-                            .Apply(BIND([switchCount, syncReplicaClusters = std::move(referenceSyncReplicaClusters)] {
+                        THashSet<TString> actualSyncReplicaClusters;
+                        for (const auto& [replicaCluster, replicaCount] : actualSyncReplicaClusterMap) {
+                            if (replicaCount > 0) {
+                                actualSyncReplicaClusters.insert(replicaCluster);
+                            }
+                        }
+
+                        return AllSucceeded(std::move(futures))
+                            .Apply(BIND([switchCount, syncReplicaClusters = std::move(actualSyncReplicaClusters)] {
                                 return TCheckResult{
                                     .SwitchCount = switchCount,
                                     .SyncReplicaClusters = std::move(syncReplicaClusters)
@@ -957,27 +985,27 @@ private:
                             id);
                         future = table->Check(
                             Bootstrap_,
-                            /*referenceSyncReplicaClusters*/ std::nullopt);
+                            /*referenceReplicaClusters*/ std::nullopt);
                         collocationIdToLeaderFuture.emplace(collocationId, future);
                     } else {
                         future = it->second.Apply(BIND(
                             [table = table, bootstrap = Bootstrap_]
                             (const TErrorOr<TTable::TCheckResult>& leaderResult)
                             {
-                                auto referenceSyncReplicaClusters = leaderResult.IsOK()
+                                auto referenceReplicaClusters = leaderResult.IsOK()
                                     ? leaderResult.Value().SyncReplicaClusters
                                     : std::nullopt;
 
                                 return table->Check(
                                     bootstrap,
-                                    referenceSyncReplicaClusters);
+                                    referenceReplicaClusters);
                             })
                             .AsyncVia(CheckerThreadPool_->GetInvoker()));
                     }
                 } else {
                     future = table->Check(
                         Bootstrap_,
-                        /*referenceSyncReplicaClusters*/ std::nullopt);
+                        /*referenceReplicaClusters*/ std::nullopt);
                 }
 
                 future.Subscribe(BIND([id = id, switchCounter] (const TErrorOr<TTable::TCheckResult>& result) {
@@ -1177,8 +1205,8 @@ private:
             "Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, "
             "DesiredMaxSyncReplicaCount: %v, DesiredMinSyncReplicaCount: %v)",
             newTable ? "added" : "updated",
-            collocationId,
             object->GetId(),
+            collocationId,
             object->Replicas().size(),
             syncReplicas,
             asyncReplicas,

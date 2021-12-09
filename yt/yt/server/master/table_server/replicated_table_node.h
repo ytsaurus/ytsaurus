@@ -14,8 +14,8 @@ class TReplicatedTableOptions
 public:
     bool EnableReplicatedTableTracker;
 
-    std::optional<int> MaxSyncReplicaCount_;
-    std::optional<int> MinSyncReplicaCount_;
+    std::optional<int> MaxSyncReplicaCount;
+    std::optional<int> MinSyncReplicaCount;
 
     TDuration SyncReplicaLagThreshold;
 
@@ -24,15 +24,17 @@ public:
 
     bool EnablePreloadStateCheck;
 
+    std::optional<std::vector<TString>> PreferredSyncReplicaClusters;
+
     TReplicatedTableOptions()
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(false);
 
-        RegisterParameter("max_sync_replica_count", MaxSyncReplicaCount_)
+        RegisterParameter("max_sync_replica_count", MaxSyncReplicaCount)
             .Alias("sync_replica_count")
             .Optional();
-        RegisterParameter("min_sync_replica_count", MinSyncReplicaCount_)
+        RegisterParameter("min_sync_replica_count", MinSyncReplicaCount)
             .Optional();
 
         RegisterParameter("sync_replica_lag_threshold", SyncReplicaLagThreshold)
@@ -47,8 +49,12 @@ public:
             .Default(false)
             .DontSerializeDefault();
 
+        RegisterParameter("preferred_sync_replica_clusters", PreferredSyncReplicaClusters)
+            .Default(std::nullopt)
+            .DontSerializeDefault();
+
         RegisterPostprocessor([&] {
-            if (MaxSyncReplicaCount_ && MinSyncReplicaCount_ && *MinSyncReplicaCount_ > *MaxSyncReplicaCount_) {
+            if (MaxSyncReplicaCount && MinSyncReplicaCount && *MinSyncReplicaCount > *MaxSyncReplicaCount) {
                 THROW_ERROR_EXCEPTION("\"min_sync_replica_count\" must be less or equal to \"max_sync_replica_count\"");
             }
         });
@@ -59,13 +65,13 @@ public:
         int maxSyncReplicas = 0;
         int minSyncReplicas = 0;
 
-        if (!MaxSyncReplicaCount_ && !MinSyncReplicaCount_) {
+        if (!MaxSyncReplicaCount && !MinSyncReplicaCount) {
             maxSyncReplicas = 1;
         } else {
-            maxSyncReplicas = MaxSyncReplicaCount_.value_or(totalReplicas);
+            maxSyncReplicas = MaxSyncReplicaCount.value_or(totalReplicas);
         }
 
-        minSyncReplicas = MinSyncReplicaCount_.value_or(maxSyncReplicas);
+        minSyncReplicas = MinSyncReplicaCount.value_or(maxSyncReplicas);
 
         return std::make_tuple(minSyncReplicas, maxSyncReplicas);
     }
