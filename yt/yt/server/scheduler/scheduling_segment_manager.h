@@ -24,6 +24,7 @@ struct TManageNodeSchedulingSegmentsContext
     TRefCountedExecNodeDescriptorMapPtr ExecNodeDescriptors;
     THashMap<TString, std::vector<NNodeTrackerClient::TNodeId>> NodeIdsPerTree;
 
+    std::vector<TError> Errors;
     TNodeShardIdToMovedNodes MovedNodesPerNodeShard;
 };
 
@@ -70,8 +71,6 @@ public:
 
     static TString GetNodeTagFromModuleName(const TString& moduleName, ESchedulingSegmentModuleType moduleType);
 
-    static void ValidateNodeTags(const TBooleanFormulaTags& tags);
-
     TNodeSchedulingSegmentManager();
 
     void ManageNodeSegments(TManageNodeSchedulingSegmentsContext* context);
@@ -91,6 +90,8 @@ private:
     NProfiling::TBufferedProducerPtr BufferedProducer_;
 
     void ResetTree(TManageNodeSchedulingSegmentsContext *context, const TString& treeId);
+
+    void ValidateInfinibandClusterTagsInTree(TManageNodeSchedulingSegmentsContext* context, const TString& treeId) const;
 
     void LogAndProfileSegmentsInTree(
         TManageNodeSchedulingSegmentsContext* context,

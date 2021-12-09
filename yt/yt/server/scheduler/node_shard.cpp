@@ -38,6 +38,8 @@
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
+#include <yt/yt/core/ytree/ypath_resolver.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -872,18 +874,19 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             execNode->SetSchedulingSegmentFrozen(true);
         }
 
-        if (annotationsYson) {
-            auto infinibandCluster = ConvertToAttributes(annotationsYson)->Find<TString>(InfinibandClusterNameKey);
-            if (auto nodeInfinibandCluster = execNode->GetInfinibandCluster()) {
-                YT_LOG_WARNING_IF(nodeInfinibandCluster != infinibandCluster,
-                    "Node infiniband cluster tag has changed "
-                    "(OldInfinibandCluster: %v, NewInfinibandCluster: %v)",
-                    nodeInfinibandCluster,
-                    infinibandCluster);
-            } else {
-                execNode->SetInfinibandCluster(std::move(infinibandCluster));
-            }
+        static const TString InfinibandClusterAnnotationsPath = "/" + InfinibandClusterNameKey;
+        auto infinibandCluster = annotationsYson
+            ? TryGetString(annotationsYson.AsStringBuf(), InfinibandClusterAnnotationsPath)
+            : std::nullopt;
+        if (auto nodeInfinibandCluster = execNode->GetInfinibandCluster()) {
+            YT_LOG_WARNING_IF(nodeInfinibandCluster != infinibandCluster,
+                "Node infiniband cluster tag has changed "
+                "(NodeAddress: %v, OldInfinibandCluster: %v, NewInfinibandCluster: %v)",
+                address,
+                nodeInfinibandCluster,
+                infinibandCluster);
         }
+        execNode->SetInfinibandCluster(std::move(infinibandCluster));
 
         auto oldState = execNode->GetMasterState();
         auto tags = TBooleanFormulaTags(attributes.Get<THashSet<TString>>("tags"));

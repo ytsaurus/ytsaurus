@@ -1356,6 +1356,8 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
 
 class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModule):
+    NUM_TEST_PARTITIONS = 2
+
     def _setup_node_modules(self):
         self._setup_data_centers()
 
@@ -1373,6 +1375,8 @@ class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModul
 
 
 class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMultiModule):
+    NUM_TEST_PARTITIONS = 2
+
     def _setup_node_modules(self):
         self._setup_infiniband_clusters()
 
@@ -1387,6 +1391,10 @@ class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMul
 
     def _get_node_tag_from_module(self, module):
         return "infiniband_cluster_tag:{}".format(module)
+
+    def setup_method(self, method):
+        super(TestSchedulingSegmentsMultiInfinibandCluster, self).setup_method(method)
+        set("//sys/pool_trees/default/@config/scheduling_segments/enable_infiniband_cluster_tag_validation", True)
 
     @authors("eshcherbin")
     def test_module_migration(self):
@@ -1420,3 +1428,149 @@ class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMul
 
         for op, op_ibc in zip(ops, ops_ibc):
             wait(lambda: self._get_operation_module(op) == ibc_to_dc[op_ibc])
+
+
+class TestInfinibandClusterTagValidation(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "scheduling_segments_manage_period": 100,
+            "scheduling_segments_initialization_timeout": 100,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
+            },
+            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
+        },
+    }
+
+    SCHEDULING_SEGMENTS = [
+        "default",
+        "large_gpu",
+    ]
+
+    INFINIBAND_CLUSTERS = ["IBC1", "IBC2"]
+
+    def _setup_infiniband_clusters(self, node_ibcs):
+        assert len(node_ibcs) == TestInfinibandClusterTagValidation.NUM_NODES
+
+        with Restarter(self.Env, NODES_SERVICE):
+            for i, node_config in enumerate(self.Env.configs["node"]):
+                config = deepcopy(node_config)
+                annotations = config.pop("cypress_annotations", dict())
+                if node_ibcs[i] is None:
+                    if "infiniband_cluster_tag" in annotations:
+                        del annotations["infiniband_cluster_tag"]
+                else:
+                    annotations["infiniband_cluster_tag"] = node_ibcs[i]
+                config["cypress_annotations"] = annotations
+
+                config_path = self.Env.config_paths["node"][i]
+                with open(config_path, "wb") as fout:
+                    yson.dump(config, fout)
+
+        for node in ls("//sys/cluster_nodes"):
+            ibc = get("//sys/cluster_nodes/{}/@annotations/infiniband_cluster_tag".format(node), default=yson.YsonEntity())
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/infiniband_cluster", default=None) == ibc)
+            if ibc in TestInfinibandClusterTagValidation.INFINIBAND_CLUSTERS:
+                set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "infiniband_cluster_tag:{}".format(ibc))
+
+    def _enable_ibc_tag_validation(self):
+        set("//sys/pool_trees/default/@config/scheduling_segments/enable_infiniband_cluster_tag_validation", True)
+
+    def _check_alert(self, message):
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        alert = get("//sys/scheduler/@alerts")[0]
+        assert alert["attributes"]["alert_type"] == "manage_node_scheduling_segments"
+        assert message in alert["inner_errors"][0]["inner_errors"][0]["message"]
+
+    def setup_method(self, method):
+        super(TestInfinibandClusterTagValidation, self).setup_method(method)
+        # NB(eshcherbin): This is done to reset node segments.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
+            for node in ls("//sys/cluster_nodes"):
+                requests.append(make_batch_request(
+                    "remove",
+                    path="//sys/cluster_nodes/{}/@scheduling_segment".format(node),
+                    force=True
+                ))
+            for response in execute_batch(requests):
+                assert not get_batch_error(response)
+
+        set("//sys/pool_trees/default/@config/scheduling_segments", {
+            "mode": "large_gpu",
+            "unsatisfied_segments_rebalancing_timeout": 1000,
+            "infiniband_clusters": TestInfinibandClusterTagValidation.INFINIBAND_CLUSTERS,
+            "module_type": "infiniband_cluster",
+        })
+        set("//sys/pool_trees/default/@config/main_resource", "gpu")
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
+        wait(
+            lambda: get(
+                scheduler_orchid_default_pool_tree_config_path()
+                + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
+            ) == 1000
+        )
+
+        wait(lambda: not get("//sys/scheduler/@alerts"))
+
+    @authors("eshcherbin")
+    def test_valid(self):
+        self._setup_infiniband_clusters(["IBC1", "IBC1", "IBC1"])
+        self._enable_ibc_tag_validation()
+
+        time.sleep(3.0)
+        assert not get("//sys/scheduler/@alerts")
+
+    @authors("eshcherbin")
+    @pytest.mark.parametrize("invalid_ibc", [None, "IBC3"])
+    def test_invalid_infiniband_cluster(self, invalid_ibc):
+        self._setup_infiniband_clusters(["IBC1", "IBC2", invalid_ibc])
+        self._enable_ibc_tag_validation()
+        self._check_alert("Node's infiniband cluster is invalid or missing")
+
+    @authors("eshcherbin")
+    def test_missing_infiniband_cluster_tag(self):
+        self._setup_infiniband_clusters(["IBC1", "IBC2", "IBC2"])
+        self._enable_ibc_tag_validation()
+
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{}/@user_tags".format(node), [])
+
+        self._check_alert("Node has no infiniband cluster tags")
+
+    @authors("eshcherbin")
+    def test_too_many_infiniband_cluster_tags(self):
+        self._setup_infiniband_clusters(["IBC1", "IBC2", "IBC2"])
+        self._enable_ibc_tag_validation()
+
+        node = ls("//sys/cluster_nodes")[0]
+        node_ibc = get(scheduler_orchid_node_path(node) + "/infiniband_cluster")
+        other_ibc = [ibc for ibc in TestInfinibandClusterTagValidation.INFINIBAND_CLUSTERS if ibc != node_ibc][0]
+        set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "infiniband_cluster_tag:{}".format(other_ibc))
+
+        self._check_alert("Node has more than one infiniband cluster tags")
+
+    @authors("eshcherbin")
+    def test_wrong_many_infiniband_cluster_tag(self):
+        self._setup_infiniband_clusters(["IBC2", "IBC2", "IBC2"])
+        self._enable_ibc_tag_validation()
+
+        node = ls("//sys/cluster_nodes")[0]
+        node_ibc = get(scheduler_orchid_node_path(node) + "/infiniband_cluster")
+        other_ibc = [ibc for ibc in TestInfinibandClusterTagValidation.INFINIBAND_CLUSTERS if ibc != node_ibc][0]
+        set("//sys/cluster_nodes/{}/@user_tags".format(node), ["infiniband_cluster_tag:{}".format(other_ibc)])
+
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        alert = get("//sys/scheduler/@alerts")[0]
+        assert alert["attributes"]["alert_type"] == "manage_node_scheduling_segments"
+        self._check_alert("Node's infiniband cluster tag doesn't match its infiniband cluster from annotations")
