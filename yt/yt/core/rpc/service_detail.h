@@ -556,8 +556,8 @@ protected:
 
     struct TErrorCodesCounter
     {
-        TErrorCodesCounter(const NProfiling::TProfiler& profiler) 
-            : Profiler_(profiler) 
+        TErrorCodesCounter(const NProfiling::TProfiler& profiler)
+            : Profiler_(profiler)
         { }
 
         void RegisterCode(TErrorCode code)
@@ -866,7 +866,7 @@ private:
 
     using TDiscoverRequestSet = TConcurrentHashMap<TCtxDiscoverPtr, int>;
     THashMap<TString, TDiscoverRequestSet> DiscoverRequestsByPayload_;
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, DiscoverRequestsByPayloadLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, DiscoverRequestsByPayloadLock_);
 
     struct TAcceptedRequest
     {

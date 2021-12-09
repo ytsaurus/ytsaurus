@@ -61,7 +61,7 @@ public:
     TFuture<void> GetReadyEvent();
 
 private:
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     i64 TotalSlots_;
     i64 FreeSlots_;
 

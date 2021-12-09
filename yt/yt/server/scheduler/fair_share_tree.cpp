@@ -918,10 +918,10 @@ private:
 
     std::vector<TOperationId> ActivatableOperationIds_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
     THashMap<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, RegisteredSchedulingTagFiltersLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, RegisteredSchedulingTagFiltersLock_);
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
     std::vector<int> FreeSchedulingTagFilterIndexes_;
 

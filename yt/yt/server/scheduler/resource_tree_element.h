@@ -51,8 +51,8 @@ private:
     TResourceTree* ResourceTree_;
     const TString Id_;
     const EResourceTreeElementKind Kind_;
-    
-    NConcurrency::TPaddedReaderWriterSpinLock ResourceUsageLock_;
+
+    NThreading::TPaddedReaderWriterSpinLock ResourceUsageLock_;
     TJobResources ResourceLimits_ = TJobResources::Infinite();
     TJobResources ResourceUsage_;
     TJobResources ResourceUsagePrecommit_;

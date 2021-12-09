@@ -170,7 +170,7 @@ private:
     static const size_t MaxRevisionChunks = HardRevisionsPerDynamicStoreLimit / RevisionsPerChunk + 1;
     TChunkedVector<TTimestamp, RevisionsPerChunk> RevisionToTimestamp_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, RowBlockedLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, RowBlockedLock_);
     TRowBlockedHandler RowBlockedHandler_;
 
     // Reused between ModifyRow calls.

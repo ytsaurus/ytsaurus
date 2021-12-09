@@ -920,7 +920,7 @@ private:
 
     int AggregatedOnlineNodeCount_ = 0;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, NodeStatisticsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, NodeStatisticsLock_);
     TCpuInstant NodeStatisticsUpdateDeadline_ = 0;
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
     TEnumIndexedVector<ENodeFlavor, TAggregatedNodeStatistics> FlavoredNodeStatistics_;

@@ -22,7 +22,7 @@ public:
     /// @brief Create cypress node.
     ///
     /// @see NYT::ICypressClient::Create
-    virtual NThreading::TFuture<TNodeId> Create(
+    virtual ::NThreading::TFuture<TNodeId> Create(
         const TYPath& path,
         ENodeType type,
         const TCreateOptions& options = TCreateOptions()) = 0;
@@ -31,7 +31,7 @@ public:
     /// @brief Remove cypress node.
     ///
     /// @see NYT::ICypressClient::Remove
-    virtual NThreading::TFuture<void> Remove(
+    virtual ::NThreading::TFuture<void> Remove(
         const TYPath& path,
         const TRemoveOptions& options = TRemoveOptions()) = 0;
 
@@ -39,7 +39,7 @@ public:
     /// @brief Check wether cypress node exists.
     ///
     /// @see NYT::ICypressClient::Exists
-    virtual NThreading::TFuture<bool> Exists(
+    virtual ::NThreading::TFuture<bool> Exists(
         const TYPath& path,
         const TExistsOptions& options = TExistsOptions()) = 0;
 
@@ -47,7 +47,7 @@ public:
     /// @brief Get cypress node.
     ///
     /// @see NYT::ICypressClient::Get
-    virtual NThreading::TFuture<TNode> Get(
+    virtual ::NThreading::TFuture<TNode> Get(
         const TYPath& path,
         const TGetOptions& options = TGetOptions()) = 0;
 
@@ -55,7 +55,7 @@ public:
     /// @brief Set cypress node.
     ///
     /// @see NYT::ICypressClient::Set
-    virtual NThreading::TFuture<void> Set(
+    virtual ::NThreading::TFuture<void> Set(
         const TYPath& path,
         const TNode& node,
         const TSetOptions& options = TSetOptions()) = 0;
@@ -64,7 +64,7 @@ public:
     /// @brief List cypress directory.
     ///
     /// @see NYT::ICypressClient::List
-    virtual NThreading::TFuture<TNode::TListType> List(
+    virtual ::NThreading::TFuture<TNode::TListType> List(
         const TYPath& path,
         const TListOptions& options = TListOptions()) = 0;
 
@@ -72,7 +72,7 @@ public:
     /// @brief Copy cypress node.
     ///
     /// @see NYT::ICypressClient::Copy
-    virtual NThreading::TFuture<TNodeId> Copy(
+    virtual ::NThreading::TFuture<TNodeId> Copy(
         const TYPath& sourcePath,
         const TYPath& destinationPath,
         const TCopyOptions& options = TCopyOptions()) = 0;
@@ -81,7 +81,7 @@ public:
     /// @brief Move cypress node.
     ///
     /// @see NYT::ICypressClient::Move
-    virtual NThreading::TFuture<TNodeId> Move(
+    virtual ::NThreading::TFuture<TNodeId> Move(
         const TYPath& sourcePath,
         const TYPath& destinationPath,
         const TMoveOptions& options = TMoveOptions()) = 0;
@@ -90,7 +90,7 @@ public:
     /// @brief Create symbolic link.
     ///
     /// @see NYT::ICypressClient::Link.
-    virtual NThreading::TFuture<TNodeId> Link(
+    virtual ::NThreading::TFuture<TNodeId> Link(
         const TYPath& targetPath,
         const TYPath& linkPath,
         const TLinkOptions& options = TLinkOptions()) = 0;
@@ -99,7 +99,7 @@ public:
     /// @brief Lock cypress node.
     ///
     /// @see NYT::ICypressClient::Lock
-    virtual NThreading::TFuture<ILockPtr> Lock(
+    virtual ::NThreading::TFuture<ILockPtr> Lock(
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options = TLockOptions()) = 0;
@@ -108,7 +108,7 @@ public:
     /// @brief Unlock cypress node.
     ///
     /// @see NYT::ICypressClient::Unlock
-    virtual NThreading::TFuture<void> Unlock(
+    virtual ::NThreading::TFuture<void> Unlock(
         const TYPath& path,
         const TUnlockOptions& options = TUnlockOptions()) = 0;
 
@@ -116,19 +116,19 @@ public:
     /// @brief Abort operation.
     ///
     /// @see NYT::IClient::AbortOperation
-    virtual NThreading::TFuture<void> AbortOperation(const TOperationId& operationId) = 0;
+    virtual ::NThreading::TFuture<void> AbortOperation(const TOperationId& operationId) = 0;
 
     ///
     /// @brief Force complete operation.
     ///
     /// @see NYT::IClient::CompleteOperation
-    virtual NThreading::TFuture<void> CompleteOperation(const TOperationId& operationId) = 0;
+    virtual ::NThreading::TFuture<void> CompleteOperation(const TOperationId& operationId) = 0;
 
     ///
     /// @brief Suspend operation.
     ///
     /// @see NYT::IClient::SuspendOperation
-    virtual NThreading::TFuture<void> SuspendOperation(
+    virtual ::NThreading::TFuture<void> SuspendOperation(
         const TOperationId& operationId,
         const TSuspendOperationOptions& options = TSuspendOperationOptions()) = 0;
 
@@ -136,7 +136,7 @@ public:
     /// @brief Resume operation.
     ///
     /// @see NYT::IClient::ResumeOperation
-    virtual NThreading::TFuture<void> ResumeOperation(
+    virtual ::NThreading::TFuture<void> ResumeOperation(
         const TOperationId& operationId,
         const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
 
@@ -144,7 +144,7 @@ public:
     /// @brief Update parameters of running operation.
     ///
     /// @see NYT::IClient::UpdateOperationParameters
-    virtual NThreading::TFuture<void> UpdateOperationParameters(
+    virtual ::NThreading::TFuture<void> UpdateOperationParameters(
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options = TUpdateOperationParametersOptions()) = 0;
 
@@ -152,13 +152,13 @@ public:
     /// @brief Canonize cypress path
     ///
     /// @see NYT::ICypressClient::CanonizeYPath
-    virtual NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) = 0;
+    virtual ::NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) = 0;
 
     ///
     /// @brief Get table columnar statistic
     ///
     /// @see NYT::ICypressClient::GetTableColumnarStatistics
-    virtual NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(
+    virtual ::NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(
         const TVector<TRichYPath>& paths,
         const TGetTableColumnarStatisticsOptions& options = {}) = 0;
 
@@ -166,7 +166,7 @@ public:
     /// @brief Check permission for given path.
     ///
     /// @see NYT::IClient::CheckPermission
-    virtual NThreading::TFuture<TCheckPermissionResponse> CheckPermission(
+    virtual ::NThreading::TFuture<TCheckPermissionResponse> CheckPermission(
         const TString& user,
         EPermission permission,
         const TYPath& path,

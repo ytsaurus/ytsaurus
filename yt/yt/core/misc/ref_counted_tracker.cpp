@@ -8,8 +8,6 @@
 
 namespace NYT {
 
-using namespace NConcurrency;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TRefCountedTrackerStatistics::TStatistics& TRefCountedTrackerStatistics::TStatistics::operator+= (
@@ -151,7 +149,7 @@ thread_local int TRefCountedTracker::LocalSlotsSize_;
 
 int TRefCountedTracker::GetTrackedThreadCount() const
 {
-    TGuard<TForkAwareSpinLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     return static_cast<int>(AllLocalSlots_.size());
 }
 
@@ -160,7 +158,7 @@ TRefCountedTypeCookie TRefCountedTracker::GetCookie(
     size_t objectSize,
     const TSourceLocation& location)
 {
-    TGuard<TForkAwareSpinLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     TypeKeyToObjectSize_.emplace(typeKey, objectSize);
 
@@ -179,7 +177,7 @@ TRefCountedTypeCookie TRefCountedTracker::GetCookie(
 
 TRefCountedTracker::TNamedStatistics TRefCountedTracker::GetSnapshot() const
 {
-    TGuard<TForkAwareSpinLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     TNamedStatistics result;
     for (const auto& key : CookieToKey_) {
@@ -332,7 +330,7 @@ size_t TRefCountedTracker::GetObjectSize(TRefCountedTypeKey typeKey) const
 
 TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey typeKey) const
 {
-    TGuard<TForkAwareSpinLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     TKey key{typeKey, TSourceLocation()};
 
@@ -358,7 +356,7 @@ TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey ty
 
 #define INCREMENT_COUNTER_SLOW(name, delta) \
     if (LocalSlotsSize_ < 0) { \
-        TGuard<TForkAwareSpinLock> guard(SpinLock_); \
+        auto guard = Guard(SpinLock_); \
         GetGlobalSlot(cookie)->name += delta; \
     } else { \
         GetLocalSlot(cookie)->name += delta; \
@@ -404,7 +402,7 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
         {
             auto* this_ = TRefCountedTracker::Get();
 
-            TGuard<TForkAwareSpinLock> guard(this_->SpinLock_);
+            auto guard = Guard(this_->SpinLock_);
 
             if (this_->GlobalSlots_.size() < LocalSlots_->size()) {
                 this_->GlobalSlots_.resize(std::max(LocalSlots_->size(), this_->GlobalSlots_.size()));
@@ -427,7 +425,7 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
 
     YT_VERIFY(LocalSlotsSize_ >= 0);
 
-    TGuard<TForkAwareSpinLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     if (!LocalSlots_) {
         LocalSlots_ = new TLocalSlots();

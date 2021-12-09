@@ -5,7 +5,6 @@
 #include "writer.h"
 
 #include <yt/yt/core/concurrency/profiling_helpers.h>
-#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler_thread.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -35,6 +34,8 @@
 
 #include <yt/yt/library/profiling/producer.h>
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
@@ -491,7 +492,7 @@ public:
             return nullptr;
         }
 
-        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         auto it = NameToCategory_.find(categoryName);
         if (it == NameToCategory_.end()) {
             auto category = std::make_unique<TLoggingCategory>();
@@ -505,13 +506,13 @@ public:
 
     void UpdateCategory(TLoggingCategory* category)
     {
-        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         DoUpdateCategory(category);
     }
 
     void UpdateAnchor(TLoggingAnchor* anchor)
     {
-        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         bool enabled = true;
         for (const auto& prefix : Config_->SuppressedMessages) {
             if (anchor->AnchorMessage.StartsWith(prefix)) {
@@ -530,7 +531,7 @@ public:
             return;
         }
 
-        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         anchor->SourceLocation = sourceLocation;
         anchor->AnchorMessage = BuildAnchorMessage(sourceLocation, message);
         DoRegisterAnchor(anchor);
@@ -538,7 +539,7 @@ public:
 
     TLoggingAnchor* RegisterDynamicAnchor(TString anchorMessage)
     {
-        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         if (auto it = AnchorMap_.find(anchorMessage)) {
             return it->second;
         }
@@ -806,7 +807,7 @@ private:
             decltype(NotificationWatchesIndex_) notificationWatchesIndex;
             decltype(NotificationWatches_) notificationWatches;
 
-            TGuard<TForkAwareSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             Writers_.swap(writers);
             CachedWriters_.swap(cachedWriters);
             NotificationWatchesIndex_.swap(notificationWatchesIndex);
@@ -1305,7 +1306,7 @@ private:
     TEnqueuedAction CurrentAction_;
 
     // Configuration.
-    TForkAwareSpinLock SpinLock_;
+    NThreading::TForkAwareSpinLock SpinLock_;
     // Version forces this very module's Logger object to update to our own
     // default configuration (default level etc.).
     std::atomic<int> Version_ = 0;

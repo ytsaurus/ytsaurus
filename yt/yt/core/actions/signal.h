@@ -60,7 +60,7 @@ public:
     void FireAndClear(const TArgs&... args);
 
 private:
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     using TCallbackVector = TCompactVector<TCallback, 4>;
     TCallbackVector Callbacks_;
 
@@ -121,7 +121,7 @@ public:
     bool IsFired() const;
 
 private:
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     std::atomic<bool> Fired_ = false;
     using TCallbackVector = TCompactVector<TCallback, 4>;
     TCallbackVector Callbacks_;

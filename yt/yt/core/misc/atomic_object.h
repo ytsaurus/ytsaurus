@@ -33,7 +33,7 @@ public:
 
 private:
     T Object_;
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Spinlock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Spinlock_);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

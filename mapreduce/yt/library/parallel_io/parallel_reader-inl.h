@@ -494,8 +494,8 @@ private:
 private:
     const TUnorderedReadManagerConfig Config_;
 
-    NThreading::TBlockingQueue<TReaderBufferPtr<TRow>> EmptyBuffers_;
-    NThreading::TBlockingQueue<TReaderBufferPtr<TRow>> FilledBuffers_;
+    ::NThreading::TBlockingQueue<TReaderBufferPtr<TRow>> EmptyBuffers_;
+    ::NThreading::TBlockingQueue<TReaderBufferPtr<TRow>> FilledBuffers_;
 };
 
 template <typename TRow>
@@ -633,7 +633,7 @@ private:
 
     TDuration WaitTime_;
 
-    using TQueue = NThreading::TBlockingQueue<TReaderBufferPtr<TRow>>;
+    using TQueue = ::NThreading::TBlockingQueue<TReaderBufferPtr<TRow>>;
     TVector<THolder<TQueue>> EmptyBuffers_;
     TQueue FilledBuffers_;
 

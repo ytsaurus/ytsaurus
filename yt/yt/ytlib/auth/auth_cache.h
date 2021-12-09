@@ -52,7 +52,7 @@ private:
     const TAuthCacheConfigPtr Config_;
     const NProfiling::TProfiler Profiler_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, TEntryPtr> Cache_;
 
     virtual TFuture<TValue> DoGet(const TKey& key, const TContext& context) noexcept = 0;

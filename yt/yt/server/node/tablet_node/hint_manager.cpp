@@ -104,7 +104,7 @@ public:
                 address);
             SuspiciousNodesMarkTime_[nodeId] = TInstant::Now();
         }
-        if (it != SuspiciousNodesMarkTime_.end() && 
+        if (it != SuspiciousNodesMarkTime_.end() &&
             previousMarkTime == it->second &&
             !suspicious)
         {
@@ -173,11 +173,11 @@ private:
     const THintManagerConfigPtr Config_;
     const TReplicatorHintConfigFetcherPtr ReplicatorHintConfigFetcher_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, BannedReplicaClustersSpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, BannedReplicaClustersSpinLock_);
     THashSet<TString> BannedReplicaClusters_;
 
     // TODO(akozhikhov): Add periodic to clear old suspicious nodes.
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SuspiciousNodesSpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SuspiciousNodesSpinLock_);
     THashMap<TNodeId, TInstant> SuspiciousNodesMarkTime_;
 
     void OnDynamicConfigChanged(

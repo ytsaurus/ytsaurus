@@ -21,9 +21,10 @@
 #include <yt/yt/core/ytree/tree_builder.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
-#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
 
 #include <yt/yt_proto/yt/core/ytree/proto/attributes.pb.h>
+
+#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/dynamic_message.h>
@@ -272,14 +273,14 @@ private:
     }
 
 private:
-    NConcurrency::TForkAwareSpinLock TypeMapsLock_;
+    NThreading::TForkAwareSpinLock TypeMapsLock_;
     THashMap<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
     THashMap<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
 
     THashMap<const Descriptor*, TProtobufMessageConverter> MessageTypeConverterMap_;
     THashMap<std::pair<const Descriptor*, int>, TProtobufMessageBytesFieldConverter> MessageFieldConverterMap_;
 
-    NConcurrency::TForkAwareSpinLock InternedStringsLock_;
+    NThreading::TForkAwareSpinLock InternedStringsLock_;
     std::vector<TString> InternedStrings_;
     mutable std::vector<TRegisterAction> Actions_;
 };

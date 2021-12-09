@@ -79,7 +79,7 @@ private:
 
     struct TShard
     {
-        YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock);
+        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock);
 
         TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList;
         TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList;
@@ -108,7 +108,7 @@ private:
     bool Touch(TShard* shard, TItem* item);
     void DrainTouchBuffer(TShard* shard);
 
-    void Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
+    void Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& guard);
 
     void PushToYounger(TShard* shard, TItem* item);
     void MoveToYounger(TShard* shard, TItem* item);

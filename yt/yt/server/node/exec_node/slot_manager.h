@@ -122,7 +122,7 @@ private:
 
     IVolumeManagerPtr RootVolumeManager_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, LocationsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, LocationsLock_);
     std::vector<TSlotLocationPtr> Locations_;
     std::vector<TSlotLocationPtr> AliveLocations_;
 

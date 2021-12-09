@@ -139,7 +139,7 @@ public:
                             // TODO(dakovalkov): We create an extension copy here.
                             // It's almost free as long as TString is ref-counted.
                             // If TString ever becomes std::string, we will need to find another way.
-                            return it->second; 
+                            return it->second;
                         }));
 
                     YT_VERIFY(Extensions_.emplace(tag, extensionFuture).second);
@@ -183,7 +183,7 @@ public:
     }
 
 private:
-    mutable YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
+    mutable YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
     TRefCountedChunkMetaPtr MainMeta_;
 

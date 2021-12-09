@@ -163,7 +163,7 @@ private:
     const TInMemoryManagerConfigPtr Config_;
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SessionMapLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TInMemorySessionId, TInMemorySessionPtr> SessionMap_;
 
     DECLARE_RPC_SERVICE_METHOD(NTabletNode::NProto, StartSession)

@@ -34,7 +34,7 @@ public:
 
     ///
     /// @brief Wait for the future setting with timeout.
-    virtual bool WaitFuture(const NThreading::TFuture<void>& future, TDuration timeout) = 0;
+    virtual bool WaitFuture(const ::NThreading::TFuture<void>& future, TDuration timeout) = 0;
 
     ///
     /// @brief Wait for a system event with timeout.

@@ -61,7 +61,7 @@ public:
 
 private:
     THashMap<K, V> Map_;
-    NConcurrency::TReaderWriterSpinLock Lock_;
+    NThreading::TReaderWriterSpinLock Lock_;
 };
 
 // This wrapper can be used in concurrent code to create a constant collection of non-constant objects.

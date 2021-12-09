@@ -259,7 +259,7 @@ protected:
 
     std::atomic<bool> Started_ = false;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ServicesLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ServicesLock_);
     TServerConfigPtr Config_;
 
     //! Service name to service.

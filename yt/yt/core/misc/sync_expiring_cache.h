@@ -48,7 +48,7 @@ private:
     const TCallback<TValue(const TKey&)> CalculateValueAction_;
     const NConcurrency::TPeriodicExecutorPtr EvictionExecutor_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MapLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MapLock_);
     THashMap<TKey, TEntry> Map_;
 
     std::atomic<NProfiling::TCpuDuration> ExpirationTimeout_;

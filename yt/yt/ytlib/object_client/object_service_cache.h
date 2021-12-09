@@ -129,15 +129,15 @@ private:
 
     std::atomic<double> TopEntryByteRateThreshold_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
     using TProfilingCountersKey = std::tuple<TString, TString>;
     THashMap<TProfilingCountersKey, TCacheProfilingCountersPtr> KeyToCounters_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ExpiredEntriesLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ExpiredEntriesLock_);
     THashMap<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr> ExpiredEntries_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, TopEntriesLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, TopEntriesLock_);
     THashMap<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr> TopEntries_;
 
     TCacheProfilingCountersPtr GetProfilingCounters(const TString& user, const TString& method);

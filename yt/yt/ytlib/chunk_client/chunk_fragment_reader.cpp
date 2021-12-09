@@ -153,7 +153,7 @@ private:
     const TPeerInfoCachePtr PeerInfoCache_;
 
     // TODO(akozhikhov): Implement lock sharding.
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ChunkIdToPeerAccessInfoLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ChunkIdToPeerAccessInfoLock_);
     // NB: It is used for fast path and eviction of obsolete chunks.
     THashMap<TChunkId, TPeerAccessInfo> ChunkIdToPeerAccessInfo_;
 

@@ -150,7 +150,7 @@ private:
 
     struct TBandBucket
     {
-        YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock);
+        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
         std::atomic<size_t> CurrentSessionIndex = 0;
         std::vector<TSessionPtr> Sessions;
         bool Terminated = false;

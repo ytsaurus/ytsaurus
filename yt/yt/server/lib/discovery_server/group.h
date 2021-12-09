@@ -36,7 +36,7 @@ private:
     const TClosure OnGroupEmptied_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MembersLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MembersLock_);
     TSet<TMemberPtr, TMemberPtrComparer> Members_;
     THashMap<TMemberId, TMemberPtr> IdToMember_;
 

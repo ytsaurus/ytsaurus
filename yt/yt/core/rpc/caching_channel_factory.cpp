@@ -135,7 +135,7 @@ private:
 
     TPeriodicExecutorPtr ExpirationExecutor_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TString, TCachedChannelPtr> StrongChannelMap_;
     THashMap<TString, TWeakPtr<TCachedChannel>> WeakChannelMap_;
 

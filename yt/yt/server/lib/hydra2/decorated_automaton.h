@@ -282,7 +282,7 @@ private:
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, EpochContextLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, EpochContextLock_);
     TEpochContextPtr EpochContext_;
 
     NHydra::IChangelogPtr Changelog_;

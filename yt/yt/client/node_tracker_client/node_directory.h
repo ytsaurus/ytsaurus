@@ -168,7 +168,7 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TNodeId, const TNodeDescriptor*> IdToDescriptor_;
     THashMap<TString, const TNodeDescriptor*> AddressToDescriptor_;
     THashSet<TNodeDescriptor> Descriptors_;

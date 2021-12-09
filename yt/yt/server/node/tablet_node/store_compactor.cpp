@@ -87,6 +87,7 @@ namespace NYT::NTabletNode {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NThreading;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NTableClient;
@@ -961,7 +962,7 @@ private:
     size_t CompactionTaskIndex_ = 0; // Heap end boundary.
 
     // These are for the future accounting.
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, FutureEffectLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, FutureEffectLock_);
     THashMap<TTabletId, int> FutureEffect_;
 
     const TOrchidServiceManagerPtr CompactionOrchidServiceManager_ = New<TOrchidServiceManager>();

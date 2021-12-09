@@ -4,8 +4,9 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/singleton.h>
 
-#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
 #include <yt/yt/core/concurrency/event_count.h>
+
+#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
 #include <util/generic/algorithm.h>
 
@@ -151,7 +152,7 @@ public:
 private:
     std::atomic<FILE*> ShutdownLogFile_ = IsShutdownLoggingEnabledImpl() ? stderr : nullptr;
 
-    NConcurrency::TForkAwareSpinLock Lock_;
+    NThreading::TForkAwareSpinLock Lock_;
 
     struct TRegisteredCallback
     {

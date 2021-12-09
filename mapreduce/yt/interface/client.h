@@ -118,7 +118,7 @@ public:
     ///
     /// Note that future might contain exception if some error occurred
     /// e.g. lock transaction was aborted.
-    virtual const NThreading::TFuture<void>& GetAcquiredFuture() const = 0;
+    virtual const ::NThreading::TFuture<void>& GetAcquiredFuture() const = 0;
 
     ///
     /// @brief Wait until lock is in "acquired" state.

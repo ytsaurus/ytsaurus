@@ -1473,7 +1473,7 @@ public:
 
         return &SchedulerEventLogger;
     }
-    
+
     void LogResourceMetering(
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
@@ -1538,7 +1538,7 @@ public:
             .EndMap()
             .Item("version").Value("1")
             .Item("source_wt").Value((finishTime - TInstant()).Seconds());
-        
+
         MeteringRecordCountCounter_.Increment();
         MeteringUsageQuantityCounter_.Increment(usageQuantity);
     }
@@ -1893,7 +1893,7 @@ private:
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> Connected_ = false;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, MediumDirectoryLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MediumDirectoryLock_);
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 
     TOperationsCleanerPtr OperationsCleaner_;
@@ -1923,14 +1923,14 @@ private:
 
     THashMap<TOperationId, TOperationPtr> IdToStartingOperation_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
     TJobResourcesProfiler TotalResourceLimitsProfiler_;
     TJobResourcesProfiler TotalResourceUsageProfiler_;
-    
+
     NProfiling::TCounter MeteringRecordCountCounter_;
     NProfiling::TCounter MeteringUsageQuantityCounter_;
 

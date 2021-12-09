@@ -96,7 +96,7 @@ private:
     NClusterNode::IBootstrapBase* Bootstrap_;
     NChunkClient::NProto::TChunkInfo Info_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, BlocksExtLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, BlocksExtLock_);
     TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
 
     // Protected by LifetimeLock_.
@@ -105,7 +105,7 @@ private:
 
     NIO::TChunkFileReaderPtr GetReader();
 
-    void ReleaseReader(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& writerGuard) override;
+    void ReleaseReader(NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard) override;
 
     void CompleteSession(const TIntrusivePtr<TReadBlockSetSession>& session);
     static void FailSession(const TIntrusivePtr<TReadBlockSetSession>& session, const TError& error);

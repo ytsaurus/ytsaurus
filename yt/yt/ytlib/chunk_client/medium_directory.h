@@ -37,7 +37,7 @@ public:
     void Clear();
 
 private:
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TString, const TMediumDescriptor*> NameToDescriptor_;
     THashMap<int, const TMediumDescriptor*> IndexToDescriptor_;
 

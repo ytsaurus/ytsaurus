@@ -151,7 +151,7 @@ private:
     THashMap<NChunkClient::TPlacementId, TPlacementInfo> PlacementIdToInfo_;
     std::multimap<TInstant, NChunkClient::TPlacementId> DeadlineToPlacementId_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ChunkMapLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ChunkMapLock_);
     // A chunk may have multiple copies present on one node - as long as those
     // copies are placed on distinct media.
     // Such copies may have different sizes, too.

@@ -59,7 +59,7 @@ private:
     std::atomic<i64> UncompressedSize_ = {0};
     std::atomic<i64> CompressedSize_ = {0};
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, CodecTimeLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, CodecTimeLock_);
     NChunkClient::TCodecDuration CodecTime_;
 
     int AddedBlockIndex_ = 0;

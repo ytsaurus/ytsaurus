@@ -86,7 +86,7 @@ private:
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const NRpc::TServerAddressPoolPtr AddressPool_;
 
-    NConcurrency::TReaderWriterSpinLock Lock_;
+    NThreading::TReaderWriterSpinLock Lock_;
     TDiscoveryClientConfigPtr Config_;
 };
 

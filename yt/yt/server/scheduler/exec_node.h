@@ -172,7 +172,7 @@ private:
     TJobResources ResourceUsage_;
     NNodeTrackerClient::NProto::TDiskResources DiskResources_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     TJobResources ResourceLimits_;
 };
 

@@ -76,7 +76,7 @@ private:
     THashSet<TResourceTreeElementPtr> AliveElements_;
 
     TMpscStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, StructureLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, StructureLock_);
 
     NProfiling::TProfiler Profiler_ = NProfiling::TProfiler{"/resource_tree"}.WithHot();
     NProfiling::TCounter StructureLockReadCount_ = Profiler_.Counter("/structure_lock_read_count");
