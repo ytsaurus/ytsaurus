@@ -3,6 +3,7 @@
 #include "format.h"
 #include "common_ut.h"
 
+#include <mapreduce/yt/interface/proto3_ut.pb.h>
 #include <mapreduce/yt/interface/protobuf_table_schema_ut.pb.h>
 
 #include <library/cpp/testing/unittest/registar.h>
@@ -159,7 +160,7 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
         const auto format = TFormat::Protobuf<NUnitTesting::TWithOneof>();
         auto columns = GetColumns(format);
 
-        UNIT_ASSERT_VALUES_EQUAL(columns.Size(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(columns.Size(), 4);
         auto check = [] (const TNode& column, TStringBuf name, TStringBuf oneof2Name) {
             UNIT_ASSERT_VALUES_EQUAL(column["name"], name);
             UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "structured_message");
@@ -195,5 +196,40 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
             UNIT_ASSERT_VALUES_EQUAL(column["fields"][1]["name"], "y1");
             UNIT_ASSERT_VALUES_EQUAL(column["fields"][2]["name"], "z1");
         }
+        {
+            const auto& column = columns[3];
+            UNIT_ASSERT_VALUES_EQUAL(column["name"], "TopLevelOneof");
+            UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "oneof");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"].Size(), 1);
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][0]["name"], "MemberOfTopLevelOneof");
+        }
+    }
+}
+
+Y_UNIT_TEST_SUITE(Proto3)
+{
+    Y_UNIT_TEST(TWithOptional)
+    {
+        const auto format = TFormat::Protobuf<NTestingProto3::TWithOptional>();
+        auto columns = GetColumns(format);
+
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["name"], "x");
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["proto_type"], "int64");
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["field_number"], 1);
+    }
+
+    Y_UNIT_TEST(TWithOptionalMessage)
+    {
+        const auto format = TFormat::Protobuf<NTestingProto3::TWithOptionalMessage>();
+        auto columns = GetColumns(format);
+
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["name"], "x");
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["proto_type"], "structured_message");
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["field_number"], 1);
+
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["fields"].Size(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["fields"][0]["name"], "x");
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["fields"][0]["proto_type"], "int64");
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["fields"][0]["field_number"], 1);
     }
 }

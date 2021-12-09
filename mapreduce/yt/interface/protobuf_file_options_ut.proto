@@ -134,4 +134,9 @@ message TWithOneof
     optional TDefaultVariant DefaultVariant = 1;
     optional TNoDefault NoDefault = 2;
     optional TSerializationProtobuf SerializationProtobuf = 3;
+
+    oneof TopLevelOneof
+    {
+        int64 MemberOfTopLevelOneof = 4;
+    }
 }

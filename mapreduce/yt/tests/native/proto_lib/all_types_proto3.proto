@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "mapreduce/yt/interface/protos/extension.proto";
+
 package NYT.NTesting;
 
 enum EEnumProto3
@@ -42,4 +44,23 @@ message TAllTypesMessageProto3
     TEmbeddedMessageProto3 MessageField = 17;
 
     int64 OmittedInt64Field = 18;
+}
+
+message TWithOptional
+{
+    option (NYT.default_oneof_flags) = VARIANT;
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
+
+    message TEmbedded
+    {
+        optional int64 OptionalField = 1;
+    }
+
+    optional int64 OptionalField = 1;
+    oneof Dummy {
+        option (NYT.oneof_flags) = VARIANT;
+        int64 FieldInsideOneof = 2;
+    }
+    optional TEmbedded EmbeddedField = 3;
+    int64 NonOptionalField = 4;
 }

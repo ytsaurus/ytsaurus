@@ -1498,7 +1498,6 @@ void TProtobufParserType::SetChildIndex(
     int childIndex,
     TFieldNumberToChildIndex* store)
 {
-
     if (store == nullptr) {
         store = &FieldNumberToChildIndex_;
     }
