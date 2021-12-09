@@ -553,6 +553,10 @@ type CompleteOperationOptions struct {
 type UpdateOperationParametersOptions struct {
 }
 
+type TransferAccountResourcesOptions struct {
+	*MutatingOptions
+}
+
 type TransferPoolResourcesOptions struct {
 	*MutatingOptions
 }
@@ -764,6 +768,16 @@ type AdminClient interface {
 		group string,
 		member string,
 		options *RemoveMemberOptions,
+	) (err error)
+
+	// http:verb:"transfer_account_resources"
+	// http:params:"source_account","destination_account","resource_delta"
+	TransferAccountResources(
+		ctx context.Context,
+		srcAccount string,
+		dstAccount string,
+		resourceDelta interface{},
+		options *TransferAccountResourcesOptions,
 	) (err error)
 
 	// http:verb:"transfer_pool_resources"

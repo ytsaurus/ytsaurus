@@ -469,6 +469,13 @@ func writeUpdateOperationParametersOptions(w *yson.Writer, o *yt.UpdateOperation
 	}
 }
 
+func writeTransferAccountResourcesOptions(w *yson.Writer, o *yt.TransferAccountResourcesOptions) {
+	if o == nil {
+		return
+	}
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
 func writeTransferPoolResourcesOptions(w *yson.Writer, o *yt.TransferPoolResourcesOptions) {
 	if o == nil {
 		return
@@ -2475,6 +2482,60 @@ func (p *RemoveMemberParams) MutatingOptions() **yt.MutatingOptions {
 
 func (p *RemoveMemberParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
+}
+
+type TransferAccountResourcesParams struct {
+	verb          Verb
+	srcAccount    string
+	dstAccount    string
+	resourceDelta interface{}
+	options       *yt.TransferAccountResourcesOptions
+}
+
+func NewTransferAccountResourcesParams(
+	srcAccount string,
+	dstAccount string,
+	resourceDelta interface{},
+	options *yt.TransferAccountResourcesOptions,
+) *TransferAccountResourcesParams {
+	if options == nil {
+		options = &yt.TransferAccountResourcesOptions{}
+	}
+	return &TransferAccountResourcesParams{
+		Verb("transfer_account_resources"),
+		srcAccount,
+		dstAccount,
+		resourceDelta,
+		options,
+	}
+}
+
+func (p *TransferAccountResourcesParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *TransferAccountResourcesParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *TransferAccountResourcesParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("srcAccount", p.srcAccount),
+		log.Any("dstAccount", p.dstAccount),
+		log.Any("resourceDelta", p.resourceDelta),
+	}
+}
+
+func (p *TransferAccountResourcesParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("source_account")
+	w.Any(p.srcAccount)
+	w.MapKeyString("destination_account")
+	w.Any(p.dstAccount)
+	w.MapKeyString("resource_delta")
+	w.Any(p.resourceDelta)
+	writeTransferAccountResourcesOptions(w, p.options)
+}
+
+func (p *TransferAccountResourcesParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }
 
 type TransferPoolResourcesParams struct {

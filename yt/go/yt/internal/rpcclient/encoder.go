@@ -1150,14 +1150,53 @@ func (e *Encoder) RemoveMember(
 	return
 }
 
+func (e *Encoder) TransferAccountResources(
+	ctx context.Context,
+	srcAccount string,
+	dstAccount string,
+	resourceDelta interface{},
+	opts *yt.TransferAccountResourcesOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.TransferAccountResourcesOptions{}
+	}
+
+	resourceDeltaBytes, err := yson.Marshal(resourceDelta)
+	if err != nil {
+		err = xerrors.Errorf("unable to serialize resource delta: %w", err)
+		return
+	}
+
+	req := &rpc_proxy.TReqTransferAccountResources{
+		SrcAccount:      &srcAccount,
+		DstAccount:      &dstAccount,
+		ResourceDelta:   resourceDeltaBytes,
+		MutatingOptions: convertMutatingOptions(opts.MutatingOptions),
+	}
+
+	call := e.newCall(MethodTransferAccountResources, NewTransferAccountResourcesRequest(req), nil)
+
+	var rsp rpc_proxy.TRspTransferAccountResources
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
 func (e *Encoder) TransferPoolResources(
 	ctx context.Context,
 	srcPool string,
 	dstPool string,
 	poolTree string,
 	resourceDelta interface{},
-	_ *yt.TransferPoolResourcesOptions,
+	opts *yt.TransferPoolResourcesOptions,
 ) (err error) {
+	if opts == nil {
+		opts = &yt.TransferPoolResourcesOptions{}
+	}
+
 	resourceDeltaBytes, err := yson.Marshal(resourceDelta)
 	if err != nil {
 		err = xerrors.Errorf("unable to serialize resource delta: %w", err)
@@ -1165,10 +1204,11 @@ func (e *Encoder) TransferPoolResources(
 	}
 
 	req := &rpc_proxy.TReqTransferPoolResources{
-		SrcPool:       &srcPool,
-		DstPool:       &dstPool,
-		PoolTree:      &poolTree,
-		ResourceDelta: resourceDeltaBytes,
+		SrcPool:         &srcPool,
+		DstPool:         &dstPool,
+		PoolTree:        &poolTree,
+		ResourceDelta:   resourceDeltaBytes,
+		MutatingOptions: convertMutatingOptions(opts.MutatingOptions),
 	}
 
 	call := e.newCall(MethodTransferPoolResources, NewTransferPoolResourcesRequest(req), nil)

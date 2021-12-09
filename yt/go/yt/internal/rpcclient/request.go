@@ -809,6 +809,32 @@ func (r *RemoveMemberRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
 }
 
+var _ MutatingRequest = (*TransferAccountResourcesRequest)(nil)
+
+type TransferAccountResourcesRequest struct {
+	*rpc_proxy.TReqTransferAccountResources
+}
+
+func NewTransferAccountResourcesRequest(r *rpc_proxy.TReqTransferAccountResources) *TransferAccountResourcesRequest {
+	return &TransferAccountResourcesRequest{TReqTransferAccountResources: r}
+}
+
+func (r TransferAccountResourcesRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("src_account", r.GetSrcAccount()),
+		log.String("dst_account", r.GetDstAccount()),
+		log.Any("resource_delta", r.GetResourceDelta()),
+	}
+}
+
+func (r TransferAccountResourcesRequest) Path() (string, bool) {
+	return "", false
+}
+
+func (r *TransferAccountResourcesRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
 var _ MutatingRequest = (*TransferPoolResourcesRequest)(nil)
 
 type TransferPoolResourcesRequest struct {
