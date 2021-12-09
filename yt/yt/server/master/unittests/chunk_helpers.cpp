@@ -125,7 +125,7 @@ TChunkView* TChunkGeneratorBase::CreateChunkView(
     auto chunkView = TPoolAllocator::New<TChunkView>(GenerateId(EObjectType::ChunkView));
 
     chunkView->SetUnderlyingTree(underlyingChunk);
-    chunkView->SetReadRange(readRange);
+    chunkView->Modifier().SetReadRange(readRange);
 
     chunkView->RefObject();
     underlyingChunk->RefObject();

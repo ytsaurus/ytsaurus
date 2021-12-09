@@ -2523,7 +2523,7 @@ public:
                 // chunk min/max timestaps.
                 auto* wrappedStore = chunkManager->CreateChunkView(
                     chunk,
-                    chunkView->ReadRange());
+                    chunkView->Modifier());
                 storesToAttach.push_back(wrappedStore);
             }
         }
@@ -4104,7 +4104,9 @@ private:
                                 newReadRange.UpperLimit().SetLegacyKey(upperPivot);
                             }
 
-                            auto* newChunkView = chunkManager->CreateChunkView(chunkView, newReadRange);
+                            auto* newChunkView = chunkManager->CreateChunkView(
+                                chunkView,
+                                TChunkViewModifier().WithReadRange(newReadRange));
                             objectManager->RefObject(newChunkView);
                             temporarilyReferencedChunkViews.push_back(newChunkView);
 
@@ -4192,7 +4194,9 @@ private:
                             if (upperPivot < readRange.UpperLimit().GetLegacyKey()) {
                                 newReadRange.UpperLimit().SetLegacyKey(upperPivot);
                             }
-                            auto* newChunkView = chunkManager->CreateChunkView(chunk, newReadRange);
+                            auto* newChunkView = chunkManager->CreateChunkView(
+                                chunk,
+                                TChunkViewModifier().WithReadRange(newReadRange));
                             chunkManager->AttachToChunkList(
                                 newTabletChunkLists[relativeIndex]->AsChunkList(),
                                 newChunkView);

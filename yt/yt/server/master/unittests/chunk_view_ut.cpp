@@ -36,8 +36,8 @@ TEST_F(TChunkViewTest, TestRangesIntersection)
     auto chunk = CreateChunk(0, 0, 0, 0, K5, K7);
     auto chunkView = CreateChunkView(chunk, K6, K8);
 
-    EXPECT_EQ(K6, chunkView->GetAdjustedLowerReadLimit(TLegacyReadLimit(K5)).GetLegacyKey());
-    EXPECT_EQ(K8, chunkView->GetAdjustedUpperReadLimit(TLegacyReadLimit(K9)).GetLegacyKey());
+    EXPECT_EQ(K6, chunkView->Modifier().GetAdjustedLowerReadLimit(TLegacyReadLimit(K5)).GetLegacyKey());
+    EXPECT_EQ(K8, chunkView->Modifier().GetAdjustedUpperReadLimit(TLegacyReadLimit(K9)).GetLegacyKey());
     auto completeRange = chunkView->GetCompleteReadRange();
     EXPECT_EQ(K6, completeRange.LowerLimit().GetLegacyKey());
     EXPECT_EQ(GetKeySuccessor(K7), completeRange.UpperLimit().GetLegacyKey());
