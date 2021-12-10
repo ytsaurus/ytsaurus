@@ -97,6 +97,7 @@ struct TLocationPerformanceCounters
 
     NProfiling::TGauge UsedSpace;
     NProfiling::TGauge AvailableSpace;
+    NProfiling::TGauge ChunkCount;
     NProfiling::TGauge Full;
 };
 
