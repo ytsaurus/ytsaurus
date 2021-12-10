@@ -63,8 +63,10 @@ TSnapshotBuilder::TSnapshotBuilder(
     TControllerAgentConfigPtr config,
     IClientPtr client,
     IInvokerPtr ioInvoker,
-    TIncarnationId incarnationId)
-    : Config_(config)
+    TIncarnationId incarnationId,
+    TForkCountersPtr counters)
+    : TForkExecutor(std::move(counters))
+    , Config_(config)
     , Client_(client)
     , IOInvoker_(ioInvoker)
     , ControlInvoker_(GetCurrentInvoker())

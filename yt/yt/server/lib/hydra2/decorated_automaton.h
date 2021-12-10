@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/election/public.h>
 
+#include <yt/yt/server/lib/misc/public.h>
+
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/client/hydra/version.h>
@@ -318,6 +320,8 @@ private:
 
     NProfiling::TEventTimer BatchCommitTimer_;
     NProfiling::TTimeGauge SnapshotLoadTime_;
+
+    TForkCountersPtr ForkCounters_;
 
     ui64 GetLastLoggedRandomSeed() const;
     i64 GetLastLoggedSequenceNumber() const;

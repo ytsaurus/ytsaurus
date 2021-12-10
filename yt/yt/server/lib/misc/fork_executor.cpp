@@ -23,6 +23,23 @@ static const auto WatchdogCheckPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TForkCounters::TForkCounters(const NProfiling::TProfiler& profiler)
+    : ForkDuration_(profiler.WithPrefix("/fork_executor").Timer("/fork_duration"))
+    , ChildDuration_(profiler.WithPrefix("/fork_executor").Timer("/child_duration"))
+{
+    profiler
+        .WithPrefix("/fork_executor")
+        .AddFuncGauge("/child_count", MakeStrong(this), [this] {
+            return ChildCount_.load();
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TForkExecutor::TForkExecutor(TForkCountersPtr counters)
+    : Counters_(std::move(counters))
+{ }
+
 TForkExecutor::~TForkExecutor()
 {
     YT_VERIFY(ChildPid_ < 0);
@@ -51,8 +68,16 @@ TFuture<void> TForkExecutor::Fork()
             }),
             GetForkTimeout());
 
+        auto forkStartTime = GetCpuInstant();
+
         ChildPid_ = fork();
         Forked_ = true;
+
+        if (ChildPid_ != 0) {
+            auto forkEndTime = GetCpuInstant();
+            Counters_->ForkDuration_.Record(CpuDurationToDuration(forkEndTime - forkStartTime));
+        }
+
         if (ChildPid_ < 0) {
             THROW_ERROR_EXCEPTION("fork failed")
                 << TError::FromSystem();
@@ -94,6 +119,7 @@ void TForkExecutor::DoRunParent()
     RunParent();
 
     StartTime_ = TInstant::Now();
+    Counters_->ChildCount_.fetch_add(1);
 
     WatchdogExecutor_ = New<TPeriodicExecutor>(
         GetWatchdogInvoker(),
@@ -141,7 +167,7 @@ void TForkExecutor::OnWatchdogCheck()
     }
     Result_.Set(error);
 
-    DoCleanup();
+    DoEndChild();
 #endif
 }
 
@@ -154,6 +180,16 @@ void TForkExecutor::DoCleanup()
     }
 
     Cleanup();
+}
+
+void TForkExecutor::DoEndChild()
+{
+    YT_VERIFY(ChildPid_ > 0);
+
+    Counters_->ChildDuration_.Record(TInstant::Now() - StartTime_);
+    Counters_->ChildCount_.fetch_sub(1);
+
+    DoCleanup();
 }
 
 void TForkExecutor::OnCanceled(const TError& error)
@@ -180,7 +216,7 @@ void TForkExecutor::DoCancel(const TError& error)
 
     Result_.TrySet(TError(NYT::EErrorCode::Canceled, "Fork executor canceled")
         << error);
-    DoCleanup();
+    DoEndChild();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

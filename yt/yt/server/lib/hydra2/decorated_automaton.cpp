@@ -383,7 +383,10 @@ class TDecoratedAutomaton::TForkSnapshotBuilder
     , public TForkExecutor
 {
 public:
-    using TSnapshotBuilderBase::TSnapshotBuilderBase;
+    TForkSnapshotBuilder(TDecoratedAutomatonPtr owner, TForkCountersPtr counters)
+        : TSnapshotBuilderBase(owner)
+        , TForkExecutor(std::move(counters))
+    { }
 
 private:
     IAsyncInputStreamPtr InputStream_;
@@ -690,6 +693,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , ChangelogDiscarder_(New<TChangelogDiscarder>(Logger))
     , BatchCommitTimer_(profiler.Timer("/batch_commit_time"))
     , SnapshotLoadTime_(profiler.TimeGauge("/snapshot_load_time"))
+    , ForkCounters_(New<TForkCounters>(profiler))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Automaton_);
@@ -1527,7 +1531,7 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 #else
         Options_.UseFork
 #endif
-        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this))
+        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, ForkCounters_))
         : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this));
 
     auto buildResult = builder->Run();

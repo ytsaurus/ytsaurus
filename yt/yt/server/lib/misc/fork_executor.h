@@ -5,6 +5,9 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/library/profiling/public.h>
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/core/logging/logger_owner.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -12,6 +15,24 @@
 #include <atomic>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TForkCounters
+    : public virtual TRefCounted
+{
+public:
+    explicit TForkCounters(const NProfiling::TProfiler& profiler = {});
+
+private:
+    NProfiling::TEventTimer ForkDuration_;
+    NProfiling::TEventTimer ChildDuration_;
+    std::atomic<i64> ChildCount_ = 0;
+
+    friend class TForkExecutor;
+};
+
+DEFINE_REFCOUNTED_TYPE(TForkCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,6 +45,8 @@ public:
     TFuture<void> Fork();
 
 protected:
+    explicit TForkExecutor(TForkCountersPtr counters);
+
     ~TForkExecutor();
 
     //! Returns the timeout for running child process.
@@ -52,9 +75,12 @@ private:
     NConcurrency::TActionQueuePtr WatchdogQueue_ = New<NConcurrency::TActionQueue>("ForkWD");
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
     std::atomic<bool> Forked_ = false;
+    TForkCountersPtr Counters_;
 
     void DoRunParent();
     void DoRunChild();
+
+    void DoEndChild();
 
     void OnWatchdogCheck();
 

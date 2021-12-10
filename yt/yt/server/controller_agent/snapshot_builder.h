@@ -42,7 +42,8 @@ public:
         TControllerAgentConfigPtr config,
         NApi::IClientPtr client,
         IInvokerPtr ioInvoker,
-        TIncarnationId incarnationId);
+        TIncarnationId incarnationId,
+        TForkCountersPtr counters);
 
     TFuture<void> Run(const TOperationIdToWeakControllerMap& controllers);
 

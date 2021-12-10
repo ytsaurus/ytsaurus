@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "operation.h"
 #include "operation_controller.h"
+#include "private.h"
 #include "snapshot_builder.h"
 #include "snapshot_downloader.h"
 
@@ -91,6 +92,7 @@ public:
         : Config_(std::move(config))
         , InitialConfigNode_(std::move(configNode))
         , Bootstrap_(bootstrap)
+        , ForkCounters_(New<TForkCounters>(ControllerAgentProfiler))
     { }
 
     void Initialize()
@@ -303,6 +305,8 @@ private:
 
     NProfiling::TCounter UpdateOperationProgressFailuresCounter_ = ControllerAgentProfiler
         .Counter("/operation_archive/update_progress_failures");
+
+    TForkCountersPtr ForkCounters_;
 
     struct TUnstageRequest
     {
@@ -1106,7 +1110,8 @@ private:
             Config_,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetControllerAgent()->GetSnapshotIOInvoker(),
-            Bootstrap_->GetControllerAgent()->GetIncarnationId());
+            Bootstrap_->GetControllerAgent()->GetIncarnationId(),
+            ForkCounters_);
 
         // NB: Result is logged in the builder.
         auto error = WaitFor(builder->Run(weakControllerMap));
