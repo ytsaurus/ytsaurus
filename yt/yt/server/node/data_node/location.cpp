@@ -125,6 +125,7 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
 
     UsedSpace = profiler.Gauge("/used_space");
     AvailableSpace = profiler.Gauge("/available_space");
+    ChunkCount = profiler.Gauge("/chunk_count");
     Full = profiler.Gauge("/full");
 }
 
