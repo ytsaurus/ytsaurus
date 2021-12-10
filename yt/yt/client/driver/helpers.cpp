@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include <yt/yt/client/misc/io_tags.h>
+
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/guid.h>
 
@@ -53,8 +55,8 @@ void PutMethodInfoInTraceContext(const TStringBuf& methodName)
 {
     if (auto traceContext = GetCurrentTraceContext()) {
         auto baggage = traceContext->UnpackOrCreateBaggage();
-        baggage->Set("api_method@", methodName);
-        baggage->Set("proxy_type@", "http");
+        AddTagToBaggage(baggage, EAggregateIOTag::ApiMethod, methodName);
+        AddTagToBaggage(baggage, EAggregateIOTag::ProxyType, "http");
         traceContext->PackBaggage(baggage);
     }
 }

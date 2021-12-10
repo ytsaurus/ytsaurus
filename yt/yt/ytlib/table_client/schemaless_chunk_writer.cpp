@@ -42,6 +42,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/misc/io_tags.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/table_client/helpers.h>
@@ -2184,9 +2186,9 @@ private:
             Options_->TableSchema = GetSchema();
 
             auto baggage = TraceContext_->UnpackOrCreateBaggage();
-            baggage->Set("object_path", userObject.GetPath());
-            baggage->Set("object_id", userObject.ObjectId);
-            baggage->Set("account@", Options_->Account);
+            AddTagToBaggage(baggage, ERawIOTag::ObjectPath, userObject.GetPath());
+            AddTagToBaggage(baggage, ERawIOTag::ObjectId, ToString(userObject.ObjectId));
+            AddTagToBaggage(baggage, EAggregateIOTag::Account, Options_->Account);
             TraceContext_->PackBaggage(baggage);
 
             auto chunkWriterConfig = attributes.FindYson("chunk_writer");

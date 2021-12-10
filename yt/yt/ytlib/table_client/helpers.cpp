@@ -27,13 +27,14 @@
 
 #include <yt/yt/client/formats/parser.h>
 
+#include <yt/yt/client/misc/io_tags.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>
-
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/periodic_yielder.h>
@@ -705,13 +706,13 @@ void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const 
 {
     auto baggage = context->UnpackOrCreateBaggage();
     if (dataSource.GetPath()) {
-        baggage->Set("object_path", dataSource.GetPath());
+        AddTagToBaggage(baggage, ERawIOTag::ObjectPath, *dataSource.GetPath());
     }
     if (dataSource.GetObjectId()) {
-        baggage->Set("object_id", dataSource.GetObjectId());
+        AddTagToBaggage(baggage, ERawIOTag::ObjectId, ToString(*dataSource.GetObjectId()));
     }
     if (dataSource.GetAccount()) {
-        baggage->Set("account@", *dataSource.GetAccount());
+        AddTagToBaggage(baggage, EAggregateIOTag::Account, *dataSource.GetAccount());
     }
     context->PackBaggage(baggage);
 }

@@ -54,6 +54,7 @@
 #include <yt/yt/client/chunk_client/read_limit.h>
 
 #include <yt/yt/client/misc/workload.h>
+#include <yt/yt/client/misc/io_tags.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -98,13 +99,13 @@ THashMap<TString, TString> MakeWriteIOTags(TString method, const ISessionPtr& se
 {
     auto& location = session->GetStoreLocation();
     return {
-        {"data_node_method@", std::move(method)},
-        {"write_session_id", ToString(session->GetId())},
-        {"location_id@", ToString(location->GetId())},
-        {"medium@", location->GetMediumName()},
-        {"disk_family@", location->GetDiskFamily()},
-        {"user@", context->GetAuthenticationIdentity().User},
-        {"direction@", "write"}
+        {FormatIOTag(EAggregateIOTag::DataNodeMethod), std::move(method)},
+        {FormatIOTag(ERawIOTag::WriteSessionId), ToString(session->GetId())},
+        {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
+        {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
+        {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
+        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
+        {FormatIOTag(EAggregateIOTag::Direction), "write"}
     };
 }
 
@@ -115,15 +116,15 @@ THashMap<TString, TString> MakeReadIOTags(
     TGuid readSessionId = TGuid())
 {
     THashMap<TString, TString> result{
-        {"data_node_method@", std::move(method)},
-        {"location_id@", ToString(location->GetId())},
-        {"medium@", location->GetMediumName()},
-        {"disk_family@", location->GetDiskFamily()},
-        {"user@", context->GetAuthenticationIdentity().User},
-        {"direction@", "read"}
+        {FormatIOTag(EAggregateIOTag::DataNodeMethod), std::move(method)},
+        {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
+        {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
+        {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
+        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
+        {FormatIOTag(EAggregateIOTag::Direction), "read"}
     };
     if (readSessionId) {
-        result["read_session_id"] = ToString(readSessionId);
+        result[FormatIOTag(ERawIOTag::ReadSessionId)] = ToString(readSessionId);
     }
     return result;
 }
