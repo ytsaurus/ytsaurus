@@ -160,6 +160,8 @@ private:
                 static_cast<NChaosClient::TReplicationProgress>(*progress));
         };
 
+        // TODO(savrus): Update write mode after advancing replication progress.
+
         if (writeMode == ETabletWriteMode::Pull) {
             auto oldestTimestamp = GetReplicationProgressMinTimestamp(*progress);
             auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);

@@ -3,6 +3,7 @@ from test_dynamic_tables import DynamicTablesBase
 from yt_commands import (
     authors, wait, execute_command, get_driver, get, set, ls, create, get_tablet_leader_address,
     sync_create_cells, sync_mount_table, alter_table, insert_rows, lookup_rows, pull_rows,
+    reshard_table,
     create_replication_card, get_replication_card, create_replication_card_replica)
 
 from yt.common import YtError
@@ -104,13 +105,15 @@ class TestChaos(DynamicTablesBase):
         nodes = ls("//sys/cluster_nodes", attributes=["state", "flavors"], driver=driver)
         return [node for node in nodes if ("chaos" in node.attributes["flavors"])]
 
-    def _wait_for_era(self, path, era=1, driver=None):
+    def _wait_for_era(self, path, era=1, check_write=False, driver=None):
         def _check():
             tablets = get("{0}/@tablets".format(path), driver=driver)
             tablet_ids = [tablet["tablet_id"] for tablet in tablets]
             for tablet_id in tablet_ids:
                 orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id, driver=driver), tablet_id, driver=driver)
                 if not orchid["replication_card"] or orchid["replication_card"]["era"] != era:
+                    return False
+                if check_write and orchid["write_mode"] != "direct":
                     return False
             return True
         wait(_check)
@@ -221,7 +224,6 @@ class TestChaos(DynamicTablesBase):
         set("//sys/cluster_nodes/{0}/@user_tags/end".format(chaos_node), "chaos_node")
 
         card_id = create_replication_card(chaos_cell_id=cell_id)
-        print card_id
         replicas = [
             {"cluster": "primary", "content_type": "data", "mode": "sync", "table_path": "//tmp/t"},
             {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "table_path": "//tmp/r0"},
@@ -260,7 +262,6 @@ class TestChaos(DynamicTablesBase):
         self._create_queue_table("//tmp/r0", driver=remote_driver0)
 
         card_id = create_replication_card(chaos_cell_id=cell_id)
-        print card_id
         replicas = [
             {"cluster": "primary", "content_type": "data", "mode": "sync", "state": "enabled", "table_path": "//tmp/t"},
             {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
@@ -275,7 +276,7 @@ class TestChaos(DynamicTablesBase):
             replica_ids.append(replica_id)
 
         repliation_card = self._sync_replication_card(cell_id, card_id)
-        replication_card_token ={"chaos_cell_id": cell_id, "replication_card_id": card_id}
+        replication_card_token = {"chaos_cell_id": cell_id, "replication_card_id": card_id}
 
         for replica, replica_id in zip(replicas, replica_ids):
             path = replica["table_path"]
@@ -332,3 +333,49 @@ class TestChaos(DynamicTablesBase):
         row = result[0]
         assert row["key"] == 0
         assert str(row["value"][0]) == "0"
+
+    @authors("savrus")
+    def test_serialized_pull_rows(self):
+        self._create_chaos_cell_bundle("c")
+        cell_id = self._sync_create_chaos_cell("c")
+
+        self._create_queue_table("//tmp/q")
+        reshard_table("//tmp/q", [[], [1], [2], [3], [4]])
+
+        card_id = create_replication_card(chaos_cell_id=cell_id)
+        replica_info = {"cluster": "primary", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/q"}
+        replica_id = create_replication_card_replica(
+            chaos_cell_id=cell_id,
+            replication_card_id=card_id,
+            replica_info=replica_info)
+
+        replication_card_token = {"chaos_cell_id": cell_id, "replication_card_id": card_id}
+        set("//tmp/q/@replication_card_token", replication_card_token)
+        alter_table("//tmp/q", upstream_replica_id=replica_id)
+        sync_create_cells(1)
+        sync_mount_table("//tmp/q")
+
+        repliation_card = self._sync_replication_card(cell_id, card_id)
+        self._wait_for_era("//tmp/q", era=repliation_card["era"])
+
+        # Shuffle to mix timestamps.
+        for i in (1, 2, 0, 4, 3):
+            insert_rows("//tmp/q", [{"key": i, "value": str(i)}])
+
+        def _pull_rows():
+            return pull_rows(
+                "//tmp/q",
+                replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
+                upstream_replica_id=replica_id,
+                order_rows_by_timestamp=True)
+
+        wait(lambda: len(_pull_rows()) == 5)
+
+        result = _pull_rows()
+        timestamps = [row.attributes["write_timestamps"][0] for row in result]
+        import logging
+        logger = logging.getLogger()
+        logger.debug("Write timestamps: {0}".format(timestamps))
+
+        for i in range(len(timestamps) - 1):
+            assert timestamps[i] < timestamps[i+1], "Write timestamp order mismatch for positions {0} and {1}: {2} > {3}".format(i, i+1, timestamps[i], timestamps[i+1])

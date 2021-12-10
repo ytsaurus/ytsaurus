@@ -774,9 +774,10 @@ private:
             .MaxRowsPerRead = request->max_rows_per_read()
         };
 
-        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, ResponseCodec: %v, ReadSessionId: %v",
+        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, ResponseCodec: %v, ReadSessionId: %v)",
             tabletId,
             startReplicationRowIndex,
+            progress,
             responseCodecId,
             chunkReadOptions.ReadSessionId);
 
@@ -800,9 +801,14 @@ private:
                 }
 
                 auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
+
                 if (upperTimestamp && !IsReplicationProgressGreaterOrEqual(*replicationProgress, upperTimestamp)) {
                     upperTimestamp = NullTimestamp;
                 }
+
+                YT_LOG_DEBUG("Trying to get replication log batch for pull rows (ReplicationProgress: %v, UpperTimestamp: %llx)",
+                    static_cast<NChaosClient::TReplicationProgress>(*replicationProgress),
+                    upperTimestamp);
 
                 auto serviceCounters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
                 profilerGuard.Start(serviceCounters->PullRows);
@@ -827,6 +833,7 @@ private:
                 i64 responseRowCount = 0;
                 i64 responseDataWeight = 0;
                 auto maxTimestamp = MinTimestamp;
+                bool tooMuch = false;
 
                 ReadReplicationBatch(
                     tabletSnapshot,
@@ -836,15 +843,28 @@ private:
                     logParser,
                     rowBuffer,
                     currentRowIndex,
+                    upperTimestamp,
                     &writer,
                     &totalRowCount,
                     &responseRowCount,
                     &responseDataWeight,
-                    &maxTimestamp);
+                    &maxTimestamp,
+                    &tooMuch);
 
-                // TODO(savrus): Check here that we read all rows or reached upperTimestamp in log.
-                if (upperTimestamp && responseRowCount == 0) {
+                YT_LOG_DEBUG("Read replication batch (LastTimestamp: %llx, ReadAllRows: %v, UpperTimestamp: %llx, ProgressMinTimestamp: %llx)",
+                    maxTimestamp,
+                    !tooMuch,
+                    upperTimestamp,
+                    GetReplicationProgressMinTimestamp(*replicationProgress)); 
+
+                if (upperTimestamp && !tooMuch) {
                     maxTimestamp = upperTimestamp;
+                }
+
+                if (!tooMuch) {
+                    maxTimestamp = std::max(
+                        maxTimestamp,
+                        GetReplicationProgressMinTimestamp(*replicationProgress));
                 }
 
                 TReplicationProgress endProgress;
@@ -863,11 +883,12 @@ private:
                 ToProto(response->mutable_end_replication_progress(), endProgress);
                 response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
 
-                context->SetResponseInfo("RowCount: %v, DataWeight: %v, ProcessedRowCount: %v, EndRowIndex: %v",
+                context->SetResponseInfo("RowCount: %v, DataWeight: %v, ProcessedRowCount: %v, EndRowIndex: %v, Progress: %v",
                     responseRowCount,
                     responseDataWeight,
                     totalRowCount,
-                    currentRowIndex);
+                    currentRowIndex,
+                    endProgress);
                 context->Reply();
             });
     }
@@ -1507,11 +1528,13 @@ private:
         const IReplicationLogParserPtr& logParser,
         const TRowBufferPtr& rowBuffer,
         i64 currentRowIndex,
+        TTimestamp upperTimestamp,
         TWireProtocolWriter* writer,
         i64* totalRowCount,
         i64* batchRowCount,
         i64* batchDataWeight,
-        TTimestamp* maxTimestamp)
+        TTimestamp* maxTimestamp,
+        bool* tooMuch)
     {
         auto reader = CreateSchemafulRangeTabletReader(
             tabletSnapshot,
@@ -1527,8 +1550,8 @@ private:
         TTimestamp prevTimestamp = MinTimestamp;
         int timestampCount = 0;
 
-        bool tooMuch = false;
-        while (!tooMuch) {
+        *tooMuch = false;
+        while (!*tooMuch) {
             auto batch = reader->Read(rowBatchReadOptions);
             if (!batch) {
                 break;
@@ -1594,11 +1617,15 @@ private:
                 if (timestamp != prevTimestamp) {
                     // TODO(savrus): Throttle pulled data.
 
-                    if (*batchRowCount >= mountConfig->MaxRowsPerReplicationCommit ||
+                    // Upper timestamp should be some era start ts, so no tx should have it as a commit ts.
+                    YT_VERIFY(upperTimestamp == NullTimestamp || timestamp != upperTimestamp);
+
+                    if ((upperTimestamp != NullTimestamp && timestamp > upperTimestamp) ||
+                        *batchRowCount >= mountConfig->MaxRowsPerReplicationCommit ||
                         *batchDataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
                         timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
                     {
-                        tooMuch = true;
+                        *tooMuch = true;
                         break;
                     }
 

@@ -635,6 +635,7 @@ struct TPullRowsOptions
     NChaosClient::TReplicaId UpstreamReplicaId;
     THashMap<NTabletClient::TTabletId, i64> StartReplicationRowIndexes;
     i64 TabletRowsPerRead = 1000;
+    bool OrderRowsByTimestamp = false;
 
     NChaosClient::TReplicationProgress ReplicationProgress;
     NTransactionClient::TTimestamp UpperTimestamp = NTransactionClient::NullTimestamp;
@@ -642,18 +643,11 @@ struct TPullRowsOptions
 
 struct TPullRowsResult
 {
-    struct TTabletResult
-    {
-        NTabletClient::TTabletId TabletId;
-        NTableClient::TUnversionedOwningRow PivotKey;
-        TSharedRef Data;
-        i64 RowCount;
-        i64 EndReplicationRowIndex;
-        i64 DataWeight;
-        NChaosClient::TReplicationProgress ReplicationProgress;
-    };
-
-    std::vector<TTabletResult> ResultPerTablet;
+    THashMap<NTabletClient::TTabletId, i64> EndReplicationRowIndexes;
+    i64 RowCount;
+    i64 DataWeight;
+    NChaosClient::TReplicationProgress ReplicationProgress;
+    TSharedRange<NTableClient::TVersionedRow> Rows;
 };
 
 struct TGetNodeOptions
