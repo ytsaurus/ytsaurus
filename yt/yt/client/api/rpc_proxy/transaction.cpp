@@ -17,7 +17,8 @@ NApi::ITransactionPtr CreateTransaction(
     TDuration timeout,
     bool pingAncestors,
     std::optional<TDuration> pingPeriod,
-    bool sticky)
+    bool sticky,
+    TString stickyProxyAddress)
 {
     return New<TTransaction>(
         std::move(connection),
@@ -31,7 +32,8 @@ NApi::ITransactionPtr CreateTransaction(
         timeout,
         pingAncestors,
         pingPeriod,
-        sticky);
+        sticky,
+        std::move(stickyProxyAddress));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

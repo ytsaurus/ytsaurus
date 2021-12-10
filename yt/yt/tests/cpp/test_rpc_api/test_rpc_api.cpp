@@ -5,8 +5,11 @@
 //%ENABLE_RPC_PROXY=True
 //%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100}}
 
+#include <yt/yt/tests/cpp/modify_rows_test.h>
+
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
-#include "yt/yt/tests/cpp/modify_rows_test.h"
+
+#include <yt/yt/client/api/rpc_proxy/transaction_impl.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/rowset.h>
@@ -69,6 +72,24 @@ TEST_F(TApiTestBase, TestStartTimestamp)
         .ValueOrThrow();
 
     EXPECT_EQ(timestamp, transaction->GetStartTimestamp());
+}
+
+TEST_F(TApiTestBase, TestTransactionProxyAddress)
+{
+    {
+        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+        EXPECT_TRUE(transaction
+            ->As<NRpcProxy::TTransaction>()
+            ->GetStickyProxyAddress());
+    }
+    {
+        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Master))
+            .ValueOrThrow();
+        EXPECT_FALSE(transaction
+            ->As<NRpcProxy::TTransaction>()
+            ->GetStickyProxyAddress());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
