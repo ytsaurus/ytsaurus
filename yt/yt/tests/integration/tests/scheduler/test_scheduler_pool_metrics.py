@@ -629,7 +629,7 @@ class TestPoolMetrics(YTEnvSetup):
     @authors("pogorelov")
     def test_total_time_metric(self):
         create_pool("research")
-        op = run_test_vanilla(with_breakpoint("sleep 2; BREAKPOINT"), spec={"pool": "research"}, job_count=1)
+        op = run_test_vanilla(with_breakpoint("sleep 5; BREAKPOINT"), spec={"pool": "research"}, job_count=1)
 
         research_profiler = profiler_factory().at_scheduler(
             fixed_tags={"tree": "default", "pool": "research"})
@@ -655,4 +655,4 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: get_total_time_delta() == 0, sleep_backoff=1)
 
         # Total and exec times should not differ much.
-        assert total_time_counter.get() - exec_time_counter.get() < 1500
+        assert total_time_counter.get() - exec_time_counter.get() < 3000
