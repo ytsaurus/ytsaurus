@@ -34,17 +34,6 @@ static const auto& Logger = ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! These categories have limits that are defined externally in relation to the resource manager and its config.
-static const THashSet<EMemoryCategory> ExternalMemoryCategories = {
-    EMemoryCategory::BlockCache,
-    EMemoryCategory::BlocksExt,
-    EMemoryCategory::ChunkBlockMeta,
-    EMemoryCategory::ChunkMeta,
-    EMemoryCategory::VersionedChunkMeta
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TNodeResourceManager::TNodeResourceManager(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , UpdateExecutor_(New<TPeriodicExecutor>(
@@ -338,20 +327,19 @@ TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMe
         auto& limit = limits[category];
         limit = New<TMemoryLimit>();
 
-        if (ExternalMemoryCategories.contains(category)) {
+        if (!memoryLimit || !memoryLimit->Type || memoryLimit->Type == EMemoryLimitType::None) {
             limit->Type = EMemoryLimitType::None;
-            auto categoryLimit = memoryUsageTracker->GetLimit(category);
+
+            auto categoryLimit = memoryUsageTracker->GetExplicitLimit(category);
+            if (categoryLimit == std::numeric_limits<i64>::max()) {
+                categoryLimit = memoryUsageTracker->GetUsed(category);
+            }
+
+            // NB: Limit may be set via memory tracking caches.
+            // Otherwise we fallback to memory usage.
             limit->Value = categoryLimit;
+
             totalDynamicMemory -= categoryLimit;
-        } else if (!memoryLimit || !memoryLimit->Type || memoryLimit->Type == EMemoryLimitType::None) {
-            limit->Type = EMemoryLimitType::None;
-            auto memoryUsage = memoryUsageTracker->GetUsed(category);
-
-            // NB: This value is used for memory demand estimation, but this limit is not
-            // actually set in memory usage tracker.
-            limit->Value = memoryUsage;
-
-            totalDynamicMemory -= memoryUsage;
         } else if (memoryLimit->Type == EMemoryLimitType::Static) {
             limit->Type = EMemoryLimitType::Static;
             limit->Value = *memoryLimit->Value;

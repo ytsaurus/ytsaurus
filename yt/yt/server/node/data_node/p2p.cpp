@@ -590,7 +590,7 @@ void TP2PDistributor::Start()
 {
     Distributor_->Start();
     Allocator_->Start();
-    Cooler_->Start();    
+    Cooler_->Start();
 }
 
 void TP2PDistributor::UpdateConfig(const TP2PConfigPtr& config)
@@ -691,7 +691,7 @@ void TP2PDistributor::DistributeBlocks()
                     blockIndexes.push_back(block.BlockIndex);
                     req->add_block_indexes(block.BlockIndex);
                 }
-    
+
                 YT_LOG_DEBUG("Sending blocks (BlockIds: %v:%v, Size: %v, Destination: %v)",
                     chunkId,
                     MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
