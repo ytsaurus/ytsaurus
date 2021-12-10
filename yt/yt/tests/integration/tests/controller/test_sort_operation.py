@@ -809,15 +809,15 @@ class TestSchedulerSortCommands(YTEnvSetup):
             out="<row_count_limit=10>//tmp/t_out",
             sort_by="key",
             spec={
-                "partition_count": 50,
-                "partition_job_count": 100,
-                "data_weight_per_sort_job": 1,
+                "partition_count": 10,
+                "partition_job_count": 10,
+                "data_weight_per_sort_job": 1000,
             },
         )
 
         output_rows = read_table("//tmp/t_out")
         assert sorted(output_rows) == output_rows
-        assert len(output_rows) < 250
+        assert len(output_rows) < 500
         assert len(output_rows) >= 10
 
     @authors("dakovalkov")
