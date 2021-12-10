@@ -2620,10 +2620,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica3)
         sync_enable_table_replica(replica4)
 
-        wait(lambda: get("#{}/@mode".format(replica1)) == get("#{}/@mode".format(replica3)))
-        assert get("#{}/@mode".format(replica2)) == get("#{}/@mode".format(replica4))
-        assert get("#{}/@mode".format(replica1)) != get("#{}/@mode".format(replica2))
-        assert get("#{}/@mode".format(replica3)) != get("#{}/@mode".format(replica4))
+        wait(lambda:
+             get("#{}/@mode".format(replica1)) == get("#{}/@mode".format(replica3)) and
+             get("#{}/@mode".format(replica2)) == get("#{}/@mode".format(replica4)) and
+             get("#{}/@mode".format(replica1)) != get("#{}/@mode".format(replica2)) and
+             get("#{}/@mode".format(replica3)) != get("#{}/@mode".format(replica4)))
 
         if get("#{}/@mode".format(replica1)) == "async":
             expected_sync_cluster = "primary"
