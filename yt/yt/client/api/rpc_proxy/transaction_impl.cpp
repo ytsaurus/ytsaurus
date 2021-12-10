@@ -37,7 +37,8 @@ TTransaction::TTransaction(
     TDuration timeout,
     bool pingAncestors,
     std::optional<TDuration> pingPeriod,
-    bool sticky)
+    bool sticky,
+    TString stickyProxyAddress)
     : Connection_(std::move(connection))
     , Client_(std::move(client))
     , Channel_(std::move(channel))
@@ -49,6 +50,7 @@ TTransaction::TTransaction(
     , Timeout_(timeout)
     , PingAncestors_(pingAncestors)
     , PingPeriod_(pingPeriod)
+    , StickyProxyAddress_(std::move(stickyProxyAddress))
     , Logger(RpcProxyClientLogger.WithTag("TransactionId: %v, %v",
         Id_,
         Connection_->GetLoggingTag()))
@@ -983,6 +985,13 @@ TTransactionStartOptions TTransaction::PatchTransactionId(const TTransactionStar
     auto copiedOptions = options;
     copiedOptions.ParentId = GetId();
     return copiedOptions;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TString& TTransaction::GetStickyProxyAddress() const
+{
+    return StickyProxyAddress_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

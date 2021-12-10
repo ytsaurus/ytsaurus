@@ -204,7 +204,8 @@ ITransactionPtr TClient::AttachTransaction(
         timeout,
         options.PingAncestors,
         options.PingPeriod,
-        false /* sticky */);
+        /* sticky */ false,
+        /* stickyProxyAddress */ TString());
 }
 
 TFuture<void> TClient::MountTable(

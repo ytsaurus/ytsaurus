@@ -152,7 +152,8 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
                 timeout,
                 options.PingAncestors,
                 pingPeriod,
-                sticky);
+                sticky,
+                sticky ? rsp->GetAddress() : TString());
         }));
 }
 

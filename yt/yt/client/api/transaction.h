@@ -87,7 +87,15 @@ struct ITransaction
     using TAbortedHandler = TCallback<TAbortedHandlerSignature>;
     DECLARE_INTERFACE_SIGNAL(TAbortedHandlerSignature, Aborted);
 
-    // Tables
+    // Verified dynamic casts to a more specific interface.
+
+    template <class TDerivedTransaction>
+    TDerivedTransaction* As();
+
+    template <class TDerivedTransaction>
+    const TDerivedTransaction* As() const;
+
+    // Tables.
 
     void WriteRows(
         const NYPath::TYPath& path,
@@ -139,3 +147,7 @@ DEFINE_REFCOUNTED_TYPE(ITransaction)
 
 } // namespace NYT::NApi
 
+
+#define TRANSACTION_INL_H_
+#include "transaction-inl.h"
+#undef TRANSACTION_INL_H_

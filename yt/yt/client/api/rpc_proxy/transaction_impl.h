@@ -37,9 +37,10 @@ public:
         TDuration timeout,
         bool pingAncestors,
         std::optional<TDuration> pingPeriod,
-        bool sticky);
+        bool sticky,
+        TString stickyProxyAddress);
 
-    // ITransaction implementation
+    // ITransaction implementation.
     NApi::IConnectionPtr GetConnection() override;
     NApi::IClientPtr GetClient() const override;
 
@@ -69,7 +70,7 @@ public:
         TSharedRange<NApi::TRowModification> modifications,
         const NApi::TModifyRowsOptions& options) override;
 
-    // IClientBase implementation
+    // IClientBase implementation.
     TFuture<NApi::ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
         const NApi::TTransactionStartOptions& options) override;
@@ -199,6 +200,13 @@ public:
         const NYPath::TYPath& path,
         const NApi::TJournalWriterOptions& options) override;
 
+    // Custom methods.
+
+    //! Returns proxy address this transaction is sticking to.
+    //! Empty for non-sticky transactions (e.g.: master) or
+    //! if address resolution is not supported by the implementation.
+    const TString& GetStickyProxyAddress() const;
+
 private:
     const TConnectionPtr Connection_;
     const TClientPtr Client_;
@@ -211,6 +219,7 @@ private:
     const TDuration Timeout_;
     const bool PingAncestors_;
     const std::optional<TDuration> PingPeriod_;
+    const TString StickyProxyAddress_;
 
     const NLogging::TLogger Logger;
 
