@@ -85,9 +85,8 @@ TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr n
 
 void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChunkReplicaWithMedium replica) const
 {
-    const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
-    if (descriptor) {
-        builder->AppendFormat("%v", descriptor->GetDefaultAddress());
+    if (const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId())) {
+        builder->AppendFormat("%v", *descriptor);
     } else {
         builder->AppendFormat("<unresolved-%v>", replica.GetNodeId());
     }
