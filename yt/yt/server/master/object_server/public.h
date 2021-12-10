@@ -115,10 +115,10 @@ static constexpr size_t DefaultYsonStringInternLengthThreshold = 1_KB;
     class type; \
     using type ## Ptr = ::NYT::NObjectServer::TStrongObjectPtr<type>; \
     \
-    ::NYT::NObjectServer::TObject* ToObject(type* obj) ATTRIBUTE_USED;
+    ATTRIBUTE_USED ::NYT::NObjectServer::TObject* ToObject(type* obj);
 
 #define DEFINE_MASTER_OBJECT_TYPE(type) \
-    Y_FORCE_INLINE ::NYT::NObjectServer::TObject* ToObject(type* obj) \
+    ATTRIBUTE_USED Y_FORCE_INLINE ::NYT::NObjectServer::TObject* ToObject(type* obj) \
     { \
         return obj; \
     }
