@@ -1,5 +1,10 @@
 from .common import EMPTY_GENERATOR, YtError, get_binary_std_stream, get_value
 from .format import StructuredSkiffFormat
+try:
+    from yt.python.yt.cpp_wrapper import CppJob, exec_cpp_job
+    _CPP_WRAPPER_AVAILABLE = True
+except ImportError:
+    _CPP_WRAPPER_AVAILABLE = False
 
 from yt.packages.six.moves import xrange
 
@@ -302,6 +307,13 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
             yt.wrapper.common.get_python_version() != params.python_version:
         sys.stderr.write("Python version on cluster differs from local python version")
         sys.exit(1)
+
+    if _CPP_WRAPPER_AVAILABLE and isinstance(operation, CppJob):
+        mapper_name = operation._mapper_name
+        has_state = b"1" if params.has_state else b"0"
+        output_table_count = str(params.output_table_count).encode("utf-8")
+        exec_cpp_job([b"./cppbinary", b"--yt-map", mapper_name, output_table_count, has_state])
+        raise RuntimeError("It's a bug. Contact yt@")
 
     is_structured_skiff = isinstance(params.input_format, StructuredSkiffFormat)
     if is_structured_skiff:

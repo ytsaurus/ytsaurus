@@ -477,7 +477,7 @@ private:
 
 TClientPtr CreateClientImpl(
     const TString& serverName,
-    const TCreateClientOptions& options);
+    const TCreateClientOptions& options = TCreateClientOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 

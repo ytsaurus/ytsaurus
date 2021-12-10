@@ -1420,6 +1420,19 @@ class SchemafulDsvFormat(Format):
         return dict(izip(imap(self._coerce_column_key, self._columns),
                          imap(unescape_field, line.rstrip(b"\n").split(b"\t"))))
 
+class CppUninitializedFormat(Format):
+    """Dummy plug for cpp jobs. It's replaced by further preparation of such jobs."""
+    def __init__(self):
+        super(CppUninitializedFormat, self).__init__("cpp_uninitialized_format")
+
+    def load_row(self, stream, raw=None):
+        """Not supported."""
+        raise YtFormatError("load_row is not supported in CppUninitializedFormat")
+    
+    def load_rows(self, stream, raw=None):
+        """Not supported."""
+        raise YtFormatError("load_row is not supported in CppUninitializedFormat")
+
 # TODO(veronikaiv): do it beautiful way!
 Format._copy_docs()
 

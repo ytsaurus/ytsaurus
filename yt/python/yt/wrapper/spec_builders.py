@@ -17,6 +17,12 @@ from .table_helpers import (FileManager, _prepare_operation_formats, _is_python_
 from .prepare_operation import (TypedJob, run_operation_preparation,
                                 SimpleOperationPreparationContext, IntermediateOperationPreparationContext)
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
+try:
+    from yt.python.yt.cpp_wrapper import CppJob
+    _CPP_WRAPPER_AVAILABLE = True
+except ImportError:
+    _CPP_WRAPPER_AVAILABLE = False
+from .format import CppUninitializedFormat
 
 import yt.logger as logger
 
@@ -449,7 +455,7 @@ class UserJobSpecBuilder(object):
         return spec_builder
 
     def _prepare_job_files(self, spec, group_by, should_process_key_switch, operation_type, local_files_to_remove,
-                           uploaded_files, input_format, output_format, input_table_count, output_table_count, client):
+                           uploaded_files, input_format, output_format, input_tables, output_tables, client):
         file_manager = FileManager(client=client)
         files = []
         for file in flatten(spec.get("file_paths", [])):
@@ -468,11 +474,52 @@ class UserJobSpecBuilder(object):
             job_type=self._job_type,
             group_by=group_by,
             should_process_key_switch=should_process_key_switch,
-            input_table_count=input_table_count,
-            output_table_count=output_table_count,
+            input_table_count=len(input_tables),
+            output_table_count=len(output_tables),
             use_yamr_descriptors=spec.get("use_yamr_descriptors", False))
 
-        if _is_python_function(spec["command"]):
+        is_cpp_job = _CPP_WRAPPER_AVAILABLE and isinstance(spec["command"], CppJob)
+        if is_cpp_job:
+            state_bytes, spec_patch = spec["command"].prepare_state_and_spec_patch(
+                group_by,
+                input_tables,
+                output_tables,
+                client,
+            )
+            if "input_table_paths" in spec_patch:
+                # If a job has proto input, we can get table paths with column filters here.
+                new_input_tables = []
+                for table in spec_patch["input_table_paths"]:
+                    new_input_tables.append(TablePath(str(table), attributes=table.attributes, client=client))
+                input_tables = new_input_tables
+
+            if "input_format" in spec_patch:
+                spec["input_format"] = spec_patch["input_format"]
+            if "output_format" in spec_patch:
+                spec["output_format"] = spec_patch["output_format"]
+
+            temp_directory = get_local_temp_directory(client)
+            with TempfilesManager(False, temp_directory) as tempfiles_manager:
+                if state_bytes:
+                    state_filename = tempfiles_manager.create_tempfile(
+                        dir=temp_directory,
+                        prefix="jobstate"
+                    )
+                    with open(state_filename, "wb") as fout:
+                        fout.write(state_bytes)
+                    file_manager.add_files(LocalFile(state_filename, file_name="jobstate"))
+                    params.has_state = True
+
+                for small_file in spec_patch.get("small_files", []):
+                    small_file_filename = tempfiles_manager.create_tempfile(
+                        dir=temp_directory,
+                        prefix=small_file["file_name"],
+                    )
+                    with open(small_file_filename, "wb") as fout:
+                        fout.write(small_file["data"].encode("utf-8"))
+                    file_manager.add_files(LocalFile(small_file_filename, file_name=small_file["file_name"]))
+
+        if _is_python_function(spec["command"]) or is_cpp_job:
             local_mode = is_local_mode(client)
             remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
             with TempfilesManager(remove_temp_files, get_local_temp_directory(client)) as tempfiles_manager:
@@ -526,7 +573,7 @@ class UserJobSpecBuilder(object):
         if "local_files" in spec:
             del spec["local_files"]
 
-        return spec, tmpfs_size
+        return spec, tmpfs_size, input_tables
 
     def _prepare_memory_limit(self, spec, client=None):
         memory_limit = get_value(
@@ -657,6 +704,16 @@ class UserJobSpecBuilder(object):
             if self._supports_row_index(operation_type):
                 self._set_control_attribute(job_io_spec, "enable_row_index", True)
             spec["enable_input_table_index"] = True
+
+        elif _CPP_WRAPPER_AVAILABLE and isinstance(command, CppJob):
+            if "input_format" in spec or "output_format" in spec or "format" in spec:
+                raise YtError("Cpp job must not be used with explicit format specification")
+            # TODO(egor-gutrov): mb check has_input_query?
+            input_tables = operation_preparation_context.get_input_paths()
+            output_tables = operation_preparation_context.get_output_paths()
+            should_process_key_switch = True
+            input_format, output_format = CppUninitializedFormat(), CppUninitializedFormat()
+
         else:
             format_ = spec.pop("format", None)
             input_tables = operation_preparation_context.get_input_paths()
@@ -680,9 +737,9 @@ class UserJobSpecBuilder(object):
             spec["output_format"] = output_format.to_yson_type()
 
         spec = self._prepare_ld_library_path(spec, client)
-        spec, tmpfs_size = self._prepare_job_files(
+        spec, tmpfs_size, input_tables = self._prepare_job_files(
             spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
-            input_format, output_format, len(input_tables), len(output_tables), client)
+            input_format, output_format, input_tables, output_tables, client)
         spec.setdefault("use_yamr_descriptors",
                         get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"])
         spec.setdefault("check_input_fully_consumed",
