@@ -55,6 +55,8 @@ public:
 
     void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
 
+    TJobPtr FindLastFinishedJob(TChunkId chunkId) const;
+
 private:
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -67,6 +69,12 @@ private:
     TJobCounters JobsCompleted_;
     TJobCounters JobsFailed_;
     TJobCounters JobsAborted_;
+
+    int FinishedJobQueueSizeLimit_ = 0;
+    TEnumIndexedVector<EJobType, TEnumIndexedVector<EJobState, TRingQueue<TJobPtr>>> FinishedJobQueues_;
+    THashMap<TChunkId, TJobPtr> LastFinishedJobs_;
+
+    void RegisterFinishedJob(const TJobPtr& job);
 
     const NConcurrency::IReconfigurableThroughputThrottlerPtr JobThrottler_;
 

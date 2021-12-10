@@ -754,7 +754,7 @@ private:
                 for (const auto& job : chunk->GetJobs()) {
                     addJob(job);
                 }
-                if (const auto& lastFinishedJob = chunk->GetLastFinishedJob()) {
+                if (auto lastFinishedJob = chunkManager->FindLastFinishedJob(chunk->GetId())) {
                     addJob(lastFinishedJob);
                 }
                 list.EndList();

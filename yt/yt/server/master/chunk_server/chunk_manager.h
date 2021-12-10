@@ -289,6 +289,9 @@ public:
     //! This reflects the target chunk placement, not the actual one.
     TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const;
 
+    //! Returns pointer to last finished job or nullptr if not found.
+    TJobPtr FindLastFinishedJob(TChunkId chunkId) const;
+
 private:
     class TImpl;
     class TChunkTypeHandler;

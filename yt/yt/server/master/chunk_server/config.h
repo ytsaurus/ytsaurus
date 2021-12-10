@@ -562,6 +562,8 @@ public:
     //! chunk replicas (and suggest these to others) for some time.
     TDuration ChunkRemovalJobReplicasExpirationTime;
 
+    int FinishedJobsQueueSize;
+
     TDynamicDataNodeTrackerConfigPtr DataNodeTracker;
 
     TDynamicChunkMergerConfigPtr ChunkMerger;
@@ -737,6 +739,10 @@ public:
 
         RegisterParameter("chunk_autotomizer", ChunkAutotomizer)
             .DefaultNew();
+        
+        RegisterParameter("finished_jobs_queue_size", FinishedJobsQueueSize)
+            .GreaterThanOrEqual(0)
+            .Default(50'000);
 
         RegisterParameter("testing", Testing)
             .DefaultNew();

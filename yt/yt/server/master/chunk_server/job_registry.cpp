@@ -57,6 +57,36 @@ void TJobRegistry::Stop()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
+    for (auto& typeQueues : FinishedJobQueues_) {
+        for (auto& stateQueues : typeQueues) {
+            stateQueues.clear();
+        }
+    }
+    LastFinishedJobs_ = {};
+}
+
+void TJobRegistry::RegisterFinishedJob(const TJobPtr& job)
+{
+    auto chunkId = job->GetChunkIdWithIndexes().Id;
+    LastFinishedJobs_[chunkId] = job;
+    auto& queue = FinishedJobQueues_[job->GetType()][job->GetState()];
+    queue.push(job);
+
+    while (std::ssize(queue) > FinishedJobQueueSizeLimit_) {
+        const auto& job = queue.front();
+        auto chunkId = job->GetChunkIdWithIndexes().Id;
+        auto it = LastFinishedJobs_.find(chunkId);
+        if (it != LastFinishedJobs_.end()) {
+            LastFinishedJobs_.erase(it);
+        }
+        queue.pop();
+    }
+}
+
+TJobPtr TJobRegistry::FindLastFinishedJob(TChunkId chunkId) const
+{
+    auto it = LastFinishedJobs_.find(chunkId);
+    return it != LastFinishedJobs_.end() ? it->second : nullptr;
 }
 
 void TJobRegistry::RegisterJob(const TJobPtr& job)
@@ -111,8 +141,7 @@ void TJobRegistry::OnJobFinished(TJobPtr job)
     auto* chunk = chunkManager->FindChunk(chunkId);
     if (chunk) {
         chunk->RemoveJob(job);
-        // TODO(kvk1920): Uncomment when YT-15928 will be resolved
-        // chunk->GetDynamicData()->LastFinishedJob = job;
+        RegisterFinishedJob(job);
         chunkManager->ScheduleChunkRefresh(chunk);
     }
 
@@ -136,6 +165,7 @@ const TDynamicChunkManagerConfigPtr& TJobRegistry::GetDynamicConfig()
 void TJobRegistry::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     JobThrottler_->Reconfigure(GetDynamicConfig()->JobThrottler);
+    FinishedJobQueueSizeLimit_ = GetDynamicConfig()->FinishedJobsQueueSize;
 }
 
 void TJobRegistry::OverrideResourceLimits(TNodeResources* resourceLimits, const TNode& node)
