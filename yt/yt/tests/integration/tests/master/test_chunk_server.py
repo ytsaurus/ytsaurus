@@ -324,7 +324,6 @@ class TestChunkServer(YTEnvSetup):
             pass
 
     @authors("kvk1920")
-    @pytest.mark.xfail(run=False, reason="Feature is disabled until YT-15928 is resolved.")
     def test_last_finished_job(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
@@ -380,6 +379,46 @@ class TestChunkServerMulticell(TestChunkServer):
     @authors("babenko")
     def test_chunk_requisition_registry_orchid(self):
         pass
+
+
+##################################################################
+
+
+class TestLastFinishedJobStoreLimit(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 4
+
+    @authors("kvk1920")
+    @pytest.mark.parametrize("limit", [0, 1, 10])
+    def test_last_finished_job_limit(self, limit):
+        set("//sys/@config/chunk_manager/finished_jobs_queue_size", limit)
+
+        finished_jobs = []
+
+        for table_num in range(limit + 1):
+            table = "//tmp/t{}".format(table_num)
+            create("table", table)
+            write_table(table, {"a": "b"})
+            chunk_id = get_singular_chunk_id(table)
+
+            def check_if_job_finished():
+                if len(get("#{}/@stored_replicas".format(chunk_id))) != 3:
+                    return False
+                jobs = get("//sys/chunks/{}/@jobs".format(chunk_id))
+                if (0 == limit and 0 == len(jobs)) or (1 == len(jobs) and "completed" == jobs[0]["state"]):
+                    if jobs:
+                        finished_jobs.append(jobs[0])
+                    return True
+                else:
+                    return False
+
+            wait(check_if_job_finished)
+
+        if limit == 0:
+            assert len(finished_jobs) == 0
+        else:
+            chunk_id = get_singular_chunk_id("//tmp/t0")
+            assert finished_jobs[0] not in get("//sys/chunks/{}/@jobs".format(chunk_id))
 
 
 ##################################################################

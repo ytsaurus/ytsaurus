@@ -81,7 +81,11 @@ public:
 
     };
 
-    explicit TRingQueue(const TAllocator& allocator = TAllocator())
+    TRingQueue()
+        : TRingQueue(TAllocator())
+    { }
+
+    explicit TRingQueue(const TAllocator& allocator)
         : Allocator_(allocator)
     {
         Capacity_ = InitialCapacity;

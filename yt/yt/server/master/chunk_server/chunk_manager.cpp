@@ -594,6 +594,11 @@ public:
             ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkManager));
     }
 
+    TJobPtr FindLastFinishedJob(TChunkId chunkId) const
+    {
+        return JobRegistry_->FindLastFinishedJob(chunkId);
+    }
+
     NReplicator::IChunkReplicaAllocatorPtr GetChunkReplicaAllocator() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -5578,6 +5583,11 @@ TChunkRequisitionRegistry* TChunkManager::GetChunkRequisitionRegistry()
 TNodePtrWithIndexesList TChunkManager::GetConsistentChunkReplicas(TChunk* chunk) const
 {
     return Impl_->GetConsistentChunkReplicas(chunk);
+}
+
+TJobPtr TChunkManager::FindLastFinishedJob(TChunkId chunkId) const
+{
+    return Impl_->FindLastFinishedJob(chunkId);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)
