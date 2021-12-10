@@ -341,6 +341,22 @@ TReplicationProgress AdvanceReplicationProgress(const TReplicationProgress& prog
     return result;
 }
 
+TReplicationProgress LimitReplicationProgressByTimestamp(const TReplicationProgress& progress, TTimestamp timestamp)
+{
+    TReplicationProgress result;
+    result.UpperKey = progress.UpperKey;
+
+    for (const auto& segment : progress.Segments) {
+        if (segment.Timestamp < timestamp) {
+            result.Segments.push_back(segment);
+        } else if (result.Segments.empty() || result.Segments.back().Timestamp < timestamp) {
+            result.Segments.push_back({segment.LowerKey, timestamp});
+        }
+    }
+
+    return result;
+}
+
 NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progress)
 {
     auto minTimestamp = MaxTimestamp;

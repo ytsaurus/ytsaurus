@@ -58,6 +58,8 @@
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
 #include <yt/yt/core/rpc/bus/channel.h>
 
 #include <yt/yt/core/rpc/balancing_channel.h>
@@ -204,6 +206,42 @@ std::vector<int> BuildResponseIdMapping(const TColumnFilter& remappedColumnFilte
     }
 
     return mapping;
+}
+
+TTimestamp ExtractTimestampFromPulledRow(TVersionedRow row)
+{
+    auto writeTimestampCount = row.GetWriteTimestampCount();
+    auto deleteTimestampCount = row.GetDeleteTimestampCount();
+
+    if (writeTimestampCount > 1 || deleteTimestampCount > 1) {
+        THROW_ERROR_EXCEPTION("Unexpected timestamps in pulled rows")
+            << TErrorAttribute("write_timestamp_count", writeTimestampCount)
+            << TErrorAttribute("delete_timestamp_count", deleteTimestampCount)
+            << TErrorAttribute("key", TUnversionedOwningRow(row.BeginKeys(), row.EndKeys()));
+    }
+
+    if (writeTimestampCount > 0 && deleteTimestampCount > 0) {
+        auto writeTimestamp = row.BeginWriteTimestamps()[0];
+        auto deleteTimestamp = row.BeginDeleteTimestamps()[0];
+        if (writeTimestamp != deleteTimestamp) {
+            THROW_ERROR_EXCEPTION("Timestamps mismatch in pulled row")
+                << TErrorAttribute("write_timestamp", writeTimestamp)
+                << TErrorAttribute("delete_timestamp", deleteTimestamp)
+                << TErrorAttribute("key", TUnversionedOwningRow(row.BeginKeys(), row.EndKeys()));
+        }
+
+        return writeTimestamp;
+    }
+
+    if (writeTimestampCount > 0) {
+        return row.BeginWriteTimestamps()[0];
+    }
+    if (deleteTimestampCount > 0) {
+        return row.BeginDeleteTimestamps()[0];
+    }
+
+    THROW_ERROR_EXCEPTION("Pulled a row without timestamps")
+        << TErrorAttribute("key", TUnversionedOwningRow(row.BeginKeys(), row.EndKeys()));
 }
 
 } // namespace
@@ -2155,6 +2193,169 @@ std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
     return FromProto<std::vector<TAlienCellDescriptor>>(res->cell_descriptors());
 }
 
+class TTabletPullRowsSession
+    : public TRefCounted
+{
+public:
+    struct TTabletRequest
+    {
+        int TabletIndex;
+        std::optional<i64> StartReplicationRowIndex;
+        TReplicationProgress Progress;
+    };
+
+    TTabletPullRowsSession(
+        IClientPtr client,
+        TTableSchemaPtr schema,
+        TTabletInfoPtr tabletInfo,
+        const TPullRowsOptions& options,
+        TTabletRequest request,
+        IInvokerPtr invoker,
+        NLogging::TLogger logger)
+    : Client_(std::move(client))
+    , Schema_(std::move(schema))
+    , TabletInfo_(std::move(tabletInfo))
+    , Options_(options)
+    , Request_(std::move(request))
+    , Invoker_(std::move(invoker))
+    , ReplicationProgress_(std::move(Request_.Progress))
+    , ReplicationRowIndex_(Request_.StartReplicationRowIndex)
+    , Logger(logger
+        .WithTag("TabletId: %v", TabletInfo_->TabletId))
+    { }
+
+    TFuture<void> RunRequest()
+    {
+        return DoPullRows();
+    }
+
+    TTabletInfoPtr GetTabletInfo() const
+    {
+        return TabletInfo_;
+    }
+
+    const TReplicationProgress& GetReplicationProgress() const
+    {
+        return ReplicationProgress_;
+    }
+
+    std::optional<i64> GetEndReplicationRowIndex() const
+    {
+        return ReplicationRowIndex_;
+    }
+
+    i64 GetRowCount() const
+    {
+        return RowCount_;
+    }
+
+    i64 GetDataWeight() const
+    {
+        return RowCount_;
+    }
+
+    std::vector<TVersionedRow> GetRows(TTimestamp maxTimestamp, const TRowBufferPtr& outputRowBuffer)
+    {
+        return DoGetRows(maxTimestamp, outputRowBuffer);
+    }
+
+private:
+    const IClientPtr Client_;
+    const TTableSchemaPtr Schema_;
+    const TTabletInfoPtr TabletInfo_;
+    const TPullRowsOptions& Options_;
+    const TTabletRequest Request_;
+    const IInvokerPtr Invoker_;
+
+    TQueryServiceProxy::TRspPullRowsPtr Result_;
+
+    TReplicationProgress ReplicationProgress_;
+    std::optional<i64> ReplicationRowIndex_;
+    i64 RowCount_ = 0;
+    i64 DataWeight_ = 0;
+
+    const NLogging::TLogger Logger;
+
+    TFuture<void> DoPullRows()
+    {
+        const auto& connection = Client_->GetNativeConnection();
+        const auto& cellDirectory = connection->GetCellDirectory();
+        const auto& networks = connection->GetNetworks();
+        auto channel = CreateTabletReadChannel(
+            Client_->GetChannelFactory(),
+            cellDirectory->GetDescriptorOrThrow(TabletInfo_->CellId),
+            Options_,
+            networks);
+
+        TQueryServiceProxy proxy(channel);
+        auto req = proxy.PullRows();
+        req->set_request_codec(static_cast<int>(connection->GetConfig()->LookupRowsRequestCodec));
+        req->set_response_codec(static_cast<int>(connection->GetConfig()->LookupRowsResponseCodec));
+        req->set_mount_revision(TabletInfo_->MountRevision);
+        req->set_max_rows_per_read(Options_.TabletRowsPerRead);
+        req->set_upper_timestamp(Options_.UpperTimestamp); 
+        ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
+        ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
+        ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);
+        ToProto(req->mutable_upstream_replica_id(), Options_.UpstreamReplicaId);
+        if (ReplicationRowIndex_.has_value()) {
+            req->set_start_replication_row_index(*ReplicationRowIndex_);
+        }
+
+        YT_LOG_DEBUG("Issuing pull rows request (Progress: %v, StartRowIndex: %v)",
+            ReplicationProgress_,
+            ReplicationRowIndex_);
+
+        return req->Invoke()
+            .Apply(BIND(&TTabletPullRowsSession::OnPullRowsResponse, MakeWeak(this))  
+                .AsyncVia(Invoker_));
+    }
+
+    void OnPullRowsResponse(const TErrorOr<TQueryServiceProxy::TRspPullRowsPtr>& resultOrError)
+    {
+        if (!resultOrError.IsOK()) {
+            YT_LOG_DEBUG(resultOrError, "Pull rows request failed");
+            return;
+        }
+
+        Result_ = resultOrError.Value();
+        ReplicationProgress_ = FromProto<TReplicationProgress>(Result_->end_replication_progress());
+        ReplicationRowIndex_ = Result_->end_replication_row_index();
+        DataWeight_ += Result_->data_weight();
+        RowCount_ += Result_->row_count();
+
+        YT_LOG_DEBUG("Got pull rows response (RowCount: %v, DataWeight: %v, EndReplicationRowIndex: %v, Progress: %v)",
+            Result_->row_count(),
+            Result_->data_weight(),
+            ReplicationRowIndex_,
+            ReplicationProgress_);
+    }
+
+    std::vector<TVersionedRow> DoGetRows(TTimestamp maxTimestamp, const TRowBufferPtr& outputRowBuffer)
+    {
+        if (!Result_) {
+            return {};
+        }
+
+        auto* responseCodec = NCompression::GetCodec(Client_->GetNativeConnection()->GetConfig()->LookupRowsResponseCodec);
+        auto responseData = responseCodec->Decompress(Result_->Attachments()[0]);
+        NTableClient::TWireProtocolReader reader(responseData, outputRowBuffer);
+        auto resultSchemaData = TWireProtocolReader::GetSchemaData(*Schema_, TColumnFilter());
+
+        std::vector<TVersionedRow> rows;
+        while (!reader.IsFinished()) {
+            auto row = reader.ReadVersionedRow(resultSchemaData, true);
+            if (ExtractTimestampFromPulledRow(row) > maxTimestamp) {
+                ReplicationRowIndex_.reset();
+                break;
+            }
+            rows.push_back(row);
+        }
+
+        return rows;
+    }
+};
+
 TPullRowsResult TClient::DoPullRows(
     const TYPath& path,
     const TPullRowsOptions& options)
@@ -2166,26 +2367,22 @@ TPullRowsResult TClient::DoPullRows(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
 
-    const auto& schema = tableInfo->Schemas[ETableSchemaKind::ReplicationLog];
-    auto resultSchemaData = TWireProtocolReader::GetSchemaData(*schema, TColumnFilter());
-
-    const auto& cellDirectory = Connection_->GetCellDirectory();
-    const auto& networks = Connection_->GetNetworks();
-
     auto& segments = options.ReplicationProgress.Segments;
     if (segments.empty()) {
         THROW_ERROR_EXCEPTION("Invalid replication progress: no segments");
     }
+    if (segments.size() > 1 && options.OrderRowsByTimestamp) {
+        THROW_ERROR_EXCEPTION("Invalid replication progress: more than one segment while ordering by timestam requested");
+    }
+
+    YT_LOG_DEBUG("Pulling rows (OrderedByTimestamp: %llx, UpperTimestamp: %llx, Progress: %v StartRowIndexes: %v)",
+        options.OrderRowsByTimestamp,
+        options.UpperTimestamp,
+        options.ReplicationProgress,
+        options.StartReplicationRowIndexes);
+
     auto startIndex = tableInfo->GetTabletIndexForKey(segments[0].LowerKey.Get());
-
-    struct TTabletRequest
-    {
-        int TabletIndex;
-        std::optional<ui64> StartReplicationRowIndex;
-        TReplicationProgress Progress;
-    };
-
-    std::vector<TTabletRequest> requests;
+    std::vector<TTabletPullRowsSession::TTabletRequest> requests;
     requests.emplace_back();
     requests.back().TabletIndex = startIndex;
     requests.back().Progress.Segments.push_back(segments[0]);
@@ -2221,77 +2418,76 @@ TPullRowsResult TClient::DoPullRows(
         }
     }
 
-    std::vector<TFuture<TQueryServiceProxy::TRspPullRowsPtr>> asyncResults;
-
+    struct TPullRowsOutputBufferTag { };
+    std::vector<TIntrusivePtr<TTabletPullRowsSession>> sessions;
+    std::vector<TFuture<void>> futureResults;
     for (const auto& request : requests) {
-        const auto& tabletInfo = tableInfo->Tablets[request.TabletIndex];
-        auto channel = CreateTabletReadChannel(
-            ChannelFactory_,
-            cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId),
+        sessions.emplace_back(New<TTabletPullRowsSession>(
+            this,
+            tableInfo->Schemas[ETableSchemaKind::Primary],
+            tableInfo->Tablets[request.TabletIndex],
             options,
-            networks);
-
-        TQueryServiceProxy proxy(channel);
-        auto req = proxy.PullRows();
-        req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
-        req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
-        req->set_mount_revision(tabletInfo->MountRevision);
-        req->set_max_rows_per_read(options.TabletRowsPerRead);
-        req->set_upper_timestamp(options.UpperTimestamp);
-        ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
-        ToProto(req->mutable_cell_id(), tabletInfo->CellId);
-        ToProto(req->mutable_start_replication_progress(), request.Progress);
-        ToProto(req->mutable_upstream_replica_id(), options.UpstreamReplicaId);
-        if (request.StartReplicationRowIndex.has_value()) {
-            req->set_start_replication_row_index(*request.StartReplicationRowIndex);
-        }
-
-        asyncResults.push_back(req->Invoke());
-
-        YT_LOG_DEBUG("Issuing pull rows request (TabletId: %v, Progress: %v, StartRowIndex: %v)",
-            tabletInfo->TabletId,
-            request.Progress,
-            request.StartReplicationRowIndex);
+            request,
+            Connection_->GetInvoker(), 
+            Logger));
+        futureResults.push_back(sessions.back()->RunRequest());
     }
 
-    auto results = WaitFor(AllSet(std::move(asyncResults)))
-        .ValueOrThrow();
+    WaitFor(AllSet(std::move(futureResults)))
+        .ThrowOnError();
+
+    TTimestamp maxTimestamp = MaxTimestamp;
+    if (options.OrderRowsByTimestamp) {
+        for (const auto& session : sessions) {
+            if (session->GetReplicationProgress().Segments.size() != 1) {
+                THROW_ERROR_EXCEPTION("Invalid replication progress in pull rows session")
+                    << TErrorAttribute("tablet_id", session->GetTabletInfo()->TabletId)
+                    << TErrorAttribute("replication_progress", session->GetReplicationProgress());
+            }
+            maxTimestamp = std::min(maxTimestamp, GetReplicationProgressMinTimestamp(session->GetReplicationProgress()));
+        }
+    }
 
     TPullRowsResult combinedResult;
+    std::vector<TVersionedRow> resultRows;
+    auto outputRowBuffer = New<TRowBuffer>(TPullRowsOutputBufferTag());
 
-    for (int index = 0; index < std::ssize(requests); ++index) {
-        const auto& tabletInfo = tableInfo->Tablets[index];
-        if (!results[index].IsOK()) {
-            YT_LOG_DEBUG(results[index], "Pull rows request failed (TabletId: %v)",
-                tabletInfo->TabletId);
-            continue;
+    for (const auto& session : sessions) {
+        const auto& rows = session->GetRows(maxTimestamp, outputRowBuffer);
+        resultRows.insert(resultRows.end(), rows.begin(), rows.end());
+
+        const auto& replicationProgress = maxTimestamp == MaxTimestamp
+            ? session->GetReplicationProgress()
+            : LimitReplicationProgressByTimestamp(session->GetReplicationProgress(), maxTimestamp);
+        combinedResult.ReplicationProgress.Segments.insert(
+            combinedResult.ReplicationProgress.Segments.end(),
+            replicationProgress.Segments.begin(),
+            replicationProgress.Segments.end());
+
+        if (auto endReplicationRowIndex = session->GetEndReplicationRowIndex()) {
+            combinedResult.EndReplicationRowIndexes[session->GetTabletInfo()->TabletId] = *endReplicationRowIndex;
         }
 
-        const auto& result = results[index].Value();
-        auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
-        auto responseData = responseCodec->Decompress(result->Attachments()[0]);
-        auto progress = FromProto<TReplicationProgress>(result->end_replication_progress());
+        combinedResult.DataWeight += session->GetDataWeight();
+        combinedResult.RowCount += session->GetRowCount();
+    }
 
-        YT_LOG_DEBUG("Got pull rows response (TabletId: %v, RowCount: %v, EndReplicationRowIndex: %v, Progress: %v, DataWeight: %v)",
-            tabletInfo->TabletId,
-            result->row_count(),
-            result->end_replication_row_index(),
-            progress,
-            result->data_weight());
-
-        combinedResult.ResultPerTablet.push_back({
-            tabletInfo->TabletId,
-            tabletInfo->PivotKey,
-            responseData,
-            result->row_count(),
-            result->end_replication_row_index(),
-            result->data_weight(),
-            std::move(progress)
+    if (options.OrderRowsByTimestamp) {
+        std::sort(resultRows.begin(), resultRows.end(), [&] (const auto& lhs, const auto& rhs) {
+            return ExtractTimestampFromPulledRow(lhs) < ExtractTimestampFromPulledRow(rhs);
         });
     }
 
+    combinedResult.ReplicationProgress.UpperKey = options.ReplicationProgress.UpperKey;
+    combinedResult.Rows = MakeSharedRange(std::move(resultRows), std::move(outputRowBuffer));
+
+    YT_LOG_DEBUG("Pulled rows (ReplicationProgress: %v, EndRowIndexes: %v)",
+        combinedResult.ReplicationProgress,
+        combinedResult.EndReplicationRowIndexes);
+
     return combinedResult;
 }
+
 IChannelPtr TClient::GetChaosChannel(TCellId chaosCellId)
 {
     const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();

@@ -1459,6 +1459,8 @@ private:
         {
             if (!rspOrError.IsOK()) {
                 auto error = TError("Error sending transaction rows")
+                    << TErrorAttribute("table_id", TableInfo_->TableId)
+                    << TErrorAttribute("tablet_id", TabletInfo_->TabletId)
                     << rspOrError;
                 YT_LOG_DEBUG(error);
                 TableMountCache_->InvalidateOnError(error, true /*forceRetry*/);

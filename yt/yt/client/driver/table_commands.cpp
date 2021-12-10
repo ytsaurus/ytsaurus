@@ -864,6 +864,8 @@ TPullRowsCommand::TPullRowsCommand()
     RegisterParameter("path", Path);
     RegisterParameter("upstream_replica_id", Options.UpstreamReplicaId);
     RegisterParameter("replication_progress", Options.ReplicationProgress);
+    RegisterParameter("order_rows_by_timestamp", Options.OrderRowsByTimestamp)
+        .Default(false);
 }
 
 void TPullRowsCommand::DoExecute(ICommandContextPtr context)
@@ -889,20 +891,8 @@ void TPullRowsCommand::DoExecute(ICommandContextPtr context)
     auto pullResult = WaitFor(pullRowsFuture)
         .ValueOrThrow();
 
-    auto rowBuffer = New<TRowBuffer>();
-    std::vector<TVersionedRow> rows;
-    for (const auto& result : pullResult.ResultPerTablet) {
-        NTableClient::TWireProtocolReader reader(result.Data, rowBuffer);
-        auto resultSchemaData = TWireProtocolReader::GetSchemaData(*schema, TColumnFilter());
-
-        while (!reader.IsFinished()) {
-            auto row = reader.ReadVersionedRow(resultSchemaData, true);
-            rows.push_back(row);
-        }
-    }
-
     auto writer = CreateVersionedWriterForFormat(format, schema, output);
-    writer->Write(rows);
+    writer->Write(pullResult.Rows);
     WaitFor(writer->Close())
         .ThrowOnError();
 }

@@ -174,21 +174,16 @@ private:
                 return;
             }
 
+            auto* selfReplica = replicationCard->FindReplica(Tablet_->GetUpstreamReplicaId());
+            if (!selfReplica) {
+                return;
+            }
+
             const auto& cluster = queueReplica->Cluster;
             const auto& tablePath = queueReplica->TablePath;
             auto upstreamReplicaId = queueReplica->ReplicaId;
-
-            // TODO(savrus): If our replica is queue, we need to receive rows in sorted order after pull (from all sources!)
-            // This probably would require progress flatten (using pull rows with upper timestamp limit)
-
-            struct TPullRowsOutputBufferTag { };
-            std::vector<TVersionedRow> resultRows;
-            auto outputRowBuffer = New<TRowBuffer>(TPullRowsOutputBufferTag());
             auto replicationRound = Tablet_->GetReplicationRound();
-            TReplicationProgress progress;
-            std::vector<std::pair<TTabletId, i64>> endReplicationRowIndexes;
-            i64 rowCount = 0;
-            i64 dataWeight = 0;
+            TPullRowsResult result;
 
             {
                 TEventTimerGuard timerGuard(counters.PullRowsTime);
@@ -203,6 +198,7 @@ private:
                 options.StartReplicationRowIndexes = Tablet_->CurrentReplicationRowIndexes();
                 options.UpperTimestamp = upperTimestamp;
                 options.UpstreamReplicaId = upstreamReplicaId;
+                options.OrderRowsByTimestamp = selfReplica->ContentType == EReplicaContentType::Queue;
 
                 YT_LOG_DEBUG("Pulling rows (Cluster: %v, Path: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %llx)",
                     cluster,
@@ -211,41 +207,25 @@ private:
                     options.StartReplicationRowIndexes,
                     upperTimestamp);
 
-                auto pullResult = WaitFor(foreignClient->PullRows(tablePath, options))
+                result = WaitFor(foreignClient->PullRows(tablePath, options))
                     .ValueOrThrow();
+            }
 
-                for (auto result : pullResult.ResultPerTablet) {
-                    NTableClient::TWireProtocolReader reader(result.Data, outputRowBuffer);
-                    const auto schema = Tablet_->GetPhysicalSchema();
-                    auto resultSchemaData = TWireProtocolReader::GetSchemaData(*schema, TColumnFilter());
+            auto rowCount = result.RowCount;
+            auto dataWeight = result.DataWeight;
+            const auto& endReplicationRowIndexes = result.EndReplicationRowIndexes;
+            const auto& resultRows = result.Rows;
+            const auto& progress = result.ReplicationProgress;
 
-                    while (!reader.IsFinished()) {
-                        auto row = reader.ReadVersionedRow(resultSchemaData, true);
-                        resultRows.push_back(row);
-                    }
+            YT_LOG_DEBUG("Pulled rows (RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplictionRowIndexes: %v)",
+                rowCount,
+                dataWeight,
+                progress,
+                endReplicationRowIndexes);
 
-                    for (const auto& segment : result.ReplicationProgress.Segments) {
-                        progress.Segments.push_back({segment.LowerKey, segment.Timestamp});
-                    }
-
-                    endReplicationRowIndexes.emplace_back(result.TabletId, result.EndReplicationRowIndex);
-
-                    rowCount += result.RowCount;
-                    dataWeight += result.DataWeight;
-                }
-
-                progress.UpperKey = replicationProgress->UpperKey;
-
-                YT_LOG_DEBUG("Pulled rows (RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplictionRowIndexes: %v)",
-                    rowCount,
-                    dataWeight,
-                    progress,
-                    endReplicationRowIndexes);
-
-                // If upperTimestamp is set commit rows to update progress.
-                if (resultRows.empty() && !upperTimestamp) {
-                    return;
-                }
+            // If upperTimestamp is set commit rows to update progress.
+            if (resultRows.empty() && !upperTimestamp) {
+                return;
             }
 
             {
@@ -261,11 +241,10 @@ private:
                 modifyOptions.UpstreamReplicaId = Tablet_->GetUpstreamReplicaId();
                 modifyOptions.TopmostTransaction = false;
 
-                // TODO(savrus) Use wire protocol data directly.
                 localTransaction->WriteRows(
                     FromObjectId(Tablet_->GetTableId()),
                     NameTable_,
-                    MakeSharedRange(std::move(resultRows), std::move(outputRowBuffer)),
+                    result.Rows,
                     modifyOptions);
 
                 {
