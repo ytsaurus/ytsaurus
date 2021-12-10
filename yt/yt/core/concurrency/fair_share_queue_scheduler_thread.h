@@ -14,7 +14,7 @@ class TFairShareQueueSchedulerThread
 public:
     TFairShareQueueSchedulerThread(
         TFairShareInvokerQueuePtr queue,
-        TIntrusivePtr<TEventCount> callbackEventCount,
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName);
 

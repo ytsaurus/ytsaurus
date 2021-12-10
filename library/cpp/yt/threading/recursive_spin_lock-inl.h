@@ -1,16 +1,16 @@
-#ifndef RECURSIVE_SPINLOCK_INL_H_
+#ifndef RECURSIVE_SPIN_LOCK_INL_H_
 #error "Direct inclusion of this file is not allowed, include recursive_spinlock.h"
 // For the sake of sane code completion.
-#include "recursive_spinlock.h"
+#include "recursive_spin_lock.h"
 #endif
-#undef RECURSIVE_SPINLOCK_INL_H_
+#undef RECURSIVE_SPIN_LOCK_INL_H_
 
 #include <library/cpp/yt/assert/assert.h>
 
 #include <util/system/compiler.h>
 #include <util/system/spin_wait.h>
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,5 +81,5 @@ inline ui32 TRecursiveSpinLock::GetThreadId() noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT::NThreading
 

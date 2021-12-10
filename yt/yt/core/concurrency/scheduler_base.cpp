@@ -10,7 +10,7 @@ static const auto& Logger = ConcurrencyLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerThreadBase::TSchedulerThreadBase(
-    TIntrusivePtr<TEventCount> callbackEventCount,
+    TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
     const TString& threadGroupName,
     const TString& threadName,
     int shutdownPriority)

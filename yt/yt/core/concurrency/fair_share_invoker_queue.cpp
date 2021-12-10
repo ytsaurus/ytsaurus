@@ -1,7 +1,8 @@
 #include "fair_share_invoker_queue.h"
 
 #include "invoker_queue.h"
-#include "event_count.h"
+
+#include <library/cpp/yt/threading/event_count.h>
 
 namespace NYT::NConcurrency {
 
@@ -12,7 +13,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareInvokerQueue::TFairShareInvokerQueue(
-    TIntrusivePtr<TEventCount> callbackEventCount,
+    TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
     const std::vector<TBucketDescription>& bucketDescriptions)
     : Weights_(bucketDescriptions.size(), 1.0)
 {

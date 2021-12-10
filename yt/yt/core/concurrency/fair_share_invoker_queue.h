@@ -9,6 +9,8 @@
 
 #include <yt/yt/library/ytprof/api/api.h>
 
+#include <library/cpp/yt/threading/event_count.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,7 +29,7 @@ class TFairShareInvokerQueue
 {
 public:
     TFairShareInvokerQueue(
-        TIntrusivePtr<TEventCount> callbackEventCount,
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const std::vector<TBucketDescription>& bucketDescriptions);
 
     ~TFairShareInvokerQueue();

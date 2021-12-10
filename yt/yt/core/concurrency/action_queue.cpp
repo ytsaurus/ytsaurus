@@ -71,7 +71,7 @@ public:
     }
 
 private:
-    const TIntrusivePtr<TEventCount> CallbackEventCount_ = New<TEventCount>();
+    const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_ = New<NThreading::TEventCount>();
     const TMpscInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
     const TMpscSingleQueueSchedulerThreadPtr Thread_;

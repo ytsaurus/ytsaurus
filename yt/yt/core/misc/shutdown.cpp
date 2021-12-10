@@ -4,9 +4,8 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/singleton.h>
 
-#include <yt/yt/core/concurrency/event_count.h>
-
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
+#include <library/cpp/yt/threading/event_count.h>
 
 #include <util/generic/algorithm.h>
 
@@ -89,7 +88,7 @@ public:
             return registeredCallback.Priority;
         });
 
-        NConcurrency::TEvent shutdownCompleteEvent;
+        NThreading::TEvent shutdownCompleteEvent;
         std::thread watchdogThread([&] {
             ::TThread::SetCurrentThreadName("ShutdownWD");
             if (!shutdownCompleteEvent.Wait(ShutdownTimeout)) {

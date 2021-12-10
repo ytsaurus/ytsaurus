@@ -1,7 +1,8 @@
 #pragma once
 
-#include "event_count.h"
 #include "thread.h"
+
+#include <library/cpp/yt/threading/event_count.h>
 
 namespace NYT::NConcurrency {
 
@@ -16,14 +17,14 @@ public:
     void Stop(bool graceful = false);
 
 protected:
-    const TIntrusivePtr<TEventCount> CallbackEventCount_;
+    const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_;
     const TString ThreadGroupName_;
     const TString ThreadName_;
 
     std::atomic<bool> GracefulStop_ = false;
 
     TSchedulerThreadBase(
-        TIntrusivePtr<TEventCount> callbackEventCount,
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
         int shutdownPriority = 0);
@@ -31,7 +32,7 @@ protected:
     virtual void OnStart();
     virtual void OnStop();
 
-    virtual bool OnLoop(TEventCount::TCookie* cookie) = 0;
+    virtual bool OnLoop(NThreading::TEventCount::TCookie* cookie) = 0;
 
 private:
     void StartEpilogue() override;

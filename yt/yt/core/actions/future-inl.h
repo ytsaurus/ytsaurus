@@ -8,11 +8,12 @@
 #include "bind.h"
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
-#include <yt/yt/core/concurrency/event_count.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/core/misc/compact_vector.h>
+
+#include <library/cpp/yt/threading/event_count.h>
 
 #include <atomic>
 #include <type_traits>
@@ -322,7 +323,7 @@ protected:
     bool HasHandlers_ = false;
     TVoidResultHandlers VoidResultHandlers_;
     TCancelHandlers CancelHandlers_;
-    mutable std::unique_ptr<NConcurrency::TEvent> ReadyEvent_;
+    mutable std::unique_ptr<NThreading::TEvent> ReadyEvent_;
 
     TFutureState(int promiseRefCount, int futureRefCount, int cancelableRefCount)
         : TCancelableStateBase(false, cancelableRefCount)
@@ -349,7 +350,7 @@ protected:
     template <bool MustSet, class F>
     bool DoRunSetter(F setter)
     {
-        NConcurrency::TEvent* readyEvent = nullptr;
+        NThreading::TEvent* readyEvent = nullptr;
         bool canceled;
         {
             auto guard = Guard(SpinLock_);
@@ -542,7 +543,7 @@ public:
                 return GetUniqueResult();
             }
             if (!ReadyEvent_) {
-                ReadyEvent_.reset(new NConcurrency::TEvent());
+                ReadyEvent_.reset(new NThreading::TEvent());
             }
         }
 

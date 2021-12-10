@@ -1,9 +1,5 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/yt/core/misc/optional.h>
-
 #ifndef _linux_
     #include <util/system/mutex.h>
     #include <util/system/condvar.h>
@@ -12,7 +8,7 @@
 #include <limits>
 #include <atomic>
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,7 +141,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT::NThreading
 
 #define EVENT_COUNT_INL_H_
 #include "event_count-inl.h"

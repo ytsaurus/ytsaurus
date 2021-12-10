@@ -8,7 +8,7 @@ namespace NYT::NConcurrency {
 
 TFairShareQueueSchedulerThread::TFairShareQueueSchedulerThread(
     TFairShareInvokerQueuePtr queue,
-    TIntrusivePtr<TEventCount> callbackEventCount,
+    TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
     const TString& threadGroupName,
     const TString& threadName)
     : TSchedulerThread(

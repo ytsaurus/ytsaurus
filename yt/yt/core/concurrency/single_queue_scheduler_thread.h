@@ -17,7 +17,7 @@ class TSingleQueueSchedulerThread
 public:
     TSingleQueueSchedulerThread(
         TInvokerQueuePtr<TQueueImpl> queue,
-        TIntrusivePtr<TEventCount> callbackEventCount,
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
         int shutdownPriority = 0);
@@ -43,7 +43,7 @@ class TSuspendableSingleQueueSchedulerThread
 public:
     TSuspendableSingleQueueSchedulerThread(
         TInvokerQueuePtr<TQueueImpl> queue,
-        TIntrusivePtr<TEventCount> callbackEventCount,
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName);
 
@@ -65,7 +65,7 @@ protected:
 
     std::atomic<bool> SuspendImmediately_ = false;
     TPromise<void> SuspendedPromise_ = NewPromise<void>();
-    TIntrusivePtr<TEvent> ResumeEvent_;
+    TIntrusivePtr<NThreading::TEvent> ResumeEvent_;
 
     virtual TClosure BeginExecute() override;
     virtual void EndExecute() override;

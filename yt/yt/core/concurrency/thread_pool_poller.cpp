@@ -299,7 +299,7 @@ private:
 
     const TShutdownCookie ShutdownCookie_;
 
-    const TIntrusivePtr<TEventCount> HandlerEventCount_ = New<TEventCount>();
+    const TIntrusivePtr<NThreading::TEventCount> HandlerEventCount_ = New<NThreading::TEventCount>();
 
     class TPollerThread
         : public TThread
@@ -549,7 +549,7 @@ private:
     public:
         THandlerThread(
             TThreadPoolPoller* poller,
-            TIntrusivePtr<TEventCount> callbackEventCount,
+            TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
             int index)
             : TSchedulerThread(
                 std::move(callbackEventCount),
@@ -759,7 +759,7 @@ private:
 #endif
 
     private:
-        const TIntrusivePtr<TEventCount> HandlerEventCount_;
+        const TIntrusivePtr<NThreading::TEventCount> HandlerEventCount_;
 
         const TClosure DummyCallback_ = BIND([] { });
 
