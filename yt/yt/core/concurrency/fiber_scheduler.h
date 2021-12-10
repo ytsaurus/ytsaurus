@@ -23,9 +23,9 @@ public:
     virtual void EndExecute() = 0;
 
 private:
-    std::optional<TEventCount::TCookie> Cookie_;
+    std::optional<NThreading::TEventCount::TCookie> Cookie_;
 
-    bool OnLoop(TEventCount::TCookie* cookie) override;
+    bool OnLoop(NThreading::TEventCount::TCookie* cookie) override;
 };
 
 /////////////////////////////////////////////////////////////////////////////

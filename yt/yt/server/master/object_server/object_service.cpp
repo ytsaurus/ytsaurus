@@ -60,9 +60,11 @@
 
 #include <yt/yt/core/concurrency/quantized_executor.h>
 #include <yt/yt/core/concurrency/spinlock.h>
-#include <yt/yt/core/concurrency/recursive_spinlock.h>
+
+#include <library/cpp/yt/threading/recursive_spin_lock.h>
 
 #include <util/generic/algorithm.h>
+
 #include <atomic>
 
 namespace NYT::NObjectServer {
@@ -485,7 +487,7 @@ private:
     // If this is locked, the system is currently busy serving
     // some local subrequest.
     // NB: only TryAcquire() is called on this lock, never Acquire().
-    YT_DECLARE_SPINLOCK(TRecursiveSpinLock, LocalExecutionLock_);
+    YT_DECLARE_SPINLOCK(NThreading::TRecursiveSpinLock, LocalExecutionLock_);
 
     // Has the time to backoff come?
     std::atomic<bool> BackoffAlarmTriggered_ = false;

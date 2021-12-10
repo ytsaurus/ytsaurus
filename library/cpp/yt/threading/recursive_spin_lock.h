@@ -4,7 +4,7 @@
 
 #include <atomic>
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,7 +14,7 @@ class TRecursiveSpinLock
 public:
     void Acquire() noexcept;
     bool TryAcquire() noexcept;
-   
+
     void Release() noexcept;
 
     bool IsLocked() const noexcept;
@@ -31,15 +31,14 @@ private:
     static constexpr TValue RecursionDepthMask = (1ULL << ThreadIdShift) - 1;
 
     bool TryAndTryAcquire() noexcept;
-    
+
     static ui32 GetThreadId() noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT::NThreading
 
-#define RECURSIVE_SPINLOCK_INL_H_
-#include "recursive_spinlock-inl.h"
-#undef RECURSIVE_SPINLOCK_INL_H_
-
+#define RECURSIVE_SPIN_LOCK_INL_H_
+#include "recursive_spin_lock-inl.h"
+#undef RECURSIVE_SPIN_LOCK_INL_H_

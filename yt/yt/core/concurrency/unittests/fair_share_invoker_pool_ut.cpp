@@ -300,8 +300,8 @@ protected:
         //   (2) We check current average wait time returned by every invoker.
         //   (3) We trigger |stageFinishedEvents[i]| to release the blocker action of the i-th invoker.
 
-        std::vector<TEvent> stageStartedEvents(invokerCount);
-        std::vector<TEvent> stageFinishedEvents(invokerCount);
+        std::vector<NThreading::TEvent> stageStartedEvents(invokerCount);
+        std::vector<NThreading::TEvent> stageFinishedEvents(invokerCount);
         std::vector<TInstant> blockingActionEnqueueTimes;
         std::vector<TFuture<void>> blockingActionFutures;
         std::vector<std::vector<TInstant>> waitingActionEnqueueTimesPerInvoker(invokerCount);
@@ -517,7 +517,7 @@ TEST_F(TFairShareInvokerPoolTest, CpuTimeAccountingBetweenContextSwitchesIsNotSu
     auto threadPool = New<TThreadPool>(2, "ThreadPool");
     auto invokerPool = CreateInvokerPool(threadPool->GetInvoker(), 2);
 
-    TEvent started;
+    NThreading::TEvent started;
 
     // Start busy loop in the first thread via first fair share invoker.
     auto future = BIND([this, &started] {

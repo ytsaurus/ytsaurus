@@ -5,11 +5,11 @@
 #endif
 #undef EVENT_COUNT_INL_H_
 
-#include "futex-inl.h"
+#include "futex.h"
 
 #include <errno.h>
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,13 +35,9 @@ inline void TEventCount::NotifyMany(int count)
     ui64 prev = Value_.fetch_add(AddEpoch, std::memory_order_acq_rel);
     if (Y_UNLIKELY((prev & WaiterMask) != 0)) {
 #ifdef _linux_
-        NDetail::futex(
+        FutexWake(
             reinterpret_cast<int*>(&Value_) + 1, // assume little-endian architecture
-            FUTEX_WAKE_PRIVATE,
-            count,
-            nullptr,
-            nullptr,
-            0);
+            count);
 #else
         if (count == 1) {
             ConditionVariable_.Signal();
@@ -71,18 +67,10 @@ inline bool TEventCount::Wait(TCookie cookie, TInstant deadline)
     while ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
         auto timeout = deadline - TInstant::Now();
 
-        struct timespec timeoutSpec{
-            timeoutSpec.tv_sec = timeout.Seconds(),
-            timeoutSpec.tv_nsec = (timeout - TDuration::Seconds(timeout.Seconds())).MicroSeconds() * 1000
-        };
-
-        auto futexResult = NDetail::futex(
+        auto futexResult = FutexWait(
             reinterpret_cast<int*>(&Value_) + 1, // assume little-endian architecture
-            FUTEX_WAIT_PRIVATE,
             cookie.Epoch_,
-            &timeoutSpec,
-            nullptr,
-            0);
+            timeout);
 
         if (futexResult != 0 && errno == ETIMEDOUT) {
             result = false;
@@ -172,4 +160,4 @@ inline bool TEvent::Wait(TDuration timeout)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT::NThreading

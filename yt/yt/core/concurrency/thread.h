@@ -1,9 +1,11 @@
 #pragma once
 
+#include "public.h"
 #include "spinlock.h"
-#include "event_count.h"
 
 #include <yt/yt/core/misc/shutdown.h>
+
+#include <library/cpp/yt/threading/event_count.h>
 
 #include <util/system/thread.h>
 
@@ -60,8 +62,8 @@ private:
     std::atomic<bool> Stopping_ = false;
     TShutdownCookie ShutdownCookie_;
 
-    TEvent StartedEvent_;
-    TEvent StoppedEvent_;
+    NThreading::TEvent StartedEvent_;
+    NThreading::TEvent StoppedEvent_;
 
     TThreadId ThreadId_ = InvalidThreadId;
     ::TThread UnderlyingThread_;

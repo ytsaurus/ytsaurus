@@ -100,7 +100,7 @@ void TFiberScheduler::Wait()
     Cookie_ = std::nullopt;
 }
 
-bool TFiberScheduler:: OnLoop(TEventCount::TCookie* cookie)
+bool TFiberScheduler:: OnLoop(NThreading::TEventCount::TCookie* cookie)
 {
     Cookie_ = *cookie;
 

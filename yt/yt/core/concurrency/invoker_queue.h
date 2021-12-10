@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/actions/invoker.h>
 
+#include <library/cpp/yt/threading/event_count.h>
+
 #include <util/thread/lfqueue.h>
 
 #include <atomic>
@@ -69,11 +71,11 @@ class TInvokerQueue
 {
 public:
     TInvokerQueue(
-        TIntrusivePtr<TEventCount> callbackEventCount,
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const NProfiling::TTagSet& counterTagSet);
 
     TInvokerQueue(
-        TIntrusivePtr<TEventCount> callbackEventCount,
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const std::vector<NProfiling::TTagSet>& counterTagSets,
         const std::vector<NYTProf::TProfilerTagPtr>& profilerTags,
         const NProfiling::TTagSet& cumulativeCounterTagSet);
@@ -107,7 +109,7 @@ public:
     IInvokerPtr GetProfilingTagSettingInvoker(int profilingTag);
 
 private:
-    const TIntrusivePtr<TEventCount> CallbackEventCount_;
+    const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_;
 
     TQueueImpl QueueImpl_;
 

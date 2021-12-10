@@ -1,11 +1,11 @@
-#include <yt/yt/core/test_framework/framework.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
-#include <yt/yt/core/concurrency/recursive_spinlock.h>
-#include <yt/yt/core/concurrency/event_count.h>
+#include <library/cpp/yt/threading/recursive_spin_lock.h>
+#include <library/cpp/yt/threading/event_count.h>
 
 #include <thread>
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +53,7 @@ TEST(TRecursiveSpinLockTest, TwoThreads)
         e7.Wait();
         lock.Release();
     });
-    
+
     std::thread t2([&] {
         EXPECT_FALSE(lock.IsLocked());
         EXPECT_TRUE(lock.TryAcquire());
@@ -85,4 +85,4 @@ TEST(TRecursiveSpinLockTest, TwoThreads)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NConcurrency
+} // namespace NYT::NThreading

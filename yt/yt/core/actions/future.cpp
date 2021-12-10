@@ -129,7 +129,7 @@ bool TFutureState<void>::Wait(TInstant deadline) const
             return true;
         }
         if (!ReadyEvent_) {
-            ReadyEvent_.reset(new NConcurrency::TEvent());
+            ReadyEvent_.reset(new NThreading::TEvent());
         }
     }
 
@@ -190,7 +190,7 @@ void TFutureState<void>::WaitUntilSet() const
             return ;
         }
         if (!ReadyEvent_) {
-            ReadyEvent_ = std::make_unique<NConcurrency::TEvent>();
+            ReadyEvent_ = std::make_unique<NThreading::TEvent>();
         }
     }
 

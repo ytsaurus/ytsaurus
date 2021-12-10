@@ -1293,7 +1293,7 @@ private:
     }
 
 private:
-    const TIntrusivePtr<TEventCount> EventCount_ = New<TEventCount>();
+    const TIntrusivePtr<NThreading::TEventCount> EventCount_ = New<NThreading::TEventCount>();
     const TMpscInvokerQueuePtr EventQueue_;
     const TIntrusivePtr<TThread> LoggingThread_;
     const TShutdownCookie ShutdownCookie_ = RegisterShutdownCallback(

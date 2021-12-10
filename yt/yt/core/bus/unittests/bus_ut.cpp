@@ -10,11 +10,11 @@
 
 #include <yt/yt/core/net/socket.h>
 
-#include <yt/yt/core/concurrency/event_count.h>
-
 #include <yt/yt/core/misc/fs.h>
 
 #include <library/cpp/testing/common/network.h>
+
+#include <library/cpp/yt/threading/event_count.h>
 
 namespace NYT::NBus {
 namespace {
@@ -109,7 +109,7 @@ public:
 
 private:
     std::atomic<int> NumRepliesWaiting;
-    NConcurrency::TEvent Event_;
+    NThreading::TEvent Event_;
 
 
     void HandleMessage(

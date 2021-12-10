@@ -136,7 +136,7 @@ class TFairShareQueue
 {
 public:
     TFairShareQueue(
-        TIntrusivePtr<TEventCount> callbackEventCount,
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TTagSet& tags)
         : CallbackEventCount_(std::move(callbackEventCount))
     {
@@ -326,7 +326,7 @@ private:
         TBucketPtr Bucket;
     };
 
-    const TIntrusivePtr<TEventCount> CallbackEventCount_;
+    const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_;
 
     YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
 
@@ -443,7 +443,7 @@ class TFairShareThread
 public:
     TFairShareThread(
         TFairShareQueuePtr queue,
-        TIntrusivePtr<TEventCount> callbackEventCount,
+        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
         int index)
@@ -514,7 +514,7 @@ public:
     }
 
 private:
-    const TIntrusivePtr<TEventCount> CallbackEventCount_ = New<TEventCount>();
+    const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_ = New<NThreading::TEventCount>();
     const TFairShareQueuePtr Queue_;
 
 

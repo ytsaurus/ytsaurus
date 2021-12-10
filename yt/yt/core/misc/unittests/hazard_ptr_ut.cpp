@@ -5,7 +5,7 @@
 #include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
 
-#include <yt/yt/core/concurrency/event_count.h>
+#include <library/cpp/yt/threading/event_count.h>
 
 #include <util/system/thread.h>
 
@@ -241,8 +241,8 @@ TEST(THazardPtrTest, DelayedDeallocationPolymorphic)
     EXPECT_STREQ("AC!DF", output.Str().c_str());
 }
 
-NConcurrency::TEvent Started;
-NConcurrency::TEvent Finish;
+NThreading::TEvent Started;
+NThreading::TEvent Finish;
 
 TEST(THazardPtrTest, SupportFork)
 {

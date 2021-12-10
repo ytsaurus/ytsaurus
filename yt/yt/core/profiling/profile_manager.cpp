@@ -406,7 +406,7 @@ private:
         }
     };
 
-    const TIntrusivePtr<TEventCount> EventCount_ = New<TEventCount>();
+    const TIntrusivePtr<NThreading::TEventCount> EventCount_ = New<NThreading::TEventCount>();
     std::atomic<bool> WasStarted_;
     std::atomic<bool> WasStopped_;
     TMpscInvokerQueuePtr EventQueue_;
