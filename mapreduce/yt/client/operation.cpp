@@ -338,9 +338,9 @@ TSimpleOperationIo CreateSimpleOperationIo(
     ENodeReaderFormat nodeReaderFormat = GetNodeReaderFormat(spec, allowSkiff);
 
     return CreateSimpleOperationIoHelper(
-        structuredJob,	
+        structuredJob,
         preparer,
-        options,	
+        options,
         GetStructuredInputs(spec),
         GetStructuredOutputs(spec),
         hints,

@@ -670,7 +670,34 @@ int RunAggregatorReducer(size_t outputTableCount, IInputStream& jobStateStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T, typename = void>
+struct TIsConstructibleFromNode
+    : std::false_type
+{ };
+
+template <typename T>
+struct TIsConstructibleFromNode<T, std::void_t<decltype(T::FromNode(std::declval<TNode&>()))>>
+    : std::true_type
+{ };
+
+template <class TJob>
+::TIntrusivePtr<NYT::IStructuredJob> ConstructJobFromNode(const TNode& node)
+{
+    if constexpr (TIsConstructibleFromNode<TJob>::value) {
+        Y_ENSURE(node.GetType() != TNode::Undefined,
+            "job has FromNode method but constructor arguments were not provided");
+        return TJob::FromNode(node);
+    } else {
+        Y_ENSURE(node.GetType() == TNode::Undefined,
+            "constructor arguments provided but job does not contain FromNode method");
+        return MakeIntrusive<TJob>();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TJobFunction = int (*)(size_t, IInputStream&);
+using TConstructJobFunction = ::TIntrusivePtr<NYT::IStructuredJob> (*)(const TNode&);
 
 class TJobFactory
 {
@@ -684,6 +711,7 @@ public:
     void RegisterJob(const char* name)
     {
         RegisterJobImpl<TJob>(name, RunJob<TJob>);
+        JobConstructors[name] = ConstructJobFromNode<TJob>;
     }
 
     template <class TRawJob>
@@ -711,9 +739,16 @@ public:
         return JobFunctions[name];
     }
 
+    TConstructJobFunction GetConstructingFunction(const char* name)
+    {
+        CheckNameRegistered(name);
+        return JobConstructors[name];
+    }
+
 private:
     TMap<std::type_index, TString> JobNames;
     THashMap<TString, TJobFunction> JobFunctions;
+    THashMap<TString, TConstructJobFunction> JobConstructors;
 
     template <typename TJob, typename TRunner>
     void RegisterJobImpl(const char* name, TRunner runner) {
