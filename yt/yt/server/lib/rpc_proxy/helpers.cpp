@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include <yt/yt/client/misc/io_tags.h>
+
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -14,8 +16,8 @@ void PutMethodInfoInTraceContext(const TStringBuf& methodName)
 {
     if (auto traceContext = GetCurrentTraceContext()) {
         auto baggage = traceContext->UnpackOrCreateBaggage();
-        baggage->Set("api_method@", methodName);
-        baggage->Set("proxy_type@", "rpc");
+        AddTagToBaggage(baggage, EAggregateIOTag::ApiMethod, methodName);
+        AddTagToBaggage(baggage, EAggregateIOTag::ProxyType, "rpc");
         traceContext->PackBaggage(baggage);
     }
 }

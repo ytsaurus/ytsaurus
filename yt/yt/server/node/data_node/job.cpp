@@ -73,6 +73,8 @@
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
+#include <yt/yt/client/misc/io_tags.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -491,8 +493,8 @@ protected:
         auto context = TTraceContext::NewRoot(Format("%vJob.Run", GetType()));
         TCurrentTraceContextGuard guard(context);
         auto baggage = context->UnpackOrCreateBaggage();
-        baggage->Set("job_id", ToString(GetId()));
-        baggage->Set("job_type@", ToString(GetType()));
+        AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(GetId()));
+        AddTagToBaggage(baggage, EAggregateIOTag::JobType, ToString(GetType()));
         context->PackBaggage(std::move(baggage));
 
         try {
