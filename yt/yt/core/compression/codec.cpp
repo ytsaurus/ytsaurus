@@ -409,14 +409,15 @@ ICodec* GetCodec(ECodec id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<ECodec> GetDeprecatedCodecIds()
+const THashSet<ECodec>& GetDeprecatedCodecIds()
 {
-    return {};
+    static const THashSet<ECodec> deprecatedCodecIds;
+    return deprecatedCodecIds;
 }
 
-THashMap<TString, TString> GetDeprecatedCodecNameToAlias()
+const THashMap<TString, TString>& GetDeprecatedCodecNameToAlias()
 {
-    static THashMap<TString, TString> deprecatedCodecNameToAlias = {
+    static const THashMap<TString, TString> deprecatedCodecNameToAlias = {
         {"zlib6", FormatEnum(ECodec::Zlib_6)},
         {"gzip_normal", FormatEnum(ECodec::Zlib_6)},
         {"zlib9", FormatEnum(ECodec::Zlib_9)},
@@ -424,8 +425,8 @@ THashMap<TString, TString> GetDeprecatedCodecNameToAlias()
         {"zstd", FormatEnum(ECodec::Zstd_3)},
         {"brotli3", FormatEnum(ECodec::Brotli_3)},
         {"brotli5", FormatEnum(ECodec::Brotli_5)},
-        {"brotli8", FormatEnum(ECodec::Brotli_8)}};
-
+        {"brotli8", FormatEnum(ECodec::Brotli_8)}
+    };
     return deprecatedCodecNameToAlias;
 }
 

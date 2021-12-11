@@ -33,8 +33,8 @@ struct ICodec
 ICodec* GetCodec(ECodec id);
 
 //! Deprecated codecs information.
-THashSet<ECodec> GetDeprecatedCodecIds();
-THashMap<TString, TString> GetDeprecatedCodecNameToAlias();
+const THashSet<ECodec>& GetDeprecatedCodecIds();
+const THashMap<TString, TString>& GetDeprecatedCodecNameToAlias();
 
 ////////////////////////////////////////////////////////////////////////////////
 
