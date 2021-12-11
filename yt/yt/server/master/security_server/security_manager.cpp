@@ -2768,17 +2768,8 @@ private:
         UserMap_.LoadKeys(context);
         GroupMap_.LoadKeys(context);
         NetworkProjectMap_.LoadKeys(context);
-
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= EMasterReign::ProxyRoles) {
-            ProxyRoleMap_.LoadKeys(context);
-        }
-        // COMPAT(ignat)
-        if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease ||
-            (context.GetVersion() >= EMasterReign::AccountResourceUsageLease_20_3 && IsEpoch_20_3(context.GetVersion())))
-        {
-            AccountResourceUsageLeaseMap_.LoadKeys(context);
-        }
+        ProxyRoleMap_.LoadKeys(context);
+        AccountResourceUsageLeaseMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2798,16 +2789,8 @@ private:
         // COMPAT(aleksandra-zh)
         MustInitializeChunkHostMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountChunkHostMasterMemory2;
 
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= EMasterReign::ProxyRoles) {
-            ProxyRoleMap_.LoadValues(context);
-        }
-        // COMPAT(ignat)
-        if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease ||
-            (context.GetVersion() >= EMasterReign::AccountResourceUsageLease_20_3 && IsEpoch_20_3(context.GetVersion())))
-        {
-            AccountResourceUsageLeaseMap_.LoadValues(context);
-        }
+        ProxyRoleMap_.LoadValues(context);
+        AccountResourceUsageLeaseMap_.LoadValues(context);
     }
 
     void OnAfterSnapshotLoaded() override

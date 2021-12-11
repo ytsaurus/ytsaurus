@@ -2600,7 +2600,6 @@ private:
 
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
     bool RecomputeAggregateTabletStatistics_ = false;
-    bool RecomputeBundleResourceUsage_ = false;
     bool RecomputeHunkResourceUsage_ = false;
     // COMPAT(shakurov)
     bool FixTablesWithNullTabletCellBundle_ = false;
@@ -4416,16 +4415,9 @@ private:
         TabletMap_.LoadValues(context);
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
-        if (context.GetVersion() < EMasterReign::MoveTableStatisticsGossipToTableManager) {
-            const auto& tableManager = context.GetBootstrap()->GetTableManager();
-            tableManager->LoadStatisticsUpdateRequests(context);
-        }
 
         // COMPAT(ifsmirnov)
         RecomputeAggregateTabletStatistics_ = (context.GetVersion() < EMasterReign::ChangeDynamicTableMedium);
-
-        // COMPAT(ifsmirnov)
-        RecomputeBundleResourceUsage_ = (context.GetVersion() < EMasterReign::BundleQuotas);
 
         // COMPAT(ifsmirnov)
         RecomputeHunkResourceUsage_ = (context.GetVersion() < EMasterReign::HunksNotInTabletStatic);
@@ -4435,35 +4427,6 @@ private:
 
         // COMPAT(ifsmirnov)
         RecomputeRefsFromTabletsToDynamicStores_ = context.GetVersion() < EMasterReign::RefFromTabletToDynamicStore;
-    }
-
-    void RecomputeBundleResourceUsage()
-    {
-        const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
-            if (!IsObjectAlive(bundleBase)) {
-                continue;
-            }
-
-            YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
-            auto* bundle = bundleBase->As<TTabletCellBundle>();
-            bundle->ResourceUsage() = {};
-            bundle->ResourceUsage().Initialize(Bootstrap_);
-        }
-
-        THashSet<TTableNode*> accountedTables;
-        for (const auto& [id, tablet] : Tablets()) {
-            auto* table = tablet->GetTable();
-            if (!table) {
-                continue;
-            }
-            if (!accountedTables.insert(table).second) {
-                continue;
-            }
-            if (auto* bundle = table->GetTabletCellBundle()) {
-                bundle->UpdateResourceUsage(table->GetTabletResourceUsage());
-            }
-        }
     }
 
     void RecomputeHunkResourceUsage()
@@ -4628,11 +4591,6 @@ private:
             YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             bundle->ResourceUsage().Initialize(Bootstrap_);
-        }
-
-        // COMPAT(ifsmirnov)
-        if (RecomputeBundleResourceUsage_) {
-            RecomputeBundleResourceUsage();
         }
 
         // COMPAT(ifsmirnov)

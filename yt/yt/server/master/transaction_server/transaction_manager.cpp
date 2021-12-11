@@ -1606,10 +1606,7 @@ private:
 
         TransactionMap_.LoadValues(context);
         Load(context, TimestampHolderMap_);
-
-        if (context.GetVersion() >= EMasterReign::ShardedTransactions) {
-            BoomerangTracker_->Load(context);
-        }
+        BoomerangTracker_->Load(context);
     }
 
 

@@ -143,11 +143,8 @@ void TLock::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Implicit_);
     Load(context, State_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::YT_12198_LockTimes) {
-        Load(context, CreationTime_);
-        Load(context, AcquisitionTime_);
-    }
+    Load(context, CreationTime_);
+    Load(context, AcquisitionTime_);
     Load(context, Request_);
     TRawNonversionedObjectPtrSerializer::Load(context, TrunkNode_);
     Load(context, Transaction_);

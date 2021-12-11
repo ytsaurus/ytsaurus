@@ -194,10 +194,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::OverlayedJournals) {
-        SetOverlayed(Load<bool>(context));
-    }
+    SetOverlayed(Load<bool>(context));
 
     auto parents = Load<TCompactVector<TChunkTree*, TypicalChunkParentCount>>(context);
     for (auto* parent : parents) {

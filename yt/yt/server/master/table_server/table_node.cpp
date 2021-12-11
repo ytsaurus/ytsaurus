@@ -112,13 +112,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     }
     Load(context, Dynamic);
     Load(context, MountPath);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::BundleQuotas) {
-        auto resources = Load<NSecurityServer::TClusterResources>(context);
-        ExternalTabletResourceUsage = NSecurityServer::ConvertToTabletResources(resources);
-    } else {
-        Load(context, ExternalTabletResourceUsage);
-    }
+    Load(context, ExternalTabletResourceUsage);
     Load(context, ExpectedTabletState);
     Load(context, LastMountTransactionId);
     Load(context, TabletCountByExpectedState);
@@ -131,11 +125,8 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, EnableDynamicStoreRead);
     Load(context, MountedWithEnabledDynamicStoreRead);
     Load(context, TabletStatistics);
-    // COMPAT(akozhikhov)
-    if (context.GetVersion() >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3) {
-        Load(context, ProfilingMode);
-        Load(context, ProfilingTag);
-    }
+    Load(context, ProfilingMode);
+    Load(context, ProfilingTag);
     // COMPAT(akozhikhov)
     if (context.GetVersion() >= EMasterReign::FlagForDetailedProfiling) {
         Load(context, EnableDetailedProfiling);

@@ -58,15 +58,8 @@ struct TTabletCellStatisticsBase
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
-// COMPAT(akozhikhov): Persist is noop here, hence may drop this class later.
-struct TUncountableTabletCellStatisticsBase
-{
-    void Persist(const NCellMaster::TPersistenceContext& context);
-};
-
 struct TTabletCellStatistics
     : public TTabletCellStatisticsBase
-    , public TUncountableTabletCellStatisticsBase
 {
     void Persist(const NCellMaster::TPersistenceContext& context);
 };

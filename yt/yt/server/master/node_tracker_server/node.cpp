@@ -479,28 +479,19 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 
     Load(context, UserTags_);
     Load(context, NodeTags_);
+
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::NodeFlavors) {
-        NNodeTrackerClient::NProto::TNodeStatistics legacyStatistics;
-        Load(context, legacyStatistics);
-        FromNodeStatistics(&ClusterNodeStatistics_, legacyStatistics);
-        FromNodeStatistics(&DataNodeStatistics_, legacyStatistics);
-        FromNodeStatistics(&ExecNodeStatistics_, legacyStatistics);
-        FromNodeStatistics(&CellarNodeStatistics_[ECellarType::Tablet], legacyStatistics);
-    } else {
-        Load(context, ClusterNodeStatistics_);
-        Load(context, DataNodeStatistics_);
-        Load(context, ExecNodeStatistics_);
+    Load(context, ClusterNodeStatistics_);
+    Load(context, DataNodeStatistics_);
+    Load(context, ExecNodeStatistics_);
 
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EMasterReign::ChaosCells) {
-            Load(context, CellarNodeStatistics_);
-        } else {
-            Load(context, CellarNodeStatistics_[ECellarType::Tablet]);
-        }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterReign::ChaosCells) {
+        Load(context, CellarNodeStatistics_);
+    } else {
+        Load(context, CellarNodeStatistics_[ECellarType::Tablet]);
     }
 
     Load(context, Alerts_);
@@ -542,21 +533,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 
     Load(context, Annotations_);
     Load(context, Version_);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::RegisteredLocationUuids) {
-        Load(context, LocationUuids_);
-    }
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::NodeFlavors) {
-        Load(context, Flavors_);
-        // COMPAT(savrus) ENodeHeartbeatType is compatible with ENodeFlavor.
-        Load(context, ReportedHeartbeats_);
-    }
-    if (context.GetVersion() < EMasterReign::RemoveClusterNodeFlavor) {
-        Flavors_.erase(ENodeFlavor::Cluster);
-    }
+    Load(context, LocationUuids_);
+    Load(context, Flavors_);
+    // COMPAT(savrus) ENodeHeartbeatType is compatible with ENodeFlavor.
+    Load(context, ReportedHeartbeats_);
 
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::AllyReplicas) {

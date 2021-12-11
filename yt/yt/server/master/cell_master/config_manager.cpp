@@ -135,7 +135,7 @@ private:
         DoSetConfig(std::move(newConfig));
 
         // COMPAT(shakurov)
-        if (context.GetVersion() >= EMasterReign::MasterAlerts &&
+        if (context.GetVersion() >= First_21_2_MasterReign &&
             context.GetVersion() < EMasterReign::RecomputeUnrecognizedDynamicConfigOptions)
         {
             TError dummy;

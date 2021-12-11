@@ -23,16 +23,7 @@ void TAttributeSet::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(babenko)
-    if (context.GetVersion() < NCellMaster::EMasterReign::InternedAttributes) {
-        auto attributes = Load<THashMap<TString, NYson::TYsonString>>(context);
-        const auto& ysonInternRegistry = context.GetBootstrap()->GetYsonInternRegistry();
-        for (auto&& [key, value] : attributes) {
-            YT_VERIFY(Attributes_.emplace(std::move(key), ysonInternRegistry->Intern(value)).second);
-        }
-    } else {
-        TAttributeSetSerializer::Load(context, Attributes_);
-    }
+    TAttributeSetSerializer::Load(context, Attributes_);
 
     for (const auto& [key, value] : Attributes_) {
         MasterMemoryUsage_ += key.size();

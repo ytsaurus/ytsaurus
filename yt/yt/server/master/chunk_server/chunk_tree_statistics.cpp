@@ -83,11 +83,6 @@ void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& conte
     Persist(context, LogicalChunkCount);
     Persist(context, ChunkListCount);
     Persist(context, Rank);
-    // COMPAT(gritukan)
-    if (context.IsLoad() && context.GetVersion() < NCellMaster::EMasterReign::DropSealedFromChunkTreeStatistics) {
-        bool sealed;
-        Persist(context, sealed);
-    }
 }
 
 bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const

@@ -3741,14 +3741,11 @@ private:
             Load(context, ConsistentReplicaPlacementTokenDistribution_);
         }
 
-        // COMPAT(shakurov)
-        NeedFixTrunkNodeInvalidDeltaStatistics_ = context.GetVersion() < EMasterReign::FixTrunkNodeInvalidDeltaStatistics;
-
         // COMPAT(ifsmirnov)
         NeedRecomputeApprovedReplicaCount_ = context.GetVersion() < EMasterReign::RecomputeApprovedReplicaCount;
-        NeedPokeChunkViewsWithZeroRefCounter_ = context.GetVersion() < EMasterReign::DropDanglingChunkViews20_3 ||
-            (context.GetVersion() >= EMasterReign::SlotLocationStatisticsInNodeNode &&
-                context.GetVersion() < EMasterReign::DropDanglingChunkViews);
+        NeedPokeChunkViewsWithZeroRefCounter_ =
+            (context.GetVersion() >= First_21_2_MasterReign &&
+            context.GetVersion() < EMasterReign::DropDanglingChunkViews);
 
         // COMPAT(aleksandra-zh)
         NeedClearDestroyedReplicaQueues_ = context.GetVersion() < EMasterReign::FixZombieReplicaRemoval;
@@ -3758,7 +3755,6 @@ private:
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
-        NeedFixTrunkNodeInvalidDeltaStatistics_ = false;
         NeedPokeChunkViewsWithZeroRefCounter_ = false;
     }
 
@@ -3832,36 +3828,6 @@ private:
         for (auto [_, chunk] : ChunkMap_) {
             if (chunk->HasConsistentReplicaPlacementHash()) {
                 ConsistentChunkPlacement_->AddChunk(chunk);
-            }
-        }
-
-        if (NeedFixTrunkNodeInvalidDeltaStatistics_) {
-            auto fixedTableCount = 0;
-
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (!IsObjectAlive(node)) {
-                    continue;
-                }
-
-                if (!node->IsTrunk()) {
-                    continue;
-                }
-
-                if (node->GetType() != EObjectType::Table) {
-                    continue;
-                }
-
-                auto* chunkOwner = node->As<NChunkServer::TChunkOwnerBase>();
-                if (HasInvalidDataWeight(chunkOwner->DeltaStatistics())) {
-                    chunkOwner->DeltaStatistics().set_data_weight(0);
-                    YT_LOG_DEBUG("Fixed invalid delta statistics (TableId: %v)", nodeId);
-                    ++fixedTableCount;
-                }
-            }
-
-            if (fixedTableCount != 0) {
-                YT_LOG_ALERT("Fixed invalid delta statistics for %v tables", fixedTableCount);
             }
         }
 

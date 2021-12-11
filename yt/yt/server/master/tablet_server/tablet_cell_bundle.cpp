@@ -132,12 +132,8 @@ void TTabletCellBundle::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, *TabletBalancerConfig_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BundleQuotas) {
-        Load(context, ResourceLimits_);
-        Load(context, ResourceUsage_);
-    }
+    Load(context, ResourceLimits_);
+    Load(context, ResourceUsage_);
 
     // COMPAT(cookiedoth)
     if (context.GetVersion() < EMasterReign::MakeAbcFolderIdBuiltin) {

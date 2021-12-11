@@ -234,35 +234,19 @@ void TCypressNode::Load(TLoadContext& context)
     TRawNonversionedObjectPtrSerializer::Load(context, Parent_);
     Load(context, LockMode_);
     Load(context, ExpirationTime_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::YT_13126_ExpirationTimeout) {
-        Load(context, ExpirationTimeout_);
-    }
+    Load(context, ExpirationTimeout_);
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
     Load(context, AttributeRevision_);
     Load(context, ContentRevision_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::NativeContentRevision) {
-        Load(context, NativeContentRevision_);
-    }
+    Load(context, NativeContentRevision_);
     Load(context, Account_);
     Load(context, Acd_);
     Load(context, Opaque_);
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
     Load(context, Shard_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::CorrectMergeBranchSemanticsForAttributes) {
-        auto annotation = Load<std::optional<TString>>(context);
-        if (annotation) {
-            Annotation_.Set(*annotation);
-        } else {
-            Annotation_.Reset();
-        }
-    } else {
-        Load(context, Annotation_);
-    }
+    Load(context, Annotation_);
 }
 
 void TCypressNode::SaveEctoplasm(TStreamSaveContext& context) const

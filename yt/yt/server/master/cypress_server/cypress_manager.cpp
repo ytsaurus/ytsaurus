@@ -2032,10 +2032,6 @@ private:
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
     const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
 
-    // COMPAT(babenko)
-    bool NeedSetJournalChunkListKinds_ = false;
-    // COMPAT(shakurov)
-    bool NeedAbortStuckExternalizedTransactions_YT_12559_ = false;
     // COMPAT(gritukan)
     bool TestVirtualMutations_ = false;
     // COMPAT(gritukan)
@@ -2076,10 +2072,6 @@ private:
         LockMap_.LoadValues(context);
         ShardMap_.LoadValues(context);
 
-        // COMPAT(babenko)
-        NeedSetJournalChunkListKinds_ = context.GetVersion() < EMasterReign::OverlayedJournals;
-        // COMPAT(shakurov)
-        NeedAbortStuckExternalizedTransactions_YT_12559_ = context.GetVersion() < EMasterReign::YT_12559_AbortStuckExternalizedTransactions;
         // COMPAT(gritukan)
         TestVirtualMutations_ = context.GetVersion() <= EMasterReign::VirtualMutations;
         // COMPAT(gritukan)
@@ -2111,14 +2103,6 @@ private:
         TCompositeAutomatonPart::SetZeroState();
 
         InitBuiltins();
-    }
-
-    void OnBeforeSnapshotLoaded() override
-    {
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        NeedSetJournalChunkListKinds_ = false;
-        NeedAbortStuckExternalizedTransactions_YT_12559_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -2216,142 +2200,6 @@ private:
         YT_LOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
-
-        // COMPAT(babenko)
-        if (NeedSetJournalChunkListKinds_) {
-            for (auto [nodeId, node] : NodeMap_) {
-                if (node->GetType() != EObjectType::Journal) {
-                    continue;
-                }
-
-                auto* journalNode = node->As<NJournalServer::TJournalNode>();
-                auto* chunkList = journalNode->GetChunkList();
-                if (!chunkList || chunkList->GetKind() == NChunkServer::EChunkListKind::JournalRoot) {
-                    continue;
-                }
-
-                YT_VERIFY(chunkList->GetKind() == NChunkServer::EChunkListKind::Static);
-                chunkList->SetKind(NChunkServer::EChunkListKind::JournalRoot);
-            }
-        }
-
-        // COMPAT(shakurov)
-        if (NeedAbortStuckExternalizedTransactions_YT_12559_) {
-            struct TStuckTransactionDescriptor
-            {
-                TTransactionId TransactionId;
-                THashMap<TCellTag, std::vector<TNodeId>> LockedNodeIds;
-            };
-
-            const std::vector<TStuckTransactionDescriptor> stuckTransactions = {
-                {
-                    TTransactionId::FromString("155e9-464820-46790005-4115b06"),
-                    {{0x13b1, {TNodeId::FromString("ab5-34b579-46790191-32b278ca"), TNodeId::FromString("ab5-34b579-46790191-e65fcfb6")}},
-                     {0x1f69, {TNodeId::FromString("ab5-34b579-46790191-87a0df0c"), TNodeId::FromString("ab5-34b579-46790191-adf677d8")}}},
-                },
-                {
-                    TTransactionId::FromString("15633-3beabf-46790005-41123d0"),
-                    {{0x32f1, {TNodeId::FromString("ad1-237aad-46790191-3dec2172")}}}
-                },
-                {
-                    TTransactionId::FromString("1562a-4dd0ae-46790005-4118334"),
-                    {{0x3ea9, {TNodeId::FromString("acb-3d7a05-46790191-2767f9ab")}}}
-                }
-            };
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            const auto cellTag = multicellManager->GetCellTag();
-            for (const auto& [transactionId, cellTagToLockNodeIds] : stuckTransactions)
-            {
-                auto* transaction = transactionManager->FindTransaction(transactionId);
-                YT_VERIFY(!transaction || IsObjectAlive(transaction));
-                if (!IsObjectAlive(transaction)) {
-                    continue;
-                }
-
-                auto it = cellTagToLockNodeIds.find(cellTag);
-                if (it == cellTagToLockNodeIds.end()) {
-                    // NB: this can't happen when loading a snapshot or
-                    // validating it on an actual master, but it's (allegedly)
-                    // possible when validation runs on a different machine.
-                    continue;
-                }
-
-                for (auto lockedNodeId : it->second) {
-                    auto* node = FindNode(TVersionedNodeId{lockedNodeId});
-                    YT_VERIFY(IsObjectAlive(node));
-                }
-
-                // Relevant parts of OnTransactionAborted.
-                auto& branchedNodes = transaction->BranchedNodes();
-                while (!branchedNodes.empty()) {
-                    auto* branchedNode = branchedNodes.back();
-                    auto branchedNodeId = branchedNode->GetVersionedId();
-                    YT_VERIFY(branchedNode->GetTransaction() == transaction);
-                    auto* trunkNode = branchedNode->GetTrunkNode();
-
-                    if (!IsObjectAlive(trunkNode)) {
-                        auto it = std::remove(branchedNodes.begin(), branchedNodes.end(), branchedNode);
-                        branchedNodes.erase(it, branchedNodes.end());
-                        continue;
-                    }
-
-                    YT_VERIFY(branchedNode->GetLockMode() != ELockMode::None);
-
-                    const auto& handler = GetHandler(branchedNode);
-                    objectManager->UnrefObject(trunkNode);
-                    if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
-                        auto* originatingNode = branchedNode->GetOriginator();
-                        handler->Unbranch(originatingNode, branchedNode);
-                    }
-                    handler->Destroy(branchedNode);
-                    NodeMap_.Remove(branchedNodeId);
-
-                    auto& branchedNodes = transaction->BranchedNodes();
-                    auto it = std::remove(branchedNodes.begin(), branchedNodes.end(), branchedNode);
-                    branchedNodes.erase(it, branchedNodes.end());
-
-                    TCypressNode* newOriginator = branchedNode->GetOriginator();
-                    YT_VERIFY(newOriginator == trunkNode);
-                    YT_VERIFY(!newOriginator->GetTransaction());
-                }
-                YT_VERIFY(branchedNodes.empty());
-
-                ReleaseLocks(transaction, false);
-
-                // Relevant parts of transaction manager's AbortTransaction.
-                for (const auto& entry : transaction->ExportedObjects()) {
-                    auto* object = entry.Object;
-                    objectManager->UnrefObject(object);
-                    const auto& handler = objectManager->GetHandler(object);
-                    handler->UnexportObject(object, entry.DestinationCellTag, 1);
-                }
-                for (auto* object : transaction->ImportedObjects()) {
-                    objectManager->UnrefObject(object);
-                    object->ImportUnrefObject();
-                }
-                transaction->ExportedObjects().clear();
-                transaction->ImportedObjects().clear();
-                transactionManager->FinishTransaction(transaction, false);
-
-                YT_VERIFY(!IsObjectAlive(transaction));
-
-                for (auto lockedNodeId : it->second) {
-                    auto* node = FindNode(TVersionedNodeId{lockedNodeId});
-                    // Admitting defeat here.
-                    while (IsObjectAlive(node)) {
-                        objectManager->UnrefObject(node);
-                    }
-                }
-
-                for (auto lockedNodeId : it->second) {
-                    auto* node = FindNode(TVersionedNodeId{lockedNodeId});
-                    YT_VERIFY(!IsObjectAlive(node));
-                }
-            }
-        }
 
         if (TestVirtualMutations_) {
             try {

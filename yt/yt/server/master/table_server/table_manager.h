@@ -39,9 +39,6 @@ public:
         NChunkServer::TChunkOwnerBase* chunkOwner,
         bool useNativeContentRevisionCas = false);
 
-    // COMPAT(shakurov)
-    void LoadStatisticsUpdateRequests(NCellMaster::TLoadContext& context);
-
     //! Looks up a table by id. Throws if no such table exists.
     TTableNode* GetTableNodeOrThrow(TTableId id);
 

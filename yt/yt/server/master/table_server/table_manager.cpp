@@ -440,11 +440,6 @@ public:
         InitBuiltins();
     }
 
-    void LoadStatisticsUpdateRequests(NCellMaster::TLoadContext& context)
-    {
-        Load(context, StatisticsUpdateRequests_);
-    }
-
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         // COMPAT(shakurov)
@@ -464,10 +459,7 @@ public:
             MasterTableSchemaMap_.LoadValues(context);
         }
 
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= EMasterReign::MoveTableStatisticsGossipToTableManager) {
-            LoadStatisticsUpdateRequests(context);
-        } // Otherwise loading is initiated from tablet manager.
+        Load(context, StatisticsUpdateRequests_);
 
         // COMPAT(akozhikhov)
         if (context.GetVersion() >= EMasterReign::TableCollocation) {
@@ -1020,10 +1012,7 @@ private:
             Persist(context, UpdateTabletResourceUsage);
             Persist(context, UpdateModificationTime);
             Persist(context, UpdateAccessTime);
-            // COMPAT(shakurov)
-            if (context.GetVersion() >= EMasterReign::NativeContentRevision) {
-                Persist(context, UseNativeContentRevisionCas);
-            }
+            Persist(context, UseNativeContentRevisionCas);
         }
     };
 
@@ -1116,11 +1105,6 @@ void TTableManager::SendStatisticsUpdate(
     bool useNativeContentRevisionCas)
 {
     Impl_->SendStatisticsUpdate(chunkOwner, useNativeContentRevisionCas);
-}
-
-void TTableManager::LoadStatisticsUpdateRequests(NCellMaster::TLoadContext& context)
-{
-    Impl_->LoadStatisticsUpdateRequests(context);
 }
 
 TTableNode* TTableManager::GetTableNodeOrThrow(TTableId id)

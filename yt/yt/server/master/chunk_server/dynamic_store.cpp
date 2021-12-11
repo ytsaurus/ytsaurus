@@ -56,10 +56,7 @@ void TDynamicStore::Load(TLoadContext& context)
     Load(context, FlushedChunk_);
     Load(context, Parents_);
     Load(context, Flushed_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::OrderedRemoteDynamicStoreReader) {
-        Load(context, TableRowIndex_);
-    }
+    Load(context, TableRowIndex_);
 }
 
 void TDynamicStore::AddParent(TChunkTree* parent)
