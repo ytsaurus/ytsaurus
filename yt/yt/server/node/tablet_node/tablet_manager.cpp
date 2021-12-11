@@ -1052,7 +1052,7 @@ private:
         }
 
         const auto& lockManager = tablet->GetLockManager();
-        auto transactionIds = lockManager->RemoveUnconfirmedTransactions();
+        auto transactionIds = lockManager->ExtractUnconfirmedTransactionIds();
         if (transactionIds.empty()) {
             return;
         }
@@ -2372,7 +2372,8 @@ private:
 
         NTracing::TNullTraceContextGuard guard;
 
-        {
+        const auto& lockManager = tablet->GetLockManager();
+        if (lockManager->HasUnconfirmedTransactions()) {
             TReqReportTabletLocked request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             CommitTabletMutation(request);
