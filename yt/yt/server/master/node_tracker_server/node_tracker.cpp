@@ -966,8 +966,6 @@ private:
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
     // COMPAT(gritukan)
-    bool NeedToRunCompatForNodeFlavors_ = false;
-    // COMPAT(gritukan)
     bool NeedToCreateHostObjects_ = false;
 
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
@@ -1544,7 +1542,6 @@ private:
             HostMap_.LoadKeys(context);
         }
 
-        NeedToRunCompatForNodeFlavors_ = context.GetVersion() < EMasterReign::NodeFlavors;
         NeedToCreateHostObjects_ = context.GetVersion() < EMasterReign::HostObjects;
     }
 
@@ -1561,10 +1558,7 @@ private:
             HostMap_.LoadValues(context);
         }
 
-        // COMPAT(aleksandra-zh)
-        if (context.GetVersion() >= EMasterReign::RegisteredLocationUuids) {
-            Load(context, RegisteredLocationUuids_);
-        }
+        Load(context, RegisteredLocationUuids_);
     }
 
 
@@ -1661,30 +1655,6 @@ private:
 
         for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
             NodeListPerRole_[nodeRole].UpdateAddresses();
-        }
-
-        // COMPAT(gritukan)
-        if (NeedToRunCompatForNodeFlavors_) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            auto fullFlavor = THashSet<ENodeFlavor>{
-                ENodeFlavor::Data,
-                ENodeFlavor::Exec,
-                ENodeFlavor::Tablet,
-            };
-            auto fullHeartbeat = GetExpectedHeartbeatsForFlavors(fullFlavor, multicellManager->IsPrimaryMaster());
-
-            for (const auto& [nodeId, node] : NodeMap_) {
-                if (!IsObjectAlive(node)) {
-                    continue;
-                }
-
-                node->Flavors() = fullFlavor;
-                if (node->GetLocalState() == ENodeState::Online) {
-                    node->ReportedHeartbeats() = fullHeartbeat;
-                } else {
-                    node->ReportedHeartbeats() = {};
-                }
-            }
         }
 
         // COMPAT(gritukan)

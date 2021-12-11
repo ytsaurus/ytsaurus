@@ -38,11 +38,8 @@ void TMasterMemoryLimits::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, Total);
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::PerCellPerRoleMasterMemoryLimit) {
-        Load(context, ChunkHost);
-        Load(context, PerCell);
-    }
+    Load(context, ChunkHost);
+    Load(context, PerCell);
 }
 
 void TMasterMemoryLimits::Save(NCypressServer::TBeginCopyContext& context) const

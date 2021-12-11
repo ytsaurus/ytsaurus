@@ -501,44 +501,20 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
 void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceContext& context)
 {
-    auto reign = context.GetVersion();
-    #define PERSIST(camelCaseName, snakeCaseName) \
-        { \
-            if (reign < EMasterReign::CorrectMergeBranchSemanticsForAttributes) { \
-                YT_VERIFY(context.IsLoad()); \
-                std::optional<decltype(camelCaseName)::TValue> optionalAttribute; \
-                if (TString(#snakeCaseName) == "tablet_cell_bundle") { \
-                    decltype(camelCaseName)::TValue bundle = {}; \
-                    Persist(context, bundle); \
-                    optionalAttribute = bundle; \
-                } else { \
-                    Persist(context, optionalAttribute); \
-                } \
-                if (optionalAttribute) { \
-                    camelCaseName.SetOrReset(std::move(*optionalAttribute)); \
-                } else { \
-                    camelCaseName.Reset(); \
-                } \
-            } else { \
-                Persist(context, camelCaseName); \
-            } \
-        }
-
     using NYT::Persist;
 
-    PERSIST(CompressionCodec, compression_codec);
-    PERSIST(ErasureCodec, erasure_codec);
-    PERSIST(ReplicationFactor, replication_factor);
-    PERSIST(Vital, vital);
-    PERSIST(Atomicity, atomicity);
-    PERSIST(CommitOrdering, commit_ordering);
-    PERSIST(InMemoryMode, in_memory_mode);
-    PERSIST(OptimizeFor, optimize_for);
+    Persist(context, CompressionCodec);
+    Persist(context, ErasureCodec);
+    Persist(context, ReplicationFactor);
+    Persist(context, Vital);
+    Persist(context, Atomicity);
+    Persist(context, CommitOrdering);
+    Persist(context, InMemoryMode);
+    Persist(context, OptimizeFor);
+    Persist(context, ProfilingMode);
+    Persist(context, ProfilingTag);
 
-    if (reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3) {
-        PERSIST(ProfilingMode, profiling_mode);
-        PERSIST(ProfilingTag, profiling_tag);
-    }
+    auto reign = context.GetVersion();
     if (reign >= EMasterReign::InheritEnableChunkMerger && reign < EMasterReign::ChunkMergeModes) {
         // Context is Load if we are here.
         auto optionalEnable = Load<TVersionedBuiltinAttribute<bool>>(context.LoadContext()).ToOptional();
@@ -549,11 +525,9 @@ void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceCon
     if (reign >= EMasterReign::ChunkMergeModes) {
         Persist(context, ChunkMergerMode);
     }
-    PERSIST(PrimaryMediumIndex, primary_medium);
-    PERSIST(Media, media);
-    PERSIST(TabletCellBundle, tablet_cell_bundle)
-
-#undef PERSIST
+    Persist(context, PrimaryMediumIndex);
+    Persist(context, Media);
+    Persist(context, TabletCellBundle);
 }
 
 void TCompositeNodeBase::TAttributes::Persist(const NCypressServer::TCopyPersistenceContext& context)

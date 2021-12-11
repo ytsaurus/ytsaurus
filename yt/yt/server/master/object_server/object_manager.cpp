@@ -942,10 +942,7 @@ void TObjectManager::TImpl::LoadKeys(NCellMaster::TLoadContext& context)
 
     SchemaMap_.LoadKeys(context);
     GarbageCollector_->LoadKeys(context);
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::ShardedTransactions) {
-        MutationIdempotizer_->Load(context);
-    }
+    MutationIdempotizer_->Load(context);
 }
 
 void TObjectManager::TImpl::LoadValues(NCellMaster::TLoadContext& context)

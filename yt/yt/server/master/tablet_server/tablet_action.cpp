@@ -90,11 +90,7 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
     Load(context, CorrelationId_);
     Load(context, ExpirationTime_);
     Load(context, TabletCellBundle_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::TabletIdsForFinishedTabletActions) {
-        Load(context, SavedTabletIds_);
-    }
+    Load(context, SavedTabletIds_);
 }
 
 bool TTabletAction::IsFinished() const

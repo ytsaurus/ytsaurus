@@ -127,24 +127,9 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
         Load(context, TablesWithBackupBarriers_);
     }
     Load(context, Depth_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::OptionalDedicatedUploadTxObjectTypes) {
-        auto type = TypeFromId(Id_);
-        Upload_ = type == EObjectType::UploadTransaction ||
-            type == EObjectType::UploadNestedTransaction;
-    } else {
-        Load(context, Upload_);
-    }
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::NativeContentRevision) {
-        Load(context, NativeCommitMutationRevision_);
-    }
-    // COMPAT(ignat)
-    if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease ||
-        (context.GetVersion() >= EMasterReign::AccountResourceUsageLease_20_3 && IsEpoch_20_3(context.GetVersion())))
-    {
-        Load(context, AccountResourceUsageLeases_);
-    }
+    Load(context, Upload_);
+    Load(context, NativeCommitMutationRevision_);
+    Load(context, AccountResourceUsageLeases_);
 }
 
 const TTransaction* TTransaction::GetTopmostTransaction() const

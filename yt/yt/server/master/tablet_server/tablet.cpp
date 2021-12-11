@@ -63,25 +63,9 @@ void TTabletCellStatisticsBase::Persist(const NCellMaster::TPersistenceContext& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUncountableTabletCellStatisticsBase::Persist(const NCellMaster::TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    if (context.GetVersion() < EMasterReign::DropHealthFromTabletCellStatistics) {
-        bool decommissioned = false;
-        ETabletCellHealth health = ETabletCellHealth::Initializing;
-
-        Persist(context, decommissioned);
-        Persist(context, health);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TTabletCellStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     TTabletCellStatisticsBase::Persist(context);
-    TUncountableTabletCellStatisticsBase::Persist(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

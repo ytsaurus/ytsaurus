@@ -152,8 +152,6 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    // COMPAT(shakurov)
-    bool NeedMakePortalEntrancesOpaque_ = false;
 
     void SaveKeys(NCellMaster::TSaveContext& /*context*/) const
     { }
@@ -178,9 +176,6 @@ private:
         using NYT::Load;
         Load(context, EntranceNodes_);
         Load(context, ExitNodes_);
-
-        // COMPAT(shakurov)
-        NeedMakePortalEntrancesOpaque_ = context.GetVersion() < EMasterReign::OpaquePortalEntrances;
     }
 
     void Clear() override
@@ -196,8 +191,6 @@ private:
     void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        NeedMakePortalEntrancesOpaque_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -205,13 +198,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        // COMPAT(shakurov)
-        if (NeedMakePortalEntrancesOpaque_) {
-            for (auto [nodeId, node] : EntranceNodes_) {
-                node->SetOpaque(true);
-            }
-        }
     }
 
 
