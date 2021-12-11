@@ -789,12 +789,16 @@ public:
 
     TPromise<TYsonString> Run()
     {
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        auto invoker = hydraFacade->IsAutomatonLocked()
+            ? hydraFacade->CreateEpochInvoker(GetCurrentInvoker())
+            : hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::CypressTraverser);
         TraverseCypress(
             Bootstrap_->GetCypressManager(),
             Bootstrap_->GetTransactionManager(),
             Bootstrap_->GetObjectManager(),
             Bootstrap_->GetSecurityManager(),
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::CypressTraverser),
+            std::move(invoker),
             TrunkRootNode_,
             RootNodeTransaction_,
             this);
