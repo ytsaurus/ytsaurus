@@ -13,13 +13,14 @@ class TLockManager
 {
 public:
     TLockManager();
-
     ~TLockManager();
 
     void Lock(TTimestamp timestamp, TTransactionId transactionId, bool confirmed);
-    std::vector<TTransactionId> RemoveUnconfirmedTransactions();
     void Unlock(TTimestamp commitTimestamp, TTransactionId transactionId);
     TLockManagerEpoch GetEpoch() const;
+
+    std::vector<TTransactionId> ExtractUnconfirmedTransactionIds();
+    bool HasUnconfirmedTransactions() const;
 
     void Wait(TTimestamp timestamp, TLockManagerEpoch epoch);
     TError ValidateTransactionConflict(TTimestamp startTimestamp) const;
@@ -30,7 +31,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLockManager)

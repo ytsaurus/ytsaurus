@@ -32,20 +32,13 @@ public:
         LockCounter_++;
         YT_VERIFY(Transactions_.emplace(transactionId, timestamp).second);
         if (!confirmed) {
-            UnconfirmedTransactions_.push_back(transactionId);
+            UnconfirmedTransactionIds_.push_back(transactionId);
         }
 
         {
             auto guard = Guard(SpinLock_);
             YT_VERIFY(SharedQueue_.emplace(timestamp, NewPromise<void>()).second);
         }
-    }
-
-    std::vector<TTransactionId> RemoveUnconfirmedTransactions()
-    {
-        auto result = std::move(UnconfirmedTransactions_);
-        UnconfirmedTransactions_.clear();
-        return result;
     }
 
     void Unlock(TTimestamp commitTimestamp, TTransactionId transactionId)
@@ -67,6 +60,18 @@ public:
                 SharedQueue_.erase(it);
             }
         }
+    }
+
+    std::vector<TTransactionId> ExtractUnconfirmedTransactionIds()
+    {
+        auto result = std::move(UnconfirmedTransactionIds_);
+        UnconfirmedTransactionIds_.clear();
+        return result;
+    }
+
+    bool HasUnconfirmedTransactions() const
+    {
+        return !UnconfirmedTransactionIds_.empty();
     }
 
     TLockManagerEpoch GetEpoch() const
@@ -111,8 +116,8 @@ public:
     void BuildOrchidYson(NYTree::TFluentMap fluent) const
     {
         THashSet<TTransactionId> unconfirmedTransactionsSet(
-            UnconfirmedTransactions_.begin(),
-            UnconfirmedTransactions_.end());
+            UnconfirmedTransactionIds_.begin(),
+            UnconfirmedTransactionIds_.end());
 
         fluent
             .DoFor(
@@ -131,7 +136,7 @@ public:
         using NYT::Persist;
         Persist(context, LockCounter_);
         Persist(context, Transactions_);
-        Persist(context, UnconfirmedTransactions_);
+        Persist(context, UnconfirmedTransactionIds_);
 
         if (context.IsLoad()) {
             SharedQueue_.clear();
@@ -146,10 +151,10 @@ public:
     }
 
 private:
-    std::atomic<int> LockCounter_;
-    std::atomic<TLockManagerEpoch> Epoch_;
+    std::atomic<int> LockCounter_ = 0;
+    std::atomic<TLockManagerEpoch> Epoch_ = 0;
     THashMap<TTransactionId, TTimestamp> Transactions_;
-    std::vector<TTransactionId> UnconfirmedTransactions_;
+    std::vector<TTransactionId> UnconfirmedTransactionIds_;
     TTimestamp LastCommitTimestamp_ = MinTimestamp;
 
     YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
@@ -192,22 +197,26 @@ TLockManager::TLockManager()
     : Impl_(New<TImpl>())
 { }
 
-TLockManager::~TLockManager()
-{ }
+TLockManager::~TLockManager() = default;
 
 void TLockManager::Lock(TTimestamp timestamp, TTransactionId transactionId, bool confirmed)
 {
     Impl_->Lock(timestamp, transactionId, confirmed);
 }
 
-std::vector<TTransactionId> TLockManager::RemoveUnconfirmedTransactions()
-{
-    return Impl_->RemoveUnconfirmedTransactions();
-}
-
 void TLockManager::Unlock(TTimestamp commitTimestamp, TTransactionId transactionId)
 {
     Impl_->Unlock(commitTimestamp, transactionId);
+}
+
+std::vector<TTransactionId> TLockManager::ExtractUnconfirmedTransactionIds()
+{
+    return Impl_->ExtractUnconfirmedTransactionIds();
+}
+
+bool TLockManager::HasUnconfirmedTransactions() const
+{
+    return Impl_->HasUnconfirmedTransactions();
 }
 
 TLockManagerEpoch TLockManager::GetEpoch() const
