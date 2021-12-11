@@ -4560,8 +4560,9 @@ private:
                 }
 
                 for (auto* child : tablet->GetChunkList()->Children()) {
-                    if (child->GetType() == EObjectType::SortedDynamicTabletStore ||
-                        child->GetType() == EObjectType::OrderedDynamicTabletStore)
+                    if (child &&
+                        (child->GetType() == EObjectType::SortedDynamicTabletStore ||
+                         child->GetType() == EObjectType::OrderedDynamicTabletStore))
                     {
                         child->AsDynamicStore()->SetTablet(tablet);
                         ++relationCount;
