@@ -12,7 +12,7 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_flush_table, sync_enable_table_replica, sync_disable_table_replica,
     remove_table_replica, alter_table_replica, get_in_sync_replicas, sync_alter_table_replica_mode,
-    get_driver, SyncLastCommittedTimestamp, raises_yt_error)
+    get_driver, SyncLastCommittedTimestamp, raises_yt_error, get_singular_chunk_id)
 
 from yt.test_helpers import are_items_equal, assert_items_equal
 import yt_error_codes
@@ -2884,3 +2884,36 @@ class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
             assert lookup_rows("//tmp/t", keys, cached_sync_replicas_timeout=5000) == rows
         for _ in range(10):
             assert lookup_rows("//tmp/t", keys, cached_sync_replicas_timeout=100) == rows
+
+
+##################################################################
+
+
+class TestErasureReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
+    @authors("babenko")
+    def test_erasure_replicated_table(self):
+        self._create_cells()
+
+        erasure_codec = "isa_lrc_12_2_2"
+        self._create_replicated_table("//tmp/t", erasure_codec=erasure_codec)
+
+        replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r",
+            attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", replica_id)
+
+        rows = [{"key": i, "value1": "test" + str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
+
+        sync_unmount_table("//tmp/t")
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        assert get("#{}/@erasure_codec".format(chunk_id)) == erasure_codec
+
+        sync_mount_table("//tmp/t")
+
+        sync_enable_table_replica(replica_id)
+
+        wait(lambda: select_rows("key, value1 from [//tmp/r] order by key limit 100", driver=self.replica_driver) == rows)
