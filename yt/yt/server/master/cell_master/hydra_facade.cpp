@@ -294,6 +294,13 @@ public:
         AutomatonQueue_->Reconfigure(newConfig->AutomatonThreadBucketWeights);
     }
 
+    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker)
+    {
+        VerifyPersistentStateRead();
+
+        return EpochCancelableContext_->CreateInvoker(std::move(underlyingInvoker));
+    }
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -319,12 +326,13 @@ private:
 
     std::atomic<bool> AutomatonBlocked_ = false;
 
+    TCancelableContextPtr EpochCancelableContext_;
+
     void OnStartEpoch()
     {
-        auto cancelableContext = HydraManager_->GetAutomatonCancelableContext();
+        EpochCancelableContext_ = HydraManager_->GetAutomatonCancelableContext();
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
-            auto unguardedInvoker = GetAutomatonInvoker(queue);
-            EpochInvokers_[queue] = cancelableContext->CreateInvoker(unguardedInvoker);
+            EpochInvokers_[queue] = CreateEpochInvoker(GetAutomatonInvoker(queue));
         }
 
         NObjectServer::BeginEpoch();
@@ -335,6 +343,7 @@ private:
         std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
 
         NObjectServer::EndEpoch();
+        EpochCancelableContext_ = nullptr;
     }
 
     static THashMap<EAutomatonThreadBucket, std::vector<EAutomatonThreadQueue>> GetAutomatonThreadBuckets()
@@ -447,6 +456,11 @@ void THydraFacade::RequireLeader() const
 void THydraFacade::Reconfigure(const TDynamicCellMasterConfigPtr& newConfig)
 {
     Impl_->Reconfigure(newConfig);
+}
+
+IInvokerPtr THydraFacade::CreateEpochInvoker(IInvokerPtr underlyingInvoker)
+{
+    return Impl_->CreateEpochInvoker(std::move(underlyingInvoker));
 }
 
 const NObjectServer::TEpochContextPtr& THydraFacade::GetEpochContext() const

@@ -1480,8 +1480,12 @@ public:
             ->GetSecurityManager()
             ->GetAuthenticatedUser()
             ->GetName())
-        , ThreadQueue_(threadQueue)
-    { }
+    {
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        Invoker_ = hydraFacade->IsAutomatonLocked()
+            ? hydraFacade->CreateEpochInvoker(GetCurrentInvoker())
+            : hydraFacade->GetEpochAutomatonInvoker(threadQueue);
+    }
 
     bool IsSynchronous() const override
     {
@@ -1490,9 +1494,7 @@ public:
 
     IInvokerPtr GetInvoker() const override
     {
-        return Bootstrap_
-            ->GetHydraFacade()
-            ->GetEpochAutomatonInvoker(ThreadQueue_);
+        return Invoker_;
     }
 
     void OnTimeSpent(TDuration time) override
@@ -1517,7 +1519,7 @@ public:
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const TString UserName_;
-    const NCellMaster::EAutomatonThreadQueue ThreadQueue_;
+    IInvokerPtr Invoker_;
 
 };
 

@@ -63,6 +63,8 @@ public:
 
     void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig);
 
+    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker);
+
     const NObjectServer::TEpochContextPtr& GetEpochContext() const;
 
 private:
