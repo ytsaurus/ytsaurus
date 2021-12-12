@@ -8,8 +8,9 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/parser_helpers.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/varint.h>
-#include <yt/yt/core/misc/zigzag.h>
+
+#include <library/cpp/yt/coding/varint.h>
+#include <library/cpp/yt/coding/zig_zag.h>
 
 #include <util/generic/string.h>
 

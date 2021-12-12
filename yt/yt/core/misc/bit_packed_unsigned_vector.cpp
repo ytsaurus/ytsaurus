@@ -1,5 +1,6 @@
 #include "bit_packed_unsigned_vector.h"
-#include "zigzag.h"
+
+#include <library/cpp/yt/coding/zig_zag.h>
 
 namespace NYT {
 

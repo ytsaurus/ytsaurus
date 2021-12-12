@@ -1,13 +1,13 @@
-#pragma once
-
-#include <util/system/defaults.h>
+#ifndef ZIG_ZAG_INL_H_
+#error "Direct inclusion of this file is not allowed, include zig_zag.h"
+// For the sake of sane code completion.
+#include "zig_zag.h"
+#endif
+#undef ZIG_ZAG_INL_H_
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//! Functions that provide coding of integers with property: 0 <= f(x) <= 2 * |x|
-//! Actually taken 'as is' from protobuf/wire_format_lite.h
 
 inline ui32 ZigZagEncode32(i32 n)
 {

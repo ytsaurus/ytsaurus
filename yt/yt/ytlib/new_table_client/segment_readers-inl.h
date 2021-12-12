@@ -5,6 +5,8 @@
 #endif
 #undef SEGMENT_READERS_INL_H_
 
+#include <library/cpp/yt/coding/zig_zag.h>
+
 namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////

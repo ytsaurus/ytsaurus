@@ -1,6 +1,6 @@
 #include "timestamp_reader.h"
 
-#include <yt/yt/core/misc/zigzag.h>
+#include <library/cpp/yt/coding/zig_zag.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -185,7 +185,7 @@ void TTransactionTimestampReaderBase::DoPrepareRows(i64 rowCount)
     PreparedRowCount_ = rowCount;
 
     EnsureCurrentSegmentReader();
-    
+
     TimestampIndexRanges_.reserve(rowCount);
     DeleteTimestamps_.reserve(rowCount);
     WriteTimestamps_.reserve(rowCount);
@@ -203,7 +203,7 @@ void TTransactionTimestampReaderBase::DoSkipPreparedRows()
     TimestampIndexRanges_.clear();
     DeleteTimestamps_.clear();
     WriteTimestamps_.clear();
-    
+
     CurrentRowIndex_ += PreparedRowCount_;
     PreparedRowCount_ = 0;
 

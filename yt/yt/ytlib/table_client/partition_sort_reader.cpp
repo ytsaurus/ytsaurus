@@ -15,7 +15,6 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/heap.h>
-#include <yt/yt/core/misc/varint.h>
 
 #include <yt/yt/core/profiling/profiler.h>
 

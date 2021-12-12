@@ -10,8 +10,9 @@
 
 #include <yt/yt/client/table_client/value_consumer.h>
 
-#include <yt/yt/core/misc/varint.h>
 #include <yt/yt/core/misc/finally.h>
+
+#include <library/cpp/yt/coding/varint.h>
 
 #include <util/generic/buffer.h>
 #include <util/generic/scope.h>

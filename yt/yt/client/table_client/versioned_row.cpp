@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/format.h>
 
+#include <library/cpp/yt/coding/varint.h>
+
 #include <numeric>
 
 namespace NYT::NTableClient {
