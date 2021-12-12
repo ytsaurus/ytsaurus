@@ -1,6 +1,6 @@
-#include <yt/yt/core/test_framework/framework.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
-#include <yt/yt/core/misc/varint.h>
+#include <library/cpp/yt/coding/varint.h>
 
 #include <util/random/random.h>
 

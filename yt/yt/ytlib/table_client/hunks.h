@@ -9,11 +9,12 @@
 
 #include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/range.h>
-#include <yt/yt/core/misc/varint.h>
 
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/actions/future.h>
+
+#include <library/cpp/yt/coding/varint.h>
 
 #include <variant>
 

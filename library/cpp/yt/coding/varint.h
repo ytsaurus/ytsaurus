@@ -2,10 +2,18 @@
 
 #include <util/system/defaults.h>
 
-class IOutputStream;
-class IInputStream;
+#include <util/stream/input.h>
+#include <util/stream/output.h>
+
+#include <util/generic/yexception.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVarintException
+    : public yexception
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

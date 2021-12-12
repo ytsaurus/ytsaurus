@@ -10,8 +10,9 @@
 #include <yt/yt/core/yson/lexer.h>
 
 #include <yt/yt/core/misc/bitmap.h>
-#include <yt/yt/core/misc/zigzag.h>
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
+
+#include <library/cpp/yt/coding/zig_zag.h>
 
 namespace NYT::NTableChunkFormat {
 

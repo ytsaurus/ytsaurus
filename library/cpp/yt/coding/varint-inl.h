@@ -4,12 +4,7 @@
 #include "varint.h"
 #endif
 
-#include "zigzag.h"
-
-#include <yt/yt/core/misc/error.h>
-
-#include <util/stream/input.h>
-#include <util/stream/output.h>
+#include <library/cpp/yt/coding/zig_zag.h>
 
 namespace NYT {
 
@@ -113,7 +108,7 @@ Y_FORCE_INLINE int ReadVarUint64Impl(TReadCallback doRead, ui64* value)
     ui8 byte;
     do {
         if (7 * count > 8 * sizeof(ui64) ) {
-            THROW_ERROR_EXCEPTION("Value is too big for uint64");
+            ythrow TVarintException() << "Value is too big for varuint64";
         }
         byte = doRead();
         result |= (static_cast<ui64> (byte & 0x7F)) << (7 * count);
@@ -129,7 +124,7 @@ Y_FORCE_INLINE int ReadVarUint64(IInputStream* input, ui64* value)
     return ReadVarUint64Impl([&] () {
         char byte;
         if (input->Read(&byte, 1) != 1) {
-            THROW_ERROR_EXCEPTION("Premature end of stream while reading uint64");
+            ythrow TVarintException() << "Premature end of stream while reading varuint64";
         }
         return byte;
     }, value);
@@ -148,7 +143,7 @@ Y_FORCE_INLINE int ReadVarUint64(const char* input, const char* end, ui64* value
 {
     return ReadVarUint64Impl([&] () {
         if (input == end) {
-            THROW_ERROR_EXCEPTION("Premature end of data while reading uint64");
+            ythrow TVarintException() << "Premature end of data while reading varuint64";
         }
         char byte = *input;
         ++input;
@@ -164,7 +159,7 @@ Y_FORCE_INLINE int ReadVarUint32Impl(ui32* value, Args... args)
     ui64 varInt;
     int bytesRead = ReadVarUint64(args..., &varInt);
     if (varInt > std::numeric_limits<ui32>::max()) {
-        THROW_ERROR_EXCEPTION("Value is too big for uint32");
+        ythrow TVarintException() << "Value is too big for varuint32";
     }
     *value = static_cast<ui32>(varInt);
     return bytesRead;
@@ -193,7 +188,7 @@ Y_FORCE_INLINE int ReadVarInt32Impl(i32* value, Args... args)
     ui64 varInt;
     int bytesRead = ReadVarUint64(args..., &varInt);
     if (varInt > std::numeric_limits<ui32>::max()) {
-        THROW_ERROR_EXCEPTION("Value is too big for int32");
+        ythrow TVarintException() << "Value is too big for varint32";
     }
     *value = ZigZagDecode32(static_cast<ui32>(varInt));
     return bytesRead;

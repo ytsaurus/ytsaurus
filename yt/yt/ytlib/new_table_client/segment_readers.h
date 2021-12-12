@@ -12,8 +12,6 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
-#include <yt/yt/core/misc/zigzag.h>
-
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/algorithm_helpers.h>
 

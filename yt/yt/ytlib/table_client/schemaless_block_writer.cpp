@@ -1,5 +1,7 @@
 #include "schemaless_block_writer.h"
 
+#include <library/cpp/yt/coding/varint.h>
+
 namespace NYT::NTableClient {
 
 using namespace NProto;

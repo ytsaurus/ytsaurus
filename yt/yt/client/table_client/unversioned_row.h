@@ -11,7 +11,6 @@
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/string.h>
-#include <yt/yt/core/misc/varint.h>
 
 #include <yt/yt/core/yson/public.h>
 

@@ -6,10 +6,10 @@
 
 #include "detail.h"
 
+#include <library/cpp/yt/coding/varint.h>
+
 #include <util/generic/typetraits.h>
 #include <util/string/escape.h>
-
-#include <yt/yt/core/misc/varint.h>
 
 #include <cctype>
 
