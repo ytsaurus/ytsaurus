@@ -552,8 +552,6 @@ private:
 
     const IYPathServicePtr OrchidService_;
 
-    bool RemoveDynamicStoresFromFrozenTablets_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -607,14 +605,6 @@ private:
         Load(context, CellLifeStage_);
 
         Automaton_->RememberReign(static_cast<TReign>(context.GetVersion()));
-
-        // COMPAT(ifsmirnov)
-        // NB. Comparison is correct here. Frozen tablets used to have dynamic stores
-        // before mentioned reign. We want to remove them when compatibility snapshot is
-        // built. For regular snapshots built later this compat is a no-op.
-        if (context.GetVersion() >= ETabletReign::DynamicStoreRead) {
-            RemoveDynamicStoresFromFrozenTablets_ = true;
-        }
     }
 
     void LoadAsync(TLoadContext& context)
@@ -639,19 +629,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnAfterSnapshotLoaded();
-
-        // NB: Dynamic stores should be removed before store managers are created.
-        // COMPAT(ifsmirnov)
-        if (RemoveDynamicStoresFromFrozenTablets_) {
-            for (const auto& [id, tablet] : TabletMap_) {
-                if (tablet->GetState() == ETabletState::Frozen) {
-                    if (auto activeStore = tablet->GetActiveStore()) {
-                        tablet->RemoveStore(activeStore);
-                        tablet->SetActiveStore(nullptr);
-                    }
-                }
-            }
-        }
 
         for (auto [tabletId, tablet] : TabletMap_) {
             tablet->SetStructuredLogger(
@@ -800,12 +777,10 @@ private:
         tablet->SetStoreManager(storeManager);
         PopulateDynamicStoreIdPool(tablet, request);
 
-        // COMPAT(ifsmirnov)
-        const auto* mutationContext = GetCurrentMutationContext();
         storeManager->Mount(
             MakeRange(request->stores()),
             MakeRange(request->hunk_chunks()),
-            mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DynamicStoreRead) ? !freeze : true,
+            /*createDynamicStore*/ !freeze,
             mountHint);
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
@@ -1000,23 +975,13 @@ private:
 
         tablet->SetState(ETabletState::Mounted);
 
-        auto mutationReign = GetCurrentMutationContext()->Request().Reign;
-
-        const auto& storeManager = tablet->GetStoreManager();
-
         PopulateDynamicStoreIdPool(tablet, request);
 
-        // COMPAT(ifsmirnov)
-        if (mutationReign >= ToUnderlying(ETabletReign::DynamicStoreRead)) {
-            storeManager->Rotate(true, EStoreRotationReason::None);
-        }
-
+        const auto& storeManager = tablet->GetStoreManager();
+        storeManager->Rotate(true, EStoreRotationReason::None);
         storeManager->InitializeRotation();
 
-        // COMPAT(ifsmirnov)
-        if (mutationReign >= ToUnderlying(ETabletReign::DynamicStoreRead)) {
-            UpdateTabletSnapshot(tablet);
-        }
+        UpdateTabletSnapshot(tablet);
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
@@ -1174,14 +1139,7 @@ private:
                 tablet->SetState(requestedState);
 
                 const auto& storeManager = tablet->GetStoreManager();
-                // COMPAT(ifsmirnov)
-                if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::DynamicStoreRead)) {
-                    storeManager->Rotate(false, EStoreRotationReason::None);
-                } else if (requestedState == ETabletState::UnmountFlushing ||
-                    storeManager->IsFlushNeeded())
-                {
-                    storeManager->Rotate(requestedState == ETabletState::FreezeFlushing, EStoreRotationReason::None);
-                }
+                storeManager->Rotate(false, EStoreRotationReason::None);
 
                 YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (%v, NewState: %v)",
                     tablet->GetLoggingTag(),
