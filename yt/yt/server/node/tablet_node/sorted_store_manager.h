@@ -141,13 +141,6 @@ private:
         TSortedDynamicRow row,
         int lockIndex);
 
-    // COMPAT(akozhikhov)
-    void BuildPivotKeysBeforeGiantTabletProblem(
-        std::vector<TLegacyOwningKey>* pivotKeys,
-        const std::vector<TBoundaryDescriptor>& chunkBoundaries);
-    void BuildPivotKeysBeforeChunkViewsForPivots(
-        std::vector<TLegacyOwningKey>* pivotKeys,
-        const std::vector<TBoundaryDescriptor>& chunkBoundaries);
     void BuildPivotKeys(
         std::vector<TLegacyOwningKey>* pivotKeys,
         const std::vector<TBoundaryDescriptor>& chunkBoundaries);

@@ -312,42 +312,6 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
     return true;
 }
 
-void TSortedStoreManager::BuildPivotKeysBeforeGiantTabletProblem(
-    std::vector<TLegacyOwningKey>* pivotKeys,
-    const std::vector<TBoundaryDescriptor>& chunkBoundaries)
-{
-    int depth = 0;
-    for (const auto& boundary : chunkBoundaries) {
-        if (boundary.Type == -1 && depth == 0 && boundary.Key > Tablet_->GetPivotKey()) {
-            pivotKeys->push_back(boundary.Key);
-        }
-        depth -= boundary.Type;
-    }
-}
-
-void TSortedStoreManager::BuildPivotKeysBeforeChunkViewsForPivots(
-    std::vector<TLegacyOwningKey>* pivotKeys,
-    const std::vector<TBoundaryDescriptor>& chunkBoundaries)
-{
-    int depth = 0;
-    i64 cumulativeDataSize = 0;
-    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
-    for (const auto& boundary : chunkBoundaries) {
-        if (boundary.Type == -1 &&
-            depth == 0 &&
-            boundary.Key > Tablet_->GetPivotKey() &&
-            cumulativeDataSize >= mountConfig->MinPartitionDataSize)
-        {
-            pivotKeys->push_back(boundary.Key);
-            cumulativeDataSize = 0;
-        }
-        if (boundary.Type == -1) {
-            cumulativeDataSize += boundary.DataSize;
-        }
-        depth -= boundary.Type;
-    }
-}
-
 void TSortedStoreManager::BuildPivotKeys(
     std::vector<TLegacyOwningKey>* pivotKeys,
     const std::vector<TBoundaryDescriptor>& chunkBoundaries)
@@ -388,12 +352,7 @@ void TSortedStoreManager::Mount(
 
     auto edenStoreIds = FromProto<THashSet<TStoreId>>(mountHint.eden_store_ids());
 
-    auto isEden = [&] (bool isEdenChunk, const TStoreId& storeId) {
-        // COMPAT(ifsmirnov)
-        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::MountHint)) {
-            return isEdenChunk;
-        }
-
+    auto isEden = [&] (bool isEdenChunk, TStoreId storeId) {
         // NB: Old tablets may lack eden store ids on master.
         return edenStoreIds.empty()
             ? isEdenChunk
@@ -413,60 +372,40 @@ void TSortedStoreManager::Mount(
         auto minBoundaryKey = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
         auto maxBoundaryKey = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
 
-        // COMPAT(akozhikhov)
-        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewsForPivots))  {
-            chunkBoundaries.push_back({minBoundaryKey, -1, descriptorIndex, miscExt.compressed_data_size()});
-            chunkBoundaries.push_back({maxBoundaryKey, 1, descriptorIndex, miscExt.compressed_data_size()});
-            ++descriptorIndex;
+        const auto& chunkViewDescriptor = descriptor->chunk_view_descriptor();
+
+        // Here we use three types.
+        // 0 - )
+        // 1 - [
+        // 2 - ]
+        TLegacyOwningKey minKey;
+        if (chunkViewDescriptor.read_range().lower_limit().has_legacy_key()) {
+            auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkViewDescriptor.read_range().lower_limit().legacy_key());
+            minKey = std::max(chunkViewLimit, minBoundaryKey);
         } else {
-            const auto& chunkViewDescriptor = descriptor->chunk_view_descriptor();
+            minKey = std::move(minBoundaryKey);
+        }
 
-            // Here we use three types.
-            // 0 - )
-            // 1 - [
-            // 2 - ]
-            TLegacyOwningKey minKey;
-            if (chunkViewDescriptor.read_range().lower_limit().has_legacy_key()) {
-                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkViewDescriptor.read_range().lower_limit().legacy_key());
-
-                // COMPAT(ifsmirnov)
-                if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewWideRange_YT_12532)) {
-                    minKey = chunkViewLimit;
-                } else {
-                    minKey = std::max(chunkViewLimit, minBoundaryKey);
-                }
-            } else {
-                minKey = std::move(minBoundaryKey);
-            }
-
-            int maxKeyType;
-            TLegacyOwningKey maxKey;
-            if (chunkViewDescriptor.read_range().upper_limit().has_legacy_key()) {
-                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkViewDescriptor.read_range().upper_limit().legacy_key());
-
-                // COMPAT(ifsmirnov)
-                if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewWideRange_YT_12532)) {
-                    maxKeyType = 0;
-                    maxKey = chunkViewLimit;
-                } else {
-                    if (chunkViewLimit <= maxBoundaryKey) {
-                        maxKeyType = 0;
-                        maxKey = chunkViewLimit;
-                    } else {
-                        maxKeyType = 2;
-                        maxKey = maxBoundaryKey;
-                    }
-                }
+        int maxKeyType;
+        TLegacyOwningKey maxKey;
+        if (chunkViewDescriptor.read_range().upper_limit().has_legacy_key()) {
+            auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkViewDescriptor.read_range().upper_limit().legacy_key());
+            if (chunkViewLimit <= maxBoundaryKey) {
+                maxKeyType = 0;
+                maxKey = chunkViewLimit;
             } else {
                 maxKeyType = 2;
-                maxKey = std::move(maxBoundaryKey);
+                maxKey = maxBoundaryKey;
             }
-
-            chunkBoundaries.push_back({WidenKey(minKey, schema.GetKeyColumnCount()), 1, descriptorIndex, miscExt.compressed_data_size()});
-            chunkBoundaries.push_back({WidenKey(maxKey, schema.GetKeyColumnCount()), maxKeyType, descriptorIndex, -1});
-
-            ++descriptorIndex;
+        } else {
+            maxKeyType = 2;
+            maxKey = std::move(maxBoundaryKey);
         }
+
+        chunkBoundaries.push_back({WidenKey(minKey, schema.GetKeyColumnCount()), 1, descriptorIndex, miscExt.compressed_data_size()});
+        chunkBoundaries.push_back({WidenKey(maxKey, schema.GetKeyColumnCount()), maxKeyType, descriptorIndex, -1});
+
+        ++descriptorIndex;
     }
 
     if (!chunkBoundaries.empty()) {
@@ -490,15 +429,7 @@ void TSortedStoreManager::Mount(
         }
 
         std::vector<TLegacyOwningKey> pivotKeys{Tablet_->GetPivotKey()};
-
-        // COMPAT(akozhikhov)
-        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::GiantTabletProblem)) {
-            BuildPivotKeysBeforeGiantTabletProblem(&pivotKeys, chunkBoundaries);
-        } else if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewsForPivots)) {
-            BuildPivotKeysBeforeChunkViewsForPivots(&pivotKeys, chunkBoundaries);
-        } else {
-            BuildPivotKeys(&pivotKeys, chunkBoundaries);
-        }
+        BuildPivotKeys(&pivotKeys, chunkBoundaries);
 
         YT_VERIFY(Tablet_->PartitionList().size() == 1);
         DoSplitPartition(0, pivotKeys);

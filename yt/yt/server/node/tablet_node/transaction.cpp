@@ -122,12 +122,7 @@ void TTransaction::Load(TLoadContext& context)
     }
     Load(context, RowsPrepared_);
     Load(context, AuthenticationIdentity_.User);
-    // COMPAT(babenko)
-    if (context.GetVersion() < ETabletReign::AuthenticationIdentity) {
-        AuthenticationIdentity_.UserTag = AuthenticationIdentity_.User;
-    } else {
-        Load(context, AuthenticationIdentity_.UserTag);
-    }
+    Load(context, AuthenticationIdentity_.UserTag);
 }
 
 TCallback<void(TSaveContext&)> TTransaction::AsyncSave()

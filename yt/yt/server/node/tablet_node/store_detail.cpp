@@ -541,12 +541,7 @@ void TChunkStoreBase::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    bool isBefore21_2 = context.GetVersion() < ETabletReign::RowBufferEmptyRowDeserialization;
-    if (context.GetVersion() >= ETabletReign::PersistChunkTimestamp ||
-        (isBefore21_2 && context.GetVersion() >= ETabletReign::PersistChunkTimestamp_20_3))
-    {
-        Load(context, ChunkTimestamp_);
-    }
+    Load(context, ChunkTimestamp_);
 }
 
 TCallback<void(TSaveContext&)> TChunkStoreBase::AsyncSave()

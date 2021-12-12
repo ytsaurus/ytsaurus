@@ -137,16 +137,13 @@ public:
         Persist(context, LockCounter_);
         Persist(context, Transactions_);
         Persist(context, UnconfirmedTransactionIds_);
+        Persist(context, LastCommitTimestamp_);
 
         if (context.IsLoad()) {
             SharedQueue_.clear();
             for (auto [transactionId, timestamp] : Transactions_) {
                 SharedQueue_.emplace(timestamp, NewPromise<void>());
             }
-        }
-
-        if (context.GetVersion() >= ToUnderlying(ETabletReign::BulkInsertOverwrite)) {
-            Persist(context, LastCommitTimestamp_);
         }
     }
 

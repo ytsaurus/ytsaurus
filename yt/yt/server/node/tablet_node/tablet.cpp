@@ -735,16 +735,10 @@ void TTablet::Load(TLoadContext& context)
         }
     }
 
-    // COMPAT(savrus)
-    if (context.GetVersion() >= ETabletReign::BulkInsert) {
-        Load(context, *LockManager_);
-    }
+    Load(context, *LockManager_);
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::DynamicStoreRead) {
-        Load(context, DynamicStoreIdPool_);
-        Load(context, DynamicStoreIdRequested_);
-    }
+    Load(context, DynamicStoreIdPool_);
+    Load(context, DynamicStoreIdRequested_);
 
     // COMPAT(akozhikhov)
     if (context.GetVersion() >= ETabletReign::SchemaIdUponMount) {

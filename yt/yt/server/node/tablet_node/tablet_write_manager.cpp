@@ -705,43 +705,30 @@ private:
         auto delayedLocklessRowCount = tablet->GetDelayedLocklessRowCount();
         switch (replicaInfo.GetMode()) {
             case ETableReplicaMode::Sync: {
-                // COMPAT(babenko)
-                auto reign = GetCurrentMutationContext()->Request().Reign;
-                if (reign < ToUnderlying(ETabletReign::ReplicationBarrier_YT_14346)) {
-                    if (currentReplicationRowIndex < totalRowCount) {
-                        THROW_ERROR_EXCEPTION(
-                            "Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
-                            replicaInfo.GetId(),
-                            tablet->GetId())
-                            << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
-                            << TErrorAttribute("total_row_count", totalRowCount);
+                if (currentReplicationRowIndex < totalRowCount + delayedLocklessRowCount) {
+                    if (replicaInfo.GetState() == ETableReplicaState::Enabled) {
+                        ValidateReplicaStatus(ETableReplicaStatus::SyncCatchingUp, tablet, replicaInfo);
+                    } else {
+                        ValidateReplicaStatus(ETableReplicaStatus::SyncNotWritable, tablet, replicaInfo);
                     }
-                } else {
-                    if (currentReplicationRowIndex < totalRowCount + delayedLocklessRowCount) {
-                        if (replicaInfo.GetState() == ETableReplicaState::Enabled) {
-                            ValidateReplicaStatus(ETableReplicaStatus::SyncCatchingUp, tablet, replicaInfo);
-                        } else {
-                            ValidateReplicaStatus(ETableReplicaStatus::SyncNotWritable, tablet, replicaInfo);
-                        }
-                        THROW_ERROR_EXCEPTION(
-                            "Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
-                            replicaInfo.GetId(),
-                            tablet->GetId())
-                            << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
-                            << TErrorAttribute("total_row_count", totalRowCount)
-                            << TErrorAttribute("delayed_lockless_row_count", delayedLocklessRowCount);
-                    }
-                    if (currentReplicationRowIndex > totalRowCount + delayedLocklessRowCount) {
-                        YT_LOG_ALERT_IF(
-                            IsMutationLoggingEnabled(),
-                            "Current replication row index is too high (TabletId: %v, ReplicaId: %v, "
-                            "CurrentReplicationRowIndex: %v, TotalRowCount: %v, DelayedLocklessRowCount: %v)",
-                            tablet->GetId(),
-                            replicaInfo.GetId(),
-                            currentReplicationRowIndex,
-                            totalRowCount,
-                            delayedLocklessRowCount);
-                    }
+                    THROW_ERROR_EXCEPTION(
+                        "Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
+                        replicaInfo.GetId(),
+                        tablet->GetId())
+                        << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
+                        << TErrorAttribute("total_row_count", totalRowCount)
+                        << TErrorAttribute("delayed_lockless_row_count", delayedLocklessRowCount);
+                }
+                if (currentReplicationRowIndex > totalRowCount + delayedLocklessRowCount) {
+                    YT_LOG_ALERT_IF(
+                        IsMutationLoggingEnabled(),
+                        "Current replication row index is too high (TabletId: %v, ReplicaId: %v, "
+                        "CurrentReplicationRowIndex: %v, TotalRowCount: %v, DelayedLocklessRowCount: %v)",
+                        tablet->GetId(),
+                        replicaInfo.GetId(),
+                        currentReplicationRowIndex,
+                        totalRowCount,
+                        delayedLocklessRowCount);
                 }
                 if (replicaInfo.GetState() != ETableReplicaState::Enabled) {
                     ValidateReplicaStatus(ETableReplicaStatus::SyncNotWritable, tablet, replicaInfo);

@@ -1020,19 +1020,14 @@ private:
             return;
         }
 
-        const auto* mutationContext = GetCurrentMutationContext();
-        if (!mutationContext ||
-            mutationContext->Request().Reign >= ToUnderlying(ETabletReign::AllowFlushWhenDecommissioned))
+        if (TypeFromId(transaction->GetId()) == EObjectType::Transaction &&
+            transaction->AuthenticationIdentity() == GetRootAuthenticationIdentity())
         {
-            if (TypeFromId(transaction->GetId()) == EObjectType::Transaction &&
-                transaction->AuthenticationIdentity() == GetRootAuthenticationIdentity())
-            {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Allow transaction in decommissioned state to proceed "
-                    "(TransactionId: %v, AuthenticationIdentity: %v)",
-                    transaction->GetId(),
-                    transaction->AuthenticationIdentity());
-                return;
-            }
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Allow transaction in decommissioned state to proceed "
+                "(TransactionId: %v, AuthenticationIdentity: %v)",
+                transaction->GetId(),
+                transaction->AuthenticationIdentity());
+            return;
         }
 
         THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
