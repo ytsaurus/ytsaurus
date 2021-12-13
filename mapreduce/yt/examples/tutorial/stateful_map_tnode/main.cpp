@@ -46,7 +46,7 @@ int main(int argc, const char** argv) {
 
     client->Map(
         TMapOperationSpec()
-        .AddInput<TNode>("//home/ermolovd/yt-tutorial/staff_unsorted")
+        .AddInput<TNode>("//home/dev/tutorial/staff_unsorted")
         .AddOutput<TNode>(outputTable),
         new TFilterMapper("Arkady", 2)); // Мы создаём объект TFilterMapper, и конструктор заполняет поля Pattern_ и MaxDistance_.
                                          // Библиотека сериализует поля, указанные в Y_SAVELOAD_JOB, и загружает их на сервер.

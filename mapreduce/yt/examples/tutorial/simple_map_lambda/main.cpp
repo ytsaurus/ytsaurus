@@ -28,7 +28,7 @@ int main(int argc, const char** argv) {
 
     NYT::TransformCopyIf<TLoginRecord, TEmailRecord>(
         client,
-        "//home/ermolovd/yt-tutorial/staff_unsorted",
+        "//home/dev/tutorial/staff_unsorted",
         outputTable,
         [](auto& src, auto& dst) {
             dst.SetName(src.GetName());

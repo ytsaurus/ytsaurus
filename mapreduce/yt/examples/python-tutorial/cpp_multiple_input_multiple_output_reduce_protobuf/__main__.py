@@ -15,11 +15,11 @@ if __name__ == "__main__":
     robot_table = "//tmp/" + getpass.getuser() + "-pytutorial-robots"
 
     yt.wrapper.run_sort(
-        source_table="//home/ermolovd/yt-tutorial/staff_unsorted", destination_table=sorted_staff_table, sort_by=["uid"]
+        source_table="//home/dev/tutorial/staff_unsorted", destination_table=sorted_staff_table, sort_by=["uid"]
     )
 
     yt.wrapper.run_sort(
-        source_table="//home/ermolovd/yt-tutorial/is_robot_unsorted",
+        source_table="//home/dev/tutorial/is_robot_unsorted",
         destination_table=sorted_is_robot_table,
         sort_by=["uid"],
     )

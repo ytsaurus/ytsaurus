@@ -39,8 +39,8 @@ int main(int argc, const char** argv) {
     auto client = CreateClient("freud");
 
 
-    const TString loginTable = "//home/ermolovd/yt-tutorial/staff_unsorted";
-    const TString isRobotTable = "//home/ermolovd/yt-tutorial/is_robot_unsorted";
+    const TString loginTable = "//home/dev/tutorial/staff_unsorted";
+    const TString isRobotTable = "//home/dev/tutorial/is_robot_unsorted";
     const TString outputTable = "//tmp/" + GetUsername() + "-tutorial-robots";
 
     client->Map(

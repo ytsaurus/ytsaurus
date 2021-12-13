@@ -20,7 +20,7 @@ int main(int argc, const char** argv) {
     tracker.AddOperation(
         client->Sort(
             TSortOperationSpec()
-                .AddInput("//home/ermolovd/yt-tutorial/staff_unsorted")
+                .AddInput("//home/dev/tutorial/staff_unsorted")
                 .Output(sortedLoginTable)
                 .SortBy({"uid"}),
             TOperationOptions().Wait(false))); // Wait(false) говорит клиенту не ждать завершения операции
@@ -28,7 +28,7 @@ int main(int argc, const char** argv) {
     tracker.AddOperation(
         client->Sort(
             TSortOperationSpec()
-                .AddInput("//home/ermolovd/yt-tutorial/is_robot_unsorted")
+                .AddInput("//home/dev/tutorial/is_robot_unsorted")
                 .Output(sortedIsRobotTable)
                 .SortBy({"uid"}),
             TOperationOptions().Wait(false)));
