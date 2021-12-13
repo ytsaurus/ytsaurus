@@ -1052,6 +1052,8 @@ private:
             }
         }
 
+        TRack* oldNodeRack = nullptr;
+
         // Kick-out any previous incarnation.
         auto* node = FindNodeByAddress(address);
         auto isNodeNew = !IsObjectAlive(node);
@@ -1077,6 +1079,8 @@ private:
             } else {
                 EnsureNodeDisposed(node);
             }
+
+            oldNodeRack = node->GetRack();
         }
 
         for (auto locationUuid : locationUuids) {
@@ -1112,6 +1116,10 @@ private:
 
             host = FindHostByName(hostName);
             YT_VERIFY(host);
+
+            if (GetDynamicConfig()->PreserveRackForNewHost && oldNodeRack) {
+                SetHostRack(host, oldNodeRack);
+            }
         }
 
         if (!isNodeNew) {

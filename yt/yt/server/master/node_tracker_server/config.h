@@ -107,6 +107,9 @@ public:
 
     bool UseNewHeartbeats;
 
+    // COMPAT(gritukan): Drop this after hosts migration.
+    bool PreserveRackForNewHost;
+
     TDynamicNodeTrackerConfig()
     {
         RegisterParameter("node_groups", NodeGroups)
@@ -154,6 +157,10 @@ public:
 
         RegisterParameter("use_new_heartbeats", UseNewHeartbeats)
             .Default(false);
+
+        RegisterParameter("preserve_rack_for_new_host", PreserveRackForNewHost)
+            .Default(false)
+            .DontSerializeDefault();
     }
 };
 
