@@ -24,9 +24,16 @@ cdef extern from "mapreduce/yt/interface/init.h" namespace "NYT":
 
 
 cdef extern from "mapreduce/yt/client/py_helpers.h" namespace "NYT":
-    IStructuredJobPtr ConstructJob(TString jobName, TString state) except +
+    IStructuredJobPtr ConstructJob(const TString& jobName, const TString& state) except +
     TString GetJobStateString(const IStructuredJob&) except +
-    TString GetIoInfo(const IStructuredJob&, TString, TString, TString, TString, TString) except +
+    TString GetIOInfo(
+        const IStructuredJob&,
+        const TString&,
+        const TString&,
+        const TString&,
+        const TString&,
+        const TString&,
+    ) except +
 
 
 class _ConstructorArgsSentinelClass(object):
@@ -39,10 +46,10 @@ class _ConstructorArgsSentinelClass(object):
 _CONSTRUCTOR_ARGS_SENTINEL = _ConstructorArgsSentinelClass()
 
 
-"""
-Creates C++ job. Check module doc for details.
-"""
 class CppJob:
+    """
+    Creates C++ job. Check module doc for details.
+    """
     def __init__(self, mapper_name=None, constructor_args=_CONSTRUCTOR_ARGS_SENTINEL):
         self._mapper_name = mapper_name if isinstance(mapper_name, bytes) else mapper_name.encode("utf-8")
         self._constructor_args_yson = b""
@@ -50,7 +57,7 @@ class CppJob:
             self._constructor_args_yson = yson.dumps(constructor_args)
 
     def prepare_state_and_spec_patch(self, group_by, input_tables, output_tables, client):
-        cdef IStructuredJobPtr job_ptr = ConstructJob(<TString> self._mapper_name, <TString> self._constructor_args_yson)
+        cdef IStructuredJobPtr job_ptr = ConstructJob(self._mapper_name, self._constructor_args_yson)
         cdef bytes state = <bytes> GetJobStateString(cython.operator.dereference(job_ptr.Get()))
 
         cdef cluster = get_config(client)["proxy"]["url"]
@@ -63,7 +70,7 @@ class CppJob:
 
         needed_columns = group_by if group_by is not None else []
 
-        cdef bytes patch = <bytes> GetIoInfo(
+        cdef bytes patch = <bytes> GetIOInfo(
             cython.operator.dereference(job_ptr.Get()),
             cluster,
             tx_id,

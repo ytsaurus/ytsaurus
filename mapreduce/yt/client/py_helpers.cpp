@@ -19,7 +19,7 @@ using namespace NDetail;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IStructuredJobPtr ConstructJob(TString jobName, TString state)
+IStructuredJobPtr ConstructJob(const TString& jobName, const TString& state)
 {
     auto node = TNode();
     if (!state.empty()) {
@@ -48,13 +48,13 @@ TVector<TStructuredTablePath> NodeToStructuredTablePaths(const TNode& node)
     return result;
 }
 
-TString GetIoInfo(
+TString GetIOInfo(
     const IStructuredJob& job,
-    TString cluster,
-    TString transactionId,
-    TString inputPaths,
-    TString outputPaths,
-    TString neededColumns)
+    const TString& cluster,
+    const TString& transactionId,
+    const TString& inputPaths,
+    const TString& outputPaths,
+    const TString& neededColumns)
 {
     auto client = NDetail::CreateClientImpl(cluster);
     TOperationPreparer preparer(client, GetGuid(transactionId));

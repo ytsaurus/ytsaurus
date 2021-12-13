@@ -6,17 +6,17 @@ namespace NYT {
 
 using IStructuredJobPtr = TIntrusiveConstPtr<IStructuredJob>;
 
-IStructuredJobPtr ConstructJob(TString jobName, TString state);
+IStructuredJobPtr ConstructJob(const TString& jobName, const TString& state);
 
 TString GetJobStateString(const IStructuredJob& job);
 
-TString GetIoInfo(
+TString GetIOInfo(
     const IStructuredJob& job,
-    TString cluster,
-    TString transactionId,
-    TString inputPaths,
-    TString outputPaths,
-    TString neededColumns);
+    const TString& cluster,
+    const TString& transactionId,
+    const TString& inputPaths,
+    const TString& outputPaths,
+    const TString& neededColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 
