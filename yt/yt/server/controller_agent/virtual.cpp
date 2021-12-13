@@ -50,7 +50,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
     }
 
     ToProto(response->mutable_object_id(), TGuid());
-    response->set_external_cell_tag(PrimaryMasterCellTag);
+    response->set_external_cell_tag(PrimaryMasterCellTagSentinel);
 
     context->SetResponseInfo();
     context->Reply();

@@ -567,7 +567,7 @@ public:
 
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTag));
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTagSentinel));
         auto connectionConfig = Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()

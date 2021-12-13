@@ -3176,7 +3176,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CrashControllerAgent) {
         bool canCrashControllerAgent = false;
         {
-            TObjectServiceProxy proxy(Host->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTag));
+            TObjectServiceProxy proxy(Host->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTagSentinel));
             auto connectionConfig = Host->GetClient()->GetNativeConnection()->GetConfig();
             TMasterReadOptions readOptions{
                 .ReadFrom = EMasterChannelKind::Cache
@@ -6218,7 +6218,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
     FetchTableSchemas(OutputClient,
         MakeRange(UpdatingTables_),
         [this] (const auto& table) { return GetTransactionForOutputTable(table)->GetId(); },
-        [] (const auto&) { return PrimaryMasterCellTag; });
+        [] (const auto&) { return PrimaryMasterCellTagSentinel; });
 
     for (const auto& [table, attributes] : tableAttributes) {
         const auto& path = table->Path;

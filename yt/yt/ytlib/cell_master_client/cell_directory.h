@@ -48,7 +48,7 @@ public:
 
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind kind,
-        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag);
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellId cellId);

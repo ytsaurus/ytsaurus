@@ -375,7 +375,7 @@ public:
 
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
@@ -427,7 +427,7 @@ public:
 
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
@@ -927,7 +927,7 @@ private:
                 &TImpl::StartObjectBatchRequest,
                 Owner_,
                 EMasterChannelKind::Follower,
-                PrimaryMasterCellTag,
+                PrimaryMasterCellTagSentinel,
                 /* subbatchSize */ 100);
 
             auto listOperationsResult = NScheduler::ListOperations(createBatchRequest);
@@ -1035,7 +1035,7 @@ private:
 
             auto batchReq = Owner_->StartObjectBatchRequest(
                 EMasterChannelKind::Follower,
-                PrimaryMasterCellTag,
+                PrimaryMasterCellTagSentinel,
                 Owner_->Config_->FetchOperationAttributesSubbatchSize);
             THashMap<TOperationId, size_t> startResponseIndex;
 
@@ -1295,7 +1295,7 @@ private:
                 &TImpl::StartObjectBatchRequest,
                 Owner_,
                 EMasterChannelKind::Follower,
-                PrimaryMasterCellTag,
+                PrimaryMasterCellTagSentinel,
                 Owner_->Config_->FetchOperationAttributesSubbatchSize);
 
             auto operations = FetchOperationsFromCypressForCleaner(
@@ -1318,7 +1318,7 @@ private:
 
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
-            
+
             auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_scheduling_segments_state");
             if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 YT_LOG_WARNING(rspOrError, "Error fetching scheduling segments state");
@@ -1381,7 +1381,7 @@ private:
 
             auto batchReq = StartObjectBatchRequest(
                 EMasterChannelKind::Follower,
-                PrimaryMasterCellTag,
+                PrimaryMasterCellTagSentinel,
                 Config_->FetchOperationAttributesSubbatchSize);
 
             for (const auto& operation : operations) {
@@ -1592,7 +1592,7 @@ private:
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
-        TCellTag cellTag = PrimaryMasterCellTag,
+        TCellTag cellTag = PrimaryMasterCellTagSentinel,
         int subbatchSize = 100)
     {
         TObjectServiceProxy proxy(Bootstrap_
@@ -1997,7 +1997,7 @@ private:
 
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
         auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
         req->set_value(ConvertToYsonString(alerts).ToString());
 
@@ -2021,7 +2021,7 @@ private:
         YT_VERIFY(LockTransaction_);
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
         auto req = TYPathProxy::Set(FromObjectId(LockTransaction_->GetId()) + "/@timeout");
         req->set_value(ConvertToYsonString(timeout.MilliSeconds()).ToString());
         auto rspOrError = WaitFor(proxy.Execute(req));

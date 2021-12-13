@@ -1327,7 +1327,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     ToProto(response->mutable_upload_transaction_id(), uploadTransactionId);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    response->set_cell_tag(externalCellTag == NotReplicatedCellTag
+    response->set_cell_tag(externalCellTag == NotReplicatedCellTagSentinel
         ? multicellManager->GetCellTag()
         : externalCellTag);
 

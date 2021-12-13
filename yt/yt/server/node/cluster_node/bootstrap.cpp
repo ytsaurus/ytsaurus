@@ -375,7 +375,7 @@ public:
 
     TCellId GetCellId(TCellTag cellTag) const override
     {
-        return cellTag == PrimaryMasterCellTag
+        return cellTag == PrimaryMasterCellTagSentinel
             ? GetCellId()
             : ReplaceCellTagInId(GetCellId(), cellTag);
     }

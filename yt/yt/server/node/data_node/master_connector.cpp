@@ -333,7 +333,7 @@ public:
             allyReplicaManager->SetEnableLazyAnnouncements(response.enable_lazy_replica_announcements());
         }
 
-        if (cellTag == PrimaryMasterCellTag) {
+        if (cellTag == PrimaryMasterCellTagSentinel) {
             const auto& sessionManager = Bootstrap_->GetSessionManager();
             sessionManager->SetDisableWriteSessions(response.disable_write_sessions() || Bootstrap_->Decommissioned());
         }

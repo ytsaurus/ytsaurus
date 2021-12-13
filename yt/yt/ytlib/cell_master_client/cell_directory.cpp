@@ -109,7 +109,7 @@ public:
 
     IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag)
     {
-        cellTag = cellTag == PrimaryMasterCellTag ? GetPrimaryMasterCellTag() : cellTag;
+        cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;
         return GetCellChannelOrThrow(cellTag, kind);
     }
 

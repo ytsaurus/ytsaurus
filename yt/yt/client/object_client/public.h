@@ -58,10 +58,10 @@ constexpr TCellTag MinValidCellTag = 0x0000;
 constexpr TCellTag MaxValidCellTag = 0xf000;
 
 //! A sentinel cell tag indicating that the request does not need replication.
-constexpr TCellTag NotReplicatedCellTag = 0xf001;
+constexpr TCellTag NotReplicatedCellTagSentinel = 0xf001;
 
 //! A sentinel cell tag representing the primary master.
-constexpr TCellTag PrimaryMasterCellTag = 0xf003;
+constexpr TCellTag PrimaryMasterCellTagSentinel = 0xf003;
 
 //! A sentinel cell tag meaning nothing.
 constexpr TCellTag InvalidCellTag = 0xf004;

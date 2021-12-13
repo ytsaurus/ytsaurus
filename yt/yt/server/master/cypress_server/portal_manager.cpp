@@ -232,7 +232,7 @@ private:
             handler,
             exitNodeId,
             TCreateNodeContext{
-                .ExternalCellTag = NotReplicatedCellTag,
+                .ExternalCellTag = NotReplicatedCellTagSentinel,
                 .InheritedAttributes = inheritedAttributes.Get(),
                 .ExplicitAttributes = explicitAttributes.Get(),
                 .Account = account,

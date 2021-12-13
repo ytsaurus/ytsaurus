@@ -364,7 +364,7 @@ public:
 
     IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
-        TCellTag cellTag = PrimaryMasterCellTag) override
+        TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
         return MasterCellDirectory_->GetMasterChannelOrThrow(kind, cellTag);
     }

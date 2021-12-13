@@ -1214,7 +1214,7 @@ private:
         {
             auto channel = Client_->GetMasterChannelOrThrow(
                 EMasterChannelKind::Follower,
-                PrimaryMasterCellTag);
+                PrimaryMasterCellTagSentinel);
 
             TObjectServiceProxy proxy(channel);
             auto batchReq = proxy.ExecuteBatch();
@@ -1267,7 +1267,7 @@ private:
 
             auto channel = Client_->GetMasterChannelOrThrow(
                 EMasterChannelKind::Leader,
-                PrimaryMasterCellTag);
+                PrimaryMasterCellTagSentinel);
             TObjectServiceProxy proxy(channel);
 
             std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> responseFutures;
@@ -1437,7 +1437,7 @@ private:
 
         auto createBatchRequest = BIND([this] {
             auto channel = Client_->GetMasterChannelOrThrow(
-                EMasterChannelKind::Follower, PrimaryMasterCellTag);
+                EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
 
             TObjectServiceProxy proxy(channel);
             return proxy.ExecuteBatch();
