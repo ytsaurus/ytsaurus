@@ -1,10 +1,14 @@
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, ls, get, set, remove, create_rack, exists, create_host, remove_host)
 
 from yt.common import YtError
+
+from copy import deepcopy
+
+from yt import yson
 
 import pytest
 
@@ -145,3 +149,31 @@ class TestHosts(YTEnvSetup):
 
 class TestHostsMulticell(TestHosts):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+
+class TestPreserveRackForNewHost(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    @authors("gritukan")
+    def test_preserve_rack_for_new_host(self):
+        set("//sys/@config/node_tracker/preserve_rack_for_new_host", True)
+
+        node = ls("//sys/cluster_nodes")[0]
+        assert get("//sys/cluster_nodes/{}/@host".format(node)) == node
+
+        create_rack("r")
+        set("//sys/cluster_nodes/{}/@rack".format(node), "r")
+
+        with Restarter(self.Env, NODES_SERVICE):
+            for i, node_config in enumerate(self.Env.configs["node"]):
+                config = deepcopy(node_config)
+                config["host_name"] = "sas1-2345"
+                config_path = self.Env.config_paths["node"][i]
+                with open(config_path, "wb") as fout:
+                    yson.dump(config, fout)
+
+        assert get("//sys/cluster_nodes/{}/@host".format(node)) == "sas1-2345"
+        assert get("//sys/cluster_nodes/{}/@rack".format(node)) == "r"
