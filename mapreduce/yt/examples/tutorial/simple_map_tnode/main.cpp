@@ -34,7 +34,7 @@ int main(int argc, const char** argv) {
 
     auto op = client->Map(
         TMapOperationSpec()
-            .AddInput<TNode>("//home/ermolovd/yt-tutorial/staff_unsorted")
+            .AddInput<TNode>("//home/dev/tutorial/staff_unsorted")
             .AddOutput<TNode>(outputTable),
         new TComputeEmailsMapper);
 

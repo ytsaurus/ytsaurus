@@ -20,7 +20,7 @@ int main(int argc, const char** argv) {
 
     MapReduce<TLoginRecord, TLoginRecord, TNameStatistics>(
         client,
-        "//home/ermolovd/yt-tutorial/staff_unsorted",
+        "//home/dev/tutorial/staff_unsorted",
         outputTable,
         {"name"}, // список ключей, по которым мы будем редьюсить
         [](auto& src, auto& dst) { // mapper

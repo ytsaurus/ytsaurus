@@ -64,7 +64,7 @@ int main(int argc, const char** argv) {
 
     client->Map(
         new TGrepper("login", "lev"),
-        "//home/ermolovd/yt-tutorial/staff_unsorted_schematized",
+        "//home/dev/tutorial/staff_unsorted_schematized",
         outputTable);
 
     Cout << "Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" << outputTable << Endl;

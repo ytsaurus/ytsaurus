@@ -37,7 +37,7 @@ if __name__ == "__main__":
     yt.wrapper.run_map_reduce(
         normalize_name_mapper,
         count_names_reducer,
-        source_table="//home/ermolovd/yt-tutorial/staff_unsorted",
+        source_table="//home/dev/tutorial/staff_unsorted",
         destination_table=output_table,
         reduce_by=["name"],
     )

@@ -29,7 +29,7 @@ if __name__ == "__main__":
     output_table = "//tmp/" + getpass.getuser() + "-pytutorial-name-stat"
 
     yt.wrapper.run_sort(
-        source_table="//home/ermolovd/yt-tutorial/staff_unsorted", destination_table=sorted_tmp_table, sort_by=["name"]
+        source_table="//home/dev/tutorial/staff_unsorted", destination_table=sorted_tmp_table, sort_by=["name"]
     )
 
     yt.wrapper.run_reduce(

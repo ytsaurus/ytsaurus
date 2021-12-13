@@ -65,7 +65,7 @@ int main(int argc, const char** argv) {
     client->MapReduce(
         TMapReduceOperationSpec()
             .ReduceBy({"name"})
-            .AddInput<TLoginRecord>("//home/ermolovd/yt-tutorial/staff_unsorted")
+            .AddInput<TLoginRecord>("//home/dev/tutorial/staff_unsorted")
             .AddOutput<TNameStatistics>(outputTable),
         new TNormalizeNameMapper,
         new TCountNameReducer);

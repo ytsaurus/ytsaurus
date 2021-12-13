@@ -11,7 +11,7 @@ def main():
     output_table = "//tmp/" + getpass.getuser() + "-pytutorial-emails-cpp-protobuf"
     yt.wrapper.run_map(
         CppJob("TComputeEmailsMapper"),
-        source_table="//home/ermolovd/yt-tutorial/staff_unsorted",
+        source_table="//home/dev/tutorial/staff_unsorted",
         destination_table=output_table,
     )
 

@@ -46,9 +46,9 @@ int main(int argc, const char** argv) {
         TReduceOperationSpec()
         .JoinBy({"host"})
         .AddInput<TNode>(
-            TRichYPath("//home/ermolovd/yt-tutorial/host_video_regexp")
+            TRichYPath("//home/dev/tutorial/host_video_regexp")
             .Foreign(true)) // важно отметить хостовую таблицу как foreign
-        .AddInput<TNode>("//home/ermolovd/yt-tutorial/doc_title")
+        .AddInput<TNode>("//home/dev/tutorial/doc_title")
         .AddOutput<TNode>(outputTable)
         .EnableKeyGuarantee(false),
         new TFilterVideoRegexp);

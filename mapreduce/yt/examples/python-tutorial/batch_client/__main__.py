@@ -15,8 +15,8 @@ if __name__ == "__main__":
     # Вся пачка выполняется после того, как будет позван метод commit_batch.
     # В качестве результата нам возвращается специальный объект, из которого можно будет позже получить результат
     # выполнения запроса.
-    doc_title_exists_result = batch_client.exists("//home/ermolovd/yt-tutorial/doc_title")
-    unexisting_table_exists_result = batch_client.exists("//home/ermolovd/yt-tutorial/unexisting_table")
+    doc_title_exists_result = batch_client.exists("//home/dev/tutorial/doc_title")
+    unexisting_table_exists_result = batch_client.exists("//home/dev/tutorial/unexisting_table")
 
     output_table_name = "//tmp/" + getpass.getuser() + "-pytutorial-batch-client"
     create_result = batch_client.create("table", output_table_name)
