@@ -2048,9 +2048,6 @@ void TServiceBase::OnServiceLivenessCheck()
     {
         auto writerGuard = WriterGuard(DiscoverRequestsByPayloadLock_);
 
-        YT_LOG_DEBUG("Checking service liveness (DiscoverRequestSetCount: %v)",
-            DiscoverRequestsByPayload_.size());
-
         std::vector<TString> payloadsToReply;
         for (const auto& [payload, requests] : DiscoverRequestsByPayload_) {
             auto empty = true;
