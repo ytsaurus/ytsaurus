@@ -179,7 +179,7 @@ IChannelPtr TClient::GetMasterChannelOrThrow(
     TCellTag cellTag)
 {
     const auto& channels = MasterChannels_[kind];
-    auto it = channels.find(cellTag == PrimaryMasterCellTag ? Connection_->GetPrimaryMasterCellTag() : cellTag);
+    auto it = channels.find(cellTag == PrimaryMasterCellTagSentinel ? Connection_->GetPrimaryMasterCellTag() : cellTag);
     if (it == channels.end()) {
         YT_ABORT();
         THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
@@ -233,7 +233,7 @@ const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)
         // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
         // requests for operations archive should be performed under the same user.
         channels[kind] = CreateAuthenticatedChannel(
-            Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
+            Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTagSentinel),
             NRpc::TAuthenticationIdentity(NSecurityClient::OperationsClientUserName));
     }
 

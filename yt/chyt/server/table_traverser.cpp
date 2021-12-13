@@ -65,7 +65,7 @@ const std::vector<std::string>& TTableTraverser::GetTables() const
 
 void TTableTraverser::TraverseTablesFromRoots()
 {
-    auto channel = Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, NObjectClient::PrimaryMasterCellTag);
+    auto channel = Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, NObjectClient::PrimaryMasterCellTagSentinel);
     TClickHouseServiceProxy proxy(channel);
 
     auto nodes = NDetail::GetNodes(NObjectClient::TObjectServiceProxy(channel), Roots_);

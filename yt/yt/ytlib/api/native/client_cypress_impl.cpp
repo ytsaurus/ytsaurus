@@ -1948,7 +1948,7 @@ TObjectId TClient::DoCreateObject(
     const TCreateObjectOptions& options)
 {
     auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
-    auto cellTag = PrimaryMasterCellTag;
+    auto cellTag = PrimaryMasterCellTagSentinel;
     switch (type) {
         case EObjectType::TableReplica: {
             {

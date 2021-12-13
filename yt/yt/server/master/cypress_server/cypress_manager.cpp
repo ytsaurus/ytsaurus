@@ -344,7 +344,7 @@ public:
 
         auto optionalExternalCellTag = explicitAttributes->FindAndRemove<TCellTag>("external_cell_tag");
 
-        auto externalCellTag = NotReplicatedCellTag;
+        auto externalCellTag = NotReplicatedCellTagSentinel;
         if (external) {
             if (None(handler->GetFlags() & ETypeFlags::Externalizable)) {
                 THROW_ERROR_EXCEPTION("Type %Qlv is not externalizable",
@@ -362,14 +362,14 @@ public:
 
         if (externalCellTag == multicellManager->GetCellTag()) {
             external = false;
-            externalCellTag = NotReplicatedCellTag;
+            externalCellTag = NotReplicatedCellTagSentinel;
         }
 
         if (externalCellTag == multicellManager->GetPrimaryCellTag()) {
             THROW_ERROR_EXCEPTION("Cannot place externalizable nodes at primary cell");
         }
 
-        if (externalCellTag != NotReplicatedCellTag) {
+        if (externalCellTag != NotReplicatedCellTagSentinel) {
             if (!multicellManager->IsRegisteredMasterCell(externalCellTag)) {
                 THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
             }
@@ -718,7 +718,7 @@ private:
     TCellTagList DoGetReplicationCellTags(const TCypressNode* node) override
     {
         auto externalCellTag = node->GetExternalCellTag();
-        return externalCellTag == NotReplicatedCellTag ? TCellTagList() : TCellTagList{externalCellTag};
+        return externalCellTag == NotReplicatedCellTagSentinel ? TCellTagList() : TCellTagList{externalCellTag};
     }
 
     TString DoGetName(const TCypressNode* node) override;
@@ -3463,7 +3463,7 @@ private:
             handler,
             nodeId,
             TCreateNodeContext{
-                .ExternalCellTag = NotReplicatedCellTag,
+                .ExternalCellTag = NotReplicatedCellTagSentinel,
                 .Transaction = transaction,
                 .InheritedAttributes = inheritedAttributes.Get(),
                 .ExplicitAttributes = explicitAttributes.Get(),
@@ -3744,8 +3744,8 @@ std::unique_ptr<TCypressNode> TCypressManager::TImpl::TNodeMapTraits::Create(TVe
     auto type = TypeFromId(id.ObjectId);
     const auto& handler = Owner_->GetHandler(type);
     // This cell tag is fake and will be overwritten on load
-    // (unless this is a pre-multicell snapshot, in which case NotReplicatedCellTag is just what we want).
-    return handler->Instantiate(id, NotReplicatedCellTag);
+    // (unless this is a pre-multicell snapshot, in which case NotReplicatedCellTagSentinel is just what we want).
+    return handler->Instantiate(id, NotReplicatedCellTagSentinel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

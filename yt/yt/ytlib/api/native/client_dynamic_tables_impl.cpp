@@ -2181,7 +2181,7 @@ std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
     const std::vector<TAlienCellDescriptorLite>& alienCellDescriptors,
     const TSyncAlienCellOptions& options)
 {
-    auto channel = GetMasterChannelOrThrow(options.ReadFrom, PrimaryMasterCellTag);
+    auto channel = GetMasterChannelOrThrow(options.ReadFrom, PrimaryMasterCellTagSentinel);
     auto proxy = TChaosMasterServiceProxy(channel);
     auto req = proxy.SyncAlienCells();
 
@@ -2495,7 +2495,7 @@ IChannelPtr TClient::GetChaosChannel(TCellId chaosCellId)
         return channel;
     }
 
-    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTag);
+    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
     auto proxy = TChaosMasterServiceProxy(channel);
     auto req = proxy.GetCellDescriptors();
 

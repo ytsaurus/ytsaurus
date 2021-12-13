@@ -233,7 +233,7 @@ public:
 
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
 
         YT_LOG_DEBUG("Fetching \"tags_override\" attribute");
 
@@ -505,7 +505,7 @@ private:
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
-        TCellTag cellTag = PrimaryMasterCellTag)
+        TCellTag cellTag = PrimaryMasterCellTagSentinel)
     {
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
@@ -520,7 +520,7 @@ private:
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequestWithPrerequisites(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
-        TCellTag cellTag = PrimaryMasterCellTag)
+        TCellTag cellTag = PrimaryMasterCellTagSentinel)
     {
         auto batchReq = StartObjectBatchRequest(channelKind, cellTag);
         auto* prerequisitesExt = batchReq->Header().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -528,7 +528,7 @@ private:
         return batchReq;
     }
 
-    TChunkServiceProxy::TReqExecuteBatchPtr StartChunkBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
+    TChunkServiceProxy::TReqExecuteBatchPtr StartChunkBatchRequest(TCellTag cellTag = PrimaryMasterCellTagSentinel)
     {
         TChunkServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
@@ -1334,7 +1334,7 @@ private:
 
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
         auto req = TYPathProxy::Set(GetInstancePath() + "/@alerts");
         req->set_value(ConvertToYsonString(alerts).ToString());
         req->set_recursive(true);

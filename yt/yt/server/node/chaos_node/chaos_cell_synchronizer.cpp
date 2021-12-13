@@ -84,7 +84,7 @@ private:
         const auto& connection = Bootstrap_->GetMasterConnection();
         const auto& cellDirectory = connection->GetCellDirectory();
 
-        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTag);
+        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
         auto proxy = TChaosMasterServiceProxy(channel);
         auto req = proxy.GetCellDescriptors();
 

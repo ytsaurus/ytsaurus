@@ -171,7 +171,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
     Save(*context, SortHashMapByKeys(keyToAttribute));
 
     // For externalizable nodes, lock the source to ensure it survives until EndCopy.
-    if (node->GetExternalCellTag() != NotReplicatedCellTag) {
+    if (node->GetExternalCellTag() != NotReplicatedCellTagSentinel) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->LockNode(
             node->GetTrunkNode(),

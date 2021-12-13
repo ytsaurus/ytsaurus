@@ -487,7 +487,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto masterChannel = GetMasterChannel(PrimaryMasterCellTag);
+        auto masterChannel = GetMasterChannel(PrimaryMasterCellTagSentinel);
         TNodeTrackerServiceProxy proxy(masterChannel);
 
         auto req = proxy.RegisterNode();
@@ -591,7 +591,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // Cluster node heartbeats are required at primary master only.
-        auto masterChannel = GetMasterChannel(PrimaryMasterCellTag);
+        auto masterChannel = GetMasterChannel(PrimaryMasterCellTagSentinel);
         TNodeTrackerServiceProxy proxy(masterChannel);
 
         auto req = proxy.Heartbeat();

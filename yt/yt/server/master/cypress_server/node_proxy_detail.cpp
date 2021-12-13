@@ -1500,7 +1500,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
 
         ToProto(response->mutable_node_id(), impl->GetId());
-        response->set_cell_tag(impl->GetExternalCellTag() == NotReplicatedCellTag
+        response->set_cell_tag(impl->GetExternalCellTag() == NotReplicatedCellTagSentinel
             ? Bootstrap_->GetMulticellManager()->GetCellTag()
             : impl->GetExternalCellTag());
         context->SetResponseInfo("ExistingNodeId: %v",
@@ -1576,7 +1576,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto* newNode = newProxy->GetTrunkNode();
     auto newNodeId = newNode->GetId();
-    auto newNodeCellTag = newNode->GetExternalCellTag() == NotReplicatedCellTag
+    auto newNodeCellTag = newNode->GetExternalCellTag() == NotReplicatedCellTagSentinel
         ? Bootstrap_->GetMulticellManager()->GetCellTag()
         : newNode->GetExternalCellTag();
 

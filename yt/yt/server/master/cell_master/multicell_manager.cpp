@@ -142,7 +142,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return cellTag == PrimaryMasterCellTag
+        return cellTag == PrimaryMasterCellTagSentinel
             ? GetPrimaryCellId()
             : ReplaceCellTagInId(GetPrimaryCellId(), cellTag);
     }
@@ -209,7 +209,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
-        PostToMaster(message, PrimaryMasterCellTag, reliable);
+        PostToMaster(message, PrimaryMasterCellTagSentinel, reliable);
     }
 
     void PostToSecondaryMasters(
@@ -951,7 +951,7 @@ private:
     TMailbox* FindMasterMailbox(TCellTag cellTag)
     {
         // Fast path.
-        if (cellTag == PrimaryMasterCellTag) {
+        if (cellTag == PrimaryMasterCellTagSentinel) {
             return PrimaryMasterMailbox_;
         }
 
@@ -1168,7 +1168,7 @@ private:
     {
         TMailboxList mailboxes;
         for (auto cellTag : cellTags) {
-            if (cellTag == PrimaryMasterCellTag) {
+            if (cellTag == PrimaryMasterCellTagSentinel) {
                 cellTag = GetPrimaryCellTag();
             }
             if (auto* mailbox = FindMasterMailbox(cellTag)) {

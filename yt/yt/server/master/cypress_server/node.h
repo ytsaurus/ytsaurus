@@ -160,8 +160,8 @@ class TCypressNode
 {
 public:
     //! For external nodes, this is the tag of the cell were the node
-    //! was delegated to. For non-external nodes, this is #NotReplicatedCellTag.
-    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTag);
+    //! was delegated to. For non-external nodes, this is #NotReplicatedCellTagSentinel.
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
 
     //! Contains all nodes with parent pointing here.
     //! When a node dies parent pointers of its immediate descendants are reset.

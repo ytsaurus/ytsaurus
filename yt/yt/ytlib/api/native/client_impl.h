@@ -68,7 +68,7 @@ public:
 
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
-        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) override;
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
     NRpc::IChannelPtr GetCellChannelOrThrow(NObjectClient::TCellId cellId) override;
     NRpc::IChannelPtr GetSchedulerChannel() override;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() override;
@@ -603,10 +603,10 @@ private:
     template <class TProxy>
     std::unique_ptr<TProxy> CreateReadProxy(
         const TMasterReadOptions& options,
-        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag);
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
     template <class TProxy>
     std::unique_ptr<TProxy> CreateWriteProxy(
-        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag);
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
     NRpc::IChannelPtr GetReadCellChannelOrThrow(NObjectClient::TCellId cellId);
     NRpc::IChannelPtr GetLeaderCellChannelOrThrow(NObjectClient::TCellId cellId);
     NHiveClient::TCellDescriptor GetCellDescriptorOrThrow(NObjectClient::TCellId cellId);

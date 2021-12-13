@@ -140,7 +140,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // Exec node heartbeats are required at primary master only.
-        auto masterChannel = Bootstrap_->GetMasterChannel(PrimaryMasterCellTag);
+        auto masterChannel = Bootstrap_->GetMasterChannel(PrimaryMasterCellTagSentinel);
         TExecNodeTrackerServiceProxy proxy(masterChannel);
 
         auto req = proxy.Heartbeat();

@@ -67,7 +67,7 @@ struct IConnection
 
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
-        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellId cellId) = 0;

@@ -6334,7 +6334,7 @@ private:
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
-            multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
+            multicellManager->PostToMaster(request, PrimaryMasterCellTagSentinel, false);
         }
 
         if (multicellManager->IsMulticell() && multicellManager->IsPrimaryMaster()) {
