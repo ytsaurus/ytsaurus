@@ -7,6 +7,7 @@ import yt.wrapper.run_compression_benchmarks as yt_run_compression_benchmarks
 
 import pytest
 
+
 @pytest.mark.usefixtures("yt_env")
 class TestRunCompressionBenchmarks(object):
     ROWS_COUNT = 10**6
@@ -25,7 +26,7 @@ class TestRunCompressionBenchmarks(object):
         "zlib_1",
         "zstd_1"
     }
-    
+
     @authors("egor-gutrov")
     def test_run_compression_benchmarks(self):
         table = TEST_DIR + "/compression_table"

@@ -3,11 +3,13 @@
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/logical_type.h>
 
-#include <yt/yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <util/generic/algorithm.h>
 
 namespace NYT::NObjectServer {
 
@@ -19,34 +21,34 @@ using namespace NYTree;
 
 namespace {
 
-void ListPrimitiveTypes(TFluentList fluent)
+std::vector<TTypeV3LogicalTypeWrapper> GetPrimitiveTypes()
 {
+    std::vector<TTypeV3LogicalTypeWrapper> result;
     for (auto type : TEnumTraits<ESimpleLogicalValueType>::GetDomainValues()) {
-        fluent.Item().Value(TTypeV3LogicalTypeWrapper{SimpleLogicalType(type)});
+        result.push_back(TTypeV3LogicalTypeWrapper{SimpleLogicalType(type)});
     }
+    return result;
 }
 
-void ListCompressionCodecs(TFluentList fluent, const THashSet<NCompression::ECodec>& configuredDeprecatedCodecIds)
+std::vector<NCompression::ECodec> GetCompressionCodecs(
+    const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds)
 {
-    static const THashSet<NCompression::ECodec> UniqueValues = {
-        std::begin(TEnumTraits<NCompression::ECodec>::GetDomainValues()),
-        std::end(TEnumTraits<NCompression::ECodec>::GetDomainValues())};
-    for (auto codec : UniqueValues) {
-        if (configuredDeprecatedCodecIds.contains(codec)) {
-            continue;
+    const auto& deprecatedCodecIds = configuredDeprecatedCodecIds
+        ? *configuredDeprecatedCodecIds
+        : NCompression::GetDeprecatedCodecIds();
+    std::vector<NCompression::ECodec> result;
+    for (auto id : TEnumTraits<NCompression::ECodec>::GetDomainValues()) {
+        if (!deprecatedCodecIds.contains(id)) {
+            result.push_back(id);
         }
-        fluent.Item().Value(codec);
     }
+    SortUnique(result);
+    return result;
 }
 
-void ListErasureCodecs(TFluentList fluent)
+std::vector<NErasure::ECodec> GetErasureCodecs()
 {
-    static const THashSet<NErasure::ECodec> UniqueValues = {
-        std::begin(TEnumTraits<NErasure::ECodec>::GetDomainValues()),
-        std::end(TEnumTraits<NErasure::ECodec>::GetDomainValues())};
-    for (auto codec : UniqueValues) {
-        fluent.Item().Value(codec);
-    }
+    return NErasure::GetSupportedCodecIds();
 }
 
 } // namespace
@@ -58,11 +60,9 @@ TYsonString CreateFeatureRegistryYson(
 {
     return BuildYsonStringFluently()
         .BeginMap()
-            .Item("primitive_types").DoList(ListPrimitiveTypes)
-            .Item("compression_codecs").DoList([&] (auto fluent) {
-                ListCompressionCodecs(fluent, configuredDeprecatedCodecIds.value_or(NCompression::GetDeprecatedCodecIds()));
-            })
-            .Item("erasure_codecs").DoList(ListErasureCodecs)
+            .Item("primitive_types").List(GetPrimitiveTypes())
+            .Item("compression_codecs").List(GetCompressionCodecs(configuredDeprecatedCodecIds))
+            .Item("erasure_codecs").List(GetErasureCodecs())
         .EndMap();
 }
 

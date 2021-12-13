@@ -143,8 +143,17 @@ ICodec* GetCodec(ECodec id)
             return &result;
         }
         default:
-            THROW_ERROR_EXCEPTION("Unknown erasure codec %Qlv", id);
+            THROW_ERROR_EXCEPTION("Unsupported erasure codec %Qlv", id);
     }
+}
+
+const std::vector<ECodec>& GetSupportedCodecIds()
+{
+    static const std::vector<ECodec> supportedCodecIds = [] {
+        const auto& values = TEnumTraits<ECodec>::GetDomainValues();
+        return std::vector<ECodec>(values.begin(), values.end());
+    }();
+    return supportedCodecIds;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

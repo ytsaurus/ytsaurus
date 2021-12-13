@@ -68,6 +68,7 @@ struct ICodec
 };
 
 ICodec* GetCodec(ECodec id);
+const std::vector<ECodec>& GetSupportedCodecIds();
 
 ////////////////////////////////////////////////////////////////////////////////
 
