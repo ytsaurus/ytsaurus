@@ -179,6 +179,7 @@ def merge_blobs_by_size(blobs, chunk_size):
                 total_size = 0
     except GeneratorExit:
         closed = True
+        return
     finally:
         if not closed and len(chunks) > 0:
             yield b"".join(chunks)
