@@ -8,6 +8,8 @@
 #include "zstd.h"
 #include "brotli.h"
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -211,7 +213,7 @@ class TZstdCodec
     : public TCodecBase<TZstdCodec>
 {
 public:
-    TZstdCodec(int level)
+    explicit TZstdCodec(int level)
         : Level_(level)
     { }
 
@@ -248,7 +250,7 @@ class TBrotliCodec
     : public TCodecBase<TBrotliCodec>
 {
 public:
-    TBrotliCodec(int level)
+    explicit TBrotliCodec(int level)
         : Level_(level)
     { }
 
@@ -283,7 +285,7 @@ class TLzmaCodec
     : public TCodecBase<TLzmaCodec>
 {
 public:
-    TLzmaCodec(int level)
+    explicit TLzmaCodec(int level)
         : Level_(level)
     { }
 
@@ -318,7 +320,7 @@ class TBzip2Codec
     : public TCodecBase<TBzip2Codec>
 {
 public:
-    TBzip2Codec(int level)
+    explicit TBzip2Codec(int level)
         : Level_(level)
     { }
 
@@ -403,7 +405,8 @@ ICodec* GetCodec(ECodec id)
 #undef CASE
 
         default:
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unsupported compression codec %Qlv",
+                id);
     }
 }
 
@@ -411,7 +414,9 @@ ICodec* GetCodec(ECodec id)
 
 const THashSet<ECodec>& GetDeprecatedCodecIds()
 {
-    static const THashSet<ECodec> deprecatedCodecIds;
+    static const THashSet<ECodec> deprecatedCodecIds{
+        ECodec::QuickLz
+    };
     return deprecatedCodecIds;
 }
 
@@ -428,6 +433,21 @@ const THashMap<TString, TString>& GetDeprecatedCodecNameToAlias()
         {"brotli8", FormatEnum(ECodec::Brotli_8)}
     };
     return deprecatedCodecNameToAlias;
+}
+
+const std::vector<ECodec>& GetSupportedCodecIds()
+{
+    static const std::vector<ECodec> supportedCodecIds = [] {
+        std::vector<ECodec> supportedCodecIds;
+        for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
+            if (!GetDeprecatedCodecIds().contains(codecId)) {
+                supportedCodecIds.push_back(codecId);
+            }
+        }
+        SortUnique(supportedCodecIds);
+        return supportedCodecIds;
+    }();
+    return supportedCodecIds;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

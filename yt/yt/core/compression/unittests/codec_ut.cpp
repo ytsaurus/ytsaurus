@@ -10,17 +10,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, size_t N>
-std::vector<T> SortedAndUnique(std::array<T, N> array)
-{
-    std::vector<T> result(array.begin(), array.end());
-    std::sort(result.begin(), result.end());
-    result.erase(std::unique(result.begin(), result.end()), result.end());
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCodecTest
     : public ::testing::TestWithParam<std::tuple<ECodec, ui64>>
 {
@@ -112,7 +101,7 @@ INSTANTIATE_TEST_SUITE_P(
     All,
     TCodecTest,
     ::testing::Combine(
-        ::testing::ValuesIn(SortedAndUnique(TEnumTraits<ECodec>::GetDomainValues())),
+        ::testing::ValuesIn(GetSupportedCodecIds()),
         ::testing::ValuesIn(std::vector<ui64>({static_cast<ui64>(-1), 1, 1024}))),
     [] (const ::testing::TestParamInfo<std::tuple<ECodec, ui64>>& info) -> std::string {
         return
@@ -120,6 +109,13 @@ INSTANTIATE_TEST_SUITE_P(
             std::string(TEnumTraits<ECodec>::ToString(std::get<0>(info.param)).c_str()) + "_PartSize_" +
             ::testing::PrintToString(std::get<1>(info.param));
     });
+
+TEST_F(TCodecTest, QuickLZDeprecated)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        GetCodec(ECodec::QuickLz),
+        "Unsupported compression codec \"quick_lz\"");
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
