@@ -279,7 +279,7 @@ TP2PSnooper::TP2PSnooper(const TP2PConfigPtr& config)
 void TP2PSnooper::UpdateConfig(const TP2PConfigPtr& config)
 {
     if (config) {
-        TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>::Reconfigure(config->BlockCacheOverride);
+        TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>::Reconfigure(config->RequestCacheOverride);
     } else {
         TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>::Reconfigure(New<TSlruCacheDynamicConfig>());
     }

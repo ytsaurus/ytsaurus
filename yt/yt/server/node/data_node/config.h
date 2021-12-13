@@ -48,6 +48,7 @@ public:
     TDuration SessionTTL;
 
     TSlruCacheConfigPtr RequestCache;
+    TSlruCacheDynamicConfigPtr RequestCacheOverride;
 
     TDuration ChunkCooldownTimeout;
     int MaxDistributedBytes;
@@ -91,6 +92,8 @@ public:
             .Default(TDuration::Minutes(5));
 
         RegisterParameter("request_cache", RequestCache)
+            .DefaultNew();
+        RegisterParameter("request_cache_override", RequestCacheOverride)
             .DefaultNew();
 
         RegisterParameter("chunk_cooldown_timeout", ChunkCooldownTimeout)
