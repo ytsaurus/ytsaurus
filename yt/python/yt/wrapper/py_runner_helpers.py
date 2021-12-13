@@ -313,7 +313,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         has_state = b"1" if params.has_state else b"0"
         output_table_count = str(params.output_table_count).encode("utf-8")
         exec_cpp_job([b"./cppbinary", b"--yt-map", mapper_name, output_table_count, has_state])
-        raise RuntimeError("It's a bug. Contact yt@")
+        raise RuntimeError("Returned to Python code after executing CppJob. It's a bug. Contact yt@")
 
     is_structured_skiff = isinstance(params.input_format, StructuredSkiffFormat)
     if is_structured_skiff:
