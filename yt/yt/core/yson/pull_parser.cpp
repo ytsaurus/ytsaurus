@@ -162,6 +162,7 @@ TYsonPullParser::TYsonPullParser(IZeroCopyInput* input, EYsonType ysonType, int 
     : StreamReader_(input)
     , Lexer_(StreamReader_)
     , SyntaxChecker_(ysonType, nestingLevelLimit)
+    , YsonType_(ysonType)
 { }
 
 ui64 TYsonPullParser::GetTotalReadSize() const
@@ -413,6 +414,11 @@ void TYsonPullParser::FinishRecording()
     Lexer_.FinishRecording();
 }
 
+EYsonType TYsonPullParser::GetYsonType() const
+{
+    return YsonType_;
+}
+
 void TYsonPullParser::SkipComplexValue()
 {
     TraverseComplexValueOrAttributes(TNullVisitor(), /* stopAfterAttributes */ false);
@@ -521,6 +527,13 @@ void TYsonPullParserCursor::TransferAttributes(NYT::NYson::TCheckedInDebugYsonTo
 {
     Parser_->TransferAttributes(writer, Current_);
     Current_ = Parser_->Next();
+}
+
+bool TYsonPullParserCursor::TryConsumeFragmentStart()
+{
+    auto result = IsOnFragmentStart_;
+    IsOnFragmentStart_ = false;
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

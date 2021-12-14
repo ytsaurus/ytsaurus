@@ -450,6 +450,16 @@ void Deserialize(IMapNodePtr& value, const INodePtr& node);
 void Deserialize(IListNodePtr& value, const INodePtr& node);
 void Deserialize(IEntityNodePtr& value, const INodePtr& node);
 
+void Deserialize(INodePtr& value, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(IStringNodePtr& value, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(IInt64NodePtr& value, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(IUint64NodePtr& value, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(IDoubleNodePtr& value, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(IBooleanNodePtr& value, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(IMapNodePtr& value, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(IListNodePtr& value, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(IEntityNodePtr& value, NYson::TYsonPullParserCursor* cursor);
+
 NYson::TYsonString ConvertToYsonStringStable(const INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////

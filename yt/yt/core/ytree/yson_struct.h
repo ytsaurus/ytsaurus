@@ -55,6 +55,12 @@ public:
         bool setDefaults = true,
         const NYPath::TYPath& path = {});
 
+    void Load(
+        NYson::TYsonPullParserCursor* cursor,
+        bool postprocess = true,
+        bool setDefaults = true,
+        const NYPath::TYPath& path = {});
+
     void Postprocess(const NYPath::TYPath& path = {});
 
     void SetDefaults();
@@ -196,6 +202,7 @@ TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<T>& obj);
 
 void Serialize(const TYsonStructBase& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TYsonStructBase& value, NYTree::INodePtr node);
+void Deserialize(TYsonStructBase& value, NYson::TYsonPullParserCursor* cursor);
 
 NYson::TYsonString ConvertToYsonStringStable(const TYsonStructBase& value);
 

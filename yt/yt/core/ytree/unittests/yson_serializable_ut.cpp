@@ -113,6 +113,60 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// {LoadFromNode}
+using TYsonSerializableParseTestParameter = std::tuple<bool>;
+
+class TYsonSerializableParseTest
+    : public ::testing::TestWithParam<TYsonSerializableParseTestParameter>
+{
+public:
+    template <typename T>
+    TIntrusivePtr<T> Load(
+        const INodePtr& node,
+        bool postprocess = true,
+        bool setDefaults = true,
+        const NYPath::TYPath& path = {})
+    {
+        auto [loadFromNode] = GetParam();
+        auto config = New<T>();
+        if (loadFromNode) {
+            config->Load(node, postprocess, setDefaults, path);
+        } else {
+            auto ysonString = ConvertToYsonString(node);
+            auto string = ysonString.ToString();
+            TStringInput input(string);
+            TYsonPullParser parser(&input, EYsonType::Node);
+            auto cursor = TYsonPullParserCursor(&parser);
+            config->Load(&cursor, postprocess, setDefaults, path);
+        }
+        return config;
+    }
+
+    template <typename T>
+    TIntrusivePtr<T> Load(const TYsonStringBuf& yson)
+    {
+        return Load<T>(ConvertTo<INodePtr>(yson));
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    LoadFromNode,
+    TYsonSerializableParseTest,
+    ::testing::Values(TYsonSerializableParseTestParameter{
+        true
+    })
+);
+
+INSTANTIATE_TEST_SUITE_P(
+    LoadFromCursor,
+    TYsonSerializableParseTest,
+    ::testing::Values(TYsonSerializableParseTestParameter{
+        false
+    })
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TestCompleteSubconfig(TTestSubconfig* subconfig)
 {
     EXPECT_EQ(99, subconfig->MyInt);
@@ -125,7 +179,7 @@ void TestCompleteSubconfig(TTestSubconfig* subconfig)
     EXPECT_EQ(ETestEnum::Value2, subconfig->MyEnum);
 }
 
-TEST(TYsonSerializableTest, Complete)
+TEST_P(TYsonSerializableParseTest, Complete)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -191,8 +245,7 @@ TEST(TYsonSerializableTest, Complete)
             .EndMap()
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TTestConfig>(configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
     TestCompleteSubconfig(config->Subconfig.Get());
@@ -208,7 +261,7 @@ TEST(TYsonSerializableTest, Complete)
     TestCompleteSubconfig(it2->second.Get());
 }
 
-TEST(TYsonSerializableTest, MissingParameter)
+TEST_P(TYsonSerializableParseTest, MissingParameter)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -218,8 +271,7 @@ TEST(TYsonSerializableTest, MissingParameter)
             .EndMap()
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TTestConfig>(configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(200, config->Subconfig->MyInt);
@@ -230,15 +282,14 @@ TEST(TYsonSerializableTest, MissingParameter)
     EXPECT_EQ(0u, config->SubconfigMap.size());
 }
 
-TEST(TYsonSerializableTest, MissingSubconfig)
+TEST_P(TYsonSerializableParseTest, MissingSubconfig)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
             .Item("my_string").Value("TestString")
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TTestConfig>(configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(200, config->Subconfig->MyInt);
@@ -249,7 +300,7 @@ TEST(TYsonSerializableTest, MissingSubconfig)
     EXPECT_EQ(0u, config->SubconfigMap.size());
 }
 
-TEST(TYsonSerializableTest, UnrecognizedSimple)
+TEST_P(TYsonSerializableParseTest, UnrecognizedSimple)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -257,8 +308,7 @@ TEST(TYsonSerializableTest, UnrecognizedSimple)
             .Item("option").Value(1)
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TTestConfig>(configNode->AsMap());
 
     auto unrecognizedNode = config->GetUnrecognized();
     auto unrecognizedRecursivelyNode = config->GetUnrecognizedRecursively();
@@ -274,7 +324,7 @@ TEST(TYsonSerializableTest, UnrecognizedSimple)
     EXPECT_TRUE(AreNodesEqual(ConvertToNode(config), ConvertToNode(deserializedConfig)));
 }
 
-TEST(TYsonSerializableTest, UnrecognizedRecursive)
+TEST_P(TYsonSerializableParseTest, UnrecognizedRecursive)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -285,8 +335,7 @@ TEST(TYsonSerializableTest, UnrecognizedRecursive)
             .EndMap()
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TTestConfig>(configNode->AsMap());
 
     auto unrecognizedRecursivelyNode = config->GetUnrecognizedRecursively();
     EXPECT_EQ(2, unrecognizedRecursivelyNode->GetChildCount());
@@ -304,7 +353,7 @@ TEST(TYsonSerializableTest, UnrecognizedRecursive)
     EXPECT_TRUE(AreNodesEqual(ConvertToNode(config), ConvertToNode(deserializedConfig)));
 }
 
-TEST(TYsonSerializableTest, MissingRequiredParameter)
+TEST_P(TYsonSerializableParseTest, MissingRequiredParameter)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -314,11 +363,10 @@ TEST(TYsonSerializableTest, MissingRequiredParameter)
             .EndMap()
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+    EXPECT_THROW(Load<TTestConfig>(configNode->AsMap()), std::exception);
 }
 
-TEST(TYsonSerializableTest, IncorrectNodeType)
+TEST_P(TYsonSerializableParseTest, IncorrectNodeType)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -328,11 +376,10 @@ TEST(TYsonSerializableTest, IncorrectNodeType)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+    EXPECT_THROW(Load<TTestConfig>(configNode->AsMap()), std::exception);
 }
 
-TEST(TYsonSerializableTest, ArithmeticOverflow)
+TEST_P(TYsonSerializableParseTest, ArithmeticOverflow)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -352,11 +399,10 @@ TEST(TYsonSerializableTest, ArithmeticOverflow)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+    EXPECT_THROW(Load<TTestConfig>(configNode->AsMap()), std::exception);
 }
 
-TEST(TYsonSerializableTest, Postprocess)
+TEST_P(TYsonSerializableParseTest, Postprocess)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -366,12 +412,11 @@ TEST(TYsonSerializableTest, Postprocess)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode, false);
+    auto config = Load<TTestConfig>(configNode, false);
     EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
-TEST(TYsonSerializableTest, PostprocessSubconfig)
+TEST_P(TYsonSerializableParseTest, PostprocessSubconfig)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -384,12 +429,11 @@ TEST(TYsonSerializableTest, PostprocessSubconfig)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap(), false);
+    auto config = Load<TTestConfig>(configNode, false);
     EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
-TEST(TYsonSerializableTest, PostprocessSubconfigList)
+TEST_P(TYsonSerializableParseTest, PostprocessSubconfigList)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -404,12 +448,11 @@ TEST(TYsonSerializableTest, PostprocessSubconfigList)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap(), false);
+    auto config = Load<TTestConfig>(configNode, false);
     EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
-TEST(TYsonSerializableTest, PostprocessSubconfigMap)
+TEST_P(TYsonSerializableParseTest, PostprocessSubconfigMap)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -424,8 +467,7 @@ TEST(TYsonSerializableTest, PostprocessSubconfigMap)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap(), false);
+    auto config = Load<TTestConfig>(configNode, false);
     EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
@@ -632,7 +674,7 @@ public:
     }
 };
 
-TEST(TYsonSerializableTest, Aliases1)
+TEST_P(TYsonSerializableParseTest, Aliases1)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -642,13 +684,12 @@ TEST(TYsonSerializableTest, Aliases1)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfigWithAliases>();
-    config->Load(configNode->AsMap(), false);
+    auto config = Load<TTestConfigWithAliases>(configNode->AsMap(), false);
 
     EXPECT_EQ("value", config->Value);
 }
 
-TEST(TYsonSerializableTest, Aliases2)
+TEST_P(TYsonSerializableParseTest, Aliases2)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -658,13 +699,12 @@ TEST(TYsonSerializableTest, Aliases2)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfigWithAliases>();
-    config->Load(configNode->AsMap(), false);
+    auto config = Load<TTestConfigWithAliases>(configNode->AsMap(), false);
 
     EXPECT_EQ("value", config->Value);
 }
 
-TEST(TYsonSerializableTest, Aliases3)
+TEST_P(TYsonSerializableParseTest, Aliases3)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -675,13 +715,12 @@ TEST(TYsonSerializableTest, Aliases3)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfigWithAliases>();
-    config->Load(configNode->AsMap(), false);
+    auto config = Load<TTestConfigWithAliases>(configNode->AsMap(), false);
 
     EXPECT_EQ("value", config->Value);
 }
 
-TEST(TYsonSerializableTest, Aliases4)
+TEST_P(TYsonSerializableParseTest, Aliases4)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -692,12 +731,10 @@ TEST(TYsonSerializableTest, Aliases4)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfigWithAliases>();
-
-    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+    EXPECT_THROW(Load<TTestConfigWithAliases>(configNode->AsMap()), std::exception);
 }
 
-TEST(TYsonSerializableTest, Aliases5)
+TEST_P(TYsonSerializableParseTest, Aliases5)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -706,15 +743,13 @@ TEST(TYsonSerializableTest, Aliases5)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfigWithAliases>();
-
-    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+    EXPECT_THROW(Load<TTestConfigWithAliases>(configNode->AsMap()), std::exception);
 }
 
-TEST(TYsonSerializableTest, ParameterTuplesAndContainers)
+TEST_P(TYsonSerializableParseTest, ParameterTuplesAndContainers)
 {
     class TTestClass
-        : public NYTree::TYsonSerializableLite
+        : public NYTree::TYsonSerializable
     {
     public:
         std::vector<TString> Vector;
@@ -750,29 +785,28 @@ TEST(TYsonSerializableTest, ParameterTuplesAndContainers)
         }
     };
 
-    TTestClass original, deserialized;
+    auto original = New<TTestClass>();
+    original->Vector = { "fceswf", "sadfcesa" };
+    original->Array = {{ "UYTUY", ":LL:a", "78678678" }};
+    original->Pair = { 7U, "UYTUY" };
+    original->Set = { "  q!", "12343e", "svvr", "0001" };
+    original->Map = { {"!", 4398}, {"zzz", 0} };
+    original->MultiSet = { 33, 33, 22, 22, 11 };
+    original->UnorderedSet = { "41", "52", "001", "set" };
+    original->UnorderedMap = { {"12345", 8}, {"XXX", 9}, {"XYZ", 42} };
+    original->UnorderedMultiSet = { 1U, 2U, 1U, 0U, 0U };
 
-    original.Vector = { "fceswf", "sadfcesa" };
-    original.Array = {{ "UYTUY", ":LL:a", "78678678" }};
-    original.Pair = { 7U, "UYTUY" };
-    original.Set = { "  q!", "12343e", "svvr", "0001" };
-    original.Map = { {"!", 4398}, {"zzz", 0} };
-    original.MultiSet = { 33, 33, 22, 22, 11 };
-    original.UnorderedSet = { "41", "52", "001", "set" };
-    original.UnorderedMap = { {"12345", 8}, {"XXX", 9}, {"XYZ", 42} };
-    original.UnorderedMultiSet = { 1U, 2U, 1U, 0U, 0U };
+    auto deserialized = Load<TTestClass>(ConvertToYsonStringStable(*original));
 
-    Deserialize(deserialized, ConvertToNode(ConvertToYsonStringStable(original)));
-
-    EXPECT_EQ(original.Vector, deserialized.Vector);
-    EXPECT_EQ(original.Array, deserialized.Array);
-    EXPECT_EQ(original.Pair, deserialized.Pair);
-    EXPECT_EQ(original.Set, deserialized.Set);
-    EXPECT_EQ(original.Map, deserialized.Map);
-    EXPECT_EQ(original.MultiSet, deserialized.MultiSet);
-    EXPECT_EQ(original.UnorderedSet, deserialized.UnorderedSet);
-    EXPECT_EQ(original.UnorderedMap, deserialized.UnorderedMap);
-    EXPECT_EQ(original.UnorderedMultiSet, deserialized.UnorderedMultiSet);
+    EXPECT_EQ(original->Vector, deserialized->Vector);
+    EXPECT_EQ(original->Array, deserialized->Array);
+    EXPECT_EQ(original->Pair, deserialized->Pair);
+    EXPECT_EQ(original->Set, deserialized->Set);
+    EXPECT_EQ(original->Map, deserialized->Map);
+    EXPECT_EQ(original->MultiSet, deserialized->MultiSet);
+    EXPECT_EQ(original->UnorderedSet, deserialized->UnorderedSet);
+    EXPECT_EQ(original->UnorderedMap, deserialized->UnorderedMap);
+    EXPECT_EQ(original->UnorderedMultiSet, deserialized->UnorderedMultiSet);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -793,7 +827,7 @@ TEST(TYsonSerializableTest, EnumAsKeyToYHash)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYsonSerializableTest, NullableWithNonNullDefault)
+TEST_P(TYsonSerializableParseTest, NullableWithNonNullDefault)
 {
     class TConfig
         : public TYsonSerializable
@@ -809,13 +843,13 @@ TEST(TYsonSerializableTest, NullableWithNonNullDefault)
     };
 
     {
-        auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString(TStringBuf("{}")));
+        auto config = Load<TConfig>(TYsonStringBuf("{}"));
         EXPECT_EQ(123, *config->Value);
         EXPECT_EQ(123, ConvertToNode(config)->AsMap()->GetChildOrThrow("value")->GetValue<i64>());
     }
 
     {
-        auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString(TStringBuf("{value=#}")));
+        auto config = Load<TConfig>(TYsonStringBuf("{value=#}"));
         EXPECT_FALSE(config->Value);
         EXPECT_EQ(ENodeType::Entity, ConvertToNode(config)->AsMap()->GetChildOrThrow("value")->GetType());
     }
@@ -901,7 +935,7 @@ public:
     }
 };
 
-TEST(TYsonSerializableTest, YsonStructNestedToYsonSerializableSimple)
+TEST_P(TYsonSerializableParseTest, YsonStructNestedToYsonSerializableSimple)
 {
     {
         auto config = New<TYsonSerializableClass>();
@@ -917,18 +951,18 @@ TEST(TYsonSerializableTest, YsonStructNestedToYsonSerializableSimple)
             ConvertToNode(TYsonString(expectedYson)),
             ConvertToNode(TYsonString(output.AsStringBuf()))));
 
-        auto deserialized = ConvertTo<TIntrusivePtr<TYsonSerializableClass>>(output);
+        auto deserialized = Load<TYsonSerializableClass>(output);
         EXPECT_EQ(deserialized->YsonStructHashMap["x"]->IntValue, 10);
         EXPECT_EQ(deserialized->YsonStructValue->IntValue, 2);
 
     }
 }
 
-TEST(TYsonSerializableTest, YsonStructNestedToYsonSerializableDeserializesFromEmpty)
+TEST_P(TYsonSerializableParseTest, YsonStructNestedToYsonSerializableDeserializesFromEmpty)
 {
     {
         auto testInput = TYsonString(TStringBuf("{yson_struct_value={}}"));
-        auto deserialized = ConvertTo<TIntrusivePtr<TYsonSerializableClass>>(testInput);
+        auto deserialized = Load<TYsonSerializableClass>(testInput);
         EXPECT_EQ(deserialized->YsonStructValue->IntValue, 5);
     }
 }
@@ -966,10 +1000,10 @@ public:
     }
 };
 
-TEST(TYsonSerializableTest, PostprocessIsPropagatedFromYsonSerializableToYsonStruct)
+TEST_P(TYsonSerializableParseTest, PostprocessIsPropagatedFromYsonSerializableToYsonStruct)
 {
     auto testInput = TYsonString(TStringBuf("{yson_struct_hash_map={x={int_value=2}}}"));
-    auto deserialized = ConvertTo<TIntrusivePtr<TYsonSerializableClass2>>(testInput);
+    auto deserialized = Load<TYsonSerializableClass2>(testInput);
     EXPECT_EQ(deserialized->YsonStructHashMap["x"]->IntValue, 10);
 }
 

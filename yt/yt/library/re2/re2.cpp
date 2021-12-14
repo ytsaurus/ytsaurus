@@ -35,6 +35,23 @@ void Deserialize(TRe2Ptr& re, INodePtr node)
     }
 }
 
+void Deserialize(TRe2Ptr& re, TYsonPullParserCursor* cursor)
+{
+    MaybeSkipAttributes(cursor);
+    if ((*cursor)->GetType() == EYsonItemType::EntityValue) {
+        re.Reset();
+        return;
+    }
+
+    EnsureYsonToken("TRe2", *cursor, EYsonItemType::StringValue);
+    re = New<TRe2>((*cursor)->UncheckedAsString());
+    cursor->Next();
+    if (!re->ok()) {
+        THROW_ERROR_EXCEPTION("Error parsing RE2 regex")
+            << TErrorAttribute("error", re->error());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRe2

@@ -791,13 +791,12 @@ bool TYsonPullParser::IsOnValueBoundary(size_t nestingLevel) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonPullParserCursor::TYsonPullParserCursor(TYsonItem current, TYsonPullParser* parser)
-    : Current_(std::move(current))
-    , Parser_(parser)
-{ }
-
 TYsonPullParserCursor::TYsonPullParserCursor(TYsonPullParser* parser)
-    : TYsonPullParserCursor(parser->Next(), parser)
+    : IsOnFragmentStart_(
+        parser->GetYsonType() != EYsonType::Node &&
+        parser->GetTotalReadSize() == 0)
+    , Current_(parser->Next())
+    , Parser_(parser)
 { }
 
 const TYsonItem& TYsonPullParserCursor::GetCurrent() const
@@ -817,6 +816,7 @@ const TYsonItem& TYsonPullParserCursor::operator*() const
 
 void TYsonPullParserCursor::Next()
 {
+    YT_ASSERT(!IsOnFragmentStart_);
     Current_ = Parser_->Next();
 }
 

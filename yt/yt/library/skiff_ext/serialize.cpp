@@ -1,5 +1,8 @@
 #include "serialize.h"
 
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/pull_parser_deserialize.h>
+
 #include <yt/yt/core/ytree/node.h>
 
 namespace NSkiff {
@@ -19,6 +22,14 @@ void Deserialize(EWireType& wireType, NYT::NYTree::INodePtr node)
             NYT::NYTree::ENodeType::String);
     }
     wireType = ::FromString<EWireType>(node->GetValue<TString>());
+}
+
+void Deserialize(EWireType& wireType, NYT::NYson::TYsonPullParserCursor* cursor)
+{
+    NYT::NYson::MaybeSkipAttributes(cursor);
+    NYT::NYson::EnsureYsonToken("Skiff wire type", *cursor, NYT::NYson::EYsonItemType::StringValue);
+    wireType = ::FromString<EWireType>((*cursor)->UncheckedAsString());
+    cursor->Next();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -103,6 +103,11 @@ void Deserialize(TFormat& value, INodePtr node)
     value = TFormat(type, &node->Attributes());
 }
 
+void Deserialize(TFormat& value, NYson::TYsonPullParserCursor* cursor)
+{
+    Deserialize(value, ExtractTo<INodePtr>(cursor));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {

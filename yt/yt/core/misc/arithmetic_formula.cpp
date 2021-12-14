@@ -1020,6 +1020,13 @@ void Deserialize(TBooleanFormula& booleanFormula, NYTree::INodePtr node)
     booleanFormula = MakeBooleanFormula(node->AsString()->GetValue());
 }
 
+void Deserialize(TBooleanFormula& booleanFormula, TYsonPullParserCursor* cursor)
+{
+    MaybeSkipAttributes(cursor);
+    EnsureYsonToken("TBooleanFormula", *cursor, EYsonItemType::StringValue);
+    booleanFormula = MakeBooleanFormula(ExtractTo<TString>(cursor));
+}
+
 void TBooleanFormula::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;
@@ -1102,9 +1109,16 @@ void Serialize(const TTimeFormula& timeFormula, NYson::IYsonConsumer* consumer)
         .Value(timeFormula.GetFormula());
 }
 
-void Deserialize(TTimeFormula& timeFormula, NYTree::INodePtr node)
+void Deserialize(TTimeFormula& timeFormula, INodePtr node)
 {
     timeFormula = MakeTimeFormula(node->AsString()->GetValue());
+}
+
+void Deserialize(TTimeFormula& timeFormula, TYsonPullParserCursor* cursor)
+{
+    MaybeSkipAttributes(cursor);
+    EnsureYsonToken("TTimeFormula", *cursor, EYsonItemType::StringValue);
+    timeFormula = MakeTimeFormula(ExtractTo<TString>(cursor));
 }
 
 void TTimeFormula::Save(TStreamSaveContext& context) const

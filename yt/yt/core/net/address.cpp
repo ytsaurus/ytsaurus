@@ -752,6 +752,14 @@ void Deserialize(TIP6Address& value, INodePtr node)
     value = TIP6Address::FromString(node->AsString()->GetValue());
 }
 
+void Deserialize(TIP6Address& value, TYsonPullParserCursor* cursor)
+{
+    MaybeSkipAttributes(cursor);
+    EnsureYsonToken("TIP6Address", *cursor, EYsonItemType::StringValue);
+    value = TIP6Address::FromString((*cursor)->UncheckedAsString());
+    cursor->Next();
+}
+
 void Serialize(const TIP6Address& value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(ToString(value));
@@ -855,6 +863,14 @@ TString ToString(const TIP6Network& network)
 void Deserialize(TIP6Network& value, INodePtr node)
 {
     value = TIP6Network::FromString(node->AsString()->GetValue());
+}
+
+void Deserialize(TIP6Network& value, NYson::TYsonPullParserCursor* cursor)
+{
+    MaybeSkipAttributes(cursor);
+    EnsureYsonToken("TIP6Network", *cursor, EYsonItemType::StringValue);
+    value = TIP6Network::FromString((*cursor)->UncheckedAsString());
+    cursor->Next();
 }
 
 void Serialize(const TIP6Network& value, IYsonConsumer* consumer)

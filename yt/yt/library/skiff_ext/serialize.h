@@ -14,6 +14,7 @@ namespace NSkiff {
 
 void Serialize(EWireType wireType, NYT::NYson::IYsonConsumer* consumer);
 void Deserialize(EWireType& wireType, NYT::NYTree::INodePtr node);
+void Deserialize(EWireType& wireType, NYT::NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

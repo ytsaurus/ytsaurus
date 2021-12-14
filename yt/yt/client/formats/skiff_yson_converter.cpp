@@ -972,7 +972,9 @@ public:
         : Stream_(TStringBuf("#;#;#;#;#;#;#;#;"))
         , Parser_(&Stream_, EYsonType::ListFragment)
         , Cursor_(&Parser_)
-    { }
+    {
+        YT_VERIFY(Cursor_.TryConsumeFragmentStart());
+    }
 
     TYsonPullParserCursor* GetCursor()
     {

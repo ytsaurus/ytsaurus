@@ -57,7 +57,7 @@ void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer)
         .EndMap();
 }
 
-void Deserialize(TResourceVolume& volume, NYTree::INodePtr node)
+void Deserialize(TResourceVolume& volume, INodePtr node)
 {
     auto mapNode = node->AsMap();
     #define XX(name, Name) \
@@ -70,7 +70,12 @@ void Deserialize(TResourceVolume& volume, NYTree::INodePtr node)
     #undef XX
 }
 
-void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer)
+void Deserialize(TResourceVolume& volume, TYsonPullParserCursor* cursor)
+{
+    Deserialize(volume, ExtractTo<INodePtr>(cursor));
+}
+
+void Serialize(const TResourceVector& resourceVector, IYsonConsumer* consumer)
 {
     auto fluent = NYTree::BuildYsonFluently(consumer).BeginMap();
     for (int index = 0; index < ResourceCount; ++index) {

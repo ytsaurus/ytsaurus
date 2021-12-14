@@ -8,10 +8,12 @@ namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
 inline void SkipAttributes(TYsonPullParserCursor* cursor);
 inline void MaybeSkipAttributes(TYsonPullParserCursor* cursor);
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
 
 template <typename T, typename = void>
 struct TIsPullParserDeserializable
@@ -142,6 +144,18 @@ void Deserialize(
     C<T...>& value,
     TYsonPullParserCursor* cursor,
     std::enable_if_t<ArePullParserDeserializable<typename NDetail::TRemoveConst<typename C<T...>::value_type>::Type>(), void*> = nullptr);
+
+template <class E, class T, E Min, E Max>
+void Deserialize(
+    TEnumIndexedVector<E, T, Min, Max>& vector,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<T>(), void*> = nullptr);
+
+template <class T>
+void Deserialize(TIntrusivePtr<T>& value, TYsonPullParserCursor* cursor);
+
+template <class T>
+void Deserialize(std::unique_ptr<T>& value, TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -96,6 +96,14 @@ void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node)
     filter.Reload(formula);
 }
 
+void Deserialize(TSchedulingTagFilter& filter, NYson::TYsonPullParserCursor* cursor)
+{
+    TBooleanFormula formula;
+    Deserialize(formula, cursor);
+
+    filter.Reload(formula);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

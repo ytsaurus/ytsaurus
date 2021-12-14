@@ -17,6 +17,7 @@ struct TColumnSortSchema
 
 void Serialize(const TColumnSortSchema& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TColumnSortSchema& schema, NYTree::INodePtr node);
+void Deserialize(TColumnSortSchema& schema, NYson::TYsonPullParserCursor* cursor);
 
 bool operator == (const TColumnSortSchema& lhs, const TColumnSortSchema& rhs);
 bool operator != (const TColumnSortSchema& lhs, const TColumnSortSchema& rhs);

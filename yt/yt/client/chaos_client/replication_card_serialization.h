@@ -21,6 +21,10 @@ void Deserialize(TReplicationProgress& replicationProgress, NYTree::INodePtr nod
 void Deserialize(TReplicaInfo& replicaInfo, NYTree::INodePtr node);
 void Deserialize(TReplicationCard& replicationCard, NYTree::INodePtr node);
 
+void Deserialize(TReplicationProgress& replicationProgress, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(TReplicaInfo& replicaInfo, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(TReplicationCard& replicationCard, NYson::TYsonPullParserCursor* cursor);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NChaosClient::NProto::TReplicationProgress* protoReplicationProgress, const TReplicationProgress& replicationProgress);

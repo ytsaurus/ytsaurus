@@ -174,6 +174,7 @@ private:
         const std::function<void(NYson::IYsonConsumer*)>* valueProducer,
         int depth);
     friend void Deserialize(TError& error, const NYTree::INodePtr& node);
+    friend void Deserialize(TError& error, NYson::TYsonPullParserCursor* cursor);
 };
 
 bool operator == (const TError& lhs, const TError& rhs);

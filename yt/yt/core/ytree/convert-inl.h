@@ -142,6 +142,7 @@ TTo ConvertTo(const TFrom& value)
         (std::is_same_v<TFrom, NYson::TYsonString> || std::is_same_v<TFrom, NYson::TYsonStringBuf>))
     {
         using NYson::Deserialize;
+        using NYTree::Deserialize;
 
         TMemoryInput input(value.AsStringBuf());
         NYson::TYsonPullParser parser(&input, type);

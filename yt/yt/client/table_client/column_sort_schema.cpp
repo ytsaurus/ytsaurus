@@ -51,6 +51,11 @@ void Deserialize(TColumnSortSchema& schema, INodePtr node)
     }
 }
 
+void Deserialize(TColumnSortSchema& schema, TYsonPullParserCursor* cursor)
+{
+    Deserialize(schema, ExtractTo<INodePtr>(cursor));
+}
+
 bool operator == (const TColumnSortSchema& lhs, const TColumnSortSchema& rhs)
 {
     return lhs.Name == rhs.Name && lhs.SortOrder == rhs.SortOrder;

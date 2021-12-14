@@ -223,6 +223,274 @@ void LoadFromNode(
             YT_UNIMPLEMENTED();
     }
 }
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void LoadFromCursor(
+    T& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy /*mergeStrategy*/,
+    bool /*keepUnrecognizedRecursively*/)
+{
+    try {
+        Deserialize(parameter, cursor);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error reading parameter %v", path)
+            << ex;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <IsYsonStructOrYsonSerializable T>
+void LoadFromCursor(
+    TIntrusivePtr<T>& parameterValue,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively);
+
+template <class... T>
+void LoadFromCursor(
+    std::vector<T...>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively);
+
+// std::optional
+template <class T>
+void LoadFromCursor(
+    std::optional<T>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively);
+
+template <template <typename...> class Map, class... T, class M = typename Map<T...>::mapped_type>
+void LoadFromCursor(
+    Map<T...>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// INodePtr
+template <>
+inline void LoadFromCursor(
+    NYTree::INodePtr& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    try {
+        auto node = NYson::ExtractTo<INodePtr>(cursor);
+        LoadFromNode(parameter, std::move(node), path, mergeStrategy, keepUnrecognizedRecursively);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error loading parameter %v", path)
+            << ex;
+    }
+}
+
+// TYsonStruct or TYsonSerializable
+template <IsYsonStructOrYsonSerializable T>
+void LoadFromCursor(
+    TIntrusivePtr<T>& parameterValue,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    if (!parameterValue || mergeStrategy == EMergeStrategy::Overwrite) {
+        parameterValue = New<T>();
+    }
+
+    if (keepUnrecognizedRecursively) {
+        parameterValue->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+    }
+
+    switch (mergeStrategy) {
+        case EMergeStrategy::Default:
+        case EMergeStrategy::Overwrite:
+        case EMergeStrategy::Combine: {
+            parameterValue->Load(cursor, false, false, path);
+            break;
+        }
+
+        default:
+            YT_UNIMPLEMENTED();
+    }
+}
+
+// std::optional
+template <class T>
+void LoadFromCursor(
+    std::optional<T>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    try {
+        switch (mergeStrategy) {
+            case EMergeStrategy::Default:
+            case EMergeStrategy::Overwrite: {
+                if ((*cursor)->GetType() == NYson::EYsonItemType::EntityValue) {
+                    parameter = std::nullopt;
+                    cursor->Next();
+                } else {
+                    T value;
+                    LoadFromCursor(value, cursor, path, EMergeStrategy::Overwrite, keepUnrecognizedRecursively);
+                    parameter = std::move(value);
+                }
+                break;
+            }
+
+            default:
+                YT_UNIMPLEMENTED();
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error loading parameter %v", path)
+            << ex;
+    }
+}
+
+// std::vector
+template <class... T>
+void LoadFromCursor(
+    std::vector<T...>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    try {
+        switch (mergeStrategy) {
+            case EMergeStrategy::Default:
+            case EMergeStrategy::Overwrite: {
+                parameter.clear();
+                int index = 0;
+                cursor->ParseList([&](NYson::TYsonPullParserCursor* cursor) {
+                    LoadFromCursor(
+                        parameter.emplace_back(),
+                        cursor,
+                        path + "/" + NYPath::ToYPathLiteral(index),
+                        EMergeStrategy::Overwrite,
+                        keepUnrecognizedRecursively);
+                    ++index;
+                });
+                break;
+            }
+
+            default:
+                YT_UNIMPLEMENTED();
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error loading parameter %v", path)
+            << ex;
+    }
+}
+
+template <class TMapping, class TValue, class TEmplacer, class TSetter>
+void LoadMappingFromCursor(
+    TMapping& mapping,
+    TEmplacer emplacer,
+    TSetter setter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    try {
+        auto doParse = [&] (auto setterOrEmplacer, EMergeStrategy mergeStrategy) {
+            cursor->ParseMap([&] (NYson::TYsonPullParserCursor* cursor) {
+                auto key = ExtractTo<TString>(cursor);
+                TValue value;
+                LoadFromCursor(
+                    value,
+                    cursor,
+                    path + "/" + NYPath::ToYPathLiteral(key),
+                    mergeStrategy,
+                    keepUnrecognizedRecursively);
+                setterOrEmplacer(mapping, key, std::move(value));
+            });
+        };
+
+        switch (mergeStrategy) {
+            case EMergeStrategy::Default:
+            case EMergeStrategy::Overwrite: {
+                mapping = {};
+                doParse(emplacer, EMergeStrategy::Overwrite);
+                break;
+            }
+            case EMergeStrategy::Combine: {
+                doParse(setter, EMergeStrategy::Combine);
+                break;
+            }
+            default:
+                YT_UNIMPLEMENTED();
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error loading parameter %v", path)
+            << ex;
+    }
+}
+
+// For any map.
+template <template <typename...> class Map, class... T, class M>
+void LoadFromCursor(
+    Map<T...>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    try {
+        auto doParse = [&] (const auto& setterOrEmplacer, EMergeStrategy mergeStrategy) {
+            cursor->ParseMap([&] (NYson::TYsonPullParserCursor* cursor) {
+                auto key = ExtractTo<TString>(cursor);
+                M value;
+                LoadFromCursor(
+                    value,
+                    cursor,
+                    path + "/" + NYPath::ToYPathLiteral(key),
+                    mergeStrategy,
+                    keepUnrecognizedRecursively);
+                setterOrEmplacer(key, std::move(value));
+            });
+        };
+
+        switch (mergeStrategy) {
+            case EMergeStrategy::Default:
+            case EMergeStrategy::Overwrite: {
+                parameter.clear();
+                auto emplacer = [&] (auto key, M&& value) {
+                    parameter.emplace(DeserializeMapKey<typename Map<T...>::key_type>(key), std::move(value));
+                };
+                doParse(emplacer, EMergeStrategy::Overwrite);
+                break;
+            }
+            case EMergeStrategy::Combine: {
+                auto setter = [&] (auto key, M&& value) {
+                    parameter[DeserializeMapKey<typename Map<T...>::key_type>(key)] = std::move(value);
+                };
+                doParse(setter, EMergeStrategy::Combine);
+                break;
+            }
+            default:
+                YT_UNIMPLEMENTED();
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error loading parameter %v", path)
+            << ex;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 // For all classes except descendants of TYsonSerializableLite and their intrusive pointers
 // we do not attempt to extract unrecognzied members. C++ prohibits function template specialization
@@ -366,10 +634,18 @@ TYsonSerializableLite::TParameter<T>::TParameter(TString key, T& parameter)
 { }
 
 template <class T>
-void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy)
+void TYsonSerializableLite::TParameter<T>::Load(
+    NYTree::INodePtr node,
+    const NYPath::TYPath& path,
+    std::optional<EMergeStrategy> mergeStrategy)
 {
     if (node) {
-        NDetail::LoadFromNode(Parameter, node, path, mergeStrategy.value_or(MergeStrategy), KeepUnrecognizedRecursively);
+        NDetail::LoadFromNode(
+            Parameter,
+            node,
+            path,
+            mergeStrategy.value_or(MergeStrategy),
+            KeepUnrecognizedRecursively);
     } else if (!DefaultValue) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             path);
@@ -377,12 +653,65 @@ void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYP
 }
 
 template <class T>
-void TYsonSerializableLite::TParameter<T>::SafeLoad(NYTree::INodePtr node, const NYPath::TYPath& path, const std::function<void()>& validate, std::optional<EMergeStrategy> mergeStrategy)
+void TYsonSerializableLite::TParameter<T>::SafeLoad(
+    NYTree::INodePtr node,
+    const NYPath::TYPath& path,
+    const std::function<void()>& validate,
+    std::optional<EMergeStrategy> mergeStrategy)
 {
     if (node) {
         T oldValue = Parameter;
         try {
-            NDetail::LoadFromNode(Parameter, node, path, mergeStrategy.value_or(MergeStrategy), KeepUnrecognizedRecursively);
+            NDetail::LoadFromNode(
+                Parameter,
+                node,
+                path,
+                mergeStrategy.value_or(MergeStrategy),
+                KeepUnrecognizedRecursively);
+            validate();
+        } catch (const std::exception&) {
+            Parameter = std::move(oldValue);
+            throw;
+        }
+    }
+}
+
+
+template <class T>
+void TYsonSerializableLite::TParameter<T>::Load(
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    std::optional<EMergeStrategy> mergeStrategy)
+{
+    if (cursor) {
+        NDetail::LoadFromCursor(
+            Parameter,
+            cursor,
+            path,
+            mergeStrategy.value_or(MergeStrategy),
+            KeepUnrecognizedRecursively);
+    } else if (!DefaultValue) {
+        THROW_ERROR_EXCEPTION("Missing required parameter %v",
+            path);
+    }
+}
+
+template <class T>
+void TYsonSerializableLite::TParameter<T>::SafeLoad(
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    const std::function<void()>& validate,
+    std::optional<EMergeStrategy> mergeStrategy)
+{
+    if (cursor) {
+        T oldValue = Parameter;
+        try {
+            NDetail::LoadFromCursor(
+                Parameter,
+                cursor,
+                path,
+                mergeStrategy.value_or(MergeStrategy),
+                KeepUnrecognizedRecursively);
             validate();
         } catch (const std::exception&) {
             Parameter = std::move(oldValue);

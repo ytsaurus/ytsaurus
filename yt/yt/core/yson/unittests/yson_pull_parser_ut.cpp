@@ -345,7 +345,9 @@ TEST(TYsonPullParserTest, MapFragment)
     EXPECT_EQ(GetYsonPullSignature("", EYsonType::MapFragment), "");
     EXPECT_EQ(GetYsonPullSignature("k=v ", EYsonType::MapFragment), "'k' 'v'");
     EXPECT_EQ(GetYsonPullSignature("k=v ; ", EYsonType::MapFragment), "'k' 'v'");
-    EXPECT_EQ(GetYsonPullSignature("k1=v; k2={}; k3=[]; k4=<>#", EYsonType::MapFragment), "'k1' 'v' 'k2' { } 'k3' [ ] 'k4' < > #");
+    EXPECT_EQ(
+        GetYsonPullSignature("k1=v; k2={}; k3=[]; k4=<>#", EYsonType::MapFragment),
+        "'k1' 'v' 'k2' { } 'k3' [ ] 'k4' < > #");
 }
 
 TEST(TYsonPullParserTest, Complex1)
@@ -365,9 +367,10 @@ TEST(TYsonPullParserTest, TestBadYson)
 {
     EXPECT_ANY_THROW(GetYsonPullSignature("foo bar "));
     EXPECT_ANY_THROW(GetYsonPullSignature("foo bar ", EYsonType::ListFragment));
-    EXPECT_ANY_THROW(GetYsonPullSignature("foo bar ", EYsonType::MapFragment));
+    EXPECT_ANY_THROW(GetYsonPullSignature("{foo=1;2};", EYsonType::ListFragment));
     EXPECT_ANY_THROW(GetYsonPullSignature("foo; bar"));
     EXPECT_ANY_THROW(GetYsonPullSignature("foo bar ", EYsonType::MapFragment));
+    EXPECT_ANY_THROW(GetYsonPullSignature("key=[a=b;c=d]", EYsonType::MapFragment));
     EXPECT_ANY_THROW(GetYsonPullSignature("foo=bar "));
     EXPECT_ANY_THROW(GetYsonPullSignature("foo=bar ", EYsonType::ListFragment));
 }
@@ -1136,6 +1139,56 @@ TEST(TYsonPullParserCursorTest, TestParseBoolAndNan)
         auto cursor = TStringBufCursor(input);
         EXPECT_EQ(cursor.GetCurrent().GetType(), EYsonItemType::BooleanValue);
         EXPECT_TRUE(cursor.GetCurrent().UncheckedAsBoolean());
+    }
+}
+
+TEST(TYsonPullParserCursorTest, ListFragment)
+{
+    {
+        TStringBuf input = "1;2;3";
+        auto cursor = TStringBufCursor(input, EYsonType::ListFragment);
+        EXPECT_TRUE(cursor.TryConsumeFragmentStart());
+        EXPECT_FALSE(cursor.TryConsumeFragmentStart());
+        cursor.Next();
+        EXPECT_FALSE(cursor.TryConsumeFragmentStart());
+    }
+    {
+        TStringBuf input = "1;2;3";
+        auto cursor = TStringBufCursor(input, EYsonType::ListFragment);
+        EXPECT_TRUE(cursor.TryConsumeFragmentStart());
+
+        std::vector<int> expected = {1, 2, 3};
+        for (auto expectedEl : expected) {
+            EXPECT_EQ(cursor->UncheckedAsInt64(), expectedEl);
+            cursor.Next();
+        }
+        EXPECT_EQ(cursor->GetType(), EYsonItemType::EndOfStream);
+    }
+}
+
+TEST(TYsonPullParserCursorTest, MapFragment)
+{
+    {
+        TStringBuf input = "a=1;b=2;c=3";
+        auto cursor = TStringBufCursor(input, EYsonType::MapFragment);
+        EXPECT_TRUE(cursor.TryConsumeFragmentStart());
+        EXPECT_FALSE(cursor.TryConsumeFragmentStart());
+        cursor.Next();
+        EXPECT_FALSE(cursor.TryConsumeFragmentStart());
+    }
+    {
+        TStringBuf input = "a=1;b=2;c=3";
+        auto cursor = TStringBufCursor(input, EYsonType::MapFragment);
+        EXPECT_TRUE(cursor.TryConsumeFragmentStart());
+
+        std::vector<std::pair<TString, int>> expected = {{"a", 1}, {"b", 2}, {"c", 3}};
+        for (const auto& [key, value] : expected) {
+            EXPECT_EQ(cursor->UncheckedAsString(), key);
+            cursor.Next();
+            EXPECT_EQ(cursor->UncheckedAsInt64(), value);
+            cursor.Next();
+        }
+        EXPECT_EQ(cursor->GetType(), EYsonItemType::EndOfStream);
     }
 }
 

@@ -3,6 +3,7 @@
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/token_writer.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/node.h>
@@ -104,6 +105,105 @@ void TYsonSerializableLite::Load(
                 YT_VERIFY(Unrecognized->AddChild(key, ConvertToNode(child)));
             }
         }
+    }
+
+    if (postprocess) {
+        Postprocess(path);
+    }
+}
+
+void TYsonSerializableLite::Load(
+    TYsonPullParserCursor* cursor,
+    bool postprocess,
+    bool setDefaults,
+    const TYPath& path)
+{
+    YT_VERIFY(cursor);
+
+    if (setDefaults) {
+        SetDefaults();
+    }
+
+    THashMap<TStringBuf, IParameter*> keyToParameter;
+    THashSet<IParameter*> pendingParameters;
+    for (const auto& [key, parameter] : Parameters) {
+        EmplaceOrCrash(keyToParameter, key, parameter.Get());
+        for (const auto& alias : parameter->GetAliases()) {
+            EmplaceOrCrash(keyToParameter, alias, parameter.Get());
+        }
+        InsertOrCrash(pendingParameters, parameter.Get());
+    }
+
+    THashMap<TString, TString> aliasedData;
+
+    auto processPossibleAlias = [&] (
+        IParameter* parameter,
+        TStringBuf key,
+        TYsonPullParserCursor* cursor)
+    {
+        TStringStream ss;
+        {
+            TCheckedInDebugYsonTokenWriter writer(&ss);
+            cursor->TransferComplexValue(&writer);
+        }
+        auto data = std::move(ss.Str());
+        const auto& canonicalKey = parameter->GetKey();
+        auto aliasedDataIt = aliasedData.find(canonicalKey);
+        if (aliasedDataIt != aliasedData.end()) {
+            auto firstNode = ConvertTo<INodePtr>(TYsonStringBuf(aliasedDataIt->second));
+            auto secondNode = ConvertTo<INodePtr>(TYsonStringBuf(data));
+            if (!AreNodesEqual(firstNode, secondNode)) {
+                THROW_ERROR_EXCEPTION("Different values for aliased parameters %Qv and %Qv", canonicalKey, key)
+                    << TErrorAttribute("main_value", firstNode)
+                    << TErrorAttribute("aliased_value", secondNode);
+            }
+            return;
+        }
+        {
+            TStringInput input(data);
+            TYsonPullParser parser(&input, NYson::EYsonType::Node);
+            TYsonPullParserCursor newCursor(&parser);
+            auto childPath = path + "/" + key;
+            parameter->Load(&newCursor, childPath);
+        }
+        EmplaceOrCrash(aliasedData, canonicalKey, std::move(data));
+    };
+
+    auto processUnrecognized = [&, this] (const TString& key, TYsonPullParserCursor* cursor) {
+        if (UnrecognizedStrategy == EUnrecognizedStrategy::Drop) {
+            cursor->SkipComplexValue();
+            return;
+        }
+        if (!Unrecognized) {
+            Unrecognized = GetEphemeralNodeFactory()->CreateMap();
+        }
+        Unrecognized->RemoveChild(key);
+        auto added = Unrecognized->AddChild(key, ExtractTo<INodePtr>(cursor));
+        YT_VERIFY(added);
+    };
+
+    cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
+        auto key = ExtractTo<TString>(cursor);
+        auto it = keyToParameter.find(key);
+        if (it == keyToParameter.end()) {
+            processUnrecognized(key, cursor);
+            return;
+        }
+
+        auto parameter = it->second;
+        if (parameter->GetAliases().empty()) {
+            auto childPath = path + "/" + key;
+            parameter->Load(cursor, childPath);
+        } else {
+            processPossibleAlias(parameter, key, cursor);
+        }
+        // NB: Key may be missing in case of aliasing.
+        pendingParameters.erase(parameter);
+    });
+
+    for (auto parameter : pendingParameters) {
+        auto childPath = path + "/" + parameter->GetKey();
+        parameter->Load(/* cursor */ nullptr, childPath);
     }
 
     if (postprocess) {
@@ -254,6 +354,11 @@ void Serialize(const TYsonSerializableLite& value, IYsonConsumer* consumer)
 void Deserialize(TYsonSerializableLite& value, INodePtr node)
 {
     value.Load(node);
+}
+
+void Deserialize(TYsonSerializableLite& value, NYson::TYsonPullParserCursor* cursor)
+{
+    value.Load(cursor);
 }
 
 TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value)

@@ -790,6 +790,11 @@ void Deserialize(TDescriptorType& value, NYTree::INodePtr node)
     }
 }
 
+void Deserialize(TDescriptorType& value, TYsonPullParserCursor* cursor)
+{
+    Deserialize(value, ExtractTo<INodePtr>(cursor));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TExternalFunctionImpl* proto, const TExternalFunctionImpl& object)

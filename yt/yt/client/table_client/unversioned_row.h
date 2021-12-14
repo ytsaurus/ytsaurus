@@ -546,6 +546,7 @@ void Serialize(TLegacyKey key, NYson::IYsonConsumer* consumer);
 void Serialize(const TLegacyOwningKey& key, NYson::IYsonConsumer* consumer);
 
 void Deserialize(TLegacyOwningKey& key, NYTree::INodePtr node);
+void Deserialize(TLegacyOwningKey& key, NYson::TYsonPullParserCursor* cursor);
 
 size_t GetYsonSize(const TUnversionedValue& value);
 size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue);

@@ -68,6 +68,13 @@ void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, INodePtr node)
     workloadDescriptor = serializableWorkloadDescriptor.Underlying;
 }
 
+void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, NYson::TYsonPullParserCursor* cursor)
+{
+    TSerializableUserWorkloadDescriptor serializableWorkloadDescriptor;
+    Deserialize(serializableWorkloadDescriptor, cursor);
+    workloadDescriptor = serializableWorkloadDescriptor.Underlying;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::TMutationId TMutatingOptions::GetOrGenerateMutationId() const

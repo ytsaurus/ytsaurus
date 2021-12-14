@@ -82,6 +82,11 @@ void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree
     }
 }
 
+void Deserialize(TCustomJobMetricDescription& filter, NYson::TYsonPullParserCursor* cursor)
+{
+    Deserialize(filter, ExtractTo<INodePtr>(cursor));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobMetrics TJobMetrics::FromJobStatistics(
@@ -125,7 +130,7 @@ TJobMetrics TJobMetrics::FromJobStatistics(
     metrics.Values()[EJobMetricName::TotalTimeOperationCompleted] = 0;
     metrics.Values()[EJobMetricName::TotalTimeOperationAborted] = 0;
     metrics.Values()[EJobMetricName::TotalTimeOperationFailed] = 0;
-    
+
     metrics.Values()[EJobMetricName::MainResourceConsumptionOperationCompleted] = 0;
     metrics.Values()[EJobMetricName::MainResourceConsumptionOperationAborted] = 0;
     metrics.Values()[EJobMetricName::MainResourceConsumptionOperationFailed] = 0;

@@ -45,6 +45,15 @@ void TYsonStructBase::Load(
     Meta_->LoadStruct(this, node, postprocess, setDefaults, path);
 }
 
+void TYsonStructBase::Load(
+    TYsonPullParserCursor* cursor,
+    bool postprocess,
+    bool setDefaults,
+    const TYPath& path)
+{
+    Meta_->LoadStruct(this, cursor, postprocess, setDefaults, path);
+}
+
 void TYsonStructBase::Save(
     IYsonConsumer* consumer,
     bool stable) const
@@ -156,6 +165,11 @@ void Serialize(const TYsonStructBase& value, IYsonConsumer* consumer)
 void Deserialize(TYsonStructBase& value, INodePtr node)
 {
     value.Load(node);
+}
+
+void Deserialize(TYsonStructBase& value, TYsonPullParserCursor* cursor)
+{
+    value.Load(cursor);
 }
 
 TYsonString ConvertToYsonStringStable(const TYsonStructBase& value)

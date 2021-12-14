@@ -131,6 +131,13 @@ void Deserialize(TWorkloadDescriptor& descriptor, INodePtr node)
     descriptor = static_cast<TWorkloadDescriptor&>(wrapper);
 }
 
+void Deserialize(TWorkloadDescriptor& descriptor, NYson::TYsonPullParserCursor* cursor)
+{
+    TSerializableWorkloadDescriptor wrapper = TSerializableWorkloadDescriptor::Create();
+    Deserialize(static_cast<TYsonStructLite&>(wrapper), cursor);
+    descriptor = static_cast<TWorkloadDescriptor&>(wrapper);
+}
+
 void ToProto(NYT::NProto::TWorkloadDescriptor* protoDescriptor, const TWorkloadDescriptor& descriptor)
 {
     protoDescriptor->set_category(static_cast<int>(descriptor.Category));

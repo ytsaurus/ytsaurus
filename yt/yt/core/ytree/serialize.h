@@ -219,6 +219,9 @@ void Deserialize(TCompactVector<T, N>& value, INodePtr node);
 template <class T>
 void Deserialize(TErrorOr<T>& error, INodePtr node);
 
+template <class T>
+void Deserialize(TErrorOr<T>& error, NYson::TYsonPullParserCursor* cursor);
+
 template <class F, class S>
 void Deserialize(std::pair<F, S>& value, INodePtr node);
 
