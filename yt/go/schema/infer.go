@@ -75,11 +75,20 @@ func ytTypeFor(typ reflect.Type) (ytTyp Type, err error) {
 	return "", xerrors.Errorf("type %v has no associated YT type", typ)
 }
 
+const (
+	tabletIndexTag = "$tablet_index"
+	rowIndexTag    = "$row_index"
+)
+
 func parseTag(fieldName string, typ reflect.Type, tag reflect.StructTag) (c *Column, err error) {
 	c = &Column{Required: true}
 
 	decodedTag, skip := yson.ParseTag(fieldName, tag)
 	if skip {
+		return nil, nil
+	}
+
+	if decodedTag.Name == tabletIndexTag || decodedTag.Name == rowIndexTag {
 		return nil, nil
 	}
 
@@ -229,6 +238,17 @@ func InferMap(value interface{}) (s Schema, err error) {
 	})
 
 	return
+}
+
+// MustInferMap infers Schema from go map[string]interface{}.
+//
+// MustInferMap panics on errors.
+func MustInferMap(value interface{}) (s Schema) {
+	s, err := InferMap(value)
+	if err != nil {
+		panic(err)
+	}
+	return s
 }
 
 // reflectValueOfType creates value reflection of requested type for schema inferring.
