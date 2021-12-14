@@ -326,10 +326,11 @@ void ConfigureAllocator(TAllocatorOptions options)
         NYTAlloc::EnableStockpile();
     }
 
-    if (tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes")) {
+    if (tcmalloc::MallocExtension::NeedsProcessBackgroundActions()) {
         std::thread backgroundThread([] {
             TThread::SetCurrentThreadName("TCAllocBack");
             tcmalloc::MallocExtension::ProcessBackgroundActions();
+            YT_VERIFY(false);
         });
         backgroundThread.detach();
     }
@@ -342,7 +343,8 @@ void ConfigureAllocator(TAllocatorOptions options)
     tcmalloc::MallocExtension::ActivateGuardedSampling();
     tcmalloc::MallocExtension::SetMaxPerCpuCacheSize(3_MB);
     tcmalloc::MallocExtension::SetMaxTotalThreadCacheBytes(24_MB);
-    tcmalloc::MallocExtension::SetBackgroundReleaseRate(tcmalloc::MallocExtension::BytesPerSecond{1_MB});
+    tcmalloc::MallocExtension::SetBackgroundReleaseRate(tcmalloc::MallocExtension::BytesPerSecond{32_MB});
+    tcmalloc::MallocExtension::EnableForkSupport();
 #else
     Y_UNUSED(options);
 #endif
