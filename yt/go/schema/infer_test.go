@@ -251,6 +251,23 @@ func TestInferKeyWithDefaultName(t *testing.T) {
 	})
 }
 
+type orderedTableStruct struct {
+	TabletIndex int    `yson:"$tablet_index"`
+	RowIndex    int    `yson:"$row_index"`
+	Value       string `yson:"value"`
+}
+
+func TestInferOrderedTable(t *testing.T) {
+	s, err := Infer(&orderedTableStruct{})
+	require.NoError(t, err)
+
+	require.Equal(t, s, Schema{
+		Columns: []Column{
+			{Name: "value", Type: TypeString, Required: true},
+		},
+	})
+}
+
 func TestInferMapType(t *testing.T) {
 	var a int
 	_, err := Infer(a)

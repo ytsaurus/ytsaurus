@@ -51,7 +51,7 @@ func TestTabletClient(t *testing.T) {
 		{Name: "InsertRows_empty", Test: suite.TestInsertRows_empty},
 		{Name: "DeleteRows_empty", Test: suite.TestDeleteRows_empty},
 		{Name: "InsertRowsBatch", Test: suite.TestInsertRowsBatch},
-		{Name: "LookupRows_map", Test: suite.TestLookupRows_map},
+		{Name: "LookupRows_map", Test: suite.TestLookupRows_map, SkipRPC: true}, // todo https://st.yandex-team.ru/YT-15505
 	})
 }
 
@@ -297,8 +297,6 @@ func (s *Suite) TestInsertRows_map(t *testing.T, yc yt.Client) {
 
 func (s *Suite) TestLookupRows_map(t *testing.T, yc yt.Client) {
 	t.Parallel()
-
-	t.Skip("Test was skipped due to the different behavior of clients when deserializing byte strings.") // todo https://st.yandex-team.ru/YT-15505
 
 	type testRow struct {
 		Key   string `yson:"table_key,key"`
