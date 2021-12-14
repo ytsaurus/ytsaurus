@@ -1900,9 +1900,9 @@ private:
         auto round = request->replication_round();
         auto* tablet = GetTabletOrThrow(tabletId);
 
-        if (tablet->GetReplicationRound() != round) {
+        if (tablet->ChaosData()->ReplicationRound != round) {
             THROW_ERROR_EXCEPTION("Replication round mismatch: expected %v, got %v",
-                tablet->GetReplicationRound(),
+                tablet->ChaosData()->ReplicationRound,
                 round);
         }
 
@@ -1921,7 +1921,7 @@ private:
             return;
         }
 
-        YT_VERIFY(tablet->GetReplicationRound() == round);
+        YT_VERIFY(tablet->ChaosData()->ReplicationRound == round);
 
         auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
         tablet->RuntimeData()->ReplicationProgress.Store(progress);
@@ -1933,15 +1933,15 @@ private:
             YT_VERIFY(currentReplicationRowIndexes.insert(std::make_pair(tabletId, endReplicationRowIndex)).second);
         }
 
-        tablet->CurrentReplicationRowIndexes() = std::move(currentReplicationRowIndexes);
-        tablet->SetReplicationRound(round + 1);
+        tablet->ChaosData()->CurrentReplicationRowIndexes = std::move(currentReplicationRowIndexes);
+        tablet->ChaosData()->ReplicationRound = round + 1;
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows committed (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, NewReplicationRound: %v)",
             tabletId,
             transaction->GetId(),
             static_cast<NChaosClient::TReplicationProgress>(*progress),
-            tablet->CurrentReplicationRowIndexes(),
-            tablet->GetReplicationRound());
+            tablet->ChaosData()->CurrentReplicationRowIndexes,
+            tablet->ChaosData()->ReplicationRound);
     }
 
     void HydraAbortWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request)
@@ -2554,7 +2554,7 @@ private:
                 .Item("in_flight_replicator_mutation_count").Value(tablet->GetInFlightReplicatorMutationCount())
                 .Item("pending_user_write_record_count").Value(tablet->GetPendingUserWriteRecordCount())
                 .Item("pending_replicator_write_record_count").Value(tablet->GetPendingReplicatorWriteRecordCount())
-                .Item("replication_card").Value(tablet->ReplicationCard())
+                .Item("replication_card").Value(tablet->ChaosData()->ReplicationCard)
                 .Item("replicaiton_progress").Value(tablet->RuntimeData()->ReplicationProgress.Load())
                 .Item("write_mode").Value(tablet->RuntimeData()->WriteMode.load())
                 .Do([tablet] (auto fluent) {

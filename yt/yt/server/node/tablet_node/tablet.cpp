@@ -1459,6 +1459,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->PerformanceCounters = PerformanceCounters_;
     snapshot->ColumnEvaluator = ColumnEvaluator_;
     snapshot->TabletRuntimeData = RuntimeData_;
+    snapshot->TabletChaosData = ChaosData_;
 
     for (const auto& [replicaId, replicaInfo] : Replicas_) {
         YT_VERIFY(snapshot->Replicas.emplace(replicaId, replicaInfo.BuildSnapshot()).second);
