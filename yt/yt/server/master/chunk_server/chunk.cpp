@@ -573,8 +573,13 @@ int TChunk::GetMaxReplicasPerRack(
         }
 
         case EObjectType::JournalChunk:
-        case EObjectType::ErasureJournalChunk:
-            return std::max(ReadQuorum_ - 1, 1);
+        case EObjectType::ErasureJournalChunk: {
+            YT_ASSERT(!replicationFactorOverride);
+            auto replicaCount = GetPhysicalReplicationFactor(mediumIndex, registry);
+            // #ReadQuorum replicas are required to read journal chunk, so no more
+            // than #replicaCount - #ReadQuorum replicas can be placed in the same rack.
+            return std::max(replicaCount - ReadQuorum_, 1);
+        }
 
         default:
             YT_ABORT();
