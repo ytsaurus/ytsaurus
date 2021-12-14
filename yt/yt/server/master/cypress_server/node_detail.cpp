@@ -1047,6 +1047,7 @@ TMapNode::~TMapNode()
 {
     // Usually, Children_.Reset() has already been called by now, so Clear is a no-op.
     // This is only relevant when the whole automaton is being cleared.
+    Children_.Clear();
 }
 
 const TMapNode::TKeyToChild& TMapNode::KeyToChild() const
