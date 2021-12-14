@@ -11,8 +11,12 @@ class TFilterMapper
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    Y_SAVELOAD_JOB(Pattern_, MaxDistance_);
+    Y_SAVELOAD_JOB(Pattern_, MaxDistance_); // Заклинание, которое говорит, какие переменные нужно передавать на сервер.
 
+    // Этот метод необходим, чтобы уметь конструировать маппер из произвольного
+    // YSON-serializable объекта в питоне.
+    // Инициализация объекта произойдет локально, на сервере будут восстановлены
+    // только переменные из Y_SAVELOAD_JOB (Pattern_ и MaxDistance_).
     static TIntrusivePtr<IMapper> FromNode(const TNode& node)
     {
         auto result = MakeIntrusive<TFilterMapper>();
