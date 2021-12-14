@@ -45,6 +45,9 @@ public:
         }
     }
 
+    // Для protobuf джобов PrepareOperation() обязателен.
+    // Несмотря на то, что мы использовали ::google::protobuf::Message,
+    // здесь необходимо указать конкретный тип для каждой таблицы.
     void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& preparer) const override
     {
         Y_UNUSED(context);

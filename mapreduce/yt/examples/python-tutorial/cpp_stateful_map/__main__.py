@@ -9,6 +9,7 @@ from yt.python.yt.cpp_wrapper import CppJob
 def main():
     yt.wrapper.config.set_proxy("freud")
     output_table = "//tmp/" + getpass.getuser() + "-pytutorial-stateful-mapper"
+    # Словарь из CppJob будет доступен в FromNode() как TNode.
     yt.wrapper.run_map(
         CppJob("TFilterMapper", {"pattern": "Arkady", "max_distance": 2}),
         source_table="//home/dev/tutorial/staff_unsorted",

@@ -21,6 +21,8 @@ public:
         }
     }
 
+    // Для protobuf джобов PrepareOperation() обязателен.
+    // Здесь нужно для каждой входной и выходной таблицы указать их типы.
     void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& preparer) const override
     {
         Y_UNUSED(context);

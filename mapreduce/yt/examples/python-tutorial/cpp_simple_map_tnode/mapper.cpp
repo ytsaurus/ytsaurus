@@ -3,7 +3,7 @@
 using namespace NYT;
 
 class TComputeEmailsMapper
-    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>> // Указываем, что мы хотим использовать TNode
 {
 public:
     void Do(TReader* reader, TWriter* writer) override
