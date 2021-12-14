@@ -312,8 +312,6 @@ public:
 
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
-    bool UseNewReplicator;
-
     TCellMasterConfig();
 };
 
