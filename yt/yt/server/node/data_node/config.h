@@ -131,7 +131,7 @@ public:
             BlockCache->YoungerSizeFraction = 0.5;
 
             // Should be good enough.
-            RequestCache->Capacity = 128 * 1024;
+            RequestCache->Capacity = 16 * 1024;
         });
     }
 };
