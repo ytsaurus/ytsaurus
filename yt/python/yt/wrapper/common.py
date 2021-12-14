@@ -22,12 +22,14 @@ import socket
 import sys
 import threading
 import types
+
 try:
-    from yt.packages.distro import linux_distribution
+    import yt.packages.distro as distro
 except ImportError:
     try:
-        from distro import linux_distribution
+        import distro
     except ImportError:
+        distro = None
         try:
             from platform import linux_distribution
         except ImportError:
@@ -304,7 +306,9 @@ def get_python_version():
 
 def get_platform():
     if sys.platform in ("linux", "linux2"):
-        if linux_distribution is not None:
+        if distro is not None:
+            return "{0} {1} ({2})".format(distro.name(), distro.version(), distro.codename())
+        elif linux_distribution is not None:
             return "{0} {1} ({2})".format(*linux_distribution())
         else:
             return platform.uname().system
