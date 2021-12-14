@@ -548,7 +548,7 @@ public:
             multiplexedRecord.Header.RecordId = currentRecordId++;
             multiplexedRecord.Header.ChunkId = chunkId;
 
-            if (Config_->BigRecordThreshold && static_cast<int>(record.Size()) <= *Config_->BigRecordThreshold) {
+            if (!Config_->BigRecordThreshold || static_cast<int>(record.Size()) <= *Config_->BigRecordThreshold) {
                 multiplexedRecord.Header.Type = EMultiplexedRecordType::Append;
                 multiplexedRecord.Data = record;
             } else {
