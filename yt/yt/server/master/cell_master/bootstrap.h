@@ -76,8 +76,6 @@ public:
     bool IsSecondaryMaster() const;
     bool IsMulticell() const;
 
-    bool UseNewReplicator() const;
-
     void VerifyPersistentStateRead() const;
 
     NObjectClient::TCellId GetCellId() const;

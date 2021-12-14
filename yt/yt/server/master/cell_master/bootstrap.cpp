@@ -243,11 +243,6 @@ bool TBootstrap::IsMulticell() const
     return Multicell_;
 }
 
-bool TBootstrap::UseNewReplicator() const
-{
-    return Config_->UseNewReplicator;
-}
-
 void TBootstrap::VerifyPersistentStateRead() const
 {
     HydraFacade_->VerifyPersistentStateRead();

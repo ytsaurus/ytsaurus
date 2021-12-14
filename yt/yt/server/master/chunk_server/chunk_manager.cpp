@@ -36,10 +36,6 @@
 
 #include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
-#include <yt/yt/server/master/chunk_server/new_replicator/chunk_replica_allocator.h>
-#include <yt/yt/server/master/chunk_server/new_replicator/job_tracker.h>
-#include <yt/yt/server/master/chunk_server/new_replicator/replicator_state.h>
-
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
@@ -541,13 +537,6 @@ public:
         nodeTracker->SubscribeNodeDataCenterChanged(BIND(&TImpl::OnNodeDataCenterChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeDecommissionChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisableWriteSessionsChanged(BIND(&TImpl::OnNodeDisableWriteSessionsChanged, MakeWeak(this)));
-        nodeTracker->SubscribeDataCenterCreated(BIND(&TImpl::OnDataCenterCreated, MakeWeak(this)));
-        nodeTracker->SubscribeDataCenterRenamed(BIND(&TImpl::OnDataCenterRenamed, MakeWeak(this)));
-        nodeTracker->SubscribeDataCenterDestroyed(BIND(&TImpl::OnDataCenterDestroyed, MakeWeak(this)));
-        nodeTracker->SubscribeRackCreated(BIND(&TImpl::OnRackCreated, MakeWeak(this)));
-        nodeTracker->SubscribeRackRenamed(BIND(&TImpl::OnRackRenamed, MakeWeak(this)));
-        nodeTracker->SubscribeRackDataCenterChanged(BIND(&TImpl::OnRackDataCenterChanged, MakeWeak(this)));
-        nodeTracker->SubscribeRackDestroyed(BIND(&TImpl::OnRackDestroyed, MakeWeak(this)));
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullDataNodeHeartbeat, MakeWeak(this)));
@@ -597,20 +586,6 @@ public:
     TJobPtr FindLastFinishedJob(TChunkId chunkId) const
     {
         return JobRegistry_->FindLastFinishedJob(chunkId);
-    }
-
-    NReplicator::IChunkReplicaAllocatorPtr GetChunkReplicaAllocator() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return ChunkReplicaAllocator_.Load();
-    }
-
-    NReplicator::IJobTrackerPtr GetJobTracker() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return JobTracker_.Load();
     }
 
     const TJobRegistryPtr& GetJobRegistry() const
@@ -1901,10 +1876,6 @@ public:
         YT_VERIFY(NameToMediumMap_.erase(medium->GetName()) == 1);
         YT_VERIFY(NameToMediumMap_.emplace(newName, medium).second);
         medium->SetName(newName);
-
-        if (ReplicatorState_) {
-            ReplicatorState_->RenameMedium(medium->GetId(), newName);
-        }
     }
 
     void SetMediumPriority(TMedium* medium, int priority)
@@ -1925,10 +1896,6 @@ public:
         medium->Config() = std::move(newConfig);
         if (medium->Config()->MaxReplicationFactor != oldMaxReplicationFactor) {
             ScheduleGlobalChunkRefresh();
-        }
-
-        if (ReplicatorState_) {
-            ReplicatorState_->UpdateMediumConfig(medium->GetId(), medium->Config());
         }
     }
 
@@ -2175,11 +2142,6 @@ private:
     TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
     IChunkSealerPtr ChunkSealer_;
-
-    // New replicator.
-    NReplicator::IReplicatorStatePtr ReplicatorState_;
-    TAtomicObject<NReplicator::IJobTrackerPtr> JobTracker_;
-    TAtomicObject<NReplicator::IChunkReplicaAllocatorPtr> ChunkReplicaAllocator_;
 
     TPeriodicExecutorPtr RedistributeConsistentReplicaPlacementTokensExecutor_;
 
@@ -3020,59 +2982,6 @@ private:
     {
         const auto& config = GetDynamicConfig()->ConsistentReplicaPlacement;
         return std::max<int>(1, (bucket + 1) * config->TokensPerNode);
-    }
-
-    void OnDataCenterCreated(TDataCenter* dataCenter)
-    {
-        if (ReplicatorState_) {
-            ReplicatorState_->CreateDataCenter(dataCenter);
-        }
-    }
-
-    void OnDataCenterRenamed(TDataCenter* dataCenter)
-    {
-        if (ReplicatorState_) {
-            auto newName = dataCenter->GetName();
-            ReplicatorState_->RenameDataCenter(dataCenter->GetId(), newName);
-        }
-    }
-
-    void OnDataCenterDestroyed(TDataCenter* dataCenter)
-    {
-        if (ReplicatorState_) {
-            ReplicatorState_->DestroyDataCenter(dataCenter->GetId());
-        }
-    }
-
-    void OnRackCreated(TRack* rack)
-    {
-        if (ReplicatorState_) {
-            ReplicatorState_->CreateRack(rack);
-        }
-    }
-
-    void OnRackRenamed(TRack* rack)
-    {
-        if (ReplicatorState_) {
-            ReplicatorState_->RenameRack(rack->GetId(), rack->GetName());
-        }
-    }
-
-    void OnRackDataCenterChanged(TRack* rack, TDataCenter* /*oldDataCenter*/)
-    {
-        if (ReplicatorState_) {
-            auto newDataCenterId = rack->GetDataCenter()
-                ? rack->GetDataCenter()->GetId()
-                : TDataCenterId();
-            ReplicatorState_->SetRackDataCenter(rack->GetId(), newDataCenterId);
-        }
-    }
-
-    void OnRackDestroyed(TRack* rack)
-    {
-        if (ReplicatorState_) {
-            ReplicatorState_->DestroyRack(rack->GetId());
-        }
     }
 
     void HydraConfirmChunkListsRequisitionTraverseFinished(NProto::TReqConfirmChunkListsRequisitionTraverseFinished* request)
@@ -4212,16 +4121,6 @@ private:
     {
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
-        if (Bootstrap_->UseNewReplicator()) {
-            auto replicatorStateProxy = NReplicator::CreateReplicatorStateProxy(Bootstrap_);
-            ReplicatorState_ = NReplicator::CreateReplicatorState(std::move(replicatorStateProxy));
-            ReplicatorState_->Load();
-
-            JobTracker_.Store(NReplicator::CreateJobTracker(ReplicatorState_));
-            ChunkReplicaAllocator_.Store(NReplicator::CreateChunkReplicaAllocator(ReplicatorState_));
-        }
-
-        // TODO(gritukan): Do not create legacy replicator stuff if new replicator is used.
         JobRegistry_ = New<TJobRegistry>(Config_, Bootstrap_);
         ChunkPlacement_ = New<TChunkPlacement>(Config_, ConsistentChunkPlacement_.Get(), Bootstrap_);
         ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_);
@@ -4301,12 +4200,6 @@ private:
         ExpirationTracker_->Stop();
 
         JobController_.Reset();
-
-        if (Bootstrap_->UseNewReplicator()) {
-            ReplicatorState_.Reset();
-            JobTracker_.Store(nullptr);
-            ChunkReplicaAllocator_.Store(nullptr);
-        }
     }
 
 
@@ -4791,10 +4684,6 @@ private:
         // Make the fake reference.
         YT_VERIFY(medium->RefObject() == 1);
 
-        if (ReplicatorState_) {
-            ReplicatorState_->CreateMedium(medium);
-        }
-
         return medium;
     }
 
@@ -4863,11 +4752,6 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
-        if (ReplicatorState_) {
-            const auto& configManager = Bootstrap_->GetConfigManager();
-            ReplicatorState_->UpdateDynamicConfig(configManager->GetConfig());
-        }
-
         const auto& newCrpConfig = GetDynamicConfig()->ConsistentReplicaPlacement;
 
         RedistributeConsistentReplicaPlacementTokensExecutor_->SetPeriod(
@@ -5191,16 +5075,6 @@ TNodeList TChunkManager::AllocateWriteTargets(
 NYTree::IYPathServicePtr TChunkManager::GetOrchidService()
 {
     return Impl_->GetOrchidService();
-}
-
-NReplicator::IChunkReplicaAllocatorPtr TChunkManager::GetChunkReplicaAllocator() const
-{
-    return Impl_->GetChunkReplicaAllocator();
-}
-
-NReplicator::IJobTrackerPtr TChunkManager::GetJobTracker() const
-{
-    return Impl_->GetJobTracker();
 }
 
 const TJobRegistryPtr& TChunkManager::GetJobRegistry() const

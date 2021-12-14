@@ -5,8 +5,6 @@
 #include "job.h"
 #include "config.h"
 
-#include <yt/yt/server/master/chunk_server/new_replicator/job_tracker.h>
-
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -58,56 +56,38 @@ public:
             EAutomatonThreadQueue::JobTrackerService,
             ChunkServerLogger)
     {
-        auto heartbeatMethodDescriptor = RPC_SERVICE_METHOD_DESC(Heartbeat)
-            .SetHeavy(true);
-        if (Bootstrap_->UseNewReplicator()) {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            const auto& jobTrackerInvoker = chunkManager->GetChunkInvoker(EChunkThreadQueue::JobTrackerService);
-            heartbeatMethodDescriptor = heartbeatMethodDescriptor
-                .SetInvoker(jobTrackerInvoker);
-        }
-        RegisterMethod(heartbeatMethodDescriptor);
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
+            .SetHeavy(true));
     }
 
 private:
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
     {
-        if (Bootstrap_->UseNewReplicator()) {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto jobTracker = chunkManager->GetJobTracker();
-            if (!jobTracker) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::Unavailable,
-                    "Not an active leader");
-            }
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
 
-            jobTracker->ProcessJobHeartbeat(context);
-        } else {
-            ValidateClusterInitialized();
-            ValidatePeer(EPeerKind::Leader);
+        auto nodeId = request->node_id();
 
-            auto nodeId = request->node_id();
+        const auto& resourceLimits = request->resource_limits();
+        const auto& resourceUsage = request->resource_usage();
 
-            const auto& resourceLimits = request->resource_limits();
-            const auto& resourceUsage = request->resource_usage();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-            auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v",
+            nodeId,
+            node->GetDefaultAddress(),
+            FormatResourceUsage(resourceUsage, resourceLimits));
 
-            context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v",
-                nodeId,
-                node->GetDefaultAddress(),
-                FormatResourceUsage(resourceUsage, resourceLimits));
-
-            if (!node->ReportedDataNodeHeartbeat()) {
-                THROW_ERROR_EXCEPTION(
-                    NNodeTrackerClient::EErrorCode::InvalidState,
-                    "Cannot process a job heartbeat unless data node heartbeat is reported");
-            }
-
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            chunkManager->ProcessJobHeartbeat(node, context);
+        if (!node->ReportedDataNodeHeartbeat()) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::InvalidState,
+                "Cannot process a job heartbeat unless data node heartbeat is reported");
         }
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->ProcessJobHeartbeat(node, context);
+
         context->Reply();
     }
 };

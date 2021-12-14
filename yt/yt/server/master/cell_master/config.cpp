@@ -71,8 +71,6 @@ TCellMasterConfig::TCellMasterConfig()
         .Default(true);
     RegisterParameter("cluster_connection", ClusterConnection)
         .Optional();
-    RegisterParameter("use_new_replicator", UseNewReplicator)
-        .Default(false);
 
     RegisterPostprocessor([&] {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
