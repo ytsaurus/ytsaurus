@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.function.Function;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.type_info.TiType;
+import ru.yandex.type_info.TypeIO;
 import ru.yandex.yt.rpcproxy.ERowsetKind;
 import ru.yandex.yt.rpcproxy.TColumnSchema;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
@@ -17,6 +19,7 @@ import ru.yandex.yt.ytclient.object.VersionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireVersionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
+import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
@@ -86,13 +89,47 @@ public class ApiServiceUtil {
 
         for (TColumnSchema columnSchema : schema.getColumnsList()) {
             String name = columnSchema.getName();
-            ColumnValueType type = ColumnValueType.fromValue(columnSchema.getType());
+
+            ColumnSchema.Builder columnBuilder;
+
+            ColumnValueType type = ColumnValueType.NULL;
+            if (columnSchema.hasType()) {
+                type = ColumnValueType.fromValue(columnSchema.getType());
+            }
+            boolean required = columnSchema.getRequired();
+
+            TiType typeV3 = null;
+            if (columnSchema.hasTypeV3()) {
+                typeV3 = TypeIO.parseYson(columnSchema.getTypeV3().toByteArray());
+            }
+
+            if (typeV3 != null) {
+                columnBuilder = ColumnSchema.builder(name, typeV3);
+            } else {
+                columnBuilder = ColumnSchema.builder(name, type, required);
+            }
 
             if (columnSchema.hasSortOrder()) {
-                builder.addKey(name, type);
-            } else {
-                builder.addValue(name, type);
+                columnBuilder.setSortOrder(ColumnSortOrder.fromId(columnSchema.getSortOrder()));
             }
+
+            if (columnSchema.hasAggregate()) {
+                columnBuilder.setAggregate(columnSchema.getAggregate());
+            }
+
+            if (columnSchema.hasLock()) {
+                columnBuilder.setLock(columnSchema.getLock());
+            }
+
+            if (columnSchema.hasExpression()) {
+                columnBuilder.setExpression(columnSchema.getExpression());
+            }
+
+            if (columnSchema.hasGroup()) {
+                columnBuilder.setGroup(columnSchema.getGroup());
+            }
+
+            builder.add(columnBuilder.build());
         }
 
         return builder.build();
