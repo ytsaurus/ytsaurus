@@ -707,8 +707,7 @@ private:
             try {
                 TEventTimerGuard timingGuard(Counters_.AllocateWriteTargetsTimer);
 
-                // #ReadQuorum replicas are required to read journal chunk, so no more
-                // than #ReplicaCount - #ReadQuorum replicas can be placed in the same rack.
+                // See TChunk::GetMaxReplicasPerRack.
                 auto maxReplicasPerRack = ReplicaCount_ - ReadQuorum_;
 
                 // TODO(gritukan): Pass host name from tablet node.
