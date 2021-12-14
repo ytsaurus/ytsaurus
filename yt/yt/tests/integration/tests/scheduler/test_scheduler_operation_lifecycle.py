@@ -433,7 +433,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         time.sleep(1.0)
         for index, op in enumerate(ops):
-            assert op.get_runtime_progress("scheduling_info_per_pool_tree/default/fifo_index") == 2 - index
+            assert op.get_runtime_progress("scheduling_info_per_pool_tree/default/fifo_index", default=-1) == 2 - index
 
         for op in ops:
             op.track()

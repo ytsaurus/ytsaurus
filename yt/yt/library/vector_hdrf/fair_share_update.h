@@ -72,7 +72,7 @@ struct TSchedulableAttributes
     double ResourceFlowRatio = 0.0;
     double TotalResourceFlowRatio = 0.0;
 
-    int FifoIndex = -1;
+    std::optional<int> FifoIndex;
 
     // TODO(ignat): extract post update attributes to separate structure.
     // NB: calculated in postupdate.
