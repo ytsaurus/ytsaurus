@@ -42,8 +42,9 @@ public:
         , ReplicationCardToken_(replicationCardToken)
         , Connection_(std::move(localConnection))
         , Logger(TabletNodeLogger
-            .WithTag("%v", tablet->GetLoggingTag())
-            .WithTag("ReplicationCardToken", replicationCardToken))
+            .WithTag("%v, ReplicationCardToken: %v",
+                tablet->GetLoggingTag(),
+                replicationCardToken))
     { }
 
     void Enable() override
@@ -106,7 +107,7 @@ private:
                     .RequestProgress = true
                 })).ValueOrThrow();
 
-            Tablet_->ReplicationCard() = ReplicationCard_;
+            Tablet_->ChaosData()->ReplicationCard = ReplicationCard_;
 
             YT_LOG_DEBUG("Tablet replication card updated (ReplicationCard: %v)",
                 *ReplicationCard_);
@@ -117,10 +118,21 @@ private:
 
     void ReconfigureTabletWriteMode()
     {
-        auto* selfReplica = ReplicationCard_->FindReplica(Tablet_->GetUpstreamReplicaId());
-        if (!selfReplica) {
-            YT_LOG_DEBUG("Could not find self replica in replication card");
+        auto* selfReplica = [&] () -> TReplicaInfo* {
+            auto* selfReplica = ReplicationCard_->FindReplica(Tablet_->GetUpstreamReplicaId());
+            if (!selfReplica) {
+                YT_LOG_DEBUG("Could not find self replica in replication card");
+                return nullptr;
+            }
+            if (selfReplica->History.empty()) {
+                YT_VERIFY(selfReplica->State != EReplicaState::Enabled);
+                YT_LOG_DEBUG("Replica history list is empty");
+                return nullptr;
+            }
+            return selfReplica;
+        }();
 
+        if (!selfReplica) {
             Tablet_->RuntimeData()->WriteMode = ETabletWriteMode::Pull;
             Tablet_->RuntimeData()->ReplicationEra = ReplicationCard_->Era;
             return;

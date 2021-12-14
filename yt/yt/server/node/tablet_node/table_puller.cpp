@@ -70,7 +70,6 @@ public:
         , Slot_(std::move(slot))
         , TabletSnapshotStore_(std::move(tabletSnapshotStore))
         , WorkerInvoker_(std::move(workerInvoker))
-        , Tablet_(tablet)
         , TabletId_(tablet->GetId())
         , MountRevision_(tablet->GetMountRevision())
         , TableSchema_(tablet->GetTableSchema())
@@ -112,7 +111,6 @@ private:
     const ITabletSnapshotStorePtr TabletSnapshotStore_;
     const IInvokerPtr WorkerInvoker_;
 
-    const TTablet* Tablet_;
     const TTabletId TabletId_;
     const TRevision MountRevision_;
     const TTableSchemaPtr TableSchema_;
@@ -147,7 +145,7 @@ private:
                     << HardErrorAttribute;
             }
 
-            if (!Tablet_->ReplicationCard()) {
+            if (!tabletSnapshot->TabletChaosData->ReplicationCard) {
                 THROW_ERROR_EXCEPTION("No replication card")
                     << HardErrorAttribute;
             }
@@ -167,14 +165,14 @@ private:
 
             // NB: There can be uncommitted sync transactions from previous era but they should be already in prepared state and will be committed anyway.
 
-            auto replicationCard = Tablet_->ReplicationCard();
-            auto replicationProgress = Tablet_->RuntimeData()->ReplicationProgress.Load();
-            auto [queueReplica, upperTimestamp] = PickQueueReplica(replicationCard, replicationProgress);
+            auto replicationCard = tabletSnapshot->TabletChaosData->ReplicationCard;
+            auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
+            auto [queueReplica, upperTimestamp] = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
             if (!queueReplica) {
                 return;
             }
 
-            auto* selfReplica = replicationCard->FindReplica(Tablet_->GetUpstreamReplicaId());
+            auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
             if (!selfReplica) {
                 return;
             }
@@ -182,7 +180,7 @@ private:
             const auto& cluster = queueReplica->Cluster;
             const auto& tablePath = queueReplica->TablePath;
             auto upstreamReplicaId = queueReplica->ReplicaId;
-            auto replicationRound = Tablet_->GetReplicationRound();
+            auto replicationRound = tabletSnapshot->TabletChaosData->ReplicationRound;
             TPullRowsResult result;
 
             {
@@ -194,8 +192,8 @@ private:
                 TPullRowsOptions options;
                 options.TabletRowsPerRead = TabletRowsPerRead;
                 options.ReplicationProgress = *replicationProgress;
-                options.ReplicationProgress.UpperKey = Tablet_->GetNextPivotKey();
-                options.StartReplicationRowIndexes = Tablet_->CurrentReplicationRowIndexes();
+                options.ReplicationProgress.UpperKey = tabletSnapshot->NextPivotKey;
+                options.StartReplicationRowIndexes = tabletSnapshot->TabletChaosData->CurrentReplicationRowIndexes;
                 options.UpperTimestamp = upperTimestamp;
                 options.UpstreamReplicaId = upstreamReplicaId;
                 options.OrderRowsByTimestamp = selfReplica->ContentType == EReplicaContentType::Queue;
@@ -238,11 +236,11 @@ private:
                 // Set options to avoid nested writes to other replicas.
                 TModifyRowsOptions modifyOptions;
                 modifyOptions.ReplicationCard = replicationCard;
-                modifyOptions.UpstreamReplicaId = Tablet_->GetUpstreamReplicaId();
+                modifyOptions.UpstreamReplicaId = tabletSnapshot->UpstreamReplicaId;
                 modifyOptions.TopmostTransaction = false;
 
                 localTransaction->WriteRows(
-                    FromObjectId(Tablet_->GetTableId()),
+                    tabletSnapshot->TablePath,
                     NameTable_,
                     result.Rows,
                     modifyOptions);
@@ -293,6 +291,7 @@ private:
     }
 
     std::pair<NChaosClient::TReplicaInfo*, TTimestamp> PickQueueReplica(
+        const TTabletSnapshotPtr& tabletSnapshot,
         const TReplicationCardPtr& replicationCard,
         const TRefCountedReplicationProgressPtr& replicationProgress)
     {
@@ -346,7 +345,7 @@ private:
             return {};
         };
 
-        auto* selfReplica = replicationCard->FindReplica(Tablet_->GetUpstreamReplicaId());
+        auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
         if (!selfReplica) {
             YT_LOG_DEBUG("Will not pull rows since replication card does not contain us");
             return {};

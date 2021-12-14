@@ -97,6 +97,18 @@ DEFINE_REFCOUNTED_TYPE(TTableReplicaSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChaosTabletData
+    : public TRefCounted
+{
+    int ReplicationRound = 0;
+    NChaosClient::TReplicationCardPtr ReplicationCard;
+    THashMap<TTabletId, i64> CurrentReplicationRowIndexes;
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosTabletData)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TRefCountedReplicationProgress
     : public NChaosClient::TReplicationProgress
     , public TRefCounted
@@ -213,6 +225,8 @@ struct TTabletSnapshot
 
     TRuntimeTabletDataPtr TabletRuntimeData;
     TRuntimeTabletCellDataPtr TabletCellRuntimeData;
+
+    TChaosTabletDataPtr TabletChaosData;
 
     THashMap<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
 
@@ -441,12 +455,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(IChaosAgentPtr, ChaosAgent);
     DEFINE_BYVAL_RW_PROPERTY(ITablePullerPtr, TablePuller);
-    DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationCardPtr, ReplicationCard);
     DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
-    DEFINE_BYVAL_RW_PROPERTY(int, ReplicationRound);
-
-    using TCurrentReplictionRowIndexs = THashMap<TTabletId, i64>;
-    DEFINE_BYREF_RW_PROPERTY(TCurrentReplictionRowIndexs, CurrentReplicationRowIndexes);
+    DEFINE_BYREF_RO_PROPERTY(TChaosTabletDataPtr, ChaosData, New<TChaosTabletData>());
 
 public:
     TTablet(
