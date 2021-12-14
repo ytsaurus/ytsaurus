@@ -68,6 +68,8 @@ private:
     std::atomic<double> LastSystemCpu_{0.0};
     std::atomic<double> LastCpuWait_{0.0};
 
+    std::atomic<double> MaxThreadPoolUtilization_ = {0.0};
+
     struct TTimings
     {
         i64 UserJiffies = 0;
@@ -108,10 +110,6 @@ private:
         const TThreadMap& oldTidToInfo,
         const TThreadMap& newTidToInfo,
         i64 timeDeltaUsec);
-
-    void CollectSensorsThreadCounts(
-        ISensorWriter* writer,
-        const TThreadMap& tidToInfo) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
