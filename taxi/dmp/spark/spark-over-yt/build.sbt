@@ -55,6 +55,14 @@ lazy val `submit-client` = (project in file("submit-client"))
 
 lazy val commonDependencies = yandexIceberg ++ spark ++ circe ++ logging.map(_ % Provided)
 
+def cutSnapshot(ver: String): String = {
+  val r = "^(.*)-SNAPSHOT$".r
+  ver match {
+    case r(v) => v
+    case v => v
+  }
+}
+
 lazy val `data-source` = (project in file("data-source"))
   .enablePlugins(PythonPlugin)
   .configs(IntegrationTest)
@@ -72,7 +80,7 @@ lazy val `data-source` = (project in file("data-source"))
     },
     publishYtArtifacts ++= {
       val subdir = if (isSnapshot.value) "snapshots" else "releases"
-      val publishDir = s"$sparkYtClientPath/$subdir/${version.value}"
+      val publishDir = s"$sparkYtClientPath/$subdir/${cutSnapshot(version.value)}"
       val link = if (!isSnapshot.value) {
         Seq(YtPublishLink(publishDir, s"$sparkYtLegacyClientPath/$subdir", None, version.value, isSnapshot.value))
       } else Nil

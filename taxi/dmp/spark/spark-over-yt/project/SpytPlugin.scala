@@ -249,28 +249,17 @@ object SpytPlugin extends AutoPlugin {
   def updatePythonVersionIfUpdated(log: Logger,
                                    pythonRegistry: String,
                                    versionFile: File,
-                                   prefix2package: Map[String, (String, String)]): Unit = {
+                                   prefix2package: Map[String, (String, String)]): Map[String, VersionInfo] = {
     log.info(s"Updating python version file $versionFile")
     val versions = prefix2package.flatMap {
       case (prefix, (packageName, submodule)) =>
         packageVersionInfo(log, pythonRegistry, packageName, submodule).map(vi => (prefix, vi))
     }
     updatePythonVersionFile(log, versionFile, versions)
+    versions
   }
 
-  def clientSnapshotVersion(ver: String): Option[String] = {
-    val p = "^([0-9.]*?)(-[a-z0-9]*?)?(-[a-f0-9]{7})?-SNAPSHOT$".r
-    val midfix = for {
-      hash <- gitHash().map(s => s"-$s")
-      branch <- gitBranch()
-      ticket <- ticketFromBranch(branch).map(s => s"-$s")
-    } yield s"$ticket$hash"
-    val postfix = s"${midfix.getOrElse("")}-SNAPSHOT"
-    ver match {
-      case p(main, _, _) => Some(s"$main$postfix")
-      case _ => None
-    }
-  }
+  def clientSnapshotVersion(pythonVer: String): String = s"$pythonVer-SNAPSHOT"
 
   def updateClientVersionFile(log: Logger, curVer: String, newVerOpt: Option[String], versionFile: File): Unit = {
     newVerOpt.foreach { newVer =>
@@ -294,9 +283,17 @@ object SpytPlugin extends AutoPlugin {
     spytClientVersionPyFile := baseDirectory.value / "data-source" / "src" / "main" / "python" / "spyt" / "version.py",
     spytSparkVersionPyFile := (ThisBuild / sparkVersionPyFile).value,
 
-    spytUpdateClientPythonDevVersion :=
-      updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytClientVersionPyFile.value,
-        Map("__version__" -> ("yandex-spyt", ""))),
+    spytUpdateClientPythonDevVersion := {
+      val vs = updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytClientVersionPyFile.value,
+        Map("__version__" -> ("yandex-spyt", "")))
+      val spytVer = vs("__version__").nextVersion.get
+      StateTransform { st =>
+        reapply(Seq(
+          (ThisBuild / spytClientVersion) := spytVer,
+          (ThisBuild / spytClientPythonVersion) := spytVer
+        ), st)
+      }
+    },
 
     spytUpdateSparkPythonDevVersion :=
       updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytSparkVersionPyFile.value,
@@ -309,31 +306,21 @@ object SpytPlugin extends AutoPlugin {
           Map("__version__" -> ("yandex-spyt", ""), "__spark_version__" -> ("yandex-pyspark", "spark")))
     },
 
-    spytUpdatePythonVersion := {
-      updatePythonVersion(
-        (ThisBuild / spytClientPythonVersion).value,
-        spytClientVersionPyFile.value,
-        (ThisBuild / spytSparkPythonVersion).value,
-        spytSparkVersionPyFile.value
-      )
-    },
+    spytUpdatePythonVersion := spytUpdateAllPythonDevVersions.value,
 
     spytUpdateClientSnapshotVersion := {
       val curVer = (ThisBuild / spytClientVersion).value
-      val newVer = clientSnapshotVersion(curVer)
+      val vs = updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytClientVersionPyFile.value,
+        Map("__version__" -> ("yandex-spyt", "")))
+      val pythonVer = vs("__version__").nextVersion.get
+      val newVer = Some(clientSnapshotVersion(pythonVer))
       val log = streams.value.log
-      if (newVer.isDefined) {
-        updateClientVersionFile(log, curVer, newVer, spytClientVersionFile.value)
-        StateTransform { st =>
-          reapply(Seq(
-            (ThisBuild / spytClientVersion) := newVer.get,
-            (ThisBuild / version) := newVer.get
-          ), st)
-        }
-      } else {
-        StateTransform { st =>
-          st
-        }
+      updateClientVersionFile(log, curVer, newVer, spytClientVersionFile.value)
+      StateTransform { st =>
+        reapply(Seq(
+          (ThisBuild / spytClientVersion) := newVer.get,
+          (ThisBuild / version) := newVer.get
+        ), st)
       }
     },
 
