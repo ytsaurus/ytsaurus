@@ -550,7 +550,7 @@ private:
             }
         }
 
-        if (bestCandidate) {
+        if (bestCandidate && StatusTable_[bestCandidate->VoteId].Priority >= Owner_->ElectionCallbacks_->GetPriority()) {
             // Extract the status of the best candidate.
             // His status must be present in the table by the above checks.
             const auto& candidateStatus = StatusTable_[bestCandidate->VoteId];
