@@ -2763,7 +2763,7 @@ private:
             .Item("start_time").Value(element->GetStartTime())
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
             .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
-            .Item("fifo_index").Value(element->Attributes().FifoIndex)
+            .OptionalItem("fifo_index", element->Attributes().FifoIndex)
             .Item("scheduling_index").Value(element->GetSchedulingIndex())
             .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
             .Item("min_needed_resources_unsatisfied_count").Value(element->GetMinNeededResourcesUnsatisfiedCount())
