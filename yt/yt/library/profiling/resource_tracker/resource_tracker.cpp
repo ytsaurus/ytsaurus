@@ -178,6 +178,10 @@ TResourceTracker::TResourceTracker()
         return GetProcessMemoryUsage().Rss;
     });
 
+    Profiler.AddFuncCounter("/thread_pool_utilization/max", MakeStrong(this), [this] {
+        return MaxThreadPoolUtilization_.load();
+    });
+
     Profiler.AddProducer("", CgroupTracker_);
 
     Profiler
@@ -194,7 +198,6 @@ void TResourceTracker::CollectSensors(ISensorWriter* writer)
 
     auto tidToInfo = ProcessThreads();
     CollectSensorsAggregatedTimings(writer, TidToInfo_, tidToInfo, timeDeltaUsec);
-    CollectSensorsThreadCounts(writer, tidToInfo);
     TidToInfo_ = tidToInfo;
 
     LastUpdateTime_ = TInstant::Now();
@@ -331,11 +334,14 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
     double totalCpuWaitTime = 0.0;
 
     THashMap<TString, TTimings> profilingKeyToAggregatedTimings;
+    THashMap<TString, int> profilingKeyToCount;
 
     // Consider only those threads which did not change their thread names.
     // In each group of such threads with same thread name, export aggregated timings.
 
     for (const auto& [tid, newInfo] : newTidToInfo) {
+        ++profilingKeyToCount[newInfo.ProfilingKey];
+
         auto it = oldTidToInfo.find(tid);
 
         if (it == oldTidToInfo.end()) {
@@ -351,6 +357,7 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
         profilingKeyToAggregatedTimings[newInfo.ProfilingKey] += newInfo.Timings - oldInfo.Timings;
     }
 
+    double maxUtilization = 0.0;
     for (const auto& [profilingKey, aggregatedTimings] : profilingKeyToAggregatedTimings) {
         // Multiplier 1e6 / timeDelta is for taking average over time (all values should be "per second").
         // Multiplier 100 for CPU time is for measuring CPU load in percents. It is due to historical reasons.
@@ -362,12 +369,19 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
         totalSystemCpuTime += systemCpuTime;
         totalCpuWaitTime += waitTime;
 
+        auto threadCount = profilingKeyToCount[profilingKey];
+        double utilization = (userCpuTime + systemCpuTime) / (100 * threadCount);
+
         writer->PushTag(std::pair<TString, TString>("thread", profilingKey));
         writer->AddGauge("/user_cpu", userCpuTime);
         writer->AddGauge("/system_cpu", systemCpuTime);
         writer->AddGauge("/total_cpu", userCpuTime + systemCpuTime);
         writer->AddGauge("/cpu_wait", waitTime);
+        writer->AddGauge("/thread_count", threadCount);
+        writer->AddGauge("/utilization", utilization);
         writer->PopTag();
+
+        maxUtilization = std::max(maxUtilization, utilization);
 
         YT_LOG_TRACE("Thread CPU timings in percent/sec (ProfilingKey: %v, UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
             profilingKey,
@@ -379,29 +393,12 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
     LastUserCpu_.store(totalUserCpuTime);
     LastSystemCpu_.store(totalSystemCpuTime);
     LastCpuWait_.store(totalCpuWaitTime);
+    MaxThreadPoolUtilization_ = maxUtilization;
 
     YT_LOG_DEBUG("Total CPU timings in percent/sec (UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
         totalUserCpuTime,
         totalSystemCpuTime,
         totalCpuWaitTime);
-}
-
-void TResourceTracker::CollectSensorsThreadCounts(ISensorWriter* writer, const TThreadMap& tidToInfo) const
-{
-    THashMap<TString, int> profilingKeyToCount;
-
-    for (const auto& [tid, info] : tidToInfo) {
-        ++profilingKeyToCount[info.ProfilingKey];
-    }
-
-    for (const auto& [profilingKey, count] : profilingKeyToCount) {
-        writer->PushTag(std::pair<TString, TString>{"thread", profilingKey});
-        writer->AddGauge("/thread_count", count);
-        writer->PopTag();
-    }
-
-    YT_LOG_DEBUG("Total thread count (ThreadCount: %v)",
-        tidToInfo.size());
 }
 
 double TResourceTracker::GetUserCpu()
