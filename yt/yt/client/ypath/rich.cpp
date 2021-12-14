@@ -676,6 +676,11 @@ void Deserialize(TRichYPath& richPath, INodePtr node)
     richPath.Attributes().MergeFrom(node->Attributes());
 }
 
+void Deserialize(TRichYPath& richPath, TYsonPullParserCursor* cursor)
+{
+    Deserialize(richPath, ExtractTo<INodePtr>(cursor));
+}
+
 void ToProto(TString* protoPath, const TRichYPath& path)
 {
     *protoPath = ConvertToString(path, EYsonFormat::Binary);

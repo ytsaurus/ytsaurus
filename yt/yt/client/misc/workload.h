@@ -66,6 +66,7 @@ void FromProto(TWorkloadDescriptor* descriptor, const NYT::NProto::TWorkloadDesc
 
 void Serialize(const TWorkloadDescriptor& descriptor, NYson::IYsonConsumer* consumer);
 void Deserialize(TWorkloadDescriptor& descriptor, NYTree::INodePtr node);
+void Deserialize(TWorkloadDescriptor& descriptor, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -41,6 +41,9 @@ template <class TValue>
 void Deserialize(TSchedulingSegmentMap<TValue>& map, const NYTree::INodePtr& node);
 
 template <class TValue>
+void Deserialize(TSchedulingSegmentMap<TValue>& map, NYson::TYsonPullParserCursor* cursor);
+
+template <class TValue>
 void FormatValue(TStringBuilderBase* builder, const TSchedulingSegmentMap<TValue>& map, TStringBuf /* format */);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +106,7 @@ private:
 
     friend void Serialize<>(const TSchedulingSegmentMap& map, NYson::IYsonConsumer* consumer);
     friend void Deserialize<>(TSchedulingSegmentMap& map, const NYTree::INodePtr& node);
+    friend void Deserialize<>(TSchedulingSegmentMap& map, NYson::TYsonPullParserCursor* cursor);
     friend void FormatValue<>(TStringBuilderBase* builder, const TSchedulingSegmentMap& map, TStringBuf format);
 };
 

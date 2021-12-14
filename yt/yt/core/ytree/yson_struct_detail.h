@@ -25,9 +25,21 @@ struct IYsonStructParameter
         TYsonStructBase* self,
         NYTree::INodePtr node,
         const TLoadParameterOptions& options) = 0;
+
+    virtual void Load(
+        TYsonStructBase* self,
+        NYson::TYsonPullParserCursor* cursor,
+        const TLoadParameterOptions& options) = 0;
+
     virtual void SafeLoad(
         TYsonStructBase* self,
         NYTree::INodePtr node,
+        const TLoadParameterOptions& options,
+        const std::function<void()>& validate) = 0;
+
+    virtual void SafeLoad(
+        TYsonStructBase* self,
+        NYson::TYsonPullParserCursor* cursor,
         const TLoadParameterOptions& options,
         const std::function<void()>& validate) = 0;
 
@@ -67,6 +79,13 @@ struct IYsonStructMeta
         bool setDefaults,
         const TYPath& path) const = 0;
 
+    virtual void LoadStruct(
+        TYsonStructBase* target,
+        NYson::TYsonPullParserCursor* cursor,
+        bool postprocess,
+        bool setDefaults,
+        const TYPath& path) const = 0;
+
     virtual IMapNodePtr GetRecursiveUnrecognized(const TYsonStructBase* target) const = 0;
 
     virtual void RegisterParameter(TString key, IYsonStructParameterPtr parameter) = 0;
@@ -98,6 +117,13 @@ public:
     void LoadStruct(
         TYsonStructBase* target,
         INodePtr node,
+        bool postprocess,
+        bool setDefaults,
+        const TYPath& path) const override;
+
+    void LoadStruct(
+        TYsonStructBase* target,
+        NYson::TYsonPullParserCursor* cursor,
         bool postprocess,
         bool setDefaults,
         const TYPath& path) const override;
@@ -170,11 +196,24 @@ public:
         TYsonStructBase* self,
         NYTree::INodePtr node,
         const TLoadParameterOptions& options) override;
+
     void SafeLoad(
         TYsonStructBase* self,
         NYTree::INodePtr node,
         const TLoadParameterOptions& options,
         const std::function<void()>& validate) override;
+
+    void Load(
+        TYsonStructBase* self,
+        NYson::TYsonPullParserCursor* cursor,
+        const TLoadParameterOptions& options) override;
+
+    void SafeLoad(
+        TYsonStructBase* self,
+        NYson::TYsonPullParserCursor* cursor,
+        const TLoadParameterOptions& options,
+        const std::function<void()>& validate) override;
+
     void Postprocess(const TYsonStructBase* self, const NYPath::TYPath& path) const override;
     void SetDefaultsInitialized(TYsonStructBase* self) override;
     void Save(const TYsonStructBase* self, NYson::IYsonConsumer* consumer) const override;

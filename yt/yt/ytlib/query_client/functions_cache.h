@@ -104,6 +104,7 @@ struct TDescriptorType
 
 void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TDescriptorType& value, NYTree::INodePtr node);
+void Deserialize(TDescriptorType& value, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

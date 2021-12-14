@@ -46,6 +46,7 @@ void FromProto(TSchedulingTagFilter* filter, const TProtoStringType& protoFilter
 
 void Serialize(const TSchedulingTagFilter& filter, NYson::IYsonConsumer* consumer);
 void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node);
+void Deserialize(TSchedulingTagFilter& filter, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

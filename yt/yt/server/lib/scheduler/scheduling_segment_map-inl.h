@@ -206,6 +206,12 @@ void Deserialize(TSchedulingSegmentMap<TValue>& map, const NYTree::INodePtr& nod
 }
 
 template <class TValue>
+void Deserialize(TSchedulingSegmentMap<TValue>& map, NYson::TYsonPullParserCursor* cursor)
+{
+    Deserialize(map, ExtractTo<NYTree::INodePtr>(cursor));
+}
+
+template <class TValue>
 void FormatValue(TStringBuilderBase* builder, const TSchedulingSegmentMap<TValue>& map, TStringBuf format)
 {
     FormatValue(builder, map.Map_, format);

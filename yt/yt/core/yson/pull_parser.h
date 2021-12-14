@@ -192,6 +192,8 @@ public:
     void CancelRecording();
     void FinishRecording();
 
+    EYsonType GetYsonType() const;
+
 private:
     template <typename TVisitor>
     Y_FORCE_INLINE typename TVisitor::TResult NextImpl(TVisitor visitor);
@@ -223,6 +225,7 @@ private:
     NDetail::TZeroCopyInputStreamReader StreamReader_;
     TLexer Lexer_;
     NDetail::TYsonSyntaxChecker SyntaxChecker_;
+    EYsonType YsonType_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -234,8 +237,6 @@ class TYsonPullParserCursor
 public:
     // This constructor extracts next element from parser immediately.
     Y_FORCE_INLINE TYsonPullParserCursor(TYsonPullParser* parser);
-
-    Y_FORCE_INLINE TYsonPullParserCursor(TYsonItem current, TYsonPullParser* parser);
 
     Y_FORCE_INLINE const TYsonItem& GetCurrent() const;
     Y_FORCE_INLINE const TYsonItem* operator->() const;
@@ -277,7 +278,13 @@ public:
     void CancelRecording();
     void SkipComplexValueAndFinishRecording();
 
+    // Returns |true| iff cursor is positioned over the beginning of the first
+    // item of top-level map or list fragment (for corresponding EYsonType).
+    // Consequent calls will return |false|.
+    bool TryConsumeFragmentStart();
+
 private:
+    bool IsOnFragmentStart_;
     TYsonItem Current_;
     TYsonPullParser* Parser_;
 

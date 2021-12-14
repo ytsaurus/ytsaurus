@@ -41,7 +41,7 @@ DEFINE_ENUM(EJobMetricName,
     (TotalTimeOperationCompleted)
     (TotalTimeOperationFailed)
     (TotalTimeOperationAborted)
-    
+
     (MainResourceConsumptionOperationCompleted)
     (MainResourceConsumptionOperationFailed)
     (MainResourceConsumptionOperationAborted)
@@ -69,6 +69,7 @@ bool operator<(const TCustomJobMetricDescription& lhs, const TCustomJobMetricDes
 
 void Serialize(const TCustomJobMetricDescription& filter, NYson::IYsonConsumer* consumer);
 void Deserialize(TCustomJobMetricDescription& filter, NYTree::INodePtr node);
+void Deserialize(TCustomJobMetricDescription& filter, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

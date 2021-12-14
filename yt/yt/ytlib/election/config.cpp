@@ -64,6 +64,30 @@ void Deserialize(TCellPeerConfig& config, INodePtr node)
     config.AlienCluster = node->Attributes().Find<TString>("alien_cluster");
 }
 
+void Deserialize(TCellPeerConfig& config, TYsonPullParserCursor* cursor)
+{
+    config.Address.reset();
+    config.Voting = true;
+    config.AlienCluster.reset();
+
+    if ((*cursor)->GetType() == EYsonItemType::BeginAttributes) {
+        cursor->ParseAttributes([&](TYsonPullParserCursor* cursor) {
+            auto key = (*cursor)->UncheckedAsString();
+            if (key == "voting") {
+                cursor->Next();
+                config.Voting = ExtractTo<bool>(cursor);
+            } else if (key == "alien_cluster") {
+                cursor->Next();
+                config.AlienCluster = ExtractTo<TString>(cursor);
+            }
+        });
+    }
+    if ((*cursor)->GetType() != EYsonItemType::EntityValue) {
+        EnsureYsonToken("TCellPeerConfig", *cursor, EYsonItemType::StringValue);
+        config.Address = ExtractTo<TString>(cursor);
+    }
+}
+
 bool operator ==(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs)
 {
     return

@@ -120,12 +120,19 @@ TString TPoolName::ToString() const
     return Pool;
 }
 
-void Deserialize(TPoolName& value, NYTree::INodePtr node)
+void Deserialize(TPoolName& value, INodePtr node)
 {
     value = TPoolName::FromString(node->AsString()->GetValue());
 }
 
-void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer)
+void Deserialize(TPoolName& value, TYsonPullParserCursor* cursor)
+{
+    MaybeSkipAttributes(cursor);
+    EnsureYsonToken("TPoolName", *cursor, EYsonItemType::StringValue);
+    value = TPoolName::FromString(ExtractTo<TString>(cursor));
+}
+
+void Serialize(const TPoolName& value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value.ToString());
 }
@@ -2059,6 +2066,11 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     }
     ValidateOperationAcl(parameters.Acl);
     ProcessAclAndOwnersParameters(&parameters.Acl, &parameters.Owners);
+}
+
+void Deserialize(TOperationRuntimeParameters& parameters, TYsonPullParserCursor* cursor)
+{
+    Deserialize(parameters, ExtractTo<INodePtr>(cursor));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

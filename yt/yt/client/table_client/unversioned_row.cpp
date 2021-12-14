@@ -1805,6 +1805,12 @@ void Deserialize(TLegacyOwningKey& key, INodePtr node)
     key = builder.FinishRow();
 }
 
+void Deserialize(TLegacyOwningKey& key, TYsonPullParserCursor* cursor)
+{
+    // TODO(levysotsky): Speed up?
+    Deserialize(key, ExtractTo<INodePtr>(cursor));
+}
+
 void TUnversionedOwningRow::Save(TStreamSaveContext& context) const
 {
     NYT::Save(context, SerializeToString(Get()));

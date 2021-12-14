@@ -23,6 +23,7 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
 
 void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer);
 void Deserialize(TResourceVolume& volume, NYTree::INodePtr node);
+void Deserialize(TResourceVolume& volume, NYson::TYsonPullParserCursor* cursor);
 
 void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer);
 

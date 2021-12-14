@@ -5,6 +5,8 @@
 #include <yt/yt/core/yson/pull_parser_deserialize.h>
 
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 #include <array>
 
@@ -27,10 +29,10 @@ DEFINE_BIT_ENUM(ETestBitEnum,
 )
 
 template <typename T>
-T PullParserConvert(TYsonString s)
+T PullParserConvert(TYsonStringBuf s)
 {
     TMemoryInput input(s.AsStringBuf());
-    TYsonPullParser parser(&input, EYsonType::Node);
+    TYsonPullParser parser(&input, s.GetType());
     TYsonPullParserCursor cursor(&parser);
     auto result = ExtractTo<T>(&cursor);
     EXPECT_EQ(cursor->GetType(), EYsonItemType::EndOfStream);
@@ -38,9 +40,13 @@ T PullParserConvert(TYsonString s)
 }
 
 template <typename TOriginal, typename TResult = TOriginal>
-void TestSerializationDeserializationPullParser(const TOriginal& original)
+void TestSerializationDeserializationPullParser(const TOriginal& original, EYsonType ysonType = EYsonType::Node)
 {
     auto yson = ConvertToYsonString(original);
+    if (ysonType != EYsonType::Node) {
+        auto buf = yson.AsStringBuf();
+        yson = TYsonString(buf.SubString(1, buf.Size() - 2), ysonType);
+    }
     auto deserialized = PullParserConvert<TResult>(yson);
     EXPECT_EQ(original, deserialized);
     auto node = ConvertTo<INodePtr>(original);
@@ -53,15 +59,15 @@ void TestSerializationDeserializationPullParser(const TOriginal& original)
 template <typename TOriginal, typename TResult = TOriginal>
 void TestSerializationDeserializationNode(const TOriginal& original)
 {
-    auto yson = ConvertToYsonString(original);
-    auto deserialized = ConvertTo<TResult>(yson);
+    auto node = ConvertToNode(original);
+    auto deserialized = ConvertTo<TResult>(node);
     EXPECT_EQ(original, deserialized);
 }
 
 template <typename TOriginal, typename TResult = TOriginal>
-void TestSerializationDeserialization(const TOriginal& original)
+void TestSerializationDeserialization(const TOriginal& original, EYsonType ysonType = EYsonType::Node)
 {
-    TestSerializationDeserializationPullParser<TOriginal, TResult>(original);
+    TestSerializationDeserializationPullParser<TOriginal, TResult>(original, ysonType);
     TestSerializationDeserializationNode<TOriginal, TResult>(original);
 }
 
@@ -239,24 +245,28 @@ TEST(TSerializationTest, Map)
 {
     std::map<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::MapFragment);
 }
 
 TEST(TSerializationTest, Set)
 {
     std::set<TString> original{"First", "Second", "Third"};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::ListFragment);
 }
 
 TEST(TSerializationTest, MultiSet)
 {
     std::multiset<TString> original{"First", "Second", "Third", "Second", "Third", "Third"};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::ListFragment);
 }
 
 TEST(TSerializationTest, MultiMap)
 {
     std::multimap<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::MapFragment);
 }
 
 TEST(TSerializationTest, MultiMapErrorDuplicateKey)
@@ -270,24 +280,28 @@ TEST(TSerializationTest, UnorderedMap)
 {
     std::unordered_map<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::MapFragment);
 }
 
 TEST(TSerializationTest, UnorderedSet)
 {
     const std::unordered_set<TString> original{"First", "Second", "Third"};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::ListFragment);
 }
 
 TEST(TSerializationTest, UnorderedMultiSet)
 {
     const std::unordered_multiset<TString> original{"First", "Second", "Third", "Second", "Third", "Third"};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::ListFragment);
 }
 
 TEST(TSerializationTest, UnorderedMultiMap)
 {
     const std::unordered_multimap<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::MapFragment);
 }
 
 TEST(TSerializationTest, UnorderedMultiMapErrorDuplicateKey)
@@ -301,12 +315,14 @@ TEST(TSerializationTest, Vector)
 {
     const std::vector<TString> original{"First", "Second", "Third"};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::ListFragment);
 }
 
 TEST(TSerializationTest, Deque)
 {
     const std::deque<TString> original{"First", "Second", "Third"};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::ListFragment);
 }
 
 TEST(TSerializationTest, Pair)
@@ -325,12 +341,14 @@ TEST(TSerializationTest, Array)
 {
     std::array<TString, 4> original{{"One", "Two", "3", "4"}};
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::ListFragment);
 }
 
 TEST(TSerializationTest, Tuple)
 {
     auto original = std::make_tuple<int, TString, size_t>(43, "TString", 343U);
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::ListFragment);
 }
 
 TEST(TSerializationTest, VectorOfTuple)
@@ -342,6 +360,7 @@ TEST(TSerializationTest, VectorOfTuple)
     };
 
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::ListFragment);
 }
 
 TEST(TSerializationTest, MapOnArray)
@@ -353,6 +372,7 @@ TEST(TSerializationTest, MapOnArray)
         {"rel", {{233U, 9763U, 0U}}}
     };
     TestSerializationDeserialization(original);
+    TestSerializationDeserialization(original, EYsonType::MapFragment);
 }
 
 TEST(TSerializationTest, Enum)
@@ -369,6 +389,87 @@ TEST(TSerializationTest, BitEnum)
     }
     TestSerializationDeserialization(ETestBitEnum::Green | ETestBitEnum::Red);
     TestSerializationDeserialization(ETestBitEnum::Green | ETestBitEnum::Red | ETestBitEnum::Yellow);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestClass
+{
+public:
+    INodePtr Attributes;
+    int Field = 123;
+};
+
+class TTestClassRC
+    : public TRefCounted
+    , public TTestClass
+{ };
+
+DECLARE_REFCOUNTED_CLASS(TTestClassRC)
+DEFINE_REFCOUNTED_TYPE(TTestClassRC)
+
+void Deserialize(TTestClass& value, const INodePtr& node)
+{
+    value.Attributes = node->Attributes().ToMap();
+    value.Field = node->GetValue<i64>();
+}
+
+void Deserialize(TTestClass& value, TYsonPullParserCursor* cursor)
+{
+    Deserialize(value, ExtractTo<INodePtr>(cursor));
+}
+
+TEST(TSerializationTest, Pointers)
+{
+    TYsonString yson(TStringBuf("<x=12;y=#>42"));
+
+    auto expectedNode = BuildYsonNodeFluently().BeginMap()
+        .Item("x").Value(12)
+        .Item("y").Entity()
+    .EndMap();
+
+    auto check = [&] (TStringBuf message, const auto& ptr) {
+        SCOPED_TRACE(message);
+        ASSERT_TRUE(ptr);
+        ASSERT_EQ(ptr->Field, 42);
+        ASSERT_TRUE(AreNodesEqual(ptr->Attributes, expectedNode));
+    };
+
+    auto uniqueFromNode = ConvertTo<std::unique_ptr<TTestClass>>(ConvertToNode(yson));
+    check("unique_ptr:FromNode", uniqueFromNode);
+
+    auto uniqueFromPullParser = PullParserConvert<std::unique_ptr<TTestClass>>(yson);
+    check("unique_ptr:FromNode", uniqueFromPullParser);
+
+    auto intrusiveFromNode = ConvertTo<TTestClassRCPtr>(ConvertToNode(yson));
+    check("intrusive:FromNode", intrusiveFromNode);
+
+    auto intrusiveFromPullParser = PullParserConvert<TTestClassRCPtr>(yson);
+    check("intrusive:FromNode", intrusiveFromPullParser);
+}
+
+TEST(TSerializationTest, PointersFromEntity)
+{
+    TYsonString yson(TStringBuf("<x=12;y=#>#"));
+
+    auto check = [&] (TStringBuf message, const auto& ptr) {
+        SCOPED_TRACE(message);
+        ASSERT_TRUE(ptr);
+        ASSERT_EQ(ptr->Field, 123);
+        ASSERT_EQ(ptr->Attributes, nullptr);
+    };
+
+    auto uniqueFromNode = ConvertTo<std::unique_ptr<TTestClass>>(ConvertToNode(yson));
+    check("unique_ptr:FromNode", uniqueFromNode);
+
+    auto uniqueFromPullParser = PullParserConvert<std::unique_ptr<TTestClass>>(yson);
+    check("unique_ptr:FromNode", uniqueFromPullParser);
+
+    auto intrusiveFromNode = ConvertTo<TTestClassRCPtr>(ConvertToNode(yson));
+    check("intrusive:FromNode", intrusiveFromNode);
+
+    auto intrusiveFromPullParser = PullParserConvert<TTestClassRCPtr>(yson);
+    check("intrusive:FromNode", intrusiveFromPullParser);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

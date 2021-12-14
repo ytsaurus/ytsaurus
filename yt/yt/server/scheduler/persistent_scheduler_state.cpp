@@ -61,6 +61,11 @@ void Deserialize(TPersistentNodeSchedulingSegmentState& state, INodePtr node)
     Deserialize(state.Tree, mapNode->GetChildOrThrow("tree"));
 }
 
+void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYson::TYsonPullParserCursor* cursor)
+{
+    Deserialize(state, ExtractTo<INodePtr>(cursor));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPersistentSchedulingSegmentsState::TPersistentSchedulingSegmentsState()

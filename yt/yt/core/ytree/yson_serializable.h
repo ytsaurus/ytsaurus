@@ -27,8 +27,28 @@ public:
     struct IParameter
         : public TRefCounted
     {
-        virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;
-        virtual void SafeLoad(NYTree::INodePtr node, const NYPath::TYPath& path, const std::function<void()>& validate, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;
+        virtual void Load(
+            NYTree::INodePtr node,
+            const NYPath::TYPath& path,
+            std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;
+
+        virtual void SafeLoad(
+            NYTree::INodePtr node,
+            const NYPath::TYPath& path,
+            const std::function<void()>& validate,
+            std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;
+
+        virtual void Load(
+            NYson::TYsonPullParserCursor* cursor,
+            const NYPath::TYPath& path,
+            std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;
+
+        virtual void SafeLoad(
+            NYson::TYsonPullParserCursor* cursor,
+            const NYPath::TYPath& path,
+            const std::function<void()>& validate,
+            std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;
+
         virtual void Postprocess(const NYPath::TYPath& path) const = 0;
         virtual void SetDefaults() = 0;
         virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
@@ -51,8 +71,28 @@ public:
 
         TParameter(TString key, T& parameter);
 
-        void Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy) override;
-        void SafeLoad(NYTree::INodePtr node, const NYPath::TYPath& path, const std::function<void()>& validate, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) override;
+        void Load(
+            NYTree::INodePtr node,
+            const NYPath::TYPath& path,
+            std::optional<EMergeStrategy> mergeStrategy = std::nullopt) override;
+
+        void SafeLoad(
+            NYTree::INodePtr node,
+            const NYPath::TYPath& path,
+            const std::function<void()>& validate,
+            std::optional<EMergeStrategy> mergeStrategy = std::nullopt) override;
+
+        void Load(
+            NYson::TYsonPullParserCursor* cursor,
+            const NYPath::TYPath& path,
+            std::optional<EMergeStrategy> mergeStrategy = std::nullopt) override;
+
+        void SafeLoad(
+            NYson::TYsonPullParserCursor* cursor,
+            const NYPath::TYPath& path,
+            const std::function<void()>& validate,
+            std::optional<EMergeStrategy> mergeStrategy = std::nullopt) override;
+
         void Postprocess(const NYPath::TYPath& path) const override;
         void SetDefaults() override;
         void Save(NYson::IYsonConsumer* consumer) const override;
@@ -95,6 +135,12 @@ public:
 
     void Load(
         NYTree::INodePtr node,
+        bool postprocess = true,
+        bool setDefaults = true,
+        const NYPath::TYPath& path = "");
+
+    void Load(
+        NYson::TYsonPullParserCursor* cursor,
         bool postprocess = true,
         bool setDefaults = true,
         const NYPath::TYPath& path = "");
@@ -163,6 +209,7 @@ THashMap<TString, TIntrusivePtr<T>> CloneYsonSerializables(const THashMap<TStrin
 
 void Serialize(const TYsonSerializableLite& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TYsonSerializableLite& value, NYTree::INodePtr node);
+void Deserialize(TYsonSerializableLite& value, NYson::TYsonPullParserCursor* cursor);
 
 NYson::TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value);
 

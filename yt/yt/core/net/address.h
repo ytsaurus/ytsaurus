@@ -136,6 +136,7 @@ TIP6Address& operator &= (TIP6Address& lhs, const TIP6Address& rhs);
 TIP6Address& operator |= (TIP6Address& lhs, const TIP6Address& rhs);
 
 void Deserialize(TIP6Address& value, NYTree::INodePtr node);
+void Deserialize(TIP6Address& value, NYson::TYsonPullParserCursor* cursor);
 void Serialize(const TIP6Address& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +165,7 @@ void FormatValue(TStringBuilderBase* builder, const TIP6Network& network, TStrin
 TString ToString(const TIP6Network& network);
 
 void Deserialize(TIP6Network& value, NYTree::INodePtr node);
+void Deserialize(TIP6Network& value, NYson::TYsonPullParserCursor* cursor);
 void Serialize(const TIP6Network& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////

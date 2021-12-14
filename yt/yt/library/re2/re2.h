@@ -30,6 +30,7 @@ DEFINE_REFCOUNTED_TYPE(TRe2)
 
 void Serialize(const TRe2Ptr& re, NYson::IYsonConsumer* consumer);
 void Deserialize(TRe2Ptr& re, NYTree::INodePtr node);
+void Deserialize(TRe2Ptr& re, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

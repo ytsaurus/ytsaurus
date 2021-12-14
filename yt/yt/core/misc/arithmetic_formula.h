@@ -153,6 +153,7 @@ TBooleanFormula operator!(const TBooleanFormula& formula);
 
 void Serialize(const TBooleanFormula& booleanFormula, NYson::IYsonConsumer* consumer);
 void Deserialize(TBooleanFormula& booleanFormula, NYTree::INodePtr node);
+void Deserialize(TBooleanFormula& booleanFormula, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,6 +200,7 @@ TTimeFormula MakeTimeFormula(const TString& formula);
 
 void Serialize(const TTimeFormula& timeFormula, NYson::IYsonConsumer* consumer);
 void Deserialize(TTimeFormula& timeFormula, NYTree::INodePtr node);
+void Deserialize(TTimeFormula& timeFormula, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

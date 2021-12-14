@@ -76,6 +76,7 @@ struct TUserWorkloadDescriptor
 
 void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer);
 void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, NYTree::INodePtr node);
+void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,6 +6,8 @@
 
 #include "ypath_client.h"
 
+#include <yt/yt/core/yson/token_writer.h>
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +31,8 @@ concept SupportsDontSerializeDefault =
     SupportsDontSerializeDefaultImpl<T> ||
     TStdOptionalTraits<T>::IsStdOptional &&
     SupportsDontSerializeDefaultImpl<typename TStdOptionalTraits<T>::TValueType>;
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 void LoadFromNode(
@@ -219,6 +223,230 @@ void LoadFromNode(
             YT_UNIMPLEMENTED();
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void LoadFromCursor(
+    T& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy /*mergeStrategy*/,
+    bool /*keepUnrecognizedRecursively*/)
+{
+    try {
+        Deserialize(parameter, cursor);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error reading parameter %v", path)
+            << ex;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <IsYsonStructOrYsonSerializable T>
+void LoadFromCursor(
+    TIntrusivePtr<T>& parameterValue,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively);
+
+template <class... T>
+void LoadFromCursor(
+    std::vector<T...>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively);
+
+// std::optional
+template <class T>
+void LoadFromCursor(
+    std::optional<T>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively);
+
+template <template <typename...> class Map, class... T, class M = typename Map<T...>::mapped_type>
+void LoadFromCursor(
+    Map<T...>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// INodePtr
+template <>
+inline void LoadFromCursor(
+    NYTree::INodePtr& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    try {
+        auto node = NYson::ExtractTo<INodePtr>(cursor);
+        LoadFromNode(parameter, std::move(node), path, mergeStrategy, keepUnrecognizedRecursively);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error loading parameter %v", path)
+            << ex;
+    }
+}
+
+// TYsonStruct or TYsonSerializable
+template <IsYsonStructOrYsonSerializable T>
+void LoadFromCursor(
+    TIntrusivePtr<T>& parameterValue,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    if (!parameterValue || mergeStrategy == EMergeStrategy::Overwrite) {
+        parameterValue = New<T>();
+    }
+
+    if (keepUnrecognizedRecursively) {
+        parameterValue->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+    }
+
+    switch (mergeStrategy) {
+        case EMergeStrategy::Default:
+        case EMergeStrategy::Overwrite:
+        case EMergeStrategy::Combine: {
+            parameterValue->Load(cursor, false, false, path);
+            break;
+        }
+
+        default:
+            YT_UNIMPLEMENTED();
+    }
+}
+
+// std::optional
+template <class T>
+void LoadFromCursor(
+    std::optional<T>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    try {
+        switch (mergeStrategy) {
+            case EMergeStrategy::Default:
+            case EMergeStrategy::Overwrite: {
+                if ((*cursor)->GetType() == NYson::EYsonItemType::EntityValue) {
+                    parameter = std::nullopt;
+                    cursor->Next();
+                } else {
+                    T value;
+                    LoadFromCursor(value, cursor, path, EMergeStrategy::Overwrite, keepUnrecognizedRecursively);
+                    parameter = std::move(value);
+                }
+                break;
+            }
+
+            default:
+                YT_UNIMPLEMENTED();
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error loading parameter %v", path)
+            << ex;
+    }
+}
+
+// std::vector
+template <class... T>
+void LoadFromCursor(
+    std::vector<T...>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    try {
+        switch (mergeStrategy) {
+            case EMergeStrategy::Default:
+            case EMergeStrategy::Overwrite: {
+                parameter.clear();
+                int index = 0;
+                cursor->ParseList([&](NYson::TYsonPullParserCursor* cursor) {
+                    LoadFromCursor(
+                        parameter.emplace_back(),
+                        cursor,
+                        path + "/" + NYPath::ToYPathLiteral(index),
+                        EMergeStrategy::Overwrite,
+                        keepUnrecognizedRecursively);
+                    ++index;
+                });
+                break;
+            }
+
+            default:
+                YT_UNIMPLEMENTED();
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error loading parameter %v", path)
+            << ex;
+    }
+}
+
+// For any map.
+template <template <typename...> class Map, class... T, class M>
+void LoadFromCursor(
+    Map<T...>& parameter,
+    NYson::TYsonPullParserCursor* cursor,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy,
+    bool keepUnrecognizedRecursively)
+{
+    try {
+        auto doParse = [&] (const auto& setterOrEmplacer, EMergeStrategy mergeStrategy) {
+            cursor->ParseMap([&] (NYson::TYsonPullParserCursor* cursor) {
+                auto key = ExtractTo<TString>(cursor);
+                M value;
+                LoadFromCursor(
+                    value,
+                    cursor,
+                    path + "/" + NYPath::ToYPathLiteral(key),
+                    mergeStrategy,
+                    keepUnrecognizedRecursively);
+                setterOrEmplacer(key, std::move(value));
+            });
+        };
+
+        switch (mergeStrategy) {
+            case EMergeStrategy::Default:
+            case EMergeStrategy::Overwrite: {
+                parameter.clear();
+                auto emplacer = [&] (auto key, M&& value) {
+                    parameter.emplace(DeserializeMapKey<typename Map<T...>::key_type>(key), std::move(value));
+                };
+                doParse(emplacer, EMergeStrategy::Overwrite);
+                break;
+            }
+            case EMergeStrategy::Combine: {
+                auto setter = [&] (auto key, M&& value) {
+                    parameter[DeserializeMapKey<typename Map<T...>::key_type>(key)] = std::move(value);
+                };
+                doParse(setter, EMergeStrategy::Combine);
+                break;
+            }
+            default:
+                YT_UNIMPLEMENTED();
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error loading parameter %v", path)
+            << ex;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 // For all classes except descendants of TYsonStructBase and their intrusive pointers
 // we do not attempt to extract unrecognized members. C++ prohibits function template specialization
@@ -477,16 +705,123 @@ void TYsonStructMeta<TStruct>::LoadStruct(
     }
 
     if (unrecognizedStrategy != EUnrecognizedStrategy::Drop) {
-        auto registeredKeys = GetRegisteredKeys();
+        const auto& registeredKeys = GetRegisteredKeys();
         if (!target->LocalUnrecognized_) {
             target->LocalUnrecognized_ = GetEphemeralNodeFactory()->CreateMap();
         }
         for (const auto& [key, child] : mapNode->GetChildren()) {
-            if (registeredKeys.find(key) == registeredKeys.end()) {
+            if (!registeredKeys.contains(key)) {
                 target->LocalUnrecognized_->RemoveChild(key);
                 YT_VERIFY(target->LocalUnrecognized_->AddChild(key, ConvertToNode(child)));
             }
         }
+    }
+
+    if (postprocess) {
+        Postprocess(target, path);
+    }
+}
+
+template <class TStruct>
+void TYsonStructMeta<TStruct>::LoadStruct(
+    TYsonStructBase* target,
+    NYson::TYsonPullParserCursor* cursor,
+    bool postprocess,
+    bool setDefaults,
+    const TYPath& path) const
+{
+    YT_VERIFY(cursor);
+
+    if (setDefaults) {
+        SetDefaultsOfInitializedStruct(target);
+    }
+
+    auto unrecognizedStrategy = target->InstanceUnrecognizedStrategy_.template value_or(MetaUnrecognizedStrategy_);
+
+    auto createLoadOptions = [&] (TStringBuf key) {
+        return TLoadParameterOptions{
+            .Path = path + "/" + key,
+            .KeepUnrecognizedRecursively = unrecognizedStrategy == EUnrecognizedStrategy::KeepRecursive,
+        };
+    };
+
+    THashMap<TStringBuf, IYsonStructParameter*> keyToParameter;
+    THashSet<IYsonStructParameter*> pendingParameters;
+    for (const auto& [key, parameter] : Parameters_) {
+        EmplaceOrCrash(keyToParameter, key, parameter.Get());
+        for (const auto& alias : parameter->GetAliases()) {
+            EmplaceOrCrash(keyToParameter, alias, parameter.Get());
+        }
+        InsertOrCrash(pendingParameters, parameter.Get());
+    }
+
+    THashMap<TString, TString> aliasedData;
+
+    auto processPossibleAlias = [&] (
+        IYsonStructParameter* parameter,
+        TStringBuf key,
+        NYson::TYsonPullParserCursor* cursor)
+    {
+        TStringStream ss;
+        {
+            NYson::TCheckedInDebugYsonTokenWriter writer(&ss);
+            cursor->TransferComplexValue(&writer);
+        }
+        auto data = std::move(ss.Str());
+        const auto& canonicalKey = parameter->GetKey();
+        auto aliasedDataIt = aliasedData.find(canonicalKey);
+        if (aliasedDataIt != aliasedData.end()) {
+            auto firstNode = ConvertTo<INodePtr>(NYson::TYsonStringBuf(aliasedDataIt->second));
+            auto secondNode = ConvertTo<INodePtr>(NYson::TYsonStringBuf(data));
+            if (!AreNodesEqual(firstNode, secondNode)) {
+                THROW_ERROR_EXCEPTION("Different values for aliased parameters %Qv and %Qv", canonicalKey, key)
+                    << TErrorAttribute("main_value", firstNode)
+                    << TErrorAttribute("aliased_value", secondNode);
+            }
+            return;
+        }
+        {
+            TStringInput input(data);
+            NYson::TYsonPullParser parser(&input, NYson::EYsonType::Node);
+            NYson::TYsonPullParserCursor newCursor(&parser);
+            parameter->Load(target, &newCursor, createLoadOptions(key));
+        }
+        EmplaceOrCrash(aliasedData, canonicalKey, std::move(data));
+    };
+
+    auto processUnrecognized = [&] (const TString& key, NYson::TYsonPullParserCursor* cursor) {
+        if (unrecognizedStrategy == EUnrecognizedStrategy::Drop) {
+            cursor->SkipComplexValue();
+            return;
+        }
+        if (!target->LocalUnrecognized_) {
+            target->LocalUnrecognized_ = GetEphemeralNodeFactory()->CreateMap();
+        }
+        target->LocalUnrecognized_->RemoveChild(key);
+        auto added = target->LocalUnrecognized_->AddChild(key, NYson::ExtractTo<INodePtr>(cursor));
+        YT_VERIFY(added);
+    };
+
+    cursor->ParseMap([&] (NYson::TYsonPullParserCursor* cursor) {
+        auto key = ExtractTo<TString>(cursor);
+        auto it = keyToParameter.find(key);
+        if (it == keyToParameter.end()) {
+            processUnrecognized(key, cursor);
+            return;
+        }
+
+        auto* parameter = it->second;
+        if (parameter->GetAliases().empty()) {
+            parameter->Load(target, cursor, createLoadOptions(key));
+        } else {
+            processPossibleAlias(parameter, key, cursor);
+        }
+        // NB: Key may be missing in case of aliasing.
+        pendingParameters.erase(parameter);
+    });
+
+    for (const auto parameter : pendingParameters) {
+        parameter->Load(target, /* cursor */ nullptr, createLoadOptions(parameter->GetKey()));
     }
 
     if (postprocess) {
@@ -605,6 +940,49 @@ void TYsonStructParameter<TValue>::SafeLoad(
         TValue oldValue = FieldAccessor_->GetValue(self);
         try {
             NPrivate::LoadFromNode(FieldAccessor_->GetValue(self), node, options.Path, options.MergeStrategy.value_or(MergeStrategy_), false);
+            validate();
+        } catch (const std::exception ex) {
+            FieldAccessor_->GetValue(self) = oldValue;
+            throw;
+        }
+    }
+}
+
+template <class TValue>
+void TYsonStructParameter<TValue>::Load(
+    TYsonStructBase* self,
+    NYson::TYsonPullParserCursor* cursor,
+    const TLoadParameterOptions& options)
+{
+    if (cursor) {
+        NPrivate::LoadFromCursor(
+            FieldAccessor_->GetValue(self),
+            cursor,
+            options.Path,
+            options.MergeStrategy.value_or(MergeStrategy_),
+            options.KeepUnrecognizedRecursively);
+    } else if (!DefaultConstructor_) {
+        THROW_ERROR_EXCEPTION("Missing required parameter %v",
+            options.Path);
+    }
+}
+
+template <class TValue>
+void TYsonStructParameter<TValue>::SafeLoad(
+    TYsonStructBase* self,
+    NYson::TYsonPullParserCursor* cursor,
+    const TLoadParameterOptions& options,
+    const std::function<void()>& validate)
+{
+    if (cursor) {
+        TValue oldValue = FieldAccessor_->GetValue(self);
+        try {
+            NPrivate::LoadFromCursor(
+                FieldAccessor_->GetValue(self),
+                cursor,
+                options.Path,
+                options.MergeStrategy.value_or(MergeStrategy_),
+                /*keepUnrecoginizedRecursively*/ false);
             validate();
         } catch (const std::exception ex) {
             FieldAccessor_->GetValue(self) = oldValue;

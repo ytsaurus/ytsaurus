@@ -519,7 +519,7 @@ public:
 
     //! Max alert events stored in archive per operation.
     int MaxAlertEventCountPerOperation;
-    
+
     //! How often to send enqueued operation alert events.
     TDuration OperationAlertEventSendPeriod;
 
@@ -542,6 +542,7 @@ struct TAliveControllerAgentThresholds final
     double Relative;
 
     friend void Deserialize(TAliveControllerAgentThresholds& thresholds, const NYTree::INodePtr& node);
+    friend void Deserialize(TAliveControllerAgentThresholds& thresholds, NYson::TYsonPullParserCursor* cursor);
     friend void Serialize(const TAliveControllerAgentThresholds& thresholds, NYson::IYsonConsumer* consumer);
 };
 

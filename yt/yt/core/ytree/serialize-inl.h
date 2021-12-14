@@ -14,6 +14,7 @@
 #include <yt/yt/core/yson/stream.h>
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/pull_parser_deserialize.h>
 
 #include <numeric>
 
@@ -555,6 +556,12 @@ void Deserialize(TErrorOr<T>& error, NYTree::INodePtr node)
             Deserialize(error.Value(), std::move(valueNode));
         }
     }
+}
+
+template <class T>
+void Deserialize(TErrorOr<T>& error, NYson::TYsonPullParserCursor* cursor)
+{
+    Deserialize(error, NYson::ExtractTo<NYTree::INodePtr>(cursor));
 }
 
 template <class F, class S>

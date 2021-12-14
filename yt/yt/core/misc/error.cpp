@@ -1100,6 +1100,11 @@ void Deserialize(TError& error, const NYTree::INodePtr& node)
     error = TError(std::move(result));
 }
 
+void Deserialize(TError& error, NYson::TYsonPullParserCursor* cursor)
+{
+    Deserialize(error, ExtractTo<INodePtr>(cursor));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TError operator << (TError error, const TErrorAttribute& attribute)

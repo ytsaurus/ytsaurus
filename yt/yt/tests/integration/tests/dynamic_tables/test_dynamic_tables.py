@@ -1042,7 +1042,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 "type": "tablet_cell_bundle",
                 "attributes": {
                     "name": "test_bundle",
-                    "abc": {},
+                    "abc": {"id": 42},
                     "options": {"changelog_account": "sys", "snapshot_account": "sys"},
                 },
             })

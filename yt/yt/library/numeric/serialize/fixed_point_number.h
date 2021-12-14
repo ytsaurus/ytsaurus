@@ -23,6 +23,13 @@ void Deserialize(TFixedPointNumber<U, P>& number, NYTree::INodePtr node)
 }
 
 template <typename U, int P>
+void Deserialize(TFixedPointNumber<U, P>& number, NYson::TYsonPullParserCursor* cursor)
+{
+    auto doubleValue = ExtractTo<double>(cursor);
+    number = TFixedPointNumber<U, P>(doubleValue);
+}
+
+template <typename U, int P>
 TString ToString(const TFixedPointNumber<U, P>& number)
 {
     return ToString(static_cast<double>(number));

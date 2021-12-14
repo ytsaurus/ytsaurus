@@ -21,7 +21,7 @@ void DeserializeInteger(T& value, TYsonPullParserCursor* cursor, TStringBuf type
             cursor->Next();
             break;
         case EYsonItemType::BeginAttributes:
-            NDetail::SkipAttributes(cursor);
+            SkipAttributes(cursor);
             DeserializeInteger(value, cursor, typeName);
             break;
         default:
@@ -69,7 +69,7 @@ void Deserialize(double& value, TYsonPullParserCursor* cursor)
             cursor->Next();
             break;
         case EYsonItemType::BeginAttributes:
-            NDetail::SkipAttributes(cursor);
+            SkipAttributes(cursor);
             Deserialize(value, cursor);
             break;
         default:
@@ -83,7 +83,7 @@ void Deserialize(double& value, TYsonPullParserCursor* cursor)
 // TString.
 void Deserialize(TString& value, TYsonPullParserCursor* cursor)
 {
-    NDetail::MaybeSkipAttributes(cursor);
+    MaybeSkipAttributes(cursor);
     EnsureYsonToken("string", *cursor, EYsonItemType::StringValue);
     value = (*cursor)->UncheckedAsString();
     cursor->Next();
@@ -120,7 +120,7 @@ void Deserialize(bool& value, TYsonPullParserCursor* cursor)
             break;
         }
         case EYsonItemType::BeginAttributes:
-            NDetail::SkipAttributes(cursor);
+            SkipAttributes(cursor);
             Deserialize(value, cursor);
             break;
         default:
@@ -134,7 +134,7 @@ void Deserialize(bool& value, TYsonPullParserCursor* cursor)
 // char
 void Deserialize(char& value, TYsonPullParserCursor* cursor)
 {
-    NDetail::MaybeSkipAttributes(cursor);
+    MaybeSkipAttributes(cursor);
     EnsureYsonToken("char", *cursor, EYsonItemType::StringValue);
     auto stringValue = (*cursor)->UncheckedAsString();
     if (stringValue.size() != 1) {
@@ -174,7 +174,7 @@ void Deserialize(TDuration& value, TYsonPullParserCursor* cursor)
         }
 
         case EYsonItemType::BeginAttributes:
-            NDetail::SkipAttributes(cursor);
+            SkipAttributes(cursor);
             Deserialize(value, cursor);
             break;
 
@@ -217,7 +217,7 @@ void Deserialize(TInstant& value, TYsonPullParserCursor* cursor)
         }
 
         case EYsonItemType::BeginAttributes:
-            NDetail::SkipAttributes(cursor);
+            SkipAttributes(cursor);
             Deserialize(value, cursor);
             break;
 
@@ -232,7 +232,7 @@ void Deserialize(TInstant& value, TYsonPullParserCursor* cursor)
 // TGuid.
 void Deserialize(TGuid& value, TYsonPullParserCursor* cursor)
 {
-    NDetail::MaybeSkipAttributes(cursor);
+    MaybeSkipAttributes(cursor);
     EnsureYsonToken("GUID", *cursor, EYsonItemType::StringValue);
     value = TGuid::FromString((*cursor)->UncheckedAsString());
     cursor->Next();

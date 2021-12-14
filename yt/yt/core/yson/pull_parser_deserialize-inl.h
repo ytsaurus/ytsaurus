@@ -11,13 +11,13 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/yson/token_writer.h>
+
 #include <vector>
 
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
 
 inline void SkipAttributes(TYsonPullParserCursor* cursor)
 {
@@ -34,11 +34,15 @@ inline void MaybeSkipAttributes(TYsonPullParserCursor* cursor)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
 template <class T>
-void DeserializeVector(T& value, TYsonPullParserCursor* cursor) {
-    NDetail::MaybeSkipAttributes(cursor);
+void DeserializeVector(T& value, TYsonPullParserCursor* cursor)
+{
     int index = 0;
-    cursor->ParseList([&](TYsonPullParserCursor* cursor) {
+    auto itemVisitor = [&] (TYsonPullParserCursor* cursor) {
         if (index < static_cast<int>(value.size())) {
             Deserialize(value[index], cursor);
         } else {
@@ -46,33 +50,61 @@ void DeserializeVector(T& value, TYsonPullParserCursor* cursor) {
             Deserialize(value.back(), cursor);
         }
         ++index;
-    });
+    };
+
+    if (cursor->TryConsumeFragmentStart()) {
+        while ((*cursor)->GetType() != EYsonItemType::EndOfStream) {
+            itemVisitor(cursor);
+        }
+    } else {
+        MaybeSkipAttributes(cursor);
+        cursor->ParseList(itemVisitor);
+    }
+
     value.resize(index);
 }
 
 template <class T>
 void DeserializeSet(T& value, TYsonPullParserCursor* cursor)
 {
-    NDetail::MaybeSkipAttributes(cursor);
     value.clear();
-    cursor->ParseList([&] (TYsonPullParserCursor* cursor) {
+
+    auto itemVisitor = [&] (TYsonPullParserCursor* cursor) {
         value.insert(ExtractTo<typename T::value_type>(cursor));
-    });
+    };
+
+    if (cursor->TryConsumeFragmentStart()) {
+        while ((*cursor)->GetType() != EYsonItemType::EndOfStream) {
+            itemVisitor(cursor);
+        }
+    } else {
+        MaybeSkipAttributes(cursor);
+        cursor->ParseList(itemVisitor);
+    }
 }
 
 template <class T>
 void DeserializeMap(T& value, TYsonPullParserCursor* cursor)
 {
-    NDetail::MaybeSkipAttributes(cursor);
     value.clear();
-    cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
+
+    auto itemVisitor = [&] (TYsonPullParserCursor* cursor) {
         auto key = ExtractTo<typename T::key_type>(cursor);
         auto item = ExtractTo<typename T::mapped_type>(cursor);
         if (value.contains(key)) {
             THROW_ERROR_EXCEPTION("Duplicate key %Qv", key);
         }
         value.emplace(std::move(key), std::move(item));
-    });
+    };
+
+    if (cursor->TryConsumeFragmentStart()) {
+        while ((*cursor)->GetType() != EYsonItemType::EndOfStream) {
+            itemVisitor(cursor);
+        }
+    } else {
+        MaybeSkipAttributes(cursor);
+        cursor->ParseMap(itemVisitor);
+    }
 }
 
 template <class T, bool IsSet = std::is_same<typename T::key_type, typename T::value_type>::value>
@@ -126,14 +158,26 @@ struct TTupleHelper
 template <class T>
 void DeserializeTuple(T& value, TYsonPullParserCursor* cursor)
 {
-    NDetail::MaybeSkipAttributes(cursor);
-    EnsureYsonToken("tuple", *cursor, EYsonItemType::BeginList);
-    cursor->Next();
+    const auto isListFragment = cursor->TryConsumeFragmentStart();
+
+    if (!isListFragment) {
+        MaybeSkipAttributes(cursor);
+        EnsureYsonToken("tuple", *cursor, EYsonItemType::BeginList);
+        cursor->Next();
+    }
+
     TTupleHelper<T>::DeserializeItem(value, cursor);
-    while ((*cursor)->GetType() != EYsonItemType::EndList) {
+
+    auto endItemType = isListFragment
+        ? EYsonItemType::EndOfStream
+        : EYsonItemType::EndList;
+    while ((*cursor)->GetType() != endItemType) {
         cursor->SkipComplexValue();
     }
-    cursor->Next();
+
+    if (!isListFragment) {
+        cursor->Next();
+    }
 }
 
 } // namespace NDetail
@@ -155,7 +199,7 @@ void Deserialize(std::deque<T, A>& value, NYson::TYsonPullParserCursor* cursor, 
 template <class T>
 void Deserialize(std::optional<T>& value, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
 {
-    NDetail::MaybeSkipAttributes(cursor);
+    MaybeSkipAttributes(cursor);
     if ((*cursor)->GetType() == EYsonItemType::EntityValue) {
         value.reset();
         cursor->Next();
@@ -171,7 +215,7 @@ void Deserialize(std::optional<T>& value, TYsonPullParserCursor* cursor, std::en
 template <class T>
 void Deserialize(T& value, TYsonPullParserCursor* cursor, std::enable_if_t<TEnumTraits<T>::IsEnum, void*>)
 {
-    NDetail::MaybeSkipAttributes(cursor);
+    MaybeSkipAttributes(cursor);
     if constexpr (TEnumTraits<T>::IsBitEnum) {
         switch ((*cursor)->GetType()) {
             case EYsonItemType::BeginList:
@@ -235,18 +279,78 @@ void Deserialize(
 }
 
 template <class E, class T, E Min, E Max>
-void Deserialize(TEnumIndexedVector<E, T, Min, Max>& vector, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
+void Deserialize(
+    TEnumIndexedVector<E, T, Min, Max>& vector,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
 {
-    NDetail::MaybeSkipAttributes(cursor);
     vector = {};
-    cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
+
+    auto itemVisitor = [&] (TYsonPullParserCursor* cursor) {
         auto key = ExtractTo<E>(cursor);
         if (!vector.IsDomainValue(key)) {
             THROW_ERROR_EXCEPTION("Enum value %Qlv is out of supported range",
                 key);
         }
         Deserialize(vector[key], cursor);
-    });
+    };
+
+    if (cursor->TryConsumeFragmentStart()) {
+        while ((*cursor)->GetType() != EYsonItemType::EndOfStream) {
+            itemVisitor(cursor);
+        }
+    } else {
+        MaybeSkipAttributes(cursor);
+        cursor->ParseMap(itemVisitor);
+    }
+}
+
+template <typename T>
+void DeserializePtr(T& value, TYsonPullParserCursor* cursor)
+{
+    if ((*cursor)->GetType() != EYsonItemType::BeginAttributes) {
+        if ((*cursor)->GetType() == EYsonItemType::EntityValue) {
+            cursor->Next();
+        } else {
+            Deserialize(value, cursor);
+        }
+        return;
+    }
+
+    // We need to place begin attributes token as it
+    // will not be recorded.
+    TStringStream stream("<");
+    {
+        cursor->StartRecording(&stream);
+        cursor->SkipAttributes();
+        if ((*cursor)->GetType() == EYsonItemType::EntityValue) {
+            cursor->CancelRecording();
+            cursor->Next();
+            return;
+        }
+        cursor->SkipComplexValueAndFinishRecording();
+    }
+    TYsonPullParser parser(&stream, EYsonType::Node);
+    TYsonPullParserCursor newCursor(&parser);
+    Deserialize(value, &newCursor);
+}
+
+template <class T>
+void Deserialize(TIntrusivePtr<T>& value, TYsonPullParserCursor* cursor)
+{
+    if (!value) {
+        value = New<T>();
+    }
+    DeserializePtr(*value, cursor);
+}
+
+template <class T>
+void Deserialize(std::unique_ptr<T>& value, TYsonPullParserCursor* cursor)
+{
+    if (!value) {
+        value = std::make_unique<T>();
+    }
+    DeserializePtr(*value, cursor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

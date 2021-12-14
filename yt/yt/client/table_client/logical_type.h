@@ -155,6 +155,7 @@ struct TTypeV3LogicalTypeWrapper
 
 void Serialize(const TTypeV3LogicalTypeWrapper& wrapper, NYson::IYsonConsumer* consumer);
 void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node);
+void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYson::TYsonPullParserCursor* cursor);
 
 void Serialize(const TLogicalTypePtr& type, NYson::IYsonConsumer* consumer);
 void Deserialize(TLogicalTypePtr& type, NYTree::INodePtr node);

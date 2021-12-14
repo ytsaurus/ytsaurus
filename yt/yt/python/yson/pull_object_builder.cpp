@@ -26,6 +26,7 @@ TPullObjectBuilder::TPullObjectBuilder(
     , Encoding_(encoding)
     , KeyCache_(/* enable */ true, Encoding_)
 {
+    Cursor_.TryConsumeFragmentStart();
     Tuple0_ = PyObjectPtr(PyTuple_New(0));
     if (!Tuple0_) {
         throw Py::Exception();

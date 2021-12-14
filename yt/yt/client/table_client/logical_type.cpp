@@ -1808,7 +1808,12 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
     }, typeName);
 }
 
-void DeserializeV3(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor)
+void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, TYsonPullParserCursor* cursor)
+{
+    DeserializeV3(wrapper.LogicalType, cursor);
+}
+
+void DeserializeV3(TLogicalTypePtr& type, TYsonPullParserCursor* cursor)
 {
     if ((*cursor)->GetType() == EYsonItemType::StringValue) {
         auto typeNameString = (*cursor)->UncheckedAsString();

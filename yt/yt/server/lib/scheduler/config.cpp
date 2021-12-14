@@ -588,6 +588,11 @@ void Deserialize(TAliveControllerAgentThresholds& thresholds, const NYTree::INod
     thresholds.Relative = mapNode->GetChildOrThrow("relative")->AsDouble()->GetValue();
 }
 
+void Deserialize(TAliveControllerAgentThresholds& thresholds, NYson::TYsonPullParserCursor* cursor)
+{
+    Deserialize(thresholds, ExtractTo<NYTree::INodePtr>(cursor));
+}
+
 void Serialize(const TAliveControllerAgentThresholds& thresholds, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)

@@ -116,9 +116,8 @@ DEFINE_REFCOUNTED_TYPE(TSerializableReplicationCard)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Deserialize(TReplicationProgress& replicationProgress, INodePtr node)
+void DeserializeImpl(TReplicationProgress& replicationProgress, TSerializableReplicationProgressPtr serializable)
 {
-    auto serializable = ConvertTo<TSerializableReplicationProgressPtr>(node);
     replicationProgress.UpperKey = std::move(serializable->UpperKey);
     replicationProgress.Segments.reserve(serializable->Segments.size());
 
@@ -129,9 +128,8 @@ void Deserialize(TReplicationProgress& replicationProgress, INodePtr node)
     }
 }
 
-void Deserialize(TReplicaInfo& replicaInfo, INodePtr node)
+void DeserializeImpl(TReplicaInfo& replicaInfo, TSerializableReplicaInfoPtr serializable)
 {
-    auto serializable = ConvertTo<TSerializableReplicaInfoPtr>(node);
     replicaInfo.ReplicaId = serializable->ReplicaId;
     replicaInfo.Cluster = serializable->Cluster;
     replicaInfo.TablePath = serializable->TablePath;
@@ -141,12 +139,41 @@ void Deserialize(TReplicaInfo& replicaInfo, INodePtr node)
     replicaInfo.ReplicationProgress = std::move(serializable->ReplicationProgress);
 }
 
-void Deserialize(TReplicationCard& replicationCard, INodePtr node)
+void DeserializeImpl(TReplicationCard& replicationCard, TSerializableReplicationCardPtr serializable)
 {
-    auto serializable = ConvertTo<TSerializableReplicationCardPtr>(node);
     replicationCard.Replicas = std::move(serializable->Replicas);
     replicationCard.CoordinatorCellIds = std::move(serializable->CoordinatorCellIds);
     replicationCard.Era = serializable->Era;
+}
+
+void Deserialize(TReplicationProgress& replicationProgress, INodePtr node)
+{
+    DeserializeImpl(replicationProgress, ConvertTo<TSerializableReplicationProgressPtr>(node));
+}
+
+void Deserialize(TReplicaInfo& replicaInfo, INodePtr node)
+{
+    DeserializeImpl(replicaInfo, ConvertTo<TSerializableReplicaInfoPtr>(node));
+}
+
+void Deserialize(TReplicationCard& replicationCard, INodePtr node)
+{
+    DeserializeImpl(replicationCard, ConvertTo<TSerializableReplicationCardPtr>(node));
+}
+
+void Deserialize(TReplicationProgress& replicationProgress, TYsonPullParserCursor* cursor)
+{
+    DeserializeImpl(replicationProgress, ExtractTo<TSerializableReplicationProgressPtr>(cursor));
+}
+
+void Deserialize(TReplicaInfo& replicaInfo, TYsonPullParserCursor* cursor)
+{
+    DeserializeImpl(replicaInfo, ExtractTo<TSerializableReplicaInfoPtr>(cursor));
+}
+
+void Deserialize(TReplicationCard& replicationCard, TYsonPullParserCursor* cursor)
+{
+    DeserializeImpl(replicationCard, ExtractTo<TSerializableReplicationCardPtr>(cursor));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

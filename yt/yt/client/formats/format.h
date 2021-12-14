@@ -38,6 +38,7 @@ private:
 
 void Serialize(const TFormat& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TFormat& value, NYTree::INodePtr node);
+void Deserialize(TFormat& value, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

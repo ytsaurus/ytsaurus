@@ -140,7 +140,53 @@ void TestCompleteSubconfig(TTestSubconfig* subconfig)
     EXPECT_EQ(ETestEnum::Value2, subconfig->MyEnum);
 }
 
-TEST(TYsonStructTest, Complete)
+// {LoadFromNode}
+using TYsonStructParseTestParameter = std::tuple<bool>;
+
+class TYsonStructParseTest
+    : public ::testing::TestWithParam<TYsonStructParseTestParameter>
+{
+public:
+    template <typename T>
+    TIntrusivePtr<T> Load(
+        const INodePtr& node,
+        bool postprocess = true,
+        bool setDefaults = true,
+        const NYPath::TYPath& path = {})
+    {
+        auto [loadFromNode] = GetParam();
+        auto config = New<T>();
+        if (loadFromNode) {
+            config->Load(node, postprocess, setDefaults, path);
+        } else {
+            auto ysonString = ConvertToYsonString(node);
+            auto string = ysonString.ToString();
+            TStringInput input(string);
+            TYsonPullParser parser(&input, EYsonType::Node);
+            auto cursor = TYsonPullParserCursor(&parser);
+            config->Load(&cursor, postprocess, setDefaults, path);
+        }
+        return config;
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    LoadFromNode,
+    TYsonStructParseTest,
+    ::testing::Values(TYsonStructParseTestParameter{
+        true
+    })
+);
+
+INSTANTIATE_TEST_SUITE_P(
+    LoadFromCursor,
+    TYsonStructParseTest,
+    ::testing::Values(TYsonStructParseTestParameter{
+        false
+    })
+);
+
+TEST_P(TYsonStructParseTest, Complete)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -206,8 +252,7 @@ TEST(TYsonStructTest, Complete)
             .EndMap()
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TTestConfig>(configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
     TestCompleteSubconfig(config->Subconfig.Get());
@@ -223,7 +268,7 @@ TEST(TYsonStructTest, Complete)
     TestCompleteSubconfig(it2->second.Get());
 }
 
-TEST(TYsonStructTest, MissingParameter)
+TEST_P(TYsonStructParseTest, MissingParameter)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -233,8 +278,7 @@ TEST(TYsonStructTest, MissingParameter)
             .EndMap()
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TTestConfig>(configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(200, config->Subconfig->MyInt);
@@ -245,15 +289,14 @@ TEST(TYsonStructTest, MissingParameter)
     EXPECT_EQ(0u, config->SubconfigMap.size());
 }
 
-TEST(TYsonStructTest, MissingSubconfig)
+TEST_P(TYsonStructParseTest, MissingSubconfig)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
             .Item("my_string").Value("TestString")
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TTestConfig>(configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(200, config->Subconfig->MyInt);
@@ -264,7 +307,7 @@ TEST(TYsonStructTest, MissingSubconfig)
     EXPECT_EQ(0u, config->SubconfigMap.size());
 }
 
-TEST(TYsonStructTest, UnrecognizedSimple)
+TEST_P(TYsonStructParseTest, UnrecognizedSimple)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -272,8 +315,7 @@ TEST(TYsonStructTest, UnrecognizedSimple)
             .Item("option").Value(1)
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TTestConfig>(configNode->AsMap());
 
     auto unrecognizedNode = config->GetLocalUnrecognized();
     auto unrecognizedRecursivelyNode = config->GetRecursiveUnrecognized();
@@ -289,7 +331,7 @@ TEST(TYsonStructTest, UnrecognizedSimple)
     EXPECT_TRUE(AreNodesEqual(ConvertToNode(config), ConvertToNode(deserializedConfig)));
 }
 
-TEST(TYsonStructTest, UnrecognizedRecursive)
+TEST_P(TYsonStructParseTest, UnrecognizedRecursive)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -300,8 +342,7 @@ TEST(TYsonStructTest, UnrecognizedRecursive)
             .EndMap()
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TTestConfig>(configNode->AsMap());
 
     auto unrecognizedRecursivelyNode = config->GetRecursiveUnrecognized();
     EXPECT_EQ(2, unrecognizedRecursivelyNode->GetChildCount());
@@ -353,7 +394,7 @@ public:
     }
 };
 
-TEST(TYsonStructTest, UnrecognizedRecursiveTwoLevelNesting)
+TEST_P(TYsonStructParseTest, UnrecognizedRecursiveTwoLevelNesting)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -364,8 +405,7 @@ TEST(TYsonStructTest, UnrecognizedRecursiveTwoLevelNesting)
             .EndMap()
         .EndMap();
 
-    auto config = New<TConfigWithTwoLevelNesting>();
-    config->Load(configNode->AsMap());
+    auto config = Load<TConfigWithTwoLevelNesting>(configNode->AsMap());
 
     auto unrecognized = config->GetRecursiveUnrecognized();
     EXPECT_EQ(
@@ -373,7 +413,7 @@ TEST(TYsonStructTest, UnrecognizedRecursiveTwoLevelNesting)
         ConvertToYsonString(unrecognized, EYsonFormat::Text).AsStringBuf());
 }
 
-TEST(TYsonStructTest, MissingRequiredParameter)
+TEST_P(TYsonStructParseTest, MissingRequiredParameter)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -383,11 +423,10 @@ TEST(TYsonStructTest, MissingRequiredParameter)
             .EndMap()
         .EndMap();
 
-    auto config = New<TTestConfig>();
-    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+    EXPECT_THROW(Load<TTestConfig>(configNode->AsMap()), std::exception);
 }
 
-TEST(TYsonStructTest, IncorrectNodeType)
+TEST_P(TYsonStructParseTest, IncorrectNodeType)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -397,11 +436,10 @@ TEST(TYsonStructTest, IncorrectNodeType)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+    EXPECT_THROW(Load<TTestConfig>(configNode->AsMap()), std::exception);
 }
 
-TEST(TYsonStructTest, ArithmeticOverflow)
+TEST_P(TYsonStructParseTest, ArithmeticOverflow)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -421,11 +459,10 @@ TEST(TYsonStructTest, ArithmeticOverflow)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
+    EXPECT_THROW(Load<TTestConfig>(configNode->AsMap()), std::exception);
 }
 
-TEST(TYsonStructTest, Postprocess)
+TEST_P(TYsonStructParseTest, Postprocess)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -435,12 +472,11 @@ TEST(TYsonStructTest, Postprocess)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode, false);
+    auto config = Load<TTestConfig>(configNode->AsMap(), false);
     EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
-TEST(TYsonStructTest, PostprocessSubconfig)
+TEST_P(TYsonStructParseTest, PostprocessSubconfig)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -453,12 +489,11 @@ TEST(TYsonStructTest, PostprocessSubconfig)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap(), false);
+    auto config = Load<TTestConfig>(configNode->AsMap(), false);
     EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
-TEST(TYsonStructTest, PostprocessSubconfigList)
+TEST_P(TYsonStructParseTest, PostprocessSubconfigList)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -473,12 +508,11 @@ TEST(TYsonStructTest, PostprocessSubconfigList)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap(), false);
+    auto config = Load<TTestConfig>(configNode->AsMap(), false);
     EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
-TEST(TYsonStructTest, PostprocessSubconfigMap)
+TEST_P(TYsonStructParseTest, PostprocessSubconfigMap)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -493,8 +527,7 @@ TEST(TYsonStructTest, PostprocessSubconfigMap)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    auto config = New<TTestConfig>();
-    config->Load(configNode->AsMap(), false);
+    auto config = Load<TTestConfig>(configNode->AsMap(), false);
     EXPECT_THROW(config->Postprocess(), std::exception);
 }
 

@@ -426,11 +426,33 @@ TString ToTypeV3(const TLogicalTypePtr& logicalType)
     return CanonizeYsonString(ysonString.ToString());
 }
 
-TLogicalTypePtr FromTypeV3(TString yson)
+class TLogicalTypeYson
+    : public ::testing::TestWithParam<bool>
 {
-    auto wrapper = ConvertTo<TTypeV3LogicalTypeWrapper>(TYsonString(yson, EYsonType::Node));
-    return wrapper.LogicalType;
-}
+public:
+    TLogicalTypePtr FromTypeV3(TString yson)
+    {
+        const auto parseFromNode = GetParam();
+        const auto ysonStr = TYsonStringBuf(yson, EYsonType::Node);
+        if (parseFromNode) {
+            auto wrapper = ConvertTo<TTypeV3LogicalTypeWrapper>(ConvertTo<INodePtr>(ysonStr));
+            return wrapper.LogicalType;
+        } else {
+            auto wrapper = ConvertTo<TTypeV3LogicalTypeWrapper>(ysonStr);
+            return wrapper.LogicalType;
+        }
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    ParseFromNode,
+    TLogicalTypeYson,
+    ::testing::Values(true));
+
+INSTANTIATE_TEST_SUITE_P(
+    ParseFromCursor,
+    TLogicalTypeYson,
+    ::testing::Values(false));
 
 #define CHECK_TYPE_V3(type, expectedYson) \
     do { \
@@ -438,10 +460,12 @@ TLogicalTypePtr FromTypeV3(TString yson)
         EXPECT_EQ(*type, *FromTypeV3(expectedYson)); \
 } while(0)
 
-TEST(TLogicalTypeTest, TestTypeV3Yson)
+TEST_P(TLogicalTypeYson, TestTypeV3Yson)
 {
     // Ill formed.
-    EXPECT_THROW_WITH_SUBSTRING(FromTypeV3("{}"), "has no child with key");
+    EXPECT_THROW_THAT(FromTypeV3("{}"), ::testing::AnyOf(
+        ::testing::HasSubstr("has no child with key"),
+        ::testing::HasSubstr("is required")));
 
     // Simple types.
     CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Int64), "int64");
@@ -524,7 +548,9 @@ TEST(TLogicalTypeTest, TestTypeV3Yson)
         }
         )");
 
-    EXPECT_THROW_WITH_SUBSTRING(FromTypeV3("{type_name=optional}"), "has no child with key");
+    EXPECT_THROW_THAT(FromTypeV3("{type_name=optional}"), ::testing::AnyOf(
+        ::testing::HasSubstr("has no child with key"),
+        ::testing::HasSubstr("is required")));
 
     // List
     CHECK_TYPE_V3(
@@ -543,7 +569,9 @@ TEST(TLogicalTypeTest, TestTypeV3Yson)
         }
         )");
 
-    EXPECT_THROW_WITH_SUBSTRING(FromTypeV3("{type_name=list}"), "has no child with key");
+    EXPECT_THROW_THAT(FromTypeV3("{type_name=list}"), ::testing::AnyOf(
+        ::testing::HasSubstr("has no child with key"),
+        ::testing::HasSubstr("is required")));
 
     // Struct
     CHECK_TYPE_V3(
@@ -1005,7 +1033,7 @@ TEST(TTestLogicalTypesWithData, GoodTypes)
         } catch (const std::exception& ex) {
             ythrow wrapError(ex);
         }
-        
+
         EXPECT_EQ(*type, *type2);
     }
 }

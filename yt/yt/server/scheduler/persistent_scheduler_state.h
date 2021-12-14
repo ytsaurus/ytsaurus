@@ -65,6 +65,7 @@ struct TPersistentNodeSchedulingSegmentState
 
 void Serialize(const TPersistentNodeSchedulingSegmentState& state, NYson::IYsonConsumer* consumer);
 void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYTree::INodePtr node);
+void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYson::TYsonPullParserCursor* cursor);
 
 using TPersistentNodeSchedulingSegmentStateMap = THashMap<NNodeTrackerClient::TNodeId, TPersistentNodeSchedulingSegmentState>;
 

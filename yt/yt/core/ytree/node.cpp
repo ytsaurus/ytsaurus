@@ -299,6 +299,12 @@ void Deserialize(INodePtr& value, const INodePtr& node)
     void Deserialize(I##type##NodePtr& value, const INodePtr& node) \
     { \
         value = node->As##type(); \
+    } \
+    \
+    void Deserialize(I##type##NodePtr& value, NYson::TYsonPullParserCursor* cursor) \
+    { \
+        auto node = ExtractTo<INodePtr>(cursor); \
+        value = node->As##type(); \
     }
 
 DESERIALIZE_TYPED(String)
@@ -323,6 +329,16 @@ TYsonString ConvertToYsonStringStable(const INodePtr& node)
         std::nullopt);
     writer.Flush();
     return TYsonString(stream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Deserialize(INodePtr& value, NYson::TYsonPullParserCursor* cursor)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    cursor->TransferComplexValue(builder.get());
+    value = builder->EndTree();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

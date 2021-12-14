@@ -73,6 +73,7 @@ private:
 };
 
 void Deserialize(TPoolName& value, NYTree::INodePtr node);
+void Deserialize(TPoolName& value, NYson::TYsonPullParserCursor* cursor);
 void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1644,6 +1645,7 @@ void SerializeHeavyRuntimeParameters(NYTree::TFluentMap fluent, const TOperation
 void Serialize(const TOperationRuntimeParameters& parameters, NYson::IYsonConsumer* consumer, bool serializeHeavy = true);
 void Serialize(const TOperationRuntimeParametersPtr& parameters, NYson::IYsonConsumer* consumer, bool serializeHeavy = true);
 void Deserialize(TOperationRuntimeParameters& parameters, NYTree::INodePtr node);
+void Deserialize(TOperationRuntimeParameters& parameters, NYson::TYsonPullParserCursor* cursor);
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)
 
