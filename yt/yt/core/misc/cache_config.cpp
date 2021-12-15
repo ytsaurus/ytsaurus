@@ -18,12 +18,6 @@ TSlruCacheConfig::TSlruCacheConfig(i64 capacity)
     RegisterParameter("touch_buffer_capacity", TouchBufferCapacity)
         .Default(65536)
         .GreaterThan(0);
-    RegisterParameter("small_ghost_cache_ratio", SmallGhostCacheRatio)
-        .Default(0.5)
-        .GreaterThanOrEqual(0.0);
-    RegisterParameter("large_ghost_cache_ratio", LargeGhostCacheRatio)
-        .Default(2.0)
-        .GreaterThanOrEqual(0.0);
 
     RegisterPostprocessor([&] () {
         if (!IsPowerOf2(ShardCount)) {
