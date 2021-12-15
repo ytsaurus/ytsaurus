@@ -328,9 +328,10 @@ private:
         const auto& replicationCardId = replicationCardToken.ReplicationCardId;
         auto newReplica = FromProto<TReplicaInfo>(request->replica_info());
 
-        if (newReplica.State == EReplicaState::Enabled) {
-            newReplica.State = EReplicaState::Enabling;
-        }
+        YT_VERIFY(IsStableReplicaState(newReplica.State));
+        newReplica.State = newReplica.State == EReplicaState::Enabled
+            ? EReplicaState::Enabling
+            : EReplicaState::Disabling;
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         for (const auto& replica : replicationCard->Replicas()) {

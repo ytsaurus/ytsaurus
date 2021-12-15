@@ -315,6 +315,7 @@ struct TGetReplicationCardOptions
     bool IncludeCoordinators = false;
     bool IncludeProgress = false;
     bool IncludeHistory = false;
+    bool BypassCache = false;
 };
 
 struct TCreateReplicationCardReplicaOptions

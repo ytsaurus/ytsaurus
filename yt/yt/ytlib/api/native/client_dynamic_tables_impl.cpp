@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/chaos_client/replication_card_cache.h>
+
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 
@@ -2530,6 +2532,18 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
     const TReplicationCardToken& replicationCardToken,
     const TGetReplicationCardOptions& options)
 {
+    if (!options.BypassCache) {
+        const auto& replicationCardCache = GetReplicationCardCache();
+        auto futureReplicationCard = replicationCardCache->GetReplicationCard({
+            .Token = replicationCardToken,
+            .RequestCoordinators = options.IncludeCoordinators,
+            .RequestProgress = options.IncludeProgress,
+            .RequestHistory = options.IncludeHistory
+        });
+        return WaitFor(futureReplicationCard)
+            .ValueOrThrow();
+    }
+
     auto channel = GetChaosChannel(replicationCardToken.ChaosCellId);
     auto proxy = TChaosServiceProxy(channel);
     auto req = proxy.GetReplicationCard();

@@ -1014,6 +1014,10 @@ def _build_cluster_connection_config(yt_config,
 
     if yt_config.chaos_node_count > 0:
         cluster_connection["replication_card_cache"] = {
+            "expire_after_successful_update_time": 100,
+            "expire_after_failed_update_time": 100,
+            "expire_after_access_time": 100,
+            "refresh_time": 50,
             "soft_backoff_time": 100,
             "hard_backoff_time": 100,
             "addresses": master_cache_addresses,

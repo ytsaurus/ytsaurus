@@ -76,8 +76,10 @@ public:
         , NameTable_(TNameTable::FromSchema(*TableSchema_))
         , MountConfig_(tablet->GetSettings().MountConfig)
         , ReplicaId_(tablet->GetUpstreamReplicaId())
-        , Logger(TabletNodeLogger.WithTag("%v",
-            tablet->GetLoggingTag()))
+        , Logger(TabletNodeLogger
+            .WithTag("%v, UpstreamReplicaId: %v",
+                tablet->GetLoggingTag(),
+                ReplicaId_))
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeInThrottler),
             CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)
@@ -352,9 +354,9 @@ private:
         }
 
         if (selfReplica->Mode != EReplicaMode::Async) {
-            YT_LOG_DEBUG("Will not pull rows since replica is not async (ReplicaMode: %v)",
+            YT_LOG_DEBUG("Pulling rows while replica is not async (ReplicaMode: %v)",
                 selfReplica->Mode);
-            return {};
+            // NB: Allow this since sync replica could be catching up.
         }
 
         if (selfReplica->State != EReplicaState::Enabled) {
