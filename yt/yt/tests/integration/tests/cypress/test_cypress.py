@@ -3400,6 +3400,24 @@ class TestCypress(YTEnvSetup):
     def test_acn_scheme(self):
         assert exists("//sys/schemas/access_control_node")
 
+    @authors("kvk1920")
+    def test_cluster_connection_attribute(self):
+        with raises_yt_error("Cannot parse"):
+            set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
+        set("//sys/@cluster_connection", {"default_input_row_limit": 1024})
+        assert {"default_input_row_limit": 1024} == get("//sys/@cluster_connection")
+        set("//sys/@cluster_connection", yson.YsonEntity())
+        assert isinstance(get("//sys/@cluster_connection"), yson.YsonEntity)
+
+    @authors("kvk1920")
+    def test_cluster_name(self):
+        with raises_yt_error("too long"):
+            set("//sys/@cluster_name", "a" * 129)
+        set("//sys/@cluster_name", "a" * 128)
+        assert "a" * 128 == get("//sys/@cluster_name")
+        with raises_yt_error("ASCII"):
+            set("//sys/@cluster_name", "кириллица")
+
 
 ##################################################################
 

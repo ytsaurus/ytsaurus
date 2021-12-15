@@ -25,6 +25,8 @@ using namespace NCypressServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 
+using NApi::NNative::TConnectionConfig;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSysNodeProxy
@@ -64,6 +66,56 @@ private:
             .SetWritable(true)
             .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::HydraReadOnly);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ClusterName)
+            .SetWritable(true)
+            .SetCustom(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ClusterConnection)
+            .SetWritable(true)
+            .SetCustom(true));
+    }
+
+    static void ValidateClusterName(const TString& clusterName)
+    {
+        if (clusterName.size() > MaxClusterNameLength) {
+            THROW_ERROR_EXCEPTION("Cluster name is too long")
+                << TErrorAttribute("cluster_name_length", clusterName.size())
+                << TErrorAttribute("max_cluster_name_length", MaxClusterNameLength);
+        }
+
+        auto isAsciiText = [] (char c) {
+            return IsAsciiAlnum(c) || IsAsciiSpace(c) || IsAsciiPunct(c);
+        };
+
+        if (!::AllOf(clusterName.cbegin(), clusterName.cend(), isAsciiText)) {
+            THROW_ERROR_EXCEPTION("Only ASCII alphanumeric, white-space and punctuation characters are allowed in cluster names");
+        }
+    }
+
+    void ValidateCustomAttributeUpdate(
+        const TString& key,
+        const TYsonString& oldValue,
+        const TYsonString& newValue) override
+    {
+        auto internedKey = TInternedAttributeKey::Lookup(key);
+
+        switch (internedKey) {
+            case EInternedAttributeKey::ClusterName:
+                ValidateClusterName(ConvertTo<TString>(newValue));
+                return;
+            
+            case EInternedAttributeKey::ClusterConnection: {
+                auto node = ConvertToNode(newValue);
+                if (node->GetType() != ENodeType::Entity) {
+                    New<TConnectionConfig>()->Load(node);
+                }
+                return;
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
