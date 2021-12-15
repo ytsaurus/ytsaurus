@@ -58,7 +58,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         final T compareWith = !keyFieldsOnly && supportState
                 ? ((YTreeStateSupport<? extends T>) row).getYTreeObjectState()
                 : null;
-        this.objectSerializer.serialize(row, delegate.wrap(writeable, aggregate), false, keyFieldsOnly, compareWith);
+        this.objectSerializer.serialize(row, delegate.wrap(writeable, aggregate), keyFieldsOnly, compareWith);
         delegate.complete();
     }
 
