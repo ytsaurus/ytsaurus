@@ -131,6 +131,9 @@ private:
         return New<TCompositeMapService>()
             ->AddChild("dynamic_memory_pool_weights", IYPathService::FromMethod(
                 &TSlotManager::GetDynamicMemoryPoolWeightsOrchid,
+                MakeWeak(this)))
+            ->AddChild("memory_usage_stats", IYPathService::FromMethod(
+                &TSlotManager::GetMemoryUsageStats,
                 MakeWeak(this)));
     }
 
@@ -224,6 +227,104 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Tablet)->Occupants();
+    }
+
+    void GetMemoryUsageStats(IYsonConsumer* consumer) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        std::vector<TFuture<TTabletCellMemoryStats>> futureStats;
+
+        for (const auto& occupant : Occupants()) {
+            if (!occupant) {
+                continue;
+            }
+
+            if (auto occupier = occupant->GetTypedOccupier<ITabletSlot>()) {
+                futureStats.push_back(occupier->GetMemoryStats());
+            }
+        }
+
+        auto rawStats = WaitFor(AllSucceeded(futureStats))
+            .ValueOrThrow();
+
+        auto summary = CalcNodeMemoryUsageSummary(rawStats);
+
+        // Fill overall limits.
+        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
+        summary.Overall.Dynamic.Limit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic);
+        summary.Overall.Static.Limit = memoryTracker->GetLimit(EMemoryCategory::TabletStatic);
+        summary.Overall.RowCache.Limit = memoryTracker->GetLimit(EMemoryCategory::LookupRowsCache);
+
+        // Fill per bundle limits.
+        for (auto& [bundleName, bundleStat] : summary.Bundles) {
+            bundleStat.Overall.Dynamic.Limit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName);
+            bundleStat.Overall.Static.Limit = memoryTracker->GetLimit(EMemoryCategory::TabletStatic, bundleName);
+        }
+
+        BuildNodeMemoryStatsYson(summary, consumer);
+    }
+
+    void BuildNodeMemoryStatsYson(const TNodeMemoryUsageSummary& summary,  IYsonConsumer* consumer) const
+    {
+        auto buildMemoryStats = BIND(&TSlotManager::BuildMemoryStatsYson, Unretained(this));
+
+        BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("overall").DoMap(BIND(buildMemoryStats, summary.Overall))
+            .Item("bundles").DoMapFor(
+                summary.Bundles,
+                [&] (auto fluent, const auto& bundlePair) {
+                    fluent
+                        .Item(bundlePair.first).DoMap(
+                            BIND(&TSlotManager::BuildBundleMemoryStatsYson, Unretained(this), bundlePair.second));
+                })
+             .Item("tables").DoMapFor(
+                summary.Tables,
+                [&] (auto fluent, const auto& tablePair) {
+                    fluent
+                        .Item(tablePair.first).DoMap(BIND(buildMemoryStats, tablePair.second));
+                })
+        .EndMap();
+    }
+
+    void BuildBundleMemoryStatsYson(const TBundleMemoryUsageSummary& stats, TFluentMap fluent) const
+    {
+        auto buildMemoryStats = BIND(&TSlotManager::BuildMemoryStatsYson, Unretained(this));
+
+        fluent
+            .Item("overall").DoMap(BIND(buildMemoryStats, stats.Overall))
+            .Item("cells").DoMapFor(
+                stats.TabletCells,
+                [&] (auto fluent, const auto& cellPair) {
+                    fluent
+                        .Item(ToString(cellPair.first)).DoMap(BIND(buildMemoryStats, cellPair.second));
+                });
+    }
+
+    void BuildMemoryStatsYson(const TMemoryStats& stats, TFluentMap fluent) const
+    {
+        auto buildValue = BIND(&TSlotManager::BuildMemoryStatsValueYson, Unretained(this));
+
+        fluent
+            .Item("tablet_dynamic").DoMap(BIND(buildValue, stats.Dynamic))
+            .Item("tablet_dynamic_backing").DoMap(BIND(buildValue, stats.DynamicBacking))
+            .Item("tablet_static").DoMap(BIND(buildValue, stats.Static))
+            .Item("row_cache").DoMap(BIND(buildValue, stats.RowCache))
+            .Item("preload_store_count").Value(stats.PreloadStoreCount)
+            .Item("preload_pending_store_count").Value(stats.PendingStoreCount)
+            .Item("preload_pending_bytes").Value(stats.PendingStoreBytes)
+            .Item("preload_failed_store_count").Value(stats.PreloadStoreFailedCount)
+            .Item("preload_errors").Value(stats.PreloadErrors);
+    }
+
+    void BuildMemoryStatsValueYson(const TMemoryStats::TValue& value, TFluentMap fluent) const
+    {
+        fluent
+            .Item("usage").Value(value.Usage)
+            .DoIf(value.Limit, [&] (auto fluent) {
+                fluent.Item("limit").Value(value.Limit);
+            });
     }
 };
 

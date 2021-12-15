@@ -248,6 +248,117 @@ public:
         return tablet;
     }
 
+    std::vector<TTabletMemoryStats> GetMemoryStats()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        std::vector<TTabletMemoryStats> results;
+        results.reserve(Tablets().size());
+
+        for (const auto& [tabletId, tablet] : Tablets()) {
+            auto& tabletMemory = results.emplace_back();
+            tabletMemory.TabletId = tabletId;
+            tabletMemory.TablePath = tablet->GetTablePath();
+
+            auto& stats = tabletMemory.Stats;
+
+            if (tablet->IsPhysicallySorted()) {
+                for (const auto& store : tablet->GetEden()->Stores()) {
+                    CountStoreMemoryStats(&stats, *store);
+                }
+
+                for (const auto& partition : tablet->PartitionList()) {
+                    for (const auto& store : partition->Stores()) {
+                        CountStoreMemoryStats(&stats, *store);
+                    }
+                }
+            } else if (tablet->IsPhysicallyOrdered()) {
+                for (const auto& [_, store] : tablet->StoreIdMap()) {
+                    CountStoreMemoryStats(&stats, *store);
+                }
+            }
+
+            auto error = GetPreloadError(tablet);
+            if (!error.IsOK()) {
+                stats.PreloadErrors.push_back(error);
+            }
+
+            if (auto rowCache = tablet->GetRowCache()) {
+                stats.RowCache.Usage = rowCache->GetUsedBytesCount();
+            }
+        }
+
+        return results;
+    }
+
+    TError GetPreloadError(TTablet* tablet)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
+        if (tabletSnapshot) {
+            return tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Preload].Load();
+        }
+        return {};
+    }
+
+    void CountStoreMemoryStats(TMemoryStats* stats, IStore& store)
+    {
+        if (store.IsDynamic()) {
+            auto dynamic = store.AsDynamic();
+            stats->Dynamic.Usage += dynamic->GetPoolCapacity();
+        } else if (store.IsChunk()) {
+            auto chunk = store.AsChunk();
+
+            if (auto backing = chunk->GetBackingStore()) {
+                stats->Dynamic.Usage += backing->GetPoolCapacity();
+                stats->DynamicBacking.Usage += backing->GetPoolCapacity();
+            }
+
+            auto countChunkStoreMemory = [&] (i64 bytes) {
+                stats->PreloadStoreCount += 1;
+                switch (chunk->GetPreloadState()) {
+                    case EStorePreloadState::Scheduled:
+                    case EStorePreloadState::Running:
+                        stats->PendingStoreCount += 1;
+                        stats->PendingStoreBytes += bytes;
+                        break;
+
+                    case EStorePreloadState::Complete:
+                        stats->Static.Usage += bytes;
+                        break;
+                    
+                    case EStorePreloadState::Failed:
+                        stats->PreloadStoreFailedCount += 1;
+                        break;
+                    
+                    case EStorePreloadState::None:
+                        break;
+
+                    default:
+                        YT_ABORT();
+                }
+            };
+
+            switch (chunk->GetInMemoryMode()) {
+                case EInMemoryMode::Compressed:
+                    countChunkStoreMemory(chunk->GetCompressedDataSize());
+                    break;
+
+                case EInMemoryMode::Uncompressed:
+                    countChunkStoreMemory(chunk->GetUncompressedDataSize());
+                    break;
+                
+                case EInMemoryMode::None:
+                    break;
+                
+                default:
+                    YT_ABORT();
+            }
+        }
+    }
+
     TFuture<void> Trim(
         const TTabletSnapshotPtr& tabletSnapshot,
         i64 trimmedRowCount)
@@ -3311,6 +3422,11 @@ ETabletCellLifeStage TTabletManager::GetTabletCellLifeStage() const
 ITabletWriteManagerHostPtr TTabletManager::GetTabletWriteManagerHost()
 {
     return Impl_;
+}
+
+std::vector<TTabletMemoryStats> TTabletManager::GetMemoryStats()
+{
+    return Impl_->GetMemoryStats();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)

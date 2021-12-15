@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/node/tablet_node/tablet_memory_stats.h>
+
 #include <yt/yt/server/node/cluster_node/public.h>
 
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
@@ -61,6 +63,8 @@ public:
     TTablet* GetTabletOrThrow(TTabletId id);
 
     ITabletWriteManagerHostPtr GetTabletWriteManagerHost();
+
+    std::vector<TTabletMemoryStats> GetMemoryStats();
 
 private:
     class TImpl;
