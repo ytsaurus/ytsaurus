@@ -1216,23 +1216,29 @@ private:
 
         OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
             ControllerAgentLogger.WithTag("Kind: AgentToSchedulerOperations, IncarnationId: %v",
-                IncarnationId_));
+                IncarnationId_),
+            ControllerAgentProfiler.WithTag("queue", "operation_events"));
         JobEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerJobEvent>>(
            ControllerAgentLogger.WithTag("Kind: AgentToSchedulerJobs, IncarnationId: %v",
-               IncarnationId_));
+               IncarnationId_),
+            ControllerAgentProfiler.WithTag("queue", "job_events"));
         ScheduleJobResposesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
             ControllerAgentLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v",
-                IncarnationId_));
+                IncarnationId_),
+            ControllerAgentProfiler.WithTag("queue", "schedule_job_responses"));
 
         JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentJobs, IncarnationId: %v",
-                IncarnationId_));
+                IncarnationId_),
+            ControllerAgentProfiler.WithTag("queue", "job_events"));
         OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentOperations, IncarnationId: %v",
-                IncarnationId_));
+                IncarnationId_),
+            ControllerAgentProfiler.WithTag("queue", "operation_events"));
         ScheduleJobRequestsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v",
-                IncarnationId_));
+                IncarnationId_),
+            ControllerAgentProfiler.WithTag("queue", "schedule_job_requests"));
 
         MemoryWatchdog_ = New<TMemoryWatchdog>(
             Config_->MemoryWatchdog,

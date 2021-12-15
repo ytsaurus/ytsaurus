@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +23,9 @@ class TMessageQueueOutbox
     : public TRefCounted
 {
 public:
-    explicit TMessageQueueOutbox(const NLogging::TLogger& logger);
+    TMessageQueueOutbox(
+        const NLogging::TLogger& logger,
+        const NProfiling::TProfiler& profiler);
 
     /*
      * \note Thread affinity: any
@@ -53,6 +57,10 @@ public:
 private:
     const NLogging::TLogger Logger;
 
+    NProfiling::TCounter EnqueuedItemsCounter_;
+    NProfiling::TCounter HandledItemsCounter_;
+    NProfiling::TGauge PendingItemsGauge_;
+
     using TEntry = std::variant<TItem, std::vector<TItem>>;
     TMpscStack<TEntry> Stack_;
 
@@ -71,7 +79,9 @@ private:
 class TMessageQueueInbox
 {
 public:
-    explicit TMessageQueueInbox(const NLogging::TLogger& logger);
+    TMessageQueueInbox(
+        const NLogging::TLogger& logger,
+        const NProfiling::TProfiler& profiler);
 
     template <class TProtoMessage>
     void ReportStatus(TProtoMessage* request);
@@ -81,6 +91,8 @@ public:
 
 private:
     const NLogging::TLogger Logger;
+
+    NProfiling::TCounter HandledItemsCounter_;
 
     TMessageQueueItemId NextExpectedItemId_ = 0;
 

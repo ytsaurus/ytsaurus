@@ -9,14 +9,21 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TItem>
-TMessageQueueOutbox<TItem>::TMessageQueueOutbox(const NLogging::TLogger& logger)
+TMessageQueueOutbox<TItem>::TMessageQueueOutbox(
+    const NLogging::TLogger& logger,
+    const NProfiling::TProfiler& profiler)
     : Logger(logger)
+    , EnqueuedItemsCounter_(profiler.WithTag("queue_type", "outbox").Counter("/message_queue/enqueued_items"))
+    , HandledItemsCounter_(profiler.WithTag("queue_type", "outbox").Counter("/message_queue/handled_items"))
+    , PendingItemsGauge_(profiler.WithTag("queue_type", "outbox").Gauge("/message_queue/pending_items"))
 { }
 
 template <class TItem>
 void TMessageQueueOutbox<TItem>::Enqueue(TItem&& item)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    EnqueuedItemsCounter_.Increment();
 
     Stack_.Enqueue(std::move(item));
 }
@@ -25,6 +32,8 @@ template <class TItem>
 void TMessageQueueOutbox<TItem>::Enqueue(std::vector<TItem>&& items)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    EnqueuedItemsCounter_.Increment(items.size());
 
     Stack_.Enqueue(std::move(items));
 }
@@ -61,6 +70,9 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
     auto firstItemId = FirstItemId_;
     auto lastItemId = FirstItemId_ + itemCount - 1;
     message->set_first_item_id(firstItemId);
+
+    PendingItemsGauge_.Update(Queue_.size());
+
     if (Queue_.empty()) {
         return;
     }
@@ -100,15 +112,22 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
         Queue_.pop();
         lastConfirmedItemId = FirstItemId_++;
     }
-    YT_LOG_DEBUG("Outbox items confirmed (ItemIds: %v-%v)",
+
+    HandledItemsCounter_.Increment(lastConfirmedItemId - firstConfirmedItemId);
+
+    YT_LOG_DEBUG("Outbox items confirmed (ItemIds: %v-%v, ItemCount: %v)",
         firstConfirmedItemId,
-        lastConfirmedItemId);
+        lastConfirmedItemId,
+        lastConfirmedItemId - firstConfirmedItemId + 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TMessageQueueInbox::TMessageQueueInbox(const NLogging::TLogger& logger)
+inline TMessageQueueInbox::TMessageQueueInbox(
+    const NLogging::TLogger& logger,
+    const NProfiling::TProfiler& profiler)
     : Logger(logger)
+    , HandledItemsCounter_(profiler.WithTag("queue_type", "inbox").Counter("/message_queue/handled_items"))
 { }
 
 template <class TProtoRequest>
@@ -146,12 +165,15 @@ void TMessageQueueInbox::HandleIncoming(TProtoMessage* message, TConsumer protoI
         ++itemId;
     }
 
+    HandledItemsCounter_.Increment(message->items_size());
+
     if (firstConsumedItemId >= 0) {
-        YT_LOG_DEBUG("Inbox items received and consumed (ReceivedIds: %v-%v, ConsumedIds: %v-%v)",
+        YT_LOG_DEBUG("Inbox items received and consumed (ReceivedIds: %v-%v, ConsumedIds: %v-%v, ItemCount: %v)",
             message->first_item_id(),
             message->first_item_id() + message->items_size() - 1,
             firstConsumedItemId,
-            lastConsumedItemId);
+            lastConsumedItemId,
+            message->items_size());
     } else {
         YT_LOG_DEBUG("Inbox items received but none consumed (ReceivedIds: %v-%v)",
             message->first_item_id(),
