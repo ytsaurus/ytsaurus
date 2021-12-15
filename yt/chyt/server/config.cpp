@@ -115,6 +115,29 @@ TCachingSettings::TCachingSettings()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TConcatTablesSettings::TConcatTablesSettings()
+{
+    RegisterParameter("missing_column_mode", MissingColumnMode)
+        .Default(EMissingColumnMode::ReadAsNull);
+    RegisterParameter("type_mismatch_mode", TypeMismatchMode)
+        .Default(ETypeMismatchMode::Throw);
+    RegisterParameter("allow_empty_schema_intersection", AllowEmptySchemaIntersection)
+        .Default(false);
+    RegisterParameter("max_tables", MaxTables)
+        .LessThanOrEqual(2500)
+        .Default(250);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TListDirSettings::TListDirSettings()
+{
+    RegisterParameter("max_size", MaxSize)
+        .Default(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQuerySettings::TQuerySettings()
 {
     RegisterParameter("enable_columnar_read", EnableColumnarRead)
@@ -151,6 +174,9 @@ TQuerySettings::TQuerySettings()
         .DefaultNew();
 
     RegisterParameter("concat_tables", ConcatTables)
+        .DefaultNew();
+
+    RegisterParameter("list_dir", ListDir)
         .DefaultNew();
 
     RegisterParameter("table_reader", TableReader)
@@ -304,18 +330,6 @@ TInvokerLivenessCheckerConfig::TInvokerLivenessCheckerConfig()
         .Default(TDuration::Seconds(30));
     RegisterParameter("timeout", Timeout)
         .Default(TDuration::Seconds(5));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TConcatTablesSettings::TConcatTablesSettings()
-{
-    RegisterParameter("missing_column_mode", MissingColumnMode)
-        .Default(EMissingColumnMode::ReadAsNull);
-    RegisterParameter("type_mismatch_mode", TypeMismatchMode)
-        .Default(ETypeMismatchMode::Throw);
-    RegisterParameter("allow_empty_schema_intersection", AllowEmptySchemaIntersection)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

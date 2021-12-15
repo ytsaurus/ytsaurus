@@ -1,4 +1,4 @@
-#include "table_functions_concat.h"
+#include "table_functions.h"
 
 #include "query_context.h"
 #include "storage_distributor.h"
@@ -141,10 +141,10 @@ public:
     }
 
     StoragePtr executeImpl(
-        const ASTPtr& /* functionAst */,
+        const ASTPtr& /*functionAst*/,
         ContextPtr context,
-        const std::string& /* tableName */,
-        ColumnsDescription /* cached_columns */) const override
+        const std::string& /*tableName*/,
+        ColumnsDescription /*cached_columns*/) const override
     {
         return Execute(context);
     }
@@ -249,7 +249,6 @@ private:
         auto items = WaitFor(queryContext->Client()->ListNode(directory.GetPath(), options))
             .ValueOrThrow();
         auto itemList = ConvertTo<IListNodePtr>(items);
-
 
         std::vector<TRichYPath> itemPaths;
         for (const auto& child : itemList->GetChildren()) {
@@ -408,7 +407,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterConcatenatingTableFunctions()
+void RegisterTableFunctionsConcat()
 {
     auto& factory = TableFunctionFactory::instance();
 
