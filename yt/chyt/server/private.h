@@ -93,6 +93,7 @@ DECLARE_REFCOUNTED_CLASS(TSecondaryQueryHeader);
 DECLARE_REFCOUNTED_CLASS(TInvokerLivenessChecker);
 DECLARE_REFCOUNTED_CLASS(TConcatTablesSettings);
 DECLARE_REFCOUNTED_CLASS(TCachingSettings);
+DECLARE_REFCOUNTED_CLASS(TListDirSettings);
 
 struct TValue;
 class TSubquerySpec;

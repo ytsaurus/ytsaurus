@@ -28,6 +28,12 @@
 #include <Access/AccessControlManager.h>
 #include <Access/User.h>
 
+#include <Parsers/ASTAsterisk.h>
+#include <Parsers/ASTSelectQuery.h>
+#include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTSubquery.h>
+#include <Parsers/ASTTablesInSelectQuery.h>
+
 #include <util/string/escape.h>
 
 namespace NYT::NClickHouseServer {
@@ -386,6 +392,70 @@ int GetDistributedInsertStageRank(EDistributedInsertStage stage)
         case EDistributedInsertStage::None:
             return 4;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::ASTPtr WrapTableExpressionWithSubquery(
+    DB::ASTPtr tableExpression,
+    std::optional<std::vector<TString>> columnNames,
+    DB::ASTPtr whereCondition)
+{
+    YT_VERIFY(tableExpression);
+    YT_VERIFY(tableExpression->as<DB::ASTTableExpression>());
+
+    auto selectQuery = std::make_shared<DB::ASTSelectQuery>();
+
+    // Create proper select list.
+    auto selectExpressionList = std::make_shared<DB::ASTExpressionList>();
+    if (columnNames) {
+        for (const auto& columnName : *columnNames) {
+            selectExpressionList->children.emplace_back(std::make_shared<DB::ASTIdentifier>(columnName));
+        }
+    } else {
+        selectExpressionList->children.emplace_back(std::make_shared<DB::ASTAsterisk>());
+    }
+    selectQuery->setExpression(DB::ASTSelectQuery::Expression::SELECT, std::move(selectExpressionList));
+
+    // Wrap tableExpression with appropriate structure to set it in FROM clause.
+    auto tableElement = std::make_shared<DB::ASTTablesInSelectQueryElement>();
+    tableElement->table_expression = tableExpression;
+    tableElement->children.emplace_back(tableExpression);
+
+    auto tables = std::make_shared<DB::ASTTablesInSelectQuery>();
+    tables->children.emplace_back(std::move(tableElement));
+
+    // SELECT * FROM <tableExpression>
+    selectQuery->setExpression(DB::ASTSelectQuery::Expression::TABLES, std::move(tables));
+    // SELECT * FROM <tableExpression> WHERE <condition>
+    selectQuery->setExpression(DB::ASTSelectQuery::Expression::WHERE, std::move(whereCondition));
+
+    // Wrap selectQuery with appropriate structure to create a Subquery from it.
+    auto selectWithUnionQuery = std::make_shared<DB::ASTSelectWithUnionQuery>();
+    selectWithUnionQuery->list_of_selects = std::make_shared<DB::ASTExpressionList>();
+    selectWithUnionQuery->list_of_selects->children.emplace_back(std::move(selectQuery));
+
+    // ( SELECT * FROM <tableExpression> WHERE <condition> )
+    auto subqueryExpression = std::make_shared<DB::ASTSubquery>();
+    subqueryExpression->children.emplace_back(std::move(selectWithUnionQuery));
+
+    // This constructor extracts the alias for all types of table expressions.
+    // Database and table name are set up only if table expression is identifier.
+    DB::DatabaseAndTableWithAlias tableNameWithAlias(tableExpression->as<DB::ASTTableExpression&>());
+
+    // ( SELECT * FROM <tableExpression> WHERE <condition> ) as <alias>
+    if (!tableNameWithAlias.alias.empty()) {
+        subqueryExpression->setAlias(tableNameWithAlias.alias);
+    } else if (!tableNameWithAlias.table.empty()) {
+        subqueryExpression->setAlias(tableNameWithAlias.table);
+    }
+
+    // Finally, wrap subquery with table expression.
+    auto newTableExpression = std::make_shared<DB::ASTTableExpression>();
+    newTableExpression->subquery = subqueryExpression;
+    newTableExpression->children.emplace_back(std::move(subqueryExpression));
+
+    return newTableExpression;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

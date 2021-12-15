@@ -73,6 +73,17 @@ int GetDistributedInsertStageRank(EDistributedInsertStage stage);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Create ASTTableExpression, which contains subquery with following structure:
+//! ( SELECT <columnNames> FROM <tableExpression> WHERE <whereCondition> )
+//! If |columnNames| is std::nullopt, asterisk (*) is used.
+//! If |whereCondition| is nullptr, no where condition is appended.
+DB::ASTPtr WrapTableExpressionWithSubquery(
+    DB::ASTPtr tableExpression,
+    std::optional<std::vector<TString>> columnNames = std::nullopt,
+    DB::ASTPtr whereCondition = nullptr);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer
 
 namespace DB {

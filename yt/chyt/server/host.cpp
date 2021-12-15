@@ -14,7 +14,6 @@
 #include "statistics_reporter.h"
 #include "storage_distributor.h"
 #include "storage_system_clique.h"
-#include "table_functions_concat.h"
 #include "table_functions.h"
 #include "yt_database.h"
 
@@ -83,6 +82,7 @@ static const auto& Logger = ClickHouseYtLogger;
 
 static const std::vector<TString> AttributesToCache{
     "id",
+    // TODO(dakovalkov): Eliminate this with "schema_id" (CHYT-687).
     "schema",
     "type",
     "dynamic",
@@ -796,7 +796,6 @@ private:
     {
         RegisterFunctions();
         RegisterTableFunctions();
-        RegisterConcatenatingTableFunctions();
         RegisterTableDictionarySource(Owner_);
         RegisterStorageDistributor();
         RegisterDataTypeBoolean();

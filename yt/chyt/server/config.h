@@ -161,6 +161,8 @@ public:
     ETypeMismatchMode TypeMismatchMode;
     //! Disable user-friendly check when there are no columns present in every input table.
     bool AllowEmptySchemaIntersection;
+    //! Limit for number of tables in concat. If exceeded, the error is thrown.
+    int MaxTables;
 
     TConcatTablesSettings();
 };
@@ -188,6 +190,21 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingSettings)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TListDirSettings
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Maximum number of nodes in listed directory. If exceeded, the error is thrown.
+    //! Zero means 'default yt limit'.
+    int MaxSize;
+
+    TListDirSettings();
+};
+
+DEFINE_REFCOUNTED_TYPE(TListDirSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,6 +236,8 @@ public:
     TExecutionSettingsPtr Execution;
 
     TConcatTablesSettingsPtr ConcatTables;
+
+    TListDirSettingsPtr ListDir;
 
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
