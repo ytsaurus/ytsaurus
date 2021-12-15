@@ -6,6 +6,18 @@ def scheduler_orchid_pool_tree_path(tree):
     return scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info".format(tree)
 
 
+def scheduler_new_orchid_pool_tree_path(tree):
+    return scheduler_orchid_path() + "/scheduler/pool_trees/{}".format(tree)
+
+
+def scheduler_orchid_operations_by_pool_path(pool, tree="default"):
+    return scheduler_new_orchid_pool_tree_path(tree) + "/operations_by_pool/{}".format(pool)
+
+
+def scheduler_orchid_operation_by_pool_path(op, pool, tree="default"):
+    return scheduler_orchid_operations_by_pool_path(pool, tree) + "/{}".format(op)
+
+
 def scheduler_orchid_default_pool_tree_path():
     return scheduler_orchid_pool_tree_path("default")
 

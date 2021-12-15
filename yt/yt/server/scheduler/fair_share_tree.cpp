@@ -30,6 +30,8 @@
 #include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/ytree/virtual.h>
+
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
 namespace NYT::NScheduler {
@@ -205,7 +207,11 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_VERIFY(TreeSnapshotImplPrecommit_);
-        TreeSnapshotImpl_ = std::move(TreeSnapshotImplPrecommit_);
+
+        {
+            auto guard = Guard(TreeSnapshotImplLock_);
+            TreeSnapshotImpl_ = std::move(TreeSnapshotImplPrecommit_);
+        }
         TreeSnapshotImplPrecommit_.Reset();
     }
 
@@ -804,7 +810,7 @@ public:
             return;
         }
 
-        DoBuildOperationProgress(element, fluent);
+        DoBuildOperationProgress(element, StrategyHost_, fluent);
     }
 
     void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) const override
@@ -859,6 +865,41 @@ public:
             .Run()));
     }
 
+    IYPathServicePtr GetOrchidService() const override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        auto dynamicOrchidService = New<TCompositeMapService>();
+        
+        dynamicOrchidService->AddChild("operations_by_pool", New<TOperationsByPoolOrchidService>(MakeStrong(this))
+            ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
+
+        dynamicOrchidService->AddChild("pool_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+            BuildYsonFluently(consumer)
+                .Value(GetPoolCount());
+        })));
+
+        dynamicOrchidService->AddChild("pools", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            auto treeSnapshotImpl = ThreadSafeGetTreeSnapshotImpl();
+
+            BuildYsonFluently(consumer).BeginMap()
+                .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), std::move(treeSnapshotImpl)))
+            .EndMap();
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
+
+        dynamicOrchidService->AddChild("resource_distribution_info", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            auto treeSnapshotImpl = ThreadSafeGetTreeSnapshotImpl();
+
+            BuildYsonFluently(consumer).BeginMap()
+                .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshotImpl->RootElement()))
+            .EndMap();
+        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
+
+        return dynamicOrchidService;
+    }
+
     TResourceTree* GetResourceTree() override
     {
         return ResourceTree_.Get();
@@ -891,7 +932,7 @@ private:
 
     ISchedulerStrategyHost* const StrategyHost_;
 
-    std::vector<IInvokerPtr> FeasibleInvokers_;
+    const std::vector<IInvokerPtr> FeasibleInvokers_;
 
     INodePtr LastPoolsNodeUpdate_;
     TError LastPoolsNodeUpdateError_;
@@ -935,6 +976,86 @@ private:
     TCachedJobPreemptionStatuses PersistentCachedJobPreemptionStatuses_;
 
     TSchedulerRootElementPtr RootElement_;
+
+    class TOperationsByPoolOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TOperationsByPoolOrchidService(TIntrusivePtr<const TFairShareTree> tree)
+            : FairShareTree_{std::move(tree)}
+        { }
+
+        i64 GetSize() const final
+        {
+            VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
+
+            return std::ssize(FairShareTree_->ThreadSafeGetTreeSnapshotImpl()->PoolMap());
+        }
+
+        std::vector<TString> GetKeys(const i64 limit) const final
+        {
+            VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
+
+            if (!limit) {
+                return {};
+            }
+
+            const auto fairShareTreeSnapshotImpl = FairShareTree_->ThreadSafeGetTreeSnapshotImpl();
+
+            std::vector<TString> result;
+            result.reserve(std::min(limit, std::ssize(fairShareTreeSnapshotImpl->PoolMap())));
+
+            for (const auto& [name, _] : fairShareTreeSnapshotImpl->PoolMap()) {
+                result.push_back(name);
+                if (std::ssize(result) == limit) {
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        IYPathServicePtr FindItemService(const TStringBuf poolName) const final
+        {
+            VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
+
+            const auto fairShareTreeSnapshotImpl = FairShareTree_->ThreadSafeGetTreeSnapshotImpl();
+
+            const auto poolIterator = fairShareTreeSnapshotImpl->PoolMap().find(poolName);
+            if (poolIterator == std::cend(fairShareTreeSnapshotImpl->PoolMap())) {
+                return nullptr;
+            }
+
+            const auto& [_, element] = *poolIterator;
+            
+            const auto operations = element->GetChildOperations();
+
+            auto operationsYson = BuildYsonStringFluently().BeginMap()
+                    .Do([&] (TFluentMap fluent) {
+                        for (const auto operation : operations) {
+                            fluent
+                                .Item(operation->GetId()).BeginMap()
+                                    .Do(BIND(
+                                        &TFairShareTree::DoBuildOperationProgress,
+                                        Unretained(operation),
+                                        FairShareTree_->StrategyHost_))
+                                .EndMap();
+                        }
+                    })
+                .EndMap();
+
+            auto producer = TYsonProducer(BIND([yson = std::move(operationsYson)] (IYsonConsumer* consumer) {
+                consumer->OnRaw(yson);
+            }));
+
+            return IYPathService::FromProducer(std::move(producer));
+        }
+
+    private:
+        TIntrusivePtr<const TFairShareTree> FairShareTree_;
+    };
+
+    friend class TOperationsByPoolOrchidService;
 
     class TFairShareTreeSnapshot
         : public IFairShareTreeSnapshot
@@ -1164,6 +1285,8 @@ private:
     };
 
     TFairShareTreeSnapshotImplPtr TreeSnapshotImpl_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, TreeSnapshotImplLock_);
+
     TFairShareTreeSnapshotImplPtr TreeSnapshotImplPrecommit_;
 
     TEnumIndexedVector<EJobSchedulingStage, TScheduleJobsStage> SchedulingStages_;
@@ -1180,6 +1303,13 @@ private:
 
     // NB: Used only in fair share logging invoker.
     mutable TTreeSnapshotId LastLoggedTreeSnapshotId_;
+
+    TFairShareTreeSnapshotImplPtr ThreadSafeGetTreeSnapshotImpl() const noexcept
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        auto guard = Guard(TreeSnapshotImplLock_);
+        return TreeSnapshotImpl_;
+    }
 
     void InitSchedulingStages()
     {
@@ -2641,10 +2771,15 @@ private:
 
         TSerializedFairShareInfo fairShareInfo;
         fairShareInfo.PoolsInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), treeSnapshotImpl))
+            .Item("pool_count").Value(GetPoolCount())
+            .Item("pools").BeginMap()
+                .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), treeSnapshotImpl))
+            .EndMap()
             .Finish();
         fairShareInfo.ResourceDistributionInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshotImpl->RootElement()))
+            .Item("resource_distribution_info").BeginMap()
+                .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshotImpl->RootElement()))
+            .EndMap()
             .Finish();
 
         std::vector<TSchedulerOperationElement*> operations;
@@ -2667,7 +2802,7 @@ private:
                     auto* element = *it;
                     fluent
                         .Item(element->GetId()).BeginMap()
-                            .Do(BIND(&TFairShareTree::DoBuildOperationProgress, Unretained(this), Unretained(element)))
+                            .Do(BIND(&TFairShareTree::DoBuildOperationProgress, Unretained(element), StrategyHost_))
                         .EndMap();
                 })
                 .Finish();
@@ -2705,7 +2840,7 @@ private:
                     fluent
                         .Item("parent").Value(element->GetParent()->GetId());
                 })
-                .Do(std::bind(&TFairShareTree::DoBuildElementYson, this, element, std::placeholders::_1));
+                .Do(std::bind(&TFairShareTree::DoBuildElementYson, element, std::placeholders::_1));
         };
 
         auto buildPoolInfo = [&] (const TSchedulerPoolElement* pool, TFluentMap fluent) {
@@ -2741,18 +2876,18 @@ private:
         };
 
         fluent
-            .Item("pool_count").Value(GetPoolCount())
-            .Item("pools").BeginMap()
-                .DoFor(treeSnapshotImpl->PoolMap(), [&] (TFluentMap fluent, const TNonOwningPoolElementMap::value_type& pair) {
-                    buildPoolInfo(pair.second, fluent);
-                })
-                .Item(RootPoolName).BeginMap()
-                    .Do(std::bind(buildCompositeElementInfo, treeSnapshotImpl->RootElement().Get(), std::placeholders::_1))
-                .EndMap()
+            .DoFor(treeSnapshotImpl->PoolMap(), [&] (TFluentMap fluent, const TNonOwningPoolElementMap::value_type& pair) {
+                buildPoolInfo(pair.second, fluent);
+            })
+            .Item(RootPoolName).BeginMap()
+                .Do(std::bind(buildCompositeElementInfo, treeSnapshotImpl->RootElement().Get(), std::placeholders::_1))
             .EndMap();
     }
 
-    void DoBuildOperationProgress(const TSchedulerOperationElement* element, TFluentMap fluent) const
+    static void DoBuildOperationProgress(
+        const TSchedulerOperationElement* element,
+        ISchedulerStrategyHost* const strategyHost,
+        TFluentMap fluent)
     {
         auto* parent = element->GetParent();
         fluent
@@ -2770,7 +2905,7 @@ private:
             .Item("detailed_min_needed_job_resources").BeginList()
                 .DoFor(element->GetDetailedMinNeededJobResources(), [&] (TFluentList fluent, const TJobResourcesWithQuota& jobResourcesWithQuota) {
                     fluent.Item().Do([&] (TFluentAny fluent) {
-                        StrategyHost_->SerializeResources(jobResourcesWithQuota, fluent.GetConsumer());
+                        strategyHost->SerializeResources(jobResourcesWithQuota, fluent.GetConsumer());
                     });
                 })
             .EndList()
@@ -2778,10 +2913,10 @@ private:
             .Item("starving_since").Value(element->GetStarvationStatus() != EStarvationStatus::NonStarving
                 ? std::make_optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
-            .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(element)));
+            .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(element)));
     }
 
-    void DoBuildElementYson(const TSchedulerElement* element, TFluentMap fluent) const
+    static void DoBuildElementYson(const TSchedulerElement* element, TFluentMap fluent)
     {
         const auto& attributes = element->Attributes();
         const auto& persistentAttributes = element->PersistentAttributes();

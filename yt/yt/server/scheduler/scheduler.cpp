@@ -357,12 +357,16 @@ public:
 
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
+        
+        auto strategyDynamicOrchidService = Strategy_->GetOrchidService()
+            ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
 
         auto combinedOrchidService = New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{
                 staticOrchidService,
                 std::move(lightStaticOrchidService),
-                std::move(dynamicOrchidService)
+                std::move(dynamicOrchidService),
+                std::move(strategyDynamicOrchidService),
             },
             Config_->OrchidKeysUpdatePeriod);
         CombinedOrchidService_.Reset(combinedOrchidService.Get());

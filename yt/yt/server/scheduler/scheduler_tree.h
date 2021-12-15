@@ -118,6 +118,8 @@ struct ISchedulerTree
 
     virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
+
     //! Raised when operation considered running in tree.
     DECLARE_INTERFACE_SIGNAL(void(TOperationId), OperationRunning);
 };

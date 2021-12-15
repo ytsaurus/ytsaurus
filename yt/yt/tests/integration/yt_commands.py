@@ -1669,7 +1669,9 @@ def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=Tru
 
     execute_command("create", kwargs, parse_yson=True)
     if wait_for_orchid:
-        wait(lambda: exists(yt_scheduler_helpers.scheduler_orchid_pool_tree_path(name)))
+        wait(
+            lambda: exists(yt_scheduler_helpers.scheduler_orchid_pool_tree_path(name))
+                and exists(yt_scheduler_helpers.scheduler_new_orchid_pool_tree_path(name)))
 
 
 def remove_pool_tree(name, wait_for_orchid=True, **kwargs):
@@ -1691,6 +1693,7 @@ def create_pool(name, pool_tree="default", parent_name=None, wait_for_orchid=Tru
         wait(lambda: exists(yt_scheduler_helpers.scheduler_orchid_pool_path(name, pool_tree)))
         expected_parent_name = parent_name if parent_name else "<Root>"
         wait(lambda: get(yt_scheduler_helpers.scheduler_orchid_pool_path(name, pool_tree))["parent"] == expected_parent_name)
+        wait(lambda: exists(yt_scheduler_helpers.scheduler_orchid_operations_by_pool_path(name, pool_tree)))
 
 
 def create_user(name, **kwargs):
