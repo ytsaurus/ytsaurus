@@ -484,9 +484,9 @@ protected:
 #ifdef _linux_
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         int mode = EnableFallocateConvertUnwritten_.load() ? FALLOC_FL_CONVERT_UNWRITTEN : 0;
-        int result = HandleEintr(::fallocate, *request.Handle, mode, 0, request.Size) != 0;
+        int result = HandleEintr(::fallocate, *request.Handle, mode, 0, request.Size);
         if (result != 0) {
-            if ((result == EPERM || result == EINVAL) && mode == FALLOC_FL_CONVERT_UNWRITTEN) {
+            if ((errno == EPERM || errno == EOPNOTSUPP) && mode == FALLOC_FL_CONVERT_UNWRITTEN) {
                 if (EnableFallocateConvertUnwritten_.exchange(false)) {
                     YT_LOG_INFO(TError::FromSystem(), "fallocate call failed; disabling FALLOC_FL_CONVERT_UNWRITTEN mode");
                 }
