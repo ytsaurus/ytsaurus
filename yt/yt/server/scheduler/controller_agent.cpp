@@ -90,27 +90,34 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
     OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
         SchedulerLogger.WithTag("Kind: AgentToSchedulerOperations, AgentId: %v, IncarnationId: %v",
             Id_,
-            GetIncarnationId()));
+            GetIncarnationId()),
+        SchedulerProfiler.WithTag("queue", "operation_events"));
     JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
         SchedulerLogger.WithTag("Kind: AgentToSchedulerJobs, AgentId: %v, IncarnationId: %v",
             Id_,
-            GetIncarnationId()));
+            GetIncarnationId()),
+        SchedulerProfiler.WithTag("queue", "job_events"));
     ScheduleJobResponsesInbox_ = std::make_unique<TMessageQueueInbox>(
         SchedulerLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, AgentId: %v, IncarnationId: %v",
             Id_,
-            GetIncarnationId()));
+            GetIncarnationId()),
+        SchedulerProfiler.WithTag("queue", "schedule_job_responses"));
     JobEventsOutbox_ = New<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>(
         SchedulerLogger.WithTag("Kind: SchedulerToAgentJobs, AgentId: %v, IncarnationId: %v",
             Id_,
-            GetIncarnationId()));
+            GetIncarnationId()),
+        SchedulerProfiler.WithTag("queue", "job_events"));
+
     OperationEventsOutbox_ = New<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>(
         SchedulerLogger.WithTag("Kind: SchedulerToAgentOperations, AgentId: %v, IncarnationId: %v",
             Id_,
-            GetIncarnationId()));
+            GetIncarnationId()),
+        SchedulerProfiler.WithTag("queue", "operation_events"));
     ScheduleJobRequestsOutbox_ = New<TMessageQueueOutbox<TScheduleJobRequestPtr>>(
         SchedulerLogger.WithTag("Kind: SchedulerToAgentScheduleJobRequests, AgentId: %v, IncarnationId: %v",
             Id_,
-            GetIncarnationId()));
+            GetIncarnationId()),
+        SchedulerProfiler.WithTag("queue", "schedule_job_requests"));
 }
 
 TMessageQueueInbox* TControllerAgent::GetOperationEventsInbox()

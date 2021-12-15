@@ -677,6 +677,7 @@ public:
                         YT_ABORT();
                 }
             });
+
         agent->GetOperationEventsInbox()->ReportStatus(
             response->mutable_agent_to_scheduler_operation_events());
 
@@ -690,6 +691,7 @@ public:
                 for (const auto& [_, descriptor] : *descriptors) {
                     ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descriptor);
                 }
+                YT_LOG_DEBUG("Exec node descriptors filled");
             });
         }
 
@@ -774,6 +776,7 @@ public:
                         }
                     }));
             }
+            YT_LOG_DEBUG("Job events distributed among node shards");
         });
 
         response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());
