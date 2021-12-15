@@ -79,6 +79,7 @@
     XX(ChunkRowCount, chunk_row_count) \
     XX(ChunkType, chunk_type) \
     XX(ChunkWriter, chunk_writer) \
+    XX(ClusterConnection, cluster_connection) \
     XX(ClusterName, cluster_name) \
     XX(CommitOrdering, commit_ordering) \
     XX(CommittedResourceUsage, committed_resource_usage) \

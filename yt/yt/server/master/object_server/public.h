@@ -105,6 +105,7 @@ DECLARE_REFCOUNTED_STRUCT(IObjectTypeHandler)
 DECLARE_REFCOUNTED_STRUCT(IYsonInternRegistry)
 
 static constexpr int MaxAnnotationLength = 1024;
+static constexpr int MaxClusterNameLength = 128;
 
 // NB: Changing this value requires promoting master reign.
 static constexpr size_t DefaultYsonStringInternLengthThreshold = 1_KB;

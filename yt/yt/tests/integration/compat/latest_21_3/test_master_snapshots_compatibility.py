@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import (
+    get, set, raises_yt_error,
     authors, print_debug, build_master_snapshots)
 
 from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
@@ -10,6 +11,26 @@ import pytest
 import yatest.common
 
 ##################################################################
+
+
+def check_cluster_connection_simple():
+    set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
+
+    yield
+
+    assert get("//sys/@cluster_connection") == {"default_input_row_limit": "abacaba"}
+    with raises_yt_error("Cannot parse"):
+        set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
+
+
+def check_cluster_name_simple():
+    set("//sys/@cluster_name", "a" * 130)
+
+    yield
+
+    assert get("//sys/@cluster_name") == "a" * 130
+    with raises_yt_error("too long"):
+        set("//sys/@cluster_name", "a" * 130)
 
 
 class TestMasterSnapshotsCompatibility(YTEnvSetup):
@@ -26,6 +47,8 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
     @authors("gritukan")
     def test(self):
         CHECKER_LIST = [
+            check_cluster_connection_simple,
+            check_cluster_name_simple,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
