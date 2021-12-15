@@ -160,7 +160,13 @@ private:
             ReplicationCard_->Era);
 
         auto forwardReplicationProgress = [&] (int historyItemIndex) {
-            YT_VERIFY(historyItemIndex  < std::ssize(selfReplica->History));
+            if (historyItemIndex >= std::ssize(selfReplica->History)) {
+                YT_LOG_DEBUG("Will not advance replication progress to the next era because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",
+                    historyItemIndex,
+                    *selfReplica);
+                return;
+            }
+
             *progress = AdvanceReplicationProgress(
                 *progress,
                 selfReplica->History[historyItemIndex].Timestamp);

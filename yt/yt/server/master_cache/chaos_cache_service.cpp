@@ -58,7 +58,8 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
     auto options = TGetReplicationCardOptions{
         .IncludeCoordinators = requestCoordinators,
         .IncludeProgress = requestProgress,
-        .IncludeHistory = requestHistory
+        .IncludeHistory = requestHistory,
+        .BypassCache = true
     };
 
     context->SetRequestInfo("ReplicationCardToken: %v",

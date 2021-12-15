@@ -95,9 +95,12 @@ void TRemoveReplicationCardReplicaCommand::DoExecute(ICommandContextPtr context)
 TAlterReplicationCardReplicaCommand::TAlterReplicationCardReplicaCommand()
 {
     RegisterParameter("replica_id", ReplicaId);
-    RegisterParameter("mode", Options.Mode);
-    RegisterParameter("enabled", Options.Enabled);
-    RegisterParameter("table_path", Options.TablePath);
+    RegisterParameter("mode", Options.Mode)
+        .Optional();
+    RegisterParameter("enabled", Options.Enabled)
+        .Optional();
+    RegisterParameter("table_path", Options.TablePath)
+        .Optional();
 }
 
 void TAlterReplicationCardReplicaCommand::DoExecute(ICommandContextPtr context)

@@ -115,6 +115,14 @@ private:
             replicationCardToken,
             replica);
 
+        if (!IsStableReplicaMode(replica.Mode)) {
+            THROW_ERROR_EXCEPTION("Invalid replica mode %Qv", replica.Mode);
+        }
+
+        if (!IsStableReplicaState(replica.State)) {
+            THROW_ERROR_EXCEPTION("Invalid replica state %Qv", replica.State);
+        }
+
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->CreateTableReplica(std::move(context));
     }
