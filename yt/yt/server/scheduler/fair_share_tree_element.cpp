@@ -1353,6 +1353,25 @@ int TSchedulerCompositeElement::GetChildrenCount() const
     return EnabledChildren_.size();
 }
 
+std::vector<TSchedulerOperationElement*> TSchedulerCompositeElement::GetChildOperations() const
+{
+    std::vector<TSchedulerOperationElement*> result;
+    result.reserve(std::size(EnabledChildren_) + std::size(DisabledChildren_));
+
+    for (const auto& child : EnabledChildren_) {
+        if (child->IsOperation()) {
+            result.push_back(static_cast<TSchedulerOperationElement*>(child.Get()));
+        }
+    }
+    for (const auto& child : DisabledChildren_) {
+        if (child->IsOperation()) {
+            result.push_back(static_cast<TSchedulerOperationElement*>(child.Get()));
+        }
+    }
+
+    return result;
+}
+
 ESchedulingMode TSchedulerCompositeElement::GetMode() const
 {
     return Mode_;
@@ -4052,15 +4071,13 @@ void TSchedulerRootElement::BuildResourceDistributionInfo(TFluentMap fluent) con
 {
     auto info = GetResourceDistributionInfo();
     fluent
-        .Item("resource_distribution_info").BeginMap()
-            .Item("distributed_strong_guarantee_resources").Value(info.DistributedStrongGuaranteeResources)
-            .Item("distributed_resource_flow").Value(info.DistributedResourceFlow)
-            .Item("distributed_burst_guarantee_resources").Value(info.DistributedBurstGuaranteeResources)
-            .Item("distributed_resources").Value(info.DistributedResources)
-            .Item("undistributed_resources").Value(info.UndistributedResources)
-            .Item("undistributed_resource_flow").Value(info.UndistributedResourceFlow)
-            .Item("undistributed_burst_guarantee_resources").Value(info.UndistributedBurstGuaranteeResources)
-        .EndMap();
+        .Item("distributed_strong_guarantee_resources").Value(info.DistributedStrongGuaranteeResources)
+        .Item("distributed_resource_flow").Value(info.DistributedResourceFlow)
+        .Item("distributed_burst_guarantee_resources").Value(info.DistributedBurstGuaranteeResources)
+        .Item("distributed_resources").Value(info.DistributedResources)
+        .Item("undistributed_resources").Value(info.UndistributedResources)
+        .Item("undistributed_resource_flow").Value(info.UndistributedResourceFlow)
+        .Item("undistributed_burst_guarantee_resources").Value(info.UndistributedBurstGuaranteeResources);
 }
 
 void TSchedulerRootElement::BuildSchedulableIndices(TDynamicAttributesList* dynamicAttributesList, TChildHeapMap* childHeapMap)

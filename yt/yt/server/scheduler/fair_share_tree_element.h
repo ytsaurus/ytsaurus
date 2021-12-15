@@ -682,6 +682,8 @@ public:
     TElement* GetChild(int index) final;
     const TElement* GetChild(int index) const final;
     int GetChildrenCount() const final;
+    
+    std::vector<TSchedulerOperationElement*> GetChildOperations() const;
 
     ESchedulingMode GetMode() const final;
     bool HasHigherPriorityInFifoMode(const NVectorHdrf::TElement* lhs, const NVectorHdrf::TElement* rhs) const final;

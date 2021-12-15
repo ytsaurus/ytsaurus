@@ -28,6 +28,9 @@
 #include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/ytree/service_combiner.h>
+#include <yt/yt/core/ytree/virtual.h>
+
 
 namespace NYT::NScheduler {
 
@@ -630,6 +633,15 @@ public:
         }
     }
 
+    IYPathServicePtr GetOrchidService() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        
+        auto dynamicOrchidService = New<TCompositeMapService>();
+        dynamicOrchidService->AddChild("pool_trees", New<TPoolTreeService>(this));
+        return dynamicOrchidService;
+    }
+
     void BuildOrchid(TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -657,6 +669,7 @@ public:
 
         // Snapshot list of treeIds.
         std::vector<TString> treeIds;
+        treeIds.reserve(std::size(IdToTree_));
         for (auto [treeId, _] : IdToTree_) {
             treeIds.push_back(treeId);
         }
@@ -672,10 +685,10 @@ public:
                     return;
                 }
                 // descriptorsPerPoolTree and treeIds are consistent.
-                const auto& treeNodeDescriptor = GetOrCrash(descriptorsPerPoolTree, treeId);
+                const auto& treeNodeDescriptors = GetOrCrash(descriptorsPerPoolTree, treeId);
                 fluent
                     .Item(treeId).BeginMap()
-                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, MakeStrong(this), tree, treeNodeDescriptor))
+                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, MakeStrong(this), tree, treeNodeDescriptors))
                     .EndMap();
             });
     }
@@ -1199,6 +1212,9 @@ public:
     }
 
 private:
+    class TPoolTreeService;
+    friend class TPoolTreeService;
+
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
 
@@ -1805,7 +1821,61 @@ private:
             }
         }
     }
+
+    class TPoolTreeService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TPoolTreeService(TIntrusivePtr<const TFairShareStrategy> strategy)
+            : Strategy_{std::move(strategy)}
+        { }
+
+    private:
+        i64 GetSize() const final
+        {
+            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers);
+            return std::ssize(Strategy_->IdToTree_);
+        }
+
+        std::vector<TString> GetKeys(const i64 limit) const final
+        {
+            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers);
+
+            if (limit == 0) {
+                return {};
+            }
+
+            std::vector<TString> keys;
+            keys.reserve(std::min(limit, std::ssize(Strategy_->IdToTree_)));
+            for (const auto& [id, tree] : Strategy_->IdToTree_) {
+                keys.push_back(id);
+                if (std::ssize(keys) == limit) {
+                    break;
+                }
+            }
+
+            return keys;
+        }
+
+        IYPathServicePtr FindItemService(const TStringBuf treeId) const final
+        {
+            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers);
+
+            const auto treeIterator = Strategy_->IdToTree_.find(treeId);
+            if (treeIterator == std::cend(Strategy_->IdToTree_)) {
+                return nullptr;
+            }
+
+            const auto& tree = treeIterator->second;
+
+            return tree->GetOrchidService();
+        }
+
+        const TIntrusivePtr<const TFairShareStrategy> Strategy_;
+    };
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
