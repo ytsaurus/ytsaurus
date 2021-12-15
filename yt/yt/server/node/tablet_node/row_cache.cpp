@@ -13,11 +13,68 @@ TDeleteListFlusher::~TDeleteListFlusher()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTRowCacheMemoryTracker
+    : public NDetail::IRowCacheMemoryTracker
+{
+public:
+    explicit TTRowCacheMemoryTracker(IMemoryUsageTrackerPtr underlying)
+        : Underlying_(std::move(underlying))
+        , Size_{0}
+    { }
+
+    TError TryAcquire(i64 size) override
+    {
+        auto result = Underlying_->TryAcquire(size);
+        if (result.IsOK()) {
+            Size_ += size;
+        }
+        return result;
+    }
+
+    TError TryChange(i64 size) override
+    {
+        auto result = Underlying_->TryChange(size);
+        if (result.IsOK()) {
+            Size_ += size;
+        }
+        return result;
+    }
+
+    void Acquire(i64 size) override
+    {
+        Underlying_->Acquire(size);
+        Size_ += size;
+    }
+
+    void Release(i64 size) override
+    {
+        Underlying_->Release(size);
+        Size_ -= size;
+    }
+
+    void SetLimit(i64 size) override
+    {
+        Underlying_->SetLimit(size);
+    }
+
+    i64 GetUsedBytesCount() override
+    {
+        return Size_.load();
+    }
+
+private:
+    const IMemoryUsageTrackerPtr Underlying_;
+    std::atomic<i64> Size_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRowCache::TRowCache(
     size_t elementCount,
     const NProfiling::TProfiler& profiler,
     IMemoryUsageTrackerPtr memoryTracker)
-    : Allocator_(profiler, std::move(memoryTracker))
+    : MemoryTracker_(New<TTRowCacheMemoryTracker>(std::move(memoryTracker)))
+    , Allocator_(profiler, MemoryTracker_)
     , Cache_(elementCount)
 { }
 
@@ -168,6 +225,11 @@ void TRowCache::ReallocateItems(const NLogging::TLogger& Logger)
 
         YT_LOG_DEBUG("Lookup cache reallocation finished (ReallocatedRows: %v)", reallocatedRows);
     }
+}
+
+i64 TRowCache::GetUsedBytesCount() const
+{
+    return MemoryTracker_->GetUsedBytesCount();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -269,6 +269,26 @@ public:
         return Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag();
     }
 
+    TFuture<TTabletCellMemoryStats> GetMemoryStats() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&TTabletSlot::DoGetMemoryStats, MakeStrong(this))
+            .AsyncVia(GetAutomatonInvoker())
+            .Run();
+    }
+
+    TTabletCellMemoryStats DoGetMemoryStats()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return TTabletCellMemoryStats{
+            .CellId = GetCellId(),
+            .BundleName = GetTabletCellBundleName(),
+            .Tablets = TabletManager_->GetMemoryStats()
+        };
+    }
+
     TTimestamp GetLatestTimestamp() override
     {
         VERIFY_THREAD_AFFINITY_ANY();

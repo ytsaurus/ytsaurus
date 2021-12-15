@@ -2933,7 +2933,18 @@ class TestDynamicTablesMulticellWithLegacyHeartbeats(DynamicTablesSingleCellBase
 ##################################################################
 
 
-class TestTabletSnapshotsOrchid(DynamicTablesBase):
+class TestTabletOrchid(DynamicTablesBase):
+    DELTA_NODE_CONFIG = {
+        "resource_limits": {
+            "memory_limits": {
+                "lookup_rows_cache": {
+                    "type": "static",
+                    "value": 1 * 1024 * 1024
+                }
+            }
+        }
+    }
+
     def _get_tablet(self, table_path):
         return get("//tmp/t/@tablets/0")
 
@@ -2955,6 +2966,48 @@ class TestTabletSnapshotsOrchid(DynamicTablesBase):
         assert len(tablet_snapshots) != 0
         # ensure orchid returns something sane for tablet snapshot
         assert tablet_snapshots[0]["table_path"] == "//tmp/t"
+
+    @authors("capone212")
+    def test_memory_usage_statistics(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t", lookup_cache_rows_per_tablet=50, replication_factor=1, in_memory_mode="uncompressed")
+        sync_mount_table("//tmp/t")
+
+        # create table and flush rows to disk.
+        rows = [{"key": i, "value": str(i)} for i in xrange(0, 300, 2)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
+        #  exec lookup to triger row cache usage.
+        expected = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2)]
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
+        assert_items_equal(actual, expected)
+
+        # get tablet memory detailed stats.
+        tablet_info = self._get_tablet("//tmp/t")
+        node_address = self._get_tablet_node_address(tablet_info)
+        memory_stats = get("//sys/cluster_nodes/" + node_address + "/orchid/tablet_slot_manager/memory_usage_stats")
+
+        overall = memory_stats['overall']
+        assert overall['tablet_dynamic']['usage'] != 0
+        assert overall['tablet_dynamic']['limit'] != 0
+        assert overall['tablet_static']['usage'] != 0
+        assert overall['tablet_static']['limit'] != 0
+        assert overall['row_cache']['usage'] != 0
+        assert overall['row_cache']['limit'] != 0
+
+        assert len(memory_stats['bundles']) != 0
+        default_bundle = memory_stats['bundles']["default"]
+        assert default_bundle["overall"]['tablet_dynamic']['usage'] != 0
+        assert default_bundle["overall"]['tablet_dynamic']['limit'] != 0
+        assert default_bundle["overall"]['tablet_static']['usage'] != 0
+        assert default_bundle["overall"]['tablet_static']['limit'] != 0
+
+        table_stat = memory_stats['tables']["//tmp/t"]
+        assert table_stat['tablet_dynamic']['usage'] != 0
+        assert table_stat['tablet_static']['usage'] != 0
+        assert table_stat['row_cache']['usage'] != 0
 
 
 ##################################################################

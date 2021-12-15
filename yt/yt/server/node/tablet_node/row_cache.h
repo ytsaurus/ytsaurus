@@ -11,6 +11,18 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+    
+struct IRowCacheMemoryTracker
+    : public IMemoryUsageTracker
+{
+    virtual i64 GetUsedBytesCount() = 0;
+};
+
+} // of namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDeleteListFlusher
 {
     ~TDeleteListFlusher();
@@ -44,7 +56,10 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(bool, ReallocatingItems, false);
 
+    i64 GetUsedBytesCount() const;
+
 private:
+    TIntrusivePtr<NDetail::IRowCacheMemoryTracker> MemoryTracker_;
     TSlabAllocator Allocator_;
     TConcurrentCache<TCachedRow> Cache_;
     // Rows with revision less than FlushIndex are considered outdated.
