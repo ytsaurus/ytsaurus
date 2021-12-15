@@ -25,11 +25,6 @@ public:
     //! Capacity of internal buffer used to amortize and de-contend touch operations.
     int TouchBufferCapacity;
 
-    //! Multiplier for ghost cache capacities. Ghost caches do not really store elements
-    //! actually, they just export the counters used to tweak the cache sizes.
-    double SmallGhostCacheRatio;
-    double LargeGhostCacheRatio;
-
     explicit TSlruCacheConfig(i64 capacity = 0);
 };
 
