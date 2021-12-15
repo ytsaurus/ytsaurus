@@ -336,8 +336,6 @@ TEphemeralObjectPtrContext TEphemeralObjectPtrContext::Capture()
 
 bool TEphemeralObjectPtrContext::IsCurrent() const
 {
-    NDetail::AssertPersistentStateRead();
-
     return
         NDetail::IsInAutomatonThread() &&
         ObjectManager == NDetail::Bootstrap->GetObjectManager() &&
