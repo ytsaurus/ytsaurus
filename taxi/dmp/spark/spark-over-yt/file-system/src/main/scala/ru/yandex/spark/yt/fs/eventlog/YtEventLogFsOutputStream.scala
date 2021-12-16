@@ -129,7 +129,7 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
   private def updateBlock(data: Array[Byte]): Unit = {
     tryWithConsistentState {
       YtWrapper.runWithRetry{ transaction =>
-        YtWrapper.updateRows(path, schema,
+        YtWrapper.updateRow(path, schema,
           new YtEventLogBlock(id, state.blockCount, data).toJavaMap,
           Some(transaction)
         )
@@ -165,7 +165,7 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
   }
 
   private def updateInfo(transaction: Option[ApiServiceTransaction] = None): Unit = {
-    YtWrapper.updateRows(
+    YtWrapper.updateRow(
       metaPath,
       metaSchema,
       new YtEventLogFileDetails(

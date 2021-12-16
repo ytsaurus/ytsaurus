@@ -51,6 +51,7 @@ def main():
     parser.add_argument('--abort-existing', required=False, action='store_true', default=False)
     parser.add_argument("--spark-cluster-version", required=False)
     parser.add_argument("--worker-log-update-interval", required=False, default="10m")
+    parser.add_argument("--worker-log-table-ttl", required=False, default="7d")
     parser.add_argument("--shs-location", required=False)
     parser.add_argument("--preemption_mode", required=False, default="normal")
 
@@ -111,6 +112,7 @@ def main():
                         worker_log_transfer=args.worker_log_transfer,
                         worker_log_json_mode=args.worker_log_json_mode,
                         worker_log_update_interval=args.worker_log_update_interval,
+                        worker_log_table_ttl=args.worker_log_table_ttl,
                         params=args.params,
                         shs_location=args.shs_location,
                         spark_cluster_version=args.spark_cluster_version,

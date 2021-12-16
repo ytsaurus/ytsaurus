@@ -3,8 +3,10 @@ package ru.yandex.spark.launcher
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig
-import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig.{getSparkHomeDir, getSparkWorkDir}
+import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig.getSparkHomeDir
 import ru.yandex.spark.yt.wrapper.Utils.parseDuration
+import ru.yandex.spark.yt.wrapper.model.WorkerLogBlock
+import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.{getMetaPath, metaSchema}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
@@ -82,8 +84,9 @@ object WorkerLogLauncher extends VanillaLauncher {
           ytTableRowLimit = args.optional("wlog-yttable-row-limit")
             .orElse(sparkConf.get("spark.hadoop.yt.dynTable.rowSize"))
             .map(_.toInt).getOrElse(16777216),
-          tableTTL = sparkConf.get("spark.workerLog.tableTTL")
-          .map(parseDuration).getOrElse(7 days)
+          tableTTL = args.optional("wlog-table-ttl")
+            .orElse(sparkConf.get("spark.workerLog.tableTTL"))
+            .map(parseDuration).getOrElse(7 days)
         ))
       }
     }
@@ -115,6 +118,7 @@ class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: Compound
     try {
       log.info(s"WorkerLog configuration: $workerLogConfig")
       YtWrapper.createDir(workerLogConfig.tablesPath, None, ignoreExisting = true)
+      YtWrapper.createDynTableAndMount(getMetaPath(workerLogConfig.tablesPath), metaSchema)
       while (!Thread.interrupted()) {
         try {
           uploadLogs()
@@ -168,6 +172,7 @@ class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: Compound
           try {
             val (currentSeek, currentLine) = fileMeta(logPath)
             reader.seek(currentSeek)
+            writer.setCreationTime(appDriver, execId, logFileName, creationTime)
             val ans = readUntilEnd(reader, ignoreLast)
             val (lastSeek, length) = ans.foldLeft((currentSeek, 0)) {
               case ((_, len), (seek, line)) =>
@@ -178,6 +183,9 @@ class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: Compound
                 }
                 val written = writer.write(block)
                 (seek, len + written)
+            }
+            if (!fileMeta.contains(logPath) && length == 0) {
+              writer.newEmptyFile(appDriver, execId, logFileName)
             }
             fileMeta(logPath) = (lastSeek, currentLine + length)
           } finally reader.close()

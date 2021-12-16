@@ -1,9 +1,9 @@
-package ru.yandex.spark.launcher
+package ru.yandex.spark.yt.wrapper.model
 
 import io.circe.parser.decode
 import io.circe.{Decoder, HCursor}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.launcher.WorkerLogBlock.formatter
+import ru.yandex.spark.yt.wrapper.model.WorkerLogBlock.formatter
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.Key._
 
 import java.time.{LocalDate, LocalDateTime}

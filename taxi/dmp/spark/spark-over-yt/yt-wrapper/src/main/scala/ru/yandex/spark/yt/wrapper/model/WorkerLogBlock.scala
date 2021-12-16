@@ -1,4 +1,4 @@
-package ru.yandex.spark.launcher
+package ru.yandex.spark.yt.wrapper.model
 
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode

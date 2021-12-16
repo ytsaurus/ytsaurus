@@ -9,7 +9,7 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig
 import ru.yandex.spark.yt.test.{LocalYtClient, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.schema
+import ru.yandex.spark.yt.wrapper.model.WorkerLogBlock
 
 import java.io.{File, FileWriter}
 import java.nio.file.attribute.FileTime
@@ -137,7 +137,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
   private def getAllLogs: LogArray = {
     val logTables = YtWrapper.listDir(tablesDir)
     val allLogs = logTables.map { table =>
-      YtWrapper.selectRows(s"${config.tablesPath}/$table", schema).map(TestEventHolder(_))
+      YtWrapper.selectRows(s"${config.tablesPath}/$table").map(TestEventHolder(_))
     }
     allLogs
   }
