@@ -15,6 +15,10 @@ from functools import partial
 from collections import Counter
 
 
+# Increased timeout due to YT-16030
+INCREASED_TIMEOUT = 90.0
+
+
 @authors("mrkastep")
 class TestGpuJobSetup(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -889,7 +893,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             track=False,
         )
 
-        wait(lambda: op.get_state() == "failed")
+        wait(lambda: op.get_state() == "failed", timeout=INCREASED_TIMEOUT)
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
@@ -925,7 +929,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         )
 
         alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
-        wait(lambda: get(alerts_path))
+        wait(lambda: get(alerts_path), timeout=INCREASED_TIMEOUT)
 
         alerts = get(alerts_path)
         assert len(alerts) == 1
@@ -961,7 +965,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             },
         )
 
-        wait(lambda: op.get_state() == "failed")
+        wait(lambda: op.get_state() == "failed", timeout=INCREASED_TIMEOUT)
 
         alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
         assert len(get(alerts_path)) == 0
@@ -1069,7 +1073,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         wait(lambda: op1.list_jobs())
         job_id1 = op1.list_jobs()[0]
 
-        wait(lambda: gpu_check_is_running(job_id1))
+        wait(lambda: gpu_check_is_running(job_id1), timeout=INCREASED_TIMEOUT)
 
         op2 = map(
             track=False,
@@ -1181,7 +1185,7 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
             track=False,
         )
 
-        wait(lambda: op.get_state() == "failed")
+        wait(lambda: op.get_state() == "failed", timeout=INCREASED_TIMEOUT)
 
         alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
         wait(lambda: get(alerts_path))
