@@ -231,7 +231,7 @@ public:
 
     TImpl(IInvokerPtr invoker, DB::ContextPtr context, TQueryRegistryConfigPtr config)
         : DB::WithContext(std::move(context))
-        , OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this))))
+        , OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this)))->Via(invoker))
         , Config_(std::move(config))
         , Invoker_(std::move(invoker))
         , QueryRegistryProfiler_(ClickHouseYtProfiler.WithPrefix("/query_registry"))
