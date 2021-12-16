@@ -457,6 +457,10 @@ b"""
             heartbeat_period = 200;
         };
 
+        controller_agent_connector = {
+            running_job_sending_backoff = 0;
+        };
+
         job_proxy_heartbeat_period = 200;
 
         job_controller = {
