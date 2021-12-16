@@ -40,7 +40,7 @@ public:
     void SendOutOfBandHeartbeatIfNeeded();
     void EnqueueFinishedJob(const TJobPtr& job);
 
-    void UpdateConnectorPeriod(TDuration newPeriod);
+    void OnConfigUpdated();
 
     ~TControllerAgentConnector() override;
 
@@ -59,6 +59,10 @@ private:
     NRpc::IChannelPtr Channel_;
 
     const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
+
+    IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
+
+    TDuration RunningJobInfoSendingBackoff_;
 
     THashSet<TJobPtr> EnqueuedFinishedJobs_;
     bool ShouldSendOutOfBand_ = false;
@@ -80,8 +84,12 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
         ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(),
         BIND(&TControllerAgentConnector::SendHeartbeat, MakeWeak(this)),
-        ControllerAgentConnectorPool_->StaticConfig_->HeartbeatPeriod,
-        ControllerAgentConnectorPool_->StaticConfig_->HeartbeatSplay))
+        ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatPeriod,
+        ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatSplay))
+    , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
+        ControllerAgentConnectorPool_->CurrentConfig_->StatisticsThrottler))
+    , RunningJobInfoSendingBackoff_(
+        ControllerAgentConnectorPool_->CurrentConfig_->RunningJobInfoSendingBackoff)
 {
     YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
@@ -112,11 +120,15 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::EnqueueFinishedJo
     ShouldSendOutOfBand_ = true;
 }
 
-void TControllerAgentConnectorPool::TControllerAgentConnector::UpdateConnectorPeriod(const TDuration newPeriod)
+void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
 
-    HeartbeatExecutor_->SetPeriod(newPeriod);
+    const auto& currentConfig = *ControllerAgentConnectorPool_->CurrentConfig_;
+
+    HeartbeatExecutor_->SetPeriod(currentConfig.HeartbeatPeriod);
+    RunningJobInfoSendingBackoff_ = currentConfig.RunningJobInfoSendingBackoff;
+    StatisticsThrottler_->Reconfigure(currentConfig.StatisticsThrottler);
 }
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
@@ -190,51 +202,94 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 
     std::vector<TJobPtr> sentEnqueuedJobs;
     sentEnqueuedJobs.reserve(std::size(EnqueuedFinishedJobs_)); 
-
-    jobs.reserve(std::size(jobs) + std::size(EnqueuedFinishedJobs_));
     for (const auto job : EnqueuedFinishedJobs_) {
-        jobs.push_back(job);
         sentEnqueuedJobs.push_back(job);
     }
 
     TJobTrackerServiceProxy proxy(Channel_);
     auto request = proxy.Heartbeat();
-
     request->set_node_id(ControllerAgentConnectorPool_->Bootstrap_->GetNodeId());
     ToProto(request->mutable_node_descriptor(), ControllerAgentConnectorPool_->Bootstrap_->GetLocalDescriptor());
     ToProto(request->mutable_controller_agent_incarnation_id(), ControllerAgentDescriptor_.IncarnationId);
 
-    for (const auto& job : jobs) {
+    i64 finishedJobsStatisticsSize = 0;
+    for (const auto& job : sentEnqueuedJobs) {
         auto* const jobStatus = request->add_jobs();
-
         FillJobStatus(jobStatus, job);
+        job->ResetStatisticsLastSendTime();
 
         if (auto statistics = job->GetStatistics()) {
-            job->ResetStatisticsLastSendTime();
-            jobStatus->set_statistics(statistics.ToString());
+            auto statisticsString = statistics.ToString();
+            finishedJobsStatisticsSize += std::ssize(statisticsString);
+            jobStatus->set_statistics(std::move(statisticsString));
         }
     }
 
+    // In case of statistics size throttling we want to report older jobs first to ensure
+    // that all jobs will sent statistics eventually.
+    std::sort(
+        jobs.begin(),
+        jobs.end(),
+        [] (const auto& lhs, const auto& rhs) noexcept {
+            return lhs->GetStatisticsLastSendTime() < rhs->GetStatisticsLastSendTime();
+        });
+
+    const auto now = TInstant::Now();
+    int consideredRunnigJobCount = 0;
+    int reportedRunningJobCount = 0;
+    i64 runningJobsStatisticsSize = 0;
+    for (const auto& job : jobs) {
+        if (now - job->GetStatisticsLastSendTime() < RunningJobInfoSendingBackoff_) {
+            break;
+        }
+
+        ++consideredRunnigJobCount;
+
+        if (auto statistics = job->GetStatistics()) {
+            auto statisticsString = statistics.ToString();
+            if (StatisticsThrottler_->TryAcquire(statisticsString.size())) {
+                ++reportedRunningJobCount;
+                auto* const jobStatus = request->add_jobs();
+
+                FillJobStatus(jobStatus, job);
+
+                runningJobsStatisticsSize += statisticsString.size();
+                job->ResetStatisticsLastSendTime();
+                jobStatus->set_statistics(std::move(statisticsString));
+            }
+        }
+    }
+
+    YT_LOG_DEBUG(
+        "Job statistics for agent prepared (RunningJobsStatisticsSize: %v, FinishedJobsStatisticsSize: %v, "
+        "RunningJobCount: %v, SkippedJobCountDueToBackoff: %v, SkippedJobCountDueToStatisticsSizeThrottling: %v)",
+        runningJobsStatisticsSize,
+        finishedJobsStatisticsSize,
+        std::size(jobs),
+        std::ssize(jobs) - consideredRunnigJobCount,
+        consideredRunnigJobCount - reportedRunningJobCount);
+
     HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
 
+    if (ControllerAgentConnectorPool_->TestHeartbeatDelay_) {
+        TDelayedExecutor::WaitForDuration(ControllerAgentConnectorPool_->TestHeartbeatDelay_);
+    }
+
+    auto requestFuture = request->Invoke();
     YT_LOG_INFO(
         "Heartbeat sent to agent (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
         ControllerAgentDescriptor_.IncarnationId);
 
-    if (ControllerAgentConnectorPool_->TestHeartbeatDelay_ != TDuration{}) {
-        TDelayedExecutor::WaitForDuration(ControllerAgentConnectorPool_->TestHeartbeatDelay_);
-    }    
-
-    auto responseOrError = WaitFor(request->Invoke());
+    auto responseOrError = WaitFor(std::move(requestFuture));
     if (!responseOrError.IsOK()) {
         HeartbeatInfo_.LastFailedHeartbeatTime = TInstant::Now();
         if (HeartbeatInfo_.FailedHeartbeatBackoffTime == TDuration::Zero()) {
-            HeartbeatInfo_.FailedHeartbeatBackoffTime = ControllerAgentConnectorPool_->StaticConfig_->FailedHeartbeatBackoffStartTime;
+            HeartbeatInfo_.FailedHeartbeatBackoffTime = ControllerAgentConnectorPool_->CurrentConfig_->FailedHeartbeatBackoffStartTime;
         } else {
             HeartbeatInfo_.FailedHeartbeatBackoffTime = std::min(
-                HeartbeatInfo_.FailedHeartbeatBackoffTime * ControllerAgentConnectorPool_->StaticConfig_->FailedHeartbeatBackoffMultiplier,
-                ControllerAgentConnectorPool_->StaticConfig_->FailedHeartbeatBackoffMaxTime);
+                HeartbeatInfo_.FailedHeartbeatBackoffTime * ControllerAgentConnectorPool_->CurrentConfig_->FailedHeartbeatBackoffMultiplier,
+                ControllerAgentConnectorPool_->CurrentConfig_->FailedHeartbeatBackoffMaxTime);
         }
         YT_LOG_ERROR(responseOrError, "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: %v)",
             ControllerAgentDescriptor_.Address,
@@ -312,15 +367,13 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
 
     Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_{MakeStrong(this)}, newConfig{std::move(newConfig)}] {
         if (newConfig->ControllerAgentConnector) {
-            HeartbeatsEnabled_ = newConfig->ControllerAgentConnector->EnableHeartbeats;
             TestHeartbeatDelay_ = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
             CurrentConfig_ = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
         } else {
-            HeartbeatsEnabled_ = true;
             TestHeartbeatDelay_ = TDuration{};
             CurrentConfig_ = StaticConfig_;
         }
-        UpdateConnectorPeriods(CurrentConfig_->HeartbeatPeriod);
+        OnConfigUpdated();
     }));
 }
 
@@ -364,12 +417,14 @@ void TControllerAgentConnectorPool::EnqueueFinishedJob(const TJobPtr& job)
     controllerAgentConnector->EnqueueFinishedJob(job);
 }
 
-void TControllerAgentConnectorPool::UpdateConnectorPeriods(const TDuration newPeriod)
+void TControllerAgentConnectorPool::OnConfigUpdated()
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
+    HeartbeatsEnabled_ = CurrentConfig_->EnableHeartbeats;
+
     for (const auto& [agentDescriptor, controllerAgentConnector] : ControllerAgentConnectors_) {
-        controllerAgentConnector->UpdateConnectorPeriod(newPeriod);
+        controllerAgentConnector->OnConfigUpdated();
     }
 }
 

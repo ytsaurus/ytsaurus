@@ -68,7 +68,7 @@ private:
 
     NRpc::IChannelPtr CreateChannel(const TControllerAgentDescriptor& agentDescriptor);
 
-    void UpdateConnectorPeriods(TDuration newPeriod);
+    void OnConfigUpdated();
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorPool)

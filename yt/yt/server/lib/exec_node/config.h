@@ -264,10 +264,8 @@ public:
         RegisterParameter("heartbeat_splay", HeartbeatSplay)
             .Default();
         RegisterParameter("failed_heartbeat_backoff_start_time", FailedHeartbeatBackoffStartTime)
-            .GreaterThan(TDuration::Zero())
             .Default();
         RegisterParameter("failed_heartbeat_backoff_max_time", FailedHeartbeatBackoffMaxTime)
-            .GreaterThan(TDuration::Zero())
             .Default();
         RegisterParameter("failed_heartbeat_backoff_multiplier", FailedHeartbeatBackoffMultiplier)
             .GreaterThanOrEqual(1.0)
@@ -289,14 +287,21 @@ class TControllerAgentConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    bool EnableHeartbeats;
+    std::optional<bool> EnableHeartbeats;
     TDuration TestHeartbeatDelay;
+    NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
+    std::optional<TDuration> RunningJobInfoSendingBackoff;
 
     TControllerAgentConnectorDynamicConfig()
+        : THeartbeatReporterDynamicConfigBase{}
     {
         RegisterParameter("enable_heartbeats", EnableHeartbeats)
-            .Default(true);
+            .Default();
         RegisterParameter("test_heartbeat_delay", TestHeartbeatDelay)
+            .Default();
+        RegisterParameter("statistics_throttler", StatisticsThrottler)
+            .Default();
+        RegisterParameter("running_job_sending_backoff", RunningJobInfoSendingBackoff)
             .Default();
     }
 };
@@ -369,6 +374,21 @@ class TControllerAgentConnectorConfig
     : public THeartbeatReporterConfigBase
 {
 public:
+    bool EnableHeartbeats;
+    NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
+    TDuration RunningJobInfoSendingBackoff;
+
+    TControllerAgentConnectorConfig()
+        : THeartbeatReporterConfigBase{}
+    {
+        RegisterParameter("enable_heartbeats", EnableHeartbeats)
+            .Default(true);
+        RegisterParameter("statistics_throttler", StatisticsThrottler)
+            .DefaultNew(1_MB);
+        RegisterParameter("running_job_sending_backoff", RunningJobInfoSendingBackoff)
+            .Default(TDuration::Seconds(30));
+    }
+
     TControllerAgentConnectorConfigPtr ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig)
     {
         YT_VERIFY(dynamicConfig);
@@ -377,6 +397,18 @@ public:
         newConfig->ApplyDynamicInplace(*dynamicConfig);
 
         return newConfig;
+    }
+
+    void ApplyDynamicInplace(const TControllerAgentConnectorDynamicConfig& dynamicConfig)
+    {
+        THeartbeatReporterConfigBase::ApplyDynamicInplace(dynamicConfig);
+        EnableHeartbeats = dynamicConfig.EnableHeartbeats.value_or(EnableHeartbeats);
+        if (dynamicConfig.StatisticsThrottler) {
+            StatisticsThrottler->Limit = dynamicConfig.StatisticsThrottler->Limit;
+            StatisticsThrottler->Period = dynamicConfig.StatisticsThrottler->Period;
+        }
+        RunningJobInfoSendingBackoff = dynamicConfig.RunningJobInfoSendingBackoff.value_or(RunningJobInfoSendingBackoff);
+        Postprocess();
     }
 };
 

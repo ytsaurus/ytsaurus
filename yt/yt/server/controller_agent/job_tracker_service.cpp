@@ -27,7 +27,7 @@ class TJobTrackerService
 public:
     explicit TJobTrackerService(TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TJobTrackerServiceProxy::GetDescriptor(),
             ControllerAgentLogger)
         , Bootstrap_(bootstrap)
@@ -40,23 +40,20 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
-        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
-        controllerAgent->ValidateConnected();
+        THashMap<TOperationId, std::vector<std::unique_ptr<TJobSummary>>> groupedJobSummaries;
+        for (auto& job : *request->mutable_jobs()) {
+            const auto operationId = FromProto<TOperationId>(job.operation_id());
 
+            groupedJobSummaries[operationId].push_back(ParseJobSummary(&job, Logger));
+        }
+        
+        SwitchTo(Bootstrap_->GetControlInvoker());
+        
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         if (FromProto<NScheduler::TIncarnationId>(request->controller_agent_incarnation_id()) != controllerAgent->GetIncarnationId()) {
             context->Reply(TError{EErrorCode::IncarnationMismatch, "Controller agent incarnation mismatch"});
             return;
         }
-
-        THashMap<TOperationId, std::vector<std::unique_ptr<TJobSummary>>> groupedJobSummaries;
-        WaitFor(BIND([&] {
-            for (auto& job : *request->mutable_jobs()) {
-                const auto operationId = FromProto<TOperationId>(job.operation_id());
-
-                groupedJobSummaries[operationId].push_back(ParseJobSummary(&job, Logger));
-            }
-        }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()).Run()).ThrowOnError();
-
         controllerAgent->ValidateConnected();
         context->Reply();
         

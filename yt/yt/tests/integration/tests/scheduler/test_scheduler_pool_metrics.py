@@ -94,8 +94,11 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
+            "scheduler_connector": {"heartbeat_period": 100},
+            "controller_agent_connector": {
+                "heartbeat_period": 100,
+                "running_job_sending_backoff": 0,
+            },
         },
     }
     USE_PORTO = True
@@ -651,6 +654,8 @@ class TestPoolMetrics(YTEnvSetup):
             return result
 
         get_total_time_delta.previous_total_time = 0
+
+        wait(lambda: total_time_counter.get())
 
         wait(lambda: get_total_time_delta() == 0, sleep_backoff=1)
 
