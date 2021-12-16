@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeNullSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionSerializer;
@@ -29,12 +30,12 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     private static final int BUFFER_SIZE = 64;
     private static final int OUTPUT_SIZE = 256;
 
-    private final YTreeSerializer<T> objectSerializer;
+    private final YTreeRowSerializer<T> objectSerializer;
     private final TableSchema tableSchema;
     private final YTreeConsumerProxy delegate;
     private final boolean supportState;
 
-    private MappedRowSerializer(YTreeSerializer<T> objectSerializer) {
+    private MappedRowSerializer(YTreeRowSerializer<T> objectSerializer) {
         this.objectSerializer = Objects.requireNonNull(objectSerializer);
         this.tableSchema = asTableSchema(objectSerializer.getFieldMap());
         this.delegate = new YTreeConsumerProxy(tableSchema);
@@ -42,7 +43,10 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     }
 
     public static <T> MappedRowSerializer<T> forClass(YTreeSerializer<T> serializer) {
-        return new MappedRowSerializer<>(serializer);
+        if (serializer instanceof YTreeRowSerializer) {
+            return new MappedRowSerializer<>((YTreeRowSerializer<T>) serializer);
+        }
+        throw new RuntimeException("Expected YTreeRowSerializer in MappedRowSerializer.forClass()");
     }
 
     @Override
@@ -57,7 +61,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         final T compareWith = !keyFieldsOnly && supportState
                 ? ((YTreeStateSupport<? extends T>) row).getYTreeObjectState()
                 : null;
-        this.objectSerializer.serialize(row, delegate.wrap(writeable, aggregate), keyFieldsOnly, compareWith);
+        this.objectSerializer.serializeRow(row, delegate.wrap(writeable, aggregate), keyFieldsOnly, compareWith);
         delegate.complete();
     }
 
