@@ -12,7 +12,7 @@
 
 #include <yt/yt/client/ypath/public.h>
 
-namespace NYT::NHydra {
+namespace NYT::NHydra2 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,8 +20,8 @@ namespace NYT::NHydra {
 /*!
  *  If #prerequisiteTransactionId then the constructed stores are read-only.
  */
-IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
-    TRemoteChangelogStoreConfigPtr config,
+NHydra::IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
+    NHydra::TRemoteChangelogStoreConfigPtr config,
     NTabletClient::TTabletCellOptionsPtr options,
     NYPath::TYPath path,
     NApi::IClientPtr client,
@@ -32,4 +32,4 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra
+} // namespace NYT::NHydra2

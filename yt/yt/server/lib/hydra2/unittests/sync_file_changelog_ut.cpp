@@ -5,7 +5,7 @@
 #include <yt/yt/server/lib/hydra_common/format.h>
 #include <yt/yt/server/lib/hydra_common/file_helpers.h>
 
-#include <yt/yt/server/lib/hydra/sync_file_changelog.h>
+#include <yt/yt/server/lib/hydra2/sync_file_changelog.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 

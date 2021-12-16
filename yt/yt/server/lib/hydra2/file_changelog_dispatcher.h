@@ -6,7 +6,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-namespace NYT::NHydra {
+namespace NYT::NHydra2 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,4 +18,4 @@ NHydra::IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra
+} // namespace NYT::NHydra2

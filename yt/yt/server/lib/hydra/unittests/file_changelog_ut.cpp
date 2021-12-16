@@ -127,6 +127,26 @@ TEST_F(TFileChangelogTest, ReadWithSizeLimit)
     check(100);
 }
 
+TEST_F(TFileChangelogTest, TestTruncate)
+{
+    for (int recordIndex = 0; recordIndex < 40; ++recordIndex) {
+        Changelog->Append({MakeData(recordIndex)});
+    }
+
+    int newRecordCount = 30;
+    WaitFor(Changelog->Truncate(newRecordCount))
+        .ThrowOnError();
+
+    auto records = Changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max())
+        .Get()
+        .ValueOrThrow();
+    YT_VERIFY(std::ssize(records) == newRecordCount);
+
+    for (int recordIndex = 0; recordIndex < newRecordCount; ++recordIndex) {
+        CheckRecord(recordIndex, records[recordIndex]);
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
