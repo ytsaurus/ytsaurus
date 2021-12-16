@@ -1,6 +1,5 @@
 package ru.yandex.spark.yt.serializers
 
-import java.util.concurrent.{Executors, TimeUnit}
 import org.apache.spark.metrics.yt.YtMetricsRegister
 import org.apache.spark.metrics.yt.YtMetricsRegister.ytMetricsSource._
 import org.apache.spark.sql.catalyst.InternalRow
@@ -14,6 +13,7 @@ import ru.yandex.yt.ytclient.`object`.{WireProtocolWriteable, WireRowSerializer}
 import ru.yandex.yt.ytclient.proxy.TableWriter
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
+import java.util.concurrent.{Executors, TimeUnit}
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
