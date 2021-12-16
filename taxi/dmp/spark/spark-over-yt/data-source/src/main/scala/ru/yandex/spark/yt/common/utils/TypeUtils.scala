@@ -3,7 +3,7 @@ package ru.yandex.spark.yt.common.utils
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 object TypeUtils {
-  def tuple(elementTypes: Seq[DataType]): StructType = {
+  def tuple(elementTypes: DataType*): StructType = {
     StructType(
       elementTypes.zipWithIndex.map {case (element, i) => StructField(s"_${i + 1}", element)}
     )

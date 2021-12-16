@@ -1,31 +1,21 @@
 package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 
-import java.io.ByteArrayOutputStream
-import java.nio.charset.StandardCharsets
-
 import com.google.protobuf.CodedOutputStream
 import org.apache.spark.sql.types.DataType
-import org.apache.spark.unsafe.types.UTF8String
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonTags
 import ru.yandex.misc.ExceptionUtils
-import ru.yandex.misc.lang.number.UnsignedLong
 import ru.yandex.spark.yt.serializers.YsonRowConverter
+import ru.yandex.yson.YsonConsumer
 
-class YsonEncoder(stream: ByteArrayOutputStream) {
+import java.io.ByteArrayOutputStream
+
+class YsonEncoder(stream: ByteArrayOutputStream) extends YsonConsumer {
   private val output = CodedOutputStream.newInstance(stream, 8192)
   private var firstItem = false
 
-  private def writeBytes(bytes: Array[Byte]): Unit = translateException {
+  private def writeBytes(bytes: Array[Byte], offset: Int, length: Int): Unit = translateException {
     output.writeSInt32NoTag(bytes.length)
-    output.writeRawBytes(bytes)
-  }
-
-  private def writeString(s: UTF8String): Unit = translateException {
-    writeBytes(s.getBytes)
-  }
-
-  private def writeString(s: String): Unit = translateException {
-    writeBytes(s.getBytes(StandardCharsets.UTF_8))
+    output.writeRawBytes(bytes, offset, length)
   }
 
   private def translateException(f: => Unit): Unit = {
@@ -41,11 +31,6 @@ class YsonEncoder(stream: ByteArrayOutputStream) {
     output.writeSInt64NoTag(value)
   }
 
-  def onUnsignedInteger(value: UnsignedLong): Unit = translateException {
-    output.writeRawByte(YsonTags.BINARY_UINT)
-    output.writeUInt64NoTag(value.longValue)
-  }
-
   def onBoolean(value: Boolean): Unit = translateException {
     output.writeRawByte(if (value) YsonTags.BINARY_TRUE else YsonTags.BINARY_FALSE)
   }
@@ -53,21 +38,6 @@ class YsonEncoder(stream: ByteArrayOutputStream) {
   def onDouble(value: Double): Unit = translateException {
     output.writeRawByte(YsonTags.BINARY_DOUBLE)
     output.writeDoubleNoTag(value)
-  }
-
-  def onBytes(bytes: Array[Byte]): Unit = translateException {
-    output.writeRawByte(YsonTags.BINARY_STRING)
-    writeBytes(bytes)
-  }
-
-  def onString(value: UTF8String): Unit = translateException {
-    output.writeRawByte(YsonTags.BINARY_STRING)
-    writeString(value)
-  }
-
-  def onString(value: String): Unit = translateException {
-    output.writeRawByte(YsonTags.BINARY_STRING)
-    writeString(value)
   }
 
   def onEntity(): Unit = translateException {
@@ -109,19 +79,19 @@ class YsonEncoder(stream: ByteArrayOutputStream) {
     output.writeRawByte(YsonTags.END_MAP)
   }
 
-  def onKeyedItem(key: UTF8String): Unit = translateException {
-    if (firstItem) firstItem = false
-    else output.writeRawByte(YsonTags.ITEM_SEPARATOR)
+  // TODO: support uint64 in complex fields
+  override def onUnsignedInteger(l: Long): Unit = ???
+
+  override def onString(bytes: Array[Byte], i: Int, i1: Int): Unit = {
     output.writeRawByte(YsonTags.BINARY_STRING)
-    writeString(key)
-    output.writeRawByte(YsonTags.KEY_VALUE_SEPARATOR)
+    writeBytes(bytes, i, i1)
   }
 
-  def onKeyedItem(key: String): Unit = translateException {
+  override def onKeyedItem(bytes: Array[Byte], i: Int, i1: Int): Unit = {
     if (firstItem) firstItem = false
     else output.writeRawByte(YsonTags.ITEM_SEPARATOR)
     output.writeRawByte(YsonTags.BINARY_STRING)
-    writeString(key)
+    writeBytes(bytes, i, i1)
     output.writeRawByte(YsonTags.KEY_VALUE_SEPARATOR)
   }
 

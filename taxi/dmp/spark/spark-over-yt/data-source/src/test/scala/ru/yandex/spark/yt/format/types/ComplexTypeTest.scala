@@ -6,12 +6,14 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Encoders, Row, SaveMode}
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeTextSerializer}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.common.utils.TypeUtils
 import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
+import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.type_info.StructType.Member
 import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
@@ -291,7 +293,7 @@ class ComplexTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir
     ), tmpPath, anySchema)
 
     val res = spark.read
-      .schemaHint("value" -> TypeUtils.tuple(List(LongType, StringType, BooleanType)))
+      .schemaHint("value" -> TypeUtils.tuple(LongType, StringType, BooleanType))
       .yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("value")
@@ -309,7 +311,7 @@ class ComplexTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       """{value = [[3; ["cpp"; #;]]]}""",
     ), tmpPath, anySchema)
 
-    val schema = MapType(LongType, TypeUtils.tuple(List(StringType, BooleanType)))
+    val schema = MapType(LongType, TypeUtils.tuple(StringType, BooleanType))
 
     val res = spark.read
       .schemaHint("value" -> schema)
@@ -330,7 +332,7 @@ class ComplexTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       """{value = [3; [[3.3; #;]]]}""",
     ), tmpPath, anySchema)
 
-    val schema = TypeUtils.tuple(List(LongType, MapType(DoubleType, BooleanType)))
+    val schema = TypeUtils.tuple(LongType, MapType(DoubleType, BooleanType))
 
     val res = spark.read
       .schemaHint("value" -> schema)
@@ -351,7 +353,7 @@ class ComplexTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       """{value = [3; "cpp"; #;]}""",
     ), tmpPath, anySchema)
 
-    val schema = TypeUtils.tuple(List(LongType, StringType, BooleanType))
+    val schema = TypeUtils.tuple(LongType, StringType, BooleanType)
 
     val res = spark.read
       .schemaHint("value" -> schema)
@@ -372,7 +374,7 @@ class ComplexTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       """{value = [[3; #];#]}""",
     ), tmpPath, anySchema)
 
-    val schema = ArrayType(TypeUtils.tuple(List(LongType, StringType)))
+    val schema = ArrayType(TypeUtils.tuple(LongType, StringType))
 
     val res = spark.read
       .schemaHint("value" -> schema)
@@ -393,7 +395,7 @@ class ComplexTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       """{value = [7; [8; [9; #]]]}""",
     ), tmpPath, anySchema)
 
-    val schema = TypeUtils.tuple(List(LongType, TypeUtils.tuple(List(LongType, TypeUtils.tuple(List(LongType, StringType))))))
+    val schema = TypeUtils.tuple(LongType, TypeUtils.tuple(LongType, TypeUtils.tuple(LongType, StringType)))
 
     val res = spark.read
       .schemaHint("value" -> schema)
@@ -465,6 +467,51 @@ class ComplexTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       Row(Seq(1, 2, 3), Row(1, "a"), Map("1" -> 0.1)),
       Row(Seq(4, 5, 6), Row(2, null), Map("2" -> 0.3))
     )
+  }
+
+  it should "sort map data while writing" in {
+    import ru.yandex.yson.YsonTags._
+    val data = Seq(
+      (Some(Map("c" -> 3, "a" -> 1, "b" -> 2)), Some(Map("3" -> "c", "1" -> "a", "2" -> "b"))),
+      (Some(Map.empty[String, Int]), Some(Map.empty[String, String])),
+      (None, None)
+    )
+    val binaryData = Seq(
+      (
+        Some(Seq(
+          BEGIN_MAP,
+          BINARY_STRING, 2, 'a'.toByte, KEY_VALUE_SEPARATOR, BINARY_INT, 2,
+          ITEM_SEPARATOR,
+          BINARY_STRING, 2, 'b'.toByte, KEY_VALUE_SEPARATOR, BINARY_INT, 4,
+          ITEM_SEPARATOR,
+          BINARY_STRING, 2, 'c'.toByte, KEY_VALUE_SEPARATOR, BINARY_INT, 6,
+          END_MAP
+        )),
+        Some(Seq(
+          BEGIN_MAP,
+          BINARY_STRING, 2, '1'.toByte, KEY_VALUE_SEPARATOR, BINARY_STRING, 2, 'a'.toByte,
+          ITEM_SEPARATOR,
+          BINARY_STRING, 2, '2'.toByte, KEY_VALUE_SEPARATOR, BINARY_STRING, 2, 'b'.toByte,
+          ITEM_SEPARATOR,
+          BINARY_STRING, 2, '3'.toByte, KEY_VALUE_SEPARATOR, BINARY_STRING, 2, 'c'.toByte,
+          END_MAP
+        ))
+      ),
+      (Some(Seq(BEGIN_MAP, END_MAP)), Some(Seq(BEGIN_MAP, END_MAP))),
+      (None, None)
+    )
+    val df = data.toDF("map1", "map2")
+
+    df.write.yt(tmpPath)
+
+    val res = spark.read
+      .yt(tmpPath)
+      .select('map1.cast(BinaryType), 'map2.cast(BinaryType))
+      .as[(Option[Array[Byte]], Option[Array[Byte]])]
+      .collect()
+      .map{case (x,y) => x.map(_.toList) -> y.map(_.toList)}
+
+    res should contain theSameElementsAs binaryData
   }
 
   private def codeListImpl(list: Seq[Any], transformer: (YTreeBuilder, Int, Any) => Unit): Array[Byte] = {

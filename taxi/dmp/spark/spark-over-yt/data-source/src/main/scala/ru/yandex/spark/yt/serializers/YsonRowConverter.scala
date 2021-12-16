@@ -3,6 +3,7 @@ package ru.yandex.spark.yt.serializers
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{GenericRowWithSchema, UnsafeArrayData, UnsafeMapData, UnsafeRow}
+import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, MapData}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 import ru.yandex.bolts.collection.impl.EmptyMap
@@ -187,8 +188,10 @@ object YsonRowConverter {
         case LongType => consumer.onInteger(value.asInstanceOf[Long])
         case StringType =>
           value match {
+            case str: UTF8String =>
+              val bytes = str.getBytes
+              consumer.onString(bytes, 0, bytes.length)
             case str: String => consumer.onString(str)
-            case str: UTF8String => consumer.onString(str.toString)
           }
         case BooleanType => consumer.onBoolean(value.asInstanceOf[Boolean])
         case DoubleType => consumer.onDouble(value.asInstanceOf[Double])
@@ -215,10 +218,7 @@ object YsonRowConverter {
           }
         case MapType(StringType, valueType, _) =>
           consumer.onBeginMap()
-          val map: Iterable[(Any, Any)] = value match {
-            case m: Map[_, _] => m
-            case m: UnsafeMapData => m.keyArray().toSeq[UTF8String](StringType).zip(m.valueArray().toSeq(valueType))
-          }
+          val map: Iterable[(Any, Any)] = sortMapData(value, valueType)
           map.foreach { case (key, mapValue) =>
             consumer.onKeyedItem(key.toString)
             serializeValue(mapValue, valueType, skipNulls = false, consumer)
@@ -226,56 +226,6 @@ object YsonRowConverter {
           consumer.onEndMap()
       }
     }
-
-  }
-
-  def serializeValue(value: Any, dataType: DataType, skipNulls: Boolean, consumer: YsonEncoder): Unit = {
-    if (isNull(value)) {
-      consumer.onEntity()
-    } else {
-      dataType match {
-        case IntegerType => consumer.onInteger(value.asInstanceOf[Int].toLong)
-        case LongType => consumer.onInteger(value.asInstanceOf[Long])
-        case StringType =>
-          value match {
-            case str: UTF8String => consumer.onString(str)
-            case str: String => consumer.onString(str)
-          }
-        case BooleanType => consumer.onBoolean(value.asInstanceOf[Boolean])
-        case DoubleType => consumer.onDouble(value.asInstanceOf[Double])
-        case BinaryType => consumer.onBytes(value.asInstanceOf[Array[Byte]])
-        case ArrayType(elementType, _) =>
-          consumer.onBeginList()
-          val iterable: Iterable[Any] = value match {
-            case a: UnsafeArrayData => a.toSeq(elementType)
-            case a: mutable.WrappedArray.ofRef[_] => a
-            case a: Seq[_] => a
-          }
-          iterable.foreach { row =>
-            consumer.onListItem()
-            serializeValue(row, elementType, skipNulls = false, consumer)
-          }
-          consumer.onEndList()
-        case t: StructType =>
-          value match {
-            case row: Row => YsonRowConverter.getOrCreate(t, skipNulls).serialize(row, consumer)
-            case row: UnsafeRow => YsonRowConverter.getOrCreate(t, skipNulls).serializeUnsafeRow(row, consumer)
-            case row: InternalRow => YsonRowConverter.getOrCreate(t, skipNulls).serializeInternalRow(row, consumer)
-          }
-        case MapType(StringType, valueType, _) =>
-          consumer.onBeginMap()
-          val map: Iterable[(Any, Any)] = value match {
-            case m: Map[_, _] => m
-            case m: UnsafeMapData => m.keyArray().toSeq[UTF8String](StringType).zip(m.valueArray().toSeq(valueType))
-          }
-          map.foreach { case (key, mapValue) =>
-            consumer.onKeyedItem(key.toString)
-            serializeValue(mapValue, valueType, skipNulls = false, consumer)
-          }
-          consumer.onEndMap()
-      }
-    }
-
   }
 
   def serializeToYson(value: Any, dataType: DataType, skipNulls: Boolean): YTreeNode = {
@@ -296,5 +246,16 @@ object YsonRowConverter {
 
   def getOrCreate(schema: StructType, skipNulls: Boolean): YsonRowConverter = {
     serializer.get().getOrElseUpdate(schema, new YsonRowConverter(schema, skipNulls))
+  }
+
+  private[serializers] def sortMapData(mapData: Any, valueType: DataType): Iterable[(Any, Any)] = {
+    mapData match {
+      case m: Map[_, _] =>
+        m.toSeq.sortBy(_._1.toString)
+      case m: MapData =>
+        m.keyArray().toSeq[UTF8String](StringType)
+          .zip(m.valueArray().toSeq(valueType))
+          .sortBy(_._1)
+    }
   }
 }
