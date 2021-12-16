@@ -6,6 +6,7 @@ import spyt.PythonPlugin.autoImport._
 import spyt.SparkPackagePlugin.autoImport._
 import spyt.SparkPaths._
 import spyt.SpytPlugin.autoImport._
+import spyt.SpytPlugin.{getClientVersionFromFile, packageVersionInfo}
 import spyt.TarArchiverPlugin.autoImport._
 import spyt.YtPublishPlugin.autoImport._
 import spyt.ZipPlugin.autoImport._
@@ -69,6 +70,7 @@ lazy val `data-source` = (project in file("data-source"))
   .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
     version := (ThisBuild / spytClientVersion).value,
+    spytClientVersionFile := (ThisBuild / baseDirectory).value / "client_version.sbt",
     Defaults.itSettings,
     libraryDependencies ++= itTestDeps,
     libraryDependencies ++= commonDependencies,
@@ -80,9 +82,10 @@ lazy val `data-source` = (project in file("data-source"))
     },
     publishYtArtifacts ++= {
       val subdir = if (isSnapshot.value) "snapshots" else "releases"
-      val publishDir = s"$sparkYtClientPath/$subdir/${cutSnapshot(version.value)}"
+      val ver = getClientVersionFromFile(spytClientVersionFile.value, version.value)
+      val publishDir = s"$sparkYtClientPath/$subdir/${cutSnapshot(ver)}"
       val link = if (!isSnapshot.value) {
-        Seq(YtPublishLink(publishDir, s"$sparkYtLegacyClientPath/$subdir", None, version.value, isSnapshot.value))
+        Seq(YtPublishLink(publishDir, s"$sparkYtLegacyClientPath/$subdir", None, ver, isSnapshot.value))
       } else Nil
 
       link ++ Seq(
@@ -120,7 +123,8 @@ lazy val `client` = (project in file("client"))
     ),
     sparkAdditionalPython := Seq(
       (`data-source` / sourceDirectory).value / "main" / "python"
-    )
+    ),
+    spytClientVersionFile := baseDirectory.value / "client_version.sbt",
   )
   .settings(
     tarArchiveMapping += sparkPackage.value -> "spark",
@@ -130,7 +134,7 @@ lazy val `client` = (project in file("client"))
     publishYtArtifacts ++= {
       val basePath = sparkYtBinBasePath.value
       val legacyBasePath = s"$sparkYtLegacyBinPath/${sparkYtSubdir.value}"
-      val versionValue = version.value
+      val versionValue = getClientVersionFromFile(spytClientVersionFile.value, spytClientVersion.value)
       val link = if (sparkReleaseLinks.value) {
         Seq(YtPublishLink(basePath, legacyBasePath, None, versionValue, sparkIsSnapshot.value))
       } else Nil

@@ -97,15 +97,21 @@ object SpytPlugin extends AutoPlugin {
     IO.write(sparkVersionFile, sparkVersionContent)
   }
 
-  def updatePythonVersionFile(log: Logger, versionFile: File, versions: Map[String, VersionInfo]): Unit = {
-    versions.filter(!_._2.hashChanged).foreach {
-      case (_, ver) => log.info(s"Package ${ver.packageName}: version hash not changed, skipping update")
+  def updatePythonVersionFile(log: Logger, versionFile: File, versions: Map[String, VersionInfo]): Map[String, String] = {
+    val effectiveVersions = versions.flatMap { v =>
+      if (!v._2.hashChanged) {
+        log.info(s"Package ${v._2.packageName}: version hash not changed, skipping update")
+        None
+      } else if (v._2.nextVersion.isEmpty) {
+        log.info(s"Package ${v._2.packageName}: unable to find next version for ${v._2.currentVersion}")
+        None
+      } else {
+        Some(v)
+      }
     }
-    versions.filter(_._2.nextVersion.isEmpty).foreach {
-      case (_, ver) => log.info(s"Package ${ver.packageName}: unable to find next version for ${ver.currentVersion}")
-    }
+
     def findVersions(line: String): Option[(String, VersionInfo)] =
-      versions.filter { case (_, ver) => ver.hashChanged && ver.nextVersion.isDefined }
+      effectiveVersions.filter { case (_, ver) => ver.hashChanged && ver.nextVersion.isDefined }
         .toSeq
         .find(e => line.startsWith(e._1))
 
@@ -122,6 +128,8 @@ object SpytPlugin extends AutoPlugin {
       }
       .mkString("\n")
     IO.write(versionFile, content)
+
+    effectiveVersions.mapValues(_.nextVersion.get)
   }
 
   def gitBranch(submodule: String = ""): Option[String] = {
@@ -212,15 +220,19 @@ object SpytPlugin extends AutoPlugin {
   }
 
   def increaseDevVersion(oldVersion: String, ticket: Option[String], hash: String): Option[String] = {
-    val p = "^([0-9.+]+)([ab](\\d+))?(\\.dev(\\d+))?([.+].*)?$".r
-    oldVersion match {
-      case p(main, beta, _, _, devVer, _) =>
-        val newDev  = if (devVer == null) 1 else devVer.toInt + 1
-        val newBeta = if (beta == null) "" else beta
-        val ticketPx = ticket.map(s => s"+$s").getOrElse("")
-        Some(s"$main$newBeta.dev$newDev$ticketPx.$hash")
-      case _ => None
-    }
+//    if (oldVersion.endsWith(s".$hash")) { todo:
+//      Some(oldVersion)
+//    } else {
+      val p = "^([0-9.+]+)([ab](\\d+))?(\\.dev(\\d+))?([.+].*)?$".r
+      oldVersion match {
+        case p(main, beta, _, _, devVer, _) =>
+          val newDev = if (devVer == null) 1 else devVer.toInt + 1
+          val newBeta = if (beta == null) "" else beta
+          val ticketPx = ticket.map(s => s"+$s").getOrElse("")
+          Some(s"$main$newBeta.dev$newDev$ticketPx.$hash")
+        case _ => None
+      }
+//    }
   }
 
   def extractHashFromVer(ver: String): Option[String] = {
@@ -249,14 +261,13 @@ object SpytPlugin extends AutoPlugin {
   def updatePythonVersionIfUpdated(log: Logger,
                                    pythonRegistry: String,
                                    versionFile: File,
-                                   prefix2package: Map[String, (String, String)]): Map[String, VersionInfo] = {
+                                   prefix2package: Map[String, (String, String)]): Map[String, String] = {
     log.info(s"Updating python version file $versionFile")
     val versions = prefix2package.flatMap {
       case (prefix, (packageName, submodule)) =>
         packageVersionInfo(log, pythonRegistry, packageName, submodule).map(vi => (prefix, vi))
     }
     updatePythonVersionFile(log, versionFile, versions)
-    versions
   }
 
   def clientSnapshotVersion(pythonVer: String): String = s"$pythonVer-SNAPSHOT"
@@ -264,13 +275,23 @@ object SpytPlugin extends AutoPlugin {
   def updateClientVersionFile(log: Logger, curVer: String, newVerOpt: Option[String], versionFile: File): Unit = {
     newVerOpt.foreach { newVer =>
       log.info(s"Updating client version from $curVer to $newVer")
-      val expected = s"""ThisBuild / spytClientVersion := \"$curVer\""""
-      val replacement = s"""ThisBuild / spytClientVersion := \"$newVer\""""
-      val content = IO.readLines(versionFile)
-        .map(_.replace(expected, replacement))
-        .mkString("\n")
+      val pythonVer = newVer.replace("-SNAPSHOT", "")
+      val content = s"""import spyt.SpytPlugin.autoImport._
+                       |
+                       |ThisBuild / spytClientVersion := "$newVer"
+                       |ThisBuild / spytClientPythonVersion := "$pythonVer"
+                       |""".stripMargin
       IO.write(versionFile, content)
     }
+  }
+
+  def getClientVersionFromFile(versionFile: File, defaultVer: String): String = {
+    val p = "^.*spytClientVersion := \"(.*)\".*$".r
+    IO.readLines(versionFile).foreach {
+      case p(v) => return v
+      case _ => /* ignore */
+    }
+    defaultVer
   }
 
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(
@@ -286,7 +307,7 @@ object SpytPlugin extends AutoPlugin {
     spytUpdateClientPythonDevVersion := {
       val vs = updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytClientVersionPyFile.value,
         Map("__version__" -> ("yandex-spyt", "")))
-      val spytVer = vs("__version__").nextVersion.get
+      val spytVer = vs("__version__")
       StateTransform { st =>
         reapply(Seq(
           (ThisBuild / spytClientVersion) := spytVer,
@@ -295,9 +316,11 @@ object SpytPlugin extends AutoPlugin {
       }
     },
 
-    spytUpdateSparkPythonDevVersion :=
+    spytUpdateSparkPythonDevVersion := {
+      val curVer = (ThisBuild / spytClientVersion).value
       updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytSparkVersionPyFile.value,
-        Map("__version__" -> ("yandex-pyspark", "spark"))),
+        Map("__version__" -> ("yandex-pyspark", "spark")))
+    },
 
     spytUpdateAllPythonDevVersions := {
       updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytSparkVersionPyFile.value,
@@ -312,14 +335,15 @@ object SpytPlugin extends AutoPlugin {
       val curVer = (ThisBuild / spytClientVersion).value
       val vs = updatePythonVersionIfUpdated(streams.value.log, pypiRegistry.value, spytClientVersionPyFile.value,
         Map("__version__" -> ("yandex-spyt", "")))
-      val pythonVer = vs("__version__").nextVersion.get
+      val pythonVer = vs("__version__")
       val newVer = Some(clientSnapshotVersion(pythonVer))
       val log = streams.value.log
       updateClientVersionFile(log, curVer, newVer, spytClientVersionFile.value)
       StateTransform { st =>
         reapply(Seq(
-          (ThisBuild / spytClientVersion) := newVer.get,
-          (ThisBuild / version) := newVer.get
+          spytClientVersion := newVer.get,
+          version := newVer.get,
+          (ThisBuild / spytClientVersion) := newVer.get
         ), st)
       }
     },
