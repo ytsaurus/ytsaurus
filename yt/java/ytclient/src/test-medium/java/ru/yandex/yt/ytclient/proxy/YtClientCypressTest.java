@@ -84,6 +84,7 @@ public class YtClientCypressTest extends YtClientTestBase {
         assertThat("No delay", System.currentTimeMillis() - start < 400);
     }
 
+    @SuppressWarnings("checkstyle:AvoidNestedBlocks")
     @Test(timeout = 1000000)
     public void testBanningProxyReadingWritingTable() throws Exception {
         var ytFixture = createYtFixture();
@@ -102,7 +103,7 @@ public class YtClientCypressTest extends YtClientTestBase {
         yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
 
         var writer = yt.writeTable(
-                new WriteTable<>(tablePath.toString(), YTreeObjectSerializerFactory.forClass(TableRow.class))
+                new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
         ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
 
         try {
@@ -127,13 +128,13 @@ public class YtClientCypressTest extends YtClientTestBase {
         // Now create reader
         List<TableRow> result = new ArrayList<>();
         var reader = yt.readTable(
-                new ReadTable<>(tablePath.toString(), YTreeObjectSerializerFactory.forClass(TableRow.class))
+                new ReadTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
         ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
 
         // Immediately ban proxy that reader is connected to.
         {
             assertThat(reader, instanceOf(TableReaderImpl.class));
-            String proxyAddress = ((TableReaderImpl<?>)reader).getRpcProxyAddress();
+            String proxyAddress = ((TableReaderImpl<?>) reader).getRpcProxyAddress();
             yt.banProxy(proxyAddress).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
         }
 
@@ -155,6 +156,7 @@ public class YtClientCypressTest extends YtClientTestBase {
         assertThat(result, is(data));
     }
 
+    @SuppressWarnings("checkstyle:AvoidNestedBlocks")
     @Test(timeout = 1000000)
     public void testBanningProxyReadingWritingFile() throws Exception {
         var ytFixture = createYtFixture();
@@ -198,7 +200,7 @@ public class YtClientCypressTest extends YtClientTestBase {
         // Immediately ban proxy that reader is connected to.
         {
             assertThat(reader, instanceOf(FileReaderImpl.class));
-            String proxyAddress = ((FileReaderImpl)reader).getRpcProxyAddress();
+            String proxyAddress = ((FileReaderImpl) reader).getRpcProxyAddress();
             yt.banProxy(proxyAddress).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
         }
 
@@ -248,7 +250,7 @@ public class YtClientCypressTest extends YtClientTestBase {
 
             try {
                 yt.createNode(request).join();
-            } catch (Throwable ex) {
+            } catch (Throwable ignored) {
             }
 
             GUID secondMutationId = request.getMutatingOptions().get().getMutationId();
@@ -299,7 +301,7 @@ public class YtClientCypressTest extends YtClientTestBase {
     static class TableRow {
         public String field;
 
-        public TableRow(String field) {
+        TableRow(String field) {
             this.field = field;
         }
 
@@ -310,6 +312,11 @@ public class YtClientCypressTest extends YtClientTestBase {
             }
             TableRow other = (TableRow) obj;
             return Objects.equals(field, other.field);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field);
         }
 
         @Override

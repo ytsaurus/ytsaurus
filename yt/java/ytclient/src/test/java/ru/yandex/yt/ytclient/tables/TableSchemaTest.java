@@ -89,6 +89,38 @@ public class TableSchemaTest {
             .endList()
             .build();
 
+    private static final YTreeNode UPDATED_SORT_COLUMN_SCHEMA_YTREE = YTree.builder()
+            .beginAttributes()
+                .key("strict").value(true)
+                .key("unique_keys").value(true)
+            .endAttributes()
+            .beginList()
+                .beginMap()
+                    .key("name").value("c")
+                    .key("sort_order").value("descending")
+                    .key("type_v3").beginMap()
+                        .key("type_name").value("optional")
+                        .key("item").value("string")
+                    .endMap()
+                .endMap()
+                .beginMap()
+                    .key("name").value("b")
+                    .key("sort_order").value("ascending")
+                    .key("type_v3").beginMap()
+                        .key("type_name").value("optional")
+                        .key("item").value("string")
+                    .endMap()
+                .endMap()
+                .beginMap()
+                    .key("name").value("a")
+                    .key("type_v3").beginMap()
+                        .key("type_name").value("optional")
+                        .key("item").value("string")
+                    .endMap()
+                .endMap()
+            .endList()
+            .build();
+
     @Test
     public void keyValueSchemaToYTree() {
         assertThat(KEY_VALUE_SCHEMA.toYTree(), is(KEY_VALUE_SCHEMA_YTREE));
@@ -161,6 +193,44 @@ public class TableSchemaTest {
                         .addValue("foo", TiType.string())
                         .build()
                 )
+        );
+    }
+
+    @Test
+    public void testSortBy() {
+        var aSortedSchema = new TableSchema.Builder()
+            .add(new ColumnSchema.Builder("a", ColumnValueType.STRING)
+                    .setSortOrder(ColumnSortOrder.ASCENDING)
+                    .build())
+            .addKey("b", ColumnValueType.STRING)
+            .addValue("c", ColumnValueType.STRING)
+            .build();
+
+        var cbSortedSchema = new TableSchema.Builder()
+                .add(new ColumnSchema.Builder("c", ColumnValueType.STRING)
+                        .setSortOrder(ColumnSortOrder.DESCENDING)
+                        .build())
+                .addKey("b", ColumnValueType.STRING)
+                .addValue("a", ColumnValueType.STRING)
+                .build();
+
+        var bcSortedSchema = new TableSchema.Builder()
+                .addKey("b", ColumnValueType.STRING)
+                .addKey("c", ColumnValueType.STRING)
+                .addValue("a", ColumnValueType.STRING)
+                .build();
+
+        assertThat(
+                aSortedSchema.toBuilder().sortByColumns(
+                    new SortColumn("c", ColumnSortOrder.DESCENDING),
+                    new SortColumn("b", ColumnSortOrder.ASCENDING)
+                ).build(),
+                is(cbSortedSchema)
+        );
+
+        assertThat(
+                cbSortedSchema.toBuilder().sortBy("b", "c").build(),
+                is(bcSortedSchema)
         );
     }
 }
