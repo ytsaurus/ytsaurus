@@ -136,6 +136,15 @@ public:
         return !AppendQueue_.empty() || !FlushQueue_.empty();
     }
 
+    void Truncate(int recordCount)
+    {
+        VERIFY_THREAD_AFFINITY(SyncThread);
+
+        YT_VERIFY(!HasUnflushedRecords());
+        YT_VERIFY(FlushedRecordCount_ >= recordCount);
+        FlushedRecordCount_ = recordCount;
+    }
+
     void RunPendingFlushes()
     {
         VERIFY_THREAD_AFFINITY(SyncThread);
@@ -503,6 +512,7 @@ private:
         TEventTimerGuard guard(ChangelogTruncateIOTimer_);
         const auto& changelog = queue->GetChangelog();
         changelog->Truncate(recordCount);
+        queue->Truncate(recordCount);
     }
 
     void DoCloseQueue(const TFileChangelogQueuePtr& queue)
