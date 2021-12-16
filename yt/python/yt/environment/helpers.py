@@ -349,7 +349,7 @@ def get_value_from_config(config, key, name):
     return d
 
 def emergency_exit_within_tests(test_environment, process, call_arguments):
-    if process.returncode < 0:
+    if int(process.returncode) < 0:
         what = "terminated by signal {}".format(-process.returncode)
     else:
         what = "exited with code {}".format(process.returncode)
