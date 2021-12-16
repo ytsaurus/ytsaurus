@@ -106,7 +106,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     writeSingleStringToLog(tablePath, "123")
     val id = getId(tableLocation, fileName)
 
-    val res = getAllRows(tableLocation, schema).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
+    val res = getAllRows(tableLocation).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
     res should contain theSameElementsAs Seq(
       YtEventLogBlockTest(YtEventLogBlock(id, 1, "12".getBytes)),
       YtEventLogBlockTest(YtEventLogBlock(id, 2, "3".getBytes))
@@ -139,7 +139,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     writeSingleStringToLog(tablePath, "345")
     val id = getId(tableLocation, fileName)
 
-    val res = getAllRows(tableLocation, schema).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
+    val res = getAllRows(tableLocation).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
     res should contain theSameElementsAs Seq(
       YtEventLogBlockTest(YtEventLogBlock(id, 1, "34".getBytes)),
       YtEventLogBlockTest(YtEventLogBlock(id, 2, "5".getBytes))
@@ -147,16 +147,16 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
   }
 
   private def getMetaByFileName(fileName: String): Seq[YtEventLogFileMeta] = {
-    YtWrapper.selectRows(hadoopPathToYt(metaTableLocation), metaSchema,
+    YtWrapper.selectRows(hadoopPathToYt(metaTableLocation),
       Some(s"""$FILENAME="$fileName"""")).map(YtEventLogFileDetails(_).meta)
   }
 
-  private def getAllRows(path: String, schema: TableSchema): Seq[String] = {
-    YtWrapper.selectRows(hadoopPathToYt(path), schema, None).map(YTreeTextSerializer.serialize(_))
+  private def getAllRows(path: String): Seq[String] = {
+    YtWrapper.selectRows(hadoopPathToYt(path), None).map(YTreeTextSerializer.serialize(_))
   }
 
   private def getAllLogBlocks(path: String): Seq[YtEventLogBlockTest] = {
-    getAllRows(path, schema).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
+    getAllRows(path).map(x => YtEventLogBlockTest(YtEventLogBlock(x)))
   }
 
   it should "multiple write and flush" in {

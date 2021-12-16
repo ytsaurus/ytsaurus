@@ -163,7 +163,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
         if (!existsTable(f)) {
           throw new IllegalArgumentException(s"Corrupted table found at $f")
         }
-        val rows = YtWrapper.selectRows(meta_path, metaSchema, None)
+        val rows = YtWrapper.selectRows(meta_path, None)
         rows.map(YtEventLogFileDetails.apply).map {
           details => {
             new FileStatus(
@@ -199,8 +199,8 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
     if (!YtWrapper.exists(meta_path)) {
       None
     } else {
-      val selectedRows = YtWrapper.selectRows(meta_path, metaSchema,
-        Some(s"""${FILENAME}="$fileName""""), transaction)
+      val selectedRows = YtWrapper.selectRows(meta_path,
+        Some(s"""$FILENAME="$fileName""""), transaction)
       selectedRows match {
         case Nil => None
         case meta :: Nil => Some(YtEventLogFileDetails(meta))

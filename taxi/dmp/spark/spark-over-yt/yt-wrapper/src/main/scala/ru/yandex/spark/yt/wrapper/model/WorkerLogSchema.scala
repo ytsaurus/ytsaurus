@@ -21,6 +21,9 @@ object WorkerLogSchema {
     val EXCEPTION_CLASS = "exceptionClass"
     val EXCEPTION_MESSAGE = "exceptionMessage"
     val STACK = "stack"
+
+    val TABLE_NAME = "tableName"
+    val LENGTH = "length"
   }
 
   val schema: TableSchema = TableSchema.builder()
@@ -41,5 +44,17 @@ object WorkerLogSchema {
     .addValue(STACK, ColumnValueType.STRING)
     .setUniqueKeys(false)
     .build()
+
+  val metaSchema: TableSchema = new TableSchema.Builder()
+    .addKey(APP_DRIVER, ColumnValueType.STRING)
+    .addKey(EXEC_ID, ColumnValueType.STRING)
+    .addKey(STREAM, ColumnValueType.STRING)
+    .addValue(TABLE_NAME, ColumnValueType.STRING)
+    .addValue(LENGTH, ColumnValueType.INT64)
+    .build()
+
+  def getMetaPath(workerLogTablesPath: String): String = {
+    s"$workerLogTablesPath/meta"
+  }
 }
 

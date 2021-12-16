@@ -173,10 +173,11 @@ trait YtDynTableUtils {
     waitState(path, TabletState.Mounted, 10 seconds)
   }
 
-  def selectRows(path: String, schema: TableSchema, condition: Option[String] = None,
-                 transaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Seq[YTreeMapNode] = {
+  private def selectRowsRequest(query: String, path: String,
+                                transaction: Option[ApiServiceTransaction] = None)
+                               (implicit yt: CompoundClient): Seq[YTreeMapNode] = {
     import scala.collection.JavaConverters._
-    val request = SelectRowsRequest.of(s"""* from [${formatPath(path)}] ${condition.map("where " + _).mkString}""")
+    val request = SelectRowsRequest.of(query)
 
     waitState(path, TabletState.Mounted, 60 seconds)
     val f: ApiServiceTransaction => UnversionedRowset = _.selectRows(request).get(10, MINUTES)
@@ -185,7 +186,21 @@ trait YtDynTableUtils {
     } else {
       f(transaction.get)
     }
-    selected.getRows.asScala.map(x => x.toYTreeMap(schema)).toList
+    selected.getYTreeRows.asScala.toList
+  }
+
+  def selectRows(path: String, condition: Option[String] = None,
+                 transaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Seq[YTreeMapNode] = {
+    selectRowsRequest(
+      s"""* from [${formatPath(path)}] ${condition.map("where " + _).mkString}""",
+      path, transaction)
+  }
+
+  def countRows(path: String, condition: Option[String] = None,
+                 transaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Long = {
+    selectRowsRequest(
+      s"""SUM(1) as count from [${formatPath(path)}] ${condition.map("where " + _).mkString} group by 1""",
+      path, transaction).headOption.map(_.getLong("count")).getOrElse(0L)
   }
 
   private def processModifyRowsRequest(request: ModifyRowsRequest,
@@ -220,8 +235,8 @@ trait YtDynTableUtils {
     processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addInserts(rows.map(_.asJava).asJava), parentTransaction)
   }
 
-  def updateRows(path: String, schema: TableSchema, map: java.util.Map[String, Any],
-                 parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Unit = {
+  def updateRow(path: String, schema: TableSchema, map: java.util.Map[String, Any],
+                parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Unit = {
     processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addUpdate(map), parentTransaction)
   }
 

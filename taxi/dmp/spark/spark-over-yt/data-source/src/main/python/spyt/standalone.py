@@ -33,6 +33,7 @@ class SparkDefaultArguments(object):
     SPARK_HISTORY_SERVER_CPU_LIMIT = 8
     SPARK_WORKER_TIMEOUT = "10m"
     SPARK_WORKER_LOG_UPDATE_INTERVAL = "10m"
+    SPARK_WORKER_LOG_TABLE_TTL = "7d"
     SPARK_WORKER_CORES_OVERHEAD = 0
     SPARK_WORKER_CORES_BYOP_OVERHEAD = 0
 
@@ -237,7 +238,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                history_server_memory_limit, history_server_memory_overhead, history_server_cpu_limit,
                                network_project, tvm_id, tvm_secret,
                                advanced_event_log, worker_log_transfer, worker_log_json_mode,
-                               worker_log_update_interval,
+                               worker_log_update_interval, worker_log_table_ttl,
                                pool, enablers, client,
                                preemption_mode):
     if ssd_limit:
@@ -255,11 +256,16 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                                                                     spark_conf, component)
 
     master_command = _launcher_command("Master")
+
+    worker_log_location = "yt:/{}".format(spark_discovery.worker_log())
+    if "spark.workerLog.tablePath" not in config["spark_conf"]:
+        config["spark_conf"]["spark.workerLog.tablePath"] = worker_log_location
     worker_command = _launcher_command("Worker", "2g") + \
         "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-service-enabled {3} " \
-        "--wlog-enable-json {4} --wlog-update-interval {5} --wlog-table-path {6}".format(
+        "--wlog-enable-json {4} --wlog-update-interval {5} --wlog-table-path {6} " \
+        "--wlog-table-ttl {7}".format(
             worker_cores, worker_memory, worker_timeout, worker_log_transfer, worker_log_json_mode,
-            worker_log_update_interval, "yt:/{}".format(spark_discovery.worker_log()))
+            worker_log_update_interval, worker_log_location, worker_log_table_ttl)
 
     if advanced_event_log:
         event_log_path = "ytEventLog:/{}".format(shs_location or spark_discovery.event_log_table())
@@ -394,6 +400,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         network_project=None, abort_existing=False, tvm_id=None, tvm_secret=None,
                         advanced_event_log=False, worker_log_transfer=False, worker_log_json_mode=False,
                         worker_log_update_interval=SparkDefaultArguments.SPARK_WORKER_LOG_UPDATE_INTERVAL,
+                        worker_log_table_ttl=SparkDefaultArguments.SPARK_WORKER_LOG_TABLE_TTL,
                         params=None, shs_location=None, spark_cluster_version=None, enablers=None, client=None,
                         preemption_mode="normal"):
     """Start Spark cluster
@@ -420,6 +427,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param worker_log_transfer: sending logs from workers to yt
     :param worker_log_json_mode: using json for worker logs
     :param worker_log_update_interval: intervals between log updates
+    :param worker_log_table_ttl: TTL of yt table with worker logs
     :param tvm_id: TVM id for network project
     :param tvm_secret: TVM secret for network project
     :param params: YT operation params: file_paths, layer_paths, operation_spec, environment, spark_conf
@@ -479,6 +487,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                                               worker_log_transfer=worker_log_transfer,
                                               worker_log_json_mode=worker_log_json_mode,
                                               worker_log_update_interval=worker_log_update_interval,
+                                              worker_log_table_ttl=worker_log_table_ttl,
                                               pool=pool,
                                               enablers=enablers,
                                               client=client,

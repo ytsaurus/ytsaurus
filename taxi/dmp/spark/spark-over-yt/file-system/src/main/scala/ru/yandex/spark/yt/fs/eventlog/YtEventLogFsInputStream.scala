@@ -69,7 +69,7 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
   private def loadNewBlocks(count: Int = 1): Unit = {
     val rows = YtWrapper
       .selectRows(
-        path, schema,
+        path,
         Some(s"""$ID="${details.id}" and $ORDER > $order and $ORDER <= ${order + count}""")
       )
       .map(x => YtEventLogBlock(x))
