@@ -21,7 +21,6 @@ import ru.yandex.yson.ClosableYsonConsumer;
 import ru.yandex.yson.YsonConsumer;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
@@ -95,15 +94,16 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         boolean hasKeys = false;
 
         for (YTreeObjectField<?> field : fields) {
+            final boolean isKeyField = field.sortOrder != null;
             final YTreeSerializer<?> serializer = unwrap(field.serializer);
             if (field.isFlatten) {
                 asTableSchema(builder, serializer.getFieldMap().values());
             } else {
-                hasKeys |= field.isKeyField;
+                hasKeys |= isKeyField;
 
                 builder.add(new ColumnSchema(field.key, asType(serializer),
-                        field.isKeyField ? ColumnSortOrder.ASCENDING : null, null, null,
-                        field.aggregate, null, field.isKeyField));
+                        isKeyField ? field.sortOrder : null, null, null,
+                        field.aggregate, null, isKeyField));
             }
         }
 

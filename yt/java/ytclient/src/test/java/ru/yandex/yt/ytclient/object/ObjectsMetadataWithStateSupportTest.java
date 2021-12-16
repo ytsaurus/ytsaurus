@@ -31,7 +31,7 @@ public class ObjectsMetadataWithStateSupportTest<T extends YTreeStateSupport<T>>
     public void testSerializeDeserializeMappedWithStateSupport() {
         final Random random = new Random(42);
         final List<YTreeObjectField<?>> keyFields = metadata.getyTreeSerializer().getFieldMap().values().stream()
-                .filter(field -> field.isKeyField)
+                .filter(field -> field.sortOrder != null)
                 .collect(Collectors.toList());
 
         final List<T> toSave = metadata.generateObjects(3, random);
