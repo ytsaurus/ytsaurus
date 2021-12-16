@@ -26,6 +26,7 @@ import ctypes
 import errno
 import functools
 import inspect
+import math
 import os
 import re
 import signal
@@ -741,7 +742,19 @@ def underscore_case_to_camel_case(str):
 class WaitFailed(Exception):
     pass
 
-def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3, ignore_exceptions=False):
+def wait(predicate, error_message=None, iter=None, sleep_backoff=None, timeout=None, ignore_exceptions=False):
+    if timeout is None:  # old behaviour
+        # 30 seconds by default
+        if sleep_backoff is None:
+            sleep_backoff = 0.3
+        if iter is None:
+            iter = 100
+    else:  # new behaviour
+        if sleep_backoff is None:
+            sleep_backoff = 0.3
+        assert iter is None
+        iter = int(math.ceil(timeout / sleep_backoff))
+
     for _ in range(iter):
         try:
             if predicate():
