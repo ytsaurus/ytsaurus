@@ -94,6 +94,21 @@ def string_to_uint64_udf(s_col):
     return Column(jc)
 
 
+def xx_hash64_zero_seed_udf(*s_cols):
+    sc = SparkContext._active_spark_context
+    sz = len(s_cols)
+    cols = sc._gateway.new_array(sc._jvm.Column, sz)
+    for i in range(sz):
+        cols[i] = _to_java_column(s_cols[i])
+    jc = sc._jvm.ru.yandex.spark.yt.common.utils.XxHash64ZeroSeed.xxHash64ZeroSeedUdf(cols)
+    return Column(jc)
+
+
+def register_xxHash64ZeroSeed(spark):
+    sc = SparkContext._active_spark_context
+    sc._jvm.ru.yandex.spark.yt.common.utils.XxHash64ZeroSeed.registerFunction(spark._jsparkSession)
+
+
 def tuple_type(element_types):
     """
     :param element_types: List[DataType]
