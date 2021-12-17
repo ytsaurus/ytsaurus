@@ -224,7 +224,7 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
     def test_proxy_banned(self):
         rpc_proxy_addresses = ls("//sys/rpc_proxies")
         try:
-            for i in xrange(5):
+            for i in range(5):
                 set(
                     "//sys/rpc_proxies/{0}/@banned".format(rpc_proxy_addresses[i % self.NUM_RPC_PROXIES]),
                     True,
@@ -293,8 +293,8 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
     @authors("kiselyovp")
     def test_streaming_without_retries(self):
         create("file", "//tmp/file")
-        write_file("//tmp/file", "abacaba")
-        assert read_file("//tmp/file") == "abacaba"
+        write_file("//tmp/file", b"abacaba")
+        assert read_file("//tmp/file") == b"abacaba"
 
         create("table", "//tmp/table")
         write_table("//tmp/table", {"a": "b"})
@@ -305,7 +305,7 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
         try:
             start = time.time()
             with pytest.raises(YtError):
-                write_file("//tmp/file", "dabacaba")
+                write_file("//tmp/file", b"dabacaba")
             end = time.time()
             assert end - start < 1.4
         finally:
@@ -336,8 +336,8 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         new_table = deepcopy(original_table)
         shuffle(new_table)
 
-        self._create_simple_table("//tmp/t_in1", data=new_table[:size / 2], sorted=False)
-        self._create_simple_table("//tmp/t_in2", data=new_table[size / 2:], sorted=False)
+        self._create_simple_table("//tmp/t_in1", data=new_table[:size // 2], sorted=False)
+        self._create_simple_table("//tmp/t_in2", data=new_table[size // 2:], sorted=False)
         self._create_simple_table("//tmp/t_out", dynamic=False, sorted=True)
         sort(in_=["//tmp/t_in1", "//tmp/t_in2"], out="//tmp/t_out", sort_by="index")
 
@@ -552,7 +552,7 @@ class TestModifyRowsRpcProxy(TestRpcProxyBase):
         for i in range(request_count):
             insert_rows(
                 "//tmp/table",
-                [{"index": i % key_count, "str": str(i / key_count)}],
+                [{"index": i % key_count, "str": str(i // key_count)}],
                 tx=tx,
             )
 

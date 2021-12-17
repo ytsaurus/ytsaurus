@@ -34,7 +34,7 @@ import grpc
 from datetime import datetime
 from copy import deepcopy
 from functools import partial
-from cStringIO import StringIO
+from io import BytesIO
 
 SERIALIZATION_ALIGNMENT = 8
 
@@ -111,11 +111,13 @@ class TestGrpcProxy(YTEnvSetup):
         if data is None:
             to_send = serialized_message
         else:
-            stream = StringIO()
+            stream = BytesIO()
             stream.write(serialized_message)
 
-            if isinstance(data, (str, unicode)):
+            if isinstance(data, bytes):
                 stream.write(data)
+            elif isinstance(data, str):
+                stream.write(data.decode("utf-8"))
             else:
                 if data_serializer is None:
                     raise YtError("Serializer for structured data should be specified")
@@ -146,7 +148,8 @@ class TestGrpcProxy(YTEnvSetup):
         return loads(dumps_proto(rsp_msg)), AttachmentStream(result, message_body_size)
 
     def _get_node(self, **kwargs):
-        return loads(loads(self._make_light_api_request("get_node", kwargs))["value"])
+        rsp = loads(self._make_light_api_request("get_node", kwargs))
+        return loads(rsp["value"].encode("ascii"))
 
     def _create_node(self, **kwargs):
         return loads(self._make_light_api_request("create_node", kwargs))["node_id"]
@@ -227,7 +230,7 @@ class TestGrpcProxy(YTEnvSetup):
             {"a": "I", "c": 3},
             {"a": "am", "b": 7},
             {"a": "pickle", "c": 4},
-            {"a": "Rick!", "b": 3L},
+            {"a": "Rick!", "b": 3},
         ]
 
         self._make_heavy_api_request(
