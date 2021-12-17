@@ -1674,6 +1674,42 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         assert get_statistics(statistics, "time.exec.$.completed.map.sum") <= \
             get_statistics(statistics, "time.total.$.completed.map.sum")
 
+    @authors("ignat")
+    def test_statistics_for_aborted_operation(self):
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out")
+        write_table("//tmp/in", [{"foo": i} for i in range(3)])
+
+        op = map(
+            track=False,
+            in_="//tmp/in",
+            out="//tmp/out",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            spec={"data_size_per_job": 1})
+
+        wait_breakpoint()
+
+        running_jobs = op.get_running_jobs()
+
+        for job_id in running_jobs:
+            statistics_appeared = False
+            for _ in range(300):
+                statistics = get("//sys/scheduler/orchid/scheduler/jobs/{0}/statistics".format(job_id))
+                data = statistics.get("data", {})
+                _input = data.get("input", {})
+                row_count = _input.get("row_count", {})
+                _sum = row_count.get("sum", 0)
+                if _sum > 0:
+                    statistics_appeared = True
+                    break
+                time.sleep(0.1)
+            assert statistics_appeared
+
+        op.abort()
+
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+        assert statistics["time"]["total"]["$"]["aborted"]["map"]["count"] == 3
+
 
 ##################################################################
 

@@ -146,11 +146,16 @@ public:
     std::optional<TControllerAgentMemoryStatistics> GetMemoryStatistics();
     void SetMemoryStatistics(TControllerAgentMemoryStatistics memoryStatistics);
 
+    TFuture<void> GetFullHeartbeatProcessed();
+    void OnHeartbeatReceived();
+
 private:
     const TAgentId Id_;
     const NNodeTrackerClient::TAddressMap AgentAddresses_;
     const THashSet<TString> Tags_;
     const NRpc::IChannelPtr Channel_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
@@ -167,6 +172,9 @@ private:
 
     YT_DECLARE_SPINLOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
     std::optional<TControllerAgentMemoryStatistics> MemoryStatistics_;
+
+    i64 HeartbeatCounter_ = 0;
+    std::map<i64, TPromise<void>> CounterToFullHeartbeatProcessedPromise_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)

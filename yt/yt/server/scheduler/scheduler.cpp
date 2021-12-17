@@ -3332,9 +3332,19 @@ private:
 
         WaitFor(AllSucceeded(abortFutures))
             .ThrowOnError();
-
-        YT_LOG_DEBUG("Requested node shards to abort all operation jobs (OperationId: %v)",
+    
+        YT_LOG_DEBUG("All operations jobs aborted at scheduler (OperationId: %v)",
             operation->GetId());
+
+        const auto& agent = operation->FindAgent();
+        if (agent) {
+            WaitFor(agent->GetFullHeartbeatProcessed())
+                .ThrowOnError();
+            YT_LOG_DEBUG(
+                "Full heartbeat from agent processed, "
+                "aborted jobs suppossed to be considered by controller agent (OperationId: %v)",
+                operation->GetId());
+        }
     }
 
     void BuildOperationInfoForEventLog(const TOperationPtr& operation, TFluentMap fluent)
