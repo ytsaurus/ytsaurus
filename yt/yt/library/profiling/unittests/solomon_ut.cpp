@@ -80,7 +80,7 @@ struct TTestMetricConsumer
 
     void OnHistogram(TInstant, NMonitoring::IHistogramSnapshotPtr value) override
     {
-        Cerr << FormatName() << " historgram{";
+        Cerr << FormatName() << " histogram{";
         for (size_t i = 0; i < value->Count(); ++i) {
             Cerr << value->UpperBound(i) << ":" << value->Value(i);
             if (i + 1 != value->Count()) {

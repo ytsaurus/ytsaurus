@@ -48,8 +48,8 @@ void FromProto(TSummarySnapshot<TDuration>* summary, const NProto::TSummaryDurat
 
 void ToProto(NProto::THistogramSnapshot* proto, const THistogramSnapshot& histogram)
 {
-    for (auto time : histogram.Times) {
-        proto->add_times(time.GetValue());        
+    for (auto time : histogram.Bounds) {
+        proto->add_times(TDuration::Seconds(time).GetValue());        
     }
     for (auto value : histogram.Values) {
         proto->add_values(value);
@@ -59,10 +59,10 @@ void ToProto(NProto::THistogramSnapshot* proto, const THistogramSnapshot& histog
 void FromProto(THistogramSnapshot* histogram, const NProto::THistogramSnapshot& proto)
 {
     histogram->Values.clear();
-    histogram->Times.clear();
+    histogram->Bounds.clear();
 
     for (auto time : proto.times()) {
-        histogram->Times.push_back(TDuration::FromValue(time));
+        histogram->Bounds.push_back(TDuration::FromValue(time).SecondsFloat());
     }
 
     for (auto value : proto.values()) {
@@ -142,6 +142,8 @@ void TRemoteRegistry::Transfer(const NProto::TSensorDump& dump)
                 transferValue(&sensorSet->TimersCube_, ESensorType::Timer, NYT::FromProto<TSummarySnapshot<TDuration>>(projection.timer()));
             } else if (projection.has_histogram()) {
                 transferValue(&sensorSet->HistogramsCube_, ESensorType::Histogram, NYT::FromProto<THistogramSnapshot>(projection.histogram()));
+            } else if (projection.has_gauge_histogram()) {
+                transferValue(&sensorSet->HistogramsCube_, ESensorType::GaugeHistogram, NYT::FromProto<THistogramSnapshot>(projection.histogram()));
             } else {
                 // Ignore unknown types.
             }      
@@ -179,6 +181,9 @@ void TRemoteRegistry::DoDetach(const THashMap<TString, TRemoteSensorSet>& sensor
                 sensorSet.TimersCube_.Remove(tags);
                 break;
             case ESensorType::Histogram:
+                sensorSet.HistogramsCube_.Remove(tags);
+                break;
+            case ESensorType::GaugeHistogram:
                 sensorSet.HistogramsCube_.Remove(tags);
                 break;
             default:

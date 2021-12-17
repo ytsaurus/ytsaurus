@@ -175,6 +175,19 @@ ITimerImplPtr TSolomonRegistry::RegisterTimerHistogram(
     return hist;
 }
 
+IGaugeHistogramImplPtr TSolomonRegistry::RegisterGaugeHistogram(
+    const TString& name,
+    const TTagSet& tags,
+    TSensorOptions options)
+{
+    auto hist = New<THistogram>(options);
+    DoRegister([this, name, tags, options, hist] () {
+        auto set = FindSet(name, options);
+        set->AddGaugeHistogram(New<THistogramState>(hist, Tags_.Encode(tags), tags));
+    });
+    return hist;
+}
+
 void TSolomonRegistry::RegisterFuncCounter(
     const TString& name,
     const TTagSet& tags,

@@ -143,17 +143,28 @@ static auto GenericBucketBounds() {
     return result;
 }
 
-static std::vector<TDuration> BucketBounds(const TSensorOptions& options)
+static std::vector<double> BucketBounds(const TSensorOptions& options)
 {
+    if (!options.GaugeHistogramBounds.empty()) {
+        return options.GaugeHistogramBounds;
+    }
+
+    std::vector<double> bounds;
+    if (!options.HistogramBounds.empty()) {
+        for (auto b : options.HistogramBounds) {
+            bounds.push_back(b.SecondsFloat());
+        }
+        return bounds;
+    }
+
     if (options.HistogramMin.Zero() && options.HistogramMax.Zero()) {
         return {};
     }
 
-    std::vector<TDuration> bounds;
     for (auto bound : GenericBucketBounds()) {
         auto duration = TDuration::FromValue(bound);
         if (options.HistogramMin <= duration && duration <= options.HistogramMax) {
-            bounds.push_back(duration);
+            bounds.push_back(duration.SecondsFloat());
         }
     }
 
@@ -161,7 +172,7 @@ static std::vector<TDuration> BucketBounds(const TSensorOptions& options)
 }
 
 THistogram::THistogram(const TSensorOptions& options)
-    : Bounds_(!options.HistogramBounds.empty() ? std::vector<TDuration>{options.HistogramBounds} : BucketBounds(options))
+    : Bounds_(BucketBounds(options))
     , Buckets_(Bounds_.size() + 1)
 {
     YT_VERIFY(!Bounds_.empty());
@@ -170,18 +181,41 @@ THistogram::THistogram(const TSensorOptions& options)
 
 void THistogram::Record(TDuration value)
 {
-    auto it = std::lower_bound(Bounds_.begin(), Bounds_.end(), value);
+    auto it = std::lower_bound(Bounds_.begin(), Bounds_.end(), value.SecondsFloat());
     Buckets_[it - Bounds_.begin()].fetch_add(1, std::memory_order_relaxed);
 }
 
-THistogramSnapshot THistogram::GetSnapshotAndReset()
+void THistogram::Add(double value, int count)
+{
+    auto it = std::lower_bound(Bounds_.begin(), Bounds_.end(), value);
+    Buckets_[it - Bounds_.begin()].fetch_add(count, std::memory_order_relaxed);
+}
+
+void THistogram::Remove(double value, int count)
+{
+    auto it = std::lower_bound(Bounds_.begin(), Bounds_.end(), value);
+    Buckets_[it - Bounds_.begin()].fetch_sub(count, std::memory_order_relaxed);
+}
+
+void THistogram::Reset()
+{
+    for (int i = 0; i < std::ssize(Buckets_); ++i) {
+        Buckets_[i] = 0;
+    }
+}
+
+THistogramSnapshot THistogram::GetSnapshot(bool reset)
 {
     THistogramSnapshot snapshot;
-    snapshot.Times = Bounds_;
+    snapshot.Bounds = Bounds_;
     snapshot.Values.resize(Buckets_.size());
 
-    for (size_t i = 0; i < Buckets_.size(); ++i) {
-        snapshot.Values[i] = Buckets_[i].exchange(0, std::memory_order_relaxed);
+    for (int i = 0; i < std::ssize(Buckets_); ++i) {
+        if (reset) {
+            snapshot.Values[i] = Buckets_[i].exchange(0, std::memory_order_relaxed);
+        } else {
+            snapshot.Values[i] = Buckets_[i].load(std::memory_order_relaxed);
+        }
     }
 
     return snapshot;
