@@ -104,7 +104,7 @@ class TestHttpProxy(HttpProxyTestBase):
         proxy = ls("//sys/proxies")[0]
 
         def get_yson(url):
-            return yson.loads(requests.get(url).text)
+            return yson.loads(requests.get(url).content)
 
         assert [proxy] == get_yson(self._get_proxy_address() + "/hosts")
         assert [proxy] == get_yson(self._get_proxy_address() + "/hosts?role=data")
@@ -354,7 +354,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         result = []
         i = 0
         while i < len(content):
-            tag = ord(content[i])
+            tag = content[i]
             i += 1
             assert tag in cls.FRAME_TAG_TO_NAME
             name = cls.FRAME_TAG_TO_NAME[tag]
@@ -480,7 +480,7 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
 
     @classmethod
     def modify_proxy_config(cls, configs):
-        for i in xrange(len(configs)):
+        for i in range(len(configs)):
             configs[i]["logging"]["flush_period"] = 100
             configs[i]["logging"]["rules"].append(
                 {
@@ -731,7 +731,7 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
         rsp = requests.post(self._get_build_snapshot_url(), headers=headers)
         rsp.raise_for_status()
 
-        return yson.loads(rsp.text)["snapshot_id"]
+        return yson.loads(rsp.content)["snapshot_id"]
 
     def _wait_for_snapshot_state(self, building_snapshot=None, last_snapshot_id=None):
         master = self._get_master_address()

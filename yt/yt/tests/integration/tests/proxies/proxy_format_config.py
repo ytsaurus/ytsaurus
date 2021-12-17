@@ -9,9 +9,7 @@ import json
 import tempfile
 
 
-class _TestProxyFormatConfigBase:
-    __metaclass__ = ABCMeta
-
+class _TestProxyFormatConfigBase(metaclass=ABCMeta):
     FORMAT_CONFIG = {
         "yamr": {
             "enable": False,
@@ -112,12 +110,12 @@ class _TestProxyFormatConfigBase:
         elif format_name in ("yamr", "yamred_dsv"):
             assert tabular
             result = []
-            for line in data.strip().split("\n"):
+            for line in data.strip().split(b"\n"):
                 k, v = line.strip().split()
                 if format_name == "yamred_dsv":
-                    assert v.startswith("value=")
-                    v = v[len("value="):]
-                result.append({"key": k, "value": v})
+                    assert v.startswith(b"value=")
+                    v = v[len(b"value="):]
+                result.append({"key": k.decode("ascii"), "value": v.decode("ascii")})
             return result
         else:
             assert False
@@ -130,15 +128,15 @@ class _TestProxyFormatConfigBase:
             return yt.yson.dumps(data, yson_type=yson_type)
         elif format_name == "json":
             if tabular:
-                return "\n".join(json.dumps(yt.yson.convert.yson_to_json(row)) for row in data)
+                return b"\n".join(json.dumps(yt.yson.convert.yson_to_json(row)) for row in data)
             else:
                 return json.dumps(yt.yson.convert.yson_to_json(data))
         elif format_name == "yamr":
             assert tabular
-            return "\n".join("\t".join([row["key"], row["value"]]) for row in data)
+            return b"\n".join(b"\t".join([row["key"].encode("ascii"), row["value"].encode("ascii")]) for row in data)
         elif format_name == "yamred_dsv":
             assert tabular
-            return "\n".join("{}\tvalue={}".format(row["key"], row["value"]) for row in data)
+            return b"\n".join(b"\t".join([row["key"].encode("ascii"), b"value=" + row["value"].encode("ascii")]) for row in data)
         else:
             assert False
 
