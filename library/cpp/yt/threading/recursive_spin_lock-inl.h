@@ -5,10 +5,9 @@
 #endif
 #undef RECURSIVE_SPIN_LOCK_INL_H_
 
-#include <library/cpp/yt/assert/assert.h>
+#include "spin_wait.h"
 
-#include <util/system/compiler.h>
-#include <util/system/spin_wait.h>
+#include <library/cpp/yt/assert/assert.h>
 
 namespace NYT::NThreading {
 
@@ -21,7 +20,7 @@ inline void TRecursiveSpinLock::Acquire() noexcept
     }
     TSpinWait spinWait;
     while (!TryAndTryAcquire()) {
-        spinWait.Sleep();
+        spinWait.Wait();
     }
 }
 

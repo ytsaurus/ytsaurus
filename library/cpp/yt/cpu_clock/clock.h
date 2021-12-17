@@ -30,3 +30,7 @@ TCpuInstant InstantToCpuInstant(TInstant instant);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define CLOCK_INL_H_
+#include "clock-inl.h"
+#undef CLOCK_INL_H_

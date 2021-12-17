@@ -6,7 +6,7 @@
 #endif
 #undef RW_SPIN_LOCK_INL_H_
 
-#include <util/system/spin_wait.h>
+#include "spin_wait.h"
 
 namespace NYT::NThreading {
 
@@ -19,7 +19,7 @@ inline void TReaderWriterSpinLock::AcquireReader() noexcept
     }
     TSpinWait spinWait;
     while (!TryAndTryAcquireReader()) {
-        spinWait.Sleep();
+        spinWait.Wait();
     }
 }
 
@@ -27,7 +27,7 @@ inline void TReaderWriterSpinLock::AcquireReaderForkFriendly() noexcept
 {
     TSpinWait spinWait;
     while (!TryAcquireReaderForkFriendly()) {
-        spinWait.Sleep();
+        spinWait.Wait();
     }
 }
 
@@ -44,7 +44,7 @@ inline void TReaderWriterSpinLock::AcquireWriter() noexcept
     }
     TSpinWait spinWait;
     while (!TryAndTryAcquireWriter()) {
-        spinWait.Sleep();
+        spinWait.Wait();
     }
 }
 
