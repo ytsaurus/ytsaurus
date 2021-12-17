@@ -2,7 +2,7 @@ from proxy_format_config import _TestProxyFormatConfigBase
 
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, create_user,
@@ -229,22 +229,21 @@ class TestHttpProxy(HttpProxyTestBase):
 
     @authors("greatkorn")
     def test_structured_logs(self):
+        proxy_address = "localhost:" + str(self.Env.configs["http_proxy"][0]["rpc_port"])
+
+        from_barrier = write_log_barrier(proxy_address)
         client = self.Env.create_client()
         client.list("//sys")
+        to_barrier = write_log_barrier(proxy_address)
 
         log_path = self.path_to_run + "/logs/http-proxy-0.json.log"
-        wait(lambda: os.path.exists(log_path), "Cannot find proxy's structured log")
+        events = read_structured_log(log_path, from_barrier, to_barrier)
 
-        def logs_updated():
-            flag = False
-            with open(log_path, "r") as fd:
-                for line in fd:
-                    line_json = json.loads(line)
-                    if line_json.get("path") == "//sys":
-                        flag |= line_json["command"] == "list"
-            return flag
-
-        wait(logs_updated)
+        has_log_entry = False
+        for event in events:
+            if event.get("path") == "//sys":
+                has_log_entry = True
+        assert has_log_entry
 
     @authors("greatkorn")
     def test_fail_logging(self):

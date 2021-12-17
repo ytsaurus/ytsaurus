@@ -10,6 +10,9 @@
 
 #include <yt/yt/server/http_proxy/clickhouse/handler.h>
 
+#include <yt/yt/server/lib/admin/admin_service.h>
+#include <yt/yt/server/lib/core_dump/core_dumper.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -67,6 +70,7 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NYson;
 using namespace NYTree;
+using namespace NAdmin;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,6 +140,12 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker()));
+
+    if (Config_->CoreDumper) {
+        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
+    }
+
+    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
 
     HostsHandler_ = New<THostsHandler>(Coordinator_);
     PingHandler_ = New<TPingHandler>(Coordinator_);
