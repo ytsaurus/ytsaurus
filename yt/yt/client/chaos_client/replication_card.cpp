@@ -69,7 +69,7 @@ TString ToString(const TReplicationProgress& replicationProgress)
 
 void FormatValue(TStringBuilderBase* builder, const TReplicaHistoryItem& replicaHistoryItem, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("Era: %v, Timestamp: %llx, Mode: %v, State: %v}",
+    builder->AppendFormat("{Era: %v, Timestamp: %llx, Mode: %v, State: %v}",
         replicaHistoryItem.Era,
         replicaHistoryItem.Timestamp,
         replicaHistoryItem.Mode,

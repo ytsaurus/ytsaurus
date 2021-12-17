@@ -646,8 +646,8 @@ struct TPullRowsOptions
 struct TPullRowsResult
 {
     THashMap<NTabletClient::TTabletId, i64> EndReplicationRowIndexes;
-    i64 RowCount;
-    i64 DataWeight;
+    i64 RowCount = 0;
+    i64 DataWeight = 0;
     NChaosClient::TReplicationProgress ReplicationProgress;
     TSharedRange<NTableClient::TVersionedRow> Rows;
 };

@@ -452,3 +452,57 @@ class TestChaos(DynamicTablesBase):
         assert orchid["replication_card"]["replicas"][0]["state"] == "disabled"
         assert orchid["write_mode"] == "pull"
         assert lookup_rows("//tmp/t", [{"key": 1}]) == []
+
+    @authors("savrus")
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_replica_mode_switch(self, mode):
+        if mode == "sync":
+            old_mode, new_mode, old_write_mode, new_wirte_mode = "sync", "async", "direct", "pull"
+        else:
+            old_mode, new_mode, old_write_mode, new_wirte_mode = "async", "sync", "pull", "direct"
+
+        def _check_lookup(keys, values, mode):
+            if mode == "sync":
+                assert lookup_rows("//tmp/t", keys) == values
+            else:
+                assert lookup_rows("//tmp/t", keys) == []
+
+        self._create_chaos_cell_bundle("c")
+        cell_id = self._sync_create_chaos_cell("c")
+
+        replicas = [
+            {"cluster": "primary", "content_type": "data", "mode": old_mode, "state": "enabled", "table_path": "//tmp/t"},
+            {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False)
+        self._sync_replication_era(cell_id, card_id, replicas[1:])
+
+        orchid = self._get_table_orchids("//tmp/t")[0]
+        assert orchid["replication_card"]["replicas"][0]["mode"] == old_mode
+        assert orchid["replication_card"]["replicas"][0]["state"] == "enabled"
+        assert orchid["write_mode"] == old_write_mode
+
+        values = [{"key": i, "value": str(i)} for i in range(2)]
+        insert_rows("//tmp/t", values[:1])
+
+        _check_lookup([{"key": 0}], values[:1], old_mode)
+        alter_replication_card_replica(
+            chaos_cell_id=cell_id,
+            replication_card_id=card_id,
+            replica_id=replica_ids[0],
+            mode=new_mode)
+
+        def _insistent_insert_rows():
+            try:
+                insert_rows("//tmp/t", values[1:])
+                return True
+            except YtError:
+                return False
+
+        wait(_insistent_insert_rows)
+        _check_lookup([{"key": 1}], values[1:], new_mode)
+
+        orchid = self._get_table_orchids("//tmp/t")[0]
+        assert orchid["replication_card"]["replicas"][0]["mode"] == new_mode
+        assert orchid["replication_card"]["replicas"][0]["state"] == "enabled"
+        assert orchid["write_mode"] == new_wirte_mode
