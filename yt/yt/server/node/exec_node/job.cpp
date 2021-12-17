@@ -126,6 +126,9 @@ TJob::TJob(
     , JobSpec_(std::move(jobSpec))
     , SchedulerJobSpecExt_(&JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
     , UserJobSpec_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_user_job_spec() ? &SchedulerJobSpecExt_->user_job_spec() : nullptr)
+    , JobTestingOptions_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_testing_options()
+        ? ConvertTo<TJobTestingOptionsPtr>(TYsonString(SchedulerJobSpecExt_->testing_options()))
+        : New<TJobTestingOptions>())
     , AbortJobIfAccountLimitExceeded_(SchedulerJobSpecExt_->abort_job_if_account_limit_exceeded())
     , Logger(ExecNodeLogger.WithTag("JobId: %v, OperationId: %v, JobType: %v",
         Id_,
@@ -1136,6 +1139,10 @@ void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
 void TJob::OnNodeDirectoryPrepared(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (auto delay = JobTestingOptions_->DelayAfterNodeDirectoryPrepared) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
 
     GuardedAction([&] {
         ValidateJobPhase(EJobPhase::PreparingNodeDirectory);

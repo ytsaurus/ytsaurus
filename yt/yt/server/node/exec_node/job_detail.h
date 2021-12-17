@@ -197,6 +197,7 @@ private:
     NJobTrackerClient::NProto::TJobSpec JobSpec_;
     const NScheduler::NProto::TSchedulerJobSpecExt* const SchedulerJobSpecExt_;
     const NScheduler::NProto::TUserJobSpec* const UserJobSpec_;
+    const NJobProxy::TJobTestingOptionsPtr JobTestingOptions_;
 
     const bool AbortJobIfAccountLimitExceeded_;
 

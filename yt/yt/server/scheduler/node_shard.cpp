@@ -625,6 +625,14 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     SubmitJobsToStrategy();
 
+    context->SetResponseInfo(
+        "NodeId: %v, NodeAddress: %v, IsThrottling: %v, "
+        "SchedulingSegment: %v, RunningJobStatistics: %v, ",
+        nodeId,
+        descriptor.GetDefaultAddress(),
+        isThrottlingActive,
+        node->GetSchedulingSegment(),
+        FormatRunningJobStatisticsCompact(node->GetRunningJobStatistics()));
     if (!skipScheduleJobs) {
         YT_PROFILE_TIMING("/scheduler/schedule_time") {
             HeartbeatWithScheduleJobsCounter_.Increment();
@@ -650,21 +658,14 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
         // TODO(eshcherbin): Possible to shorten this message by writing preemptable info
         // only when preemptive scheduling has been attempted.
-        context->SetResponseInfo(
-            "NodeId: %v, NodeAddress: %v, IsThrottling: %v, "
-            "SchedulingSegment: %v, "
+        context->SetIncrementalResponseInfo(
             "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
-            "PreemptableInfo: %v, RunningJobStatistics: %v, ScheduleJobAttempts: %v, "
+            "PreemptableInfo: %v, ScheduleJobAttempts: %v, "
             "HasAggressivelyStarvingElements: %v",
-            nodeId,
-            descriptor.GetDefaultAddress(),
-            isThrottlingActive,
-            node->GetSchedulingSegment(),
             schedulingContext->StartedJobs().size(),
             statistics.ScheduledDuringPreemption,
             schedulingContext->PreemptedJobs().size(),
             FormatPreemptableInfoCompact(statistics),
-            FormatRunningJobStatisticsCompact(node->GetRunningJobStatistics()),
             FormatScheduleJobAttemptsCompact(statistics),
             statistics.HasAggressivelyStarvingElements);
     } else {
@@ -672,12 +673,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             schedulingContext,
             /* requestContext */ context);
 
-        context->SetResponseInfo(
-            "NodeId: %v, NodeAddress: %v, IsThrottling: %v, PreemptedJobs: %v",
-            nodeId,
-            descriptor.GetDefaultAddress(),
-            isThrottlingActive,
-            schedulingContext->PreemptedJobs().size());
+        context->SetIncrementalResponseInfo("PreemptedJobs: %v", schedulingContext->PreemptedJobs().size());
     }
 
     context->Reply();
@@ -1866,7 +1862,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     HeartbeatCount_.Increment();
 
     if (shouldUpdateRunningJobStatistics) {
-        UpdateRunningJobStatistics(node, *runningJobs);
+        UpdateRunningJobStatistics(node, *runningJobs, CpuInstantToInstant(now));
     }
 
     YT_LOG_DEBUG_UNLESS(
@@ -1921,15 +1917,16 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 }
 
-void TNodeShard::UpdateRunningJobStatistics(const TExecNodePtr& node, const std::vector<TJobPtr>& runningJobs)
+void TNodeShard::UpdateRunningJobStatistics(const TExecNodePtr& node, const std::vector<TJobPtr>& runningJobs, TInstant now)
 {
     auto cachedJobPreemptionStatuses =
         Host_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
     TRunningJobStatistics runningJobStatistics;
     for (const auto& job : runningJobs) {
-        auto execDurationSeconds = job->GetExecDuration().SecondsFloat();
-        auto jobCpuTime = static_cast<double>(job->ResourceLimits().GetCpu()) * execDurationSeconds;
-        auto jobGpuTime = job->ResourceLimits().GetGpu() * execDurationSeconds;
+        // Technically it's an overestimation of the job's duration, however, we feel it's more fair this way.
+        auto duration = (now - job->GetStartTime()).SecondsFloat();
+        auto jobCpuTime = static_cast<double>(job->ResourceLimits().GetCpu()) * duration;
+        auto jobGpuTime = job->ResourceLimits().GetGpu() * duration;
 
         runningJobStatistics.TotalCpuTime += jobCpuTime;
         runningJobStatistics.TotalGpuTime += jobGpuTime;
