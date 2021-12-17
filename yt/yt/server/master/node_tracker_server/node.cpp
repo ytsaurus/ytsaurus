@@ -231,6 +231,8 @@ void TNode::ComputeFillFactorsAndTotalSpace()
         usedSpace += location.used_space();
     }
 
+    TotalSpace_.clear();
+
     for (const auto& [mediumIndex, space] : freeAndUsedSpace) {
         auto freeSpace = space.first;
         auto usedSpace = space.second;

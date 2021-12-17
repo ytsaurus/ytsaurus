@@ -868,20 +868,10 @@ public:
     {
         if (node->ReportedHeartbeats().emplace(heartbeatType).second) {
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node reported heartbeat for the first time "
-                "(NodeId: %v, Address: %v, HeartbeatType: %v%v)",
+                "(NodeId: %v, Address: %v, HeartbeatType: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
-                heartbeatType,
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (heartbeatType == ENodeHeartbeatType::Data) {
-                        builder->AppendFormat(", CRPTokenCount: %v",
-                            MakeFormattableView(
-                                node->ConsistentReplicaPlacementTokenCount(),
-                                [&] (TStringBuilderBase* builder, auto pair) {
-                                    builder->AppendFormat("%v: %v", pair.first, pair.second);
-                                }));
-                    }
-                }));
+                heartbeatType);
 
             CheckNodeOnline(node);
         }
