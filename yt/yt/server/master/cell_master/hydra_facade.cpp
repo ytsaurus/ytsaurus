@@ -261,7 +261,7 @@ public:
         return AutomatonBlocked_;
     }
 
-    void VerifyPersistentStateRead()
+    void VerifyPersistentStateRead() const
     {
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
         if (IsAutomatonLocked()) {
@@ -294,7 +294,7 @@ public:
         AutomatonQueue_->Reconfigure(newConfig->AutomatonThreadBucketWeights);
     }
 
-    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker)
+    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) const
     {
         VerifyPersistentStateRead();
 
@@ -343,7 +343,7 @@ private:
         std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
 
         NObjectServer::EndEpoch();
-        EpochCancelableContext_ = nullptr;
+        EpochCancelableContext_.Reset();
     }
 
     static THashMap<EAutomatonThreadBucket, std::vector<EAutomatonThreadQueue>> GetAutomatonThreadBuckets()
@@ -443,7 +443,7 @@ bool THydraFacade::IsAutomatonLocked() const
     return Impl_->IsAutomatonLocked();
 }
 
-void THydraFacade::VerifyPersistentStateRead()
+void THydraFacade::VerifyPersistentStateRead() const
 {
     Impl_->VerifyPersistentStateRead();
 }
@@ -458,7 +458,7 @@ void THydraFacade::Reconfigure(const TDynamicCellMasterConfigPtr& newConfig)
     Impl_->Reconfigure(newConfig);
 }
 
-IInvokerPtr THydraFacade::CreateEpochInvoker(IInvokerPtr underlyingInvoker)
+IInvokerPtr THydraFacade::CreateEpochInvoker(IInvokerPtr underlyingInvoker) const
 {
     return Impl_->CreateEpochInvoker(std::move(underlyingInvoker));
 }
