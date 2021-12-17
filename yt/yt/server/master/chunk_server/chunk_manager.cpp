@@ -2863,7 +2863,6 @@ private:
         };
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         for (auto& [_, mediumDistribution] : ConsistentReplicaPlacementTokenDistribution_) {
             mediumDistribution.clear();
@@ -2872,7 +2871,7 @@ private:
         std::vector<std::pair<i64, TNode*>> nodesByTotalSpace;
         nodesByTotalSpace.reserve(nodeTracker->Nodes().size());
 
-        for (auto [_, medium] : chunkManager->Media()) {
+        for (auto [_, medium] : Media()) {
             if (!IsObjectAlive(medium)) {
                 continue;
             }
@@ -2949,6 +2948,13 @@ private:
 
             nodesByTotalSpace.clear();
         }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "CRP tokens redistributed (Distribution: {%v})",
+            MakeFormattableView(
+                ConsistentReplicaPlacementTokenDistribution_,
+                [&] (TStringBuilderBase* builder, const auto& pair) {
+                    builder->AppendFormat("%v: %v", pair.first, pair.second);
+                }));
     }
 
     int EstimateNodeConsistentReplicaPlacementTokenCount(TNode* node, int mediumIndex) const
