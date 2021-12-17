@@ -21,7 +21,7 @@ from yt_type_helpers import make_schema
 
 from yt_scheduler_helpers import scheduler_orchid_default_pool_tree_config_path
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
 import yt.yson as yson
 
@@ -31,7 +31,6 @@ from yt.common import date_string_to_timestamp, YtError
 import pytest
 
 from collections import defaultdict
-import json
 import io
 import os
 import time
@@ -2018,6 +2017,7 @@ class TestEventLog(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
     USE_PORTO = True
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"event_log": {"flush_period": 1000}}}
@@ -2125,37 +2125,34 @@ class TestEventLog(YTEnvSetup):
 
         event_log = read_table("//sys/scheduler/event_log")
 
-        def check_structured():
-            def extract_event_log(filename):
-                with open(filename) as f:
-                    items = [json.loads(line) for line in f]
-                    events = list(filter(lambda e: "event_type" in e, items))
-                    return events
+        scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+        scheduler_address = ls("//sys/scheduler/instances")[0]
+        scheduler_barrier = write_log_barrier(scheduler_address)
 
-            scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
-            controller_agent_log_file = self.path_to_run + "/logs/controller-agent-0.json.log"
+        controller_agent_log_file = self.path_to_run + "/logs/controller-agent-0.json.log"
+        controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        controller_agent_barrier = write_log_barrier(controller_agent_address)
 
-            structured_log = extract_event_log(scheduler_log_file) + extract_event_log(controller_agent_log_file)
+        structured_log = read_structured_log(scheduler_log_file, to_barrier=scheduler_barrier,
+                                             row_filter=lambda e: "event_type" in e)
+        structured_log += read_structured_log(controller_agent_log_file, to_barrier=controller_agent_barrier,
+                                              row_filter=lambda e: "event_type" in e)
 
-            for normal_event in event_log:
-                flag = False
-                for structured_event in structured_log:
+        for normal_event in event_log:
+            flag = False
+            for structured_event in structured_log:
 
-                    def key(event):
-                        return (
-                            event["timestamp"],
-                            event["event_type"],
-                            event["operation_id"] if "operation_id" in event else "",
-                        )
+                def key(event):
+                    return (
+                        event["timestamp"],
+                        event["event_type"],
+                        event["operation_id"] if "operation_id" in event else "",
+                    )
 
-                    if key(normal_event) == key(structured_event):
-                        flag = True
-                        break
-                if not flag:
-                    return False
-            return True
-
-        wait(check_structured)
+                if key(normal_event) == key(structured_event):
+                    flag = True
+                    break
+            assert flag
 
     @authors("eshcherbin")
     def test_split_fair_share_info_events(self):
@@ -2294,11 +2291,11 @@ class TestResourceMetering(YTEnvSetup):
     def _extract_metering_records_from_log(self, last=True):
         """ Returns dict from metering key to last record with this key. """
         scheduler_log_file = os.path.join(self.path_to_run, "logs/scheduler-0.json.log")
+        scheduler_address = ls("//sys/scheduler/instances")[0]
+        scheduler_barrier = write_log_barrier(scheduler_address)
 
-        events = None
-        with open(scheduler_log_file) as f:
-            items = [json.loads(line) for line in f]
-            events = list(filter(lambda e: "event_type" not in e, items))
+        events = read_structured_log(scheduler_log_file, to_barrier=scheduler_barrier,
+                                     row_filter=lambda e: "event_type" not in e)
 
         reports = {}
         for entry in events:
