@@ -344,11 +344,14 @@ class TJobTestingOptions
     : public NYTree::TYsonSerializable
 {
 public:
+    std::optional<TDuration> DelayAfterNodeDirectoryPrepared;
     bool FailBeforeJobStart;
     bool ThrowInShallowMerge;
 
     TJobTestingOptions()
     {
+        RegisterParameter("delay_after_node_directory_prepared", DelayAfterNodeDirectoryPrepared)
+            .Default();
         RegisterParameter("fail_before_job_start", FailBeforeJobStart)
             .Default(false);
         RegisterParameter("throw_in_shallow_merge", ThrowInShallowMerge)

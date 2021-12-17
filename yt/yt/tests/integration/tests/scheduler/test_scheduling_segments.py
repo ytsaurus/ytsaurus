@@ -41,6 +41,16 @@ from collections import defaultdict
 ##################################################################
 
 
+def get_first_job_node(op):
+    wait(lambda: len(op.get_running_jobs()) >= 1)
+    jobs = op.get_running_jobs()
+    job = jobs[list(jobs)[0]]
+    return job["address"]
+
+
+##################################################################
+
+
 class TestSchedulingSegments(YTEnvSetup):
     NUM_TEST_PARTITIONS = 6
     NUM_MASTERS = 1
@@ -273,12 +283,6 @@ class TestSchedulingSegments(YTEnvSetup):
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op2.id), 0.1))
-
-        def get_first_job_node(op):
-            wait(lambda: len(op.get_running_jobs()) >= 1)
-            jobs = op.get_running_jobs()
-            job = jobs[list(jobs)[0]]
-            return job["address"]
 
         expected_node = get_first_job_node(blocking_op2)
         wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "large_gpu")
@@ -1574,3 +1578,127 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
         alert = get("//sys/scheduler/@alerts")[0]
         assert alert["attributes"]["alert_type"] == "manage_node_scheduling_segments"
         self._check_alert("Node's infiniband cluster tag doesn't match its infiniband cluster from annotations")
+
+
+##################################################################
+
+
+class TestRunningJobStatistics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+            "scheduling_segments_manage_period": 100,
+            "scheduling_segments_initialization_timeout": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 2,
+                    "user_slots": 2,
+                },
+                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
+            },
+            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
+            "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
+        },
+        "job_proxy_heartbeat_period": 100,
+    }
+
+    SCHEDULING_SEGMENTS = [
+        "default",
+        "large_gpu",
+    ]
+
+    DATA_CENTER = "SAS"
+    RACK = "SAS1"
+
+    def _get_usage_ratio(self, op, tree="default"):
+        return get(scheduler_orchid_operation_path(op, tree) + "/dominant_usage_share", default=0.0)
+
+    # TODO(eshcherbin): Do something with copy-paste in this long setup method.
+    def setup_method(self, method):
+        super(TestRunningJobStatistics, self).setup_method(method)
+        # NB(eshcherbin): This is done to reset node segments.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
+            for node in ls("//sys/cluster_nodes"):
+                requests.append(make_batch_request(
+                    "remove",
+                    path="//sys/cluster_nodes/{}/@scheduling_segment".format(node),
+                    force=True
+                ))
+            for response in execute_batch(requests):
+                assert not get_batch_error(response)
+
+        create_data_center(TestRunningJobStatistics.DATA_CENTER)
+        create_rack(TestRunningJobStatistics.RACK)
+        set("//sys/racks/" + TestRunningJobStatistics.RACK + "/@data_center", TestRunningJobStatistics.DATA_CENTER)
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/" + node + "/@rack", TestRunningJobStatistics.RACK)
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestRunningJobStatistics.DATA_CENTER)
+
+        create_pool("small_gpu", wait_for_orchid=False)
+        create_pool("large_gpu")
+        set("//sys/pool_trees/default/@config/scheduling_segments", {
+            "mode": "large_gpu",
+            "unsatisfied_segments_rebalancing_timeout": 1000,
+            "data_centers": [TestRunningJobStatistics.DATA_CENTER],
+        })
+        set("//sys/pool_trees/default/@config/main_resource", "gpu")
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
+        wait(
+            lambda: get(
+                scheduler_orchid_default_pool_tree_config_path()
+                + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
+            )
+                    == 1000
+        )
+        # Not to let preemption abort the jobs instead of segments manager.
+        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.95)
+        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 80)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80)
+
+    @authors("eshcherbin")
+    def test_long_job_preparation(self):
+        aux_op = run_sleeping_vanilla(
+            job_count=2,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/scheduling_segment") == "large_gpu")
+        aux_op.abort(wait_until_finished=True)
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/running_job_statistics/total_gpu_time") == 0.0)
+
+        op = run_sleeping_vanilla(
+            job_count=1,
+            spec={
+                "pool": "large_gpu",
+                "job_testing_options": {"delay_after_node_directory_prepared": 10000},
+            },
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        good_node = get_first_job_node(op)
+
+        bad_op = run_sleeping_vanilla(
+            job_count=1,
+            spec={"pool": "small_gpu"},
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(bad_op.id), 0.25))
+        assert get(scheduler_orchid_node_path(good_node) + "/scheduling_segment") == "large_gpu"
