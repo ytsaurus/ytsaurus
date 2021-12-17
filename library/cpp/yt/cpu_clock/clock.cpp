@@ -8,14 +8,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuInstant GetCpuInstant()
-{
-    unsigned hi, lo;
-    __asm__ __volatile__("rdtsc"
-    : "=a"(lo), "=d"(hi));
-    return static_cast<unsigned long long>(lo) | (static_cast<unsigned long long>(hi) << 32);
-}
-
 // Re-calibrate every 1B CPU ticks.
 constexpr auto CalibrationCpuPeriod = 1'000'000'000;
 
