@@ -8157,6 +8157,9 @@ TOperationAlertMap TOperationControllerBase::GetAlerts()
 
 TOperationInfo TOperationControllerBase::BuildOperationInfo()
 {
+    // NB: BuildOperationInfo called by GetOperationInfo RPC method, that used scheduler at operation finalization.
+    BuildAndSaveProgress();
+
     TOperationInfo result;
 
     result.Progress =

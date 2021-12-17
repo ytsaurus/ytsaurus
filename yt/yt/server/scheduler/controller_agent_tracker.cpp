@@ -431,6 +431,8 @@ public:
 
         SwitchTo(agent->GetCancelableInvoker());
 
+        agent->OnHeartbeatReceived();
+
         std::vector<TOperationInfo> operationInfos;
         auto parseOperationsFuture = BIND([&operationsProto = request->operations(), &operationInfos = operationInfos] () {
                 operationInfos.reserve(operationsProto.size());

@@ -63,6 +63,8 @@ public:
 
     void SetControllerRuntimeData(const TControllerRuntimeDataPtr& controllerData) override;
 
+    TFuture<void> GetFullHeartbeatProcessed() override;
+
     TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
@@ -100,7 +102,7 @@ private:
     TPromise<TOperationControllerMaterializeResult> PendingMaterializeResult_;
     TPromise<TOperationControllerReviveResult> PendingReviveResult_;
     TPromise<TOperationControllerCommitResult> PendingCommitResult_;
-
+    
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     bool EnqueueJobEvent(TSchedulerToAgentJobEvent&& event);

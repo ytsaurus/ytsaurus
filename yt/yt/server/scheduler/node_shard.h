@@ -397,7 +397,7 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TScheduler::TCtxNodeHeartbeatPtr& rpcContext);
 
-    void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool byScheduler, bool operationTerminated = false);
+    void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool byScheduler);
     void OnJobFinished(const TJobPtr& job);
     void OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shouldLogJob);
     void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false);

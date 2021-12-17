@@ -42,7 +42,9 @@ TControllerAgent::TControllerAgent(
     , Channel_(std::move(channel))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(invoker))
-{ }
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+}
 
 const TAgentId& TControllerAgent::GetId() const
 {
@@ -153,6 +155,10 @@ const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>& TControllerAge
 void TControllerAgent::Cancel(const TError& error)
 {
     CancelableContext_->Cancel(error);
+
+    for (const auto& [_, promise] : CounterToFullHeartbeatProcessedPromise_) {
+        promise.TrySet(error);
+    }
 }
 
 const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
@@ -172,6 +178,42 @@ void TControllerAgent::SetMemoryStatistics(TControllerAgentMemoryStatistics memo
     auto guard = Guard(MemoryStatisticsLock_);
 
     MemoryStatistics_ = memoryStatistics;
+}
+
+TFuture<void> TControllerAgent::GetFullHeartbeatProcessed()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto it = CounterToFullHeartbeatProcessedPromise_.find(HeartbeatCounter_ + 2);
+    if (it == CounterToFullHeartbeatProcessedPromise_.end()) {
+        // At least one full heartbeat should be processed since current one.
+        it = CounterToFullHeartbeatProcessedPromise_.emplace(HeartbeatCounter_ + 2, NewPromise<void>()).first;
+    }
+    return it->second;
+}
+
+void TControllerAgent::OnHeartbeatReceived()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    ++HeartbeatCounter_;
+
+    while (true) {
+        auto it = CounterToFullHeartbeatProcessedPromise_.begin();
+        if (it == CounterToFullHeartbeatProcessedPromise_.end()) {
+            break;
+        }
+
+        if (it->first < HeartbeatCounter_) {
+            YT_VERIFY(it->second.IsSet());
+            CounterToFullHeartbeatProcessedPromise_.erase(it);
+        } else if (it->first == HeartbeatCounter_) {
+            it->second.TrySet();
+            break;
+        } else {
+            break;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

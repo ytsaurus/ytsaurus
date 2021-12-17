@@ -248,6 +248,9 @@ struct IOperationController
 
     //! Called to update operation controller data at controller agent heartbeat.
     virtual void SetControllerRuntimeData(const TControllerRuntimeDataPtr& controllerData) = 0;
+
+    //! Wait for current events has been sent in heartbeat and new heartbeat has been received.
+    virtual TFuture<void> GetFullHeartbeatProcessed() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

@@ -954,7 +954,7 @@ void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abor
     auto jobs = operationState->Jobs;
     for (const auto& job : jobs) {
         auto status = JobStatusFromError(abortReason);
-        OnJobAborted(job.second, &status, /* byScheduler */ true, controllerTerminated);
+        OnJobAborted(job.second, &status, /* byScheduler */ true);
     }
 
     for (const auto& job : operationState->Jobs) {
@@ -2457,7 +2457,7 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
     }
 }
 
-void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool byScheduler, bool operationTerminated)
+void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool byScheduler)
 {
     YT_VERIFY(status);
 
@@ -2478,7 +2478,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool bySch
         OnJobFinished(job);
 
         auto* operationState = FindOperationState(job->GetOperationId());
-        if (operationState && !operationTerminated) {
+        if (operationState) {
             const auto& controller = operationState->Controller;
             controller->OnJobAborted(job, status, byScheduler);
         }
