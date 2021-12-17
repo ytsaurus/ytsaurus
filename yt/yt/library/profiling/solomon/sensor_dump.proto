@@ -31,6 +31,7 @@ message TProjection {
     optional TSummaryDouble summary = 5;
     optional TSummaryDuration timer = 6;
     optional THistogramSnapshot histogram = 7;
+    optional THistogramSnapshot gauge_histogram = 9;
 };
 
 message TSummaryDouble {

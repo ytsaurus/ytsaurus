@@ -60,6 +60,11 @@ public:
         const TTagSet& tags,
         TSensorOptions options) = 0;
 
+    virtual IGaugeHistogramImplPtr RegisterGaugeHistogram(
+        const TString& name,
+        const TTagSet& tags,
+        TSensorOptions options) = 0;
+
     virtual void RegisterFuncCounter(
         const TString& name,
         const TTagSet& tags,
@@ -144,6 +149,18 @@ struct ISummaryImplBase
 
 DEFINE_REFCOUNTED_TYPE(ISummaryImpl)
 DEFINE_REFCOUNTED_TYPE(ITimerImpl)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IGaugeHistogramImpl
+    : public virtual TRefCounted
+{
+    virtual void Add(double value, int count) = 0;
+    virtual void Remove(double value, int count) = 0;
+    virtual void Reset() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IGaugeHistogramImpl)
 
 ////////////////////////////////////////////////////////////////////////////////
 

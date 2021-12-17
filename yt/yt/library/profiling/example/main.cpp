@@ -105,6 +105,11 @@ int main(int argc, char* argv[])
             TDuration::MilliSeconds(1),
             TDuration::Seconds(1));
 
+        auto constHistogram = r.WithSparse().Histogram(
+            "/const_histogram",
+            TDuration::MilliSeconds(1),
+            TDuration::Seconds(1));
+
         auto poolUsage = r.WithTag("pool", "prime").WithGlobal().Gauge("/cpu");
         poolUsage.Update(3000.0);
 
@@ -119,6 +124,8 @@ int main(int argc, char* argv[])
 
             TProfiler r{remoteRegistry, "/remote"};
             r.AddFuncGauge("/value", remoteExporter, [] { return 1.0; });
+
+            auto h = r.GaugeHistogram("/hist", {0, 1, 2});
 
             exporter->AttachRemoteProcess(BIND([remoteExporter] () -> TFuture<TSharedRef> {
                 return MakeFuture(remoteExporter->DumpSensors());
@@ -151,6 +158,7 @@ int main(int argc, char* argv[])
             }
 
             histogram.Record(RandomDuration(TDuration::Seconds(1)));
+            constHistogram.Record(TDuration::Seconds(1) / 2);
 
             if (i % 18000 == 0) {
                 sparseCounter.Increment();

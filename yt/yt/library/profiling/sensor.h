@@ -128,6 +128,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGaugeHistogram
+{
+public:
+    void Add(double value, int count = 1);
+    void Remove(double value, int count = 1);
+    void Reset();
+
+    explicit operator bool() const;
+
+private:
+    friend class TProfiler;
+
+    IGaugeHistogramImplPtr Histogram_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSensorOptions
 {
     bool Global = false;
@@ -142,6 +159,8 @@ struct TSensorOptions
     TDuration HistogramMax;
 
     std::vector<TDuration> HistogramBounds;
+
+    std::vector<double> GaugeHistogramBounds;
 
     bool IsCompatibleWith(const TSensorOptions& other) const;
 };
@@ -297,6 +316,9 @@ public:
     //! Histogram is used to measure distribution of event durations.
     //! Allows to use custom bounds, bounds should be sorted (maximum 51 elements are allowed)
     TEventTimer Histogram(const TString& name, std::vector<TDuration> bounds) const;
+
+    //! GaugeHistogram is used to measure distribution of set of samples.
+    TGaugeHistogram GaugeHistogram(const TString& name, std::vector<double> buckets) const;
 
     void AddFuncCounter(
         const TString& name,

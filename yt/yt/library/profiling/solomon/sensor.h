@@ -104,16 +104,21 @@ DECLARE_REFCOUNTED_CLASS(THistogram)
 
 class THistogram
     : public ISummaryImplBase<TDuration>
+    , public IGaugeHistogramImpl
 {
 public:
     THistogram(const TSensorOptions& options);
 
     void Record(TDuration value) override;
 
-    THistogramSnapshot GetSnapshotAndReset();
+    void Add(double value, int count) override;
+    void Remove(double value, int count) override;
+    void Reset() override;
+
+    THistogramSnapshot GetSnapshot(bool reset);
 
 private:
-    std::vector<TDuration> Bounds_;
+    std::vector<double> Bounds_;
     std::vector<std::atomic<int>> Buckets_;
 
     // These two methods are not used.

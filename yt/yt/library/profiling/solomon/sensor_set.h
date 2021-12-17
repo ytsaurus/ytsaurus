@@ -166,12 +166,13 @@ DEFINE_REFCOUNTED_TYPE(THistogramState)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESensorType,
-    ((Counter)     (1))
-    ((TimeCounter) (2))
-    ((Gauge)       (3))
-    ((Summary)     (4))
-    ((Timer)       (5))
-    ((Histogram)   (6))
+    ((Counter)        (1))
+    ((TimeCounter)    (2))
+    ((Gauge)          (3))
+    ((Summary)        (4))
+    ((Timer)          (5))
+    ((Histogram)      (6))
+    ((GaugeHistogram) (7))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,6 +197,7 @@ public:
     void AddTimerSummary(TTimerSummaryStatePtr timer);
     void AddTimeCounter(TTimeCounterStatePtr counter);
     void AddHistogram(THistogramStatePtr counter);
+    void AddGaugeHistogram(THistogramStatePtr counter);
 
     int Collect();
 
@@ -247,6 +249,9 @@ private:
 
     THashSet<THistogramStatePtr> Histograms_;
     TCube<THistogramSnapshot> HistogramsCube_;
+
+    THashSet<THistogramStatePtr> GaugeHistograms_;
+    TCube<TGaugeHistogramSnapshot> GaugeHistogramsCube_;
 
     std::optional<ESensorType> Type_;
     TGauge CubeSize_;

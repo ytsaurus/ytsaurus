@@ -126,6 +126,28 @@ TEventTimerGuard::~TEventTimerGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGaugeHistogram::Add(double value, int count)
+{
+    Histogram_->Add(value, count);
+}
+
+void TGaugeHistogram::Remove(double value, int count)
+{
+    Histogram_->Remove(value, count);
+}
+
+void TGaugeHistogram::Reset()
+{
+    Histogram_->Reset();
+}
+
+TGaugeHistogram::operator bool() const
+{
+    return Histogram_.operator bool();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString ToString(const TSensorOptions& options)
 {
     return Format(
@@ -457,6 +479,19 @@ TEventTimer TProfiler::Histogram(const TString& name, std::vector<TDuration> bou
     options.HistogramBounds = std::move(bounds);
     timer.Timer_ = Impl_->RegisterTimerHistogram(Namespace_ + Prefix_ + name, Tags_, options);
     return timer;
+}
+
+TGaugeHistogram TProfiler::GaugeHistogram(const TString& name, std::vector<double> buckets) const
+{
+    if (!Impl_) {
+        return {};
+    }
+
+    TGaugeHistogram histogram;
+    auto options = Options_;
+    options.GaugeHistogramBounds = std::move(buckets);
+    histogram.Histogram_ = Impl_->RegisterGaugeHistogram(Namespace_ + Prefix_ + name, Tags_, options);
+    return histogram;
 }
 
 void TProfiler::AddFuncCounter(

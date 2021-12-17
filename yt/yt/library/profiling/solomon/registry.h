@@ -85,6 +85,11 @@ public:
         const TTagSet& tags,
         TSensorOptions options) override;
 
+    IGaugeHistogramImplPtr RegisterGaugeHistogram(
+        const TString& name,
+        const TTagSet& tags,
+        TSensorOptions options) override;
+
     void RegisterFuncCounter(
         const TString& name,
         const TTagSet& tags,
