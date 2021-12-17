@@ -223,8 +223,9 @@ private:
                 progress,
                 endReplicationRowIndexes);
 
-            // If upperTimestamp is set commit rows to update progress.
-            if (resultRows.empty() && !upperTimestamp) {
+            // Update progress even if no rows pulled.
+            if (IsReplicationProgressGreaterOrEqual(*replicationProgress, progress)) {
+                YT_VERIFY(resultRows.empty());
                 return;
             }
 
@@ -244,7 +245,7 @@ private:
                 localTransaction->WriteRows(
                     tabletSnapshot->TablePath,
                     NameTable_,
-                    result.Rows,
+                    resultRows,
                     modifyOptions);
 
                 {
