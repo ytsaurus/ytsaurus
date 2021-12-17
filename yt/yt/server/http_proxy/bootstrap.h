@@ -109,6 +109,8 @@ private:
     TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV2_;
     IAccessCheckerPtr AccessChecker_;
 
+    ICoreDumperPtr CoreDumper_;
+
     void RegisterRoutes(const NHttp::IServerPtr& server);
 
     void SetupClients();
