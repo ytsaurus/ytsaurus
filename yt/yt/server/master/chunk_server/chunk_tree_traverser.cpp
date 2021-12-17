@@ -1473,19 +1473,15 @@ class TAsyncChunkTraverserContext
 {
 public:
     TAsyncChunkTraverserContext(
-        NCellMaster::TBootstrap* bootstrap,
-        NCellMaster::EAutomatonThreadQueue threadQueue)
+        TBootstrap* bootstrap,
+        EAutomatonThreadQueue threadQueue)
         : Bootstrap_(bootstrap)
         , UserName_(Bootstrap_
             ->GetSecurityManager()
             ->GetAuthenticatedUser()
             ->GetName())
-    {
-        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-        Invoker_ = hydraFacade->IsAutomatonLocked()
-            ? hydraFacade->CreateEpochInvoker(GetCurrentInvoker())
-            : hydraFacade->GetEpochAutomatonInvoker(threadQueue);
-    }
+        , Invoker_(CreateInvoker(Bootstrap_->GetHydraFacade(), threadQueue))
+    { }
 
     bool IsSynchronous() const override
     {
@@ -1517,15 +1513,22 @@ public:
     }
 
 private:
-    NCellMaster::TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
     const TString UserName_;
-    IInvokerPtr Invoker_;
+    const IInvokerPtr Invoker_;
 
+    static const IInvokerPtr CreateInvoker(const THydraFacadePtr& hydraFacade, EAutomatonThreadQueue threadQueue)
+    {
+        return hydraFacade->IsAutomatonLocked()
+            ? hydraFacade->CreateEpochInvoker(GetCurrentInvoker())
+            : hydraFacade->GetEpochAutomatonInvoker(threadQueue);
+    }
 };
 
+
 IChunkTraverserContextPtr CreateAsyncChunkTraverserContext(
-    NCellMaster::TBootstrap* bootstrap,
-    NCellMaster::EAutomatonThreadQueue threadQueue)
+    TBootstrap* bootstrap,
+    EAutomatonThreadQueue threadQueue)
 {
     return New<TAsyncChunkTraverserContext>(
         bootstrap,

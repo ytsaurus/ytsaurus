@@ -56,14 +56,14 @@ public:
 
     bool IsAutomatonLocked() const;
 
-    void VerifyPersistentStateRead();
+    void VerifyPersistentStateRead() const;
 
     //! Throws TLeaderFallbackException at followers.
     void RequireLeader() const;
 
     void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig);
 
-    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker);
+    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) const;
 
     const NObjectServer::TEpochContextPtr& GetEpochContext() const;
 
