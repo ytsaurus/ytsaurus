@@ -959,25 +959,9 @@ public:
         return LayerMeta_.Path;
     }
 
-    void SubscribeEvicted(TCallback<void()> callback)
-    {
-        Evicted_.ToFuture()
-           .Subscribe(BIND([=] (const TError& error) {
-                YT_VERIFY(error.IsOK());
-                callback.Run();
-            }));
-    }
-
     i64 GetSize() const
     {
         return LayerMeta_.size();
-    }
-
-    void OnEvicted()
-    {
-        YT_LOG_DEBUG("Layer is evicted (LayerId: %v)",
-            LayerMeta_.Id);
-        Evicted_.Set();
     }
 
     const TLayerMeta& GetMeta() const
@@ -988,8 +972,6 @@ public:
 private:
     const TLayerMeta LayerMeta_;
     const TLayerLocationPtr Location_;
-
-    TPromise<void> Evicted_ = NewPromise<void>();
 };
 
 DEFINE_REFCOUNTED_TYPE(TLayer)
@@ -1140,11 +1122,6 @@ private:
     i64 GetWeight(const TLayerPtr& layer) const override
     {
         return layer->GetSize();
-    }
-
-    void OnRemoved(const TLayerPtr& layer) override
-    {
-        layer->OnEvicted();
     }
 
     void InitTmpfsLayerCache()
@@ -1379,7 +1356,6 @@ private:
             for (const auto& [key, layer] : CachedTmpfsLayers_) {
                 if (!newArtifacts.contains(key)) {
                     artifactsToRemove.push_back(key);
-                    layer->OnEvicted();
                 } else {
                     newArtifacts.erase(key);
                 }
@@ -1490,11 +1466,11 @@ DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVolumeState
-    : public TRefCounted
+class TLayeredVolume
+    : public IVolume
 {
 public:
-    TVolumeState(
+    TLayeredVolume(
         const TVolumeMeta& meta,
         TPortoVolumeManagerPtr owner,
         TLayerLocationPtr location,
@@ -1503,15 +1479,9 @@ public:
         , Owner_(std::move(owner))
         , Location_(std::move(location))
         , Layers_(layers)
-    {
-        auto callback = BIND(&TVolumeState::OnLayerEvicted, MakeWeak(this));
-        // NB: We need a copy of layers vector here since OnLayerEvicted may be invoked in-place and cause Layers_ change.
-        for (const auto& layer : layers) {
-            layer->SubscribeEvicted(callback);
-        }
-    }
+    { }
 
-    ~TVolumeState()
+    ~TLayeredVolume() override
     {
         YT_LOG_INFO("Destroying volume (VolumeId: %v)",
             VolumeMeta_.Id);
@@ -1519,28 +1489,7 @@ public:
         Location_->RemoveVolume(VolumeMeta_.Id);
     }
 
-    bool TryAcquireLock()
-    {
-        auto guard = Guard(SpinLock_);
-        if (Evicted_) {
-            return false;
-        }
-
-        ActiveCount_ += 1;
-        return true;
-    }
-
-    void ReleaseLock()
-    {
-        auto guard = Guard(SpinLock_);
-        ActiveCount_ -= 1;
-
-        if (Evicted_ && ActiveCount_ == 0) {
-            ReleaseLayers(std::move(guard));
-        }
-    }
-
-    const TString& GetPath() const
+    const TString& GetPath() const override
     {
         return VolumeMeta_.MountPath;
     }
@@ -1555,59 +1504,11 @@ private:
     const TPortoVolumeManagerPtr Owner_;
     const TLayerLocationPtr Location_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TLayerPtr> Layers_;
-
-    int ActiveCount_= 1;
-    bool Evicted_ = false;
-
-    void OnLayerEvicted()
-    {
-        auto guard = Guard(SpinLock_);
-        Evicted_ = true;
-        if (ActiveCount_ == 0) {
-            ReleaseLayers(std::move(guard));
-        }
-    }
-
-    void ReleaseLayers(TSpinlockGuard<NThreading::TSpinLock>&& guard)
-    {
-        std::vector<TLayerPtr> layers;
-        std::swap(layers, Layers_);
-        guard.Release();
-    }
 };
 
-DECLARE_REFCOUNTED_CLASS(TVolumeState)
-DEFINE_REFCOUNTED_TYPE(TVolumeState)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLayeredVolume
-    : public IVolume
-{
-public:
-    TLayeredVolume(TVolumeStatePtr volumeState, bool isLocked)
-        : VolumeState_(std::move(volumeState))
-    {
-        if (!isLocked && !VolumeState_->TryAcquireLock()) {
-            THROW_ERROR_EXCEPTION("Failed to lock volume state, volume is waiting to be destroyed");
-        }
-    }
-
-    ~TLayeredVolume()
-    {
-        VolumeState_->ReleaseLock();
-    }
-
-    const TString& GetPath() const override
-    {
-        return VolumeState_->GetPath();
-    }
-
-private:
-    const TVolumeStatePtr VolumeState_;
-};
+DECLARE_REFCOUNTED_CLASS(TLayeredVolume)
+DEFINE_REFCOUNTED_TYPE(TLayeredVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1664,25 +1565,6 @@ public:
 
         auto tag = TGuid::Create();
 
-        auto createVolume = [=, this_ = MakeStrong(this)] (bool isLocked, const TVolumeStatePtr& volumeState) {
-            for (const auto& layer : volumeState->GetLayers()) {
-                LayerCache_->Touch(layer);
-            }
-
-            YT_LOG_DEBUG("Creating new layered volume (Tag: %v, Path: %v)",
-                tag,
-                volumeState->GetPath());
-
-            return New<TLayeredVolume>(volumeState, isLocked);
-        };
-
-        auto promise = NewPromise<TVolumeStatePtr>();
-        promise.OnCanceled(BIND([=] (const TError& error) {
-            promise.TrySet(TError(NYT::EErrorCode::Canceled, "Root volume preparation canceled")
-                << TErrorAttribute("preparation_tag", tag)
-                << error);
-        }));
-
         std::vector<TFuture<TLayerPtr>> layerFutures;
         layerFutures.reserve(layers.size());
         for (const auto& layerKey : layers) {
@@ -1690,17 +1572,13 @@ public:
         }
 
         // ToDo(psushin): choose proper invoker.
-        // Avoid sync calls to WaitFor, to please job preparation context switch guards.
-        AllSucceeded(layerFutures)
-            .Subscribe(BIND(
-                &TPortoVolumeManager::OnLayersPrepared,
+        // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
+        return AllSucceeded(layerFutures)
+            .Apply(BIND(
+                &TPortoVolumeManager::CreateVolume,
                 MakeStrong(this),
-                promise,
                 tag)
-            .Via(GetCurrentInvoker()));
-
-        return promise.ToFuture()
-            .Apply(BIND(createVolume, true))
+            .AsyncVia(GetCurrentInvoker()))
             .As<IVolumePtr>();
     }
 
@@ -1728,45 +1606,42 @@ private:
         LayerCache_->BuildOrchidYson(fluent);
     }
 
-    void OnLayersPrepared(
-        TPromise<TVolumeStatePtr> volumeStatePromise,
+    TLayeredVolumePtr CreateVolume(
         TGuid tag,
         const TErrorOr<std::vector<TLayerPtr>>& errorOrLayers)
     {
-        try {
-            YT_LOG_DEBUG(errorOrLayers, "All layers prepared (Tag: %v)",
+
+        YT_LOG_DEBUG(errorOrLayers, "All layers prepared (Tag: %v)",
+            tag);
+
+        const auto& layers = errorOrLayers
+            .ValueOrThrow();
+
+        std::vector<TLayerMeta> layerMetas;
+        layerMetas.reserve(layers.size());
+        for (const auto& layer : layers) {
+            layerMetas.push_back(layer->GetMeta());
+            LayerCache_->Touch(layer);
+            YT_LOG_DEBUG("Using layer to create new volume (LayerId: %v, Tag: %v)",
+                layer->GetMeta().Id,
                 tag);
-
-            const auto& layers = errorOrLayers
-                .ValueOrThrow();
-
-            std::vector<TLayerMeta> layerMetas;
-            layerMetas.reserve(layers.size());
-            for (const auto& layer : layers) {
-                layerMetas.push_back(layer->GetMeta());
-                YT_LOG_DEBUG("Using layer to create new volume (LayerId: %v, Tag: %v)",
-                    layer->GetMeta().Id,
-                    tag);
-            }
-
-            auto location = PickLocation();
-            auto volumeMeta = WaitFor(location->CreateVolume(layerMetas))
-                .ValueOrThrow();
-
-            auto volumeState = New<TVolumeState>(
-                volumeMeta,
-                this,
-                location,
-                layers);
-
-            YT_LOG_DEBUG("Created volume state (Tag: %v, VolumeId: %v)",
-                tag,
-                volumeMeta.Id);
-
-            volumeStatePromise.TrySet(volumeState);
-        } catch (const std::exception& ex) {
-            volumeStatePromise.TrySet(TError(ex));
         }
+
+        auto location = PickLocation();
+        auto volumeMeta = WaitFor(location->CreateVolume(layerMetas))
+            .ValueOrThrow();
+
+        auto volume = New<TLayeredVolume>(
+            volumeMeta,
+            this,
+            location,
+            layers);
+
+        YT_LOG_DEBUG("Created volume (Tag: %v, VolumeId: %v)",
+            tag,
+            volumeMeta.Id);
+
+        return volume;
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)
