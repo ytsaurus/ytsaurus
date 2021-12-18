@@ -45,7 +45,7 @@ DEFINE_ENUM(ERowModificationType,
     ((Write)            (0))
     ((Delete)           (1))
     ((VersionedWrite)   (2))
-    ((ReadLockWrite)    (3))
+    ((WriteAndLock)     (3))
 );
 
 DEFINE_ENUM(ETransactionCoordinatorCommitMode,

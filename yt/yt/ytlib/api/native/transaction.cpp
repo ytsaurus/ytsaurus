@@ -724,7 +724,7 @@ private:
                             NameTable_);
                         break;
 
-                    case ERowModificationType::ReadLockWrite:
+                    case ERowModificationType::WriteAndLock:
                         if (!tableInfo->IsSorted()) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustBeSorted,
@@ -745,7 +745,7 @@ private:
                 switch (modification.Type) {
                     case ERowModificationType::Write:
                     case ERowModificationType::Delete:
-                    case ERowModificationType::ReadLockWrite: {
+                    case ERowModificationType::WriteAndLock: {
                         auto capturedRow = rowBuffer->CaptureAndPermuteRow(
                             TUnversionedRow(modification.Row),
                             *modificationSchema,
@@ -768,7 +768,7 @@ private:
                         }
 
                         auto modificationType = modification.Type;
-                        if (tableInfo->IsReplicated() && modificationType == ERowModificationType::ReadLockWrite) {
+                        if (tableInfo->IsReplicated() && modificationType == ERowModificationType::WriteAndLock) {
                             modificationType = ERowModificationType::Write;
                         }
 
@@ -843,8 +843,8 @@ private:
                 case ERowModificationType::Delete:
                     return EWireProtocolCommand::DeleteRow;
 
-                case ERowModificationType::ReadLockWrite:
-                    return EWireProtocolCommand::ReadLockWriteRow;
+                case ERowModificationType::WriteAndLock:
+                    return EWireProtocolCommand::WriteAndLockRow;
 
                 default:
                     YT_ABORT();
@@ -1295,7 +1295,7 @@ private:
                             merger.AddPartialRow(it->Row);
                             break;
 
-                        case EWireProtocolCommand::ReadLockWriteRow:
+                        case EWireProtocolCommand::WriteAndLockRow:
                             merger.AddPartialRow(it->Row);
                             lockMask = MaxMask(lockMask, it->Locks);
                             break;
@@ -1312,8 +1312,8 @@ private:
                 if (resultCommand == EWireProtocolCommand::DeleteRow) {
                     mergedRow = merger.BuildDeleteRow();
                 } else {
-                    if (lockMask) {
-                        resultCommand = EWireProtocolCommand::ReadLockWriteRow;
+                    if (lockMask.GetSize() > 0) {
+                        resultCommand = EWireProtocolCommand::WriteAndLockRow;
                     }
                     mergedRow = merger.BuildMergedRow();
                 }
@@ -1337,13 +1337,22 @@ private:
             ++batch->RowCount;
             batch->DataWeight += GetDataWeight(submittedRow.Row);
 
-            writer.WriteCommand(submittedRow.Command);
-
-            if (submittedRow.Command == EWireProtocolCommand::ReadLockWriteRow) {
-                writer.WriteLockBitmap(submittedRow.Locks);
+            // COMPAT(gritukan)
+            if (submittedRow.Command == EWireProtocolCommand::WriteAndLockRow) {
+                auto locks = submittedRow.Locks;
+                if (locks.HasNewLocks()) {
+                    writer.WriteCommand(EWireProtocolCommand::WriteAndLockRow);
+                    writer.WriteUnversionedRow(submittedRow.Row);
+                    writer.WriteLockMask(locks);
+                } else {
+                    writer.WriteCommand(EWireProtocolCommand::ReadLockWriteRow);
+                    writer.WriteLegacyLockBitmap(locks.ToLegacyMask().GetBitmap());
+                    writer.WriteUnversionedRow(submittedRow.Row);
+                }
+            } else {
+                writer.WriteCommand(submittedRow.Command);
+                writer.WriteUnversionedRow(submittedRow.Row);
             }
-
-            writer.WriteUnversionedRow(submittedRow.Row);
         }
 
         void PrepareOrderedBatches()

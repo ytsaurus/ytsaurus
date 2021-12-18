@@ -3430,14 +3430,17 @@ private:
         for (ssize_t index = 0; index < rowsetSize; ++index) {
             TLockMask lockMask;
             if (index < request.row_read_locks_size()) {
-                TLockBitmap readLockMask = request.row_read_locks(index);
-                for (int index = 0; index < TLockMask::MaxCount; ++index) {
+                TLegacyLockBitmap readLockMask = request.row_read_locks(index);
+                for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
                     if (readLockMask & (1u << index)) {
                         lockMask.Set(index, ELockType::SharedWeak);
                     }
                 }
             } else if (index < request.row_locks_size()) {
-                lockMask = TLockMask(request.row_locks(index));
+                auto legacyLocks = TLegacyLockMask(request.row_locks(index));
+                for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
+                    lockMask.Set(index, legacyLocks.Get(index));
+                }
             }
 
             modifications.push_back({

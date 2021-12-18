@@ -4,40 +4,139 @@
 #include "schema.h"
 #endif
 
+#include <yt/yt/core/misc/cast.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TLockMask::TLockMask(TLockBitmap value)
+inline TLegacyLockMask::TLegacyLockMask(TLegacyLockBitmap value)
     : Data_(value)
 { }
 
-inline ELockType TLockMask::Get(int index) const
+inline ELockType TLegacyLockMask::Get(int index) const
 {
     return ELockType((Data_ >> (BitsPerType * index)) & TypeMask);
 }
 
-inline void TLockMask::Set(int index, ELockType lock)
+inline void TLegacyLockMask::Set(int index, ELockType lock)
 {
+    YT_VERIFY(lock <= MaxOldLockType);
     Data_ &= ~(TypeMask << (BitsPerType * index));
-    Data_ |= static_cast<TLockBitmap>(lock) << (BitsPerType * index);
+    Data_ |= static_cast<TLegacyLockBitmap>(lock) << (BitsPerType * index);
 }
 
-inline void TLockMask::Enrich(int columnCount)
+inline void TLegacyLockMask::Enrich(int columnCount)
 {
     auto primaryLockType = Get(PrimaryLockIndex);
     auto maxLockType = primaryLockType;
     for (int index = 1; index < columnCount; ++index) {
         auto lockType = Get(index);
-        Set(index, std::max(primaryLockType, lockType));
-        maxLockType = std::max(maxLockType, lockType);
+        Set(index, GetStrongestLock(primaryLockType, lockType));
+        maxLockType = GetStrongestLock(maxLockType, lockType);
     }
     Set(PrimaryLockIndex, maxLockType);
 }
 
-inline TLockMask::operator TLockBitmap() const
+inline TLegacyLockBitmap TLegacyLockMask::GetBitmap() const
 {
     return Data_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TLockMask::TLockMask(TLockBitmap bitmap, int size)
+    : Bitmap_(std::move(bitmap))
+    , Size_(size)
+{ }
+
+inline ELockType TLockMask::Get(int index) const
+{
+    auto wordIndex = index / LocksPerWord;
+    if (wordIndex < std::ssize(Bitmap_)) {
+        auto wordPosition = index & (LocksPerWord - 1);
+        auto lock = (Bitmap_[wordIndex] >> (BitsPerType * wordPosition)) & LockMask;
+        return CheckedEnumCast<ELockType>(lock);
+    } else {
+        return ELockType::None;
+    }
+}
+
+inline void TLockMask::Set(int index, ELockType lock)
+{
+    if (index >= Size_) {
+        Reserve(index + 1);
+    }
+
+    auto& word = Bitmap_[index / LocksPerWord];
+    auto wordPosition = index & (LocksPerWord - 1);
+
+    word &= ~(LockMask << (BitsPerType * wordPosition));
+    word |= static_cast<ui64>(lock) << (BitsPerType * wordPosition);
+}
+
+inline void TLockMask::Enrich(int size)
+{
+    if (size < Size_) {
+        return;
+    }
+
+    Reserve(size);
+
+    auto primaryLockType = Get(PrimaryLockIndex);
+    auto maxLockType = primaryLockType;
+    for (int index = 1; index < size; ++index) {
+        auto lockType = Get(index);
+        Set(index, GetStrongestLock(primaryLockType, lockType));
+        maxLockType = GetStrongestLock(maxLockType, lockType);
+    }
+    // TODO(gritukan): Do we really need both to promote all locks up to primary lock
+    // and promote primary lock to strongest of all locks in mask?
+    Set(PrimaryLockIndex, maxLockType);
+}
+
+inline int TLockMask::GetSize() const
+{
+    return Size_;
+}
+
+inline TLockBitmap TLockMask::GetBitmap() const
+{
+    return Bitmap_;
+}
+
+inline TLegacyLockMask TLockMask::ToLegacyMask() const
+{
+    TLegacyLockMask legacyMask;
+    for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
+        legacyMask.Set(index, Get(index));
+    }
+
+    return legacyMask;
+}
+
+inline bool TLockMask::HasNewLocks() const
+{
+    for (int index = 0; index < Size_; ++index) {
+        if (Get(index) > MaxOldLockType) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+inline void TLockMask::Reserve(int size)
+{
+    YT_VERIFY(size < MaxSize);
+
+    int wordCount = DivCeil(size, LocksPerWord);
+    if (wordCount > std::ssize(Bitmap_)) {
+        Bitmap_.resize(wordCount);
+    }
+
+    Size_ = size;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

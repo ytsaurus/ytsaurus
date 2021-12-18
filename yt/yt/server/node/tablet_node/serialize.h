@@ -32,6 +32,8 @@ DEFINE_ENUM(ETabletReign,
     ((VersionedWriteToOrderedTablet)      (100205)) // gritukan
     // 21.3 starts here.
     ((WriteGenerations)                   (100301)) // max42
+    // 22.1 starts here.
+    ((NewLockMasks)                       (100400)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
