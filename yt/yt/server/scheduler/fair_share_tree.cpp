@@ -882,7 +882,7 @@ public:
         })));
 
         dynamicOrchidService->AddChild("pools", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            auto treeSnapshotImpl = ThreadSafeGetTreeSnapshotImpl();
+            auto treeSnapshotImpl = GetTreeSnapshotImpl();
 
             BuildYsonFluently(consumer).BeginMap()
                 .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), std::move(treeSnapshotImpl)))
@@ -890,7 +890,7 @@ public:
         }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("resource_distribution_info", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            auto treeSnapshotImpl = ThreadSafeGetTreeSnapshotImpl();
+            auto treeSnapshotImpl = GetTreeSnapshotImpl();
 
             BuildYsonFluently(consumer).BeginMap()
                 .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshotImpl->RootElement()))
@@ -989,7 +989,7 @@ private:
         {
             VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
 
-            return std::ssize(FairShareTree_->ThreadSafeGetTreeSnapshotImpl()->PoolMap());
+            return std::ssize(FairShareTree_->GetTreeSnapshotImpl()->PoolMap());
         }
 
         std::vector<TString> GetKeys(const i64 limit) const final
@@ -1000,7 +1000,7 @@ private:
                 return {};
             }
 
-            const auto fairShareTreeSnapshotImpl = FairShareTree_->ThreadSafeGetTreeSnapshotImpl();
+            const auto fairShareTreeSnapshotImpl = FairShareTree_->GetTreeSnapshotImpl();
 
             std::vector<TString> result;
             result.reserve(std::min(limit, std::ssize(fairShareTreeSnapshotImpl->PoolMap())));
@@ -1019,7 +1019,7 @@ private:
         {
             VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
 
-            const auto fairShareTreeSnapshotImpl = FairShareTree_->ThreadSafeGetTreeSnapshotImpl();
+            const auto fairShareTreeSnapshotImpl = FairShareTree_->GetTreeSnapshotImpl();
 
             const auto poolIterator = fairShareTreeSnapshotImpl->PoolMap().find(poolName);
             if (poolIterator == std::cend(fairShareTreeSnapshotImpl->PoolMap())) {
@@ -1304,7 +1304,7 @@ private:
     // NB: Used only in fair share logging invoker.
     mutable TTreeSnapshotId LastLoggedTreeSnapshotId_;
 
-    TFairShareTreeSnapshotImplPtr ThreadSafeGetTreeSnapshotImpl() const noexcept
+    TFairShareTreeSnapshotImplPtr GetTreeSnapshotImpl() const noexcept
     {
         VERIFY_THREAD_AFFINITY_ANY();
         auto guard = Guard(TreeSnapshotImplLock_);
