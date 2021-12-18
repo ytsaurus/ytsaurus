@@ -15,18 +15,18 @@ struct TCalibrationState
 {
     TCpuInstant CpuInstant;
     TInstant Instant;
-    double TicksToMicroseconds;
-    double MicrosecondsToTicks;
 };
 
 double GetMicrosecondsToTicks()
 {
-    return static_cast<double>(NHPTimer::GetCyclesPerSecond()) / 1'000'000;
+    static const auto MicrosecondsToTicks = static_cast<double>(NHPTimer::GetCyclesPerSecond()) / 1'000'000;
+    return MicrosecondsToTicks;
 }
 
 double GetTicksToMicroseconds()
 {
-    return 1.0 / GetMicrosecondsToTicks();
+    static const auto TicksToMicroseconds = 1.0 / GetMicrosecondsToTicks();
+    return TicksToMicroseconds;
 }
 
 TCalibrationState GetCalibrationState(TCpuInstant cpuInstant)
@@ -36,8 +36,6 @@ TCalibrationState GetCalibrationState(TCpuInstant cpuInstant)
     if (State.CpuInstant + CalibrationCpuPeriod < cpuInstant) {
         State.CpuInstant = cpuInstant;
         State.Instant = TInstant::Now();
-        State.TicksToMicroseconds = GetTicksToMicroseconds();
-        State.MicrosecondsToTicks = GetMicrosecondsToTicks();
     }
 
     return State;
@@ -67,7 +65,7 @@ TInstant GetInstant()
     auto cpuInstant = GetCpuInstant();
     auto state = GetCalibrationState(cpuInstant);
     YT_ASSERT(cpuInstant >= state.CpuInstant);
-    return state.Instant + CpuDurationToDuration(cpuInstant - state.CpuInstant, state.TicksToMicroseconds);
+    return state.Instant + CpuDurationToDuration(cpuInstant - state.CpuInstant, GetTicksToMicroseconds());
 }
 
 TDuration CpuDurationToDuration(TCpuDuration cpuDuration)
@@ -86,8 +84,8 @@ TInstant CpuInstantToInstant(TCpuInstant cpuInstant)
     // thus we consider two cases separately.
     auto state = GetCalibrationState();
     return cpuInstant >= state.CpuInstant
-        ? state.Instant + CpuDurationToDuration(cpuInstant - state.CpuInstant, state.TicksToMicroseconds)
-        : state.Instant - CpuDurationToDuration(state.CpuInstant - cpuInstant, state.TicksToMicroseconds);
+        ? state.Instant + CpuDurationToDuration(cpuInstant - state.CpuInstant, GetTicksToMicroseconds())
+        : state.Instant - CpuDurationToDuration(state.CpuInstant - cpuInstant, GetTicksToMicroseconds());
 }
 
 TCpuInstant InstantToCpuInstant(TInstant instant)
@@ -95,8 +93,8 @@ TCpuInstant InstantToCpuInstant(TInstant instant)
     // See above.
     auto state = GetCalibrationState();
     return instant >= state.Instant
-        ? state.CpuInstant + DurationToCpuDuration(instant - state.Instant, state.MicrosecondsToTicks)
-        : state.CpuInstant - DurationToCpuDuration(state.Instant - instant, state.MicrosecondsToTicks);
+        ? state.CpuInstant + DurationToCpuDuration(instant - state.Instant, GetMicrosecondsToTicks())
+        : state.CpuInstant - DurationToCpuDuration(state.Instant - instant, GetMicrosecondsToTicks());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
