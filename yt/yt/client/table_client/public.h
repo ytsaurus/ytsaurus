@@ -242,8 +242,11 @@ using TSortColumns = std::vector<TColumnSortSchema>;
 class TTableSchema;
 using TTableSchemaPtr = TIntrusivePtr<TTableSchema>;
 
+class TLegacyLockMask;
+using TLegacyLockBitmap = ui64;
+
 class TLockMask;
-using TLockBitmap = ui64;
+using TLockBitmap = TCompactVector<ui64, 1>;
 
 class TComparator;
 

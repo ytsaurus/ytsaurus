@@ -151,10 +151,23 @@ bool TSortedStoreManager::ExecuteWrites(
                 break;
             }
 
-            case EWireProtocolCommand::ReadLockWriteRow: {
-                TLockMask locks(reader->ReadLockBitmap());
+            case EWireProtocolCommand::ReadLockWriteRow:
+            case EWireProtocolCommand::WriteAndLockRow: {
+                TLockMask locks;
+                if (command == EWireProtocolCommand::ReadLockWriteRow) {
+                    TLegacyLockMask legacyLocks(reader->ReadLegacyLockBitmap());
+                    for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
+                        locks.Set(index, legacyLocks.Get(index));
+                    }
+                }
+
                 auto key = reader->ReadUnversionedRow(false);
-                rowRef = ModifyRow(key, ERowModificationType::ReadLockWrite, locks, context);
+
+                if (command == EWireProtocolCommand::WriteAndLockRow) {
+                    locks = reader->ReadLockMask();
+                }
+
+                rowRef = ModifyRow(key, ERowModificationType::WriteAndLock, locks, context);
                 break;
             }
 
@@ -181,7 +194,7 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
 
     switch (modificationType) {
         case ERowModificationType::Write:
-        case ERowModificationType::ReadLockWrite: {
+        case ERowModificationType::WriteAndLock: {
             if (Tablet_->GetAtomicity() == EAtomicity::None) {
                 break;
             }

@@ -2,10 +2,10 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/tablet_client/dynamic_value.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/schema.h>
-
-#include <yt/yt/ytlib/tablet_client/dynamic_value.h>
 
 #include <yt/yt/core/misc/chunked_memory_pool.h>
 
@@ -533,6 +533,8 @@ struct TSortedDynamicRowRef
 
     TSortedDynamicRowRef() = default;
     TSortedDynamicRowRef(const TSortedDynamicRowRef& other) = default;
+    TSortedDynamicRowRef(TSortedDynamicRowRef&& other) noexcept = default;
+    TSortedDynamicRowRef& operator=(const TSortedDynamicRowRef& other) = default;
 
     TSortedDynamicRowRef(
         TSortedDynamicStore* store,

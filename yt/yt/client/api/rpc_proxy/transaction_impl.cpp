@@ -372,7 +372,7 @@ void TTransaction::ModifyRows(
         YT_VERIFY(
             modification.Type == ERowModificationType::Write ||
             modification.Type == ERowModificationType::Delete ||
-            modification.Type == ERowModificationType::ReadLockWrite);
+            modification.Type == ERowModificationType::WriteAndLock);
     }
 
     auto reqSequenceNumber = ModifyRowsRequestSequenceCounter_++;
@@ -390,7 +390,12 @@ void TTransaction::ModifyRows(
     bool usedStrongLocks = false;
     for (const auto& modification : modifications) {
         auto mask = modification.Locks;
-        for (int index = 0; index < TLockMask::MaxCount; ++index) {
+        for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
+            if (mask.Get(index) > MaxOldLockType) {
+                THROW_ERROR_EXCEPTION("New locks are not supported in RPC client yet")
+                    << TErrorAttribute("lock_index", index)
+                    << TErrorAttribute("lock_type", mask.Get(index));
+            }
             usedStrongLocks |= mask.Get(index) == ELockType::SharedStrong;
         }
     }
@@ -403,10 +408,12 @@ void TTransaction::ModifyRows(
         rows.emplace_back(modification.Row);
         req->add_row_modification_types(static_cast<NProto::ERowModificationType>(modification.Type));
         if (usedStrongLocks) {
-            req->add_row_locks(modification.Locks);
+            auto locks = modification.Locks;
+            YT_VERIFY(!locks.HasNewLocks());
+            req->add_row_locks(locks.ToLegacyMask().GetBitmap());
         } else {
-            TLockBitmap bitmap = 0;
-            for (int index = 0; index < TLockMask::MaxCount; ++index) {
+            TLegacyLockBitmap bitmap = 0;
+            for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
                 if (modification.Locks.Get(index) == ELockType::SharedWeak) {
                     bitmap |= 1u << index;
                 }

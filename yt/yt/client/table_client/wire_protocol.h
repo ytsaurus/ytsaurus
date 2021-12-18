@@ -81,6 +81,14 @@ DEFINE_ENUM(EWireProtocolCommand,
     // Output:
     //   None
 
+    ((WriteAndLockRow)(104))
+    // Take locks on row and optionally modify row
+    //
+    // Input:
+    //   * Unversioned row
+    //   * Lock mask
+    // Output:
+    //   None
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +106,9 @@ public:
 
     void WriteCommand(EWireProtocolCommand command);
 
-    void WriteLockBitmap(TLockBitmap lockBitmap);
+    void WriteLegacyLockBitmap(TLegacyLockBitmap lockBitmap);
+
+    void WriteLockMask(TLockMask lockMask);
 
     void WriteTableSchema(const NTableClient::TTableSchema& schema);
 
@@ -188,7 +198,10 @@ public:
     TSharedRef Slice(TIterator begin, TIterator end);
 
     EWireProtocolCommand ReadCommand();
-    TLockBitmap ReadLockBitmap();
+
+    TLegacyLockBitmap ReadLegacyLockBitmap();
+
+    TLockMask ReadLockMask();
 
     NTableClient::TTableSchema ReadTableSchema();
 
@@ -222,7 +235,6 @@ public:
 private:
     class TImpl;
     const std::unique_ptr<TImpl> Impl_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

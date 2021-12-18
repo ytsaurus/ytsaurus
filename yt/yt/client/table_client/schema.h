@@ -25,28 +25,75 @@ DEFINE_ENUM(ELockType,
     ((Exclusive)    (3))
 );
 
-class TLockMask
+// COMPAT(gritukan)
+constexpr ELockType MaxOldLockType = ELockType::Exclusive;
+
+ELockType GetStrongestLock(ELockType lhs, ELockType rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLegacyLockMask
 {
 public:
-    explicit TLockMask(TLockBitmap value = 0);
+    explicit TLegacyLockMask(TLegacyLockBitmap value = 0);
 
     ELockType Get(int index) const;
     void Set(int index, ELockType lock);
 
     void Enrich(int columnCount);
 
-    TLockMask& operator = (const TLockMask& other) = default;
-    operator TLockBitmap() const;
+    TLegacyLockBitmap GetBitmap() const;
+
+    TLegacyLockMask& operator = (const TLegacyLockMask& other) = default;
 
     static constexpr int BitsPerType = 2;
-    static constexpr TLockBitmap TypeMask = (1 << BitsPerType) - 1;
-    static constexpr int MaxCount = 8 * sizeof(TLockBitmap) / BitsPerType;
+    static constexpr TLegacyLockBitmap TypeMask = (1 << BitsPerType) - 1;
+    static constexpr int MaxCount = 8 * sizeof(TLegacyLockBitmap) / BitsPerType;
 
 private:
-    TLockBitmap Data_;
+    TLegacyLockBitmap Data_;
 };
 
-static_assert(TEnumTraits<ELockType>::GetMaxValue() <= ELockType((1 << TLockMask::BitsPerType) - 1));
+////////////////////////////////////////////////////////////////////////////////
+
+class TLockMask
+{
+public:
+    TLockMask() = default;
+
+    TLockMask(TLockBitmap bitmap, int size);
+
+    ELockType Get(int index) const;
+    void Set(int index, ELockType lock);
+
+    void Enrich(int size);
+
+    int GetSize() const;
+    TLockBitmap GetBitmap() const;
+
+    // COMPAT(gritukan)
+    TLegacyLockMask ToLegacyMask() const;
+    bool HasNewLocks() const;
+
+    static constexpr int BitsPerType = 4;
+    static_assert(static_cast<int>(TEnumTraits<ELockType>::GetMaxValue()) < (1 << BitsPerType));
+
+    static constexpr ui64 LockMask = (1 << BitsPerType) - 1;
+
+    static constexpr int LocksPerWord = 8 * sizeof(TLockBitmap::value_type) / BitsPerType;
+    static_assert(IsPowerOf2(LocksPerWord));
+
+    // Size of the lock mask should fit into ui16 for wire protocol.
+    static constexpr int MaxSize = (1 << 16) - 1;
+
+private:
+    TLockBitmap Bitmap_;
+    int Size_ = 0;
+
+    void Reserve(int size);
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 TLockMask MaxMask(TLockMask lhs, TLockMask rhs);
 

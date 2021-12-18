@@ -74,9 +74,24 @@ public:
         WriteUint64(static_cast<unsigned int>(command));
     }
 
-    void WriteLockBitmap(TLockBitmap lockBitmap)
+    void WriteLegacyLockBitmap(TLegacyLockBitmap lockBitmap)
     {
         WriteUint64(lockBitmap);
+    }
+
+    void WriteLockMask(TLockMask lockMask)
+    {
+        auto size = lockMask.GetSize();
+        YT_VERIFY(size <= TLockMask::MaxSize);
+        auto wordCount = DivCeil(size, TLockMask::LocksPerWord);
+
+        WriteUint16(size);
+
+        auto bitmap = lockMask.GetBitmap();
+        YT_VERIFY(std::ssize(bitmap) >= wordCount);
+        for (int index = 0; index < wordCount; ++index) {
+            WriteUint64(bitmap[index]);
+        }
     }
 
     void WriteTableSchema(const TTableSchema& schema)
@@ -267,6 +282,12 @@ private:
         NSan::CheckMemIsInitialized(Current_, AlignUp<size_t>(sizeof(T), SerializationAlignment));
         Current_ += AlignUp<size_t>(sizeof(T), SerializationAlignment);
         YT_ASSERT(Current_ <= EndPreallocated_);
+    }
+
+    void WriteUint16(ui16 value)
+    {
+        EnsureCapacity(AlignUp<size_t>(sizeof(ui16), SerializationAlignment));
+        UnsafeWritePod(value);
     }
 
     void WriteUint64(ui64 value)
@@ -495,9 +516,14 @@ void TWireProtocolWriter::WriteCommand(EWireProtocolCommand command)
     Impl_->WriteCommand(command);
 }
 
-void TWireProtocolWriter::WriteLockBitmap(TLockBitmap lockBitmap)
+void TWireProtocolWriter::WriteLegacyLockBitmap(TLegacyLockBitmap lockBitmap)
 {
-    Impl_->WriteLockBitmap(lockBitmap);
+    Impl_->WriteLegacyLockBitmap(lockBitmap);
+}
+
+void TWireProtocolWriter::WriteLockMask(TLockMask lockMask)
+{
+    Impl_->WriteLockMask(lockMask);
 }
 
 void TWireProtocolWriter::WriteTableSchema(const TTableSchema& schema)
@@ -615,9 +641,23 @@ public:
         return EWireProtocolCommand(ReadUint64());
     }
 
-    TLockBitmap ReadLockBitmap()
+    TLegacyLockBitmap ReadLegacyLockBitmap()
     {
         return ReadUint64();
+    }
+
+    TLockMask ReadLockMask()
+    {
+        auto size = ReadUint16();
+        auto wordCount = DivCeil<int>(size, TLockMask::LocksPerWord);
+
+        TLockBitmap bitmap;
+        bitmap.reserve(wordCount);
+        for (int index = 0; index < wordCount; ++index) {
+            bitmap.push_back(ReadUint64());
+        }
+
+        return TLockMask(bitmap, size);
     }
 
     TTableSchema ReadTableSchema()
@@ -794,6 +834,15 @@ private:
             THROW_ERROR_EXCEPTION("Value is out of range to fit into uint32");
         }
         return static_cast<ui32>(result);
+    }
+
+    ui16 ReadUint16()
+    {
+        ui64 result = ReadUint64();
+        if (result > std::numeric_limits<ui16>::max()) {
+            THROW_ERROR_EXCEPTION("Value is out of range to fit into uint16");
+        }
+        return static_cast<ui16>(result);
     }
 
     i32 ReadInt32()
@@ -1012,9 +1061,14 @@ EWireProtocolCommand TWireProtocolReader::ReadCommand()
     return Impl_->ReadCommand();
 }
 
-TLockBitmap TWireProtocolReader::ReadLockBitmap()
+TLegacyLockBitmap TWireProtocolReader::ReadLegacyLockBitmap()
 {
-    return Impl_->ReadLockBitmap();
+    return Impl_->ReadLegacyLockBitmap();
+}
+
+TLockMask TWireProtocolReader::ReadLockMask()
+{
+    return Impl_->ReadLockMask();
 }
 
 TTableSchema TWireProtocolReader::ReadTableSchema()

@@ -82,7 +82,7 @@ void ITransaction::LockRows(
 
     for (auto key : keys) {
         TRowModification modification;
-        modification.Type = ERowModificationType::ReadLockWrite;
+        modification.Type = ERowModificationType::WriteAndLock;
         modification.Row = key.ToTypeErasedRow();
         modification.Locks = lockMask;
         modifications.push_back(modification);

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <yt/yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/unversioned_value.h>
+
 namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////

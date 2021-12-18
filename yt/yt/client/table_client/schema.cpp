@@ -4,7 +4,6 @@
 #include "comparator.h"
 #include "logical_type.h"
 #include "unversioned_row.h"
-#include "yt/yt/client/table_client/logical_type.h"
 
 #include <yt/yt/client/tablet_client/public.h>
 
@@ -31,13 +30,43 @@ using NYT::FromProto;
 
 /////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+int GetLockPriority(ELockType lockType)
+{
+    switch (lockType) {
+        case ELockType::None:
+            return 0;
+        case ELockType::SharedWeak:
+            return 1;
+        case ELockType::SharedStrong:
+            return 2;
+        case ELockType::Exclusive:
+            return 3;
+        default:
+            YT_ABORT();
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+ELockType GetStrongestLock(ELockType lhs, ELockType rhs)
+{
+    return GetLockPriority(lhs) > GetLockPriority(rhs) ? lhs : rhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLockMask MaxMask(TLockMask lhs, TLockMask rhs)
 {
-    TLockMask result;
-    for (int index = 0; index < TLockMask::MaxCount; ++index) {
-        result.Set(index, std::max(lhs.Get(index), rhs.Get(index)));
+    int size = std::max<int>(lhs.GetSize(), rhs.GetSize());
+    for (int index = 0; index < size; ++index) {
+        lhs.Set(index, GetStrongestLock(lhs.Get(index), rhs.Get(index)));
     }
-    return result;
+
+    return lhs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

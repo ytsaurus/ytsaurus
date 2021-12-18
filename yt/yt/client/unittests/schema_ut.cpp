@@ -9,6 +9,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <random>
 
 namespace NYT::NTableClient {
 
@@ -437,6 +438,58 @@ TEST(TTableSchemaTest, EqualIgnoringRequiredness)
     EXPECT_TRUE(schema1 != schema2);
     EXPECT_TRUE(IsEqualIgnoringRequiredness(schema1, schema2));
     EXPECT_FALSE(IsEqualIgnoringRequiredness(schema1, schema3));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TLockMaskTest, Simple)
+{
+    TLockMask mask;
+    mask.Set(17, ELockType::SharedStrong);
+    EXPECT_EQ(mask.Get(17), ELockType::SharedStrong);
+}
+
+TEST(TLockMaskTest, RandomChanges)
+{
+    constexpr int IterationCount = 1'000'000;
+    constexpr int MaxLockIndex = 256;
+    constexpr int MaxLockValue = static_cast<int>(TEnumTraits<ELockType>::GetMaxValue());
+
+    std::mt19937 rng(42);
+
+    TLockMask mask;
+    std::vector<ELockType> locks(MaxLockIndex, ELockType::None);
+    for (int iteration = 0; iteration < IterationCount; ++iteration) {
+        if (rng() % 2 == 0) {
+            int index = rng() % MaxLockIndex;
+            EXPECT_EQ(locks[index], mask.Get(index));
+        } else {
+            int index = rng() % MaxLockIndex;
+            auto value = CheckedEnumCast<ELockType>(rng() % MaxLockValue);
+            mask.Set(index, value);
+            locks[index] = value;
+        }
+    }
+}
+
+TEST(TLockMaskTest, ConvertToLegacy)
+{
+    TLockMask mask;
+    mask.Set(2, ELockType::Exclusive);
+    mask.Set(18, ELockType::SharedStrong);
+
+    EXPECT_FALSE(mask.HasNewLocks());
+    auto legacyLocks = mask.ToLegacyMask();
+    for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
+        auto lock = legacyLocks.Get(index);
+        if (index == 2) {
+            EXPECT_EQ(lock, ELockType::Exclusive);
+        } else if (index == 18) {
+            EXPECT_EQ(lock, ELockType::SharedStrong);
+        } else {
+            EXPECT_EQ(lock, ELockType::None);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
