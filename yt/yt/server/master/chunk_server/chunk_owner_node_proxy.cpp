@@ -771,9 +771,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkList,
-                [] (const TChunk* chunk) {
-                    return CheckedEnumCast<NCompression::ECodec>(chunk->GetCompressionCodec());
-                });
+                [] (const TChunk* chunk) { return chunk->GetCompressionCodec(); });
 
         case EInternedAttributeKey::ErasureStatistics:
             if (isExternal) {
@@ -842,7 +840,8 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         case EInternedAttributeKey::Media: {
             ValidateStorageParametersUpdate();
             auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-            auto replication = GetThisImpl<TChunkOwnerBase>()->Replication(); // Copying for modification.
+            // Copying for modification.
+            auto replication = GetThisImpl<TChunkOwnerBase>()->Replication();
             // Preserves vitality.
             serializableReplication.ToChunkReplication(&replication, chunkManager);
             SetReplication(replication);

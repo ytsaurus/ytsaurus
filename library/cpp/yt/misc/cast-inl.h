@@ -4,9 +4,9 @@
 #include "cast.h"
 #endif
 
-#include <type_traits>
+#include <util/string/cast.h>
 
-#include "error.h"
+#include <type_traits>
 
 namespace NYT {
 
@@ -38,6 +38,29 @@ typename std::enable_if<std::is_unsigned<T>::value && std::is_unsigned<S>::value
     return value <= std::numeric_limits<T>::max();
 }
 
+template <class T>
+TString FormatInvalidCastValue(T value)
+{
+    return ::ToString(value);
+}
+
+inline TString FormatInvalidCastValue(signed char value)
+{
+    return TString("'") + value + TString("'");
+}
+
+inline TString FormatInvalidCastValue(unsigned char value)
+{
+    return TString("'") + value + TString("'");
+}
+
+#ifdef __cpp_char8_t
+inline TString FormatInvalidCastValue(char8_t value)
+{
+    return FormatInvalidCastValue(static_cast<unsigned char>(value));
+}
+#endif
+
 } // namespace NDetail
 
 template <class T, class S>
@@ -55,10 +78,8 @@ T CheckedIntegralCast(S value)
 {
     T result;
     if (!TryIntegralCast<T>(value, &result)) {
-        THROW_ERROR_EXCEPTION("Argument value %v is out of expected integral range [%v,%v]",
-            value,
-            std::numeric_limits<T>::min(),
-            std::numeric_limits<T>::max());
+        ythrow TIntegralCastException() << "Argument value " << NDetail::FormatInvalidCastValue(value) <<
+            " is out of expected range";
     }
     return result;
 }
@@ -79,9 +100,8 @@ T CheckedEnumCast(S value)
 {
     T result;
     if (!TryEnumCast<T>(value, &result)) {
-        THROW_ERROR_EXCEPTION("Invalid value %v of enum type %v",
-            static_cast<int>(value),
-            TEnumTraits<T>::GetTypeName());
+        ythrow TEnumCastException() << "Invalid value " << static_cast<int>(value) <<
+            " of enum type " << TEnumTraits<T>::GetTypeName();
     }
     return result;
 }

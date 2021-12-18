@@ -544,10 +544,9 @@ void LoadLlvmBitcode(
 #endif
 
     if (linkerFailed) {
-        THROW_ERROR_EXCEPTION(
-            "Error linking LLVM bitcode for function %Qv",
+        THROW_ERROR_EXCEPTION("Error linking LLVM bitcode for function %Qv",
             functionName)
-            << TErrorAttribute("message", what.c_str());
+            << TErrorAttribute("message", TString(what));
     }
 
     builder.Module->AddLoadedModule(implementationFile);

@@ -161,8 +161,7 @@ private:
             if (Raw_) {
                 FacadeInput_ = FileInput_.get();
             } else {
-                auto codec = CheckedEnumCast<ECodec>(Header_.Codec);
-                switch (codec) {
+                switch (Header_.Codec) {
                     case ECodec::None:
                         break;
                     case ECodec::Snappy:

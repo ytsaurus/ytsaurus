@@ -12,6 +12,8 @@
 #include <library/cpp/yt/coding/varint.h>
 #include <library/cpp/yt/coding/zig_zag.h>
 
+#include <library/cpp/yt/yson_string/format.h>
+
 #include <util/generic/string.h>
 
 #include <util/string/escape.h>
@@ -41,43 +43,8 @@ namespace NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Indicates the beginning of a list.
-const char BeginListSymbol = '[';
-//! Indicates the end of a list.
-const char EndListSymbol = ']';
-
-//! Indicates the beginning of a map.
-const char BeginMapSymbol = '{';
-//! Indicates the end of a map.
-const char EndMapSymbol = '}';
-
-//! Indicates the beginning of an attribute map.
-const char BeginAttributesSymbol = '<';
-//! Indicates the end of an attribute map.
-const char EndAttributesSymbol = '>';
-
-//! Separates items in lists, maps, attributes.
-const char ItemSeparatorSymbol = ';';
-//! Separates keys from values in maps.
-const char KeyValueSeparatorSymbol = '=';
-
-//! Indicates an entity.
-const char EntitySymbol = '#';
-
 //! Indicates end of stream.
-const char EndSymbol = '\0';
-
-//! Marks the beginning of a binary string literal.
-const char StringMarker = '\x01';
-//! Marks the beginning of a binary i64 literal.
-const char Int64Marker = '\x02';
-//! Marks the beginning of a binary double literal.
-const char DoubleMarker = '\x03';
-//! Marks true and false values of boolean.
-const char FalseMarker = '\x04';
-const char TrueMarker = '\x05';
-//! Marks the beginning of a binary ui64 literal.
-const char Uint64Marker = '\x06';
+constexpr char EndSymbol = '\0';
 
 template <bool EnableLinePositionInfo>
 class TPositionInfo;
