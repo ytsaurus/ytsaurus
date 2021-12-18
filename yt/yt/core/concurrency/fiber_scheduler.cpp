@@ -81,57 +81,45 @@ static thread_local bool FiberShutdown;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFiberScheduler::CancelWait()
+TFiberScheduler::TFiberScheduler(
+    const TString& threadGroupName,
+    const TString& threadName,
+    int shutdownPriority)
+    : TThread(threadName, shutdownPriority)
+    , ThreadGroupName_(threadGroupName)
+{ }
+
+void TFiberScheduler::ThreadMain()
 {
-    Cookie_ = std::nullopt;
-    CallbackEventCount_->CancelWait();
-}
+    // Hold this strongly.
+    auto this_ = MakeStrong(this);
 
-void TFiberScheduler::PrepareWait()
-{
-    YT_VERIFY(!Cookie_);
-    Cookie_ = CallbackEventCount_->PrepareWait();
-}
+    try {
+        YT_LOG_DEBUG("Thread started (Name: %v)",
+            GetThreadName());
 
-void TFiberScheduler::Wait()
-{
-    YT_VERIFY(Cookie_);
-    CallbackEventCount_->Wait(*Cookie_);
-    Cookie_ = std::nullopt;
-}
+        TFiberContext fiberContext;
 
-bool TFiberScheduler:: OnLoop(NThreading::TEventCount::TCookie* cookie)
-{
-    Cookie_ = *cookie;
+        fiberContext.WaitingFibersCounter = New<TRefCountedGauge>(
+            NProfiling::TRegistry{"/action_queue"}.WithTag("thread", ThreadGroupName_).WithHot());
 
-    TFiberContext fiberContext;
+        CurrentThread = this;
+        FiberContext = &fiberContext;
+        auto finally = Finally([] {
+            CurrentThread = nullptr;
+            FiberContext = nullptr;
+        });
 
-    fiberContext.WaitingFibersCounter = New<TRefCountedGauge>(
-        NProfiling::TRegistry{"/action_queue"}.WithTag("thread", ThreadGroupName_).WithHot());
+        auto fiber = New<TFiber>();
 
-    CurrentThread = this;
-    FiberContext = &fiberContext;
-    auto finally = Finally([] {
-        CurrentThread = nullptr;
-        FiberContext = nullptr;
-    });
+        SwitchFromThread(std::move(fiber));
 
-    auto fiber = New<TFiber>();
-
-    SwitchFromThread(std::move(fiber));
-    // Can return from WaitFor if there are no idle fibers.
-
-    // Called when fiber was yielded.
-    EndExecute();
-
-    // Result depends on last BeginExecute result (CancelWait called or not)
-    // should set proper cookie.
-
-    if (Cookie_) {
-        *cookie = *Cookie_;
+        YT_LOG_DEBUG("Thread stopped (Name: %v)",
+            GetThreadName());
+    } catch (const std::exception& ex) {
+        YT_LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %v)",
+            GetThreadName());
     }
-
-    return !Cookie_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,21 +414,20 @@ void FiberMain()
     TFiberScheduler* threadThis = nullptr;
 
     // Break loop to terminate fiber
-    while (true) {
+    while (!FiberShutdown) {
         YT_VERIFY(!ResumerFiber());
 
         threadThis = CurrentThread;
-
-        auto callback = threadThis->BeginExecute();
         YT_VERIFY(threadThis);
 
+        auto callback = threadThis->OnExecute();
+
         if (callback) {
-            threadThis->CancelWait();
-            try {
+             try {
                 RunInFiberContext(std::move(callback));
             } catch (const TFiberCanceledException&) { }
-        } else if (!threadThis->IsStopping()) {
-            threadThis->Wait();
+        } else {
+            break;
         }
 
         auto* resumerFiber = ResumerFiber().Get();
@@ -484,33 +471,27 @@ void FiberMain()
             break;
 #endif
         }
-
-        // Renew thread pointer.
-        threadThis = CurrentThread;
-
-        if (!threadThis || threadThis->IsStopping() || FiberShutdown) {
-            // Do not reuse fiber in this rare case. Otherwise too many idle fibers are collected.
-            YT_VERIFY(!ResumerFiber());
-
-            NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
-            SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([current = MakeStrong(currentFiber)] () mutable {
-                current.Reset();
-            }));
-
-            break;
-        }
-
-        threadThis->EndExecute();
-        threadThis->PrepareWait();
     }
 
     {
         YT_LOG_DEBUG("Fiber finished");
+
+        NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
+        SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([current = MakeStrong(currentFiber)] () mutable {
+            current.Reset();
+        }));
+
     }
 }
 
 void TFiber::DoRunNaked()
 {
+    // Allows set new AfterSwitch inside it.
+    if (auto afterSwitch = std::move(AfterSwitch())) {
+        YT_VERIFY(!AfterSwitch());
+        afterSwitch.Run();
+    }
+
     YT_VERIFY(!Terminated);
     FiberMain();
     // Terminating fiber.
@@ -538,6 +519,10 @@ void YieldFiber(TClosure afterSwitch)
         targetFiber = TFiberManager::Get()->TryDequeueIdleFiber();
     }
 #endif
+
+    if (!targetFiber) {
+        targetFiber = New<TFiber>();
+    }
 
     auto waitingFibersCounter = GetWaitingFibersCounter();
     waitingFibersCounter->Increment(1);
