@@ -264,3 +264,32 @@ message TRspHeartbeat
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqScheduleJobHeartbeat
+{
+    message TAgentToSchedulerScheduleJobResponsesOutbox
+    {
+        required int64 first_item_id = 1;
+        repeated TScheduleJobResponse items = 2;
+    }
+
+    required string agent_id = 1;
+    required NYT.NProto.TGuid incarnation_id = 2;
+    required TAgentToSchedulerScheduleJobResponsesOutbox agent_to_scheduler_schedule_job_responses = 3;
+
+    required TEventQueueInbox scheduler_to_agent_schedule_job_requests = 4;
+}
+
+message TRspScheduleJobHeartbeat
+{
+    message TSchedulerToAgentScheduleJobRequestsOutbox
+    {
+        required int64 first_item_id = 1;
+        repeated TScheduleJobRequest items = 2;
+    }
+
+    required TEventQueueInbox agent_to_scheduler_schedule_job_responses = 1;
+
+    required TSchedulerToAgentScheduleJobRequestsOutbox scheduler_to_agent_schedule_job_requests = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

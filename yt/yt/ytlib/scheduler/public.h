@@ -36,6 +36,8 @@ class TJobResourcesWithQuota;
 class TOperationJobMetrics;
 class TReqHeartbeat;
 class TRspHeartbeat;
+class TReqScheduleJobHeartbeat;
+class TRspScheduleJobHeartbeat;
 class TReqHandshake;
 class TRspHandshake;
 class TReqGetOperationInfo;

@@ -432,6 +432,15 @@ public:
             HeartbeatExecutor_->SetPeriod(Config_->SchedulerHeartbeatPeriod);
         }
 
+        if (ScheduleJobHeartbeatExecutor_) {
+            ScheduleJobHeartbeatExecutor_->SetPeriod(Config_->ScheduleJobHeartbeatPeriod);
+            if (Config_->EnableScheduleJobHeartbeats) {
+                ScheduleJobHeartbeatExecutor_->Start();
+            } else {
+                ScheduleJobHeartbeatExecutor_->Stop();
+            }
+        }
+
         StaticOrchidService_->SetCachePeriod(Config_->StaticOrchidCacheUpdatePeriod);
 
         for (const auto& [operationId, operation] : IdToOperation_) {
@@ -1072,6 +1081,7 @@ private:
     TZombieOperationOrchidsPtr ZombieOperationOrchids_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
+    TPeriodicExecutorPtr ScheduleJobHeartbeatExecutor_;
 
     TMemoryTagQueuePtr MemoryTagQueue_;
 
@@ -1250,6 +1260,14 @@ private:
             Config_->SchedulerHeartbeatPeriod);
         HeartbeatExecutor_->Start();
 
+        ScheduleJobHeartbeatExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TControllerAgent::TImpl::SendScheduleJobHeartbeat, MakeWeak(this)),
+            Config_->ScheduleJobHeartbeatPeriod);
+        if (Config_->EnableScheduleJobHeartbeats) {
+            ScheduleJobHeartbeatExecutor_->Start();
+        }
+
         ZombieOperationOrchids_->Clean();
         ZombieOperationOrchids_->StartPeriodicCleaning(CancelableControlInvoker_);
 
@@ -1321,6 +1339,34 @@ private:
         bool OperationAlertsSent = false;
         bool SuspiciousJobsSent = false;
     };
+
+    template <class THeartbeatReqPtr>
+    void BuildOutcomingScheduleJobResponses(const THeartbeatReqPtr& req)
+    {
+        ScheduleJobResposesOutbox_->BuildOutcoming(
+            req->mutable_agent_to_scheduler_schedule_job_responses(),
+            [] (auto* protoResponse, const auto& response) {
+                const auto& scheduleJobResult = *response.Result;
+                ToProto(protoResponse->mutable_job_id(), response.JobId);
+                ToProto(protoResponse->mutable_operation_id(), response.OperationId);
+                protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch);
+                if (scheduleJobResult.StartDescriptor) {
+                    const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
+                    YT_ASSERT(response.JobId == startDescriptor.Id);
+                    protoResponse->set_job_type(static_cast<int>(startDescriptor.Type));
+                    ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
+                    protoResponse->set_interruptible(startDescriptor.Interruptible);
+                }
+                protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
+                for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+                    if (scheduleJobResult.Failed[reason] > 0) {
+                        auto* protoCounter = protoResponse->add_failed();
+                        protoCounter->set_reason(static_cast<int>(reason));
+                        protoCounter->set_value(scheduleJobResult.Failed[reason]);
+                    }
+                }
+            });
+    }
 
     TPreparedHeartbeatRequest PrepareHeartbeatRequest()
     {
@@ -1426,29 +1472,7 @@ private:
                 }
             });
 
-        ScheduleJobResposesOutbox_->BuildOutcoming(
-            request->mutable_agent_to_scheduler_schedule_job_responses(),
-            [] (auto* protoResponse, const auto& response) {
-                const auto& scheduleJobResult = *response.Result;
-                ToProto(protoResponse->mutable_job_id(), response.JobId);
-                ToProto(protoResponse->mutable_operation_id(), response.OperationId);
-                protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch);
-                if (scheduleJobResult.StartDescriptor) {
-                    const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
-                    YT_ASSERT(response.JobId == startDescriptor.Id);
-                    protoResponse->set_job_type(static_cast<int>(startDescriptor.Type));
-                    ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
-                    protoResponse->set_interruptible(startDescriptor.Interruptible);
-                }
-                protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
-                for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-                    if (scheduleJobResult.Failed[reason] > 0) {
-                        auto* protoCounter = protoResponse->add_failed();
-                        protoCounter->set_reason(static_cast<int>(reason));
-                        protoCounter->set_value(scheduleJobResult.Failed[reason]);
-                    }
-                }
-            });
+        BuildOutcomingScheduleJobResponses(request);
 
         JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_job_events());
         OperationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_operation_events());
@@ -1600,6 +1624,43 @@ private:
         ConfirmHeartbeatRequest(preparedRequest);
     }
 
+    void SendScheduleJobHeartbeat()
+    {
+        auto req = SchedulerProxy_.ScheduleJobHeartbeat();
+
+        req->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
+        req->SetRequestHeavy(true);
+        req->SetResponseHeavy(true);
+        req->set_agent_id(Bootstrap_->GetAgentId());
+        ToProto(req->mutable_incarnation_id(), IncarnationId_);
+
+        BuildOutcomingScheduleJobResponses(req);
+
+        ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_requests());
+
+        YT_LOG_DEBUG("Sending schedule jobs heartbeat (ScheduleJobResponseCount: %v)",
+            req->agent_to_scheduler_schedule_job_responses().items_size());
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            if (NRpc::IsRetriableError(rspOrError)) {
+                YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
+                TDelayedExecutor::WaitForDuration(Config_->SchedulerHeartbeatFailureBackoff);
+            } else {
+                Disconnect(rspOrError);
+            }
+            return;
+        }
+
+        YT_LOG_DEBUG("Schedule jobs heartbeat succeeded");
+
+        const auto& rsp = rspOrError.Value();
+
+        ScheduleJobResposesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_job_responses());
+
+        HandleScheduleJobRequests(rsp, GetExecNodeDescriptors({}));
+    }
+
     void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
     {
         THashMap<TOperationPtr, std::vector<NScheduler::NProto::TSchedulerToAgentJobEvent*>> groupedJobEvents;
@@ -1673,9 +1734,8 @@ private:
             });
     }
 
-    void HandleScheduleJobRequests(
-        const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp,
-        const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
+    template <class THeartbeatRspPtr>
+    void HandleScheduleJobRequests(const THeartbeatRspPtr& rsp, const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
     {
         auto outbox = ScheduleJobResposesOutbox_;
 

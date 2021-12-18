@@ -84,6 +84,78 @@ void FromProto(TOperationInfo* operationInfo, const NProto::TOperationInfo& oper
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class TAgentHeartbeatRequestPtr, class TAgentHeartbeatResponsePtr>
+void ProcessScheduleJobMailboxes(
+    const TControllerAgentPtr& agent,
+    const TSchedulerPtr& scheduler,
+    const TAgentHeartbeatRequestPtr& request,
+    const TAgentHeartbeatResponsePtr& response,
+    std::vector<std::vector<const NProto::TScheduleJobResponse*>>& groupedScheduleJobResponses)
+{
+    agent->GetScheduleJobResponsesInbox()->HandleIncoming(
+        request->mutable_agent_to_scheduler_schedule_job_responses(),
+        [&] (auto* protoEvent) {
+            auto jobId = FromProto<TJobId>(protoEvent->job_id());
+            auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
+            groupedScheduleJobResponses[shardId].push_back(protoEvent);
+        });
+    agent->GetScheduleJobResponsesInbox()->ReportStatus(
+        response->mutable_agent_to_scheduler_schedule_job_responses());
+
+    agent->GetScheduleJobRequestsOutbox()->HandleStatus(
+        request->scheduler_to_agent_schedule_job_requests());
+    agent->GetScheduleJobRequestsOutbox()->BuildOutcoming(
+        response->mutable_scheduler_to_agent_schedule_job_requests(),
+        [] (auto* protoRequest, const auto& request) {
+            ToProto(protoRequest, *request);
+        });
+}
+
+template <class TCtxHeartbeatPtr>
+void ProcessScheduleJobResponses(
+    TCtxHeartbeatPtr context,
+    const std::vector<TNodeShardPtr>& nodeShards,
+    const std::vector<IInvokerPtr>& nodeShardInvokers,
+    std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses)
+{
+    for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
+        nodeShardInvokers[shardId]->Invoke(
+            BIND([
+                context,
+                nodeShard = nodeShards[shardId],
+                protoResponses = std::move(groupedScheduleJobResponses[shardId])
+            ] {
+                for (const auto* protoResponse : protoResponses) {
+                    auto operationId = FromProto<TOperationId>(protoResponse->operation_id());
+                    auto jobId = FromProto<TJobId>(protoResponse->job_id());
+                    auto controllerEpoch = protoResponse->controller_epoch();
+                    auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
+                    if (controllerEpoch != expectedControllerEpoch) {
+                        YT_LOG_DEBUG("Received job schedule result with unexpected controller epoch; ignored "
+                                     "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
+                            operationId,
+                            jobId,
+                            controllerEpoch,
+                            expectedControllerEpoch);
+                        continue;
+                    }
+                    if (nodeShard->IsOperationControllerTerminated(operationId)) {
+                        YT_LOG_DEBUG("Received job schedule result for operation whose controller is terminated; "
+                                     " ignored (OperationId: %v, JobId: %v)",
+                            operationId,
+                            jobId);
+                        continue;
+                    }
+                    nodeShard->EndScheduleJob(*protoResponse);
+                }
+            }));
+    }
+    
+    YT_LOG_DEBUG("Schedule job responses are processed");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentTracker::TImpl
     : public TRefCounted
 {
@@ -498,16 +570,6 @@ public:
             agent->GetJobEventsInbox()->ReportStatus(
                 response->mutable_agent_to_scheduler_job_events());
 
-            agent->GetScheduleJobResponsesInbox()->HandleIncoming(
-                request->mutable_agent_to_scheduler_schedule_job_responses(),
-                [&] (auto* protoEvent) {
-                    auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                    auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
-                    groupedScheduleJobResponses[shardId].push_back(protoEvent);
-                });
-            agent->GetScheduleJobResponsesInbox()->ReportStatus(
-                response->mutable_agent_to_scheduler_schedule_job_responses());
-
             agent->GetJobEventsOutbox()->HandleStatus(
                 request->scheduler_to_agent_job_events());
             agent->GetJobEventsOutbox()->BuildOutcoming(
@@ -548,13 +610,7 @@ public:
                     ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                 });
 
-            agent->GetScheduleJobRequestsOutbox()->HandleStatus(
-                request->scheduler_to_agent_schedule_job_requests());
-            agent->GetScheduleJobRequestsOutbox()->BuildOutcoming(
-                response->mutable_scheduler_to_agent_schedule_job_requests(),
-                [] (auto* protoRequest, const auto& request) {
-                    ToProto(protoRequest, *request);
-                });
+            ProcessScheduleJobMailboxes(agent, scheduler, request, response, groupedScheduleJobResponses);
         });
 
         agent->GetOperationEventsInbox()->HandleIncoming(
@@ -700,17 +756,16 @@ public:
         RunInMessageOffloadThread([
             context,
             nodeShards = std::move(nodeShards),
+            nodeShardInvokers = scheduler->GetNodeShardInvokers(),
             groupedJobEvents = std::move(groupedJobEvents),
-            groupedScheduleJobResponses = std::move(groupedScheduleJobResponses),
-            nodeShardInvokers = scheduler->GetNodeShardInvokers()
+            groupedScheduleJobResponses = std::move(groupedScheduleJobResponses)
         ] {
             for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
                 nodeShardInvokers[shardId]->Invoke(
                     BIND([
                         context,
                         nodeShard = nodeShards[shardId],
-                        protoEvents = std::move(groupedJobEvents[shardId]),
-                        protoResponses = std::move(groupedScheduleJobResponses[shardId])
+                        protoEvents = std::move(groupedJobEvents[shardId])
                     ] {
                         for (const auto* protoEvent : protoEvents) {
                             auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
@@ -752,37 +807,72 @@ public:
                                     YT_ABORT();
                             }
                         }
-
-                        for (const auto* protoResponse : protoResponses) {
-                            auto operationId = FromProto<TOperationId>(protoResponse->operation_id());
-                            auto jobId = FromProto<TJobId>(protoResponse->job_id());
-                            auto controllerEpoch = protoResponse->controller_epoch();
-                            auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
-                            if (controllerEpoch != expectedControllerEpoch) {
-                                YT_LOG_DEBUG("Received job schedule result with unexpected controller epoch; ignored "
-                                             "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
-                                    operationId,
-                                    jobId,
-                                    controllerEpoch,
-                                    expectedControllerEpoch);
-                                continue;
-                            }
-                            if (nodeShard->IsOperationControllerTerminated(operationId)) {
-                                YT_LOG_DEBUG("Received job schedule result for operation whose controller is terminated; "
-                                             " ignored (OperationId: %v, JobId: %v)",
-                                    operationId,
-                                    jobId);
-                                continue;
-                            }
-                            nodeShard->EndScheduleJob(*protoResponse);
-                        }
                     }));
             }
-            YT_LOG_DEBUG("Job events distributed among node shards");
+            YT_LOG_DEBUG("Job events are processed");
+
+            ProcessScheduleJobResponses(context, nodeShards, nodeShardInvokers, std::move(groupedScheduleJobResponses));
         });
 
         response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());
         response->set_enable_job_reporter(Bootstrap_->GetScheduler()->IsJobReporterEnabled());
+
+        context->Reply();
+    }
+
+
+    void ProcessAgentScheduleJobHeartbeat(const TCtxAgentScheduleJobHeartbeatPtr& context)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        auto* request = &context->Request();
+        auto* response = &context->Response();
+
+        const auto& agentId = request->agent_id();
+        auto incarnationId = FromProto<NControllerAgent::TIncarnationId>(request->incarnation_id());
+
+        context->SetRequestInfo("AgentId: %v, IncarnationId: %v", agentId, incarnationId);
+
+        auto agent = GetAgentOrThrow(agentId);
+        if (agent->GetState() != EControllerAgentState::Registered && agent->GetState() != EControllerAgentState::WaitingForInitialHeartbeat) {
+            context->Reply(TError("Agent %Qv is in %Qlv state",
+                agentId,
+                agent->GetState()));
+            return;
+        }
+        if (incarnationId != agent->GetIncarnationId()) {
+            context->Reply(TError("Wrong agent incarnation id: expected %v, got %v",
+                agent->GetIncarnationId(),
+                incarnationId));
+            return;
+        }
+        if (agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat) {
+            YT_LOG_INFO("Agent registration confirmed by heartbeat");
+            agent->SetState(EControllerAgentState::Registered);
+        }
+
+        TLeaseManager::RenewLease(agent->GetLease(), Config_->HeartbeatTimeout);
+
+        SwitchTo(agent->GetCancelableInvoker());
+
+        const auto& nodeShards = scheduler->GetNodeShards();
+
+        RunInMessageOffloadThread([
+            context,
+            agent,
+            request,
+            response,
+            scheduler,
+            nodeShards = std::move(nodeShards),
+            nodeShardInvokers = scheduler->GetNodeShardInvokers()
+        ] {
+            std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
+            ProcessScheduleJobMailboxes(agent, scheduler, request, response, groupedScheduleJobResponses);
+            ProcessScheduleJobResponses(context, nodeShards, nodeShardInvokers, std::move(groupedScheduleJobResponses));
+        });
 
         context->Reply();
     }
@@ -1089,6 +1179,11 @@ void TControllerAgentTracker::UpdateConfig(TSchedulerConfigPtr config)
 void TControllerAgentTracker::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
 {
     Impl_->ProcessAgentHeartbeat(context);
+}
+
+void TControllerAgentTracker::ProcessAgentScheduleJobHeartbeat(const TCtxAgentScheduleJobHeartbeatPtr& context)
+{
+    Impl_->ProcessAgentScheduleJobHeartbeat(context);
 }
 
 void TControllerAgentTracker::ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
