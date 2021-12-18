@@ -276,7 +276,7 @@ public:
         YT_ASSERT(!threadState.Bucket);
         YT_ASSERT(action && action->Finished);
 
-        auto tscp = NProfiling::TTscp::Get();
+        auto currentInstant = GetCpuInstant();
 
         TBucketPtr bucket;
         {
@@ -290,9 +290,9 @@ public:
             ++bucket->CurrentExecutions;
 
             threadState.Bucket = bucket;
-            threadState.AccountedAt = tscp.Instant;
+            threadState.AccountedAt = currentInstant;
 
-            action->StartedAt = tscp.Instant;
+            action->StartedAt = currentInstant;
             bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
         }
 
@@ -321,9 +321,9 @@ public:
             return;
         }
 
-        auto tscp = NProfiling::TTscp::Get();
+        auto currentInstant = GetCpuInstant();
 
-        action->FinishedAt = tscp.Instant;
+        action->FinishedAt = currentInstant;
 
         auto timeFromStart = CpuDurationToDuration(action->FinishedAt - action->StartedAt);
         auto timeFromEnqueue = CpuDurationToDuration(action->FinishedAt - action->EnqueuedAt);
@@ -360,8 +360,8 @@ public:
             auto guard = Guard(SpinLock_);
             bucket = std::move(threadState.Bucket);
 
-            UpdateExcessTime(bucket.Get(), tscp.Instant - threadState.AccountedAt);
-            threadState.AccountedAt = tscp.Instant;
+            UpdateExcessTime(bucket.Get(), currentInstant - threadState.AccountedAt);
+            threadState.AccountedAt = currentInstant;
 
             YT_VERIFY(bucket->CurrentExecutions-- > 0);
         }

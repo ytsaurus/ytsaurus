@@ -19,7 +19,8 @@ class TResourceTracker;
 
 class TTimer;
 class TShardedMonotonicCounter;
-class TAtomicGauge;
+class TGauge;
+class TSummary;
 class TShardedAggregateGauge;
 class TAtomicShardedAggregateGauge;
 

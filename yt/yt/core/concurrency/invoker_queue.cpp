@@ -163,7 +163,7 @@ void TInvokerQueue<TQueueImpl>::Invoke(
         callback.GetHandle(),
         profilingTag);
 
-    auto tscp = TTscp::Get();
+    auto cpuInstant = GetCpuInstant();
 
     Size_ += 1;
 
@@ -178,7 +178,7 @@ void TInvokerQueue<TQueueImpl>::Invoke(
 
     TEnqueuedAction action{
         .Finished = false,
-        .EnqueuedAt = tscp.Instant,
+        .EnqueuedAt = cpuInstant,
         .Callback = std::move(callback),
         .ProfilingTag = profilingTag,
         .ProfilerTag = std::move(profilerTag)
@@ -232,12 +232,13 @@ TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action, typena
 {
     YT_ASSERT(action && action->Finished);
 
-    auto tscp = TTscp::Get();
     if (!QueueImpl_.TryDequeue(action, token)) {
         return {};
     }
 
-    action->StartedAt = tscp.Instant;
+    auto cpuInstant = GetCpuInstant();
+
+    action->StartedAt = cpuInstant;
 
     auto waitTime = CpuDurationToDuration(action->StartedAt - action->EnqueuedAt);
 
@@ -273,8 +274,8 @@ void TInvokerQueue<TQueueImpl>::EndExecute(TEnqueuedAction* action)
         return;
     }
 
-    auto tscp = TTscp::Get();
-    action->FinishedAt = tscp.Instant;
+    auto cpuInstant = GetCpuInstant();
+    action->FinishedAt = cpuInstant;
     action->Finished = true;
 
     auto timeFromStart = CpuDurationToDuration(action->FinishedAt - action->StartedAt);
