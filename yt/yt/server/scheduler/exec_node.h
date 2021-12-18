@@ -18,13 +18,14 @@
 #include <yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/yt/core/concurrency/lease_manager.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NScheduler {
 
@@ -172,7 +173,7 @@ private:
     TJobResources ResourceUsage_;
     NNodeTrackerClient::NProto::TDiskResources DiskResources_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     TJobResources ResourceLimits_;
 };
 

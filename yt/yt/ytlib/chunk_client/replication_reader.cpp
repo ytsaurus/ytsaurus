@@ -304,7 +304,7 @@ private:
     const NLogging::TLogger Logger;
     const TChunkReplicaLocatorPtr ChunkReplicaLocator_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PeersSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersSpinLock_);
     //! Peers returning NoSuchChunk error are banned forever.
     THashSet<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.

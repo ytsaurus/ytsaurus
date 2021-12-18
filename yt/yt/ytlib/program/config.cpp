@@ -16,7 +16,7 @@ TRpcConfig::TRpcConfig()
 
 void TSingletonsConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("spinlock_hiccup_threshold", &TThis::SpinlockHiccupThreshold)
+    registrar.Parameter("spin_wait_slow_path_logging_threshold", &TThis::SpinWaitSlowPathLoggingThreshold)
         .Default(TDuration::MicroSeconds(100));
     registrar.Parameter("yt_alloc", &TThis::YTAlloc)
         .DefaultNew();
@@ -56,7 +56,7 @@ void TSingletonsConfig::Register(TRegistrar registrar)
 
 TDeprecatedSingletonsConfig::TDeprecatedSingletonsConfig()
 {
-    RegisterParameter("spinlock_hiccup_threshold", SpinlockHiccupThreshold)
+    RegisterParameter("spin_wait_slow_path_logging_threshold", SpinWaitSlowPathLoggingThreshold)
         .Default(TDuration::MicroSeconds(100));
     RegisterParameter("yt_alloc", YTAlloc)
         .DefaultNew();
@@ -96,7 +96,7 @@ TDeprecatedSingletonsConfig::TDeprecatedSingletonsConfig()
 
 void TSingletonsDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("spinlock_hiccup_threshold", &TThis::SpinlockHiccupThreshold)
+    registrar.Parameter("spin_lock_slow_path_logging_threshold", &TThis::SpinWaitSlowPathLoggingThreshold)
         .Optional();
     registrar.Parameter("yt_alloc", &TThis::YTAlloc)
         .Optional();
@@ -116,7 +116,7 @@ void TSingletonsDynamicConfig::Register(TRegistrar registrar)
 
 TDeprecatedSingletonsDynamicConfig::TDeprecatedSingletonsDynamicConfig()
 {
-    RegisterParameter("spinlock_hiccup_threshold", SpinlockHiccupThreshold)
+    RegisterParameter("spin_lock_slow_path_logging_threshold", SpinWaitSlowPathLoggingThreshold)
         .Optional();
     RegisterParameter("yt_alloc", YTAlloc)
         .Optional();

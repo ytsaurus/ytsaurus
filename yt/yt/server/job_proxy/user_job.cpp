@@ -606,7 +606,7 @@ private:
 
     TPromise<TExecutorInfo> ExecutorPreparedPromise_ = NewPromise<TExecutorInfo>();
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, StatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatisticsLock_);
     TStatistics CustomStatistics_;
 
     TCoreWatcherPtr CoreWatcher_;

@@ -6,11 +6,11 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NDiscoveryClient {
 

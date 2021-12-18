@@ -106,7 +106,7 @@ private:
     NConcurrency::TAsyncReaderWriterLock WriterLock_;
 
     TCoreResult CoreResult_;
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, CoreInfosLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CoreInfosLock_);
 
     TGpuCoreReaderPtr GpuCoreReader_;
 

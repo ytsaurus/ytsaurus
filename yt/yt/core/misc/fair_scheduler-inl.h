@@ -7,8 +7,9 @@
 
 #include "heap.h"
 
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT {
 
@@ -94,7 +95,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
     struct TUserBucket
     {

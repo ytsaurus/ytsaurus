@@ -134,16 +134,16 @@ private:
 
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SlotsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotsLock_);
 
     std::set<TString> TmpfsPaths_;
     THashSet<int> SlotsWithQuota_;
     THashMap<int, std::optional<i64>> OccupiedSlotToDiskLimit_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, DiskResourcesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiskResourcesLock_);
     NNodeTrackerClient::NProto::TDiskLocationResources DiskResources_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SlotLocationStatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotLocationStatisticsLock_);
     NNodeTrackerClient::NProto::TSlotLocationStatistics SlotLocationStatistics_;
 
     //! If location is disabled, this error contains the reason.

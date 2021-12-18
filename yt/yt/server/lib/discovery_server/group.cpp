@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/ytree/attributes.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/ytlib/discovery_client/helpers.h>
 
 namespace NYT::NDiscoveryServer {

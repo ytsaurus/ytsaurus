@@ -66,16 +66,16 @@ protected:
 
     TMultiReaderManagerSession CurrentSession_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PrefetchLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PrefetchLock_);
     int PrefetchIndex_ = 0;
     bool CreatingReader_ = false;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, FailedChunksLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, FailedChunksLock_);
     THashSet<TChunkId> FailedChunks_;
 
     std::atomic<int> OpenedReaderCount_ = 0;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ActiveReadersLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActiveReadersLock_);
 
     NProto::TDataStatistics DataStatistics_;
     TCodecStatistics DecompressionStatistics_;

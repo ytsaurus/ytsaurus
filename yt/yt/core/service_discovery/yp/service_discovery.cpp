@@ -14,6 +14,8 @@
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NServiceDiscovery {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,7 +240,7 @@ private:
     const TServiceDiscoveryClientPtr Client_;
 
     THashMap<TClusterEndpointSetIdPair, NDetail::TResolveEndpointsResponse> MostActualResponses_;
-    TSpinLock MostActualResponsesLock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MostActualResponsesLock_);
 
     TErrorOr<NDetail::TResolveEndpointsResponse> UpdateAndGetMostActualSuccessfulResponse(
         const TClusterEndpointSetIdPair& key,

@@ -5,9 +5,9 @@
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/client/hydra/public.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <util/generic/ymath.h>
 
@@ -70,7 +70,7 @@ public:
 private:
     std::atomic<double> ByteRate_ = 0;
     std::atomic<TInstant> LastUpdateTime_ = TInstant::Zero();
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
     i64 ComputeExtraSpace() const;
 };
@@ -129,15 +129,15 @@ private:
 
     std::atomic<double> TopEntryByteRateThreshold_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
     using TProfilingCountersKey = std::tuple<TString, TString>;
     THashMap<TProfilingCountersKey, TCacheProfilingCountersPtr> KeyToCounters_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ExpiredEntriesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ExpiredEntriesLock_);
     THashMap<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr> ExpiredEntries_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, TopEntriesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TopEntriesLock_);
     THashMap<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr> TopEntries_;
 
     TCacheProfilingCountersPtr GetProfilingCounters(const TString& user, const TString& method);

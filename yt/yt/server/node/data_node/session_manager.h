@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <atomic>
 
@@ -53,7 +53,7 @@ private:
     const TDataNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TSessionId, ISessionPtr> SessionMap_;
 
     std::atomic<bool> DisableWriteSessions_ = false;

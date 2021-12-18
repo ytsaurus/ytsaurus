@@ -785,7 +785,7 @@ IJournalWriterPtr TTransaction::CreateJournalWriter(
 }
 
 TFuture<void> TTransaction::DoAbort(
-    TSpinlockGuard<NThreading::TSpinLock>* guard,
+    TGuard<NThreading::TSpinLock>* guard,
     const TTransactionAbortOptions& /*options*/)
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);

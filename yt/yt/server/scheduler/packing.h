@@ -64,7 +64,7 @@ public:
         const TFairShareStrategyPackingConfigPtr& config) const;
 
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     std::deque<TPackingHeartbeatSnapshot> WindowOfHeartbeats_;
 };
 

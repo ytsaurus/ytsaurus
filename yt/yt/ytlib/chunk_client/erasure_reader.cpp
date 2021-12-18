@@ -10,9 +10,10 @@
 
 #include <yt/yt/client/misc/workload.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/random/shuffle.h>
 
@@ -86,7 +87,7 @@ private:
     const IInvokerPtr ReaderInvoker_ = CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker());
 
     TPartIndexSet BannedPartIndices_;
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, IndicesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, IndicesLock_);
     std::vector<TInstant> SlowReaderBanTimes_;
     TPeriodicExecutorPtr ExpirationTimesExecutor_;
 };

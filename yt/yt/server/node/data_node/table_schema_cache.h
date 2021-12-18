@@ -48,7 +48,7 @@ private:
     std::atomic<TInstant> NextRequestTime_;
 
     // NB: For concurrent access of CachedTableSchema_.
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     NTableClient::TTableSchemaPtr TableSchema_;
 
     bool CheckSchemaSet();

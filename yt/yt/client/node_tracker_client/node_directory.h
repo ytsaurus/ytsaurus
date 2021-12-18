@@ -4,8 +4,6 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/yson/public.h>
@@ -14,6 +12,8 @@
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/copyable_atomic.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NNodeTrackerClient {
 
@@ -168,7 +168,7 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TNodeId, const TNodeDescriptor*> IdToDescriptor_;
     THashMap<TString, const TNodeDescriptor*> AddressToDescriptor_;
     THashSet<TNodeDescriptor> Descriptors_;

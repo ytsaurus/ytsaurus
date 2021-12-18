@@ -3,12 +3,13 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/atomic_object.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NRpc {
 
@@ -150,7 +151,7 @@ private:
 
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     TEnumIndexedVector<EMultiplexingBand, TBandDescriptor> BandToDescriptor_;
 
     // Using linear search in vector since number of networks is very small.

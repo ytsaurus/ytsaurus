@@ -21,7 +21,6 @@
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/dense_map.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/ytree/node.h>
@@ -305,7 +304,7 @@ public:
 
     //! Marks the operation as finished.
     void SetFinished();
-    
+
     //! Gets set when the operation is finished and start unregistering.
     bool GetUnregistering() const;
 
@@ -432,7 +431,7 @@ private:
     bool Unregistering_ = false;
 
     TWeakPtr<TControllerAgent> Agent_;
-    
+
     //! Aggregated minimum needed resources at the start of the operation.
     std::optional<TJobResources> InitialAggregatedMinNeededResources_;
 };

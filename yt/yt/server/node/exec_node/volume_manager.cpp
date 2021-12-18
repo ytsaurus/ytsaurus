@@ -409,7 +409,7 @@ private:
 
     std::atomic<int> LayerImportsInProgress_ = 0;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
 
@@ -1100,11 +1100,11 @@ private:
 
     THashMap<TYPath, TFetchedArtifactKey> CachedLayerDescriptors_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, TmpfsCacheDataSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TmpfsCacheDataSpinLock_);
     THashMap<TArtifactKey, TLayerPtr> CachedTmpfsLayers_;
     TPeriodicExecutorPtr UpdateTmpfsLayersExecutor_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, TmpfsCacheAlertSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TmpfsCacheAlertSpinLock_);
     TError TmpfsCacheAlert_;
 
     IPortoExecutorPtr TmpfsPortoExecutor_;

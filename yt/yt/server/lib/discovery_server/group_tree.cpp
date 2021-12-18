@@ -7,12 +7,12 @@
 #include <yt/yt/core/ytree/interned_attributes.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/discovery_client/helpers.h>
 #include <yt/yt/ytlib/discovery_client/public.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NDiscoveryServer {
 
@@ -871,7 +871,7 @@ private:
     const TGroupNodePtr Root_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     THashMap<TGroupId, TGroupNodePtr> IdToNode_;
 
     std::pair<TGroupNodePtr, TYPath> ResolvePath(const TYPath& path)

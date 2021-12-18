@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/ypath/public.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/library/profiling/tag.h>
 
 #include <atomic>

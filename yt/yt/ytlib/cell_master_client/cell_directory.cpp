@@ -19,7 +19,6 @@
 #include <yt/yt_proto/yt/client/cell_master/proto/cell_directory.pb.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/random.h>
@@ -32,6 +31,8 @@
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/profiling/profiler.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NCellMasterClient {
 
@@ -289,7 +290,7 @@ private:
 
     /*const*/ THashMap<TCellTag, TEnumIndexedVector<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellTag, EMasterCellRoles> CellRoleMap_;
     TEnumIndexedVector<EMasterCellRole, TCellTagList> RoleCells_;
     TRandomGenerator RandomGenerator_;

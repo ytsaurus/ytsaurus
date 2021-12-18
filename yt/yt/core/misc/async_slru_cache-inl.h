@@ -758,8 +758,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::IsResurrectionSupported() const
 
 template <class TKey, class TValue, class THash>
 std::vector<typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtr>
-TAsyncSlruCacheBase<TKey, TValue, THash>::TShard::Trim(
-    NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& guard)
+TAsyncSlruCacheBase<TKey, TValue, THash>::TShard::Trim(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& guard)
 {
     auto evictedItems = this->TrimNoDelete();
 

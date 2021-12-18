@@ -3,10 +3,11 @@
 #include "sensor.h"
 
 #include <util/generic/string.h>
-#include <util/system/spinlock.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
 #include <library/cpp/yt/memory/intrusive_ptr.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NProfiling {
 
@@ -103,7 +104,7 @@ public:
     void SetEnabled(bool enabled);
 
 private:
-    TSpinLock Lock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     bool Enabled_ = true;
     TIntrusivePtr<TSensorBuffer> Buffer_;
 };

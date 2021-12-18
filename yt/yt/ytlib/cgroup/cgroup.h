@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/misc/property.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <vector>
 
@@ -181,7 +181,7 @@ public:
 
 private:
     //! Guards device ids.
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     //! Set of all seen device ids.
     mutable THashSet<TString> DeviceIds_;
 

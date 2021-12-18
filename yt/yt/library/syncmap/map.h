@@ -2,13 +2,12 @@
 
 #include <util/generic/hash.h>
 #include <util/generic/noncopyable.h>
-#include <util/system/spinlock.h>
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/hazard_ptr.h>
 #include <yt/yt/core/misc/ref_counted.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <atomic>
 
@@ -64,7 +63,7 @@ private:
 
     std::atomic<TSnapshot*> Snapshot_ = nullptr;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
     TIntrusivePtr<TMap> DirtyMap_;
 

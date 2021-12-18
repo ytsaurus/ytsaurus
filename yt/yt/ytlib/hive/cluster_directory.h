@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NHiveClient {
 
@@ -64,7 +64,7 @@ private:
 
     const NApi::TConnectionOptions ConnectionOptions_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashMap<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
     THashMap<TString, TCluster> NameToCluster_;
 

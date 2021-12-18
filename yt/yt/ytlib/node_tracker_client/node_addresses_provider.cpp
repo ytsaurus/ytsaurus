@@ -133,7 +133,7 @@ private:
 
     const IChannelPtr NullChannel_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     mutable bool Started_ = false;
     TPromise<IChannelPtr> ChannelPromise_ = NewPromise<IChannelPtr>();
     TError TerminationError_;

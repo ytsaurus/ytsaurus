@@ -4,6 +4,7 @@
 #include <library/cpp/yt/threading/spin_wait_hook.h>
 
 #include <thread>
+#include <mutex>
 
 namespace NYT::NThreading {
 namespace {
@@ -12,7 +13,10 @@ namespace {
 
 bool SpinWaitSlowPathHookInvoked;
 
-void SpinWaitSlowPathHook(TCpuDuration cpuDelay)
+void SpinWaitSlowPathHook(
+    TCpuDuration cpuDelay,
+    const TSourceLocation& /*location*/,
+    ESpinLockActivityKind /*activityKind*/)
 {
     SpinWaitSlowPathHookInvoked = true;
     auto delay = CpuDurationToDuration(cpuDelay);
@@ -22,15 +26,19 @@ void SpinWaitSlowPathHook(TCpuDuration cpuDelay)
 
 TEST(TSpinWaitTest, SlowPathHook)
 {
-    SetSpinWaitSlowPathHook(SpinWaitSlowPathHook);
+    static std::once_flag registerFlag;
+    std::call_once(
+        registerFlag,
+        [] {
+            RegisterSpinWaitSlowPathHook(SpinWaitSlowPathHook);
+        });
     SpinWaitSlowPathHookInvoked = false;
     {
-        TSpinWait spinWait;
+        TSpinWait spinWait(__LOCATION__, ESpinLockActivityKind::ReadWrite);
         for (int i = 0; i < 1'000'000; ++i) {
             spinWait.Wait();
         }
     }
-    SetSpinWaitSlowPathHook(nullptr);
     EXPECT_TRUE(SpinWaitSlowPathHookInvoked);
 }
 

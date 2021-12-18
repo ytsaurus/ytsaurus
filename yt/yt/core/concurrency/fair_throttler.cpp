@@ -242,7 +242,7 @@ private:
     std::atomic<i64> Quota_ = {};
     std::atomic<i64> QueueSize_ = {};
 
-    YT_DECLARE_SPINLOCK(TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     std::deque<TBucketThrottleRequestPtr> Queue_;
 
     void OnRequestComplete(i64 count, const TError& /*error*/)

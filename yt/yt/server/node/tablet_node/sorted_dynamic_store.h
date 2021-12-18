@@ -21,7 +21,7 @@
 #include <yt/yt/core/misc/chunked_vector.h>
 #include <yt/yt/core/misc/property.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NTabletNode {
 
@@ -170,7 +170,7 @@ private:
     static const size_t MaxRevisionChunks = HardRevisionsPerDynamicStoreLimit / RevisionsPerChunk + 1;
     TChunkedVector<TTimestamp, RevisionsPerChunk> RevisionToTimestamp_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, RowBlockedLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, RowBlockedLock_);
     TRowBlockedHandler RowBlockedHandler_;
 
     // Reused between ModifyRow calls.

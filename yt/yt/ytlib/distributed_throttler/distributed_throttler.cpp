@@ -6,7 +6,6 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/atomic_object.h>
@@ -16,6 +15,8 @@
 #include <yt/yt/ytlib/discovery_client/member_client.h>
 
 #include <yt/yt/library/numeric/binary_search.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NDistributedThrottler {
 
@@ -177,7 +178,7 @@ private:
 
     TAtomicObject<IChannelPtr> LeaderChannel_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
     THistoricUsageAggregator HistoricUsageAggregator_;
 
     void UpdateHistoricUsage(i64 count)
@@ -195,7 +196,7 @@ DECLARE_REFCOUNTED_STRUCT(TThrottlers)
 
 struct TThrottlers final
 {
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
     THashMap<TString, TWeakPtr<TWrappedThrottler>> Throttlers;
 };
 
@@ -381,23 +382,23 @@ private:
 
     struct TMemberShard
     {
-        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, LimitsLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LimitsLock);
         THashMap<TMemberId, THashMap<TString, double>> MemberIdToLimit;
 
-        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, UsageRatesLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, UsageRatesLock);
         THashMap<TMemberId, THashMap<TString, double>> MemberIdToUsageRate;
     };
     std::vector<TMemberShard> MemberShards_;
 
     struct TThrottlerShard
     {
-        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, TotalLimitsLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TotalLimitsLock);
         THashMap<TString, std::optional<double>> ThrottlerIdToTotalLimit;
 
-        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, UniformLimitLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, UniformLimitLock);
         THashMap<TString, double> ThrottlerIdToUniformLimit;
 
-        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, LastUpdateTimeLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LastUpdateTimeLock);
         THashMap<TString, TInstant> ThrottlerIdToLastUpdateTime;
     };
     std::vector<TThrottlerShard> ThrottlerShards_;
@@ -872,7 +873,7 @@ private:
     const TThrottlersPtr Throttlers_ = New<TThrottlers>();
     const TDistributedThrottlerServicePtr DistributedThrottlerService_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     std::optional<TMemberId> LeaderId_;
     IChannelPtr LeaderChannel_;
 

@@ -52,7 +52,7 @@
 
 #include <yt/yt/core/net/helpers.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/generic/algorithm.h>
 
@@ -158,7 +158,7 @@ private:
     THashMap<EJobType, TMasterJobFactory> MasterJobFactoryMap_;
     THashMap<EObjectType, TJobHeartbeatProcessorBasePtr> JobHeartbeatProcessors_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, JobMapLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, IJobPtr> JobMap_;
 
     // Map of jobs to hold after remove. It is used to prolong lifetime of stderrs and job specs.

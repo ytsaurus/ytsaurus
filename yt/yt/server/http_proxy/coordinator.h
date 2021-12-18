@@ -104,9 +104,9 @@ private:
     TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
     bool Initialized_ = false;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SelfLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SelfLock_);
     TCoordinatorProxyPtr Self_;
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ProxiesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProxiesLock_);
     std::vector<TCoordinatorProxyPtr> Proxies_;
 
     TInstant StatisticsUpdatedAt_;

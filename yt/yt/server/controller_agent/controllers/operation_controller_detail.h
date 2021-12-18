@@ -1037,7 +1037,7 @@ private:
     std::atomic<int> CachedPendingJobCount = {0};
     int CachedTotalJobCount = 0;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock);
     TJobResources CachedNeededResources;
 
     TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededJobResources;
@@ -1066,7 +1066,7 @@ private:
     NYson::TYsonString DoBuildUnavailableInputChunksYson();
 
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::MapFragment);
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
     NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;
 
     //! Maps an intermediate chunk id to its originating completed job.
@@ -1092,7 +1092,7 @@ private:
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, JobMetricsDeltaPerTreeLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobMetricsDeltaPerTreeLock_);
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
     // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
@@ -1150,7 +1150,7 @@ private:
 
     std::vector<TStreamDescriptor> StandardStreamDescriptors_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ProgressLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProgressLock_);
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
@@ -1208,7 +1208,7 @@ private:
 
     THashSet<NNodeTrackerClient::TNodeId> BannedNodeIds_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, AlertsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertsLock_);
     TOperationAlertMap Alerts_;
 
     bool IsLegacyLivePreviewSuppressed = false;

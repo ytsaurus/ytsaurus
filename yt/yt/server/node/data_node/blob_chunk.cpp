@@ -176,7 +176,7 @@ TChunkFileReaderPtr TBlobChunkBase::GetReader()
     }
 }
 
-void TBlobChunkBase::ReleaseReader(TSpinlockWriterGuard<TReaderWriterSpinLock>& writerGuard)
+void TBlobChunkBase::ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGuard)
 {
     VERIFY_WRITER_SPINLOCK_AFFINITY(LifetimeLock_);
     YT_VERIFY(ReadLockCounter_.load() == 0);

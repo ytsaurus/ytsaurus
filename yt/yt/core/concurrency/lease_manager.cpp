@@ -4,13 +4,11 @@
 
 #include <yt/yt/core/actions/bind.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TLease NullLease = TLease();
+const TLease NullLease;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +19,7 @@ struct TLeaseEntry
     TDuration Timeout;
     TClosure OnExpired;
     NConcurrency::TDelayedExecutorCookie Cookie;
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
 
     TLeaseEntry(TDuration timeout, TClosure onExpired)
         : Timeout(timeout)

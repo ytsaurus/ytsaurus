@@ -35,6 +35,8 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NTableClient {
 
 using namespace NConcurrency;
@@ -841,7 +843,7 @@ protected:
 
     // Data statistics of all previous dynamic store readers.
     TDataStatistics AccumulatedDataStatistics_;
-    TSpinLock DataStatisticsLock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataStatisticsLock_);
 
     bool ChunkReaderFallbackOccured_ = false;
     bool FlushedToEmptyChunk_ = false;

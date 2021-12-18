@@ -138,7 +138,7 @@ private:
     const IPollerPtr Poller_;
     const IPollerPtr Acceptor_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     std::atomic<bool> Pending_ = false;
     std::deque<TPromise<IConnectionPtr>> Queue_;
     TError Error_;

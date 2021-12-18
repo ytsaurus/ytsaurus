@@ -27,12 +27,12 @@
 
 #include <yt/yt/client/table_client/key_bound.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/misc/digest.h>
 #include <yt/yt/core/misc/histogram.h>
 
 #include <yt/yt/core/logging/serializable_logger.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -392,7 +392,7 @@ private:
     // NB: this field is used in BuildJobSpecProto which is run in an non-serialized invoker,
     // so access it only under the following spinlock.
     THashMap<NTableClient::TTableSchemaPtr, TString> TableSchemaToProtobufTableSchema_;
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, TableSchemaToProtobufTableSchemaLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TableSchemaToProtobufTableSchemaLock_);
 
     std::unique_ptr<IHistogram> EstimatedInputDataWeightHistogram_;
     std::unique_ptr<IHistogram> InputDataWeightHistogram_;

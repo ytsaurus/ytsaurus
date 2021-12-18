@@ -59,9 +59,9 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/quantized_executor.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <library/cpp/yt/threading/recursive_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <util/generic/algorithm.h>
 
@@ -133,7 +133,7 @@ public:
 private:
     const TCpuDuration ExpireTime_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     //! Maps user name to (error, deadline) pairs.
     THashMap<TString, std::pair<TError, TCpuInstant>> Map_;
 };
@@ -487,7 +487,7 @@ private:
     // If this is locked, the system is currently busy serving
     // some local subrequest.
     // NB: only TryAcquire() is called on this lock, never Acquire().
-    YT_DECLARE_SPINLOCK(NThreading::TRecursiveSpinLock, LocalExecutionLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TRecursiveSpinLock, LocalExecutionLock_);
 
     // Has the time to backoff come?
     std::atomic<bool> BackoffAlarmTriggered_ = false;

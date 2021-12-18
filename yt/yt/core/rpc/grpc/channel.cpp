@@ -12,11 +12,12 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/profiling/timing.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <array>
 
@@ -141,7 +142,7 @@ private:
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     TError TerminationError_;
     TGrpcLibraryLockPtr LibraryLock_ = TDispatcher::Get()->CreateLibraryLock();
     TGrpcChannelPtr Channel_;
@@ -326,7 +327,7 @@ private:
         const TSendOptions Options_;
         const IClientRequestPtr Request_;
 
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ResponseHandlerLock_);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ResponseHandlerLock_);
         IClientResponseHandlerPtr ResponseHandler_;
 
         grpc_completion_queue* const CompletionQueue_;

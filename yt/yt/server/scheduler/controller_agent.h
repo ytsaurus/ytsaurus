@@ -170,7 +170,7 @@ private:
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
     std::optional<TControllerAgentMemoryStatistics> MemoryStatistics_;
 
     i64 HeartbeatCounter_ = 0;

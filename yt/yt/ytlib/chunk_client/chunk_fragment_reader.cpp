@@ -130,7 +130,7 @@ private:
     struct TPeerAccessInfo final
         : public TPeerInfo
     {
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
         TNodeId NodeId;
         TInstant LastSuccessfulAccessTime;
     };
@@ -155,7 +155,7 @@ private:
     const TPeerInfoCachePtr PeerInfoCache_;
 
     // TODO(akozhikhov): Implement lock sharding.
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ChunkIdToPeerAccessInfoLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ChunkIdToPeerAccessInfoLock_);
     // NB: It is used for fast path and eviction of obsolete chunks.
     THashMap<TChunkId, TPeerAccessInfoPtr> ChunkIdToPeerAccessInfo_;
 

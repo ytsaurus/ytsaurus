@@ -1319,7 +1319,7 @@ TEST_P(TFairShareSchedulerTest, Fairness)
 
     std::vector<TFuture<void>> futures;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, lock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, lock);
 
     for (size_t id = 0; id < numWorkers; ++id) {
         auto invoker = threadPool->GetInvoker(Format("pool%v", id % numPools), 1.0, Format("worker%v", id));
@@ -1448,7 +1448,7 @@ TEST_P(TFairShareSchedulerTest, TwoLevelFairness)
 
     std::vector<TFuture<void>> futures;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, lock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, lock);
 
     for (size_t id = 0; id < numWorkers; ++id) {
         auto invoker = threadPool->GetInvoker(Format("worker%v", id));

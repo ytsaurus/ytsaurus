@@ -350,7 +350,7 @@ private:
         NProfiling::TCounter FailureCounter;
     };
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, CommandLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CommandLock_);
     THashMap<TString, TCommandEntry> CommandToEntry_;
 
     static const std::vector<TString> ContainerRequestVars_;

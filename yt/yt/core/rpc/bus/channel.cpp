@@ -14,7 +14,6 @@
 #include <yt/yt/core/bus/tcp/client.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/singleton.h>
@@ -27,6 +26,9 @@
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <array>
 
@@ -150,7 +152,7 @@ private:
 
     struct TBandBucket
     {
-        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
         std::atomic<size_t> CurrentSessionIndex = 0;
         std::vector<TSessionPtr> Sessions;
         bool Terminated = false;
@@ -677,7 +679,7 @@ private:
 
         struct TBucket
         {
-            YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
+            YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
             IBusPtr Bus;
             bool Terminated = false;
             THashMap<TRequestId, TClientRequestControlPtr> ActiveRequestMap;
@@ -1189,7 +1191,7 @@ private:
             return TotalTime_;
         }
 
-        bool IsActive(const TSpinlockGuard<NThreading::TSpinLock>&) const
+        bool IsActive(const TGuard<NThreading::TSpinLock>&) const
         {
             return static_cast<bool>(ResponseHandler_);
         }
@@ -1211,12 +1213,12 @@ private:
             TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
         }
 
-        IClientResponseHandlerPtr GetResponseHandler(const TSpinlockGuard<NThreading::TSpinLock>&)
+        IClientResponseHandlerPtr GetResponseHandler(const TGuard<NThreading::TSpinLock>&)
         {
             return ResponseHandler_;
         }
 
-        IClientResponseHandlerPtr Finalize(const TSpinlockGuard<NThreading::TSpinLock>&)
+        IClientResponseHandlerPtr Finalize(const TGuard<NThreading::TSpinLock>&)
         {
             TotalTime_ = DoProfile(MethodMetadata_->TotalTimeCounter);
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);

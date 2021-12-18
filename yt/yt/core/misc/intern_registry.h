@@ -2,11 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
-#include <util/system/spinlock.h>
-
 #include <util/generic/hash_set.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT {
 
@@ -53,7 +51,7 @@ private:
         bool operator() (const TInternedObjectData<T>* lhs, const T& rhs) const;
     };
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
     using TProfilerSet = THashSet<TInternedObjectData<T>*, THash, TEqual>;
     TProfilerSet Registry_;

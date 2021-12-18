@@ -5,9 +5,9 @@
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/misc/mpsc_stack.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NScheduler {
 
@@ -76,7 +76,7 @@ private:
     THashSet<TResourceTreeElementPtr> AliveElements_;
 
     TMpscStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, StructureLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StructureLock_);
 
     NProfiling::TProfiler Profiler_ = NProfiling::TProfiler{"/resource_tree"}.WithHot();
     NProfiling::TCounter StructureLockReadCount_ = Profiler_.Counter("/structure_lock_read_count");

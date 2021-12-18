@@ -50,7 +50,7 @@ class TSingletonsConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    TDuration SpinlockHiccupThreshold;
+    TDuration SpinWaitSlowPathLoggingThreshold;
     NYTAlloc::TYTAllocConfigPtr YTAlloc;
     THashMap<TString, int> FiberStackPoolSizes;
     NNet::TAddressResolverConfigPtr AddressResolver;
@@ -76,7 +76,7 @@ class TDeprecatedSingletonsConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TDuration SpinlockHiccupThreshold;
+    TDuration SpinWaitSlowPathLoggingThreshold;
     NYTAlloc::TYTAllocConfigPtr YTAlloc;
     THashMap<TString, int> FiberStackPoolSizes;
     NNet::TAddressResolverConfigPtr AddressResolver;
@@ -102,7 +102,7 @@ class TSingletonsDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    std::optional<TDuration> SpinlockHiccupThreshold;
+    std::optional<TDuration> SpinWaitSlowPathLoggingThreshold;
     NYTAlloc::TYTAllocConfigPtr YTAlloc;
     NBus::TTcpDispatcherDynamicConfigPtr TcpDispatcher;
     NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
@@ -123,7 +123,7 @@ class TDeprecatedSingletonsDynamicConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    std::optional<TDuration> SpinlockHiccupThreshold;
+    std::optional<TDuration> SpinWaitSlowPathLoggingThreshold;
     NYTAlloc::TYTAllocConfigPtr YTAlloc;
     NBus::TTcpDispatcherDynamicConfigPtr TcpDispatcher;
     NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;

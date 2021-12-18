@@ -3,7 +3,8 @@
 #include "transaction.h"
 
 #include <yt/yt/core/concurrency/lease_manager.h>
-#include <yt/yt/core/concurrency/spinlock.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NApi {
 
@@ -119,7 +120,7 @@ private:
         NConcurrency::TLease Lease;
     };
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, StickyTransactionLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StickyTransactionLock_);
     THashMap<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
 
     void OnStickyTransactionLeaseExpired(TTransactionId transactionId, TWeakPtr<ITransaction> weakTransaction)

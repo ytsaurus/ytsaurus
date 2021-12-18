@@ -152,7 +152,6 @@
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/fair_throttler.h>
 
 #include <yt/yt/core/net/address.h>

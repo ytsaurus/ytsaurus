@@ -1,21 +1,35 @@
 #include "spin_wait_hook.h"
 
+#include <library/cpp/yt/assert/assert.h>
+
+#include <array>
 #include <atomic>
 
 namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::atomic<TSpinWaitSlowPathHook> Hook;
+static constexpr int MaxSpinWaitSlowPathHooks = 8;
+static std::array<std::atomic<TSpinWaitSlowPathHook>, MaxSpinWaitSlowPathHooks> SpinWaitSlowPathHooks;
+static std::atomic<int> SpinWaitSlowPathHookCount;
 
-TSpinWaitSlowPathHook GetSpinWaitSlowPathHook()
+void RegisterSpinWaitSlowPathHook(TSpinWaitSlowPathHook hook)
 {
-    return Hook.load();
+    int index = SpinWaitSlowPathHookCount++;
+    YT_VERIFY(index < MaxSpinWaitSlowPathHooks);
+    SpinWaitSlowPathHooks[index].store(hook);
 }
 
-void SetSpinWaitSlowPathHook(TSpinWaitSlowPathHook hook)
+void InvokeSpinWaitSlowPathHooks(
+    TCpuDuration cpuDelay,
+    const ::TSourceLocation& location,
+    ESpinLockActivityKind activityKind)
 {
-    Hook.store(hook);
+    for (const auto& atomicHook : SpinWaitSlowPathHooks) {
+        if (auto hook = atomicHook.load()) {
+            hook(cpuDelay, location, activityKind);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

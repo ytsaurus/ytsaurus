@@ -69,7 +69,7 @@ private:
     const TActionQueuePtr ControlQueue_;
     const IInvokerPtr ControlInvoker_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, CallbackProviderLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CallbackProviderLock_);
     ICallbackProviderPtr CallbackProvider_;
 
     TCallback<void()> WorkerInitializer_;

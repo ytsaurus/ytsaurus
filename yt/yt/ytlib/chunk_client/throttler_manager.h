@@ -34,7 +34,7 @@ private:
     const NProfiling::TProfiler Profiler_;
 
     //! Protects the section immediately following it.
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<NObjectClient::TCellTag, NConcurrency::IReconfigurableThroughputThrottlerPtr> ThrottlerMap_;
 };
 

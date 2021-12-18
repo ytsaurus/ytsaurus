@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/profiling/profiler.h>
 
+#include <library/cpp/yt/threading/spin_wait.h>
+
 #include <util/system/yield.h>
 
 #include <util/random/shuffle.h>
@@ -38,7 +40,6 @@ using NYT::TRange;
 static const auto& Logger = TableClientLogger;
 
 static const int SortBucketSize = 10000;
-static const int SpinsBetweenYield = 1000;
 static const int RowsBetweenAtomicUpdate = 10000;
 static const i32 BucketEndSentinel = -1;
 static const double ReallocationFactor = 1.1;
@@ -129,17 +130,10 @@ public:
 
         bool mergeFinished = MergeFinished_.load();
         i64 sortedRowCount = SortedRowCount_.load();
-        for (int spinCounter = 1; ; ++spinCounter) {
-            if (sortedRowCount > ReadRowCount_ || mergeFinished) {
-                break;
-            }
 
-            if (spinCounter % SpinsBetweenYield == 0) {
-                ThreadYield();
-            } else {
-                SpinLockPause();
-            }
-
+        NThreading::TSpinWait spinWait(__LOCATION__, NThreading::ESpinLockActivityKind::ReadWrite);
+        while (sortedRowCount <= ReadRowCount_ && !mergeFinished) {
+            spinWait.Wait();
             mergeFinished = MergeFinished_.load();
             sortedRowCount = SortedRowCount_.load();
         }

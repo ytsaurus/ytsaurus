@@ -6,11 +6,12 @@
 
 #include <yt/yt/core/ytalloc/memory_zone.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <atomic>
 
@@ -143,7 +144,7 @@ protected:
     virtual void LogResponse() = 0;
 
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ResponseLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ResponseLock_);
     TSharedRefArray ResponseMessage_; // cached
     mutable TPromise<TSharedRefArray> AsyncResponseMessage_; // created on-demand
 
@@ -259,7 +260,7 @@ protected:
 
     std::atomic<bool> Started_ = false;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ServicesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ServicesLock_);
     TServerConfigPtr Config_;
 
     //! Service name to service.

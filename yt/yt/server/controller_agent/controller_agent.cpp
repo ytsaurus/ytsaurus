@@ -55,6 +55,8 @@
 
 #include <yt/yt/build/build.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 #include <util/generic/cast.h>
 
 namespace NYT::NControllerAgent {
@@ -1047,7 +1049,7 @@ private:
 
     TOperationIdToOperationMap IdToOperation_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     struct TFilteredExecNodeDescriptors
@@ -1089,7 +1091,7 @@ private:
 
     TMemoryWatchdogPtr MemoryWatchdog_;
 
-    YT_DECLARE_SPINLOCK(TSpinLock, JobMonitoringIndexManagerLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobMonitoringIndexManagerLock_);
     TJobMonitoringIndexManager JobMonitoringIndexManager_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

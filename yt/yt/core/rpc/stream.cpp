@@ -171,7 +171,7 @@ void TAttachmentsInputStream::AbortUnlessClosed(const TError& error, bool fireAb
         fireAborted);
 }
 
-void TAttachmentsInputStream::DoAbort(TSpinlockGuard<NThreading::TSpinLock>& guard, const TError& error, bool fireAborted)
+void TAttachmentsInputStream::DoAbort(TGuard<NThreading::TSpinLock>& guard, const TError& error, bool fireAborted)
 {
     if (!Error_.IsOK()) {
         return;
@@ -260,7 +260,7 @@ TFuture<void> TAttachmentsOutputStream::Write(const TSharedRef& data)
     return promise.ToFuture();
 }
 
-void TAttachmentsOutputStream::OnWindowPacketsReady(TMutableRange<TWindowPacket> packets, TSpinlockGuard<NThreading::TSpinLock>& guard)
+void TAttachmentsOutputStream::OnWindowPacketsReady(TMutableRange<TWindowPacket> packets, TGuard<NThreading::TSpinLock>& guard)
 {
     if (ClosePromise_) {
         guard.Release();
@@ -362,7 +362,7 @@ void TAttachmentsOutputStream::AbortUnlessClosed(const TError& error, bool fireA
         fireAborted);
 }
 
-void TAttachmentsOutputStream::DoAbort(TSpinlockGuard<NThreading::TSpinLock>& guard, const TError& error, bool fireAborted)
+void TAttachmentsOutputStream::DoAbort(TGuard<NThreading::TSpinLock>& guard, const TError& error, bool fireAborted)
 {
     if (!Error_.IsOK()) {
         return;
@@ -480,7 +480,7 @@ std::optional<TStreamingPayload> TAttachmentsOutputStream::TryPull()
     return result;
 }
 
-void TAttachmentsOutputStream::MaybeInvokePullCallback(TSpinlockGuard<NThreading::TSpinLock>& guard)
+void TAttachmentsOutputStream::MaybeInvokePullCallback(TGuard<NThreading::TSpinLock>& guard)
 {
     if (CanPullMore(true)) {
         guard.Release();

@@ -330,7 +330,7 @@ private:
         grpc_completion_queue* const CompletionQueue_;
         const NLogging::TLogger& Logger;
 
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
         EServerCallStage Stage_ = EServerCallStage::Accept;
         bool CancelRequested_ = false;
         TSharedRefArray ResponseMessage_;
@@ -882,7 +882,7 @@ private:
             }
         }
 
-        void SendResponse(TSpinlockGuard<NThreading::TSpinLock>& guard)
+        void SendResponse(TGuard<NThreading::TSpinLock>& guard)
         {
             Stage_ = EServerCallStage::SendingResponse;
             guard.Release();
@@ -987,7 +987,7 @@ private:
             }
         }
 
-        void CheckCanceled(TSpinlockGuard<NThreading::TSpinLock>& guard)
+        void CheckCanceled(TGuard<NThreading::TSpinLock>& guard)
         {
             if (CancelRequested_ && Stage_ == EServerCallStage::WaitingForService) {
                 Stage_ = EServerCallStage::Done;

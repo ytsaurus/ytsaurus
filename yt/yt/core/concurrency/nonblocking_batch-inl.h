@@ -79,7 +79,7 @@ void TNonblockingBatch<T>::UpdateBatchDuration(TDuration batchDuration)
 void UpdateBatchDuration(int batchDuration);
 
 template <class T>
-void TNonblockingBatch<T>::ResetTimer(TSpinlockGuard<NThreading::TSpinLock>& /*guard*/)
+void TNonblockingBatch<T>::ResetTimer(TGuard<NThreading::TSpinLock>& /*guard*/)
 {
     if (TimerState_ == ETimerState::Started) {
         ++FlushGeneration_;
@@ -89,7 +89,7 @@ void TNonblockingBatch<T>::ResetTimer(TSpinlockGuard<NThreading::TSpinLock>& /*g
 }
 
 template <class T>
-void TNonblockingBatch<T>::StartTimer(TSpinlockGuard<NThreading::TSpinLock>& /*guard*/)
+void TNonblockingBatch<T>::StartTimer(TGuard<NThreading::TSpinLock>& /*guard*/)
 {
     if (TimerState_ == ETimerState::Initial && !Promises_.empty() && !CurrentBatch_.empty()) {
         TimerState_ = ETimerState::Started;
@@ -100,7 +100,7 @@ void TNonblockingBatch<T>::StartTimer(TSpinlockGuard<NThreading::TSpinLock>& /*g
 }
 
 template <class T>
-bool TNonblockingBatch<T>::IsFlushNeeded(TSpinlockGuard<NThreading::TSpinLock>& /*guard*/) const
+bool TNonblockingBatch<T>::IsFlushNeeded(TGuard<NThreading::TSpinLock>& /*guard*/) const
 {
     return
         static_cast<int>(CurrentBatch_.size()) == MaxBatchSize_ ||
@@ -108,7 +108,7 @@ bool TNonblockingBatch<T>::IsFlushNeeded(TSpinlockGuard<NThreading::TSpinLock>& 
 }
 
 template <class T>
-void TNonblockingBatch<T>::CheckFlush(TSpinlockGuard<NThreading::TSpinLock>& guard)
+void TNonblockingBatch<T>::CheckFlush(TGuard<NThreading::TSpinLock>& guard)
 {
     if (!IsFlushNeeded(guard)) {
         return;
@@ -120,7 +120,7 @@ void TNonblockingBatch<T>::CheckFlush(TSpinlockGuard<NThreading::TSpinLock>& gua
 }
 
 template <class T>
-void TNonblockingBatch<T>::CheckReturn(TSpinlockGuard<NThreading::TSpinLock>& guard)
+void TNonblockingBatch<T>::CheckReturn(TGuard<NThreading::TSpinLock>& guard)
 {
     if (Promises_.empty() || Batches_.empty()) {
         return;

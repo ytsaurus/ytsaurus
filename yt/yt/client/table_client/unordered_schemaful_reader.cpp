@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NTableClient {
 
@@ -189,7 +189,7 @@ private:
 
     TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
 
     TPromise<void> DoGetReadyEvent() const
     {

@@ -1,9 +1,10 @@
 #pragma once
 
 #include "scheduler_thread.h"
-#include "spinlock.h"
 
 #include <yt/yt/core/misc/shutdown.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NConcurrency {
 
@@ -32,7 +33,7 @@ protected:
 
     IInvokerPtr FinalizerInvoker_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TSchedulerThreadBasePtr> Threads_;
 
 

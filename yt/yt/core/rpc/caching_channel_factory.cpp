@@ -6,9 +6,10 @@
 #include "private.h"
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/core/misc/mpsc_stack.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NRpc {
 
@@ -135,7 +136,7 @@ private:
 
     TPeriodicExecutorPtr ExpirationExecutor_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TString, TCachedChannelPtr> StrongChannelMap_;
     THashMap<TString, TWeakPtr<TCachedChannel>> WeakChannelMap_;
 

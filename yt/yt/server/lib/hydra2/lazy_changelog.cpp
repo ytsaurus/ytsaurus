@@ -112,7 +112,7 @@ public:
 private:
     TFuture<IChangelogPtr> FutureChangelog_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
     //! If non-OK then the underlying changelog could not open.
     TError UnderlyingError_;

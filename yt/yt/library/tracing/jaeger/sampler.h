@@ -6,8 +6,6 @@
 
 #include <yt/yt/library/syncmap/map.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
@@ -22,7 +20,7 @@ class TSamplerConfig
 public:
     //! Request is sampled with probability P.
     double GlobalSampleRate;
-    
+
     //! Additionaly, request is sampled with probability P(user).
     THashMap<TString, double> UserSampleRate;
 

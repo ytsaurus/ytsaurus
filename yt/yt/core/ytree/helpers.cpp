@@ -186,7 +186,7 @@ public:
 private:
     IAttributeDictionary* const Underlying_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 };
 
 IAttributeDictionaryPtr CreateThreadSafeAttributes(IAttributeDictionary* underlying)

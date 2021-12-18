@@ -154,7 +154,7 @@ private:
 
     using TPostponedAction = std::variant<TPostponedMutation, TPostponedChangelogRotation>;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TPostponedAction> PostponedActions_;
     bool NoMorePostponedActions_ = false;
     NHydra::TVersion PostponedVersion_;

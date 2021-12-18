@@ -8,9 +8,9 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/library/profiling/producer.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NControllerAgent {
 
@@ -48,7 +48,7 @@ private:
 
     int AllocatedTagCount_ = DefaultMemoryTagCount;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
     //! A queue of spare tags.
     std::queue<NYTAlloc::TMemoryTag> AvailableTags_;

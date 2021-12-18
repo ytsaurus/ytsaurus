@@ -31,6 +31,8 @@
 
 #include <library/cpp/containers/concurrent_hash/concurrent_hash.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NDataNode {
 
 using namespace NChunkClient;
@@ -387,7 +389,7 @@ private:
         // Next item in the linked list of all nodes.
         TAtomicObject<TNodeState*> NextInList;
 
-        YT_DECLARE_SPINLOCK(TSpinLock, SpinLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
     };
 
     // Accessed only from control thread.

@@ -197,7 +197,7 @@ private:
     const TGuid Id_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     SOCKET Socket_ = INVALID_SOCKET;
     bool Dialed_ = false;
     bool Finished_ = false;
@@ -242,7 +242,7 @@ private:
         Pollable_.Reset();
     }
 
-    void Connect(TSpinlockGuard<NThreading::TSpinLock>& guard)
+    void Connect(TGuard<NThreading::TSpinLock>& guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 

@@ -5,13 +5,13 @@
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/guid.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/profiling/public.h>
 
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/library/tracing/public.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <atomic>
 
@@ -204,7 +204,7 @@ private:
 
     std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = 0;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TTagList Tags_;
     TLogList Logs_;
     TAsyncChildrenList AsyncChildren_;

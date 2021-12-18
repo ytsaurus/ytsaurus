@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/misc/compact_vector.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT {
 
@@ -60,7 +60,7 @@ public:
     void FireAndClear(const TArgs&... args);
 
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     using TCallbackVector = TCompactVector<TCallback, 4>;
     TCallbackVector Callbacks_;
 
@@ -121,7 +121,7 @@ public:
     bool IsFired() const;
 
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     std::atomic<bool> Fired_ = false;
     using TCallbackVector = TCompactVector<TCallback, 4>;
     TCallbackVector Callbacks_;

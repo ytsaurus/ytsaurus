@@ -102,7 +102,7 @@ private:
 
     std::atomic<bool> IsLeading_ = false;
     ITransactionPtr Transaction_;
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, TransactionLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TransactionLock_);
 
     void AcquireLock()
     {

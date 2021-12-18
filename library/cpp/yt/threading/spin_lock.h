@@ -1,9 +1,11 @@
 #pragma once
 
 #include "public.h"
+#include "spin_lock_base.h"
 
 #include <atomic>
 
+#include <util/system/src_location.h>
 #include <util/system/types.h>
 
 namespace NYT::NThreading {
@@ -15,8 +17,11 @@ namespace NYT::NThreading {
  *  The lock is unfair.
  */
 class TSpinLock
+    : public TSpinLockBase
 {
 public:
+    using TSpinLockBase::TSpinLockBase;
+
     //! Acquires the lock.
     void Acquire() noexcept;
 

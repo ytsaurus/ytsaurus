@@ -213,7 +213,7 @@ protected:
     NErasure::ICodec* const Codec_;
     const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PlacementExtLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PlacementExtLock_);
     TFuture<void> PlacementExtFuture_;
     NProto::TErasurePlacementExt PlacementExt_;
 };

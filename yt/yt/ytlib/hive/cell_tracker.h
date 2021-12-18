@@ -1,6 +1,6 @@
 #include "public.h"
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NHiveClient {
 
@@ -14,7 +14,7 @@ public:
 
     void Update(const std::vector<NElection::TCellId>& toRemove, const std::vector<NElection::TCellId>& toAdd);
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashSet<NElection::TCellId> CellIds_;
 };
 

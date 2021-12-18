@@ -178,7 +178,7 @@ private:
     std::array<std::unique_ptr<TBuffer>, 2> Buffers_;
 
     // Guards the following section of members.
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     int CurrentBufferIndex_ = -1;
     i64 DroppedRowCount_ = 0;
     TBuffer* CurrentBuffer_ = nullptr;

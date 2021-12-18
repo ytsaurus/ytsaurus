@@ -2,13 +2,14 @@
 
 #include "table_mount_cache.h"
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/profiling/public.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NTabletClient {
 
@@ -28,10 +29,10 @@ private:
 
     std::atomic<NProfiling::TCpuInstant> ExpiredEntriesSweepDeadline_ = 0;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MapLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MapLock_);
     THashMap<TTabletId, TWeakPtr<TTabletInfo>> Map_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, GCLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, GCLock_);
     std::queue<TTabletId> GCQueue_;
     std::vector<TTabletId> ExpiredTabletIds_;
 

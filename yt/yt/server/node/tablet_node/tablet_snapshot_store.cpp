@@ -13,13 +13,14 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/yson/consumer.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NTabletNode {
 
@@ -262,7 +263,7 @@ private:
     const TTabletNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, TabletSnapshotsSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TabletSnapshotsSpinLock_);
     THashMultiMap<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

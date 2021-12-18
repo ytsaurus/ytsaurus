@@ -4,11 +4,12 @@
 #include "dispatcher.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NChunkClient {
 
@@ -183,7 +184,7 @@ public:
     }
 
 private:
-    mutable YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    mutable YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
     TRefCountedChunkMetaPtr MainMeta_;
 

@@ -16,9 +16,9 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/misc/async_slru_cache.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NDataNode {
 
@@ -96,7 +96,7 @@ private:
     NClusterNode::IBootstrapBase* Bootstrap_;
     NChunkClient::NProto::TChunkInfo Info_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, BlocksExtLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BlocksExtLock_);
     TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
 
     // Protected by LifetimeLock_.
@@ -105,7 +105,7 @@ private:
 
     NIO::TChunkFileReaderPtr GetReader();
 
-    void ReleaseReader(NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard) override;
+    void ReleaseReader(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard) override;
 
     void CompleteSession(const TIntrusivePtr<TReadBlockSetSession>& session);
     static void FailSession(const TIntrusivePtr<TReadBlockSetSession>& session, const TError& error);

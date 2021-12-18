@@ -392,7 +392,7 @@ public:
 private:
     const TErrorOr<INodePtr> TreeOrError_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     THashMap<TCacheKey, TErrorOr<TSharedRefArray>> CachedReplies_;
     TCacheProfilingCountersPtr ProfilingCounters_;
 };

@@ -366,7 +366,7 @@ private:
         IJournalWriterPtr Writer_;
 
         //! Protects #Writer_, #WriterOpened_ and #PendingRecords_.
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, WriterLock_);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, WriterLock_);
 
         //! If #WriterOpened_ is true, records are sent directly to the writer.
         //! If #WriterOpened_ is false, records are being kept in #PendingRecords_

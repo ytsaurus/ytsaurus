@@ -425,7 +425,7 @@ private:
 
     TProfiler Profiler_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<std::unique_ptr<TExecutionPool>> IdToPool_;
     THashMap<TString, int> NameToPoolId_;
 

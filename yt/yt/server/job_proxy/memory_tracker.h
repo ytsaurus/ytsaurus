@@ -3,6 +3,8 @@
 #include "public.h"
 #include "environment.h"
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +32,7 @@ private:
     std::atomic<i64> CumulativeMemoryUsageMBSec_ = 0;
     std::atomic<i64> MaxMemoryUsage_ = 0;
 
-    TSpinLock MemoryStatisticsLock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
 
     TInstant LastMemoryMeasureTime_ = TInstant::Now();
 
