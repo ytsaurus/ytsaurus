@@ -98,7 +98,8 @@ public:
         const NNodeTrackerClient::TAddressMap& agentAddresses,
         THashSet<TString> tags,
         NRpc::IChannelPtr channel,
-        const IInvokerPtr& invoker);
+        const IInvokerPtr& invoker,
+        const IInvokerPtr& messageOffloadInvoker);
 
     DEFINE_BYVAL_RW_PROPERTY(EControllerAgentState, State);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, Lease);
@@ -128,6 +129,11 @@ public:
      * \note Thread affinity: any
      */
     TIncarnationId GetIncarnationId() const;
+
+    /*
+     * \note Thread affinity: any
+     */
+    IInvokerPtr GetMessageOffloadInvoker() const;
 
     const NApi::ITransactionPtr& GetIncarnationTransaction() const;
     void SetIncarnationTransaction(NApi::ITransactionPtr transaction);
@@ -159,6 +165,8 @@ private:
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
+
+    IInvokerPtr MessageOffloadInvoker_;
 
     NApi::ITransactionPtr IncarnationTransaction_;
 

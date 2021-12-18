@@ -1229,28 +1229,34 @@ private:
         OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
             ControllerAgentLogger.WithTag("Kind: AgentToSchedulerOperations, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "operation_events"));
+            ControllerAgentProfiler.WithTag("queue", "operation_events"),
+            CancelableControlInvoker_);
         JobEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerJobEvent>>(
-           ControllerAgentLogger.WithTag("Kind: AgentToSchedulerJobs, IncarnationId: %v",
+            ControllerAgentLogger.WithTag("Kind: AgentToSchedulerJobs, IncarnationId: %v",
                IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "job_events"));
+            ControllerAgentProfiler.WithTag("queue", "job_events"),
+            Bootstrap_->GetControlInvoker());
         ScheduleJobResposesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
             ControllerAgentLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "schedule_job_responses"));
+            ControllerAgentProfiler.WithTag("queue", "schedule_job_responses"),
+            Bootstrap_->GetControlInvoker());
 
         JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentJobs, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "job_events"));
+            ControllerAgentProfiler.WithTag("queue", "job_events"),
+            Bootstrap_->GetControlInvoker());
         OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentOperations, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "operation_events"));
+            ControllerAgentProfiler.WithTag("queue", "operation_events"),
+            CancelableControlInvoker_);
         ScheduleJobRequestsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "schedule_job_requests"));
+            ControllerAgentProfiler.WithTag("queue", "schedule_job_requests"),
+            Bootstrap_->GetControlInvoker());
 
         MemoryWatchdog_ = New<TMemoryWatchdog>(
             Config_->MemoryWatchdog,

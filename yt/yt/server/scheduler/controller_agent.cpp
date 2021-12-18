@@ -35,13 +35,15 @@ TControllerAgent::TControllerAgent(
     const NNodeTrackerClient::TAddressMap& agentAddresses,
     THashSet<TString> tags,
     NRpc::IChannelPtr channel,
-    const IInvokerPtr& invoker)
+    const IInvokerPtr& invoker,
+    const IInvokerPtr& messageOffloadInvoker)
     : Id_(id)
     , AgentAddresses_(agentAddresses)
     , Tags_(std::move(tags))
     , Channel_(std::move(channel))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(invoker))
+    , MessageOffloadInvoker_(messageOffloadInvoker)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 }
@@ -79,6 +81,13 @@ TIncarnationId TControllerAgent::GetIncarnationId() const
     return IncarnationTransaction_->GetId();
 }
 
+IInvokerPtr TControllerAgent::GetMessageOffloadInvoker() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return MessageOffloadInvoker_;
+}
+
 const NApi::ITransactionPtr& TControllerAgent::GetIncarnationTransaction() const
 {
     return IncarnationTransaction_;
@@ -93,33 +102,39 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
         SchedulerLogger.WithTag("Kind: AgentToSchedulerOperations, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
-        SchedulerProfiler.WithTag("queue", "operation_events"));
+        SchedulerProfiler.WithTag("queue", "operation_events"),
+        CancelableInvoker_);
     JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
         SchedulerLogger.WithTag("Kind: AgentToSchedulerJobs, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
-        SchedulerProfiler.WithTag("queue", "job_events"));
+        SchedulerProfiler.WithTag("queue", "job_events"),
+        MessageOffloadInvoker_);
     ScheduleJobResponsesInbox_ = std::make_unique<TMessageQueueInbox>(
         SchedulerLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
-        SchedulerProfiler.WithTag("queue", "schedule_job_responses"));
+        SchedulerProfiler.WithTag("queue", "schedule_job_responses"),
+        MessageOffloadInvoker_);
     JobEventsOutbox_ = New<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>(
         SchedulerLogger.WithTag("Kind: SchedulerToAgentJobs, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
-        SchedulerProfiler.WithTag("queue", "job_events"));
+        SchedulerProfiler.WithTag("queue", "job_events"),
+        MessageOffloadInvoker_);
 
     OperationEventsOutbox_ = New<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>(
         SchedulerLogger.WithTag("Kind: SchedulerToAgentOperations, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
-        SchedulerProfiler.WithTag("queue", "operation_events"));
+        SchedulerProfiler.WithTag("queue", "operation_events"),
+        MessageOffloadInvoker_);
     ScheduleJobRequestsOutbox_ = New<TMessageQueueOutbox<TScheduleJobRequestPtr>>(
         SchedulerLogger.WithTag("Kind: SchedulerToAgentScheduleJobRequests, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
-        SchedulerProfiler.WithTag("queue", "schedule_job_requests"));
+        SchedulerProfiler.WithTag("queue", "schedule_job_requests"),
+        MessageOffloadInvoker_);
 }
 
 TMessageQueueInbox* TControllerAgent::GetOperationEventsInbox()
