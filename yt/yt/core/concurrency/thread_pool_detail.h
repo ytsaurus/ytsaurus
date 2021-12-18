@@ -33,7 +33,7 @@ protected:
     IInvokerPtr FinalizerInvoker_;
 
     YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
-    std::vector<TSchedulerThreadPtr> Threads_;
+    std::vector<TSchedulerThreadBasePtr> Threads_;
 
 
     void EnsureStarted();
@@ -45,7 +45,7 @@ protected:
     virtual TClosure MakeFinalizerCallback();
     virtual void DoConfigure(int threadCount);
 
-    virtual TSchedulerThreadPtr SpawnThread(int index) = 0;
+    virtual TSchedulerThreadBasePtr SpawnThread(int index) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

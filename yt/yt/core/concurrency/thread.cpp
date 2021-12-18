@@ -30,6 +30,11 @@ TThreadId TThread::GetThreadId() const
     return ThreadId_;
 }
 
+TString TThread::GetThreadName() const
+{
+    return ThreadName_;
+}
+
 bool TThread::StartSlow()
 {
     auto guard = Guard(SpinLock_);

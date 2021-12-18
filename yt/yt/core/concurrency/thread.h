@@ -42,6 +42,7 @@ public:
     bool IsStopping() const;
 
     TThreadId GetThreadId() const;
+    TString GetThreadName() const;
 
 protected:
     virtual void StartPrologue();

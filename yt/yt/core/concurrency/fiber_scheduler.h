@@ -1,6 +1,6 @@
 #pragma once
 
-#include "scheduler_base.h"
+#include "thread.h"
 
 #include <yt/yt/core/actions/callback.h>
 
@@ -10,31 +10,22 @@ namespace NYT::NConcurrency {
 
 //! Executes actions in fiber context.
 class TFiberScheduler
-    : public TSchedulerThreadBase
+    : public TThread
 {
 public:
-    using TSchedulerThreadBase::TSchedulerThreadBase;
+    TFiberScheduler(
+        const TString& threadGroupName,
+        const TString& threadName,
+        int shutdownPriority);
 
-    void CancelWait();
-    void PrepareWait();
-    void Wait();
-
-    virtual TClosure BeginExecute() = 0;
-    virtual void EndExecute() = 0;
+    //! Empty callback signals about stopping.
+    virtual TClosure OnExecute() = 0;
 
 private:
-    std::optional<NThreading::TEventCount::TCookie> Cookie_;
+    void ThreadMain() override;
 
-    bool OnLoop(NThreading::TEventCount::TCookie* cookie) override;
+    const TString ThreadGroupName_;
 };
-
-/////////////////////////////////////////////////////////////////////////////
-
-// Temporary adapters.
-using TSchedulerThread = TFiberScheduler;
-
-DECLARE_REFCOUNTED_TYPE(TSchedulerThread)
-DEFINE_REFCOUNTED_TYPE(TSchedulerThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 

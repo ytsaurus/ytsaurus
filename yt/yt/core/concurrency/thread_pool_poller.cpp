@@ -2,7 +2,7 @@
 
 #include "poller.h"
 #include "count_down_latch.h"
-#include "fiber_scheduler.h"
+#include "scheduler_thread.h"
 #include "private.h"
 #include "notification_handle.h"
 #include "moody_camel_concurrent_queue.h"

@@ -63,7 +63,7 @@ private:
         });
     }
 
-    TSchedulerThreadPtr SpawnThread(int index) override
+    TSchedulerThreadBasePtr SpawnThread(int index) override
     {
         return New<TMpmcSingleQueueSchedulerThread>(
             Queue_,
