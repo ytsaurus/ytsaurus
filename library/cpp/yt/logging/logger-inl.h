@@ -5,6 +5,7 @@
 #endif
 #undef LOGGER_INL_H_
 
+#include <library/cpp/yt/yson_string/convert.h>
 #include <library/cpp/yt/yson_string/string.h>
 
 namespace NYT::NLogging {

@@ -118,7 +118,7 @@ void TAppendableZstdFile::CompressOneFrame()
 
     if (ZSTD_isError(size)) {
         THROW_ERROR_EXCEPTION("ZSTD_compressCCtx() failed")
-            << TErrorAttribute("zstd_error", ZSTD_getErrorName(size));
+            << TErrorAttribute("zstd_error", TStringBuf(ZSTD_getErrorName(size)));
     }
     Output_.Advance(size);
 

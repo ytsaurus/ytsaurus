@@ -36,9 +36,9 @@ DEFINE_ENUM(EErrorCode,
 );
 
 DEFINE_ENUM(EPeerKind,
-    (Leader)
-    (Follower)
-    (LeaderOrFollower)
+    ((Leader)            (0))
+    ((Follower)          (1))
+    ((LeaderOrFollower)  (2))
 );
 
 using TRevision = ui64;

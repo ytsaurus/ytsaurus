@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <library/cpp/yt/yson_string/convert.h>
+
 #include <util/system/getpid.h>
 
 #include <type_traits>
@@ -221,17 +223,6 @@ struct TErrorTraits<TErrorOr<T>>
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NYson {
-
-// Avoid dependency on convert.h
-
-template <class T>
-NYson::TYsonString ConvertToYsonString(const T& value);
-NYson::TYsonString ConvertToYsonString(const char* value);
-NYson::TYsonString ConvertToYsonString(TStringBuf value);
-
-} // namespace NYson
 
 struct TErrorAttribute
 {

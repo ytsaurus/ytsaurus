@@ -122,7 +122,7 @@ void CheckFieldType(const Py::Object& value, NSkiff::EWireType wireType, bool re
             )
             {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord, it must be in range [0, 2^64 - 1]")
-                    << TErrorAttribute("expected_type", "uint64")
+                    << TErrorAttribute("expected_type", TStringBuf("uint64"))
                     << TErrorAttribute("value", ConvertStringObjectToString(valueAsLongLong.str()));
             }
             if (wireType == NSkiff::EWireType::Int64 &&
@@ -133,7 +133,7 @@ void CheckFieldType(const Py::Object& value, NSkiff::EWireType wireType, bool re
             )
             {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord, it must be in range [0, 2^64 - 1]")
-                    << TErrorAttribute("expected_type", "int64")
+                    << TErrorAttribute("expected_type", TStringBuf("int64"))
                     << TErrorAttribute("value", ConvertStringObjectToString(valueAsLongLong.str()));
             }
             break;
@@ -141,7 +141,7 @@ void CheckFieldType(const Py::Object& value, NSkiff::EWireType wireType, bool re
         case NSkiff::EWireType::Boolean: {
             if (!value.isBoolean()) {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord")
-                    << TErrorAttribute("expected_type", "boolean")
+                    << TErrorAttribute("expected_type", TStringBuf("boolean"))
                     << TErrorAttribute("value", TString(value.as_string()));
             }
             break;
@@ -153,7 +153,7 @@ void CheckFieldType(const Py::Object& value, NSkiff::EWireType wireType, bool re
         case NSkiff::EWireType::String32: {
             if (!(PyBytes_Check(value.ptr()) || PyUnicode_Check(value.ptr()))) {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord")
-                    << TErrorAttribute("expected_type", "string")
+                    << TErrorAttribute("expected_type", TStringBuf("string"))
                     << TErrorAttribute("value", TString(value.as_string()));
             }
             break;
@@ -170,7 +170,7 @@ void CheckFieldType(const Py::Object& value, NSkiff::EWireType wireType, bool re
 void TSkiffRecord::SetDenceField(ui16 index, const Py::Object& value)
 {
     auto newFieldValue = value;
-    if (newFieldValue.ptr() == nullptr) {
+    if (!newFieldValue.ptr()) {
         newFieldValue = Py::None();
     }
     auto fieldDescription = Schema_->GetDenseField(index);
@@ -180,7 +180,7 @@ void TSkiffRecord::SetDenceField(ui16 index, const Py::Object& value)
 
 void TSkiffRecord::SetSparseField(ui16 index, const Py::Object& value)
 {
-    if (value.ptr() == nullptr) {
+    if (!value.ptr()) {
         SparseFields_.erase(index);
         return;
     }
@@ -191,7 +191,7 @@ void TSkiffRecord::SetSparseField(ui16 index, const Py::Object& value)
 
 void TSkiffRecord::SetOtherField(const TString& key, const Py::Object& value)
 {
-    if (value.ptr() == nullptr) {
+    if (!value.ptr()) {
         OtherFields_.erase(key);
     } else {
         OtherFields_[key] = value;

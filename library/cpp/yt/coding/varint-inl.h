@@ -4,7 +4,7 @@
 #include "varint.h"
 #endif
 
-#include <library/cpp/yt/coding/zig_zag.h>
+#include "zig_zag.h"
 
 namespace NYT {
 

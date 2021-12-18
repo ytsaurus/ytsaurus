@@ -153,13 +153,12 @@ public:
     //! Formats |guid| and updates the internal cursor.
     void AppendGuid(TGuid guid)
     {
-        constexpr int MaxGuidLength = 8 * 4 + 3;
-        if (Y_LIKELY(End_ - Cursor_ >= MaxGuidLength)) {
+        if (Y_LIKELY(End_ - Cursor_ >= MaxGuidStringSize)) {
             // Fast path.
             Cursor_ = WriteGuidToBuffer(Cursor_, guid);
         } else {
             // Slow path.
-            std::array<char, MaxGuidLength> buffer;
+            std::array<char, MaxGuidStringSize> buffer;
             auto* end = WriteGuidToBuffer(buffer.data(), guid);
             AppendString(TStringBuf(buffer.data(), end));
         }
