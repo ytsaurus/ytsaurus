@@ -49,12 +49,10 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                     "update_period": 100,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
-                }
-            },
-            "operation_options": {
+                },
                 "spec_template": {
                     "use_new_sorted_pool": False,
-                }
+                },
             },
         }
     }
@@ -3129,11 +3127,9 @@ class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 },
-            },
-            "operation_options": {
                 "spec_template": {
                     "use_new_sorted_pool": True,
-                }
-            }
+                },
+            },
         }
     }
