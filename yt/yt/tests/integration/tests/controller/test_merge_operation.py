@@ -52,6 +52,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 },
+                "spec_template": {
+                    "use_new_sorted_pool": False,
+                },
             },
             "ordered_merge_operation_options": {
                 "job_splitter": {
@@ -62,11 +65,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                     "max_jobs_per_split": 3,
                 },
             },
-            "operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": False,
-                }
-            }
         }
     }
 
@@ -2484,6 +2482,9 @@ class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                 },
+                "spec_template": {
+                    "use_new_sorted_pool": True,
+                },
             },
             "ordered_merge_operation_options": {
                 "job_splitter": {
@@ -2494,11 +2495,6 @@ class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
                     "max_jobs_per_split": 3,
                 },
             },
-            "operation_options": {
-                "spec_template": {
-                    "use_new_sorted_pool": True,
-                }
-            }
         }
     }
 
