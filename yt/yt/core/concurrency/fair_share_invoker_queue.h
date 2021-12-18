@@ -1,7 +1,6 @@
 #pragma once
 
 #include "private.h"
-#include "spinlock.h"
 
 #include <yt/yt/core/actions/invoker.h>
 
@@ -10,6 +9,7 @@
 #include <yt/yt/library/ytprof/api/api.h>
 
 #include <library/cpp/yt/threading/event_count.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NConcurrency {
 
@@ -66,7 +66,7 @@ private:
 
     std::atomic<bool> NeedToReconfigure_ = false;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, WeightsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, WeightsLock_);
     std::vector<double> Weights_;
 
     TBucket* CurrentBucket_ = nullptr;

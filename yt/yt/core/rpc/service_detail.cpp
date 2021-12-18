@@ -556,7 +556,7 @@ private:
     bool RequestStarted_ = false;
     bool ActiveRequestCountIncremented_ = false;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, StreamsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StreamsLock_);
     TError StreamsError_;
     TAttachmentsInputStreamPtr RequestAttachmentsStream_;
     TAttachmentsOutputStreamPtr ResponseAttachmentsStream_;

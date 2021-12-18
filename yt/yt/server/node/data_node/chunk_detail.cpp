@@ -266,7 +266,7 @@ void TChunkBase::StartAsyncRemove()
     RemovedPromise_.SetFrom(AsyncRemove());
 }
 
-void TChunkBase::ReleaseReader(NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& /* writerGuard */)
+void TChunkBase::ReleaseReader(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& /* writerGuard */)
 { }
 
 TRefCountedChunkMetaPtr TChunkBase::FilterMeta(

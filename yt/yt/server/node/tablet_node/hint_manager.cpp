@@ -173,11 +173,11 @@ private:
     const THintManagerConfigPtr Config_;
     const TReplicatorHintConfigFetcherPtr ReplicatorHintConfigFetcher_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, BannedReplicaClustersSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BannedReplicaClustersSpinLock_);
     THashSet<TString> BannedReplicaClusters_;
 
     // TODO(akozhikhov): Add periodic to clear old suspicious nodes.
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SuspiciousNodesSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SuspiciousNodesSpinLock_);
     THashMap<TNodeId, TInstant> SuspiciousNodesMarkTime_;
 
     void OnDynamicConfigChanged(

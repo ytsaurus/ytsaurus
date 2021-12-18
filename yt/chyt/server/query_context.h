@@ -14,13 +14,15 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/concurrency/public.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/statistics.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <Interpreters/Context.h>
 
@@ -128,19 +130,19 @@ private:
     TInstant StartTime_;
     TInstant FinishTime_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PhaseLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PhaseLock_);
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
     TInstant LastPhaseTime_;
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);
 
     //! Spinlock controlling lazy client creation.
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ClientLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClientLock_);
 
     //! Native client for the user that initiated the query. Created on first use.
     mutable NApi::NNative::IClientPtr Client_;
 
     //! Spinlock controlling select query context map.
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, StorageToStorageContextLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StorageToStorageContextLock_);
     THashMap<const DB::IStorage*, TStorageContextPtr> StorageToStorageContext_;
 };
 

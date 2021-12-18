@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
 
 namespace NYT::NProfiling {

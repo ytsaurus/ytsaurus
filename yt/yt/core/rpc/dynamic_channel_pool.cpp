@@ -5,8 +5,6 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/convert.h>
 
@@ -15,6 +13,8 @@
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/core/utilex/random.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/random/shuffle.h>
 
@@ -166,7 +166,7 @@ private:
     const size_t ClientStickinessRandomNumber_ = RandomNumber<size_t>();
     const TPromise<void> PeersSetPromise_ = NewPromise<void>();
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     bool Terminated_ = false;
     TDiscoverySessionPtr CurrentDiscoverySession_;
     TDelayedExecutorCookie RediscoveryCookie_;
@@ -242,7 +242,7 @@ private:
         std::atomic<bool> Finished_ = false;
         std::atomic<bool> Success_ = false;
 
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
         THashSet<TString> RequestedAddresses_;
         THashSet<TString> RequestingAddresses_;
         std::vector<TError> DiscoveryErrors_;
@@ -773,7 +773,7 @@ private:
         DoAddPeers(addresses, guard);
     }
 
-    void DoAddPeers(const std::vector<TString>& addresses, TSpinlockWriterGuard<TReaderWriterSpinLock>& guard)
+    void DoAddPeers(const std::vector<TString>& addresses, TWriterGuard<TReaderWriterSpinLock>& guard)
     {
         PeerDiscoveryError_ = {};
 
@@ -797,7 +797,7 @@ private:
         }
     }
 
-    void MaybeEvictRandomPeer(TSpinlockWriterGuard<TReaderWriterSpinLock>& guard)
+    void MaybeEvictRandomPeer(TWriterGuard<TReaderWriterSpinLock>& guard)
     {
         auto now = TInstant::Now();
         if (now < RandomEvictionDeadline_) {
@@ -818,7 +818,7 @@ private:
         RandomEvictionDeadline_ = now + Config_->RandomPeerEvictionPeriod + RandomDuration(Config_->RandomPeerEvictionPeriod);
     }
 
-    void AddPeer(const TString& address, TSpinlockWriterGuard<TReaderWriterSpinLock>& /*guard*/)
+    void AddPeer(const TString& address, TWriterGuard<TReaderWriterSpinLock>& /*guard*/)
     {
         YT_VERIFY(ActiveAddresses_.insert(address).second);
 
@@ -831,7 +831,7 @@ private:
         YT_LOG_DEBUG("Peer added (Address: %v)", address);
     }
 
-    void RemovePeer(const TString& address, TSpinlockWriterGuard<TReaderWriterSpinLock>& guard)
+    void RemovePeer(const TString& address, TWriterGuard<TReaderWriterSpinLock>& guard)
     {
         if (ActiveAddresses_.erase(address) == 0 && BannedAddresses_.erase(address) == 0) {
             return;
@@ -977,7 +977,7 @@ private:
     }
 
 
-    bool RegisterViablePeer(const TString& address, const IChannelPtr& channel, TSpinlockWriterGuard<TReaderWriterSpinLock>& /*guard*/)
+    bool RegisterViablePeer(const TString& address, const IChannelPtr& channel, TWriterGuard<TReaderWriterSpinLock>& /*guard*/)
     {
         GeneratePeerHashes(address, [&] (size_t hash) {
             HashToViableChannel_[std::make_pair(hash, address)] = channel;
@@ -997,7 +997,7 @@ private:
         return updated;
     }
 
-    void UnregisterViablePeer(THashMap<TString, int>::iterator it, TSpinlockWriterGuard<TReaderWriterSpinLock>& /*guard*/)
+    void UnregisterViablePeer(THashMap<TString, int>::iterator it, TWriterGuard<TReaderWriterSpinLock>& /*guard*/)
     {
         const auto& address = it->first;
         GeneratePeerHashes(address, [&] (size_t hash) {

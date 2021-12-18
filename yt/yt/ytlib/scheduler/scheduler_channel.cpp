@@ -124,7 +124,7 @@ private:
     const TString EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     IChannelPtr CachedChannel_;
 
 

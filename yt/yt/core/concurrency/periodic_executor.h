@@ -80,7 +80,7 @@ private:
     const TDuration Splay_;
     const double Jitter_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     bool Started_ = false;
     bool Busy_ = false;
     bool OutOfBandRequested_ = false;
@@ -90,7 +90,7 @@ private:
     TPromise<void> IdlePromise_;
     TPromise<void> ExecutedPromise_;
 
-    void DoStop(NConcurrency::TSpinlockGuard<NThreading::TSpinLock>& guard);
+    void DoStop(TGuard<NThreading::TSpinLock>& guard);
 
     static TError MakeStoppedError();
 

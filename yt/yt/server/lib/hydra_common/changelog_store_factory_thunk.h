@@ -15,7 +15,7 @@ public:
     void SetUnderlying(IChangelogStoreFactoryPtr underlying);
 
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     IChangelogStoreFactoryPtr Underlying_;
 
 

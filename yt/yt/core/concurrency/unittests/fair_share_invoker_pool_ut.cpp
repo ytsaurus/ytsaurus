@@ -85,7 +85,7 @@ protected:
 
     struct TInvocationOrder
     {
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
         std::vector<int> InvokerIndexes_;
     } InvocationOrder_;
 

@@ -7,10 +7,11 @@
 
 #include <yt/yt/core/rpc/server.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/ytlib/discovery_client/helpers.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NDiscoveryServer {
 
@@ -39,7 +40,7 @@ private:
     const TGroupTreePtr GroupTree_;
     const NYTree::IYPathServicePtr YPathService_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ModifiedMembersLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ModifiedMembersLock_);
     THashSet<TMemberPtr> ModifiedMembers_;
 
     THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(const std::vector<TGroupId>& groupIds);

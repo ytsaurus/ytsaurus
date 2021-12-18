@@ -300,7 +300,7 @@ public:
 
 private:
     std::atomic<bool> Initialized_ = false;
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, InitializationLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InitializationLock_);
 
     THashSet<TInternedAttributeKey> BuiltinKeys_;
 };
@@ -314,7 +314,7 @@ public:
 
 private:
     std::atomic<bool> Initialized_ = false;
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, InitializationLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InitializationLock_);
 
     THashSet<TString> CustomKeys_;
 };
@@ -328,7 +328,7 @@ public:
 
 private:
     std::atomic<bool> Initialized_ = false;
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, InitializationLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InitializationLock_);
 
     THashSet<TString> OpaqueKeys_;
 };

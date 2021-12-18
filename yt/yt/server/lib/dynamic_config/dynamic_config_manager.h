@@ -4,11 +4,11 @@
 
 #include <yt/yt/core/actions/signal.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NDynamicConfig {
 
@@ -77,7 +77,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     TError UpdateError_;
     TError UnrecognizedOptionError_;
     TInstant LastConfigUpdateTime_;

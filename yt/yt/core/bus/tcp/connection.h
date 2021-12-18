@@ -20,7 +20,8 @@
 #include <yt/yt/core/net/public.h>
 
 #include <yt/yt/core/concurrency/pollable_detail.h>
-#include <yt/yt/core/concurrency/spinlock.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <util/network/init.h>
 
@@ -182,7 +183,7 @@ private:
     // Actually stores NConcurrency::EPollControl.
     std::atomic<ui64> PendingControl_ = static_cast<ui64>(NConcurrency::EPollControl::Offline);
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
     SOCKET Socket_ = INVALID_SOCKET;
 
@@ -192,7 +193,7 @@ private:
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, QueuedMessagesDiscardLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueuedMessagesDiscardLock_);
     TMpscStack<TQueuedMessage> QueuedMessages_;
     std::atomic<size_t> PendingOutPayloadBytes_ = 0;
 

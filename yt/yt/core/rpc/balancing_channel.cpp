@@ -9,12 +9,13 @@
 
 #include <yt/yt/core/service_discovery/service_discovery.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/net/address.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NRpc {
 
@@ -216,7 +217,7 @@ private:
     const TString EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TString, TBalancingChannelSubproviderPtr> SubproviderMap_;
 
 

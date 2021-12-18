@@ -9,9 +9,9 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/misc/heap.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <tuple>
 
@@ -323,7 +323,7 @@ private:
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
 
     struct TSession
     {

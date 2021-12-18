@@ -8,12 +8,13 @@
 #include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/finally.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <pthread.h>
 
@@ -144,7 +145,7 @@ private:
 
     TDeleteQueue<TRetiredPtr> DeleteQueue_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ThreadRegistryLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ThreadRegistryLock_);
     TIntrusiveLinkedList<THazardThreadState, THazardThreadStateToRegistryNode> ThreadRegistry_;
     pthread_key_t ThreadDtorKey_;
 

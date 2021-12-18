@@ -237,10 +237,10 @@ private:
 
     std::atomic<int> ActiveJobCount_ = {0};
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
     TJobResources TotalResourceUsage_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, CachedExecNodeDescriptorsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedExecNodeDescriptorsLock_);
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     THashMap<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;

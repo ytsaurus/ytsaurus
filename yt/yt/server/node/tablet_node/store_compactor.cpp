@@ -935,7 +935,7 @@ private:
 
         using TTaskInfoPtr = TIntrusivePtr<TTaskInfo>;
 
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, QueueSpinLock_);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueueSpinLock_);
         std::deque<TTaskInfoPtr> TaskQueue_;
         std::deque<TTaskInfoPtr> FinishedTaskQueue_;
 
@@ -948,21 +948,21 @@ private:
     using TOrchidServiceManagerPtr = TIntrusivePtr<TOrchidServiceManager>;
 
     // Variables below contain per-iteration state for slot scan.
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ScanSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ScanSpinLock_);
     bool ScanForPartitioning_;
     bool ScanForCompactions_;
     std::vector<std::unique_ptr<TTask>> PartitioningCandidates_;
     std::vector<std::unique_ptr<TTask>> CompactionCandidates_;
 
     // Variables below are actually used during the scheduling.
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, TaskSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TaskSpinLock_);
     std::vector<std::unique_ptr<TTask>> PartitioningTasks_; // Min-heap.
     size_t PartitioningTaskIndex_ = 0; // Heap end boundary.
     std::vector<std::unique_ptr<TTask>> CompactionTasks_; // Min-heap.
     size_t CompactionTaskIndex_ = 0; // Heap end boundary.
 
     // These are for the future accounting.
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, FutureEffectLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, FutureEffectLock_);
     THashMap<TTabletId, int> FutureEffect_;
 
     const TOrchidServiceManagerPtr CompactionOrchidServiceManager_ = New<TOrchidServiceManager>();
@@ -1067,7 +1067,7 @@ private:
         candidates->clear();
     }
 
-    void PickMorePartitionings(TSpinlockGuard<NThreading::TSpinLock>& /*guard*/)
+    void PickMorePartitionings(TGuard<NThreading::TSpinLock>& /*guard*/)
     {
         PickMoreTasks(
             &PartitioningCandidates_,
@@ -1077,7 +1077,7 @@ private:
             FeasiblePartitioningsCounter_);
     }
 
-    void PickMoreCompactions(TSpinlockGuard<NThreading::TSpinLock>& /*guard*/)
+    void PickMoreCompactions(TGuard<NThreading::TSpinLock>& /*guard*/)
     {
         PickMoreTasks(
             &CompactionCandidates_,
@@ -1165,7 +1165,7 @@ private:
             &TStoreCompactor::CompactPartition);
     }
 
-    int LockedGetFutureEffect(NConcurrency::TSpinlockReaderGuard<TReaderWriterSpinLock>&, TTabletId tabletId)
+    int LockedGetFutureEffect(NThreading::TReaderGuard<TReaderWriterSpinLock>&, TTabletId tabletId)
     {
         auto it = FutureEffect_.find(tabletId);
         return it != FutureEffect_.end() ? it->second : 0;

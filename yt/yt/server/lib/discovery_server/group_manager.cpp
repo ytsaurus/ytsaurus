@@ -3,8 +3,6 @@
 #include "public.h"
 #include "cypress_integration.h"
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/rpc/server.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -62,14 +60,14 @@ void TGroupManager::ProcessHeartbeat(
     }
 
     auto groups = GetOrCreateGroups({groupId});
-    // If groupId is incorect, GetOrCreateGroups will omit it in result groups. 
+    // If groupId is incorect, GetOrCreateGroups will omit it in result groups.
     if (groups.empty()) {
         THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::InvalidGroupId,
             "Group id %v is incorrect",
             groupId);
     }
 
-    auto group = GetOrCrash(groups, groupId); 
+    auto group = GetOrCrash(groups, groupId);
     auto member = group->AddOrUpdateMember(memberInfo, leaseTimeout);
 
     {

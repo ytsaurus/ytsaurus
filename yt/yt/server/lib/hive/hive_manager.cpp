@@ -322,12 +322,12 @@ private:
     TEntityMap<TMailbox> MailboxMap_;
     THashMap<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MailboxRuntimeDataMapLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MailboxRuntimeDataMapLock_);
     THashMap<TCellId, TMailboxRuntimeDataPtr> MailboxRuntimeDataMap_;
 
     THashSet<TCellId> RemovedCellIds_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, CellToIdToBatcherLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CellToIdToBatcherLock_);
     THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToBatcher_;
 
     TTimeCounter SyncPostingTimeCounter_;

@@ -20,9 +20,9 @@
 
 #include <yt/yt/core/actions/signal.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/logging/log.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NTabletNode {
 
@@ -267,7 +267,7 @@ protected:
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
     TInstant LastCompactionTimestamp_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, VersionedChunkMetaLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, VersionedChunkMetaLock_);
     TWeakPtr<TVersionedChunkMetaCacheEntry> CachedWeakVersionedChunkMeta_;
 
     // Cached for fast retrieval from ChunkMeta_.
@@ -294,7 +294,7 @@ protected:
     virtual NTableClient::TKeyComparer GetKeyComparer() = 0;
 
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ReaderLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReaderLock_);
     NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
     TReaders CachedReaders_;
     THashMap<std::optional<EWorkloadCategory>, TReaders> CachedRemoteReaderAdapters_;

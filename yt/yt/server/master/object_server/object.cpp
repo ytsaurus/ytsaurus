@@ -29,7 +29,7 @@ thread_local TEpochContextPtr EpochContext;
 
 struct TEpochRefCounterShard
 {
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
 };
 
 constexpr int EpochRefCounterShardCount = 256;

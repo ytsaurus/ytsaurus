@@ -536,7 +536,7 @@ private:
 
     const IInvokerPtr SerializedInvoker_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     ETransactionState State_ = ETransactionState::Active;
     TPromise<void> AbortPromise_;
     std::vector<NApi::ITransactionPtr> AlienTransactions_;
@@ -1618,7 +1618,7 @@ private:
     THashMap<TCellId, TCellCommitSessionPtr> CellIdToSession_;
 
     //! Maps replica cluster name to sync replica transaction.
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ClusterNameToSyncReplicaTransactionPromiseSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ClusterNameToSyncReplicaTransactionPromiseSpinLock_);
     THashMap<TString, TPromise<NApi::ITransactionPtr>> ClusterNameToSyncReplicaTransactionPromise_;
 
     //! Caches mappings from name table ids to schema ids.
@@ -1788,7 +1788,7 @@ private:
         return it->second;
     }
 
-    TFuture<void> DoAbort(TSpinlockGuard<NThreading::TSpinLock>* guard, const TTransactionAbortOptions& options = {})
+    TFuture<void> DoAbort(TGuard<NThreading::TSpinLock>* guard, const TTransactionAbortOptions& options = {})
     {
         VERIFY_THREAD_AFFINITY_ANY();
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);

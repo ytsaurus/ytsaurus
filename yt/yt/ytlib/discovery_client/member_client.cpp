@@ -10,8 +10,9 @@
 
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NDiscoveryClient {
 
@@ -150,7 +151,7 @@ private:
     const NLogging::TLogger Logger;
     const TServerAddressPoolPtr AddressPool_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     TMemberClientConfigPtr Config_;
 
     std::atomic<i64> Priority_ = std::numeric_limits<i64>::max();

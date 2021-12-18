@@ -87,7 +87,7 @@ private:
     };
 
     // Protects all Config_ and Buckets_.
-    YT_DECLARE_SPINLOCK(TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TFairThrottlerConfigPtr Config_;
     THashMap<TString, TBucket> Buckets_;
 

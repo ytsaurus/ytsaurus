@@ -544,7 +544,7 @@ private:
 
     TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, OperationsArchiveChannelsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OperationsArchiveChannelsLock_);
     std::optional<TEnumIndexedVector<EMasterChannelKind, NRpc::IChannelPtr>> OperationsArchiveChannels_;
     NNodeTrackerClient::INodeChannelFactoryPtr ChannelFactory_;
     NTransactionClient::TTransactionManagerPtr TransactionManager_;
@@ -555,12 +555,12 @@ private:
 
     struct TReplicaClient final
     {
-        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
         NApi::IClientPtr Client;
         TFuture<NApi::IClientPtr> AsyncClient;
     };
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
     THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
     const NRpc::IChannelPtr& GetOperationArchiveChannel(EMasterChannelKind kind);

@@ -632,7 +632,7 @@ private:
     const NLogging::TLogger Logger;
 
     //! Protects a section of members.
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
     //! The current multiplexed changelog.
     IChangelogPtr MultiplexedChangelog_;

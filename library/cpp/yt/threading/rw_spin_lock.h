@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "spin_lock_base.h"
 
 #include <util/system/rwlock.h>
 
@@ -16,8 +17,11 @@ namespace NYT::NThreading {
  *  The lock is unfair.
  */
 class TReaderWriterSpinLock
+    : public TSpinLockBase
 {
 public:
+    using TSpinLockBase::TSpinLockBase;
+
     //! Acquires the reader lock.
     /*!
      *  Optimized for the case of read-intensive workloads.

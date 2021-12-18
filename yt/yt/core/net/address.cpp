@@ -3,7 +3,6 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -14,6 +13,8 @@
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/generic/singleton.h>
 #include <util/string/hex.h>
@@ -903,7 +904,7 @@ private:
 
     std::atomic<bool> HasCachedLocalAddresses_ = {false};
     std::vector<TNetworkAddress> CachedLocalAddresses_;
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, CacheLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CacheLock_);
 
     const TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
 

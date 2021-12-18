@@ -4,9 +4,9 @@
 #include "cache_config.h"
 #include "memory_usage_tracker.h"
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <atomic>
 
@@ -79,7 +79,7 @@ private:
 
     struct TShard
     {
-        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock);
 
         TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList;
         TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList;
@@ -108,7 +108,7 @@ private:
     bool Touch(TShard* shard, TItem* item);
     void DrainTouchBuffer(TShard* shard);
 
-    void Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& guard);
+    void Trim(TShard* shard, NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& guard);
 
     void PushToYounger(TShard* shard, TItem* item);
     void MoveToYounger(TShard* shard, TItem* item);

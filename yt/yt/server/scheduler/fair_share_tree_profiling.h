@@ -97,7 +97,7 @@ private:
 
     THashMap<TOperationId, TOperationProfilingEntry> OperationIdToProfilingEntry_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, PoolNameToProfilingEntryLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNameToProfilingEntryLock_);
     THashMap<TString, TPoolProfilingEntry> PoolNameToProfilingEntry_;
 
     NProfiling::TBufferedProducerPtr DistributedResourcesBufferedProducer_;

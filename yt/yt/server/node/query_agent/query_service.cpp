@@ -354,7 +354,7 @@ public:
     friend class TTrackedMemoryChunkProvider;
 
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<TString, TWeakPtr<TTrackedMemoryChunkProvider>> Map_;
 };
 
@@ -855,7 +855,7 @@ private:
                     maxTimestamp,
                     !tooMuch,
                     upperTimestamp,
-                    GetReplicationProgressMinTimestamp(*replicationProgress)); 
+                    GetReplicationProgressMinTimestamp(*replicationProgress));
 
                 if (upperTimestamp && !tooMuch) {
                     maxTimestamp = upperTimestamp;

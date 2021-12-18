@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NTableClient {
 
@@ -35,7 +35,7 @@ public:
     std::vector<TString> GetNames() const;
 
 private:
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
     bool EnableColumnNameValidation_ = false;
 

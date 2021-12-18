@@ -43,7 +43,6 @@
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -55,6 +54,9 @@
 #include <yt/yt/core/ytalloc/memory_zone.h>
 
 #include <yt/yt/core/rpc/local_channel.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NTabletNode {
 
@@ -209,7 +211,7 @@ private:
 
     const TAsyncSemaphorePtr PreloadSemaphore_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, InterceptedDataSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, InterceptedDataSpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
 
@@ -844,7 +846,7 @@ private:
     std::atomic<bool> Sending_ = {false};
     std::atomic<bool> Dropped_ = {false};
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
     size_t CurrentSize_ = 0;
 

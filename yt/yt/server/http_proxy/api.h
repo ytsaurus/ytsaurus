@@ -9,11 +9,11 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/library/syncmap/map.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NHttpProxy {
 
@@ -108,7 +108,7 @@ private:
 
     TString GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, BanCacheLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BanCacheLock_);
     THashMap<TString, TInstant> BanCache_;
 
     struct TProfilingCounters

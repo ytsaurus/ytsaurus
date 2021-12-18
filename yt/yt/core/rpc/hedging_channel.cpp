@@ -189,7 +189,7 @@ private:
     std::atomic<bool> Responded_ = false;
     std::atomic<bool> PrimaryCanceled_ = false;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     TCompactVector<IClientRequestControlPtr, 2> RequestControls_; // always at most 2 items
 
 

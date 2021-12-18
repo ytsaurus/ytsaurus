@@ -1,13 +1,31 @@
+#pragma once
+
 #include <library/cpp/yt/cpu_clock/clock.h>
+
+#include <library/cpp/yt/misc/enum.h>
+
+#include <util/system/src_location.h>
 
 namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSpinWaitSlowPathHook = void(*)(TCpuDuration cpuDelay);
+DEFINE_ENUM(ESpinLockActivityKind,
+    (Read)
+    (Write)
+    (ReadWrite)
+);
 
-TSpinWaitSlowPathHook GetSpinWaitSlowPathHook();
-void SetSpinWaitSlowPathHook(TSpinWaitSlowPathHook hook);
+using TSpinWaitSlowPathHook = void(*)(
+    TCpuDuration cpuDelay,
+    const ::TSourceLocation& location,
+    ESpinLockActivityKind activityKind);
+
+void RegisterSpinWaitSlowPathHook(TSpinWaitSlowPathHook hook);
+void InvokeSpinWaitSlowPathHooks(
+    TCpuDuration cpuDelay,
+    const ::TSourceLocation& location,
+    ESpinLockActivityKind activityKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
-#include <util/system/spinlock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT {
 
@@ -51,10 +51,10 @@ public:
     }
 
 private:
-    TLock Lock_;
+    YT_DECLARE_SPIN_LOCK(TLock, Lock_);
     TFactory Factory_;
     mutable TIntrusivePtr<T> Value_;
-    mutable std::atomic<bool> Initialized_ = {false};
+    mutable std::atomic<bool> Initialized_ = false;
 
     void MaybeInitialize() const noexcept
     {

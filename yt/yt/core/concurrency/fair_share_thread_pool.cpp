@@ -328,14 +328,14 @@ private:
 
     const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
     std::vector<THeapItem> Heap_;
 
     std::atomic<int> ThreadCount_ = 0;
     std::array<TThreadState, TThreadPoolBase::MaxThreadCount> ThreadStates_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, TagMappingSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TagMappingSpinLock_);
     THashMap<TFairShareThreadPoolTag, TWeakPtr<TBucket>> TagToBucket_;
 
     std::atomic<int> QueueSize_ = 0;

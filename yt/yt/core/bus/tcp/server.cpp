@@ -19,8 +19,10 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/pollable_detail.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <cerrno>
 
@@ -124,10 +126,10 @@ protected:
     const IPollerPtr Poller_;
     const IMessageHandlerPtr Handler_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ControlSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ControlSpinLock_);
     SOCKET ServerSocket_ = INVALID_SOCKET;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ConnectionsSpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConnectionsSpinLock_);
     THashSet<TTcpConnectionPtr> Connections_;
 
     NLogging::TLogger Logger = BusLogger;
@@ -442,7 +444,7 @@ public:
 private:
     const TTcpBusServerConfigPtr Config_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     TIntrusivePtr<TServer> Server_;
 };
 

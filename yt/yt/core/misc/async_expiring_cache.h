@@ -6,11 +6,11 @@
 #include <type_traits>
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <atomic>
 
@@ -119,7 +119,7 @@ private:
 
     using TEntryPtr = TIntrusivePtr<TEntry>;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, TEntryPtr> Map_;
     TAsyncExpiringCacheConfigPtr Config_;
 

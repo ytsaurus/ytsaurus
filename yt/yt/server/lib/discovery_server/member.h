@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/actions/callback.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NDiscoveryServer {
 
@@ -29,7 +29,7 @@ public:
     private:
         const TMemberPtr Member_;
 
-        NConcurrency::TSpinlockReaderGuard<NThreading::TReaderWriterSpinLock> Guard_;
+        NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> Guard_;
 
         friend class TMember;
         explicit TAttributeReader(TMemberPtr member);
@@ -44,7 +44,7 @@ public:
     private:
         const TMemberPtr Member_;
 
-        NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock> Guard_;
+        NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock> Guard_;
 
         friend class TMember;
         explicit TAttributeWriter(TMemberPtr member);
@@ -69,7 +69,7 @@ private:
     const TMemberId Id_;
     const TGroupId GroupId_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     i64 Priority_ = 0;
     i64 Revision_ = 0;
     NYTree::IAttributeDictionaryPtr Attributes_;

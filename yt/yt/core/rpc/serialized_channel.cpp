@@ -120,7 +120,7 @@ private:
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::queue<TEntryPtr> Queue_;
     bool RequestInProgress_ = false;
 

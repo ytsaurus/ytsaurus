@@ -35,7 +35,7 @@ private:
 
     std::atomic<TDuration> BanTimeout_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashSet<TString> UpAddresses_;
     THashSet<TString> ProbationAddresses_;
     THashSet<TString> DownAddresses_;
@@ -69,7 +69,7 @@ private:
     const NRpc::TServerAddressPoolPtr AddressPool_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, AddressesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AddressesLock_);
 
     std::vector<TString> UpAddresses_;
     int CurrentUpAddressIndex_ = 0;
@@ -78,7 +78,7 @@ private:
     std::vector<TString> ProbationAddresses_;
     int CurrentProbationAddressIndex_ = 0;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ErrorsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ErrorsLock_);
     std::vector<TError> Errors_;
 
     void AddError(const TError& error);

@@ -552,7 +552,7 @@ private:
 
     bool Destroyed_ = false;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ContextSwitchMapLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ContextSwitchMapLock_);
     mutable i64 TotalContextSwitches_ = 0;
     mutable THashMap<TString, i64> ContextSwitchMap_;
 

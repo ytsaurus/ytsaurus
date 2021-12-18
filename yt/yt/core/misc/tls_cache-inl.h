@@ -4,8 +4,10 @@
 #include "tls_cache.h"
 #endif
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 #include <util/generic/hash.h>
-#include <util/system/spinlock.h>
+
 #include <util/thread/singleton.h>
 
 #include <memory>
@@ -62,7 +64,7 @@ public:
 
 private:
     TCache<TSynchronizedTrait<TTrait>> Cache_;
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 };
 
 template <typename TBaseTrait>

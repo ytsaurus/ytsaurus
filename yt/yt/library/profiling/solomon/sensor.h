@@ -5,7 +5,7 @@
 #include <yt/yt/library/profiling/impl.h>
 #include <yt/yt/library/profiling/summary.h>
 
-#include <util/system/spinlock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NProfiling {
 
@@ -56,7 +56,7 @@ class TSimpleCounter
 {
 public:
     void Increment(i64 delta) override;
-    
+
     i64 GetValue() override;
 
 private:
@@ -72,7 +72,7 @@ class TSimpleTimeCounter
 {
 public:
     void Add(TDuration delta) override;
-    
+
     TDuration GetValue() override;
 
 private:
@@ -94,7 +94,7 @@ public:
     TSummarySnapshot<T> GetSummaryAndReset() override;
 
 private:
-    TSpinLock Lock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TSummarySnapshot<T> Value_;
 };
 

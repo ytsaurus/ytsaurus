@@ -2,11 +2,11 @@
 
 #include <yt/yt/core/misc/public.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <library/cpp/http/server/http.h>
 
 #include <library/cpp/testing/common/network.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NTests {
 
@@ -54,7 +54,7 @@ private:
             THttpServerImpl* const Owner_;
         };
 
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
         TCallback Callback_;
     };
 

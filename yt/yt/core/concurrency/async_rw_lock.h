@@ -27,7 +27,7 @@ private:
     std::vector<TPromise<void>> ReaderPromiseQueue_;
     std::queue<TPromise<void>> WriterPromiseQueue_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

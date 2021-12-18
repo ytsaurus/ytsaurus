@@ -19,7 +19,6 @@
 
 #include <yt/yt/core/concurrency/execution_stack.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/private.h>
 
 #include <yt/yt/core/net/address.h>
@@ -29,31 +28,21 @@
 
 #include <yt/yt/core/service_discovery/yp/service_discovery.h>
 
+#include <yt/yt/core/threading/spin_wait_slow_path_logger.h>
+
+#include <library/cpp/yt/threading/spin_wait_hook.h>
+
 namespace NYT {
 
 using namespace NConcurrency;
+using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-void SpinlockHiccupHandler(const ::TSourceLocation& location, ESpinlockActivityKind activityKind, i64 elapsedTicks)
-{
-    const auto& Logger = NConcurrency::ConcurrencyLogger;
-    YT_LOG_DEBUG("Spinlock acquisition took too long (SourceLocation: %v:%v, ActivityKind: %v, Elapsed: %v)",
-        location.File,
-        location.Line,
-        activityKind,
-        NProfiling::CpuDurationToDuration(elapsedTicks));
-}
-
-} // namespace
 
 template <class TConfig>
 void ConfigureSingletonsImpl(const TConfig& config)
 {
-    NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(config->SpinlockHiccupThreshold));
-    NConcurrency::SetSpinlockHiccupHandler(&SpinlockHiccupHandler);
+    SetSpinWaitSlowPathLoggingThreshold(config->SpinWaitSlowPathLoggingThreshold);
 
     if (!NYTAlloc::ConfigureFromEnv()) {
         NYTAlloc::Configure(config->YTAlloc);
@@ -107,8 +96,7 @@ void ConfigureSingletons(const TDeprecatedSingletonsConfigPtr& config)
 template <class TStaticConfig, class TDynamicConfig>
 void ReconfigureSingletonsImpl(const TStaticConfig& config, const TDynamicConfig& dynamicConfig)
 {
-    NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(
-        dynamicConfig->SpinlockHiccupThreshold.value_or(config->SpinlockHiccupThreshold)));
+    SetSpinWaitSlowPathLoggingThreshold(dynamicConfig->SpinWaitSlowPathLoggingThreshold.value_or(config->SpinWaitSlowPathLoggingThreshold));
 
     if (!NYTAlloc::IsConfiguredFromEnv()) {
         NYTAlloc::Configure(dynamicConfig->YTAlloc ? dynamicConfig->YTAlloc : config->YTAlloc);

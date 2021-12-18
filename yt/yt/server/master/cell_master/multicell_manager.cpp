@@ -490,15 +490,15 @@ private:
     TPeriodicExecutorPtr CellStatisticsGossipExecutor_;
 
     //! Caches master channels returned by FindMasterChannel and GetMasterChannelOrThrow.
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MasterChannelCacheLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterChannelCacheLock_);
     THashMap<std::tuple<TCellTag, EPeerKind>, IChannelPtr> MasterChannelCache_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MasterCellRolesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellRolesLock_);
     THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
     TEnumIndexedVector<EMasterCellRole, TCellTagList> RoleMasterCells_;
     TEnumIndexedVector<EMasterCellRole, std::atomic<int>> RoleMasterCellCounts_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MasterCellNamesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellNamesLock_);
     THashMap<TCellTag, TString> MasterCellNameMap_;
     THashMap<TString, TCellTag> NameMasterCellMap_;
 

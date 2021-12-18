@@ -9,10 +9,12 @@
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/property.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NDataNode {
 
@@ -147,11 +149,11 @@ private:
         std::multimap<TInstant, NChunkClient::TPlacementId>::iterator DeadlineIterator;
     };
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PlacementLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PlacementLock_);
     THashMap<NChunkClient::TPlacementId, TPlacementInfo> PlacementIdToInfo_;
     std::multimap<TInstant, NChunkClient::TPlacementId> DeadlineToPlacementId_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, ChunkMapLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ChunkMapLock_);
     // A chunk may have multiple copies present on one node - as long as those
     // copies are placed on distinct media.
     // Such copies may have different sizes, too.

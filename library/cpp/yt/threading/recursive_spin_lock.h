@@ -1,5 +1,8 @@
 #pragma once
 
+#include "public.h"
+#include "spin_lock_base.h"
+
 #include <util/system/types.h>
 
 #include <atomic>
@@ -10,8 +13,11 @@ namespace NYT::NThreading {
 
 //! A counterpart of #TSpinLock that can be acquired from a single thread multiple times.
 class TRecursiveSpinLock
+    : public TSpinLockBase
 {
 public:
+    using TSpinLockBase::TSpinLockBase;
+
     void Acquire() noexcept;
     bool TryAcquire() noexcept;
 

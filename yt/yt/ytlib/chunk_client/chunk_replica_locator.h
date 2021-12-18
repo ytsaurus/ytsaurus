@@ -45,7 +45,7 @@ private:
     const NRpc::IChannelPtr Channel_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TInstant Timestamp_;
     TPromise<TAllyReplicasInfo> ReplicasPromise_;
 

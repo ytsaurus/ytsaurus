@@ -11,7 +11,6 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -38,6 +37,9 @@
 #include <yt/yt/library/syncmap/map.h>
 
 #include <library/cpp/containers/concurrent_hash/concurrent_hash.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <atomic>
 
@@ -645,7 +647,7 @@ protected:
     private:
         const TString Name_;
 
-        YT_DECLARE_SPINLOCK(TSpinLock, RegisterLock_);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisterLock_);
         std::atomic<bool> Registered_ = false;
         TServiceBase* Service_;
         TRuntimeMethodInfo* RuntimeInfo_ = nullptr;
@@ -718,7 +720,7 @@ protected:
 
         TRequestQueue DefaultRequestQueue;
 
-        YT_DECLARE_SPINLOCK(TSpinLock, RequestQueuesLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RequestQueuesLock);
         std::vector<TRequestQueue*> RequestQueues;
     };
 
@@ -825,7 +827,7 @@ private:
 
     struct TRequestBucket
     {
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
         THashMap<TRequestId, TServiceContext*> RequestIdToContext;
         THashMap<TRequestId, TPendingPayloadsEntry> RequestIdToPendingPayloads;
     };
@@ -835,7 +837,7 @@ private:
 
     struct TReplyBusBucket
     {
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
         THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts;
     };
 
@@ -857,7 +859,7 @@ private:
 
     std::atomic<bool> EnablePerUserProfiling_ = false;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, HistogramConfigLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistogramConfigLock_);
     THistogramConfigPtr HistogramTimerProfiling{};
 
     std::atomic<bool> EnableErrorCodeCounting = false;
@@ -866,7 +868,7 @@ private:
 
     using TDiscoverRequestSet = TConcurrentHashMap<TCtxDiscoverPtr, int>;
     THashMap<TString, TDiscoverRequestSet> DiscoverRequestsByPayload_;
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, DiscoverRequestsByPayloadLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiscoverRequestsByPayloadLock_);
 
     struct TAcceptedRequest
     {

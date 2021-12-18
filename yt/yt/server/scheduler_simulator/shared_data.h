@@ -10,6 +10,8 @@
 #include <yt/yt/server/scheduler/job.h>
 #include <yt/yt/server/scheduler/operation.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 #include <fstream>
 
 namespace NYT::NSchedulerSimulator {
@@ -86,7 +88,7 @@ private:
     struct TOperationStatisticsWithLock final
     {
         TOperationStatistics Value;
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
     };
 
     using TOperationDescriptionMap = THashMap<NScheduler::TOperationId, TOperationDescription>;
@@ -183,7 +185,7 @@ public:
 private:
     std::ofstream OutputStream_;
     bool HeaderPrinted_ = false;
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 };
 
 

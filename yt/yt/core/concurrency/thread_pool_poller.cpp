@@ -774,7 +774,7 @@ private:
     moodycamel::ConcurrentQueue<IPollablePtr> RetryQueue_;
     moodycamel::ConcurrentQueue<TPollerEvent> PollerEventQueue_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashSet<IPollablePtr> Pollables_;
     TPollerThreadPtr PollerThread_;
     std::vector<THandlerThreadPtr> HandlerThreads_;

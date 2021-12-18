@@ -276,7 +276,7 @@ private:
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, JobProbeLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobProbeLock_);
     NJobProberClient::IJobProbePtr JobProbe_;
 
     std::vector<std::pair<TString, NNet::TIP6Address>> ResolvedNodeAddresses_;

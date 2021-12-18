@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT {
 
@@ -48,7 +48,7 @@ private:
     const TCallback<TValue(const TKey&)> CalculateValueAction_;
     const NConcurrency::TPeriodicExecutorPtr EvictionExecutor_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MapLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MapLock_);
     THashMap<TKey, TEntry> Map_;
 
     std::atomic<NProfiling::TCpuDuration> ExpirationTimeout_;

@@ -6,13 +6,13 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <atomic>
 
@@ -209,7 +209,7 @@ private:
     class TShard : public TAsyncSlruCacheListManager<TItem, TShard>
     {
     public:
-        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock);
 
         THashMap<TKey, TValue*, THash> ValueMap;
         THashMap<TKey, TItem*, THash> ItemMap;
@@ -217,8 +217,7 @@ private:
         TAsyncSlruCacheBase* Parent;
 
         //! Trims the lists and releases the guard. Returns the list of evicted items.
-        std::vector<TValuePtr> Trim(
-            NConcurrency::TSpinlockWriterGuard<NThreading::TReaderWriterSpinLock>& guard);
+        std::vector<TValuePtr> Trim(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& guard);
 
     protected:
         void OnYoungerUpdated(i64 deltaCount, i64 deltaWeight);

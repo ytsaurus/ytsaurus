@@ -13,7 +13,6 @@
 #include <util/system/atomic.h>
 #include <util/system/compiler.h>
 #include <util/system/defaults.h>
-#include <util/system/spinlock.h>
 
 #include <any>
 #include <list>

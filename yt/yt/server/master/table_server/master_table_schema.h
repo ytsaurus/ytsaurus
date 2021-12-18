@@ -68,7 +68,7 @@ private:
     NTableClient::TTableSchemaPtr TableSchema_;
 
     mutable TFuture<NYson::TYsonString> MemoizedYson_;
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MemoizedYsonLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemoizedYsonLock_);
 
     TTableSchemaToObjectMapIterator GetTableSchemaToObjectMapIterator() const;
     void SetTableSchemaToObjectMapIterator(TTableSchemaToObjectMapIterator it);

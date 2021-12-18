@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/library/tracing/tracer.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -11,11 +13,11 @@
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TJaegerTracerDynamicConfig)
 
 class TJaegerTracerDynamicConfig
     : public NYTree::TYsonSerializable
@@ -37,8 +39,6 @@ public:
 DEFINE_REFCOUNTED_TYPE(TJaegerTracerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TJaegerTracerConfig)
 
 class TJaegerTracerConfig
     : public NYTree::TYsonSerializable
@@ -113,7 +113,7 @@ private:
     i64 QueueMemory_ = 0;
     i64 QueueSize_ = 0;
 
-    TSpinLock QueueEmptyLock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueueEmptyLock_);
     TPromise<void> QueueEmpty_ = NewPromise<void>();
 
     NRpc::IChannelPtr CollectorChannel_;

@@ -4,7 +4,8 @@
 
 #include <yt/yt/client/tablet_client/public.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NApi::NNative {
 
@@ -27,13 +28,13 @@ public:
 private:
     struct TTabletSyncReplicaIds
     {
-        YT_DECLARE_SPINLOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
 
         TInstant CachedSyncReplicasAt;
         TTableReplicaIdList SyncReplicaIds;
     };
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
     THashMap<NTabletClient::TTabletId, TTabletSyncReplicaIds> TabletIdToSyncReplicaIds_;
 
 

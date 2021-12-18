@@ -7,8 +7,6 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NDiscoveryClient {

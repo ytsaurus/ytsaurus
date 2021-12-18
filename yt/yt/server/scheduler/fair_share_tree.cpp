@@ -34,6 +34,8 @@
 
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
@@ -870,7 +872,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto dynamicOrchidService = New<TCompositeMapService>();
-        
+
         dynamicOrchidService->AddChild("operations_by_pool", New<TOperationsByPoolOrchidService>(MakeStrong(this))
             ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
@@ -959,10 +961,10 @@ private:
 
     std::vector<TOperationId> ActivatableOperationIds_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
     THashMap<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, RegisteredSchedulingTagFiltersLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, RegisteredSchedulingTagFiltersLock_);
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
     std::vector<int> FreeSchedulingTagFilterIndexes_;
 
@@ -1027,7 +1029,7 @@ private:
             }
 
             const auto& [_, element] = *poolIterator;
-            
+
             const auto operations = element->GetChildOperations();
 
             auto operationsYson = BuildYsonStringFluently().BeginMap()
@@ -1285,7 +1287,7 @@ private:
     };
 
     TFairShareTreeSnapshotImplPtr TreeSnapshotImpl_;
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, TreeSnapshotImplLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TreeSnapshotImplLock_);
 
     TFairShareTreeSnapshotImplPtr TreeSnapshotImplPrecommit_;
 

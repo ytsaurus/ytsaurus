@@ -19,13 +19,14 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
 
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NScheduler {
 
@@ -682,7 +683,7 @@ public:
     TElement* GetChild(int index) final;
     const TElement* GetChild(int index) const final;
     int GetChildrenCount() const final;
-    
+
     std::vector<TSchedulerOperationElement*> GetChildOperations() const;
 
     ESchedulingMode GetMode() const final;
@@ -1075,11 +1076,11 @@ private:
         TJobResources ResourceUsage;
     };
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, JobPropertiesMapLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobPropertiesMapLock_);
     THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     TInstant LastScheduleJobSuccessTime_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, PreemptionStatusStatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PreemptionStatusStatisticsLock_);
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
     const NLogging::TLogger Logger;

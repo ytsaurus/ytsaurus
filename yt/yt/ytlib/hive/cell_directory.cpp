@@ -11,7 +11,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NHiveClient {
 
@@ -378,7 +378,7 @@ private:
         TEnumIndexedVector<EPeerKind, IChannelPtr> Channels;
     };
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellId, TEntry> RegisteredCellMap_;
     THashSet<TCellId> UnregisteredCellIds_;
 

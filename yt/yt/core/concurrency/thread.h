@@ -1,11 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include "spinlock.h"
 
 #include <yt/yt/core/misc/shutdown.h>
 
 #include <library/cpp/yt/threading/event_count.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 #include <util/system/thread.h>
 
@@ -58,7 +58,7 @@ private:
 
     const TThreadId UniqueThreadId_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::atomic<bool> Started_ = false;
     std::atomic<bool> Stopping_ = false;
     TShutdownCookie ShutdownCookie_;

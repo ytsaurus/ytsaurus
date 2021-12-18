@@ -5,7 +5,7 @@
 
 #include <yt/yt/core/profiling/tscp.h>
 
-#include <library/cpp/yt/threading/public.h>
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NProfiling {
 
@@ -105,7 +105,7 @@ public:
 private:
     struct alignas(NThreading::CacheLineSize) TShard
     {
-        TSpinLock Lock;
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
         TSummarySnapshot<T> Value;
     };
 

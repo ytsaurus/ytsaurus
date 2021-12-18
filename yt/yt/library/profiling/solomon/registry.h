@@ -9,8 +9,6 @@
 
 #include <yt/yt/core/misc/mpsc_stack.h>
 
-#include <yt/yt/core/concurrency/spinlock.h>
-
 #include <yt/yt/core/profiling/public.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -19,6 +17,8 @@
 #include <yt/yt/library/profiling/impl.h>
 
 #include <yt/yt/library/profiling/solomon/sensor_dump.pb.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NProfiling {
 
@@ -152,7 +152,7 @@ private:
     std::function<int(const TString&)> GridFactor_;
     TProfiler SelfProfiler_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, DynamicTagsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DynamicTagsLock_);
     std::vector<TTag> DynamicTags_;
 
     std::atomic<bool> Disabled_ = false;

@@ -7,8 +7,9 @@
 
 #include <yt/yt/core/bus/client.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 #include <util/system/guard.h>
-#include <util/system/spinlock.h>
 
 namespace NYT::NRpc {
 
@@ -173,7 +174,7 @@ private:
             }
 
         private:
-            YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+            YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
             std::atomic<bool> Canceled_ = false;
             IClientRequestControlPtr Underlying_;
 

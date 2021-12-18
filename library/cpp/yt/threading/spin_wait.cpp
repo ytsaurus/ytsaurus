@@ -1,5 +1,4 @@
 #include "spin_wait.h"
-#include "spin_wait_hook.h"
 
 #include <util/datetime/base.h>
 
@@ -39,13 +38,18 @@ TDuration SuggestSleepDelay(int iteration)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSpinWait::TSpinWait(
+    const TSourceLocation& location,
+    ESpinLockActivityKind activityKind)
+    : Location_(location)
+    , ActivityKind_(activityKind)
+{ }
+
 TSpinWait::~TSpinWait()
 {
     if (SlowPathStartInstant_ >= 0) {
-        if (auto* hook = GetSpinWaitSlowPathHook()) {
-            auto cpuDelay = GetCpuInstant() - SlowPathStartInstant_;
-            hook(cpuDelay);
-        }
+        auto cpuDelay = GetCpuInstant() - SlowPathStartInstant_;
+        InvokeSpinWaitSlowPathHooks(cpuDelay, Location_, ActivityKind_);
     }
 }
 

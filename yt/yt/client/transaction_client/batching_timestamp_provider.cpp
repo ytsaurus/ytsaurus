@@ -64,7 +64,7 @@ public:
         TPromise<TTimestamp> Promise;
     };
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     bool GenerateInProgress_ = false;
     bool FlushScheduled_ = false;
     std::vector<TRequest> PendingRequests_;
@@ -72,7 +72,7 @@ public:
 
     TInstant LastRequestTime_;
 
-    void MaybeScheduleSendGenerateRequest(TSpinlockGuard<NThreading::TSpinLock>& guard)
+    void MaybeScheduleSendGenerateRequest(TGuard<NThreading::TSpinLock>& guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -97,7 +97,7 @@ public:
         }
     }
 
-    void SendGenerateRequest(TSpinlockGuard<NThreading::TSpinLock>& guard)
+    void SendGenerateRequest(TGuard<NThreading::TSpinLock>& guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 

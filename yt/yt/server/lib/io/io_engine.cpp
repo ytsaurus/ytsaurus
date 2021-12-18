@@ -550,10 +550,10 @@ private:
     const IPrioritizedInvokerPtr AuxInvoker_;
     const IPrioritizedInvokerPtr FsyncInvoker_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, ReadWaitLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReadWaitLock_);
     std::optional<TInstant> SickReadWaitStart_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, WriteWaitLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, WriteWaitLock_);
     std::optional<TInstant> SickWriteWaitStart_;
 
     std::atomic<bool> Sick_ = false;

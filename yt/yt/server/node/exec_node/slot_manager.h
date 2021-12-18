@@ -122,7 +122,7 @@ private:
 
     IVolumeManagerPtr RootVolumeManager_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, LocationsLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LocationsLock_);
     std::vector<TSlotLocationPtr> Locations_;
     std::vector<TSlotLocationPtr> AliveLocations_;
 
@@ -130,7 +130,7 @@ private:
 
     THashSet<int> FreeSlots_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts_;
     //! If we observe too many consecutive aborts, we disable user slots on
     //! the node until restart and fire alert.

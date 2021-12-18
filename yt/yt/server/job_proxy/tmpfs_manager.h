@@ -30,7 +30,7 @@ public:
 private:
     const TTmpfsManagerConfigPtr Config_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, MaximumTmpfsSizesLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MaximumTmpfsSizesLock_);
     mutable std::vector<i64> MaximumTmpfsSizes_;
     mutable i64 MaximumTmpfsSize_ = 0;
 

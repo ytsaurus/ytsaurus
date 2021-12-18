@@ -2,10 +2,11 @@
 
 #include "public.h"
 
-#include <yt/yt/core/concurrency/spinlock.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/ypath/public.h>
+
+#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/generic/bitops.h>
 
@@ -25,7 +26,7 @@ struct TResolveCacheNode
     TResolveCacheNode* Parent = nullptr;
 
     // These fields are mutated in automaton thread and are read in any thread.
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
     THashMap<TString, TResolveCacheNodePtr>::iterator ParentKeyToChildIt;
 
     struct TLinkPayload
@@ -91,7 +92,7 @@ private:
         THashMap<TNodeId, TResolveCacheNodePtr> IdToNode;
 
         //! Protects #IdToNode_ and #ResolveCacheNode_ for nodes.
-        YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
     };
 
     constexpr static int ShardCount = 256;

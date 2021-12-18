@@ -97,7 +97,7 @@ public:
 private:
     const NProfiling::TProfiler Profiler_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
     THashMap<TString, TCacheProfilingCountersPtr> UserToCounters_;
 

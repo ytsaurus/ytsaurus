@@ -48,7 +48,7 @@ private:
     int MaxBatchSize_;
     TDuration BatchDuration_;
 
-    YT_DECLARE_SPINLOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     TBatch CurrentBatch_;
     ETimerState TimerState_ = ETimerState::Initial;
     std::queue<TBatch> Batches_;
@@ -56,11 +56,11 @@ private:
     TDelayedExecutorCookie BatchFlushCookie_;
     ui64 FlushGeneration_ = 0;
 
-    void ResetTimer(TSpinlockGuard<NThreading::TSpinLock>& guard);
-    void StartTimer(TSpinlockGuard<NThreading::TSpinLock>& guard);
-    bool IsFlushNeeded(TSpinlockGuard<NThreading::TSpinLock>& guard) const;
-    void CheckFlush(TSpinlockGuard<NThreading::TSpinLock>& guard);
-    void CheckReturn(TSpinlockGuard<NThreading::TSpinLock>& guard);
+    void ResetTimer(TGuard<NThreading::TSpinLock>& guard);
+    void StartTimer(TGuard<NThreading::TSpinLock>& guard);
+    bool IsFlushNeeded(TGuard<NThreading::TSpinLock>& guard) const;
+    void CheckFlush(TGuard<NThreading::TSpinLock>& guard);
+    void CheckReturn(TGuard<NThreading::TSpinLock>& guard);
     void OnBatchTimeout(ui64 generation);
 };
 
