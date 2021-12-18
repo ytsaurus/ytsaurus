@@ -11,11 +11,13 @@ namespace NYT::NScheduler {
 template <class TItem>
 TMessageQueueOutbox<TItem>::TMessageQueueOutbox(
     const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TProfiler& profiler,
+    const IInvokerPtr& invoker)
     : Logger(logger)
     , EnqueuedItemsCounter_(profiler.WithTag("queue_type", "outbox").Counter("/message_queue/enqueued_items"))
     , HandledItemsCounter_(profiler.WithTag("queue_type", "outbox").Counter("/message_queue/handled_items"))
     , PendingItemsGauge_(profiler.WithTag("queue_type", "outbox").Gauge("/message_queue/pending_items"))
+    , Invoker_(invoker)
 { }
 
 template <class TItem>
@@ -49,7 +51,7 @@ template <class TItem>
 template <class TProtoMessage, class TBuilder>
 void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder, i64 itemCountLimit)
 {
-    VERIFY_THREAD_AFFINITY(Consumer);
+    VERIFY_INVOKER_AFFINITY(Invoker_);
 
     Stack_.DequeueAll(true, [&] (TEntry& entry) {
         Visit(std::move(entry),
@@ -93,7 +95,7 @@ template <class TItem>
 template <class TProtoMessage>
 void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
 {
-    VERIFY_THREAD_AFFINITY(Consumer);
+    VERIFY_INVOKER_AFFINITY(Invoker_);
 
     auto nextExpectedItemId = message.next_expected_item_id();
     YT_VERIFY(nextExpectedItemId <= NextItemId_);
@@ -125,15 +127,17 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
 
 inline TMessageQueueInbox::TMessageQueueInbox(
     const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TProfiler& profiler,
+    const IInvokerPtr& invoker)
     : Logger(logger)
     , HandledItemsCounter_(profiler.WithTag("queue_type", "inbox").Counter("/message_queue/handled_items"))
+    , Invoker_(invoker)
 { }
 
 template <class TProtoRequest>
 void TMessageQueueInbox::ReportStatus(TProtoRequest* request)
 {
-    VERIFY_THREAD_AFFINITY(Consumer);
+    VERIFY_INVOKER_AFFINITY(Invoker_);
 
     request->set_next_expected_item_id(NextExpectedItemId_);
 
@@ -144,7 +148,7 @@ void TMessageQueueInbox::ReportStatus(TProtoRequest* request)
 template <class TProtoMessage, class TConsumer>
 void TMessageQueueInbox::HandleIncoming(TProtoMessage* message, TConsumer protoItemConsumer)
 {
-    VERIFY_THREAD_AFFINITY(Consumer);
+    VERIFY_INVOKER_AFFINITY(Invoker_);
 
     if (message->items_size() == 0) {
         return;

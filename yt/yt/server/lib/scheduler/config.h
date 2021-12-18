@@ -588,6 +588,8 @@ public:
 
     i64 MaxMessageJobEventCount;
 
+    int MessageOffloadThreadCount;
+
     REGISTER_YSON_STRUCT(TControllerAgentTrackerConfig);
 
     static void Register(TRegistrar registrar);

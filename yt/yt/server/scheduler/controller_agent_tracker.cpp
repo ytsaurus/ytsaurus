@@ -166,6 +166,7 @@ public:
         : SchedulerConfig_(std::move(config))
         , Config_(SchedulerConfig_->ControllerAgentTracker)
         , Bootstrap_(bootstrap)
+        , MessageOffloadThreadPool_(New<TThreadPool>(Config_->MessageOffloadThreadCount, "MessageOffload"))
     { }
 
     void Initialize()
@@ -404,7 +405,8 @@ public:
                 std::move(addresses),
                 std::move(tags),
                 std::move(channel),
-                Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker));
+                Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
+                CreateSerializedInvoker(MessageOffloadThreadPool_->GetInvoker()));
             agent->SetState(EControllerAgentState::Registering);
             RegisterAgent(agent);
 
@@ -559,7 +561,7 @@ public:
         std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
         std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
 
-        RunInMessageOffloadThread([&] {
+        RunInMessageOffloadInvoker(agent, [&] {
             agent->GetJobEventsInbox()->HandleIncoming(
                 request->mutable_agent_to_scheduler_job_events(),
                 [&] (auto* protoEvent) {
@@ -744,7 +746,7 @@ public:
         }
 
         if (request->exec_nodes_requested()) {
-            RunInMessageOffloadThread([&] {
+            RunInMessageOffloadInvoker(agent, [&] {
                 auto descriptors = scheduler->GetCachedExecNodeDescriptors();
                 for (const auto& [_, descriptor] : *descriptors) {
                     ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descriptor);
@@ -753,7 +755,7 @@ public:
             });
         }
 
-        RunInMessageOffloadThread([
+        RunInMessageOffloadInvoker(agent, [
             context,
             nodeShards = std::move(nodeShards),
             nodeShardInvokers = scheduler->GetNodeShardInvokers(),
@@ -860,7 +862,7 @@ public:
 
         const auto& nodeShards = scheduler->GetNodeShards();
 
-        RunInMessageOffloadThread([
+        RunInMessageOffloadInvoker(agent, [
             context,
             agent,
             request,
@@ -882,7 +884,7 @@ private:
     TControllerAgentTrackerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    const TActionQueuePtr MessageOffloadQueue_ = New<TActionQueue>("MessageOffload");
+    const TThreadPoolPtr MessageOffloadThreadPool_;
 
     THashMap<TAgentId, TControllerAgentPtr> IdToAgent_;
 
@@ -890,16 +892,14 @@ private:
     bool AgentTagsFetched_{};
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-
+    
     template <class F>
-    void RunInMessageOffloadThread(F func)
+    void RunInMessageOffloadInvoker(const TControllerAgentPtr& agent, F func)
     {
         Y_UNUSED(WaitFor(BIND(func)
-            .AsyncVia(MessageOffloadQueue_->GetInvoker())
+            .AsyncVia(agent->GetMessageOffloadInvoker())
             .Run()));
     }
-
 
     void RegisterAgent(const TControllerAgentPtr& agent)
     {

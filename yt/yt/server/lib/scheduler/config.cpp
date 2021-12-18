@@ -642,6 +642,10 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
         .Default(10000)
         .GreaterThan(0);
 
+    registrar.Parameter("message_offload_thread_count", &TThis::MessageOffloadThreadCount)
+        .Default(4)
+        .GreaterThan(0);
+
     registrar.Postprocessor([&] (TControllerAgentTrackerConfig* config) {
         if (!config->TagToAliveControllerAgentThresholds.contains(DefaultOperationTag)) {
             config->TagToAliveControllerAgentThresholds[DefaultOperationTag] = {static_cast<i64>(config->MinAgentCount), 0.0};

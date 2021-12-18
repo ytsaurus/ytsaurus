@@ -25,7 +25,8 @@ class TMessageQueueOutbox
 public:
     TMessageQueueOutbox(
         const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& profiler);
+        const NProfiling::TProfiler& profiler,
+        const IInvokerPtr& invoker);
 
     /*
      * \note Thread affinity: any
@@ -61,14 +62,14 @@ private:
     NProfiling::TCounter HandledItemsCounter_;
     NProfiling::TGauge PendingItemsGauge_;
 
+    const IInvokerPtr Invoker_;
+
     using TEntry = std::variant<TItem, std::vector<TItem>>;
     TMpscStack<TEntry> Stack_;
 
     TRingQueue<TItem> Queue_;
     TMessageQueueItemId FirstItemId_ = 0;
     TMessageQueueItemId NextItemId_ = 0;
-
-    DECLARE_THREAD_AFFINITY_SLOT(Consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,7 +82,8 @@ class TMessageQueueInbox
 public:
     TMessageQueueInbox(
         const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& profiler);
+        const NProfiling::TProfiler& profiler,
+        const IInvokerPtr& invoker);
 
     template <class TProtoMessage>
     void ReportStatus(TProtoMessage* request);
@@ -94,9 +96,9 @@ private:
 
     NProfiling::TCounter HandledItemsCounter_;
 
-    TMessageQueueItemId NextExpectedItemId_ = 0;
+    const IInvokerPtr Invoker_;
 
-    DECLARE_THREAD_AFFINITY_SLOT(Consumer);
+    TMessageQueueItemId NextExpectedItemId_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
