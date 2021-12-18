@@ -19,6 +19,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, Handshake);
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
+    DEFINE_RPC_PROXY_METHOD(NProto, ScheduleJobHeartbeat);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

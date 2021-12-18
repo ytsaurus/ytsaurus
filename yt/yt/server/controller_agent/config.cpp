@@ -483,8 +483,14 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("scheduler_heartbeat_failure_backoff", &TThis::SchedulerHeartbeatFailureBackoff)
         .Default(TDuration::MilliSeconds(100));
+    
     registrar.Parameter("scheduler_heartbeat_period", &TThis::SchedulerHeartbeatPeriod)
         .Default(TDuration::MilliSeconds(100));
+    
+    registrar.Parameter("enable_schedule_job_heartbeats", &TThis::EnableScheduleJobHeartbeats)
+        .Default(false);
+    registrar.Parameter("schedule_job_heartbeat_period", &TThis::ScheduleJobHeartbeatPeriod)
+        .Default(TDuration::MilliSeconds(10));
 
     registrar.Parameter("config_update_period", &TThis::ConfigUpdatePeriod)
         .Default(TDuration::Seconds(10));

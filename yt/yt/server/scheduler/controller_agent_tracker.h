@@ -54,6 +54,12 @@ public:
     using TCtxAgentHeartbeatPtr = TIntrusivePtr<TCtxAgentHeartbeat>;
     void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context);
 
+    using TCtxAgentScheduleJobHeartbeat = NRpc::TTypedServiceContext<
+        NScheduler::NProto::TReqScheduleJobHeartbeat,
+        NScheduler::NProto::TRspScheduleJobHeartbeat>;
+    using TCtxAgentScheduleJobHeartbeatPtr = TIntrusivePtr<TCtxAgentScheduleJobHeartbeat>;
+    void ProcessAgentScheduleJobHeartbeat(const TCtxAgentScheduleJobHeartbeatPtr& context);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

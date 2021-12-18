@@ -28,6 +28,11 @@ public:
                 .SetHeavy(true)
                 .SetResponseCodec(NCompression::ECodec::Lz4)
                 .SetPooled(false));
+        RegisterMethod(
+            RPC_SERVICE_METHOD_DESC(ScheduleJobHeartbeat)
+                .SetHeavy(true)
+                .SetResponseCodec(NCompression::ECodec::Lz4)
+                .SetPooled(false));
     }
 
 private:
@@ -43,6 +48,12 @@ private:
     {
         const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
         controllerAgentTracker->ProcessAgentHeartbeat(context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, ScheduleJobHeartbeat)
+    {
+        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
+        controllerAgentTracker->ProcessAgentScheduleJobHeartbeat(context);
     }
 };
 
