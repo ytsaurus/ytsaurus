@@ -14,19 +14,22 @@ namespace {
 std::atomic<bool> SpinLockSlowPathLoggingHookRegistered;
 std::atomic<TCpuDuration> SpinWaitSlowPathLoggingThreshold;
 
-const auto& Logger = ThreadingLogger;
-
 void SpinWaitSlowPathLoggingHook(
     TCpuDuration cpuDelay,
     const ::TSourceLocation& location,
-    ESpinLockActivityKind activityKind)
+    ESpinLockActivityKind activityKind) noexcept
 {
-    if (cpuDelay >= SpinWaitSlowPathLoggingThreshold) {
-        YT_LOG_DEBUG("Spin wait took too long (SourceLocation: %, ActivityKind: %v, Delay: %v)",
-            location.File ? Format("%v:%v", location.File, location.Line) : "<unknown>",
-            activityKind,
-            CpuDurationToDuration(cpuDelay));
-    }
+    Y_UNUSED(cpuDelay);
+    Y_UNUSED(location);
+    Y_UNUSED(activityKind);
+    // XXX(babenko): currently broken
+    // if (cpuDelay >= SpinWaitSlowPathLoggingThreshold) {
+    //     const auto& Logger = ThreadingLogger;
+    //     YT_LOG_DEBUG("Spin wait took too long (SourceLocation: %, ActivityKind: %v, Delay: %v)",
+    //         location.File ? Format("%v:%v", location.File, location.Line) : "<unknown>",
+    //         activityKind,
+    //         CpuDurationToDuration(cpuDelay));
+    // }
 }
 
 } // namespace
