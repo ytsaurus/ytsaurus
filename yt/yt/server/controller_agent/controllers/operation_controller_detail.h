@@ -481,6 +481,8 @@ protected:
 
     IInvokerPtr JobSpecBuildInvoker_;
 
+    NChunkPools::TInputStreamDirectory InputStreamDirectory_;
+
     std::atomic<EControllerState> State = {EControllerState::Preparing};
 
     // These totals are approximate.
@@ -994,7 +996,8 @@ protected:
 
     void AbortAllJoblets();
 
-    NChunkPools::TInputStreamDirectory GetInputStreamDirectory() const;
+    void InitInputStreamDirectory();
+    const NChunkPools::TInputStreamDirectory& GetInputStreamDirectory() const;
 
     NChunkClient::IFetcherChunkScraperPtr CreateFetcherChunkScraper() const;
 

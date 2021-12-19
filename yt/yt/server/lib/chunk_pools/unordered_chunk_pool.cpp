@@ -116,6 +116,8 @@ public:
 
         for (const auto& dataSlice : stripe->DataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
+            // XXX
+            dataSlice->GetInputStreamIndex();
             AddDataSlice(dataSlice, cookie);
         }
 
@@ -496,7 +498,7 @@ private:
             if (chunk->IsCompleteChunk() &&
                 ((chunk->IsLargeCompleteChunk(MinTeleportChunkSize_) ||
                 chunk->GetDataWeight() >= MinTeleportChunkDataWeight_)) &&
-                InputStreamDirectory_.GetDescriptor(dataSlice->GetTableIndex()).IsTeleportable())
+                InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsTeleportable())
             {
                 if (Sampler_.Sample()) {
                     ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});
@@ -525,6 +527,8 @@ private:
                         slice->LowerLimit(),
                         slice->UpperLimit());
                     newDataSlice->CopyPayloadFrom(*dataSlice);
+                    // XXX
+                    newDataSlice->GetInputStreamIndex();
                     AddStripe(New<TChunkStripe>(newDataSlice));
                 }
             } else {
@@ -540,6 +544,8 @@ private:
                             TLegacyDataSlice::TChunkSliceList{std::move(smallerSlice)});
                         newDataSlice->TransformToNewKeyless();
                         newDataSlice->CopyPayloadFrom(*dataSlice);
+                        // XXX
+                        newDataSlice->GetInputStreamIndex();
                         AddStripe(New<TChunkStripe>(newDataSlice));
                     }
                 }

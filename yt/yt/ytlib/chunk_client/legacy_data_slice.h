@@ -88,6 +88,9 @@ public:
     //! For versioned tables, returns 0.
     int GetSliceIndex() const;
 
+    int GetInputStreamIndex() const;
+    void SetInputStreamIndex(int inputStreamIndex);
+
     TChunkSliceList ChunkSlices;
     EDataSourceType Type;
 
@@ -98,10 +101,6 @@ public:
     //! Used to recover the original read ranges in task before serializing to job spec.
     std::optional<i64> ReadRangeIndex;
 
-    //! An index of an input stream this data slice corresponds to. If this is a data
-    //! slice of some input table, it should normally be equal to `GetTableIndex()`.
-    int InputStreamIndex = -1;
-
     // COMPAT(max42)
     //! Flag indicating that this basic conditions for teleporting are met:
     //! data slice corresponds to an unversioned chunk with no non-trivial read limits.
@@ -109,6 +108,11 @@ public:
     bool IsTeleportable = false;
 
     std::optional<i64> VirtualRowIndex = std::nullopt;
+
+private:
+    //! An index of an input stream this data slice corresponds to. If this is a data
+    //! slice of some input table, it should normally be equal to `GetTableIndex()`.
+    std::optional<int> InputStreamIndex_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLegacyDataSlice)

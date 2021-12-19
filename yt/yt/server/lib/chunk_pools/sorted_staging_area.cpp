@@ -395,7 +395,7 @@ private:
 
         void AddDataSlice(TLegacyDataSlicePtr dataSlice)
         {
-            auto streamIndex = dataSlice->InputStreamIndex;
+            auto streamIndex = dataSlice->GetInputStreamIndex();
             if (streamIndex >= std::ssize(StreamIndexToDataSlices)) {
                 StreamIndexToDataSlices.resize(streamIndex + 1);
             }

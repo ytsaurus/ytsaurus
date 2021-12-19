@@ -85,7 +85,7 @@ int TChunkStripe::GetTableIndex() const
 int TChunkStripe::GetInputStreamIndex() const
 {
     YT_VERIFY(!DataSlices.empty());
-    return DataSlices.front()->InputStreamIndex;
+    return DataSlices.front()->GetInputStreamIndex();
 }
 
 void TChunkStripe::Persist(const TPersistenceContext& context)

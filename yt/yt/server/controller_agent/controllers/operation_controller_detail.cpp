@@ -134,7 +134,7 @@
 #include <util/generic/cast.h>
 #include <util/generic/vector.h>
 
-#include <library/cpp/iterator/zip.h>
+#include <library/cpp/iterator/functools.h>
 
 #include <functional>
 
@@ -1017,6 +1017,10 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     CustomPrepare();
 
+    // NB: this call must be after CustomPrepare() since some controllers may alter input table ranges
+    // (e.g. TEraseController which inverts provided range).
+    InitInputStreamDirectory();
+
     YT_LOG_INFO("Operation prepared");
 
     TOperationControllerPrepareResult result;
@@ -1325,14 +1329,25 @@ void TOperationControllerBase::StartTransactions()
     }
 }
 
-TInputStreamDirectory TOperationControllerBase::GetInputStreamDirectory() const
+void TOperationControllerBase::InitInputStreamDirectory()
 {
     std::vector<TInputStreamDescriptor> inputStreams;
     inputStreams.reserve(InputTables_.size());
-    for (const auto& inputTable : InputTables_) {
-        inputStreams.emplace_back(inputTable->Teleportable, inputTable->IsPrimary(), inputTable->Dynamic /* isVersioned */);
+    for (const auto& [tableIndex, inputTable] : Enumerate(InputTables_)) {
+        for (const auto& [rangeIndex, range] : Enumerate(inputTable->Path.GetRanges())) {
+            auto& descriptor = inputStreams.emplace_back(inputTable->Teleportable, inputTable->IsPrimary(), inputTable->Dynamic /* isVersioned */);
+            descriptor.SetTableIndex(tableIndex);
+            descriptor.SetRangeIndex(rangeIndex);
+        }
     }
-    return TInputStreamDirectory(std::move(inputStreams));
+    InputStreamDirectory_ = TInputStreamDirectory(std::move(inputStreams));
+
+    YT_LOG_INFO("Input stream directory prepared (InputStreamCount: %v)", InputStreamDirectory_.GetDescriptorCount());
+}
+
+const TInputStreamDirectory& TOperationControllerBase::GetInputStreamDirectory() const
+{
+    return InputStreamDirectory_;
 }
 
 int TOperationControllerBase::GetPrimaryInputTableCount() const
@@ -7372,6 +7387,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 auto chunkSlice = CreateInputChunkSlice(chunk);
                 InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer);
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+                dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
                 dataSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());
                 fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true);
             }
@@ -7404,6 +7420,8 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 dataSlice->UpperLimit(),
                 dataSlice->ChunkSlices);
 
+            dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
+
             result.emplace_back(std::move(dataSlice));
             ++totalDataSliceCount;
         }
@@ -7421,6 +7439,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
     std::vector<std::vector<TLegacyDataSlicePtr>> dataSlicesByTableIndex(InputTables_.size());
     for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
 
         const auto& inputTable = InputTables_[dataSlice->GetTableIndex()];
         dataSlice->TransformToNew(RowBuffer, inputTable->Comparator);
@@ -7431,6 +7450,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
     if (OperationType == EOperationType::RemoteCopy) {
         for (const auto& chunk : CollectPrimaryVersionedChunks()) {
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
 
             const auto& inputTable = InputTables_[dataSlice->GetTableIndex()];
             dataSlice->TransformToNew(RowBuffer, inputTable->Comparator);
@@ -7472,7 +7492,9 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
 
                 YT_VERIFY(table->Comparator);
                 auto dataSlices = CombineVersionedChunkSlices(chunkSlices, table->Comparator);
-                for (const auto& dataSlice : dataSlices) {
+                for (auto& dataSlice : dataSlices) {
+                    dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
+
                     if (IsUnavailable(dataSlice, CheckParityReplicas())) {
                         switch (Spec_->UnavailableChunkStrategy) {
                             case EUnavailableChunkAction::Skip:
@@ -7507,6 +7529,7 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                         inputChunk,
                         GetKeyPrefix(inputChunk->BoundaryKeys()->MinKey.Get(), foreignKeyColumnCount, RowBuffer),
                         GetKeyPrefixSuccessor(inputChunk->BoundaryKeys()->MaxKey.Get(), foreignKeyColumnCount, RowBuffer))));
+                    dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
 
                     YT_VERIFY(table->Comparator);
 
@@ -7650,6 +7673,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);
         }
 
+        dataSlice->SetInputStreamIndex(dataSlice->GetTableIndex());
         dataSlice->Tag = dataSliceDescriptor.GetTag();
         return dataSlice;
     };
@@ -9498,6 +9522,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, UnavailableIntermediateChunkCount);
     Persist(context, InputNodeDirectory_);
     Persist(context, InputTables_);
+    Persist(context, InputStreamDirectory_);
     Persist(context, OutputTables_);
     Persist(context, StderrTable_);
     Persist(context, CoreTable_);

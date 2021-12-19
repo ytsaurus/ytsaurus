@@ -57,10 +57,10 @@ public:
 
         DataSliceToInputCookie_[dataSlice] = cookie;
 
-        if (dataSlice->InputStreamIndex >= std::ssize(ForeignDataSlices_)) {
-            ForeignDataSlices_.resize(dataSlice->InputStreamIndex + 1);
+        if (dataSlice->GetInputStreamIndex() >= std::ssize(ForeignDataSlices_)) {
+            ForeignDataSlices_.resize(dataSlice->GetInputStreamIndex() + 1);
         }
-        ForeignDataSlices_[dataSlice->InputStreamIndex].emplace_back(dataSlice);
+        ForeignDataSlices_[dataSlice->GetInputStreamIndex()].emplace_back(dataSlice);
 
         // NB: We do not need to shorten keys here. Endpoints of type "Foreign" only make
         // us to stop, to add all foreign slices up to the current moment and to check
@@ -84,7 +84,7 @@ public:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 "Error validating sample key in input stream %v",
-                dataSlice->InputStreamIndex)
+                dataSlice->GetInputStreamIndex())
                     << ex;
         }
 
@@ -149,7 +149,7 @@ public:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 "Error validating sample key in input stream %v",
-                dataSlice->InputStreamIndex)
+                dataSlice->GetInputStreamIndex())
                     << ex;
         }
 
@@ -326,7 +326,7 @@ private:
             YT_LOG_TRACE("Data slice (Address: %v, DataWeight: %v, InputStreamIndex: %v, ChunkIds: %v)",
                 dataSlice.Get(),
                 dataSlice->GetDataWeight(),
-                dataSlice->InputStreamIndex,
+                dataSlice->GetInputStreamIndex(),
                 chunkIds);
         }
         for (const auto& teleportChunk : TeleportChunks_) {

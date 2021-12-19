@@ -118,6 +118,7 @@ protected:
     TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        dataSlice->SetInputStreamIndex(chunk->GetTableIndex());
         dataSlice->TransformToNewKeyless();
         dataSlice->Tag = chunk->GetChunkId().Parts64[0] ^ chunk->GetChunkId().Parts64[1];
         return dataSlice;
@@ -624,8 +625,8 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         {false} /* isVersioned */
     );
 
-    constexpr int chunkCount = 50;
-    constexpr int maxJobLosts = 100;
+    constexpr int chunkCount = 25;
+    constexpr int maxJobLosts = 50;
     DataSizePerJob_ = 1_KB;
     IsExplicitJobCount_ = true;
     JobCount_ = chunkCount;

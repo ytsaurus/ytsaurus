@@ -312,6 +312,7 @@ protected:
         std::vector<TLegacyDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            dataSlice->SetInputStreamIndex(dataSlice->GetTableIndex());
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
             dataSlices.emplace_back(std::move(dataSlice));
         }
@@ -325,6 +326,7 @@ protected:
         auto stripe = New<TChunkStripe>();
         for (const auto& chunk : chunks) {
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            dataSlice->SetInputStreamIndex(dataSlice->GetTableIndex());
             ActiveChunks_.insert(chunk->GetChunkId());
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
             stripe->DataSlices.emplace_back(std::move(dataSlice));
@@ -361,7 +363,8 @@ protected:
         const auto& oldChunkId = InputCookieToChunkId_[cookie];
         YT_VERIFY(oldChunkId);
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-        dataSlice->InputStreamIndex = chunk->GetTableIndex();
+        // TODO(max42): what is this?
+        dataSlice->SetInputStreamIndex(chunk->GetTableIndex());
         InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
         ChunkPool_->Reset(cookie, New<TChunkStripe>(dataSlice), IdentityChunkMapping);
         InputCookieToChunkId_[cookie] = chunk->GetChunkId();
@@ -3207,10 +3210,10 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     DataSizePerJob_ = 1_KB;
     InitJobConstraints();
 
-    constexpr int maxChunkCount = 100;
-    constexpr int maxUnderlyingPoolCount = 10;
-    constexpr int maxJobLosts = 50;
-    constexpr int maxInvalidationCount = 10;
+    constexpr int maxChunkCount = 50;
+    constexpr int maxUnderlyingPoolCount = 5;
+    constexpr int maxJobLosts = 25;
+    constexpr int maxInvalidationCount = 5;
 
     int chunkCount = std::uniform_int_distribution<>(0, maxChunkCount)(Gen_);
 

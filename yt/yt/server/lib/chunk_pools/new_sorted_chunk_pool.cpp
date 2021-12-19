@@ -78,7 +78,7 @@ public:
 
         YT_VERIFY(RowBuffer_);
 
-        YT_LOG_DEBUG("Sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
+        YT_LOG_DEBUG("New sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
             "ForeignPrefixLength: %v, DataWeightPerJob: %v, "
             "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
@@ -353,7 +353,7 @@ private:
                 // while versioned slices are taken as is.
                 if (dataSlice->Type == EDataSourceType::UnversionedTable) {
                     auto inputChunk = dataSlice->GetSingleUnversionedChunk();
-                    auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary();
+                    auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary();
                     auto comparator = isPrimary
                         ? PrimaryComparator_
                         : ForeignComparator_;
@@ -396,12 +396,12 @@ private:
             const auto& originalDataSlice = unversionedInputChunkToOwningDataSlice[chunkSlice->GetInputChunk()];
             int inputCookie = unversionedInputChunkToInputCookie.at(chunkSlice->GetInputChunk());
             auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+            dataSlice->CopyPayloadFrom(*originalDataSlice);
 
-            auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary();
+            auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary();
             auto comparator = isPrimary
                 ? PrimaryComparator_
                 : ForeignComparator_;
-            dataSlice->CopyPayloadFrom(*originalDataSlice);
 
             comparator.ReplaceIfStrongerKeyBound(dataSlice->LowerLimit().KeyBound, originalDataSlice->LowerLimit().KeyBound);
             comparator.ReplaceIfStrongerKeyBound(dataSlice->UpperLimit().KeyBound, originalDataSlice->UpperLimit().KeyBound);
@@ -701,7 +701,7 @@ private:
         // to go "from left to right".
         std::vector<TLegacyDataSlicePtr> inputStreamIndexToLastDataSlice;
         for (const auto& dataSlice : unreadInputDataSlices) {
-            auto inputStreamIndex = dataSlice->InputStreamIndex;
+            auto inputStreamIndex = dataSlice->GetInputStreamIndex();
             if (inputStreamIndex >= std::ssize(inputStreamIndexToLastDataSlice)) {
                 inputStreamIndexToLastDataSlice.resize(inputStreamIndex + 1);
             }
@@ -761,12 +761,12 @@ private:
             StructuredLogger);
 
         for (const auto& dataSlice : unreadInputDataSlices) {
-            YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());
+            YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary());
             YT_VERIFY(!dataSlice->IsLegacy);
             builder->AddDataSlice(dataSlice);
         }
         for (const auto& dataSlice : foreignInputDataSlices) {
-            YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsForeign());
+            YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsForeign());
             YT_VERIFY(!dataSlice->IsLegacy);
             builder->AddDataSlice(dataSlice);
         }

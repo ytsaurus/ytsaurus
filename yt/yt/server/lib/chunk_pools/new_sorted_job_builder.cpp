@@ -120,7 +120,7 @@ public:
         // Making a copy here is crucial since provided data slice object may be modified in-place.
         InputDataSlices_.push_back(CreateInputDataSlice(dataSlice));
 
-        auto inputStreamIndex = dataSlice->InputStreamIndex;
+        auto inputStreamIndex = dataSlice->GetInputStreamIndex();
         auto isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
 
         const auto& comparator = isPrimary ? PrimaryComparator_ : ForeignComparator_;
@@ -512,8 +512,8 @@ private:
                 if (lhs.Type == EPrimaryEndpointType::Barrier) {
                     return false;
                 }
-                if (lhs.DataSlice->InputStreamIndex != rhs.DataSlice->InputStreamIndex) {
-                    return lhs.DataSlice->InputStreamIndex < rhs.DataSlice->InputStreamIndex;
+                if (lhs.DataSlice->GetInputStreamIndex() != rhs.DataSlice->GetInputStreamIndex()) {
+                    return lhs.DataSlice->GetInputStreamIndex() < rhs.DataSlice->GetInputStreamIndex();
                 }
                 YT_VERIFY(lhs.DataSlice->Tag);
                 YT_VERIFY(rhs.DataSlice->Tag);
@@ -793,8 +793,6 @@ private:
     void PartitionSingletonAndLongDataSlices(TKeyBound lowerBound, std::deque<TLegacyDataSlicePtr>& dataSlices)
     {
         std::stable_sort(dataSlices.begin(), dataSlices.end(), [=] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-            // bool lhsToEnd = lhs->InputStreamIndex == longSliceStreamIndex;
-            // bool rhsToEnd = rhs->InputStreamIndex == longSliceStreamIndex;
             bool lhsToEnd = !PrimaryComparator_.IsInteriorEmpty(lowerBound, lhs->UpperLimit().KeyBound);
             bool rhsToEnd = !PrimaryComparator_.IsInteriorEmpty(lowerBound, rhs->UpperLimit().KeyBound);
             return lhsToEnd < rhsToEnd;

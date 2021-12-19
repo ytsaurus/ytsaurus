@@ -1918,6 +1918,25 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == expected
 
+    @authors("max42")
+    def test_overlapping_ranges_in_sorted_merge_multiple_jobs(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "k", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "k", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/d", attributes={"schema": [{"name": "k", "type": "int64", "sort_order": "ascending"}]})
+
+        rows = [{"k": i} for i in range(20)]
+        write_table("//tmp/t1", rows)
+        write_table("//tmp/t2", rows)
+
+        merge(in_=["//tmp/t1[2:6,4:8]", "//tmp/t2[16:18,12:14]"],
+              out="//tmp/d",
+              mode="sorted",
+              spec={"data_weight_per_job": 1})
+
+        assert get("//tmp/d/@chunk_count") > 1
+
+        assert [row["k"] for row in read_table("//tmp/d")] == [2, 3, 4, 4, 5, 5, 6, 7, 12, 13, 16, 17]
+
     @authors("ermolovd")
     def test_schema_compatibility(self):
         create(

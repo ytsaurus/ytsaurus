@@ -246,7 +246,7 @@ private:
                     EKeyConditionScale::TopLevelDataSlice,
                     dataSlice->LowerLimit().KeyBound,
                     dataSlice->UpperLimit().KeyBound,
-                    dataSlice->InputStreamIndex).can_be_true;
+                    dataSlice->GetInputStreamIndex()).can_be_true;
             });
             dataSlices.resize(it - dataSlices.begin());
 
@@ -411,7 +411,7 @@ private:
 
             for (auto& dataSlice : InputDataSlices_[tableIndex]) {
                 YT_VERIFY(!dataSlice->IsLegacy);
-                dataSlice->InputStreamIndex = operandIndex;
+                dataSlice->SetInputStreamIndex(operandIndex);
 
                 if (!VirtualColumnNames_.empty()) {
                     dataSlice->VirtualRowIndex = 0;
