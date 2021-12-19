@@ -262,12 +262,15 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 
     YT_LOG_DEBUG(
         "Job statistics for agent prepared (RunningJobsStatisticsSize: %v, FinishedJobsStatisticsSize: %v, "
-        "RunningJobCount: %v, SkippedJobCountDueToBackoff: %v, SkippedJobCountDueToStatisticsSizeThrottling: %v)",
+        "RunningJobCount: %v, SkippedJobCountDueToBackoff: %v, SkippedJobCountDueToStatisticsSizeThrottling: %v, "
+        "AgentAddress: %v, IncarnationId: %v)",
         runningJobsStatisticsSize,
         finishedJobsStatisticsSize,
         std::size(jobs),
         std::ssize(jobs) - consideredRunnigJobCount,
-        consideredRunnigJobCount - reportedRunningJobCount);
+        consideredRunnigJobCount - reportedRunningJobCount,
+        ControllerAgentDescriptor_.Address,
+        ControllerAgentDescriptor_.IncarnationId);
 
     HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
 
