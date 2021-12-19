@@ -19,6 +19,8 @@ import uuid
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperationsTracker(object):
+    NUM_TEST_PARTITIONS = 4
+
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
         self.env = {
