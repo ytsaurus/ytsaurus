@@ -1485,7 +1485,9 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
             ibc = get("//sys/cluster_nodes/{}/@annotations/infiniband_cluster_tag".format(node), default=yson.YsonEntity())
             wait(lambda: get(scheduler_orchid_node_path(node) + "/infiniband_cluster", default=None) == ibc)
             if ibc in TestInfinibandClusterTagValidation.INFINIBAND_CLUSTERS:
-                set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "infiniband_cluster_tag:{}".format(ibc))
+                tag = "infiniband_cluster_tag:{}".format(ibc)
+                set("//sys/cluster_nodes/{}/@user_tags/end".format(node), tag)
+                wait(lambda: tag in get(scheduler_orchid_node_path(node) + "/tags"))
 
     def _enable_ibc_tag_validation(self):
         set("//sys/pool_trees/default/@config/scheduling_segments/enable_infiniband_cluster_tag_validation", True)
