@@ -1,5 +1,7 @@
 #include "input_stream.h"
 
+#include <library/cpp/iterator/functools.h>
+
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +43,19 @@ void TInputStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, IsTeleportable_);
     Persist(context, IsPrimary_);
     Persist(context, IsVersioned_);
+    Persist(context, TableIndex_);
+    Persist(context, RangeIndex_);
+}
+
+TString ToString(const TInputStreamDescriptor& descriptor)
+{
+    return Format(
+        "{Teleportable: %v, Primary: %v, Versioned: %v, TableIndex: %v, RangeIndex: %v}",
+        descriptor.IsTeleportable(),
+        descriptor.IsPrimary(),
+        descriptor.IsVersioned(),
+        descriptor.GetTableIndex(),
+        descriptor.GetRangeIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +72,13 @@ TInputStreamDirectory::TInputStreamDirectory(
     , DefaultDescriptor_(defaultDescriptor)
 {
     YT_VERIFY(DefaultDescriptor_.IsPrimary());
+
+    for (const auto& [inputStreamIndex, descriptor] : Enumerate(Descriptors_)) {
+        if (descriptor.GetTableIndex() && descriptor.GetRangeIndex()) {
+            auto [_, inserted] = TableAndRangeIndicesToInputStreamIndex_.insert({{*descriptor.GetTableIndex(), *descriptor.GetRangeIndex()}, inputStreamIndex});
+            YT_VERIFY(inserted);
+        }
+    }
 }
 
 const TInputStreamDescriptor& TInputStreamDirectory::GetDescriptor(int inputStreamIndex) const
@@ -71,6 +93,13 @@ const TInputStreamDescriptor& TInputStreamDirectory::GetDescriptor(int inputStre
 int TInputStreamDirectory::GetDescriptorCount() const
 {
     return Descriptors_.size();
+}
+
+int TInputStreamDirectory::GetInputStreamIndex(int tableIndex, int rangeIndex) const
+{
+    auto it = TableAndRangeIndicesToInputStreamIndex_.find(std::make_pair(tableIndex, rangeIndex));
+    YT_VERIFY(it != TableAndRangeIndicesToInputStreamIndex_.end());
+    return it->second;
 }
 
 void TInputStreamDirectory::Persist(const TPersistenceContext& context)

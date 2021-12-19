@@ -28,7 +28,7 @@ void TLegacyJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPo
         return;
     }
 
-    int streamIndex = dataSlice->InputStreamIndex;
+    int streamIndex = dataSlice->GetInputStreamIndex();
     int rangeIndex = dataSlice->GetRangeIndex();
     auto& stripe = GetStripe(streamIndex, rangeIndex, isPrimary);
     stripe->DataSlices.emplace_back(dataSlice);
@@ -207,7 +207,7 @@ TString TLegacyJobStub::GetDebugString() const
                 dataSlice->GetDataWeight(),
                 dataSlice->LegacyLowerLimit(),
                 dataSlice->LegacyUpperLimit(),
-                dataSlice->InputStreamIndex,
+                dataSlice->GetInputStreamIndex(),
                 chunkIds);
         }
     }

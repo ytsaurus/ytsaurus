@@ -84,6 +84,7 @@ protected:
         std::vector<TLegacyDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            dataSlice->SetInputStreamIndex(dataSlice->GetTableIndex());
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
             dataSlice->TransformToNew(RowBuffer_, Comparator_);
             dataSlices.emplace_back(std::move(dataSlice));

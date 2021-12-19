@@ -34,8 +34,6 @@ TLegacyDataSlice::TLegacyDataSlice(
     , Type(type)
     , Tag(tag)
 {
-    InputStreamIndex = GetTableIndex();
-
     for (const auto& chunkSlice : ChunkSlices) {
         YT_VERIFY(chunkSlice->IsLegacy);
     }
@@ -54,8 +52,6 @@ TLegacyDataSlice::TLegacyDataSlice(
     , Type(type)
     , Tag(tag)
 {
-    InputStreamIndex = GetTableIndex();
-
     for (const auto& chunkSlice : ChunkSlices) {
         YT_VERIFY(!chunkSlice->IsLegacy);
     }
@@ -113,7 +109,7 @@ void TLegacyDataSlice::Persist(const NTableClient::TPersistenceContext& context)
     Persist(context, ChunkSlices);
     Persist(context, Type);
     Persist(context, Tag);
-    Persist(context, InputStreamIndex);
+    Persist(context, InputStreamIndex_);
     Persist(context, VirtualRowIndex);
     Persist(context, ReadRangeIndex);
     Persist(context, IsTeleportable);
@@ -182,7 +178,7 @@ std::pair<TLegacyDataSlicePtr, TLegacyDataSlicePtr> TLegacyDataSlice::SplitByRow
 
 void TLegacyDataSlice::CopyPayloadFrom(const TLegacyDataSlice& dataSlice)
 {
-    InputStreamIndex = dataSlice.InputStreamIndex;
+    InputStreamIndex_ = dataSlice.InputStreamIndex_;
     Tag = dataSlice.Tag;
     VirtualRowIndex = dataSlice.VirtualRowIndex;
     ReadRangeIndex = dataSlice.ReadRangeIndex;
@@ -271,6 +267,17 @@ int TLegacyDataSlice::GetSliceIndex() const
         : 0;
 }
 
+int TLegacyDataSlice::GetInputStreamIndex() const
+{
+    YT_VERIFY(InputStreamIndex_);
+    return *InputStreamIndex_;
+}
+
+void TLegacyDataSlice::SetInputStreamIndex(int inputStreamIndex)
+{
+    InputStreamIndex_ = inputStreamIndex;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TLegacyDataSlicePtr& dataSlice, IYsonConsumer* consumer)
@@ -281,7 +288,7 @@ void Serialize(const TLegacyDataSlicePtr& dataSlice, IYsonConsumer* consumer)
         .BeginMap()
             .Item("lower_limit").Value(dataSlice->LowerLimit())
             .Item("upper_limit").Value(dataSlice->UpperLimit())
-            .Item("input_stream_index").Value(dataSlice->InputStreamIndex)
+            .Item("input_stream_index").Value(dataSlice->GetInputStreamIndex())
             .OptionalItem("tag", dataSlice->Tag)
             .Item("slice_index").Value(dataSlice->GetSliceIndex())
             .Item("is_teleportable").Value(dataSlice->IsTeleportable)
@@ -434,7 +441,6 @@ TLegacyDataSlicePtr CreateInputDataSlice(const TLegacyDataSlicePtr& dataSlice)
             dataSlice->UpperLimit(),
             dataSlice->Tag);
     }
-    newDataSlice->InputStreamIndex = dataSlice->InputStreamIndex;
     newDataSlice->CopyPayloadFrom(*dataSlice);
     return newDataSlice;
 }
@@ -466,7 +472,6 @@ TLegacyDataSlicePtr CreateInputDataSlice(
         std::move(lowerLimit),
         std::move(upperLimit),
         dataSlice->Tag);
-    newDataSlice->InputStreamIndex = dataSlice->InputStreamIndex;
     newDataSlice->CopyPayloadFrom(*dataSlice);
     return newDataSlice;
 }
@@ -501,7 +506,6 @@ TLegacyDataSlicePtr CreateInputDataSlice(
         std::move(lowerLimit),
         std::move(upperLimit),
         dataSlice->Tag);
-    newDataSlice->InputStreamIndex = dataSlice->InputStreamIndex;
     newDataSlice->CopyPayloadFrom(*dataSlice);
     return newDataSlice;
 }
@@ -703,7 +707,7 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
 TString GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice)
 {
     return Format("{DS: %v.%v.%v, L: %v:%v, DW: %v}",
-        dataSlice->InputStreamIndex,
+        dataSlice->GetInputStreamIndex(),
         dataSlice->Tag,
         dataSlice->GetSliceIndex(),
         dataSlice->LowerLimit(),

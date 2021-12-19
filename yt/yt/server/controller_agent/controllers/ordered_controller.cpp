@@ -327,6 +327,13 @@ protected:
         return OrderedTask_ && OrderedTask_->IsCompleted();
     }
 
+    void CustomPrepare() override
+    {
+        TOperationControllerBase::CustomPrepare();
+
+        InitTeleportableInputTables();
+    }
+
     void CalculateSizes()
     {
         Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
@@ -385,8 +392,6 @@ protected:
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
-            InitTeleportableInputTables();
-
             OrderedTask_->SetIsInput(true);
 
             int sliceCount = 0;
@@ -441,8 +446,6 @@ protected:
         // NB: Base member is not called intentionally.
 
         CalculateSizes();
-
-        InitTeleportableInputTables();
 
         if (!ShouldVerifySortedOutput()) {
             OrderedOutputRequired_ = true;
@@ -943,6 +946,8 @@ private:
 
     void CustomPrepare() override
     {
+        TOrderedControllerBase::CustomPrepare();
+
         auto& path = InputTables_[0]->Path;
         auto ranges = path.GetNewRanges(InputTables_[0]->Comparator, InputTables_[0]->Schema->GetKeyColumnTypes());
         if (ranges.size() > 1) {

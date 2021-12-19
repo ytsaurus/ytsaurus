@@ -81,7 +81,7 @@ public:
 
         YT_VERIFY(RowBuffer_);
 
-        YT_LOG_DEBUG("Sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
+        YT_LOG_DEBUG("Legacy sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
             "ForeignPrefixLength: %v, DataWeightPerJob: %v, "
             "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
@@ -252,7 +252,7 @@ public:
             newStripe->Foreign = legacyStripe->Foreign;
             for (const auto& legacyDataSlice : legacyStripe->DataSlices) {
                 auto newDataSlice = CreateInputDataSlice(legacyDataSlice);
-                auto prefixLength = InputStreamDirectory_.GetDescriptor(legacyDataSlice->GetTableIndex()).IsPrimary()
+                auto prefixLength = InputStreamDirectory_.GetDescriptor(legacyDataSlice->GetInputStreamIndex()).IsPrimary()
                     ? PrimaryPrefixLength_
                     : ForeignPrefixLength_;
                 newDataSlice->TransformToNew(RowBuffer_, prefixLength);
@@ -337,7 +337,7 @@ private:
         THashMap<TInputChunkPtr, TLegacyDataSlicePtr> unversionedInputChunkToOwningDataSlice;
 
         auto processDataSlice = [&] (const TLegacyDataSlicePtr& dataSlice, int inputCookie) {
-            if (InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary()) {
+            if (InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary()) {
                 builder->AddPrimaryDataSlice(dataSlice, inputCookie);
             } else {
                 builder->AddForeignDataSlice(dataSlice, inputCookie);
@@ -357,7 +357,7 @@ private:
                 // while versioned slices are taken as is.
                 if (dataSlice->Type == EDataSourceType::UnversionedTable) {
                     auto inputChunk = dataSlice->GetSingleUnversionedChunk();
-                    auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary();
+                    auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary();
                     auto sliceSize = isPrimary
                         ? primarySliceSize
                         : foreignSliceSize;
@@ -411,7 +411,7 @@ private:
                 chunk->IsCompleteChunk() &&
                 CompareRows(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey, PrimaryPrefixLength_) == 0 &&
                 chunkSlice->GetDataWeight() > JobSizeConstraints_->GetInputSliceDataWeight() &&
-                InputStreamDirectory_.GetDescriptor(originalDataSlice->InputStreamIndex).IsPrimary())
+                InputStreamDirectory_.GetDescriptor(originalDataSlice->GetInputStreamIndex()).IsPrimary())
             {
                 auto smallerSlices = chunkSlice->SliceEvenly(
                     JobSizeConstraints_->GetInputSliceDataWeight(),
@@ -714,12 +714,12 @@ private:
 
         for (const auto& dataSlice : unreadInputDataSlices) {
             int inputCookie = *dataSlice->Tag;
-            YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());
+            YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary());
             builder->AddPrimaryDataSlice(dataSlice, inputCookie);
         }
         for (const auto& dataSlice : foreignInputDataSlices) {
             int inputCookie = *dataSlice->Tag;
-            YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsForeign());
+            YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsForeign());
             builder->AddForeignDataSlice(dataSlice, inputCookie);
         }
 

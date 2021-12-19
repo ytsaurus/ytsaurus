@@ -276,6 +276,13 @@ protected:
         return TOperationControllerBase::IsCompleted() && (!UnorderedTask_ || UnorderedTask_->IsCompleted());
     }
 
+    void CustomPrepare() override
+    {
+        TOperationControllerBase::CustomPrepare();
+
+        InitTeleportableInputTables();
+    }
+
     void InitTeleportableInputTables()
     {
         if (GetJobType() == EJobType::UnorderedMerge && !Spec->InputQuery) {
@@ -359,8 +366,6 @@ protected:
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
-            InitTeleportableInputTables();
-
             UnorderedTask_->SetIsInput(true);
 
             int unversionedSlices = 0;
@@ -370,6 +375,8 @@ protected:
                 const auto& comparator = InputTables_[chunk->GetTableIndex()]->Comparator;
 
                 const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+                dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
+
                 if (comparator) {
                     dataSlice->TransformToNew(RowBuffer, comparator.GetLength());
                     InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);
@@ -395,8 +402,6 @@ protected:
 
     void CustomMaterialize() override
     {
-        InitTeleportableInputTables();
-
         InitJobSizeConstraints();
 
         auto autoMergeEnabled = TryInitAutoMerge(JobSizeConstraints_->GetJobCount());

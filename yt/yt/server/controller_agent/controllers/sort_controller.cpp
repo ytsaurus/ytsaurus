@@ -1185,7 +1185,7 @@ protected:
                     if (!Controller_->Spec->UseNewSortedPool) {
                         dataSlice->TransformToLegacy(Controller_->RowBuffer);
                     }
-                    dataSlice->InputStreamIndex = inputStreamIndex;
+                    dataSlice->SetInputStreamIndex(inputStreamIndex);
                 }
 
                 if (Controller_->SimpleSort) {
@@ -2576,6 +2576,8 @@ protected:
             const auto& comparator = InputTables_[chunk->GetTableIndex()]->Comparator;
 
             const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
+
             if (comparator) {
                 dataSlice->TransformToNew(RowBuffer, comparator.GetLength());
                 InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);

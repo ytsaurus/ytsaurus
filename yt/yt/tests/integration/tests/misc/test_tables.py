@@ -1396,6 +1396,7 @@ class TestTables(YTEnvSetup):
             merge(in_=[table, table], out="<append=true>" + table)
 
         chunk_count = 3 ** 8
+        assert get("//tmp/t/@row_count") == chunk_count
         assert len(get("//tmp/t/@chunk_ids")) == chunk_count
 
         codec_info = get("//tmp/t/@compression_statistics")

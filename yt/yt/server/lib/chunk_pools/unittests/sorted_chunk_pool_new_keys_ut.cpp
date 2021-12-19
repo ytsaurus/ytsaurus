@@ -340,6 +340,7 @@ protected:
         using NYT::NChunkPools::CreateUnversionedInputDataSlice;
 
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        dataSlice->SetInputStreamIndex(chunk->GetTableIndex());
         dataSlice->TransformToNewKeyless();
 
         const auto& chunkSlice = dataSlice->ChunkSlices[0];
@@ -417,6 +418,7 @@ protected:
         TKeyBound upperBound = TKeyBound::MakeUniversal(/* isUpper */ true))
     {
         auto dataSlice = CreateUnversionedInputDataSlice(chunk);
+        dataSlice->SetInputStreamIndex(dataSlice->GetTableIndex());
         const auto& chunkSlice = dataSlice->ChunkSlices[0];
 
         const auto& comparator = InputTables_[chunk->GetTableIndex()].IsPrimary()
@@ -443,6 +445,13 @@ protected:
         return dataSlice;
     }
 
+    TLegacyDataSlicePtr CreateInputDataSlice(const TLegacyDataSlicePtr& dataSlice)
+    {
+        auto copyDataSlice = NYT::NChunkPools::CreateInputDataSlice(dataSlice);
+        copyDataSlice->SetInputStreamIndex(dataSlice->GetInputStreamIndex());
+        return copyDataSlice;
+    }
+
     TInputCookie AddDataSlice(TLegacyDataSlicePtr dataSlice)
     {
         auto stripe = CreateStripe({dataSlice});
@@ -461,6 +470,7 @@ protected:
         int sliceIndex = -1)
     {
         auto dataSlice = CreateDataSlice(chunk, lowerBound, upperBound);
+        dataSlice->SetInputStreamIndex(dataSlice->GetTableIndex());
         dataSlice->Type = InputTables_[chunk->GetTableIndex()].IsVersioned()
             ? EDataSourceType::VersionedTable
             : EDataSourceType::UnversionedTable;
@@ -494,7 +504,8 @@ protected:
     void ResetDataSlice(IChunkPoolInput::TCookie cookie, const TLegacyDataSlicePtr& dataSlice)
     {
         YT_VERIFY(!InputCookieToChunkIds_[cookie].empty());
-        dataSlice->InputStreamIndex = dataSlice->GetTableIndex();
+        // TODO(max42): what is this?
+        dataSlice->SetInputStreamIndex(dataSlice->GetTableIndex());
         ChunkPool_->Reset(cookie, New<TChunkStripe>(dataSlice), IdentityChunkMapping);
         InputCookieToChunkIds_[cookie].clear();
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
@@ -3896,10 +3907,10 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
     DataSizePerJob_ = 1;
     InitJobConstraints();
 
-    constexpr int maxChunkCount = 100;
-    constexpr int maxUnderlyingPoolCount = 10;
-    constexpr int maxJobLosts = 50;
-    constexpr int maxInvalidationCount = 10;
+    constexpr int maxChunkCount = 50;
+    constexpr int maxUnderlyingPoolCount = 5;
+    constexpr int maxJobLosts = 25;
+    constexpr int maxInvalidationCount = 5;
 
     int chunkCount = std::uniform_int_distribution<>(0, maxChunkCount)(Gen_);
 

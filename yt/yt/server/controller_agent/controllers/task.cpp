@@ -1662,12 +1662,14 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
         auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
         chunkSlice->SetSliceIndex(index);
         auto dataSlice = CreateUnversionedInputDataSlice(std::move(chunkSlice));
+        // TODO(max42): revisit this.
         dataSlice->TransformToNewKeyless();
         // NB(max42): This heavily relies on the property of intermediate data being deterministic
         // (i.e. it may be reproduced with exactly the same content divided into chunks with exactly
         // the same boundary keys when the job output is lost).
         dataSlice->Tag = index;
         int tableIndex = inputChunk->GetTableIndex();
+        dataSlice->SetInputStreamIndex(tableIndex);
         YT_VERIFY(tableIndex >= 0);
         YT_VERIFY(tableIndex < tableCount);
         stripes[tableIndex]->DataSlices.emplace_back(std::move(dataSlice));

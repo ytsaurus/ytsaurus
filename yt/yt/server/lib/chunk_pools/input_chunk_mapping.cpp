@@ -61,13 +61,13 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
                             TLegacyDataSlice::TChunkSliceList{std::move(chunkSlice)},
                             dataSlice->LegacyLowerLimit(),
                             dataSlice->LegacyUpperLimit()));
-                        mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
+                        mappedStripe->DataSlices.back()->SetInputStreamIndex(dataSlice->GetInputStreamIndex());
                     } else {
                         for (const auto& substituteChunk : substitutes) {
                             mappedStripe->DataSlices.emplace_back(New<TLegacyDataSlice>(
                                 dataSlice->Type,
                                 TLegacyDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)} ));
-                            mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
+                            mappedStripe->DataSlices.back()->SetInputStreamIndex(dataSlice->GetInputStreamIndex());
                         }
                     }
                 } else {

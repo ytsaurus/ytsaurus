@@ -205,7 +205,7 @@ protected:
 
             YT_VERIFY(!dataSlice->IsLegacy);
 
-            auto inputStreamDescriptor = Controller_->GetInputStreamDirectory().GetDescriptor(dataSlice->InputStreamIndex);
+            auto inputStreamDescriptor = Controller_->GetInputStreamDirectory().GetDescriptor(dataSlice->GetInputStreamIndex());
 
             auto prefixLength = inputStreamDescriptor.IsPrimary()
                 ? Controller_->PrimarySortColumns_.size()
@@ -409,6 +409,13 @@ protected:
             InputSliceDataWeight_);
     }
 
+    void CustomPrepare() override
+    {
+        TOperationControllerBase::CustomPrepare();
+
+        InitTeleportableInputTables();
+    }
+
     void CheckInputTableSortColumnTypes(
         const TSortColumns& sortColumns,
         std::function<bool(const TInputTablePtr& table)> inputTableFilter = [] (const TInputTablePtr& /* table */) { return true; })
@@ -473,8 +480,6 @@ protected:
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
-            InitTeleportableInputTables();
-
             SortedTask_->SetIsInput(true);
 
             int primaryUnversionedSlices = 0;
@@ -486,6 +491,7 @@ protected:
                 YT_VERIFY(comparator);
 
                 const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+                dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
                 if (comparator) {
                     dataSlice->TransformToNew(RowBuffer, comparator.GetLength());
                     InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);
@@ -603,8 +609,6 @@ protected:
         // TODO(max42): But why?
 
         CalculateSizes();
-
-        InitTeleportableInputTables();
 
         bool autoMergeNeeded = false;
         if (GetOperationType() != EOperationType::Merge) {
@@ -1059,8 +1063,6 @@ public:
 
     void CustomPrepare() override
     {
-        TSortedControllerBase::CustomPrepare();
-
         int teleportOutputCount = 0;
         for (int i = 0; i < static_cast<int>(OutputTables_.size()); ++i) {
             if (OutputTables_[i]->Path.GetTeleport()) {
@@ -1101,6 +1103,10 @@ public:
         if (foreignInputCount != 0 && Spec_->JoinBy.empty()) {
             THROW_ERROR_EXCEPTION("It is required to specify join_by when using foreign tables");
         }
+
+        // NB: base class call method is called at the end since InitTeleportableInputTables()
+        // relies on OutputTeleportTableIndex_ being set.
+        TSortedControllerBase::CustomPrepare();
     }
 
     void BuildBriefSpec(TFluentMap fluent) const override
