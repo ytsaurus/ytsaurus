@@ -17,6 +17,8 @@
 #include <yt/yt/server/master/orchid/manifest.h>
 #include <yt/yt/server/master/orchid/orchid_holder_base.h>
 
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -111,6 +113,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::ErrorCount);
         descriptors->push_back(EInternedAttributeKey::ReplicationErrorCount);
         descriptors->push_back(EInternedAttributeKey::BackupState);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationProgress)
+            .SetPresent(!tablet->ReplicationProgress().Segments.empty()));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -267,6 +271,15 @@ private:
             case EInternedAttributeKey::BackupState:
                 BuildYsonFluently(consumer)
                     .Value(tablet->GetBackupState());
+                return true;
+
+            case EInternedAttributeKey::ReplicationProgress:
+                if (tablet->ReplicationProgress().Segments.empty()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(tablet->ReplicationProgress());
                 return true;
 
             default:

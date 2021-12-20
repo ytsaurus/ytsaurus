@@ -194,7 +194,6 @@ private:
                 TPullRowsOptions options;
                 options.TabletRowsPerRead = TabletRowsPerRead;
                 options.ReplicationProgress = *replicationProgress;
-                options.ReplicationProgress.UpperKey = tabletSnapshot->NextPivotKey;
                 options.StartReplicationRowIndexes = tabletSnapshot->TabletChaosData->CurrentReplicationRowIndexes;
                 options.UpperTimestamp = upperTimestamp;
                 options.UpstreamReplicaId = upstreamReplicaId;

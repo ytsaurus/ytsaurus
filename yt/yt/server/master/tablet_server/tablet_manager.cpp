@@ -3568,6 +3568,9 @@ private:
                 if (table->ReplicationCardToken()) {
                     if (tablet->ReplicationProgress().Segments.empty()) {
                         tablet->ReplicationProgress().Segments.push_back({tablet->GetPivotKey(), MinTimestamp});
+                        tablet->ReplicationProgress().UpperKey = tablet->GetIndex() + 1 == std::ssize(allTablets)
+                            ? MaxKey()
+                            : allTablets[tabletIndex + 1]->GetPivotKey();
                     }
 
                     ToProto(req.mutable_replication_card_token(), ConvertToClientReplicationCardToken(table->ReplicationCardToken()));
