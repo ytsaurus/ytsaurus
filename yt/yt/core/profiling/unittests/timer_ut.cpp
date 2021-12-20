@@ -44,36 +44,35 @@ class TTimerTest
     : public ::testing::Test
 {
 protected:
-    TLazyIntrusivePtr<TActionQueue> Queue;
+    TLazyIntrusivePtr<TActionQueue> Queue_;
 
     virtual void TearDown()
     {
-        if (Queue.HasValue()) {
-            Queue->Shutdown();
+        if (Queue_.HasValue()) {
+            Queue_->Shutdown();
         }
     }
 };
 
 TEST_F(TTimerTest, CpuEmpty)
 {
-    auto invoker = Queue->GetInvoker();
     TValue cpu = 0;
-    BIND([&] () {
+    BIND([&] {
         TFiberWallTimer cpuTimer;
         cpu = cpuTimer.GetElapsedValue();
     })
-    .AsyncVia(invoker).Run()
-    .Get();
+        .AsyncVia(Queue_->GetInvoker())
+        .Run()
+        .Get();
 
-    EXPECT_LT(cpu, 10 * 1000);
+    EXPECT_LT(cpu, 10'000);
 }
 
 TEST_F(TTimerTest, CpuWallCompare)
 {
-    auto invoker = Queue->GetInvoker();
     TValue cpu = 0;
     TValue wall = 0;
-    BIND([&] () {
+    BIND([&] {
         TFiberWallTimer cpuTimer;
         TWallTimer wallTimer;
 
@@ -82,19 +81,17 @@ TEST_F(TTimerTest, CpuWallCompare)
         cpu = cpuTimer.GetElapsedValue();
         wall = wallTimer.GetElapsedValue();
     })
-    .AsyncVia(invoker).Run()
-    .Get();
+        .AsyncVia(Queue_->GetInvoker())
+        .Run()
+        .Get();
 
-    EXPECT_LT(cpu, 10 * 1000);
-    EXPECT_GT(wall, 80 * 1000);
-    EXPECT_LT(wall, 120 * 1000);
+    EXPECT_LT(cpu, 10'000);
+    EXPECT_GT(wall, 80'000);
+    EXPECT_LT(wall, 120'000);
 }
 
 TEST_F(TTimerTest, PersistAndRestoreActive)
 {
-    auto invoker = Queue->GetInvoker();
-    TValue wall = 0;
-
     TWallTimer wallTimer;
     TDelayedExecutor::WaitForDuration(SleepQuantum);
 
@@ -102,17 +99,14 @@ TEST_F(TTimerTest, PersistAndRestoreActive)
 
     TDelayedExecutor::WaitForDuration(SleepQuantum);
 
-    wall = wallTimer.GetElapsedValue();
+    auto wall = wallTimer.GetElapsedValue();
 
-    EXPECT_GT(wall, 180 * 1000);
-    EXPECT_LT(wall, 220 * 1000);
+    EXPECT_GT(wall, 150'000);
+    EXPECT_LT(wall, 250'000);
 }
 
 TEST_F(TTimerTest, PersistAndRestoreNonActive)
 {
-    auto invoker = Queue->GetInvoker();
-    TValue wall = 0;
-
     TWallTimer wallTimer;
     TDelayedExecutor::WaitForDuration(SleepQuantum);
 
@@ -128,10 +122,10 @@ TEST_F(TTimerTest, PersistAndRestoreNonActive)
 
     TDelayedExecutor::WaitForDuration(SleepQuantum);
 
-    wall = wallTimer.GetElapsedValue();
+    auto wall = wallTimer.GetElapsedValue();
 
-    EXPECT_GT(wall, 180 * 1000);
-    EXPECT_LT(wall, 220 * 1000);
+    EXPECT_GT(wall, 150'000);
+    EXPECT_LT(wall, 250'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
