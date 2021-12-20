@@ -112,18 +112,18 @@ public:
     //! i.e. no more data could be stored in tablet static memory.
     bool IsTabletStaticMemoryLimitViolated() const;
 
-    //! Returns |true| if master memory usage is exceeded,
+    //! Returns |true| if total master memory usage is exceeded,
     //! i.e. no more master memory can be occupied.
-    bool IsMasterMemoryLimitViolated() const;
+    bool IsTotalMasterMemoryLimitViolated() const;
 
     //! Returns |true| if master memory usage for specified cell is exceeded.
-    bool IsMasterMemoryLimitViolated(NObjectClient::TCellTag cellTag) const;
+    bool IsCellMasterMemoryLimitViolated(NObjectClient::TCellTag cellTag) const;
 
     //! Returns |true| if chunk host master memory usage is exceeded.
-    bool IsChunkHostMasterMemoryLimitViolated(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+    bool IsChunkHostMasterMemoryLimitViolated() const;
 
     //! Returns total chunk host master memory usage.
-    i64 GetChunkHostMasterMemoryUsage(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+    i64 GetChunkHostCellMasterMemoryUsage() const;
 
     //! Returns statistics for a given cell tag.
     TAccountStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);

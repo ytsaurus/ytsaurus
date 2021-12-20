@@ -481,7 +481,6 @@ public:
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
         RegisterMethod(BIND(&TImpl::HydraSetAccountStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetAccountStatisticsAtSecondaryCells, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRecomputeMembershipClosure, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
     }
@@ -1745,7 +1744,7 @@ public:
         while (node && !node->TryGetAnnotation()) {
             node = node->GetParent();
         }
-        return node? node->TryGetAnnotation() : std::nullopt;
+        return node ? node->TryGetAnnotation() : std::nullopt;
     }
 
     TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object)
@@ -2059,8 +2058,6 @@ public:
         const auto& dynamicConfig = GetDynamicConfig();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto cellTag = multicellManager->GetCellTag();
-        auto roles = multicellManager->GetMasterCellRoles(cellTag);
-        auto isChunkHostCell = Any(roles & EMasterCellRoles::ChunkHost);
 
         auto throwOverdraftError = [&] (
             const TString& resourceType,
@@ -2114,12 +2111,12 @@ public:
                 }
             }
 
-            if (isChunkHostCell) {
-                auto chunkHostMasterMemory = account->GetChunkHostMasterMemoryUsage(multicellManager);
-                if (chunkHostMasterMemory + totalMasterMemoryDelta > limits.MasterMemory().ChunkHost) {
+            if (IsChunkHostCell_) {
+                auto chunkHostCellMasterMemory = account->GetChunkHostCellMasterMemoryUsage();
+                if (chunkHostCellMasterMemory + totalMasterMemoryDelta > limits.MasterMemory().ChunkHost) {
                     throwOverdraftError(Format("chunk host master memory"),
                         account,
-                        chunkHostMasterMemory,
+                        chunkHostCellMasterMemory,
                         totalMasterMemoryDelta,
                         limits.MasterMemory().ChunkHost);
                 }
@@ -2458,6 +2455,8 @@ private:
 
     TSyncMap<TString, TProfilerTagPtr> CpuProfilerTags_;
 
+    bool IsChunkHostCell_ = false;
+
     // COMPAT(shakurov)
     bool RecomputeAccountResourceUsage_ = false;
     bool ValidateAccountResourceUsage_ = false;
@@ -2466,6 +2465,9 @@ private:
 
     // COMPAT(aleksandra-zh)
     bool MustInitializeChunkHostMasterMemoryLimits_ = false;
+
+    // COMPAT(h0pless)
+    bool RecomputeChunkHostCellMasterMemory_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2759,6 +2761,7 @@ private:
         Save(context, MustRecomputeMembershipClosure_);
         ProxyRoleMap_.SaveValues(context);
         AccountResourceUsageLeaseMap_.SaveValues(context);
+        Save(context, IsChunkHostCell_);
     }
 
 
@@ -2789,8 +2792,16 @@ private:
         // COMPAT(aleksandra-zh)
         MustInitializeChunkHostMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountChunkHostMasterMemory2;
 
+        // COMPAT(h0pless)
+        RecomputeChunkHostCellMasterMemory_ = context.GetVersion() < EMasterReign::AccountGossipStatisticsOptimization;
+
         ProxyRoleMap_.LoadValues(context);
         AccountResourceUsageLeaseMap_.LoadValues(context);
+
+        // COMPAT(h0pless)
+        if (context.GetVersion() >= NCellMaster::EMasterReign::AccountGossipStatisticsOptimization) {
+            Load(context, IsChunkHostCell_);
+        }
     }
 
     void OnAfterSnapshotLoaded() override
@@ -2897,6 +2908,31 @@ private:
 
         RecomputeAccountMasterMemoryUsage();
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
+
+        if (RecomputeChunkHostCellMasterMemory_) {
+            RecomputeChunkHostCellMasterMemory();
+        }
+    }
+
+    void RecomputeChunkHostCellMasterMemory() {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        auto roles = multicellManager->GetMasterCellRoles(cellTag);
+        IsChunkHostCell_ = Any(roles & EMasterCellRoles::ChunkHost);
+        if (!IsChunkHostCell_) {
+            return;
+        }
+
+        for (auto [accountId, account] : AccountMap_) {
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
+
+            auto& resourceUsage = account->LocalStatistics().ResourceUsage;
+            auto& committedResourceUsage = account->LocalStatistics().CommittedResourceUsage;
+            resourceUsage.SetChunkHostCellMasterMemory(resourceUsage.DetailedMasterMemory().GetTotal());
+            committedResourceUsage.SetChunkHostCellMasterMemory(committedResourceUsage.DetailedMasterMemory().GetTotal());
+        }
     }
 
     void RecomputeAccountResourceUsage()
@@ -3497,15 +3533,17 @@ private:
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto cellTag = multicellManager->GetCellTag();
-        const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
 
         auto& multicellStatistics = account->MulticellStatistics();
         if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
             multicellStatistics[cellTag] = account->ClusterStatistics();
         }
 
-        for (auto secondaryCellTag : secondaryCellTags) {
-            multicellStatistics[secondaryCellTag];
+        if (multicellManager->IsPrimaryMaster()) {
+            const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
+            for (auto secondaryCellTag : secondaryCellTags) {
+                multicellStatistics[secondaryCellTag];
+            }
         }
 
         account->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
@@ -3519,26 +3557,28 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Sending account statistics gossip message");
-
         if (multicellManager->IsPrimaryMaster()) {
-            NProto::TReqSetMulticellAccountStatistics request;
-            for (auto [accountId, account] : AccountMap_) {
-                if (!IsObjectAlive(account)) {
-                    continue;
-                }
+            YT_LOG_INFO("Sending account statistics gossip message to secondary cells");
+            NProto::TReqSetAccountStatistics request;
+            // For each secondary cell, account statistics are being combined and sent.
+            // Note, however, that every cell receives the sum of all other cells' information with it's own data excluded.
+            // This is done because cell statistics on the primary master might be outdated for any particular cell.
+            for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+                for (auto [accountId, account] : AccountMap_) {
+                    if (!IsObjectAlive(account)) {
+                        continue;
+                    }
 
-                auto* entry = request.add_entries();
-                ToProto(entry->mutable_account_id(), account->GetId());
-
-                for (const auto& [cellTag, cellStatistics] : account->MulticellStatistics()) {
-                    auto* statistics = entry->add_statistics();
-                    statistics->set_cell_tag(cellTag);
-                    ToProto(statistics->mutable_statistics(), cellStatistics);
+                    const auto& cellStatistics = GetOrCrash(account->MulticellStatistics(), cellTag);
+                    const auto& clusterStatistics = account->ClusterStatistics();
+                    auto* entry = request.add_entries();
+                    ToProto(entry->mutable_account_id(), account->GetId());
+                    ToProto(entry->mutable_statistics(), clusterStatistics - cellStatistics);
                 }
+                multicellManager->PostToMaster(request, cellTag, false);
             }
-            multicellManager->PostToSecondaryMasters(request, false);
         } else {
+            YT_LOG_INFO("Sending account statistics gossip message to primary cell");
             NProto::TReqSetAccountStatistics request;
             request.set_cell_tag(multicellManager->GetCellTag());
             for (auto [accountId, account] : AccountMap_) {
@@ -3555,6 +3595,16 @@ private:
     }
 
     void HydraSetAccountStatistics(NProto::TReqSetAccountStatistics* request)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            SetAccountStatisticsAtPrimaryCell(request);
+        } else {
+            SetAccountStatisticsAtSecondaryCells(request);
+        }
+    }
+
+    void SetAccountStatisticsAtPrimaryCell(NProto::TReqSetAccountStatistics* request)
     {
         auto cellTag = request->cell_tag();
 
@@ -3583,14 +3633,12 @@ private:
         }
     }
 
-    void HydraSetAccountStatisticsAtSecondaryCells(NProto::TReqSetMulticellAccountStatistics* request)
+    void SetAccountStatisticsAtSecondaryCells(NProto::TReqSetAccountStatistics* request)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received account statistics gossip message");
-
-        auto localCellTag = multicellManager->GetCellTag();
 
         for (const auto& entry : request->entries()) {
             auto accountId = FromProto<TAccountId>(entry.account_id());
@@ -3599,23 +3647,8 @@ private:
                 continue;
             }
 
-            auto& multicellStatistics = account->MulticellStatistics();
-            for (const auto& cellStatistics: entry.statistics()) {
-                auto cellTag = cellStatistics.cell_tag();
-                if (localCellTag == cellTag) {
-                    continue;
-                }
-
-                if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-                    YT_LOG_WARNING("Received unknown cell tag in account statistics gossip message (CellTag: %v)", cellTag);
-                    continue;
-                }
-
-                auto newStatistics = FromProto<TAccountStatistics>(cellStatistics.statistics());
-                multicellStatistics[cellTag] = newStatistics;
-            }
-
-            account->RecomputeClusterStatistics();
+            auto& clusterStatistics = account->ClusterStatistics();
+            clusterStatistics = FromProto<TAccountStatistics>(entry.statistics()) + account->LocalStatistics();
         }
     }
 
@@ -3639,11 +3672,23 @@ private:
             auto newDetailedMasterMemory = FromProto<TDetailedMasterMemory>(entry.detailed_master_memory_usage());
             auto masterMemoryUsageDelta = newDetailedMasterMemory - account->LocalStatistics().ResourceUsage.DetailedMasterMemory();
 
-            account->ClusterStatistics().ResourceUsage.DetailedMasterMemory() += masterMemoryUsageDelta;
             account->LocalStatistics().ResourceUsage.DetailedMasterMemory() = newDetailedMasterMemory;
+            account->ClusterStatistics().ResourceUsage.IncreaseDetailedMasterMemory(masterMemoryUsageDelta);
 
-            account->ClusterStatistics().CommittedResourceUsage.DetailedMasterMemory() += masterMemoryUsageDelta;
             account->LocalStatistics().CommittedResourceUsage.DetailedMasterMemory() = newDetailedMasterMemory;
+            account->ClusterStatistics().CommittedResourceUsage.IncreaseDetailedMasterMemory(masterMemoryUsageDelta);
+
+            if (IsChunkHostCell_) {
+                auto newChunkHostCellMasterMemoryUsage = newDetailedMasterMemory.GetTotal();
+                auto chunkHostCellMasterMemoryUsageDelta = masterMemoryUsageDelta.GetTotal();
+                auto& clusterStatistics = account->ClusterStatistics();
+                auto& localStatistics = account->LocalStatistics();
+
+                localStatistics.ResourceUsage.SetChunkHostCellMasterMemory(newChunkHostCellMasterMemoryUsage);
+                localStatistics.CommittedResourceUsage.SetChunkHostCellMasterMemory(newChunkHostCellMasterMemoryUsage);
+                clusterStatistics.ResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
+                clusterStatistics.CommittedResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
+            }
         }
     }
 
@@ -4092,7 +4137,6 @@ private:
         }
     }
 
-
     const TDynamicSecurityManagerConfigPtr& GetDynamicConfig() const
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager;
@@ -4110,6 +4154,58 @@ private:
 
         if (AccountMasterMemoryUsageUpdateExecutor_) {
             AccountMasterMemoryUsageUpdateExecutor_->SetPeriod(GetDynamicConfig()->AccountMasterMemoryUsageUpdatePeriod);
+        }
+
+        if (HasMutationContext()) {
+            RecomputeMasterMemoryUsageOnConfigChange();
+        }
+    }
+
+    void RecomputeMasterMemoryUsageOnConfigChange()
+    {
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        auto roles = multicellManager->GetMasterCellRoles(cellTag);
+        auto wasChunkHostCell = IsChunkHostCell_;
+        IsChunkHostCell_ = Any(roles & EMasterCellRoles::ChunkHost);
+        if (wasChunkHostCell != IsChunkHostCell_) {
+            for (auto [accountId, account] : AccountMap_) {
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
+                auto& localStatistics = account->LocalStatistics();
+                auto& clusterStatistics = account->ClusterStatistics();
+
+                auto& localResourceUsage = localStatistics.ResourceUsage;
+                auto& localCommittedUsage = localStatistics.CommittedResourceUsage;
+
+                auto& clusterResourceUsage = clusterStatistics.ResourceUsage;
+                auto& clusterCommittedUsage = clusterStatistics.CommittedResourceUsage;
+
+                if (wasChunkHostCell) {
+                    clusterResourceUsage.SetChunkHostCellMasterMemory(clusterResourceUsage.GetChunkHostCellMasterMemory() - localResourceUsage.GetChunkHostCellMasterMemory());
+                    clusterCommittedUsage.SetChunkHostCellMasterMemory(clusterCommittedUsage.GetChunkHostCellMasterMemory() - localCommittedUsage.GetChunkHostCellMasterMemory());
+
+                    if (clusterResourceUsage.GetChunkHostCellMasterMemory() < 0) {
+                        YT_LOG_ALERT("Chunk host cell memory is negative after removing chunk host role from cell %v", cellTag);
+                    }
+
+                    if (clusterCommittedUsage.GetChunkHostCellMasterMemory() < 0) {
+                        YT_LOG_ALERT("Committed chunk host cell memory is negative after removing chunk host role from cell %v", cellTag);
+                    }
+
+                    localResourceUsage.SetChunkHostCellMasterMemory(0);
+                    localCommittedUsage.SetChunkHostCellMasterMemory(0);
+                } else {
+                    localResourceUsage.SetChunkHostCellMasterMemory(localResourceUsage.DetailedMasterMemory().GetTotal());
+                    localCommittedUsage.SetChunkHostCellMasterMemory(localCommittedUsage.DetailedMasterMemory().GetTotal());
+
+                    clusterResourceUsage.SetChunkHostCellMasterMemory(clusterResourceUsage.GetChunkHostCellMasterMemory() + localResourceUsage.GetChunkHostCellMasterMemory());
+                    clusterCommittedUsage.SetChunkHostCellMasterMemory(clusterCommittedUsage.GetChunkHostCellMasterMemory() + localCommittedUsage.GetChunkHostCellMasterMemory());
+                }
+            }
         }
     }
 };

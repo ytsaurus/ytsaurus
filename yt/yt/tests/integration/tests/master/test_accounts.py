@@ -60,7 +60,7 @@ def subtract_recursive(lhs, rhs):
 
 
 class AccountsTestSuiteBase(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -4384,6 +4384,58 @@ class TestAccountsMulticell(TestAccounts):
             {"Julia": 100, "1": 200, "George": 300}
 
         assert sorted(ls("//sys/accounts/a/@multicell_statistics")) == ["1", "George", "Julia"]
+
+    @authors("h0pless")
+    def test_chunk_host_tag_switch(self):
+        create_account("a")
+        master_memory_sleep()
+
+        set("//sys/@config/multicell_manager/cell_descriptors", {"1": {"roles": ["chunk_host"]}, "2": {"roles": ["chunk_host"]}})
+
+        create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 1})
+        create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 2})
+        write_table("<append=true>//tmp/t1", {"a": "b"})
+        write_table("<append=true>//tmp/t2", {"a": "b"})
+        write_table("<append=true>//tmp/t2", {"a": "c"})
+        master_memory_sleep()
+
+        assert get("//sys/accounts/a/@resource_usage/master_memory", driver=get_driver(1)) > 0
+        assert get("//sys/accounts/a/@multicell_statistics/1/resource_usage/chunk_host_cell_master_memory", driver=get_driver(1)) > 0
+
+        set("//sys/@config/multicell_manager/cell_descriptors/1/roles", ["transaction_coordinator"])
+        master_memory_sleep()
+        write_table("<append=true>//tmp/t1", {"a": "d"})
+        write_table("<append=true>//tmp/t1", {"a": "c"})
+        master_memory_sleep()
+
+        assert get("//sys/accounts/a/@multicell_statistics/1/resource_usage/chunk_host_cell_master_memory", driver=get_driver(1)) == 0
+        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/chunk_host") ==
+             get("//sys/accounts/a/@multicell_statistics/2/resource_usage/master_memory", driver=get_driver(2)))
+
+        set("//sys/@config/multicell_manager/cell_descriptors/1/roles", ["chunk_host"])
+        master_memory_sleep()
+
+        assert get("//sys/accounts/a/@multicell_statistics/1/resource_usage/chunk_host_cell_master_memory", driver=get_driver(1)) > 0
+        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/chunk_host") ==
+             get("//sys/accounts/a/@multicell_statistics/1/resource_usage/master_memory", driver=get_driver(1)) +
+             get("//sys/accounts/a/@multicell_statistics/2/resource_usage/master_memory", driver=get_driver(2)))
+
+    @authors("h0pless")
+    def test_non_chunk_host_secondary_cell_multicell_statistics(self):
+        create_account("a")
+        master_memory_sleep()
+
+        set("//sys/@config/multicell_manager/cell_descriptors", {"1": {"roles": ["chunk_host"]}, "2": {"roles": ["chunk_host"]}})
+        create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 1})
+        create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 2})
+        write_table("<append=true>//tmp/t1", {"a": "b"})
+        write_table("<append=true>//tmp/t2", {"a": "b"})
+        write_table("<append=true>//tmp/t2", {"a": "c"})
+        master_memory_sleep()
+
+        assert len(ls("//sys/accounts/a/@multicell_statistics")) == self.NUM_SECONDARY_MASTER_CELLS + 1
+        assert len(ls("//sys/accounts/a/@multicell_statistics", driver=get_driver(1))) == 1
+        assert len(ls("//sys/accounts/a/@multicell_statistics", driver=get_driver(2))) == 1
 
 
 class TestAccountTreeMulticell(TestAccountTree):

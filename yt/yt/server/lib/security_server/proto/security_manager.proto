@@ -21,6 +21,7 @@ message TClusterResources
     required int32 tablet_count = 5;
     required int64 tablet_static_memory_size = 6;
     required TDetailedMasterMemory detailed_master_memory = 8;
+    required int64 chunk_host_cell_master_memory = 9;
 
     message TMediumDiskSpace
     {
@@ -49,25 +50,8 @@ message TReqSetAccountStatistics
         required TAccountStatistics statistics = 2;
     }
 
-    required int32 cell_tag = 1;
+    optional int32 cell_tag = 1;
     repeated TEntry entries = 2;
-}
-
-message TReqSetMulticellAccountStatistics
-{
-    message TCellStatistics
-    {
-        required int32 cell_tag = 1;
-        required TAccountStatistics statistics = 2;
-    }
-
-    message TEntry
-    {
-        required NYT.NProto.TGuid account_id = 1;
-        repeated TCellStatistics statistics = 2;
-    }
-
-    repeated TEntry entries = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

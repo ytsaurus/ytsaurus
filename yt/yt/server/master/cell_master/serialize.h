@@ -139,6 +139,7 @@ DEFINE_ENUM(EMasterReign,
     ((CheckReplicatedTablesAtomicityIsFull)                         (1905))  // akozhikhov
     ((RemovedIsResponseKeeperWarmingUp)                             (1906))  // h0pless
     ((ChunkViewModifier)                                            (1907))  // ifsmirnov
+    ((AccountGossipStatisticsOptimization)                          (1908))  // h0pless
 );
 
 constexpr EMasterReign First_21_2_MasterReign = EMasterReign::MasterMergeJobs;

@@ -48,6 +48,13 @@ TClusterResources&& TClusterResources::SetDetailedMasterMemory(EMasterMemoryType
     return std::move(*this);
 }
 
+#define XX(Name) void TClusterResources::Increase##Name(NMpl::TCallTraits<decltype(Name##_)>::TType delta) \
+{ \
+    Name##_ += delta; \
+}
+FOR_EACH_CLUSTER_RESOURCE(XX)
+#undef XX
+
 TClusterResources&& TClusterResources::SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&
 {
     SetMediumDiskSpace(mediumIndex, diskSpace);
@@ -107,6 +114,7 @@ void TClusterResources::Save(NCellMaster::TSaveContext& context) const
     Save(context, ChunkCount_);
     Save(context, TabletCount_);
     Save(context, TabletStaticMemory_);
+    Save(context, ChunkHostCellMasterMemory_);
     Save(context, DetailedMasterMemory_);
 }
 
@@ -118,6 +126,10 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkCount_);
     Load(context, TabletCount_);
     Load(context, TabletStaticMemory_);
+    // COMPAT(h0pless)
+    if (context.GetVersion() >= NCellMaster::EMasterReign::AccountGossipStatisticsOptimization) {
+        Load(context, ChunkHostCellMasterMemory_);
+    }
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() < NCellMaster::EMasterReign::DetailedMasterMemory) {
         Load<i64>(context);
@@ -138,6 +150,7 @@ void TClusterResources::Save(NCypressServer::TBeginCopyContext& context) const
     Save(context, ChunkCount_);
     Save(context, TabletCount_);
     Save(context, TabletStaticMemory_);
+    Save(context, ChunkHostCellMasterMemory_);
     Save(context, DetailedMasterMemory_);
 }
 
@@ -154,6 +167,7 @@ void TClusterResources::Load(NCypressServer::TEndCopyContext& context)
     Load(context, ChunkCount_);
     Load(context, TabletCount_);
     Load(context, TabletStaticMemory_);
+    Load(context, ChunkHostCellMasterMemory_);
     Load(context, DetailedMasterMemory_);
 }
 
@@ -167,6 +181,7 @@ TClusterResources& TClusterResources::operator += (const TClusterResources& othe
     TabletCount_ += other.TabletCount_;
     TabletStaticMemory_ += other.TabletStaticMemory_;
     DetailedMasterMemory_ += other.DetailedMasterMemory_;
+    ChunkHostCellMasterMemory_ += other.ChunkHostCellMasterMemory_;
     return *this;
 }
 
@@ -187,6 +202,7 @@ TClusterResources& TClusterResources::operator -= (const TClusterResources& othe
     TabletCount_ -= other.TabletCount_;
     TabletStaticMemory_ -= other.TabletStaticMemory_;
     DetailedMasterMemory_ -= other.DetailedMasterMemory_;
+    ChunkHostCellMasterMemory_ -= other.ChunkHostCellMasterMemory_;
     return *this;
 }
 
@@ -207,6 +223,7 @@ TClusterResources& TClusterResources::operator *= (i64 other)
     TabletCount_ *= other;
     TabletStaticMemory_ *= other;
     DetailedMasterMemory_ *= other;
+    ChunkHostCellMasterMemory_ *= other;
     return *this;
 }
 
@@ -228,6 +245,7 @@ TClusterResources TClusterResources::operator - () const
     result.TabletCount_ = -TabletCount_;
     result.TabletStaticMemory_ = -TabletStaticMemory_;
     result.DetailedMasterMemory_ = -DetailedMasterMemory_;
+    result.ChunkHostCellMasterMemory_ = -ChunkHostCellMasterMemory_;
     return result;
 }
 
@@ -260,6 +278,9 @@ bool TClusterResources::operator == (const TClusterResources& other) const
     if (DetailedMasterMemory_ != other.DetailedMasterMemory_) {
         return false;
     }
+    if (ChunkHostCellMasterMemory_ != other.ChunkHostCellMasterMemory_) {
+        return false;
+    }
     return true;
 }
 
@@ -271,6 +292,7 @@ void ToProto(NProto::TClusterResources* protoResources, const TClusterResources&
     protoResources->set_node_count(resources.GetNodeCount());
     protoResources->set_tablet_count(resources.GetTabletCount());
     protoResources->set_tablet_static_memory_size(resources.GetTabletStaticMemory());
+    protoResources->set_chunk_host_cell_master_memory(resources.GetChunkHostCellMasterMemory());
     ToProto(protoResources->mutable_detailed_master_memory(), resources.DetailedMasterMemory());
 
     for (const auto& [index, diskSpace] : resources.DiskSpace()) {
@@ -288,6 +310,7 @@ void FromProto(TClusterResources* resources, const NProto::TClusterResources& pr
     resources->SetNodeCount(protoResources.node_count());
     resources->SetTabletCount(protoResources.tablet_count());
     resources->SetTabletStaticMemory(protoResources.tablet_static_memory_size());
+    resources->SetChunkHostCellMasterMemory(protoResources.chunk_host_cell_master_memory());
     resources->DetailedMasterMemory() = FromProto<TDetailedMasterMemory>(protoResources.detailed_master_memory());
 
     resources->ClearDiskSpace();
@@ -377,23 +400,14 @@ void DoSerializeClusterResources(
                 fluent.Item(medium->GetName()).Value(mediumDiskSpace);
             })
         .Item("disk_space").Value(totalDiskSpace)
+        .Item("chunk_host_cell_master_memory").Value(clusterResources.GetChunkHostCellMasterMemory())
         .DoIf(multicellStatistics, [&] (TFluentMap fluent) {
-            i64 totalMasterMemory = 0;
-            i64 chunkHostMasterMemory = 0;
-            for (const auto& [cellTag, accountStatistics] : *multicellStatistics) {
-                const auto& cellMasterMemory = committed
-                    ? accountStatistics.CommittedResourceUsage.GetTotalMasterMemory()
-                    : accountStatistics.ResourceUsage.GetTotalMasterMemory();
-                totalMasterMemory += cellMasterMemory;
-                if (Any(multicellManager->GetMasterCellRoles(cellTag) & EMasterCellRoles::ChunkHost)) {
-                    chunkHostMasterMemory += cellMasterMemory;
-                }
-            }
-            YT_ASSERT(totalMasterMemory == clusterResources.DetailedMasterMemory().GetTotal());
+            i64 totalMasterMemory = clusterResources.DetailedMasterMemory().GetTotal();
+            i64 chunkHostCellMasterMemory = clusterResources.GetChunkHostCellMasterMemory();
             fluent
                 .Item("master_memory").BeginMap()
                     .Item("total").Value(totalMasterMemory)
-                    .Item("chunk_host").Value(chunkHostMasterMemory)
+                    .Item("chunk_host").Value(chunkHostCellMasterMemory)
                     .Item("per_cell").DoMapFor(
                         *multicellStatistics,
                         [&] (TFluentMap fluent, const auto& pair) {
@@ -437,6 +451,10 @@ void DoDeserializeClusterResources(
             ValidateDiskSpace(mediumDiskSpace);
             result.SetMediumDiskSpace(medium->GetIndex(), mediumDiskSpace);
         }
+    }
+
+    if (auto child = map->FindChild("chunk_host_cell_master_memory")) {
+        result.SetChunkHostCellMasterMemory(child->AsInt64()->GetValue());
     }
 
     if (auto child = map->FindChild("detailed_master_memory")) {
@@ -538,9 +556,11 @@ void SerializeAccountClusterResourceUsage(
         additionalMediumIndexes.push_back(mediumIndex);
     }
 
+    const auto& multicellManager = bootstrap->GetMulticellManager();
     DoSerializeClusterResources(
         *clusterResources,
-        multicellStatistics,
+        // Secondary cells don't store statistics of other cells.
+        multicellManager->IsPrimaryMaster() ? multicellStatistics : nullptr,
         committed,
         fluent,
         bootstrap,
@@ -612,11 +632,12 @@ void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources
             firstDiskSpace = false;
         }
     }
-    builder->AppendFormat("], NodeCount: %v, ChunkCount: %v, TabletCount: %v, TabletStaticMemory: %v, DetailedMasterMemory: %v}",
+    builder->AppendFormat("], NodeCount: %v, ChunkCount: %v, TabletCount: %v, TabletStaticMemory: %v, ChunkHostCellMasterMemory: %v, DetailedMasterMemory: %v}",
         resources.GetNodeCount(),
         resources.GetChunkCount(),
         resources.GetTabletCount(),
         resources.GetTabletStaticMemory(),
+        resources.GetChunkHostCellMasterMemory(),
         resources.DetailedMasterMemory());
 }
 

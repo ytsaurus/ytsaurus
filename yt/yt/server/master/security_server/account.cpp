@@ -271,12 +271,12 @@ bool TAccount::IsTabletStaticMemoryLimitViolated() const
     return ClusterStatistics_.ResourceUsage.GetTabletStaticMemory() > ClusterResourceLimits_.GetTabletStaticMemory();
 }
 
-bool TAccount::IsMasterMemoryLimitViolated() const
+bool TAccount::IsTotalMasterMemoryLimitViolated() const
 {
     return ClusterStatistics_.ResourceUsage.GetTotalMasterMemory() > ClusterResourceLimits_.MasterMemory().Total;
 }
 
-bool TAccount::IsMasterMemoryLimitViolated(TCellTag cellTag) const
+bool TAccount::IsCellMasterMemoryLimitViolated(TCellTag cellTag) const
 {
     const auto& perCellLimits = ClusterResourceLimits_.MasterMemory().PerCell;
     auto limitIt = perCellLimits.find(cellTag);
@@ -292,24 +292,15 @@ bool TAccount::IsMasterMemoryLimitViolated(TCellTag cellTag) const
     return usageIt->second.ResourceUsage.GetTotalMasterMemory() > limitIt->second;
 }
 
-bool TAccount::IsChunkHostMasterMemoryLimitViolated(const TMulticellManagerPtr& multicellManager) const
+bool TAccount::IsChunkHostMasterMemoryLimitViolated() const
 {
-    auto totalRoleMasterMemory = GetChunkHostMasterMemoryUsage(multicellManager);
-    return totalRoleMasterMemory > ClusterResourceLimits_.MasterMemory().ChunkHost;
+    auto totalChunkHostMasterMemory = GetChunkHostCellMasterMemoryUsage();
+    return totalChunkHostMasterMemory > ClusterResourceLimits_.MasterMemory().ChunkHost;
 }
 
-i64 TAccount::GetChunkHostMasterMemoryUsage(const TMulticellManagerPtr& multicellManager) const
+i64 TAccount::GetChunkHostCellMasterMemoryUsage() const
 {
-    auto cellTags = multicellManager->GetRoleMasterCells(EMasterCellRole::ChunkHost);
-    i64 totalRoleMasterMemory = 0;
-    for (auto cellTag : cellTags) {
-        auto roleMulticellStatisticsIt = MulticellStatistics_.find(cellTag);
-        if (roleMulticellStatisticsIt != MulticellStatistics_.end()) {
-            totalRoleMasterMemory += roleMulticellStatisticsIt->second.ResourceUsage.GetTotalMasterMemory();
-        }
-    }
-
-    return totalRoleMasterMemory;
+    return ClusterStatistics_.ResourceUsage.GetChunkHostCellMasterMemory();
 }
 
 TAccountStatistics* TAccount::GetCellStatistics(TCellTag cellTag)
@@ -436,17 +427,17 @@ TViolatedClusterResourceLimits TAccount::GetViolatedResourceLimits(
             violatedLimits.AddToMediumDiskSpace(mediumIndex, 0);
         }
 
-        if (account->IsMasterMemoryLimitViolated()) {
+        if (account->IsTotalMasterMemoryLimitViolated()) {
             violatedLimits.MasterMemory().Total = 1;
         }
-        if (account->IsChunkHostMasterMemoryLimitViolated(multicellManager)) {
+        if (account->IsChunkHostMasterMemoryLimitViolated()) {
             violatedLimits.MasterMemory().ChunkHost = 1;
         }
-        if (account->IsMasterMemoryLimitViolated(primaryCellTag)) {
+        if (account->IsCellMasterMemoryLimitViolated(primaryCellTag)) {
             violatedLimits.MasterMemory().PerCell[primaryCellTag] = 1;
         }
         for (auto cellTag : cellTags) {
-            if (account->IsMasterMemoryLimitViolated(cellTag)) {
+            if (account->IsCellMasterMemoryLimitViolated(cellTag)) {
                 violatedLimits.MasterMemory().PerCell[cellTag] = 1;
             }
         }
@@ -495,17 +486,17 @@ TViolatedClusterResourceLimits TAccount::GetRecursiveViolatedResourceLimits(
                 violatedLimits->AddToMediumDiskSpace(mediumIndex, 0);
             }
 
-            if (account->IsMasterMemoryLimitViolated()) {
+            if (account->IsTotalMasterMemoryLimitViolated()) {
                 ++violatedLimits->MasterMemory().Total;
             }
-            if (account->IsChunkHostMasterMemoryLimitViolated(multicellManager)) {
+            if (account->IsChunkHostMasterMemoryLimitViolated()) {
                 ++violatedLimits->MasterMemory().ChunkHost;
             }
-            if (account->IsMasterMemoryLimitViolated(primaryCellTag)) {
+            if (account->IsCellMasterMemoryLimitViolated(primaryCellTag)) {
                 ++violatedLimits->MasterMemory().PerCell[primaryCellTag];
             }
             for (auto cellTag : cellTags) {
-                if (account->IsMasterMemoryLimitViolated(cellTag)) {
+                if (account->IsCellMasterMemoryLimitViolated(cellTag)) {
                     ++violatedLimits->MasterMemory().PerCell[cellTag];
                 }
             }

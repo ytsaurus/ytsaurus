@@ -829,6 +829,9 @@ void TBootstrap::DoInitialize()
     fileSnapshotStore->Initialize();
     AlertManager_->Initialize();
     ObjectManager_->Initialize();
+    // Recalculates roles for master cells.
+    // If you need to know cell roles, initialize it below MulticellManager_.
+    MulticellManager_->Initialize();
     SecurityManager_->Initialize();
     TransactionManager_->Initialize();
     NodeTracker_->Initialize();
@@ -844,7 +847,6 @@ void TBootstrap::DoInitialize()
     TabletManager_->Initialize();
     BackupManager_->Initialize();
     ChaosManager_->Initialize();
-    MulticellManager_->Initialize();
     SchedulerPoolManager_->Initialize();
 
     // NB: Keep Config Manager initialization last and prevent
