@@ -89,6 +89,8 @@
 #include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/chunk_client/read_limit.h>
 
+#include <yt/yt/client/job_tracker_client/public.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
@@ -9932,7 +9934,7 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
 
 void TOperationControllerBase::AnalyzeProcessingUnitUsage(
     const std::vector<TString>& usageStatistics,
-    const std::vector<TString>& jobStates,
+    const std::vector<EJobState>& jobStates,
     const std::function<double(const TUserJobSpecPtr&)>& getLimit,
     const std::function<bool(i64, i64, double)>& needSetAlert,
     const TString& name,
