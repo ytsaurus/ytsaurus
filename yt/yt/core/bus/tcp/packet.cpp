@@ -184,9 +184,6 @@ void TPacketDecoder::NextMessagePartPhase()
         } else if (partSize == 0) {
             Parts_.push_back(TSharedRef::MakeEmpty());
         } else {
-            NYTAlloc::TMemoryZoneGuard guard(Any(FixedHeader_.Flags & EPacketFlags::UseUndumpableMemoryZone)
-                ? NYTAlloc::EMemoryZone::Undumpable
-                : NYTAlloc::EMemoryZone::Normal);
             auto part = Allocator_.AllocateAligned(partSize);
             BeginPhase(EPacketPhase::MessagePart, part.Begin(), part.Size());
             Parts_.push_back(std::move(part));

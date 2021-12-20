@@ -24,7 +24,6 @@ public:
     TCombineResult Combine(
         std::vector<IIOEngine::TReadRequest> requests,
         i64 pageSize,
-        NYTAlloc::EMemoryZone memoryZone,
         TRefCountedTypeCookie tagCookie);
 
     TError CheckEOF(const TMutableRef& bufferTail);

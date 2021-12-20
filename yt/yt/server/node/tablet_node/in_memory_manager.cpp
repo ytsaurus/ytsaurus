@@ -55,6 +55,8 @@
 
 #include <yt/yt/core/rpc/local_channel.h>
 
+#include <yt/yt/library/undumpable/ref.h>
+
 #include <library/cpp/yt/threading/spin_lock.h>
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
@@ -94,6 +96,10 @@ void FinalizeChunkData(
     const TRefCountedChunkMetaPtr& meta,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
+    for (auto& block : data->Blocks) {
+        block.Data = MarkUndumpable(block.Data);
+    }
+
     if (!data->ChunkMeta) {
         data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, *meta, tabletSnapshot->PhysicalSchema);
     }
@@ -183,7 +189,7 @@ public:
         const TRefCountedChunkMetaPtr& chunkMeta,
         const TTabletSnapshotPtr& tabletSnapshot) override
     {
-        FinalizeChunkData(std::move(data), chunkId, chunkMeta, tabletSnapshot);
+        FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot);
 
         {
             auto guard = WriterGuard(InterceptedDataSpinLock_);
@@ -521,9 +527,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         switch (mode) {
             case EInMemoryMode::Compressed: {
                 for (const auto& compressedBlock : compressedBlocks) {
-                    TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-                    auto undumpableData = TSharedRef::MakeCopy<TPreloadedBlockTag>(compressedBlock.Data);
-                    auto block = TBlock(undumpableData, compressedBlock.Checksum, compressedBlock.BlockOrigin);
+                    auto preloadedData = TSharedRef::MakeCopy<TPreloadedBlockTag>(compressedBlock.Data);
+                    auto block = TBlock(preloadedData, compressedBlock.Checksum, compressedBlock.BlockOrigin);
                     chunkData->Blocks.push_back(std::move(block));
                 }
 
@@ -541,7 +546,6 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                 for (auto& compressedBlock : compressedBlocks) {
                     asyncUncompressedBlocks.push_back(
                         BIND([&] {
-                                TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
                                 NProfiling::TFiberWallTimer timer;
                                 auto block = compressionCodec->Decompress(compressedBlock.Data);
                                 return std::make_pair(std::move(block), timer.GetElapsedTime());
@@ -754,7 +758,6 @@ private:
             auto req = node->Proxy.PutBlocks();
             req->SetResponseHeavy(true);
             req->SetTimeout(HeavyRpcTimeout_);
-            req->SetMemoryZone(EMemoryZone::Undumpable);
             ToProto(req->mutable_session_id(), node->SessionId);
 
             for (const auto& block : blocks) {

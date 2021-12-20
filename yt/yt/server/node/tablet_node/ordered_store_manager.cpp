@@ -253,10 +253,6 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             writerProfiler->Update(tableWriter);
         });
 
-        TMemoryZoneGuard memoryZoneGuard(inMemoryMode == EInMemoryMode::None
-            ? EMemoryZone::Normal
-            : EMemoryZone::Undumpable);
-
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
         writerOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;

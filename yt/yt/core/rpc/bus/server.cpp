@@ -220,30 +220,18 @@ private:
             return;
         }
 
-        EMemoryZone memoryZone;
-        int intMemoryZone = header.memory_zone();
-        if (!TryEnumCast(intMemoryZone, &memoryZone)) {
-            YT_LOG_WARNING("Streaming payload memory zone is not supported; canceling request (RequestId: %v, MemoryZone: %v)",
-                requestId,
-                intMemoryZone);
-            service->HandleRequestCancelation(requestId);
-            return;
-        }
-
         YT_LOG_DEBUG("Request streaming payload received (RequestId: %v, SequenceNumber: %v, Sizes: %v, "
-            "Codec: %v, MemoryZone: %v, Closed: %v)",
+            "Codec: %v, Closed: %v)",
             requestId,
             sequenceNumber,
             MakeFormattableView(attachments, [] (auto* builder, const auto& attachment) {
                 builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
             }),
             codec,
-            memoryZone,
             !attachments.back());
 
         TStreamingPayload payload{
             codec,
-            memoryZone,
             sequenceNumber,
             std::move(attachments)
         };

@@ -42,7 +42,6 @@ bool TryCollapseRequest(
 TReadRequestCombiner::TCombineResult TReadRequestCombiner::Combine(
     std::vector<IIOEngine::TReadRequest> requests,
     i64 pageSize,
-    EMemoryZone memoryZone,
     TRefCountedTypeCookie tagCookie)
 {
     if (requests.empty()) {
@@ -102,11 +101,7 @@ TReadRequestCombiner::TCombineResult TReadRequestCombiner::Combine(
     handles.reserve(collapsedRequestCount);
 
     {
-        TSharedMutableRef buffer;
-        {
-            TMemoryZoneGuard zoneGuard(memoryZone);
-            buffer = TSharedMutableRef::AllocatePageAligned(totalSize, false, tagCookie);
-        }
+        TSharedMutableRef buffer = TSharedMutableRef::AllocatePageAligned(totalSize, false, tagCookie);
 
         OutputRefs_.resize(ioRequests.size());
 

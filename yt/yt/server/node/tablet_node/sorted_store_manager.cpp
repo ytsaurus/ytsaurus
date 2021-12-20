@@ -611,10 +611,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         TTimestamp currentTimestamp,
         const TWriterProfilerPtr& writerProfiler
     ) {
-        TMemoryZoneGuard memoryZoneGuard(inMemoryMode == EInMemoryMode::None
-            ? EMemoryZone::Normal
-            : EMemoryZone::Undumpable);
-
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
         auto storeWriterConfig = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterConfig);

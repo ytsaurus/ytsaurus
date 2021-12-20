@@ -108,7 +108,6 @@ struct IIOEngine
     virtual TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
-        NYTAlloc::EMemoryZone memoryZone,
         TRefCountedTypeCookie tagCookie,
         TSessionId sessionId = {}) = 0;
     virtual TFuture<void> Write(
@@ -147,7 +146,6 @@ struct IIOEngine
     TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         EWorkloadCategory category = EWorkloadCategory::Idle,
-        NYTAlloc::EMemoryZone memoryZone = NYTAlloc::EMemoryZone::Normal,
         TSessionId sessionId = {});
 
     TFuture<TSharedRef> ReadAll(

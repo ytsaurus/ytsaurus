@@ -1017,7 +1017,6 @@ private:
         if (!ResponseAttachmentsStream_) {
             auto parameters = FromProto<TStreamingParameters>(RequestHeader_->server_attachments_streaming_parameters());
             ResponseAttachmentsStream_ = New<TAttachmentsOutputStream>(
-                ResponseMemoryZone_,
                 ResponseCodec_,
                 TDispatcher::Get()->GetCompressionPoolInvoker(),
                 BIND(&TServiceContext::OnPullResponseAttachmentsStream, MakeWeak(this)),
@@ -1059,13 +1058,11 @@ private:
         }
         header.set_sequence_number(payload->SequenceNumber);
         header.set_codec(static_cast<int>(payload->Codec));
-        header.set_memory_zone(static_cast<int>(payload->MemoryZone));
 
         auto message = CreateStreamingPayloadMessage(header, payload->Attachments);
 
         NBus::TSendOptions options;
         options.TrackingLevel = EDeliveryTrackingLevel::Full;
-        options.MemoryZone = payload->MemoryZone;
         ReplyBus_->Send(std::move(message), options).Subscribe(
             BIND(&TServiceContext::OnResponseStreamingPayloadAcked, MakeStrong(this), payload->SequenceNumber));
     }

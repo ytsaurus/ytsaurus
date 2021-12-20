@@ -164,11 +164,6 @@ protected:
     {
         Initialize();
 
-        const auto& mountConfig = TabletSnapshot_->Settings.MountConfig;
-        TMemoryZoneGuard memoryZoneGuard(mountConfig->InMemoryMode == EInMemoryMode::None
-            ? NYTAlloc::EMemoryZone::Normal
-            : NYTAlloc::EMemoryZone::Undumpable);
-
         auto result = func();
 
         Finalize();

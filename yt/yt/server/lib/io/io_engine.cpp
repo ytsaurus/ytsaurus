@@ -89,7 +89,6 @@ TFuture<TSharedRef> IIOEngine::ReadAll(
             return Read<TReadAllBufferTag>(
                     {{handle, 0, handle->GetLength()}},
                     category,
-                    NYTAlloc::EMemoryZone::Normal,
                     sessionId
                 ).Apply(BIND(
                     [=, this_ = MakeStrong(this), handle = handle]
@@ -738,7 +737,6 @@ public:
     TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
-        EMemoryZone memoryZone,
         TRefCountedTypeCookie tagCookie,
         TSessionId sessionId) override
     {
@@ -752,8 +750,6 @@ public:
         std::vector<TMutableRef> buffers;
         buffers.reserve(requests.size());
         {
-            TMemoryZoneGuard zoneGuard(memoryZone);
-
             i64 totalSize = 0;
             for (const auto& request : requests) {
                 totalSize += request.Size;
@@ -2060,7 +2056,6 @@ public:
     TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         EWorkloadCategory /*category*/,
-        EMemoryZone memoryZone,
         TRefCountedTypeCookie tagCookie,
         TSessionId) override
     {
@@ -2075,7 +2070,6 @@ public:
         auto [handles, ioRequests] = uringRequest->ReadRequestCombiner.Combine(
             std::move(requests),
             Config_->DirectIOPageSize,
-            memoryZone,
             tagCookie);
         YT_VERIFY(handles.size() == ioRequests.size());
 

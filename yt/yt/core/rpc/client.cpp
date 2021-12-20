@@ -38,7 +38,6 @@ TClientContext::TClientContext(
     const TString& method,
     TFeatureIdFormatter featureIdFormatter,
     bool responseIsHeavy,
-    EMemoryZone memoryZone,
     TAttachmentsOutputStreamPtr requestAttachmentsStream,
     TAttachmentsInputStreamPtr responseAttachmentsStream,
     TMemoryTag responseMemoryTag)
@@ -48,7 +47,6 @@ TClientContext::TClientContext(
     , Method_(method)
     , FeatureIdFormatter_(featureIdFormatter)
     , ResponseHeavy_(responseIsHeavy)
-    , MemoryZone_(memoryZone)
     , RequestAttachmentsStream_(std::move(requestAttachmentsStream))
     , ResponseAttachmentsStream_(std::move(responseAttachmentsStream))
     , ResponseMemoryTag_(responseMemoryTag)
@@ -84,7 +82,6 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     , RequestCodec_(other.RequestCodec_)
     , ResponseCodec_(other.ResponseCodec_)
     , GenerateAttachmentChecksums_(other.GenerateAttachmentChecksums_)
-    , MemoryZone_(other.MemoryZone_)
     , Channel_(other.Channel_)
     , StreamingEnabled_(other.StreamingEnabled_)
     , SendBaggage_(other.SendBaggage_)
@@ -125,7 +122,6 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
         .AcknowledgementTimeout = AcknowledgementTimeout_,
         .GenerateAttachmentChecksums = GenerateAttachmentChecksums_,
         .RequestHeavy = RequestHeavy_,
-        .MemoryZone = MemoryZone_,
         .MultiplexingBand = MultiplexingBand_,
         .MultiplexingParallelism = MultiplexingParallelism_,
         .SendDelay = SendDelay_
@@ -330,7 +326,6 @@ TClientContextPtr TClientRequest::CreateClientContext()
 
     if (StreamingEnabled_) {
         RequestAttachmentsStream_ = New<TAttachmentsOutputStream>(
-            MemoryZone_,
             RequestCodec_,
             TDispatcher::Get()->GetCompressionPoolInvoker(),
             BIND(&TClientRequest::OnPullRequestAttachmentsStream, MakeWeak(this)),
@@ -349,7 +344,6 @@ TClientContextPtr TClientRequest::CreateClientContext()
         GetMethod(),
         FeatureIdFormatter_,
         ResponseHeavy_,
-        MemoryZone_,
         RequestAttachmentsStream_,
         ResponseAttachmentsStream_,
         GetResponseMemoryTag().value_or(GetCurrentMemoryTag()));
@@ -611,10 +605,8 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::ProtocolError, "Error deserializing response body");
     }
 
-    auto memoryZone = CheckedEnumCast<EMemoryZone>(Header_.memory_zone());
-
     auto compressedAttachments = MakeRange(ResponseMessage_.Begin() + 2, ResponseMessage_.End());
-    if (attachmentCodecId == NCompression::ECodec::None && memoryZone != EMemoryZone::Normal) {
+    if (attachmentCodecId == NCompression::ECodec::None) {
         Attachments_.clear();
         Attachments_.reserve(compressedAttachments.Size());
         for (const auto& attachment : compressedAttachments) {

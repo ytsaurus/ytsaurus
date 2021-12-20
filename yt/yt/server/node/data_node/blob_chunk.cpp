@@ -581,13 +581,9 @@ void TBlobChunkBase::OnBlocksRead(
             auto relativeBlockIndex = entry.BlockIndex - firstBlockIndex;
             auto block = blocks[relativeBlockIndex];
 
-            // NB: Copy block to undumpable memory and to
-            // prevent cache from holding the whole block sequence.
-            {
-                TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
-                struct TCachedBlobChunkBlockTag { };
-                block.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(block.Data);
-            }
+            // NB: Copy block to prevent cache from holding the whole block sequence.
+            struct TCachedBlobChunkBlockTag { };
+            block.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(block.Data);
             entry.Block = block;
 
             ++usefulBlockCount;

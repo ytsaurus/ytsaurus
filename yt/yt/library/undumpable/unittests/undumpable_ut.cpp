@@ -41,6 +41,20 @@ TEST(UndumpableMemory, MarkOOB)
     ASSERT_GT(GetUndumpableMemoryFootprint(), 0u);
 }
 
+TEST(UndumpableMemory, UnalignedSize)
+{
+    std::vector<int> bigVector;
+    bigVector.resize(1024 * 1024 + 43);
+
+    auto mark = MarkUndumpable(&bigVector[0], bigVector.size() * sizeof(bigVector[0]));
+    ASSERT_GT(GetUndumpableBytesCount(), 0u);
+    ASSERT_GT(GetUndumpableMemoryFootprint(), 0u);
+
+    CutUndumpableFromCoredump();
+
+    UnmarkUndumpable(mark);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

@@ -1324,7 +1324,6 @@ protected:
     {
         return TStreamingPayload{
             NCompression::ECodec::None,
-            EMemoryZone::Normal,
             sequenceNumber,
             std::move(attachments)
         };
@@ -1453,7 +1452,6 @@ protected:
     {
         PullCallbackCounter_ = 0;
         return New<TAttachmentsOutputStream>(
-            EMemoryZone::Normal,
             NCompression::ECodec::None,
             nullptr,
             BIND([=] {
