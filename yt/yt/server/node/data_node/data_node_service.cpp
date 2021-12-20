@@ -240,7 +240,7 @@ private:
             options.EnableMultiplexing,
             options.PlacementId);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
@@ -256,7 +256,7 @@ private:
             sessionId,
             blockCount);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
@@ -328,7 +328,7 @@ private:
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
@@ -408,7 +408,7 @@ private:
             lastBlockIndex,
             targetDescriptor);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
@@ -436,7 +436,7 @@ private:
             sessionId,
             blockIndex);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
@@ -469,7 +469,7 @@ private:
             request->iteration(),
             request->block_indexes_size());
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& blockCache = Bootstrap_->GetP2PBlockCache();
 
@@ -617,7 +617,7 @@ private:
             chunkCount,
             workloadDescriptor);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
 
@@ -683,7 +683,7 @@ private:
             MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
             workloadDescriptor);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
@@ -750,7 +750,7 @@ private:
             fetchFromDisk,
             workloadDescriptor);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
@@ -914,7 +914,7 @@ private:
             populateCache,
             workloadDescriptor);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
@@ -1046,7 +1046,7 @@ private:
             totalFragmentSize,
             totalFragmentCount);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
@@ -1258,7 +1258,7 @@ private:
             populateCache,
             rejectIfThrottling);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
@@ -1418,7 +1418,7 @@ private:
             workloadDescriptor,
             request->enable_throttling());
 
-        ValidateConnected();
+        ValidateOnline();
 
         if (request->enable_throttling() && context->GetBusStatistics().PendingOutBytes > Config_->NetOutThrottlingLimit) {
             IncrementReadThrottlingCounter(context);
@@ -1504,7 +1504,7 @@ private:
             requestCount,
             workloadDescriptor);
 
-        ValidateConnected();
+        ValidateOnline();
 
         GetChunkMetasForRequests(workloadDescriptor, request->slice_requests())
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
@@ -1593,7 +1593,7 @@ private:
             requestCount,
             workloadDescriptor);
 
-        ValidateConnected();
+        ValidateOnline();
 
         GetChunkMetasForRequests(workloadDescriptor, request->sample_requests())
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
@@ -1854,7 +1854,7 @@ private:
             request->subrequests_size(),
             workloadDescriptor);
 
-        ValidateConnected();
+        ValidateOnline();
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
 
@@ -1990,9 +1990,9 @@ private:
     }
 
 
-    void ValidateConnected()
+    void ValidateOnline()
     {
-        if (!Bootstrap_->IsConnected()) {
+        if (!Bootstrap_->GetMasterConnector()->IsOnline()) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MasterNotConnected,
                 "Master is not connected");

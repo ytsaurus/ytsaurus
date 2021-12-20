@@ -243,6 +243,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto* delta = GetChunksDelta(cellTag);
+        YT_VERIFY(delta->State == EMasterConnectorState::Registered);
+        
         delta->State = EMasterConnectorState::Online;
         YT_VERIFY(delta->AddedSinceLastSuccess.empty());
         YT_VERIFY(delta->RemovedSinceLastSuccess.empty());
@@ -259,6 +261,8 @@ public:
         if (response.has_enable_lazy_replica_announcements()) {
             allyReplicaManager->SetEnableLazyAnnouncements(response.enable_lazy_replica_announcements());
         }
+
+        OnlineCellCount_ += 1;
     }
 
     void OnIncrementalHeartbeatFailed(TCellTag cellTag) override
@@ -384,7 +388,7 @@ public:
         }
     }
 
-    virtual void ScheduleJobHeartbeat(TCellTag cellTag) override
+    void ScheduleJobHeartbeat(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -394,6 +398,11 @@ public:
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
         controlInvoker->Invoke(
             BIND(&TMasterConnector::ReportJobHeartbeat, MakeWeak(this), cellTag, /*outOfOrder*/ true));
+    }
+
+    bool IsOnline() const override
+    {
+        return OnlineCellCount_.load() == std::ssize(Bootstrap_->GetMasterCellTags());
     }
 
 private:
@@ -453,6 +462,8 @@ private:
     TDuration JobHeartbeatPeriodSplay_;
     i64 MaxChunkEventsPerIncrementalHeartbeat_;
 
+    std::atomic<int> OnlineCellCount_ = 0;
+
 
     void OnMasterDisconnected()
     {
@@ -472,6 +483,8 @@ private:
             auto* cellTagData = GetCellTagData(cellTag);
             cellTagData->ScheduledDataNodeHeartbeatCount = 0;
         }
+
+        OnlineCellCount_ = 0;
 
         JobHeartbeatCellIndex_ = 0;
     }

@@ -74,6 +74,13 @@ struct IMasterConnector
      *  Thread affinity: any
      */
     virtual void ScheduleJobHeartbeat(NObjectClient::TCellTag cellTag) = 0;
+
+    //! Returns |true| if this node has received full heartbeat responses from all cells.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    virtual bool IsOnline() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)
