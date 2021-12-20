@@ -140,7 +140,6 @@ void TEncodingWriter::DoCompressBlock(
     TBlock compressedBlock;
     compressedBlock.GroupIndex = groupIndex;
     {
-        TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
         TFiberWallTimer timer;
         auto finally = Finally([&]{
             auto guard = WriterGuard(CodecTimeLock_);
@@ -193,7 +192,6 @@ void TEncodingWriter::DoCompressVector(
     TBlock compressedBlock;
     compressedBlock.GroupIndex = groupIndex;
     {
-        TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
         TFiberWallTimer timer;
         auto finally = Finally([&]{
             auto guard = WriterGuard(CodecTimeLock_);

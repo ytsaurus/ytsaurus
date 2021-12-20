@@ -61,10 +61,6 @@ TSharedRefArray CreateStreamingPayloadMessage(
 TSharedRefArray CreateStreamingFeedbackMessage(
     const NProto::TStreamingFeedbackHeader& header);
 
-TSharedRefArray AdjustMessageMemoryZone(
-    TSharedRefArray message,
-    NYTAlloc::EMemoryZone zone);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(

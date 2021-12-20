@@ -66,7 +66,6 @@ protected:
         auto combineResult = combiner.Combine(
             input,
             PageSize,
-            NYTAlloc::EMemoryZone::Normal,
             GetRefCountedTypeCookie<IIOEngine::TDefaultReadTag>());
 
         return {

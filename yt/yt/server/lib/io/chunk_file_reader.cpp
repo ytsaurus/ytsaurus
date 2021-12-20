@@ -338,7 +338,6 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
             totalSize
         }},
         options.WorkloadDescriptor.Category,
-        EMemoryZone::Undumpable,
         options.ReadSessionId)
         .Apply(BIND(&TChunkFileReader::OnBlocksRead, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt));
 }

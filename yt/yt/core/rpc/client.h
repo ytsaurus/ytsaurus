@@ -100,7 +100,6 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TString, Method);
     DEFINE_BYVAL_RO_PROPERTY(TFeatureIdFormatter, FeatureIdFormatter);
     DEFINE_BYVAL_RO_PROPERTY(bool, ResponseHeavy);
-    DEFINE_BYVAL_RO_PROPERTY(NYTAlloc::EMemoryZone, MemoryZone);
     DEFINE_BYVAL_RO_PROPERTY(TAttachmentsOutputStreamPtr, RequestAttachmentsStream);
     DEFINE_BYVAL_RO_PROPERTY(TAttachmentsInputStreamPtr, ResponseAttachmentsStream);
     DEFINE_BYVAL_RO_PROPERTY(NYTAlloc::TMemoryTag, ResponseMemoryTag);
@@ -113,7 +112,6 @@ public:
         const TString& method,
         TFeatureIdFormatter featureIdFormatter,
         bool heavy,
-        NYTAlloc::EMemoryZone memoryZone,
         TAttachmentsOutputStreamPtr requestAttachmentsStream,
         TAttachmentsInputStreamPtr responseAttachmentsStream,
         NYTAlloc::TMemoryTag responseMemoryTag);
@@ -142,7 +140,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NYTAlloc::TMemoryTag>, ResponseMemoryTag);
     // For testing purposes only.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, SendDelay);
-    DEFINE_BYVAL_RW_PROPERTY(NYTAlloc::EMemoryZone, MemoryZone, NYTAlloc::EMemoryZone::Normal);
 
 public:
     TSharedRefArray Serialize() override;

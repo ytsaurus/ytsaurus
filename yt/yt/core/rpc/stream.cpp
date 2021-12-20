@@ -93,7 +93,6 @@ void TAttachmentsInputStream::DecompressAndEnqueuePayload(const TStreamingPayloa
         for (const auto& attachment : payload.Attachments) {
             TSharedRef decompressedAttachment;
             if (attachment) {
-                TMemoryZoneGuard guard(payload.MemoryZone);
                 decompressedAttachment = codec->Decompress(attachment);
             }
             decompressedAttachments.push_back(std::move(decompressedAttachment));
@@ -208,14 +207,12 @@ TStreamingFeedback TAttachmentsInputStream::GetFeedback() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TAttachmentsOutputStream::TAttachmentsOutputStream(
-    EMemoryZone memoryZone,
     NCompression::ECodec codec,
     IInvokerPtr compressisonInvoker,
     TClosure pullCallback,
     ssize_t windowSize,
     std::optional<TDuration> timeout)
-    : MemoryZone_(memoryZone)
-    , Codec_(codec)
+    : Codec_(codec)
     , CompressionInvoker_(std::move(compressisonInvoker))
     , PullCallback_(std::move(pullCallback))
     , WindowSize_(windowSize)
@@ -464,7 +461,6 @@ std::optional<TStreamingPayload> TAttachmentsOutputStream::TryPull()
 
     TStreamingPayload result;
     result.Codec = Codec_;
-    result.MemoryZone = MemoryZone_;
     while (CanPullMore(result.Attachments.empty())) {
         auto attachment = std::move(DataQueue_.front());
         SentPosition_ += GetStreamingAttachmentSize(attachment);

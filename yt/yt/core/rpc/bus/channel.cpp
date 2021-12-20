@@ -470,12 +470,10 @@ private:
             }
             header.set_sequence_number(payload.SequenceNumber);
             header.set_codec(static_cast<int>(payload.Codec));
-            header.set_memory_zone(static_cast<int>(payload.MemoryZone));
 
             auto message = CreateStreamingPayloadMessage(header, payload.Attachments);
             NBus::TSendOptions options;
             options.TrackingLevel = EDeliveryTrackingLevel::Full;
-            options.MemoryZone = payload.MemoryZone;
             return Bus_->Send(std::move(message), options);
         }
 
@@ -979,30 +977,18 @@ private:
                 return;
             }
 
-            EMemoryZone memoryZone;
-            int intMemoryZone = header.memory_zone();
-            if (!TryEnumCast(intMemoryZone, &memoryZone)) {
-                responseHandler->HandleError(TError(
-                    NRpc::EErrorCode::ProtocolError,
-                    "Streaming payload memory zone %v is not supported",
-                    intMemoryZone));
-                return;
-            }
-
             YT_LOG_DEBUG("Response streaming payload received (RequestId: %v, SequenceNumber: %v, Sizes: %v, "
-                "Codec: %v, MemoryZone: %v, Closed: %v)",
+                "Codec: %v, Closed: %v)",
                 requestId,
                 sequenceNumber,
                 MakeFormattableView(attachments, [] (auto* builder, const auto& attachment) {
                     builder->AppendFormat("%v", GetStreamingAttachmentSize(attachment));
                 }),
                 codec,
-                memoryZone,
                 !attachments.back());
 
             TStreamingPayload payload{
                 codec,
-                memoryZone,
                 sequenceNumber,
                 std::move(attachments)
             };

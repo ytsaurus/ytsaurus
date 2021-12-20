@@ -19,10 +19,9 @@ template <class TTag>
 TFuture<IIOEngine::TReadResponse> IIOEngine::Read(
     std::vector<TReadRequest> requests,
     EWorkloadCategory category,
-    NYTAlloc::EMemoryZone memoryZone,
     TSessionId clientId)
 {
-    return Read(std::move(requests), category, memoryZone, GetRefCountedTypeCookie<TTag>(), clientId);
+    return Read(std::move(requests), category, GetRefCountedTypeCookie<TTag>(), clientId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

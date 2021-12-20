@@ -934,8 +934,6 @@ private:
                 }
             }
 
-            req->Header().set_response_memory_zone(ToProto<int>(NYTAlloc::EMemoryZone::Undumpable));
-
             nodeIds.push_back(nodeId);
             responseFutures.push_back(req->Invoke());
 

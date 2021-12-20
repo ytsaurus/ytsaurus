@@ -10,6 +10,11 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
+#include <library/cpp/yt/memory/ref_counted.h>
+#include <library/cpp/yt/memory/new.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <atomic>
 #include <optional>
 
@@ -176,6 +181,31 @@ void CutUndumpableFromCoredump()
 {
     return UndumpableSet.CutUndumpable();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TUndumpableSensors)
+
+struct TUndumpableSensors
+    : public TRefCounted
+{
+    TUndumpableSensors()
+    {
+        NProfiling::TProfiler profiler{"/memory"};
+
+        profiler.AddFuncGauge("/undumpable_bytes", MakeStrong(this), [] {
+            return GetUndumpableBytesCount();
+        });
+
+        profiler.AddFuncGauge("/undumpable_footprint", MakeStrong(this), [] {
+            return GetUndumpableMemoryFootprint();
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TUndumpableSensors)
+
+static TUndumpableSensorsPtr dummy = New<TUndumpableSensors>();
 
 ////////////////////////////////////////////////////////////////////////////////
 

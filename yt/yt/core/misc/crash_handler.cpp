@@ -10,6 +10,8 @@
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/library/undumpable/undumpable.h>
+
 #include <library/cpp/yt/assert/assert.h>
 
 #include <util/system/defaults.h>
@@ -476,6 +478,8 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
 
     // Easiest way to choose proper overload...
     DumpStackTrace([] (TStringBuf str) { WriteToStderr(str); });
+
+    CutUndumpableFromCoredump();
 
     formatter.Reset();
     formatter.AppendString("*** Wait for logger to shut down ***\n");

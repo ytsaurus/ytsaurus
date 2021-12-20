@@ -27,7 +27,6 @@ namespace NYT::NRpc {
 struct TStreamingPayload
 {
     NCompression::ECodec Codec;
-    NYTAlloc::EMemoryZone MemoryZone;
     int SequenceNumber;
     std::vector<TSharedRef> Attachments;
 };

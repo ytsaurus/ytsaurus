@@ -219,7 +219,6 @@ protected:
     {
         TraceContext_ = NTracing::SwitchTraceContext(TraceContext_);
         MemoryTag_ = SwapMemoryTag(MemoryTag_);
-        MemoryZone_ = SwapMemoryZone(MemoryZone_);
         FsdHolder_ = NDetail::SetCurrentFsdHolder(FsdHolder_);
         FiberId_ = SwapFiberId(FiberId_);
     }
@@ -228,14 +227,12 @@ protected:
     {
         YT_VERIFY(TraceContext_.Get() == nullptr);
         YT_VERIFY(MemoryTag_ == NYTAlloc::NullMemoryTag);
-        YT_VERIFY(MemoryZone_ == NYTAlloc::EMemoryZone::Normal);
         YT_VERIFY(FsdHolder_ == nullptr);
         YT_VERIFY(FiberId_ == InvalidFiberId);
     }
 
 private:
     NYTAlloc::TMemoryTag MemoryTag_ = NYTAlloc::NullMemoryTag;
-    NYTAlloc::EMemoryZone MemoryZone_ = NYTAlloc::EMemoryZone::Normal;
     NTracing::TTraceContextPtr TraceContext_ = nullptr;
     NDetail::TFsdHolder* FsdHolder_ = nullptr;
     TFiberId FiberId_ = InvalidFiberId;
@@ -244,13 +241,6 @@ private:
     {
         auto result = NYTAlloc::GetCurrentMemoryTag();
         NYTAlloc::SetCurrentMemoryTag(tag);
-        return result;
-    }
-
-    static NYTAlloc::EMemoryZone SwapMemoryZone(NYTAlloc::EMemoryZone zone)
-    {
-        auto result = NYTAlloc::GetCurrentMemoryZone();
-        NYTAlloc::SetCurrentMemoryZone(zone);
         return result;
     }
 

@@ -93,7 +93,6 @@ class TAttachmentsOutputStream
 {
 public:
     TAttachmentsOutputStream(
-        NYTAlloc::EMemoryZone memoryZone,
         NCompression::ECodec codec,
         IInvokerPtr compressionInvoker,
         TClosure pullCallback,
@@ -111,7 +110,6 @@ public:
     DEFINE_SIGNAL(void(), Aborted);
 
 private:
-    const NYTAlloc::EMemoryZone MemoryZone_;
     const NCompression::ECodec Codec_;
     const IInvokerPtr CompressionInvoker_;
     const TClosure PullCallback_;

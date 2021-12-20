@@ -255,44 +255,6 @@ TSharedRefArray CreateStreamingFeedbackMessage(
     return builder.Finish();
 }
 
-TSharedRefArray AdjustMessageMemoryZone(
-    TSharedRefArray message,
-    NYTAlloc::EMemoryZone memoryZone)
-{
-    bool copyNeeded = false;
-    for (int index = 2; index < std::ssize(message); ++index) {
-        const auto& part = message[index];
-        if (part.Size() > 0 && NYTAlloc::GetAllocationMemoryZone(part.Begin()) != memoryZone) {
-            copyNeeded = true;
-            break;
-        }
-    }
-
-    if (!copyNeeded) {
-        return message;
-    }
-
-    TSharedRefArrayBuilder builder(message.Size());
-
-    for (int index = 0; index < std::min(static_cast<int>(message.Size()), 2); ++index) {
-        builder.Add(message[index]);
-    }
-
-    for (int index = 2; index < std::ssize(message); ++index) {
-        const auto& part = message[index];
-        if (part.Size() > 0 && NYTAlloc::GetAllocationMemoryZone(part.Begin()) != memoryZone) {
-            NYTAlloc::TMemoryZoneGuard guard(memoryZone);
-            auto copiedPart = TSharedMutableRef::Allocate<TAdjustedMemoryZoneMessageTag>(part.Size(), false);
-            ::memcpy(copiedPart.Begin(), part.Begin(), part.Size());
-            builder.Add(std::move(copiedPart));
-        } else {
-            builder.Add(part);
-        }
-    }
-
-    return builder.Finish();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(
