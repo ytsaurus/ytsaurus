@@ -2096,10 +2096,6 @@ void TOperationControllerBase::CommitFeatures()
             [] (TFluentList fluent, const TExperimentAssignmentPtr& experiment) {
                 fluent.Item().Value(experiment->GetName());
             })
-        .Item("tags").BeginMap()
-            .Item("operation_type").Value(GetOperationType())
-            .Item("estimated_input_data_weight").Value(TotalEstimatedInputDataWeight)
-        .EndMap()
         .Item("features").Do(
             BIND(&TOperationControllerBase::BuildFeatureYson, Unretained(this)));
 
