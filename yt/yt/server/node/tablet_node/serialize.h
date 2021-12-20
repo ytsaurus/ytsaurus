@@ -34,6 +34,7 @@ DEFINE_ENUM(ETabletReign,
     ((WriteGenerations)                   (100301)) // max42
     // 22.1 starts here.
     ((NewLockMasks)                       (100400)) // gritukan
+    ((Chaos)                              (100401)) // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,9 +1,9 @@
 from test_dynamic_tables import DynamicTablesBase
 
 from yt_commands import (
-    authors, wait, execute_command, get_driver, get, set, ls, create, get_tablet_leader_address,
-    sync_create_cells, sync_mount_table, alter_table, insert_rows, lookup_rows, pull_rows,
-    reshard_table,
+    authors, wait, execute_command, get_driver, get, set, ls, create,
+    sync_create_cells, sync_mount_table, sync_unmount_table, reshard_table, alter_table,
+    insert_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
     create_replication_card, get_replication_card, create_replication_card_replica, alter_replication_card_replica)
 
 from yt.common import YtError
@@ -108,9 +108,7 @@ class TestChaos(DynamicTablesBase):
     def _get_table_orchids(self, path, driver=None):
         tablets = get("{0}/@tablets".format(path), driver=driver)
         tablet_ids = [tablet["tablet_id"] for tablet in tablets]
-        orchids = []
-        for tablet_id in tablet_ids:
-            orchids.append(self._find_tablet_orchid(get_tablet_leader_address(tablet_id, driver=driver), tablet_id, driver=driver))
+        orchids = [get("#{0}/orchid".format(tablet_id), driver=driver) for tablet_id in tablet_ids]
         return orchids
 
     def _wait_for_era(self, path, era=1, check_write=False, driver=None):
@@ -506,3 +504,46 @@ class TestChaos(DynamicTablesBase):
         assert orchid["replication_card"]["replicas"][0]["mode"] == new_mode
         assert orchid["replication_card"]["replicas"][0]["state"] == "enabled"
         assert orchid["write_mode"] == new_wirte_mode
+
+    @authors("savrus")
+    def test_replication_progress(self):
+        self._create_chaos_cell_bundle("c")
+        cell_id = self._sync_create_chaos_cell("c")
+
+        replicas = [
+            {"cluster": "primary", "content_type": "data", "mode": "async", "state": "enabled", "table_path": "//tmp/t"},
+            {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False)
+        self._sync_replication_era(cell_id, card_id, replicas[1:])
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+
+        alter_replication_card_replica(
+            chaos_cell_id=cell_id,
+            replication_card_id=card_id,
+            replica_id=replica_ids[0],
+            enabled=False)
+
+        wait(lambda: get("#{0}/orchid".format(tablet_id))["replication_card"]["replicas"][0]["state"] == "disabled")
+        orchid = get("#{0}/orchid".format(tablet_id))
+        progress = orchid["replication_progress"]
+
+        sync_unmount_table("//tmp/t")
+        assert get("#{0}/@replication_progress".format(tablet_id)) == progress
+
+        sync_mount_table("//tmp/t")
+        orchid = get("#{0}/orchid".format(tablet_id))
+        assert orchid["replication_progress"] == progress
+
+        cell_id = get("#{0}/@cell_id".format(tablet_id))
+        build_snapshot(cell_id=cell_id)
+        peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
+        set("//sys/cluster_nodes/{}/@banned".format(peer), True)
+        wait_for_cells([cell_id])
+
+        orchid = get("#{0}/orchid".format(tablet_id))
+        assert orchid["replication_progress"] == progress

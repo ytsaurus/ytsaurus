@@ -84,7 +84,7 @@ struct TSerializableReplicaInfo
             .Default(EReplicaMode::Async);
         RegisterParameter("state", State)
             .Default(EReplicaState::Disabled);
-        RegisterParameter("replicaiton_progress", ReplicationProgress)
+        RegisterParameter("replication_progress", ReplicationProgress)
             .Default();
     }
 };
@@ -214,7 +214,7 @@ void Serialize(const TReplicaInfo& replicaInfo, IYsonConsumer* consumer)
             .Item("content_type").Value(replicaInfo.ContentType)
             .Item("mode").Value(replicaInfo.Mode)
             .Item("state").Value(replicaInfo.State)
-            .Item("replicaiton_progress").Value(replicaInfo.ReplicationProgress)
+            .Item("replication_progress").Value(replicaInfo.ReplicationProgress)
             .Item("history").Value(replicaInfo.History)
         .EndMap();
 }

@@ -113,6 +113,8 @@ struct TRefCountedReplicationProgress
     : public NChaosClient::TReplicationProgress
     , public TRefCounted
 {
+    TRefCountedReplicationProgress() = default;
+
     explicit TRefCountedReplicationProgress(
         const NChaosClient::TReplicationProgress& progress);
     explicit TRefCountedReplicationProgress(

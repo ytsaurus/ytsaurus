@@ -1123,7 +1123,11 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
 
         case EInternedAttributeKey::ReplicationCardToken: {
             ValidateNoTransaction();
+
             auto* lockedTable = LockThisImpl();
+            if (!lockedTable->IsDynamic() || !lockedTable->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Replication card token can be used only with sorted dynamic tables");
+            }
             lockedTable->ValidateAllTabletsUnmounted("Cannot change upstream replication card");
             lockedTable->MutableReplicationCardToken().Reset();
             return true;
@@ -1356,6 +1360,9 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
+            if (!lockedTable->IsDynamic() || !lockedTable->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Replication card token can be set only with sorted dynamic tables");
+            }
             lockedTable->ValidateAllTabletsUnmounted("Cannot change upstream replication card");
 
             lockedTable->MutableReplicationCardToken() = ConvertTo<TReplicationCardTokenPtr>(value);

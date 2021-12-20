@@ -631,6 +631,9 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, DynamicStoreIdPool_);
     Save(context, DynamicStoreIdRequested_);
     Save(context, SchemaId_);
+    TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Load());
+    Save(context, ChaosData_->ReplicationRound);
+    Save(context, ChaosData_->CurrentReplicationRowIndexes);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -743,6 +746,15 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(akozhikhov)
     if (context.GetVersion() >= ETabletReign::SchemaIdUponMount) {
         Load(context, SchemaId_);
+    }
+
+    // COMPAT(savrus)
+    if (context.GetVersion() >= ETabletReign::Chaos) {
+        TRefCountedReplicationProgressPtr replicationProgress;
+        TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);
+        RuntimeData_->ReplicationProgress.Store(std::move(replicationProgress));
+        Load(context, ChaosData_->ReplicationRound);
+        Load(context, ChaosData_->CurrentReplicationRowIndexes);
     }
 
     UpdateOverlappingStoreCount();
