@@ -353,16 +353,29 @@ private:
             return {};
         }
 
-        if (selfReplica->Mode != EReplicaMode::Async) {
-            YT_LOG_DEBUG("Pulling rows while replica is not async (ReplicaMode: %v)",
-                selfReplica->Mode);
-            // NB: Allow this since sync replica could be catching up.
-        }
-
         if (selfReplica->State != EReplicaState::Enabled) {
             YT_LOG_DEBUG("Will not pull rows since replica is not enabled (ReplicaState: %v)",
                 selfReplica->State);
             return {};
+        }
+
+        auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
+        {
+            auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
+            YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
+            const auto& historyItem = selfReplica->History[historyItemIndex];
+            if (IsReplicaReallySync(historyItem.Mode, historyItem.State)) {
+                YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %v, HistoryItem: %v)",
+                    oldestTimestamp,
+                    historyItem);
+                return {};
+            }
+        }
+
+        if (selfReplica->Mode != EReplicaMode::Async) {
+            YT_LOG_DEBUG("Pulling rows while replica is not async (ReplicaMode: %v)",
+                selfReplica->Mode);
+            // NB: Allow this since sync replica could be catching up.
         }
 
         auto* queueReplica = findFreshQueueReplica();
@@ -372,7 +385,6 @@ private:
             return {queueReplica, NullTimestamp};
         }
 
-        auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
         TTimestamp upperTimestamp = NullTimestamp;
         std::tie(queueReplica, upperTimestamp) = findSyncQueueReplica(selfReplica, oldestTimestamp);
         if (queueReplica) {
