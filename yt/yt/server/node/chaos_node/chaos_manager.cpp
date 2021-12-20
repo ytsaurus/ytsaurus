@@ -554,6 +554,10 @@ private:
         shortcut->set_era(replicationCard->GetEra());
 
         for (auto& [cellId, coordinator] : replicationCard->Coordinators()) {
+            if (coordinator.State == EShortcutState::Revoking) {
+                continue;
+            }
+
             coordinator.State = EShortcutState::Revoking;
             auto* mailbox = hiveManager->GetMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
@@ -577,6 +581,10 @@ private:
         shortcut->set_era(replicationCard->GetEra());
 
         for (auto cellId : coordinatorCellIds) {
+            // TODO(savrus) This could happen in case if coordinator cell id has been removed from CoordinatorCellIds_ and then added.
+            // Need to make a better protocol. 
+            YT_VERIFY(!replicationCard->Coordinators().find(cellId));
+
             replicationCard->Coordinators().insert(std::make_pair(cellId, TCoordinatorInfo{EShortcutState::Granting}));
             auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
