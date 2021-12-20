@@ -1,6 +1,7 @@
 #include "table.h"
 
 #include "host.h"
+#include "query_context.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -100,8 +101,7 @@ TTableSchemaPtr RemoveIncompatibleSortOrder(const TTableSchemaPtr& schema)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TTablePtr> FetchTables(
-    const NApi::NNative::IClientPtr& client,
-    THost* host,
+    TQueryContext* queryContext,
     const std::vector<TRichYPath>& richPaths,
     bool skipUnsuitableNodes,
     bool enableDynamicStoreRead,
@@ -117,7 +117,7 @@ std::vector<TTablePtr> FetchTables(
         paths.emplace_back(path.GetPath());
     }
 
-    auto attributesOrErrors = host->GetObjectAttributes(paths, client);
+    auto attributesOrErrors = queryContext->GetObjectAttributesSnapshot(paths);
 
     int dynamicTableCount = 0;
 
@@ -184,7 +184,7 @@ std::vector<TTablePtr> FetchTables(
     if (dynamicTableCount) {
         // Let's fetch table mount infos.
         YT_LOG_INFO("Fetching table mount infos (TableCount: %v)", dynamicTableCount);
-        const auto& connection = client->GetNativeConnection();
+        const auto& connection = queryContext->Client()->GetNativeConnection();
         const auto& tableMountCache = connection->GetTableMountCache();
         std::vector<TFuture<void>> asyncResults;
         for (auto& table : tables) {

@@ -77,10 +77,6 @@ public:
     std::optional<TString> HttpUserAgent;
     std::optional<TString> DataLensRequestId;
 
-    // TODO(dakovalkov): It also make sense to save snapshots for attributes in query context.
-    // Access through GetClusterNodesSnapshot
-    //! Snapshot of the cluster nodes to avoid races.
-    std::optional<TClusterNodes> ClusterNodesSnapshot;
 
     // Fields for a statistics reporter.
     std::vector<TString> SelectQueries;
@@ -109,6 +105,14 @@ public:
 
     ~TQueryContext();
 
+    // TODO(dakovalkov): Try to eliminate this.
+    //! Create fake query context.
+    //! Fake context is used only to fetch tables in dictionary source
+    //! becasuse real query context is not available through ClickHouse interface.
+    //! Fake context initializes only fields which are used in fetching tables.
+    //! Fake context has QueryKind = EQueryKind::NoQuery.
+    static TQueryContextPtr CreateFake(THost* host, NApi::NNative::IClientPtr client);
+
     const NApi::NNative::IClientPtr& Client() const;
 
     void MoveToPhase(EQueryPhase phase);
@@ -126,9 +130,21 @@ public:
 
     const TClusterNodes& GetClusterNodesSnapshot();
 
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributesSnapshot(
+        const std::vector<NYPath::TYPath>& paths);
+    void DeleteObjectAttributesFromSnapshot(const std::vector<NYPath::TYPath>& paths);
+
 private:
     TInstant StartTime_;
     TInstant FinishTime_;
+
+    //! Snapshot of the cluster nodes to avoid races.
+    //! Access through GetClusterNodesSnapshot.
+    std::optional<TClusterNodes> ClusterNodesSnapshot;
+    //! Snapshot of the object attributes. Saving it here has several purposes:
+    //! 1) Every part of the query always sees the same object attributes (avoiding races).
+    //! 2) It acts like a per-query cache to avoid many master request when per-clique cache is disabled.
+    THashMap<NYPath::TYPath, TErrorOr<NYTree::IAttributeDictionaryPtr>> ObjectAttributesSnapshot_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PhaseLock_);
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
@@ -144,6 +160,12 @@ private:
     //! Spinlock controlling select query context map.
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StorageToStorageContextLock_);
     THashMap<const DB::IStorage*, TStorageContextPtr> StorageToStorageContext_;
+
+    //! Constructs fake query context.
+    //! It's private to avoid creating it accidently.
+    TQueryContext(THost* host, NApi::NNative::IClientPtr client);
+
+    DECLARE_NEW_FRIEND()
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryContext);

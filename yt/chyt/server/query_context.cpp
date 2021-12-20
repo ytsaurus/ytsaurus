@@ -109,7 +109,7 @@ TQueryContext::TQueryContext(
         Interface,
         HttpUserAgent,
         QueryKind);
-    
+
     if (Settings->Testing->HangControlInvoker) {
         auto longAction = BIND([] {
             std::this_thread::sleep_for(std::chrono::hours(1));
@@ -118,9 +118,26 @@ TQueryContext::TQueryContext(
     }
 }
 
+// Fake query context constructor.
+TQueryContext::TQueryContext(THost* host, NApi::NNative::IClientPtr client)
+    : QueryKind(EQueryKind::NoQuery)
+    , Host(host)
+    , Client_(std::move(client))
+{ }
+
+TQueryContextPtr TQueryContext::CreateFake(THost* host, NApi::NNative::IClientPtr client)
+{
+    return New<TQueryContext>(host, std::move(client));
+}
+
 TQueryContext::~TQueryContext()
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    // Do not need to do anything for fake query context.
+    if (QueryKind == EQueryKind::NoQuery) {
+        return;
+    }
 
     MoveToPhase(EQueryPhase::Finish);
 
@@ -254,6 +271,46 @@ const TClusterNodes& TQueryContext::GetClusterNodesSnapshot()
         ClusterNodesSnapshot = Host->GetNodes(/*alwaysIncludeLocal*/ true);
     }
     return *ClusterNodesSnapshot;
+}
+
+std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectAttributesSnapshot(
+    const std::vector<NYPath::TYPath>& paths)
+{
+    THashSet<NYPath::TYPath> missingPathSet;
+
+    for (const auto& path : paths) {
+        if (!ObjectAttributesSnapshot_.contains(path)) {
+            missingPathSet.insert(path);
+        }
+    }
+
+    std::vector<NYPath::TYPath> missingPaths = {missingPathSet.begin(), missingPathSet.end()};
+    auto missingAttributes = Host->GetObjectAttributes(missingPaths, Client());
+    YT_VERIFY(missingAttributes.size() == missingPaths.size());
+
+    for (int index = 0; index < std::ssize(missingPaths); ++index) {
+        const auto& path = missingPaths[index];
+        const auto& attributes = missingAttributes[index];
+        auto [_, ok] = ObjectAttributesSnapshot_.emplace(path, attributes);
+        YT_VERIFY(ok);
+    }
+
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> result;
+    result.reserve(paths.size());
+
+    for (const auto& path : paths) {
+        result.push_back(ObjectAttributesSnapshot_.at(path));
+    }
+
+    return result;
+}
+
+void TQueryContext::DeleteObjectAttributesFromSnapshot(
+    const std::vector<NYPath::TYPath>& paths)
+{
+    for (const auto& path : paths) {
+        ObjectAttributesSnapshot_.erase(path);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

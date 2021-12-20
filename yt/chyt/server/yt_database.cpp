@@ -215,8 +215,7 @@ private:
 
         try {
             auto tables = FetchTables(
-                queryContext->Client(),
-                queryContext->Host,
+                queryContext,
                 {TRichYPath::Parse(name.data())},
                 /* skipUnsuitableNodes */ false,
                 queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
