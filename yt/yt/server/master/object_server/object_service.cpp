@@ -143,7 +143,8 @@ private:
 DECLARE_REFCOUNTED_CLASS(TObjectService)
 
 class TObjectService
-    : public NCellMaster::TMasterHydraServiceBase
+    : public IObjectService
+    , public NCellMaster::TMasterHydraServiceBase
 {
 public:
     TObjectService(
@@ -195,6 +196,11 @@ public:
         LocalReadExecutor_->Initialize(BIND([epochContext = epochContext] { NObjectServer::SetupEpochContext(epochContext); }));
 
         EnableLocalReadExecutor_ = Config_->EnableLocalReadExecutor;
+    }
+
+    TObjectServiceCachePtr GetCache() override
+    {
+        return Cache_;
     }
 
 private:
@@ -277,7 +283,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TObjectService)
 
-IServicePtr CreateObjectService(
+IObjectServicePtr CreateObjectService(
     TObjectServiceConfigPtr config,
     TBootstrap* bootstrap)
 {

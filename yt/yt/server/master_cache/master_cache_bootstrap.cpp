@@ -82,8 +82,7 @@ public:
         SetNodeByYPath(
             GetOrchidRoot(),
             "/object_service_cache",
-            CreateVirtualNode(ObjectServiceCache_->GetOrchidService()
-                ->Via(GetControlInvoker())));
+            CreateVirtualNode(ObjectServiceCache_->GetOrchidService()));
     }
 
     void Run() override

@@ -51,6 +51,7 @@ DEFINE_BIT_ENUM(ETypeFlags,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IObjectService)
 DECLARE_REFCOUNTED_CLASS(TObjectManager)
 DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
 
