@@ -16,7 +16,6 @@ TRequestProfilingCounters::TRequestProfilingCounters(const TProfiler& profiler)
     , LocalReadRequestCounter(profiler.Counter("/local_read_request_count"))
     , LocalWriteRequestCounter(profiler.Counter("/local_write_request_count"))
     , LeaderFallbackRequestCounter(profiler.Counter("/leader_fallback_request_count"))
-    , IntraCellForwardingRequestCounter(profiler.Counter("/intra_cell_forwarding_request_count"))
     , CrossCellForwardingRequestCounter(profiler.Counter("/cross_cell_forwarding_request_count"))
     , AutomatonForwardingRequestCounter(profiler.Counter("/automaton_forwarding_request_count"))
 { }

@@ -16,7 +16,6 @@ struct TRequestProfilingCounters
     NProfiling::TCounter LocalReadRequestCounter;
     NProfiling::TCounter LocalWriteRequestCounter;
     NProfiling::TCounter LeaderFallbackRequestCounter;
-    NProfiling::TCounter IntraCellForwardingRequestCounter;
     NProfiling::TCounter CrossCellForwardingRequestCounter;
     NProfiling::TCounter AutomatonForwardingRequestCounter;
 };

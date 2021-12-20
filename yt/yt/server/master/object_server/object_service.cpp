@@ -854,7 +854,7 @@ private:
         auto mutating = subrequest->YPathExt->mutating();
 
         if (mutating && TentativePeerState_ != EPeerState::Leading) {
-            MarkSubrequestRemoteIntraCell(subrequest);
+            Reply(TError(NRpc::EErrorCode::Unavailable, "Peer is not leading"));
             return;
         }
 
@@ -874,14 +874,6 @@ private:
             subrequest->Type = EExecutionSessionSubrequestType::LocalRead;
             subrequest->ProfilingCounters->LocalReadRequestCounter.Increment();
         }
-    }
-
-    void MarkSubrequestRemoteIntraCell(TSubrequest* subrequest)
-    {
-        subrequest->ForwardedCellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
-        subrequest->RemoteRequestMessage = subrequest->RequestMessage;
-        subrequest->Type = EExecutionSessionSubrequestType::Remote;
-        subrequest->ProfilingCounters->IntraCellForwardingRequestCounter.Increment();
     }
 
     void MarkSubrequestRemoteCrossCell(TSubrequest* subrequest, TCellTag forwardedCellTag)
