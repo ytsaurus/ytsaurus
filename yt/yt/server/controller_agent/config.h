@@ -136,7 +136,7 @@ public:
     // Cpu usage threshold to send an alert
     double LowCpuUsageAlertCpuUsageThreshold;
     std::vector<TString> LowCpuUsageAlertStatistics;
-    std::vector<TString> LowCpuUsageAlertJobStates;
+    std::vector<NJobTrackerClient::EJobState> LowCpuUsageAlertJobStates;
 
     // Minimum wall time of operation duration
     TDuration OperationTooLongAlertMinWallTime;
@@ -147,7 +147,7 @@ public:
     TDuration LowGpuUsageAlertMinDuration;
     double LowGpuUsageAlertGpuUsageThreshold;
     std::vector<TString> LowGpuUsageAlertStatistics;
-    std::vector<TString> LowGpuUsageAlertJobStates;
+    std::vector<NJobTrackerClient::EJobState> LowGpuUsageAlertJobStates;
 
     // High queue average wait time alert is triggered
     // if queues with average wait time above this threshold are found.
@@ -673,7 +673,7 @@ public:
 
     //! Controller agent-to-scheduler heartbeat period.
     TDuration SchedulerHeartbeatPeriod;
-    
+
     //! Enables new schedule jobs heartbeats.
     bool EnableScheduleJobHeartbeats;
 

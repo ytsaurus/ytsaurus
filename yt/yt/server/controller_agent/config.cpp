@@ -105,7 +105,7 @@ void TOperationAlertsConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_cpu_usage_alert_job_states", &TThis::LowCpuUsageAlertJobStates)
         .Default({
-            "completed"
+            EJobState::Completed
         });
 
     registrar.Parameter("operation_too_long_alert_min_wall_time", &TThis::OperationTooLongAlertMinWallTime)
@@ -127,8 +127,8 @@ void TOperationAlertsConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_gpu_usage_alert_job_states", &TThis::LowGpuUsageAlertJobStates)
         .Default({
-            "completed",
-            "running"
+            NJobTrackerClient::EJobState::Completed,
+            NJobTrackerClient::EJobState::Running
         });
 
     registrar.Parameter("queue_average_wait_time_threshold", &TThis::QueueAverageWaitTimeThreshold)
@@ -483,10 +483,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("scheduler_heartbeat_failure_backoff", &TThis::SchedulerHeartbeatFailureBackoff)
         .Default(TDuration::MilliSeconds(100));
-    
+
     registrar.Parameter("scheduler_heartbeat_period", &TThis::SchedulerHeartbeatPeriod)
         .Default(TDuration::MilliSeconds(100));
-    
+
     registrar.Parameter("enable_schedule_job_heartbeats", &TThis::EnableScheduleJobHeartbeats)
         .Default(false);
     registrar.Parameter("schedule_job_heartbeat_period", &TThis::ScheduleJobHeartbeatPeriod)

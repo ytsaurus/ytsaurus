@@ -1358,7 +1358,7 @@ private:
 
     void AnalyzeProcessingUnitUsage(
         const std::vector<TString>& usageStatistics,
-        const std::vector<TString>& jobStates,
+        const std::vector<NJobTrackerClient::EJobState>& jobStates,
         const std::function<double(const NScheduler::TUserJobSpecPtr&)>& getLimit,
         const std::function<bool(i64, i64, double)>& needSetAlert,
         const TString& name,
