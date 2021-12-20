@@ -113,6 +113,9 @@ struct TReplicationCardToken
 void FormatValue(TStringBuilderBase* builder, const TReplicationProgress& replicationProgress, TStringBuf /*spec*/);
 TString ToString(const TReplicationProgress& replicationProgress);
 
+void FormatValue(TStringBuilderBase* builder, const TReplicaHistoryItem& replicaHistoryItem, TStringBuf /*spec*/);
+TString ToString(const TReplicaHistoryItem& replicaHistoryItem);
+
 void FormatValue(TStringBuilderBase* builder, const TReplicaInfo& replicaInfo, TStringBuf /*spec*/);
 TString ToString(const TReplicaInfo& replicaInfo);
 
