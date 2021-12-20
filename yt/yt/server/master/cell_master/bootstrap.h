@@ -178,6 +178,7 @@ protected:
     TEpochHistoryManagerPtr EpochHistoryManager_;
     TWorldInitializerPtr WorldInitializer_;
     NObjectServer::TObjectManagerPtr ObjectManager_;
+    NObjectServer::IObjectServicePtr ObjectService_;
     NObjectServer::IYsonInternRegistryPtr YsonInternRegistry_;
     NObjectServer::TRequestProfilingManagerPtr RequestProfilingManager_;
     NChunkServer::TChunkManagerPtr ChunkManager_;

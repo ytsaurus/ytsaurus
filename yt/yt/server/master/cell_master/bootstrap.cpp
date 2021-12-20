@@ -126,6 +126,8 @@
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
+#include <yt/yt/ytlib/object_client/object_service_cache.h>
+
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -795,6 +797,8 @@ void TBootstrap::DoInitialize()
 
     SchedulerPoolManager_ = New<TSchedulerPoolManager>(this);
 
+    ObjectService_ = CreateObjectService(Config_->ObjectService, this);
+
     InitializeTimestampProvider();
 
     if (MulticellManager_->IsPrimaryMaster() && Config_->EnableTimestampManager) {
@@ -880,7 +884,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateExecNodeTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateCellarNodeTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateTabletNodeTrackerService(this)); // master hydra service
-    RpcServer_->RegisterService(CreateObjectService(Config_->ObjectService, this)); // master hydra service
+    RpcServer_->RegisterService(ObjectService_); // master hydra service
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateChunkService(this)); // master hydra service
     RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
@@ -1015,6 +1019,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/discovery_server",
         CreateVirtualNode(DiscoveryServer_->GetYPathService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/object_service_cache",
+        CreateVirtualNode(ObjectService_->GetCache()->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
         "/reign",

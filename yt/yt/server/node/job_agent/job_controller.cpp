@@ -1986,16 +1986,16 @@ NJobProxy::TJobProxyDynamicConfigPtr TJobController::GetJobProxyDynamicConfig() 
     return Impl_->GetJobProxyDynamicConfig();
 }
 
-DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)
-DELEGATE_SIGNAL(TJobController, void(const IJobPtr&), JobFinished, *Impl_)
-DELEGATE_SIGNAL(TJobController, void(const TError&), JobProxyBuildInfoUpdated, *Impl_)
-
 void TJobController::RegisterHeartbeatProcessor(
     const EObjectType type,
     TJobHeartbeatProcessorBasePtr heartbeatProcessor)
 {
     Impl_->RegisterHeartbeatProcessor(type, std::move(heartbeatProcessor));
 }
+
+DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)
+DELEGATE_SIGNAL(TJobController, void(const IJobPtr&), JobFinished, *Impl_)
+DELEGATE_SIGNAL(TJobController, void(const TError&), JobProxyBuildInfoUpdated, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

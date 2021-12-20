@@ -1004,8 +1004,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/job_controller",
-            CreateVirtualNode(JobController_->GetOrchidService()
-                ->Via(GetControlInvoker())));
+            CreateVirtualNode(JobController_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/cluster_connection",
@@ -1013,13 +1012,11 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/dynamic_config_manager",
-            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()
-                ->Via(GetControlInvoker())));
+            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/object_service_cache",
-            CreateVirtualNode(ObjectServiceCache_->GetOrchidService()
-                ->Via(GetControlInvoker())));
+            CreateVirtualNode(ObjectServiceCache_->GetOrchidService()));
         SetBuildAttributes(
             OrchidRoot_,
             "node");
