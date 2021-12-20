@@ -487,7 +487,7 @@ void TTask::ScheduleJob(
         YT_LOG_DEBUG("Job actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
             jobLimits,
             NNodeTrackerClient::ToString(context->DiskResources(), TaskHost_->GetMediumDirectory()),
-            neededResources.GetDiskQuota());
+            FormatResources(neededResources));
         CheckResourceDemandSanity(neededResources);
         abortJob(EScheduleJobFailReason::NotEnoughResources, EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
