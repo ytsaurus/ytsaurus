@@ -1381,11 +1381,11 @@ TFuture<TString> TClient::WriteOperationControllerCoreDump(
     ThrowUnimplemented("WriteOperationControllerCoreDump");
 }
 
-TFuture<void> TClient::RepairExecNode(
+TFuture<void> TClient::HealExecNode(
     const TString& /* address */,
-    const TRepairExecNodeOptions& /* options */)
+    const THealExecNodeOptions& /* options */)
 {
-    ThrowUnimplemented("RepairExecNode");
+    ThrowUnimplemented("HealExecNode");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

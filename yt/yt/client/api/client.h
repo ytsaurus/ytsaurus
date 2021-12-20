@@ -1366,7 +1366,7 @@ struct TWriteOperationControllerCoreDumpOptions
     : public TTimeoutOptions
 { };
 
-struct TRepairExecNodeOptions
+struct THealExecNodeOptions
     : public TTimeoutOptions
 {
     std::vector<TString> Locations;
@@ -1887,9 +1887,9 @@ struct IClient
         NJobTrackerClient::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options = {}) = 0;
 
-    virtual TFuture<void> RepairExecNode(
+    virtual TFuture<void> HealExecNode(
         const TString& address,
-        const TRepairExecNodeOptions& options = {}) = 0;
+        const THealExecNodeOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

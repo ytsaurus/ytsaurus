@@ -322,9 +322,9 @@ public:
         NJobTrackerClient::TOperationId operationId,
         const NApi::TWriteOperationControllerCoreDumpOptions& options) override;
 
-    TFuture<void> RepairExecNode(
+    TFuture<void> HealExecNode(
         const TString& address,
-        const TRepairExecNodeOptions& options) override;
+        const THealExecNodeOptions& options) override;
 
 private:
     const TConnectionPtr Connection_;

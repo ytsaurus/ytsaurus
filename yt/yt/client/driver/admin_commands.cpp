@@ -78,15 +78,15 @@ void TSwitchLeaderCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRepairExecNodeCommand::TRepairExecNodeCommand()
+THealExecNodeCommand::THealExecNodeCommand()
 {
     RegisterParameter("address", Address_);
     RegisterParameter("locations", Options.Locations);
 }
 
-void TRepairExecNodeCommand::DoExecute(ICommandContextPtr context)
+void THealExecNodeCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->RepairExecNode(Address_, Options))
+    WaitFor(context->GetClient()->HealExecNode(Address_, Options))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);

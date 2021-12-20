@@ -336,15 +336,15 @@ TString TClient::DoWriteOperationControllerCoreDump(
     return rsp->path();
 }
 
-void TClient::DoRepairExecNode(
+void TClient::DoHealExecNode(
     const TString& address,
-    const TRepairExecNodeOptions& options)
+    const THealExecNodeOptions& options)
 {
     ValidateSuperuserPermissions();
     auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
 
     TExecNodeAdminServiceProxy proxy(channel);
-    auto req = proxy.RepairNode();
+    auto req = proxy.HealNode();
 
     for (const auto& location : options.Locations) {
         req->add_locations(location);

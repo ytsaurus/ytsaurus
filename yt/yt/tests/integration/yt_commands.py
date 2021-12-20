@@ -1559,9 +1559,9 @@ def switch_leader(cell_id, new_leader_address):
     return execute_command("switch_leader", parameters, parse_yson=True)
 
 
-def repair_exec_node(address, locations):
+def heal_exec_node(address, locations):
     parameters = {"address": address, "locations": locations}
-    return execute_command("repair_exec_node", parameters, parse_yson=True)
+    return execute_command("heal_exec_node", parameters, parse_yson=True)
 
 
 def set_node_resource_targets(address, cpu_limit, memory_limit):

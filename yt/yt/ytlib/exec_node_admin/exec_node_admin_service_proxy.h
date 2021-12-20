@@ -14,7 +14,7 @@ class TExecNodeAdminServiceProxy
 public:
     DEFINE_RPC_PROXY(TExecNodeAdminServiceProxy, ExecNodeAdminService);
 
-    DEFINE_RPC_PROXY_METHOD(NProto, RepairNode);
+    DEFINE_RPC_PROXY_METHOD(NProto, HealNode);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
