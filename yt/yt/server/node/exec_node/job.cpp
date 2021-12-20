@@ -2233,18 +2233,27 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         slotStatistics.CumulativeUtilizationGpu +=
             (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
             gpuInfo.UtilizationGpuRate;
-        slotStatistics.CumulativeUtilizationMemory +=
-            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
-            gpuInfo.UtilizationMemoryRate;
         if (gpuInfo.UtilizationGpuRate > 0) {
             slotStatistics.CumulativeLoad += (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds();
         }
+        slotStatistics.CumulativeUtilizationMemory +=
+            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
+            gpuInfo.UtilizationMemoryRate;
+        slotStatistics.CumulativeMemory +=
+            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
+            gpuInfo.MemoryUsed;
         slotStatistics.CumulativeUtilizationPower +=
             (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
             (gpuInfo.PowerDraw / gpuInfo.PowerLimit);
+        slotStatistics.CumulativePower +=
+            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
+            gpuInfo.PowerDraw;
         slotStatistics.CumulativeUtilizationClocksSm +=
             (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
             (static_cast<double>(gpuInfo.ClocksSm) / gpuInfo.ClocksMaxSm);
+        slotStatistics.CumulativeClocksSm +=
+            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
+            gpuInfo.ClocksSm;
         slotStatistics.MaxMemoryUsed = std::max(slotStatistics.MaxMemoryUsed, gpuInfo.MemoryUsed);
         slotStatistics.LastUpdateTime = gpuInfo.UpdateTime;
 
@@ -2260,6 +2269,9 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     statistics->AddSample("/user_job/gpu/utilization_memory", totalUtilizationMemory);
     statistics->AddSample("/user_job/gpu/utilization_power", totalUtilizationPower);
     statistics->AddSample("/user_job/gpu/utilization_clocks_sm", totalUtilizationClocksSm);
+    statistics->AddSample("/user_job/gpu/memory", totalUtilizationMemory);
+    statistics->AddSample("/user_job/gpu/power", totalUtilizationPower);
+    statistics->AddSample("/user_job/gpu/clocks_sm", totalUtilizationClocksSm);
     statistics->AddSample("/user_job/gpu/load", totalLoad);
     statistics->AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
 }
