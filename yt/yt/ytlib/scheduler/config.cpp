@@ -423,6 +423,9 @@ const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
         "gpu/utilization_memory",
         "gpu/utilization_power",
         "gpu/utilization_clock_sm",
+        "gpu/memory",
+        "gpu/power",
+        "gpu/clock_sm",
     };
     return DefaultSensorNames;
 }
