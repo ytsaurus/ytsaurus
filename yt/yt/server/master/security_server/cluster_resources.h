@@ -20,6 +20,14 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define FOR_EACH_CLUSTER_RESOURCE(XX) \
+    XX(NodeCount) \
+    XX(ChunkCount) \
+    XX(TabletCount) \
+    XX(TabletStaticMemory) \
+    XX(ChunkHostCellMasterMemory) \
+    XX(DetailedMasterMemory)
+
 //! Cluster resources occupied by a particular user or object.
 class TClusterResources
 {
@@ -49,6 +57,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, i64, ChunkCount);
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, int, TabletCount);
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, i64, TabletStaticMemory);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, i64, ChunkHostCellMasterMemory);
 
     DEFINE_BYREF_RW_PROPERTY(TDetailedMasterMemory, DetailedMasterMemory);
 
@@ -63,6 +72,10 @@ public:
     TClusterResources operator * (i64 rhs) const;
 
     TClusterResources operator - () const;
+
+    #define XX(Name) void Increase##Name(NMpl::TCallTraits<decltype(Name##_)>::TType delta);
+    FOR_EACH_CLUSTER_RESOURCE(XX)
+    #undef XX
 
     bool operator == (const TClusterResources& rhs) const;
 
