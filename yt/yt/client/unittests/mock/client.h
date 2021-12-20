@@ -193,9 +193,9 @@ public:
         NJobTrackerClient::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options), (override));
 
-    MOCK_METHOD(TFuture<void>, RepairExecNode, (
+    MOCK_METHOD(TFuture<void>, HealExecNode, (
         const TString& address,
-        const TRepairExecNodeOptions& options), (override));
+        const THealExecNodeOptions& options), (override));
 
     // IClient
     NTabletClient::ITableMountCachePtr TableMountCache;

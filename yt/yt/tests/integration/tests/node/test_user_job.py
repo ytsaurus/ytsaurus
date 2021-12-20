@@ -12,7 +12,7 @@ from yt_commands import (
     list_jobs, get_job, get_job_stderr,
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs, get_statistics,
-    repair_exec_node,
+    heal_exec_node,
     make_random_string, raises_yt_error, update_controller_agent_config)
 
 
@@ -2016,7 +2016,7 @@ class TestRepairExecNode(YTEnvSetup):
     }
 
     @authors("alexkolodezny")
-    def test_repair_exec_node(self):
+    def test_heal_exec_node(self):
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
 
         node_id = list(get("//sys/cluster_nodes"))[0]
@@ -2040,15 +2040,15 @@ class TestRepairExecNode(YTEnvSetup):
             op.track()
 
         with raises_yt_error('Unknown location: "[unknownslot]"'):
-            repair_exec_node(node_id, ["unknownslot"])
+            heal_exec_node(node_id, ["unknownslot"])
 
         with raises_yt_error("Lock file is found"):
-            repair_exec_node(node_id, ["slot0"])
+            heal_exec_node(node_id, ["slot0"])
 
         for location in locations:
             os.remove("{}/disabled".format(location["path"]))
 
-        repair_exec_node(node_id, ["slot0"])
+        heal_exec_node(node_id, ["slot0"])
 
         wait(lambda: not is_disabled())
 

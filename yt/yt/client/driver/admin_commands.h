@@ -45,11 +45,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRepairExecNodeCommand
-    : public TTypedCommand<NApi::TRepairExecNodeOptions>
+class THealExecNodeCommand
+    : public TTypedCommand<NApi::THealExecNodeOptions>
 {
 public:
-    TRepairExecNodeCommand();
+    THealExecNodeCommand();
 
 private:
     TString Address_;

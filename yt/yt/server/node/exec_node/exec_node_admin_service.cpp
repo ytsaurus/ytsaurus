@@ -29,13 +29,13 @@ public:
     {
         YT_VERIFY(Bootstrap_);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RepairNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(HealNode));
     }
 
 private:
     IBootstrap* const Bootstrap_;
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, RepairNode)
+    DECLARE_RPC_SERVICE_METHOD(NProto, HealNode)
     {
         context->SetRequestInfo("Locations: %v", request->locations());
 

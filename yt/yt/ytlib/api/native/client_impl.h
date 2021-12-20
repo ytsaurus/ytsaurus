@@ -521,9 +521,9 @@ public:
         NScheduler::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options),
         (operationId, options))
-    IMPLEMENT_METHOD(void, RepairExecNode, (
+    IMPLEMENT_METHOD(void, HealExecNode, (
         const TString& address,
-        const TRepairExecNodeOptions& options),
+        const THealExecNodeOptions& options),
         (address, options))
 
     IMPLEMENT_METHOD(std::vector<NChaosClient::TAlienCellDescriptor>, SyncAlienCells, (
@@ -1266,9 +1266,9 @@ private:
     TGuid DoWriteLogBarrier(
         const TString& address,
         const TWriteLogBarrierOptions& options);
-    void DoRepairExecNode(
+    void DoHealExecNode(
         const TString& address,
-        const TRepairExecNodeOptions& options);
+        const THealExecNodeOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)
