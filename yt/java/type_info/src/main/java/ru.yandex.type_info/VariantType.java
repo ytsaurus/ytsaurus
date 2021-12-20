@@ -19,6 +19,10 @@ public class VariantType extends TiType {
         this.underlying = underlying;
     }
 
+    public TiType getUnderlying() {
+        return underlying;
+    }
+
     public static Builder overStructBuilder() {
         return new Builder();
     }
