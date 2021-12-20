@@ -1802,7 +1802,10 @@ public:
 
     TSerializableAccessControlList GetOperationBaseAcl() const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YT_VERIFY(OperationBaseAcl_.has_value());
+
         return *OperationBaseAcl_;
     }
 
@@ -3332,7 +3335,7 @@ private:
 
         WaitFor(AllSucceeded(abortFutures))
             .ThrowOnError();
-    
+
         YT_LOG_DEBUG("All operations jobs aborted at scheduler (OperationId: %v)",
             operation->GetId());
 

@@ -143,6 +143,8 @@ public:
 
     const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue) const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         return CancelableControlInvokers_[queue];
@@ -956,7 +958,9 @@ private:
         std::vector<TOperationPtr> ParseOperationsBatch(
             const std::vector<TOperationDataToParse>& rspValuesChunk,
             const int parseOperationAttributesBatchSize,
-            const bool skipOperationsWithMalformedSpecDuringRevival)
+            const bool skipOperationsWithMalformedSpecDuringRevival,
+            const TSerializableAccessControlList& operationBaseAcl,
+            const IInvokerPtr& cancelableOperationInvoker)
         {
             std::vector<TOperationPtr> result;
             result.reserve(parseOperationAttributesBatchSize);
@@ -989,7 +993,9 @@ private:
                     auto operation = TryCreateOperationFromAttributes(
                         rspValues.OperationId,
                         *attributesNode,
-                        secureVault);
+                        secureVault,
+                        operationBaseAcl,
+                        cancelableOperationInvoker);
                     result.push_back(operation);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex, "Error creating operation from Cypress node (OperationId: %v)",
@@ -1121,7 +1127,9 @@ private:
                             MakeStrong(this),
                             std::move(operationsDataToParseBatch),
                             chunkSize,
-                            Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival
+                            Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival,
+                            Owner_->Bootstrap_->GetScheduler()->GetOperationBaseAcl(),
+                            Owner_->GetCancelableControlInvoker(EControlQueue::Operation)
                         )
                         .AsyncVia(Owner_->Bootstrap_->GetScheduler()->GetBackgroundInvoker())
                         .Run()
@@ -1165,7 +1173,9 @@ private:
         TOperationPtr TryCreateOperationFromAttributes(
             TOperationId operationId,
             const IAttributeDictionary& attributes,
-            const IMapNodePtr& secureVault)
+            const IMapNodePtr& secureVault,
+            const TSerializableAccessControlList& operationBaseAcl,
+            const IInvokerPtr& cancelableOperationInvoker)
         {
             auto specString = attributes.GetYson("spec");
             auto specNode = ConvertSpecStringToNode(specString);
@@ -1200,7 +1210,6 @@ private:
                 }
             }
 
-            auto scheduler = Owner_->Bootstrap_->GetScheduler();
             auto operation = New<TOperation>(
                 operationId,
                 operationType,
@@ -1212,10 +1221,10 @@ private:
                 std::move(preprocessedSpec.VanillaTaskNames),
                 secureVault,
                 runtimeParameters,
-                scheduler->GetOperationBaseAcl(),
+                operationBaseAcl,
                 user,
                 attributes.Get<TInstant>("start_time"),
-                Owner_->GetCancelableControlInvoker(EControlQueue::Operation),
+                cancelableOperationInvoker,
                 spec->Alias,
                 std::move(preprocessedSpec.ExperimentAssignments),
                 attributes.Get<EOperationState>("state"),
