@@ -276,6 +276,10 @@ public:
         const std::vector<TYPath>& paths,
         const IClientPtr& client)
     {
+        if (paths.empty()) {
+            return {};
+        }
+
         const auto& user = client->GetOptions().GetAuthenticatedUser();
         auto cachedAttributes = TableAttributeCache_->FindMany(paths);
         std::vector<TYPath> missedPaths;

@@ -160,8 +160,7 @@ private:
         auto* queryContext = GetQueryContext(context);
 
         auto tables = FetchTables(
-            queryContext->Client(),
-            queryContext->Host,
+            queryContext,
             std::move(tablePaths),
             /* skipUnsuitableNodes */ false,
             queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
@@ -261,8 +260,7 @@ private:
 
         // We intentionally skip all non-table items for better user experience.
         auto tables = FetchTables(
-            queryContext->Client(),
-            queryContext->Host,
+            queryContext,
             std::move(itemPaths),
             /* skipUnsuitableItems */ true,
             queryContext->Settings->DynamicTable->EnableDynamicStoreRead,

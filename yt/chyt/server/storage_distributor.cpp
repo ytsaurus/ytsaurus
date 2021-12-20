@@ -1359,9 +1359,12 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         .ValueOrThrow();
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
+    // There may be obsolete entry about missing table in ObjectAttributeSnapshot.
+    // Delete such entry in order to avoid mistakenly treating newly created table as missing in subsequent queries.
+    queryContext->DeleteObjectAttributesFromSnapshot({path.GetPath()});
+
     auto table = FetchTables(
-        queryContext->Client(),
-        queryContext->Host,
+        queryContext,
         {path},
         /* skipUnsuitableNodes */ false,
         queryContext->Settings->DynamicTable->EnableDynamicStoreRead,

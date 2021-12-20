@@ -191,8 +191,7 @@ private:
         auto* queryContext = GetQueryContext(context);
 
         auto tables = FetchTables(
-            queryContext->Client(),
-            queryContext->Host,
+            queryContext,
             std::move(TablePaths_),
             /* skipUnsuitableNodes */ false,
             queryContext->Settings->DynamicTable->EnableDynamicStoreRead,

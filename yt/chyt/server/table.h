@@ -47,8 +47,7 @@ TString ToString(const TTablePtr& table);
 // If `skipUnsuitableNodes` is set, skips all non-static-table items,
 // otherwise throws an error for them.
 std::vector<TTablePtr> FetchTables(
-    const NApi::NNative::IClientPtr& client,
-    THost* host,
+    TQueryContext* queryContext,
     const std::vector<NYPath::TRichYPath>& richPaths,
     bool skipUnsuitableNodes,
     bool enableDynamicStoreRead,

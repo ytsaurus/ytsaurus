@@ -6,6 +6,7 @@
 #include "conversion.h"
 #include "revision_tracker.h"
 #include "block_input_stream.h"
+#include "query_context.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -59,9 +60,10 @@ public:
 
         YT_LOG_INFO("Reloading dictionary (Revision: %llx)", RevisionTracker_.GetRevision());
 
+        auto fakeQueryContext = TQueryContext::CreateFake(Host_, Host_->GetRootClient());
+
         auto table = FetchTables(
-            Host_->GetRootClient(),
-            Host_,
+            fakeQueryContext.Get(),
             {Path_},
             /* skipUnsuitableNodes */ false,
             /* enableDynamicStoreRead */ true,
