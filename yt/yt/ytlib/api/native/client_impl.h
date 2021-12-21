@@ -42,6 +42,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/misc/lazy_ptr.h>
+
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -548,8 +550,8 @@ private:
     std::optional<TEnumIndexedVector<EMasterChannelKind, NRpc::IChannelPtr>> OperationsArchiveChannels_;
     NNodeTrackerClient::INodeChannelFactoryPtr ChannelFactory_;
     NTransactionClient::TTransactionManagerPtr TransactionManager_;
-    NQueryClient::TFunctionImplCachePtr FunctionImplCache_;
-    NQueryClient::IFunctionRegistryPtr FunctionRegistry_;
+    TLazyIntrusivePtr<NQueryClient::TFunctionImplCache> FunctionImplCache_;
+    TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
     std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<NScheduler::TJobProberServiceProxy> JobProberProxy_;
 

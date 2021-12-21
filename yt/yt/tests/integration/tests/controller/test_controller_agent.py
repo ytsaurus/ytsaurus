@@ -88,7 +88,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         }
     }
 
-    @authors("ignat")
+    @authors("ignat", "gepardo")
     @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_controller_memory_usage(self):
         # In this test we rely on the assignment order of memory tags.
@@ -123,6 +123,16 @@ class TestControllerMemoryUsage(YTEnvSetup):
             assert entry["operation_id"] == yson.YsonEntity()
             assert not entry["alive"]
 
+        # Used to pre-allocate internal structures that are laziliy initialized on first access.
+        op_small_preallocation = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="<sorted_by=[a]>//tmp/t_out",
+            command="sleep 3600",
+        )
+        wait(lambda: op_small_preallocation.get_job_count("running") > 0)
+        op_small_preallocation.abort()
+
         op_small = map(
             track=False,
             in_="//tmp/t_in",
@@ -135,9 +145,9 @@ class TestControllerMemoryUsage(YTEnvSetup):
         usage = get(small_usage_path)
 
         print_debug("small_usage =", usage)
-        assert usage < 4 * 10 ** 6
+        assert usage < 5 * 10 ** 5
 
-        wait(lambda: check("0", op_small, 0, 4 * 10 ** 6))
+        wait(lambda: check("1", op_small, 0, 5 * 10 ** 5))
 
         op_small.abort()
 
@@ -177,15 +187,15 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         wait(lambda: check_operation_attributes(10 * 10 ** 6))
 
-        wait(lambda: check("1", op_large, 10 * 10 ** 6, 30 * 10 ** 6))
+        wait(lambda: check("2", op_large, 10 * 10 ** 6, 30 * 10 ** 6))
 
         op_large.abort()
 
         time.sleep(5)
 
         for i, entry in enumerate(get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False)):
-            if i <= 1:
-                assert entry["operation_id"] in (op_small.id, op_large.id)
+            if i <= 2:
+                assert entry["operation_id"] in (op_small_preallocation.id, op_small.id, op_large.id)
             else:
                 assert entry["operation_id"] == yson.YsonEntity()
             assert not entry["alive"]
