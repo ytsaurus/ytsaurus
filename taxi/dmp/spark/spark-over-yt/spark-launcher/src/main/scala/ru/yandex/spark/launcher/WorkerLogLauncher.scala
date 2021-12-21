@@ -114,11 +114,15 @@ class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: Compound
   val finishedPaths: mutable.Set[String] = mutable.HashSet[String]()
   private val log = LoggerFactory.getLogger(getClass)
 
+  private[launcher] def init(): Unit = {
+    YtWrapper.createDir(workerLogConfig.tablesPath, None, ignoreExisting = true)
+    YtWrapper.createDynTableAndMount(getMetaPath(workerLogConfig.tablesPath), metaSchema)
+  }
+
   override def run(): Unit = {
     try {
       log.info(s"WorkerLog configuration: $workerLogConfig")
-      YtWrapper.createDir(workerLogConfig.tablesPath, None, ignoreExisting = true)
-      YtWrapper.createDynTableAndMount(getMetaPath(workerLogConfig.tablesPath), metaSchema)
+      init()
       while (!Thread.interrupted()) {
         try {
           uploadLogs()
