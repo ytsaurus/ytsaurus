@@ -165,6 +165,8 @@ public:
 
     TAsyncExpiringCacheConfigPtr SyncReplicaCache;
 
+    NRpc::TRetryingChannelConfigPtr ChaosCellChannel;
+
     TConnectionConfig();
 };
 

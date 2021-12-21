@@ -2492,25 +2492,29 @@ TPullRowsResult TClient::DoPullRows(
 
 IChannelPtr TClient::GetChaosChannel(TCellId chaosCellId)
 {
-    const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();
-    if (auto channel = cellDirectory->FindChannel(chaosCellId, EPeerKind::LeaderOrFollower)) {
-        return channel;
-    }
+    auto channel = [&] {
+        const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();
+        if (auto channel = cellDirectory->FindChannel(chaosCellId, EPeerKind::LeaderOrFollower)) {
+            return channel;
+        }
 
-    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
-    auto proxy = TChaosMasterServiceProxy(channel);
-    auto req = proxy.GetCellDescriptors();
+        auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
+        auto proxy = TChaosMasterServiceProxy(channel);
+        auto req = proxy.GetCellDescriptors();
 
-    ToProto(req->mutable_cell_ids(), std::vector<TCellId>{chaosCellId});
+        ToProto(req->mutable_cell_ids(), std::vector<TCellId>{chaosCellId});
 
-    auto res = WaitFor(req->Invoke())
-        .ValueOrThrow();
+        auto res = WaitFor(req->Invoke())
+            .ValueOrThrow();
 
-    auto descriptors = FromProto<std::vector<TCellDescriptor>>(res->cell_descriptors());
-    YT_VERIFY(std::ssize(descriptors) == 1);
+        auto descriptors = FromProto<std::vector<TCellDescriptor>>(res->cell_descriptors());
+        YT_VERIFY(std::ssize(descriptors) == 1);
 
-    cellDirectory->ReconfigureCell(descriptors[0]);
-    return cellDirectory->GetChannelOrThrow(chaosCellId, EPeerKind::LeaderOrFollower);
+        cellDirectory->ReconfigureCell(descriptors[0]);
+        return cellDirectory->GetChannelOrThrow(chaosCellId, EPeerKind::LeaderOrFollower);
+    }();
+
+    return CreateRetryingChannel(GetNativeConnection()->GetConfig()->ChaosCellChannel, std::move(channel));
 }
 
 TReplicationCardToken TClient::DoCreateReplicationCard(

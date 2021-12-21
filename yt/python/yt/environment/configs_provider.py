@@ -1022,6 +1022,10 @@ def _build_cluster_connection_config(yt_config,
             "hard_backoff_time": 100,
             "addresses": master_cache_addresses,
         }
+        cluster_connection["chaos_cell_channel"] = {
+            "retry_backoff_time": 500,
+            "retry_attempts": 10
+        }
 
     if not yt_config.enable_permission_cache:
         cluster_connection["permission_cache"] = {
