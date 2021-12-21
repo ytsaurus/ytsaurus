@@ -9,12 +9,13 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig
 import ru.yandex.spark.yt.test.{LocalYtClient, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.model.WorkerLogBlock
+import ru.yandex.spark.yt.wrapper.model.{WorkerLogBlock, WorkerLogMeta}
+import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.getMetaPath
 
 import java.io.{File, FileWriter}
 import java.nio.file.attribute.FileTime
 import java.nio.file.{Files, Path, Paths}
-import java.time.{LocalDateTime, ZoneOffset}
+import java.time.{LocalDate, LocalDateTime, ZoneId, ZoneOffset}
 import java.util.UUID
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration.DurationInt
@@ -135,11 +136,14 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
 
   private type LogArray = Array[Seq[TestEventHolder]]
   private def getAllLogs: LogArray = {
-    val logTables = YtWrapper.listDir(tablesDir)
+    val logTables = YtWrapper.listDir(tablesDir).filter(_ != "meta")
     val allLogs = logTables.map { table =>
       YtWrapper.selectRows(s"${config.tablesPath}/$table").map(TestEventHolder(_))
     }
     allLogs
+  }
+  private def getAllMeta: Seq[WorkerLogMeta] = {
+    YtWrapper.selectRows(getMetaPath(tablesDir)).map(WorkerLogMeta(_))
   }
 
   private def writeToLog(filePath: String, events: Seq[TestEventHolder]): Unit = {
@@ -177,9 +181,11 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     createDriver("example")
 
     val workerLogService = new LogServiceRunnable(config)
+    workerLogService.init()
     workerLogService.uploadLogs()
 
     getAllLogs.isEmpty shouldBe true
+    getAllMeta.isEmpty shouldBe true
   }
 
   it should "read and write driver log" in {
@@ -187,6 +193,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     createDriver(driver)
 
     val workerLogService = new LogServiceRunnable(config)
+    workerLogService.init()
 
     writeToLog(getDriverFileLog(driver, STDOUT), List(simpleInfoEvent, simpleInfoEvent2))
     writeToLog(getDriverFileLog(driver, STDERR), List(simpleErrorEvent, simpleErrorEvent2))
@@ -198,9 +205,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
 
     val allLogs = getAllLogs
     allLogs should contain theSameElementsAs Seq(
-      Seq(simpleErrorEvent, simpleInfoEvent),
-      Seq(simpleInfoEvent2),
-      Seq(simpleErrorEvent2)
+      Seq(simpleErrorEvent, simpleErrorEvent2, simpleInfoEvent, simpleInfoEvent2)
     )
   }
 
@@ -215,17 +220,17 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     createExecutor(app, executor2)
 
     val workerLogService = new LogServiceRunnable(config)
+    workerLogService.init()
 
     writeToLog(getExecutorFileLog(app, executor1, STDOUT), List(simpleInfoEvent, simpleInfoEvent2))
     writeToLog(getExecutorFileLog(app, executor2, STDERR), List(simpleErrorEvent))
     finalizeExecutorLog(app, executor1, STDOUT)
     finalizeExecutorLog(app, executor2, STDERR)
     workerLogService.uploadLogs()
-    val allLogs = getAllLogs
 
+    val allLogs = getAllLogs
     allLogs should contain theSameElementsAs Seq(
-      Seq(simpleInfoEvent, simpleErrorEvent),
-      Seq(simpleInfoEvent2)
+      Seq(simpleInfoEvent, simpleInfoEvent2, simpleErrorEvent)
     )
   }
 
@@ -236,8 +241,10 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     val limitInfoEvent1 = simpleInfoEvent.copy(message = "L" * config.ytTableRowLimit)
     val limitInfoEvent2 = simpleInfoEvent.copy(message = "OG")
     val workerLogService = new LogServiceRunnable(config)
+    workerLogService.init()
 
-    writeToLog(getDriverFileLog(driver, STDOUT), List(simpleInfoEvent.copy(message = limitInfoEvent1.message + limitInfoEvent2.message)))
+    writeToLog(getDriverFileLog(driver, STDOUT),
+      List(simpleInfoEvent.copy(message = limitInfoEvent1.message + limitInfoEvent2.message)))
 
     finalizeDriverLog(driver, STDOUT)
 
@@ -256,6 +263,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     createDriver(driver)
 
     val workerLogService = new LogServiceRunnable(config)
+    workerLogService.init()
 
     writeToLog(getDriverFileLog(driver, STDOUT), List(simpleInfoEvent))
     rawWriteToLog(getDriverFileLog(driver, STDOUT), s"$nonJsonLog\n")
@@ -269,9 +277,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     val allLogs = getAllLogs
 
     allLogs should contain theSameElementsAs Seq(
-      Seq(TestEventHolder(creationTime, None, nonJsonLog)),
-      Seq(simpleInfoEvent),
-      Seq(simpleInfoEvent2)
+      Seq(simpleInfoEvent, TestEventHolder(creationTime, None, nonJsonLog), simpleInfoEvent2)
     )
   }
 
@@ -283,6 +289,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     createExecutor(app, executor)
 
     val workerLogService = new LogServiceRunnable(config)
+    workerLogService.init()
 
     writeToLog(getExecutorFileLog(app, executor, STDOUT), List(simpleInfoEvent, simpleInfoEvent))
     finalizeExecutorLog(app, executor, STDOUT)
@@ -305,6 +312,8 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     createExecutor(app, executor)
 
     val workerLogService = new LogServiceRunnable(config.copy(enableJson = false))
+    workerLogService.init()
+
     writeToLog(getExecutorFileLog(app, executor, STDERR), List(simpleInfoEvent))
     rawWriteToLog(getExecutorFileLog(app, executor, STDERR), s"$nonJsonLog\n")
     finalizeExecutorLog(app, executor, STDERR)
@@ -314,9 +323,38 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
       .asInstanceOf[FileTime].toMillis
 
     val allLogs = getAllLogs
-
     allLogs should contain theSameElementsAs Seq(
       Seq(TestEventHolder(creationTime, None, simpleLogEventJson), TestEventHolder(creationTime, None, nonJsonLog))
+    )
+  }
+
+  it should "write meta" in {
+    val app = "example"
+    createApp(app)
+
+    val executor = "exampleE"
+    createExecutor(app, executor)
+
+    val workerLogService = new LogServiceRunnable(config.copy(enableJson = false))
+    workerLogService.init()
+
+    writeToLog(getExecutorFileLog(app, executor, STDERR), List(simpleInfoEvent, simpleInfoEvent2))
+    workerLogService.uploadLogs()
+
+    val creationTime = LocalDate.ofInstant(
+      Files.getAttribute(Path.of(getExecutorFileLog(app, executor, STDERR)), "creationTime")
+      .asInstanceOf[FileTime].toInstant, ZoneId.systemDefault())
+
+    getAllMeta should contain theSameElementsAs Seq(
+      WorkerLogMeta(getAppFolderName(app), executor, STDERR, creationTime.toString, 1)
+    )
+
+    writeToLog(getExecutorFileLog(app, executor, STDERR), List(simpleInfoEvent2))
+    finalizeExecutorLog(app, executor, STDERR)
+    workerLogService.uploadLogs()
+
+    getAllMeta should contain theSameElementsAs Seq(
+      WorkerLogMeta(getAppFolderName(app), executor, STDERR, creationTime.toString, 3)
     )
   }
 
@@ -325,6 +363,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     createDriver(driver)
 
     val workerLogService = new LogServiceRunnable(config)
+    workerLogService.init()
 
     writeToLog(getDriverFileLog(driver, STDOUT), List(simpleInfoEvent))
     writeToLog(getDriverFileLog(driver, STDERR), List(simpleErrorEvent))
@@ -346,6 +385,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     createDriver(driver)
 
     val workerLogService = new LogServiceRunnable(config)
+    workerLogService.init()
 
     writeToLog(getDriverFileLog(driver, STDOUT), List(simpleInfoEvent))
     workerLogService.uploadLogs()
@@ -368,8 +408,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     val (_, _, allLogsAfterWriteSecondPart) = writeMakeAttemptsAndRead(1)
 
     allLogsAfterWriteSecondPart should contain theSameElementsAs Seq(
-      Seq(simpleInfoEvent),
-      Seq(simpleInfoEvent2)
+      Seq(simpleInfoEvent, simpleInfoEvent2)
     )
   }
 
@@ -383,6 +422,7 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     val logSnaps = new ArrayBuffer[LogArray](groupCnt)
 
     val workerLogService = new LogServiceRunnable(config)
+    workerLogService.init()
 
     val thread = new Thread(() => {
       events.grouped(groupCnt).foreach {
