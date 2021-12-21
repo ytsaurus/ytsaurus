@@ -81,10 +81,6 @@ public class YtCluster {
         }
     }
 
-    String getNormalizedName() {
-        return normalizeName(name);
-    }
-
     static @Nullable
     String normalizeName(@Nullable String name) {
         if (name == null) {
@@ -104,17 +100,5 @@ public class YtCluster {
         } else {
             return name + ".yt.yandex.net";
         }
-    }
-
-    public String getClusterUrl() {
-        // "[]:12345" requires 8 extra bytes.
-        StringBuilder builder = new StringBuilder(balancerFqdn.length() + 8);
-        if (balancerFqdn.indexOf(':') >= 0) {
-            builder.append('[').append(balancerFqdn).append(']');
-        } else {
-            builder.append(balancerFqdn);
-        }
-        builder.append(':').append(httpPort);
-        return builder.toString();
     }
 }

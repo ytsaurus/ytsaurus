@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.google.common.net.HostAndPort;
 import io.netty.channel.EventLoopGroup;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
@@ -459,7 +460,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         @Nullable String balancerAddress;
 
         HttpBuilder setBalancerAddress(String host, int port) {
-            this.balancerAddress = host + ":" + port;
+            this.balancerAddress = HostAndPort.fromParts(host, port).toString();
             return this;
         }
 
