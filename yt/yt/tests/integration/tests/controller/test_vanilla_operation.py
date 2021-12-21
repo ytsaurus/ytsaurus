@@ -610,7 +610,6 @@ wait $child_pid
 
     @authors("ignat")
     def test_successful_interrupts(self):
-
         exit_code = 17
         command = """(trap "exit {}" SIGINT; BREAKPOINT; trap "exit 0" SIGINT; sleep 100)""".format(exit_code)
 
@@ -634,8 +633,12 @@ wait $child_pid
         wait(lambda: op.get_job_count("lost") == 1)
         wait(lambda: op.get_job_count("running") == 1)
 
+        wait_breakpoint()
         release_breakpoint()
+
+        # Give time to execute second trap command.
         time.sleep(5)
+
         self._interrupt(op)
 
         wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("lost") == 1)
