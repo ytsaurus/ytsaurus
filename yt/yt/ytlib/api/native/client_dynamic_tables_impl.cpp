@@ -979,7 +979,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         Connection_->GetColumnEvaluatorCache(),
         Connection_->GetQueryEvaluator(),
         ChannelFactory_,
-        FunctionImplCache_);
+        FunctionImplCache_.Get());
 
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),
@@ -2295,7 +2295,7 @@ private:
         req->set_response_codec(static_cast<int>(connection->GetConfig()->LookupRowsResponseCodec));
         req->set_mount_revision(TabletInfo_->MountRevision);
         req->set_max_rows_per_read(Options_.TabletRowsPerRead);
-        req->set_upper_timestamp(Options_.UpperTimestamp); 
+        req->set_upper_timestamp(Options_.UpperTimestamp);
         ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
         ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
         ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);
@@ -2309,7 +2309,7 @@ private:
             ReplicationRowIndex_);
 
         return req->Invoke()
-            .Apply(BIND(&TTabletPullRowsSession::OnPullRowsResponse, MakeWeak(this))  
+            .Apply(BIND(&TTabletPullRowsSession::OnPullRowsResponse, MakeWeak(this))
                 .AsyncVia(Invoker_));
     }
 
@@ -2430,7 +2430,7 @@ TPullRowsResult TClient::DoPullRows(
             tableInfo->Tablets[request.TabletIndex],
             options,
             request,
-            Connection_->GetInvoker(), 
+            Connection_->GetInvoker(),
             Logger));
         futureResults.push_back(sessions.back()->RunRequest());
     }

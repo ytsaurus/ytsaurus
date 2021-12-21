@@ -87,6 +87,13 @@ TClient::TClient(
     : Connection_(std::move(connection))
     , Options_(options)
     , Logger(ApiLogger.WithTag("ClientId: %v", TGuid::Create()))
+    , FunctionImplCache_(BIND(CreateFunctionImplCache,
+        Connection_->GetConfig()->FunctionImplCache,
+        MakeWeak(this)))
+    , FunctionRegistry_ (BIND(CreateFunctionRegistryCache,
+        Connection_->GetConfig()->FunctionRegistryCache,
+        MakeWeak(this),
+        Connection_->GetInvoker()))
 {
     if (!Options_.User) {
         THROW_ERROR_EXCEPTION("Native connection requires non-null \"user\" parameter");
@@ -123,15 +130,6 @@ TClient::TClient(
     TransactionManager_ = New<TTransactionManager>(
         Connection_,
         Options_.GetAuthenticatedUser());
-
-    FunctionImplCache_ = CreateFunctionImplCache(
-        Connection_->GetConfig()->FunctionImplCache,
-        MakeWeak(this));
-
-    FunctionRegistry_ = CreateFunctionRegistryCache(
-        Connection_->GetConfig()->FunctionRegistryCache,
-        MakeWeak(this),
-        Connection_->GetInvoker());
 }
 
 NApi::IConnectionPtr TClient::GetConnection()
@@ -161,12 +159,12 @@ const IConnectionPtr& TClient::GetNativeConnection()
 
 IFunctionRegistryPtr TClient::GetFunctionRegistry()
 {
-    return FunctionRegistry_;
+    return FunctionRegistry_.Get();
 }
 
 TFunctionImplCachePtr TClient::GetFunctionImplCache()
 {
-    return FunctionImplCache_;
+    return FunctionImplCache_.Get();
 }
 
 const TClientOptions& TClient::GetOptions()

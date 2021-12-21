@@ -8,6 +8,8 @@
 
 namespace NYT {
 
+using namespace NYTAlloc;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TRefCountedTrackerStatistics::TStatistics& TRefCountedTrackerStatistics::TStatistics::operator+= (
@@ -396,6 +398,8 @@ void TRefCountedTracker::FreeSpaceSlow(TRefCountedTypeCookie cookie, size_t spac
 
 TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedTypeCookie cookie)
 {
+    TMemoryTagGuard memoryTagGuard(NullMemoryTag);
+
     struct TReclaimer
     {
         ~TReclaimer()
@@ -444,6 +448,8 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
 
 TRefCountedTracker::TGlobalSlot* TRefCountedTracker::GetGlobalSlot(TRefCountedTypeCookie cookie)
 {
+    TMemoryTagGuard memoryTagGuard(NullMemoryTag);
+
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     if (cookie >= static_cast<int>(GlobalSlots_.size())) {
         GlobalSlots_.resize(static_cast<size_t>(cookie) + 1);
