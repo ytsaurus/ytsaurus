@@ -360,16 +360,21 @@ private:
         }
 
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
-        {
-            auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
-            YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
-            const auto& historyItem = selfReplica->History[historyItemIndex];
-            if (IsReplicaReallySync(historyItem.Mode, historyItem.State)) {
-                YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %v, HistoryItem: %v)",
-                    oldestTimestamp,
-                    historyItem);
-                return {};
-            }
+        auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
+        if (historyItemIndex == -1) {
+            YT_LOG_DEBUG("Will not pull rows since replica history does not cover replication progress (OldestTimestamp: %v, History: %v)",
+                oldestTimestamp,
+                selfReplica->History);
+            return {};
+        }
+
+        YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
+        const auto& historyItem = selfReplica->History[historyItemIndex];
+        if (IsReplicaReallySync(historyItem.Mode, historyItem.State)) {
+            YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %v, HistoryItem: %v)",
+                oldestTimestamp,
+                historyItem);
+            return {};
         }
 
         if (selfReplica->Mode != EReplicaMode::Async) {

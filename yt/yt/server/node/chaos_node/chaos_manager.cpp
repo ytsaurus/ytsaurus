@@ -349,7 +349,17 @@ private:
         // and b) remove only data that is older than replication card progress says (e.g. data 'invisible' to other replicas)
 
         if (newReplica.ReplicationProgress.Segments.empty()) {
-            newReplica.ReplicationProgress.Segments.push_back({EmptyKey(), NullTimestamp});
+            newReplica.ReplicationProgress.Segments.push_back({EmptyKey(), MinTimestamp});
+            newReplica.ReplicationProgress.UpperKey = MaxKey();
+        }
+
+        if (newReplica.History.empty()) {
+            newReplica.History.push_back({
+                .Era = InitialReplicationEra,
+                .Timestamp = MinTimestamp,
+                .Mode = newReplica.Mode,
+                .State = EReplicaState::Disabled
+            });
         }
 
         newReplica.ReplicaId = Slot_->GenerateId(EObjectType::ReplicationCardTableReplica);

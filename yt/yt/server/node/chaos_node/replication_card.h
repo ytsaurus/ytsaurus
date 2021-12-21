@@ -38,7 +38,7 @@ public:
     using TCoordinators = THashMap<NObjectClient::TCellId, TCoordinatorInfo>;
     DEFINE_BYREF_RW_PROPERTY(TCoordinators, Coordinators);
 
-    DEFINE_BYVAL_RW_PROPERTY(NChaosClient::TReplicationEra, Era);
+    DEFINE_BYVAL_RW_PROPERTY(NChaosClient::TReplicationEra, Era, NChaosClient::InitialReplicationEra);
 
 public:
     using TObjectBase::TObjectBase;
