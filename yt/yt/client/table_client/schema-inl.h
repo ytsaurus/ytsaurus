@@ -78,11 +78,10 @@ inline void TLockMask::Set(int index, ELockType lock)
 
 inline void TLockMask::Enrich(int size)
 {
-    if (size < Size_) {
-        return;
+    if (size > Size_) {
+        Reserve(size);
     }
-
-    Reserve(size);
+    Size_ = size;
 
     auto primaryLockType = Get(PrimaryLockIndex);
     auto maxLockType = primaryLockType;
