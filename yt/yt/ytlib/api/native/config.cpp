@@ -225,6 +225,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("sync_replica_cache", SyncReplicaCache)
         .DefaultNew();
 
+    RegisterParameter("chaos_cell_channel", ChaosCellChannel)
+        .DefaultNew();
+
     RegisterPreprocessor([&] {
         FunctionImplCache->Capacity = 100;
 
