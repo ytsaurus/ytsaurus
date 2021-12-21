@@ -1131,19 +1131,6 @@ def get_operation_cypress_path(op_id):
     return "//sys/operations/{}/{}".format("%02x" % (int(op_id.split("-")[3], 16) % 256), op_id)
 
 
-def get_cypress_metrics(operation_id, key, aggr="sum"):
-    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
-    return sum(
-        filter(
-            lambda x: x is not None,
-            [
-                get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
-                for job_state in ("completed", "failed", "aborted")
-            ],
-        )
-    )
-
-
 ##################################################################
 
 
@@ -2107,6 +2094,68 @@ def get_statistics(statistics, complex_key):
                 return None
             result = result[part]
     return result
+
+
+def extract_deprecated_statistic(
+    operation_statistics,
+    key,
+    job_state="completed",
+    job_type="map",
+    summary_type="sum"
+):
+
+    key += ".$." + job_state + "." + job_type + "." + summary_type
+    result = operation_statistics
+    for part in key.split("."):
+        if part not in result:
+            return None
+        result = result[part]
+    return result
+
+
+def extract_statistic_v2(
+    operation_statistics,
+    key,
+    job_state="completed",
+    job_type="map",
+    summary_type="sum",
+    pool_tree=None
+):
+
+    tagged_statistic_list = operation_statistics
+    for part in key.split("."):
+        if part not in tagged_statistic_list:
+            return None
+        tagged_statistic_list = tagged_statistic_list[part]
+
+    result = 0
+    for tagged_statistic in tagged_statistic_list:
+        tags = tagged_statistic["tags"]
+        if tags["job_state"] == job_state and tags["job_type"] == job_type:
+            if pool_tree is None or pool_tree == tags["pool_tree"]:
+                result += tagged_statistic["summary"][summary_type]
+
+    return result
+
+
+def assert_statistics(
+    operation,
+    key,
+    assertion,
+    job_state="completed",
+    job_type="map",
+    summary_type="sum",
+    env=None
+):
+    deprecated_statistics = get(operation.get_path() + "/@progress/job_statistics")
+    deprecated_statistic_value = extract_deprecated_statistic(deprecated_statistics, key, job_state, job_type, summary_type)
+    assert assertion(deprecated_statistic_value)
+
+    # COMPAT(renadeen): remove this condition after release of stable/22.1.
+    if env is None or env.get_component_version("ytserver-controller-agent").abi >= (22, 1):
+        relevant_statistics = get(operation.get_path() + "/@progress/job_statistics_v2")
+        relevant_statistic_value = extract_statistic_v2(relevant_statistics, key, job_state, job_type, summary_type)
+        assert assertion(relevant_statistic_value)
 
 
 ##################################################################

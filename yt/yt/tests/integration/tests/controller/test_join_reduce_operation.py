@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, insert_rows, write_file, read_table, write_table, reduce, join_reduce, interrupt_job, sync_create_cells, sync_mount_table,
-    sync_unmount_table, raises_yt_error)
+    sync_unmount_table, raises_yt_error, assert_statistics)
 
 from yt_helpers import skip_if_no_descending
 
@@ -1279,13 +1279,12 @@ echo {v = 2} >&7
         assert row_table_count["(t_1)"] == 3
         assert row_table_count["(t_2)"] == 6
         assert job_indexes[1] == 4
-        assert (
-            get(
-                op.get_path()
-                + "/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum"
-            )
-            == len(result) - 2
-        )
+
+        assert_statistics(
+            op,
+            key="data.input.row_count",
+            assertion=lambda row_count: row_count == len(result) - 2,
+            job_type="join_reduce")
 
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])

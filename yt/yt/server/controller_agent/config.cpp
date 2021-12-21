@@ -127,8 +127,8 @@ void TOperationAlertsConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_gpu_usage_alert_job_states", &TThis::LowGpuUsageAlertJobStates)
         .Default({
-            NJobTrackerClient::EJobState::Completed,
-            NJobTrackerClient::EJobState::Running
+            EJobState::Completed,
+            EJobState::Running,
         });
 
     registrar.Parameter("queue_average_wait_time_threshold", &TThis::QueueAverageWaitTimeThreshold)

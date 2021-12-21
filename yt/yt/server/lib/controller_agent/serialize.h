@@ -44,6 +44,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((HostObjects)                          (300701))
     ((FixSimpleSort)                        (300702))
     ((InputStreamPerRange)                  (300703))
+    ((RefactorStatistics)                   (300704))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

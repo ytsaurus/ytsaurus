@@ -24,6 +24,8 @@
 
 #include <yt/yt/ytlib/program/config.h>
 
+#include <yt/yt/client/job_tracker_client/public.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/concurrency/config.h>

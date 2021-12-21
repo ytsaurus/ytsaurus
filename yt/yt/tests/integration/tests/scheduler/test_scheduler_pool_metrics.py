@@ -8,7 +8,7 @@ from yt_commands import (
     authors, get_job, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls,
     get, set, exists,
     create_pool, create_pool_tree, write_table, map, run_test_vanilla, run_sleeping_vanilla, abort_job,
-    get_operation_cypress_path, get_statistics, update_pool_tree_config)
+    get_operation_cypress_path, extract_statistic_v2, update_pool_tree_config)
 
 from yt_helpers import profiler_factory
 
@@ -25,13 +25,13 @@ import time
 ##################################################################
 
 
-def get_cypress_metrics(operation_id, key, aggr="sum"):
-    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
+def get_cypress_metrics(operation_id, key):
+    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics_v2")
     return sum(
         filter(
             lambda x: x is not None,
             [
-                get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
+                extract_statistic_v2(statistics, key, job_state=job_state)
                 for job_state in ("completed", "failed", "aborted")
             ],
         )

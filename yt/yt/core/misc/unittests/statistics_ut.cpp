@@ -25,7 +25,7 @@ TEST(TStatistics, Summary)
     EXPECT_EQ(2, summary.GetCount());
     EXPECT_EQ(30, summary.GetSum());
     EXPECT_EQ(20, summary.GetLast());
-    
+
     summary.AddSample(15);
     EXPECT_EQ(10, summary.GetMin());
     EXPECT_EQ(20, summary.GetMax());
@@ -95,15 +95,6 @@ TEST(TStatistics, AddSample)
 
     EXPECT_EQ(20, GetNumericValue(deserializedStatistics, "/key/subkey/x"));
     EXPECT_EQ(42, GetNumericValue(deserializedStatistics, "/key/sub"));
-}
-
-TEST(TStatistics, AddSuffixToNames)
-{
-    auto statistics = CreateStatistics({{"/key", 10}});
-
-    statistics.AddSuffixToNames("/$/completed/map");
-
-    EXPECT_EQ(10, GetNumericValue(statistics, "/key/$/completed/map"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

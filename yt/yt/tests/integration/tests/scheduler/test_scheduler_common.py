@@ -5,7 +5,7 @@ from yt_env_setup import (
     CONTROLLER_AGENTS_SERVICE,
 )
 from yt_commands import (
-    authors, create_test_tables, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, create_test_tables, extract_statistic_v2, extract_deprecated_statistic, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get,
     set, copy, move, remove, exists, concatenate, create_user, create_pool, create_pool_tree, make_ace,
     add_member, start_transaction, abort_transaction,
@@ -15,7 +15,7 @@ from yt_commands import (
     run_test_vanilla, run_sleeping_vanilla, get_job_fail_context, dump_job_context,
     get_singular_chunk_id, PrepareTables,
     raises_yt_error,
-    get_statistics, sorted_dicts)
+    assert_statistics, sorted_dicts)
 
 from yt_type_helpers import make_schema
 
@@ -341,9 +341,14 @@ class TestSchedulerCommon(YTEnvSetup):
 
         op = map(command="cat", in_="//tmp/t_input", out="//tmp/t_output")
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "user_job.pipes.input.bytes.$.completed.map.sum") == 15
-        assert get_statistics(statistics, "user_job.pipes.output.0.bytes.$.completed.map.sum") == 15
+        assert_statistics(
+            op,
+            "user_job.pipes.input.bytes",
+            lambda bytes: bytes == 15)
+        assert_statistics(
+            op,
+            "user_job.pipes.output.0.bytes",
+            lambda bytes: bytes == 15)
 
     @authors("ignat")
     def test_writer_config(self):
@@ -1667,11 +1672,10 @@ class TestSchedulerJobStatistics(YTEnvSetup):
             command="cat",
             spec={"data_size_per_job": 1})
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-
-        assert get_statistics(statistics, "time.exec.$.completed.map.count") == 10
-        assert get_statistics(statistics, "time.exec.$.completed.map.sum") <= \
-            get_statistics(statistics, "time.total.$.completed.map.sum")
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+        assert extract_statistic_v2(statistics, "time.exec", summary_type="count") == 10
+        assert extract_statistic_v2(statistics, "time.exec") <= \
+            extract_statistic_v2(statistics, "time.total")
 
     @authors("ignat")
     def test_statistics_for_aborted_operation(self):
@@ -1706,8 +1710,13 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         op.abort()
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert statistics["time"]["total"]["$"]["aborted"]["map"]["count"] == 3
+        assert_statistics(
+            op,
+            key="time.total",
+            assertion=lambda count: count == 3,
+            job_state="aborted",
+            job_type="map",
+            summary_type="count")
 
 
 ##################################################################
@@ -2035,17 +2044,32 @@ class TestEventLog(YTEnvSetup):
             command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null',
         )
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        wait(lambda: get_statistics(statistics, "user_job.cpu.user.$.completed.map.sum") > 0)
-        wait(lambda: get_statistics(statistics, "user_job.block_io.bytes_read.$.completed.map.sum") is not None)
-        wait(lambda: get_statistics(statistics, "user_job.current_memory.rss.$.completed.map.count") > 0)
-        wait(lambda: get_statistics(statistics, "user_job.max_memory.$.completed.map.count") > 0)
-        wait(lambda: get_statistics(statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.count") > 0)
-        wait(lambda: get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1)
-        wait(lambda: get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1)
+        def check_statistics(statistics, statistic_extractor):
+            statistic_extractor(statistics, "user_job.cpu.user") > 0
+            statistic_extractor(statistics, "user_job.block_io.bytes_read") is not None
+            statistic_extractor(statistics, "user_job.current_memory.rss") > 0
+            statistic_extractor(statistics, "user_job.max_memory") > 0
+            statistic_extractor(statistics, "user_job.cumulative_memory_mb_sec") > 0
+            statistic_extractor(statistics, "job_proxy.cpu.user") == 1
+            statistic_extractor(statistics, "job_proxy.cpu.user") == 1
+
+        statistics_v2 = get(op.get_path() + "/@progress/job_statistics_v2")
+        check_statistics(statistics_v2, extract_statistic_v2)
+
+        deprecated_statistics = get(op.get_path() + "/@progress/job_statistics")
+        check_statistics(deprecated_statistics, extract_deprecated_statistic)
 
         # wait for scheduler to dump the event log
         def check():
+            def get_statistics(statistics, complex_key):
+                result = statistics
+                for part in complex_key.split("."):
+                    if part:
+                        if part not in result:
+                            return None
+                        result = result[part]
+                return result
+
             res = read_table("//sys/scheduler/event_log")
             event_types = builtins.set()
             for item in res:
@@ -2245,20 +2269,24 @@ class TestJobStatisticsPorto(YTEnvSetup):
             command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null',
         )
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
+        def check_statistics(statistics, statistic_extractor):
+            for component in ["user_job", "job_proxy"]:
+                print_debug(component)
+                assert statistic_extractor(statistics, component + ".cpu.user") > 0
+                assert statistic_extractor(statistics, component + ".cpu.system") > 0
+                assert statistic_extractor(statistics, component + ".cpu.context_switches") is not None
+                assert statistic_extractor(statistics, component + ".cpu.peak_thread_count", summary_type="max") is not None
+                assert statistic_extractor(statistics, component + ".cpu.wait") is not None
+                assert statistic_extractor(statistics, component + ".cpu.throttled") is not None
+                assert statistic_extractor(statistics, component + ".block_io.bytes_read") is not None
+                assert statistic_extractor(statistics, component + ".max_memory") > 0
+            assert statistic_extractor(statistics, "user_job.cumulative_memory_mb_sec") > 0
 
-        for component in ["user_job", "job_proxy"]:
-            print_debug(component)
-            assert get_statistics(statistics, component + ".cpu.user.$.completed.map.sum") > 0
-            assert get_statistics(statistics, component + ".cpu.system.$.completed.map.sum") > 0
-            assert get_statistics(statistics, component + ".cpu.context_switches.$.completed.map.sum") is not None
-            assert get_statistics(statistics, component + ".cpu.peak_thread_count.$.completed.map.max") is not None
-            assert get_statistics(statistics, component + ".cpu.wait.$.completed.map.sum") is not None
-            assert get_statistics(statistics, component + ".cpu.throttled.$.completed.map.sum") is not None
-            assert get_statistics(statistics, component + ".block_io.bytes_read.$.completed.map.sum") is not None
-            assert get_statistics(statistics, component + ".max_memory.$.completed.map.sum") > 0
+        statistics_v2 = get(op.get_path() + "/@progress/job_statistics_v2")
+        check_statistics(statistics_v2, extract_statistic_v2)
 
-        assert get_statistics(statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.sum") > 0
+        deprecated_statistics = get(op.get_path() + "/@progress/job_statistics")
+        check_statistics(deprecated_statistics, extract_deprecated_statistic)
 
 
 ##################################################################

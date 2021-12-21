@@ -11,7 +11,7 @@ from yt_commands import (
     vanilla, run_test_vanilla, abort_job,
     list_jobs, get_job, get_job_stderr,
     sync_create_cells, get_singular_chunk_id,
-    update_nodes_dynamic_config, set_node_banned, check_all_stderrs, get_statistics,
+    update_nodes_dynamic_config, set_node_banned, check_all_stderrs, assert_statistics,
     heal_exec_node,
     make_random_string, raises_yt_error, update_controller_agent_config)
 
@@ -245,9 +245,10 @@ class TestSandboxTmpfs(YTEnvSetup):
             },
         )
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        tmpfs_size = get_statistics(statistics, "user_job.tmpfs_volumes.0.max_size.$.completed.map.sum")
-        assert 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024
+        assert_statistics(
+            op,
+            "user_job.tmpfs_volumes.0.max_size",
+            lambda tmpfs_size: 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024)
 
         with pytest.raises(YtError):
             map(
@@ -421,8 +422,7 @@ time.sleep(10)
         op.track()
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "user_job.max_memory.$.completed.map.sum") > 200 * 1024 * 1024
+        assert_statistics(op, "user_job.max_memory", lambda max_memory: max_memory > 200 * 1024 * 1024)
 
         # Smaps memory tracker is disabled. Job should fail.
         with pytest.raises(YtError):
@@ -441,8 +441,11 @@ time.sleep(10)
                     "max_failed_job_count": 1,
                 },
             )
-            statistics = get(op.get_path() + "/@progress/job_statistics")
-            assert get_statistics(statistics, "user_job.max_memory.$.failed.map.sum") > memory_limit
+            assert_statistics(
+                op,
+                "user_job.max_memory",
+                lambda max_memory: max_memory > memory_limit,
+                job_state="failed")
 
         # String is in memory twice: one copy is mmaped non-tmpfs file and one copy is a local variable s.
         # Both allocations should be counted.
@@ -462,8 +465,11 @@ time.sleep(10)
                     "max_failed_job_count": 1,
                 },
             )
-            statistics = get(op.get_path() + "/@progress/job_statistics")
-            assert get_statistics(statistics, "user_job.max_memory.$.failed.map.sum") > memory_limit
+            assert_statistics(
+                op,
+                "user_job.max_memory",
+                lambda max_memory: max_memory > memory_limit,
+                job_state="failed")
 
     @authors("psushin")
     def test_inner_files(self):
@@ -964,11 +970,10 @@ class TestArtifactCacheBypass(YTEnvSetup):
             },
         )
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        bypassed_size = get_statistics(
-            statistics,
-            "exec_agent.artifacts.cache_bypassed_artifacts_size.$.completed.map.sum")
-        assert bypassed_size == 18
+        assert_statistics(
+            op,
+            "exec_agent.artifacts.cache_bypassed_artifacts_size",
+            lambda bypassed_size: bypassed_size == 18)
 
         wait(lambda: sum(counter.get_delta() for counter in counters) == 18)
 
@@ -1180,10 +1185,11 @@ class TestUserJobIsolation(YTEnvSetup):
         op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
         op.track()
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        thread_count = get_statistics(statistics, "user_job.cpu.peak_thread_count.$.completed.task.max")
-
-        assert 32 <= thread_count <= 42
+        assert_statistics(
+            op,
+            "user_job.cpu.peak_thread_count",
+            lambda thread_count: 32 <= thread_count <= 42,
+            job_type="task")
 
 ##################################################################
 

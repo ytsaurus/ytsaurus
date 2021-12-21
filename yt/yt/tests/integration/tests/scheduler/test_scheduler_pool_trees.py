@@ -10,7 +10,8 @@ from yt_commands import (
     create, ls,
     get, set, remove, exists, create_pool, create_pool_tree, remove_pool_tree, write_table, map,
     map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
-    sync_create_cells, update_controller_agent_config, update_op_parameters, create_test_tables)
+    sync_create_cells, update_controller_agent_config, update_op_parameters, create_test_tables,
+    extract_statistic_v2)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path, scheduler_orchid_path,
@@ -1745,3 +1746,42 @@ class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
         remove("//sys/pool_trees/other")
         op.wait_for_state("completed")
         op.track()
+
+
+@authors("renadeen")
+class TestMultiTreeOperations(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 2,
+                }
+            }
+        },
+    }
+
+    @authors("renadeen")
+    def test_multi_tree_job_statistics(self):
+        create_custom_pool_tree_with_one_node("other")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool_trees": ["default", "other"]}, job_count=3)
+        wait(lambda: op.get_job_count("running") == 3)
+        release_breakpoint()
+        op.track()
+
+        def check_count(statistics, pool_tree, job_count):
+            assert extract_statistic_v2(
+                statistics,
+                key="time.total",
+                job_state="completed",
+                job_type="task",
+                summary_type="count",
+                pool_tree=pool_tree) == job_count
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+        check_count(statistics, "default", 2)
+        check_count(statistics, "other", 1)

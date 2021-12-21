@@ -14,8 +14,8 @@ from yt_commands import (
     read_table, write_table, map, sort,
     run_test_vanilla, run_sleeping_vanilla,
     abort_job, get_job, get_job_fail_context,
-    abandon_job, get_operation_cypress_path, sync_create_cells, update_controller_agent_config, update_scheduler_config,
-    set_banned_flag, PrepareTables, get_statistics, sorted_dicts)
+    abandon_job, sync_create_cells, update_controller_agent_config, update_scheduler_config,
+    set_banned_flag, PrepareTables, sorted_dicts)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_operation_path,
@@ -1075,10 +1075,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
         },
     }
-
-    def _get_cypress_metrics(self, operation_id, key, job_state="completed", aggr="sum"):
-        statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
-        return get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
 
     @authors("eshcherbin")
     def test_operation_completed(self):

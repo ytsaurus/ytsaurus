@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, get, set, copy, remove, exists,
-    create_account, create_user, get_statistics,
+    create_account, create_user, assert_statistics,
     make_ace, start_transaction, commit_transaction, insert_rows, read_table, write_table, sort, erase, get_operation,
     sync_create_cells, sync_mount_table, sync_unmount_table, get_singular_chunk_id, create_dynamic_table)
 
@@ -2284,17 +2284,17 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         op = sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="x")
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        wait_time = get_statistics(
-            statistics,
-            "chunk_reader_statistics.wait_time.$.completed.simple_sort.sum",
-        )
-        idle_time = get_statistics(
-            statistics,
-            "chunk_reader_statistics.idle_time.$.completed.simple_sort.sum",
-        )
-        assert wait_time > 0
-        assert idle_time > 0
+        assert_statistics(
+            op,
+            key="chunk_reader_statistics.wait_time",
+            assertion=lambda wait_time: wait_time > 0,
+            job_type="simple_sort")
+
+        assert_statistics(
+            op,
+            key="chunk_reader_statistics.idle_time",
+            assertion=lambda idle_time: idle_time > 0,
+            job_type="simple_sort")
 
 
 ##################################################################

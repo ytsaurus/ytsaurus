@@ -1090,7 +1090,7 @@ private:
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
 
-    TAggregatedJobStatistics AggregatedJobStatistics_{true};
+    TAggregatedJobStatistics AggregatedJobStatistics_;
 
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;
@@ -1358,7 +1358,7 @@ private:
 
     void AnalyzeProcessingUnitUsage(
         const std::vector<TString>& usageStatistics,
-        const std::vector<NJobTrackerClient::EJobState>& jobStates,
+        const std::vector<EJobState>& jobStates,
         const std::function<double(const NScheduler::TUserJobSpecPtr&)>& getLimit,
         const std::function<bool(i64, i64, double)>& needSetAlert,
         const TString& name,
