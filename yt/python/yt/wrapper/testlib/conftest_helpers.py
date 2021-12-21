@@ -77,7 +77,7 @@ def register_test_function_finalizer(request, remove_operations_archive=True):
     request.addfinalizer(lambda: test_method_teardown(remove_operations_archive=remove_operations_archive))
 
 
-@pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4"])
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v4"])
 def test_environment(request):
     environment = init_environment_for_test_session(request, request.param)
     return environment
@@ -127,7 +127,7 @@ def test_environment_with_framing(request):
     return environment
 
 
-@pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request, request.param)
     return environment
@@ -184,7 +184,7 @@ def test_environment_job_archive(request):
     return environment
 
 
-@pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
 def test_environment_with_porto(request):
     environment = init_environment_for_test_session(
         request,

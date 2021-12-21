@@ -176,7 +176,7 @@ class TestOperationsTracker(object):
 
         assert list(yt.read_table(output_table)) == [{"x": 1, "y": 1}]
 
-    @authors("renadeen")
+    @authors("ignat")
     def test_pool_tracker_multiple_instances(self):
         def create_spec_builder(binary, source_table, destination_table):
             return MapSpecBuilder() \
