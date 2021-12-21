@@ -1,8 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait,
-    get, create, write_table, get_statistics, map,
+    assert_statistics, authors, extract_deprecated_statistic, extract_statistic_v2, wait,
+    get, create, write_table, map,
     with_breakpoint, wait_breakpoint, release_breakpoint)
 
 from yt.common import YtError
@@ -30,10 +30,31 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             command='cat; echo "{ cpu={ k1=4; k3=7 }}; {k2=-7};{k2=1};" >&5',
         )
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "custom.cpu.k1.$.completed.map.max") == 4
-        assert get_statistics(statistics, "custom.k2.$.completed.map.count") == 2
-        assert get_statistics(statistics, "custom.k2.$.completed.map.max") == 1
+        def check(statistics, extract_statistic):
+            assert extract_statistic(
+                statistics,
+                key="custom.cpu.k1",
+                job_state="completed",
+                job_type="map",
+                summary_type="max") == 4
+            assert extract_statistic(
+                statistics,
+                key="custom.k2",
+                job_state="completed",
+                job_type="map",
+                summary_type="count") == 2
+            assert extract_statistic(
+                statistics,
+                key="custom.k2",
+                job_state="completed",
+                job_type="map",
+                summary_type="max") == 1
+
+        statistics_v2 = get(op.get_path() + "/@progress/job_statistics_v2")
+        check(statistics_v2, extract_statistic_v2)
+
+        deprecated_statistics = get(op.get_path() + "/@progress/job_statistics")
+        check(deprecated_statistics, extract_deprecated_statistic)
 
     @authors("max42")
     def test_tricky_names(self):
@@ -48,8 +69,22 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             spec={"max_failed_job_count": 1},
             command='cat; echo "{\\"name/with/slashes\\"={\\"@table_index\\"=42}}">&5',
         )
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "custom.name/with/slashes.@table_index.$.completed.map.max") == 42
+
+        statistics_v2 = get(op.get_path() + "/@progress/job_statistics_v2")
+        assert extract_statistic_v2(
+            statistics_v2,
+            key="custom.name/with/slashes.@table_index",
+            job_state="completed",
+            job_type="map",
+            summary_type="max") == 42
+
+        deprecated_statistics = get(op.get_path() + "/@progress/job_statistics")
+        assert extract_deprecated_statistic(
+            deprecated_statistics,
+            key="custom.name/with/slashes.@table_index",
+            job_state="completed",
+            job_type="map",
+            summary_type="max") == 42
 
         # But the empty keys are not ok (as well as for any other map nodes).
         with pytest.raises(YtError):
@@ -105,8 +140,8 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         write_table("//tmp/t1", [{"a": "b"} for i in range(2)])
 
         op = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "data.input.unmerged_data_weight.$.completed.map.count") == 2
+
+        assert_statistics(op, "data.input.unmerged_data_weight", lambda weight: weight == 2, summary_type="count")
 
     @authors("babenko")
     def test_job_statistics_progress(self):
@@ -127,9 +162,8 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         release_breakpoint(job_id=jobs[0])
 
         def get_counter():
-            statistics = get(op.get_path() + "/@progress")
-            counter_name = "data.input.unmerged_data_weight.$.completed.map.count"
-            return get_statistics(statistics["job_statistics"], counter_name)
+            statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+            return extract_statistic_v2(statistics, "data.input.unmerged_data_weight", summary_type="count")
 
         wait(lambda: get_counter() == 1)
 

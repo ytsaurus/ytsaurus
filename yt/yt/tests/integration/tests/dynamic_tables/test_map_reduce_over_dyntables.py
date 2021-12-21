@@ -4,7 +4,7 @@ from yt_commands import (
     alter_table, write_file, read_table, write_table, map, map_reduce, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
-    create_dynamic_table, get_statistics, MinTimestamp)
+    create_dynamic_table, extract_statistic_v2, MinTimestamp)
 
 from yt_type_helpers import make_schema
 
@@ -277,12 +277,12 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         op = map(in_="//tmp/t", out="//tmp/t_out", command="cat")
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == 1
-        assert get_statistics(statistics, "data.input.row_count.$.completed.map.sum") == 2
-        assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") > 0
-        assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") > 0
-        assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+        assert extract_statistic_v2(statistics, "data.input.chunk_count") == 1
+        assert extract_statistic_v2(statistics, "data.input.row_count") == 2
+        assert extract_statistic_v2(statistics, "data.input.uncompressed_data_size") > 0
+        assert extract_statistic_v2(statistics, "data.input.compressed_data_size") > 0
+        assert extract_statistic_v2(statistics, "data.input.data_weight") > 0
 
     @authors("savrus")
     @parametrize_external
@@ -313,16 +313,12 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         def get_data_size(statistics):
             return {
-                "uncompressed_data_size": get_statistics(
-                    statistics, "data.input.uncompressed_data_size.$.completed.map.sum"
-                ),
-                "compressed_data_size": get_statistics(
-                    statistics, "data.input.compressed_data_size.$.completed.map.sum"
-                ),
+                "uncompressed_data_size": extract_statistic_v2(statistics, "data.input.uncompressed_data_size"),
+                "compressed_data_size": extract_statistic_v2(statistics, "data.input.compressed_data_size"),
             }
 
         op = map(in_="//tmp/t", out="//tmp/t_out", command="cat")
-        stat1 = get_data_size(get(op.get_path() + "/@progress/job_statistics"))
+        stat1 = get_data_size(get(op.get_path() + "/@progress/job_statistics_v2"))
         assert read_table("//tmp/t_out") == [row]
 
         # FIXME(savrus) investigate test flapping
@@ -334,7 +330,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 out="//tmp/t_out",
                 command="cat",
             )
-            stat2 = get_data_size(get(op.get_path() + "/@progress/job_statistics"))
+            stat2 = get_data_size(get(op.get_path() + "/@progress/job_statistics_v2"))
             assert read_table("//tmp/t_out") == [{c: row[c] for c in columns}]
 
             if columns == ["u", "v"] or optimize_for == "lookup":

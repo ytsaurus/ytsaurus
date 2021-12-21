@@ -74,8 +74,6 @@ public:
 
     void Merge(const TStatistics& statistics);
 
-    void AddSuffixToNames(const TString& suffix);
-
     //! Get range of all elements whose path starts with a given strict prefix path (possibly empty).
     /*!
      * Pre-requisites: `prefixPath` must not have terminating slash.
@@ -120,6 +118,39 @@ private:
 
     void OnMyListItem() override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TTags>
+class TTaggedStatistics
+{
+public:
+    using TTaggedSummaries = THashMap<TTags, TSummary>;
+    using TSummaryMap = std::map<NYPath::TYPath, TTaggedSummaries>;
+
+    void AppendStatistics(const TStatistics& statistics, TTags tags);
+
+    const TTaggedSummaries* FindTaggedSummaries(const NYPath::TYPath& path) const;
+    const TSummaryMap& GetData() const;
+
+    void Persist(const TStreamPersistenceContext& context);
+
+private:
+    TSummaryMap Data_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TTags>
+void Serialize(const TTaggedStatistics<TTags>& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TValue>
+void SerializeYsonPathsMap(
+    const std::map<NYTree::TYPath, TValue>& map,
+    NYson::IYsonConsumer* consumer,
+    const std::function<void(const TValue&, NYson::IYsonConsumer*)>& valueSerializer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

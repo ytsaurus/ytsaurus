@@ -10,7 +10,7 @@ from yt_commands import (
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id,
     get_singular_chunk_id, check_all_stderrs,
-    create_test_tables, get_statistics)
+    create_test_tables, assert_statistics, extract_statistic_v2)
 
 from yt_type_helpers import make_schema, normalize_schema
 
@@ -220,8 +220,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@row_count") == 1
 
-        row_count = get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/map/sum")
-        assert row_count == 1
+        assert_statistics(op, "data.input.row_count", lambda row_count: row_count == 1, env=self.Env)
 
     @authors("psushin")
     def test_multiple_output_row_count(self):
@@ -236,10 +235,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
             out=["//tmp/t2", "//tmp/t3"],
         )
         assert get("//tmp/t2/@row_count") == 5
-        row_count = get(op.get_path() + "/@progress/job_statistics/data/output/0/row_count/$/completed/map/sum")
-        assert row_count == 5
-        row_count = get(op.get_path() + "/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum")
-        assert row_count == 1
+
+        assert_statistics(op, "data.output.0.row_count", lambda row_count: row_count == 5, env=self.Env)
+        assert_statistics(op, "data.output.1.row_count", lambda row_count: row_count == 1, env=self.Env)
 
     @authors("renadeen")
     def test_codec_statistics(self):
@@ -254,10 +252,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         )  # so much to see non-zero decode CPU usage in release mode
 
         op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
-        decode_time = get(op.get_path() + "/@progress/job_statistics/codec/cpu/decode/lzma_9/$/completed/map/sum")
-        encode_time = get(op.get_path() + "/@progress/job_statistics/codec/cpu/encode/0/lzma_1/$/completed/map/sum")
-        assert decode_time > 0
-        assert encode_time > 0
+        assert_statistics(op, "codec.cpu.decode.lzma_9", lambda decode_time: decode_time > 0, env=self.Env)
+        assert_statistics(op, "codec.cpu.encode.0.lzma_1", lambda encode_time: encode_time > 0, env=self.Env)
 
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
@@ -661,9 +657,6 @@ print row + table_index
             },
         )
 
-        statistics_path = op.get_path() + "/@progress/job_statistics/data/input/not_fully_consumed/$/{}/map/max".format(
-            "failed" if throw_on_failure else "completed"
-        )
         if throw_on_failure:
             with pytest.raises(YtError):
                 op.track()
@@ -672,7 +665,15 @@ print row + table_index
 
         if expected_output is not None:
             assert read_table("//tmp/t_out") == expected_output
-        assert get(statistics_path) == expected_value
+
+        assert_statistics(
+            op,
+            key="data.input.not_fully_consumed",
+            assertion=lambda value: value == expected_value,
+            job_state="failed" if throw_on_failure else "completed",
+            job_type="map",
+            summary_type="max",
+            env=self.Env)
 
     @authors("ogorod")
     def test_check_input_fully_consumed_statistics_simple(self):
@@ -1279,10 +1280,13 @@ print row + table_index
             else:
                 row_index += 1
         assert 0 < job_indexes[1] < 99999
-        assert (
-            get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/{}/sum".format(job_type))
-            == len(result) - 2
-        )
+
+        assert_statistics(
+            op,
+            key="data.input.row_count",
+            assertion=lambda row_count: row_count == len(result) - 2,
+            job_type=job_type,
+            env=self.Env)
 
     @authors("dakovalkov", "gritukan")
     @pytest.mark.xfail(run=False, reason="YT-14467")
@@ -1630,7 +1634,7 @@ done
     def test_block_cache(self):
         if self.Env.get_component_version("ytserver-job-proxy").abi <= (20, 3):
             pytest.skip()
-        if self.Env.get_component_version("ytserver-controller-agent").abi <= (20, 3):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (21, 3):
             pytest.skip()
 
         create("table", "//tmp/in")
@@ -1659,13 +1663,10 @@ done
         )
         op.track()
 
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        read_from_disk = get_statistics(
-            statistics,
-            "chunk_reader_statistics.data_bytes_read_from_disk.$.completed.map.sum")
-        read_from_cache = get_statistics(
-            statistics,
-            "chunk_reader_statistics.data_bytes_read_from_cache.$.completed.map.sum")
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+
+        read_from_disk = extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_read_from_disk")
+        read_from_cache = extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_read_from_cache")
         assert read_from_cache == 99 * read_from_disk
 
     @authors("alexkolodezny")
@@ -1681,12 +1682,8 @@ done
             out="//tmp/t_out",
             command="sleep 1",
         )
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        idle_time = get_statistics(
-            statistics,
-            "chunk_reader_statistics.idle_time.$.completed.map.sum",
-        )
-        assert idle_time > 1000
+
+        assert_statistics(op, "chunk_reader_statistics.idle_time", lambda idle_time: idle_time > 1000, env=self.Env)
 
 
 ##################################################################

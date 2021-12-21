@@ -5,7 +5,7 @@ from yt_commands import (
     authors, print_debug, wait, create, get, set, exists,
     create_account, read_table, write_file,
     write_table, map, reduce, merge, sync_create_cells, sync_mount_table,
-    get_operation, get_statistics)
+    get_operation, assert_statistics, extract_statistic_v2)
 
 from yt_type_helpers import normalize_schema, make_schema
 
@@ -68,16 +68,22 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
         def none_to_zero(value):
             return 0 if value is None else value
 
-        statistics = get(operation.get_path() + "/@progress/job_statistics")
+        statistics = get(operation.get_path() + "/@progress/job_statistics_v2")
         result = {}
         for state in ("completed", "aborted"):
             result[state] = {
-                "shallow": none_to_zero(get_statistics(
+                "shallow": none_to_zero(extract_statistic_v2(
                     statistics,
-                    "time.total.$.{}.shallow_auto_merge.count".format(state))),
-                "deep": none_to_zero(get_statistics(
+                    key="time.total",
+                    job_state=state,
+                    job_type="shallow_auto_merge",
+                    summary_type="count")),
+                "deep": none_to_zero(extract_statistic_v2(
                     statistics,
-                    "time.total.$.{}.auto_merge.count".format(state)))
+                    key="time.total",
+                    job_state=state,
+                    job_type="auto_merge",
+                    summary_type="count"))
             }
         return result
 
@@ -838,17 +844,16 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
 
         merge_type = "shallow_auto_merge" if self.ENABLE_SHALLOW_MERGE else "auto_merge"
         wrong_merge_type = "auto_merge" if self.ENABLE_SHALLOW_MERGE else "shallow_auto_merge"
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        data_transmitted = get_statistics(
-            statistics,
-            "data.output.0.compressed_data_size.$.completed." + merge_type + ".sum",
-        )
-        data_transmitted_to_wrong_merge = get_statistics(
-            statistics,
-            "data.output.0.compressed_data_size.$.completed." + wrong_merge_type + ".sum",
-        )
-        assert data_transmitted > 0
-        assert data_transmitted_to_wrong_merge is None or data_transmitted_to_wrong_merge == 0
+        assert_statistics(
+            operation=op,
+            key="data.output.0.compressed_data_size",
+            assertion=lambda data_transmitted: data_transmitted > 0,
+            job_type=merge_type)
+        assert_statistics(
+            operation=op,
+            key="data.output.0.compressed_data_size",
+            assertion=lambda data_transmitted_to_wrong_merge: data_transmitted_to_wrong_merge in [None, 0],
+            job_type=wrong_merge_type)
 
 
 class TestSchedulerShallowAutoMerge(TestSchedulerAutoMerge):

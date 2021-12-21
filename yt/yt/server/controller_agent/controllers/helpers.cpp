@@ -85,12 +85,7 @@ void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
     switch (node->GetType()) {
         case ENodeType::Map:
             for (const auto& [key, child] : node->AsMap()->GetChildren()) {
-                // Skip token '$' in job statistics.
-                if (key == "$") {
-                    AddSingular(name, child);
-                } else {
-                    AddSingular(name + "." + key, child);
-                }
+                AddSingular(name + "." + key, child);
             }
             break;
         case ENodeType::Int64:

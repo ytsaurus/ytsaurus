@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, find_ut_file
 
 from yt_commands import (
     authors, create, get, read_table, write_table, write_local_file, map,
-    get_statistics, raises_yt_error)
+    assert_statistics, raises_yt_error)
 
 import yt_error_codes
 
@@ -133,17 +133,19 @@ class TestJobQuery(YTEnvSetup):
         op = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"input_query": "a"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
-        statistics = get(op.get_path() + "/@progress/job_statistics")
         attrs = get("//tmp/t1/@")
-        assert (
-            get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum")
-            < attrs["uncompressed_data_size"]
-        )
-        assert (
-            get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum")
-            < attrs["compressed_data_size"]
-        )
-        assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") < attrs["data_weight"]
+        assert_statistics(
+            op,
+            key="data.input.uncompressed_data_size",
+            assertion=lambda uncompressed_data_size: uncompressed_data_size < attrs["uncompressed_data_size"])
+        assert_statistics(
+            op,
+            key="data.input.compressed_data_size",
+            assertion=lambda compressed_data_size: compressed_data_size < attrs["compressed_data_size"])
+        assert_statistics(
+            op,
+            key="data.input.data_weight",
+            assertion=lambda data_weight: data_weight < attrs["data_weight"])
 
     @authors("lukyan")
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
@@ -303,8 +305,10 @@ class TestJobQuery(YTEnvSetup):
             )
 
             assert_items_equal(read_table("//tmp/t_out"), rows)
-            statistics = get(op.get_path() + "/@progress/job_statistics")
-            assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == chunk_count
+            assert_statistics(
+                op,
+                key="data.input.chunk_count",
+                assertion=lambda actual_chunk_count: actual_chunk_count == chunk_count)
 
         _test("", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
         _test("[#0:]", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
@@ -355,8 +359,10 @@ class TestJobQuery(YTEnvSetup):
             )
 
             assert_items_equal(read_table("//tmp/t_out"), rows)
-            statistics = get(op.get_path() + "/@progress/job_statistics")
-            assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == chunk_count
+            assert_statistics(
+                op,
+                key="data.input.chunk_count",
+                assertion=lambda actual_chunk_count: actual_chunk_count == chunk_count)
 
         _test("a where k = 1", [{"a": i} for i in xrange(10, 13)], 1)
         _test(

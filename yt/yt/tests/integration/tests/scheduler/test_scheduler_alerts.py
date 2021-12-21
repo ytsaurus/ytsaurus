@@ -387,7 +387,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             "Job statistics for",
             op.id,
             ":",
-            yson.dumps(get(op.get_path() + "/@progress/job_statistics"), yson_format="text"),
+            yson.dumps(get(op.get_path() + "/@progress/job_statistics_v2"), yson_format="text"),
         )
 
         if operation_type == "map":

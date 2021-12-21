@@ -1816,6 +1816,23 @@ void TTask::BuildFeatureYson(TFluentAny fluent) const
     fluent.Value(ControllerFeatures_);
 }
 
+INodePtr TTask::BuildStatisticsNode() const
+{
+    return BuildYsonNodeFluently()
+        .Do([this] (TFluentAny fluent) {
+            AggregatedJobStatistics_.SerializeCustom(
+                fluent.GetConsumer(),
+                [] (const TAggregatedJobStatistics::TTaggedSummaries& summaries, IYsonConsumer* consumer) {
+                    THashMap<EJobState, TSummary> groupedByJobState;
+                    for (const auto& [tags, summary] : summaries) {
+                        groupedByJobState[tags.JobState].Merge(summary);
+                    }
+
+                    BuildYsonFluently(consumer).Value(groupedByJobState);
+                });
+        });
+}
+
 void TTask::FinalizeFeatures()
 {
     ControllerFeatures_.AddTag("authenticated_user", TaskHost_->GetAuthenticatedUser());
@@ -1827,7 +1844,7 @@ void TTask::FinalizeFeatures()
     ControllerFeatures_.AddSingular("ready_time", GetReadyTime().MilliSeconds());
     ControllerFeatures_.AddSingular("wall_time", GetWallTime().MilliSeconds());
     ControllerFeatures_.AddSingular("exhaust_time", GetExhaustTime().MilliSeconds());
-    ControllerFeatures_.AddSingular("job_statistics", BuildYsonNodeFluently().Value(AggregatedJobStatistics_));
+    ControllerFeatures_.AddSingular("job_statistics", BuildStatisticsNode());
 
     ControllerFeatures_.CalculateJobSatisticsAverage();
 }

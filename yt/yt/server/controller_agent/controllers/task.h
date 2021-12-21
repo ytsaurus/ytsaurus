@@ -405,7 +405,7 @@ private:
     //! prevent repeated overdraft.
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> ResourceOverdraftedOutputCookies_;
 
-    TAggregatedJobStatistics AggregatedJobStatistics_{false};
+    TAggregatedJobStatistics AggregatedJobStatistics_;
 
     NScheduler::TJobResources ApplyMemoryReserve(
         const TExtendedJobResources& jobResources,
@@ -434,6 +434,8 @@ private:
     TDuration GetWallTime() const;
     TDuration GetReadyTime() const;
     TDuration GetExhaustTime() const;
+
+    NYTree::INodePtr BuildStatisticsNode() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

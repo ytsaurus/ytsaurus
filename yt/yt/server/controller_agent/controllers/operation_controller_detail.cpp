@@ -3921,7 +3921,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
             task->GetUserJobMemoryDigest()->GetQuantile(Config->UserJobMemoryReserveQuantile);
 
         for (const auto& jobState : { EJobState::Completed, EJobState::Failed }) {
-            auto summary = AggregatedJobStatistics_.FindSummary(
+            auto summary = AggregatedJobStatistics_.FindSummaryByJobStateAndType(
                 "/user_job/max_memory",
                 jobState,
                 task->GetVertexDescriptor());
@@ -4095,14 +4095,10 @@ void TOperationControllerBase::AnalyzeAbortedJobs()
     auto aggregateTimeForJobState = [&] (EJobState state) {
         i64 sum = 0;
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            auto value = AggregatedJobStatistics_.FindNumericValue(
+            sum += AggregatedJobStatistics_.GetSumByJobStateAndType(
                 "/time/total",
                 state,
                 FormatEnum(type));
-
-            if (value) {
-                sum += *value;
-            }
         }
 
         return sum;
@@ -4133,12 +4129,12 @@ void TOperationControllerBase::AnalyzeJobsIOUsage()
     std::vector<TError> innerErrors;
 
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-        auto value = AggregatedJobStatistics_.FindNumericValue(
+        auto value = AggregatedJobStatistics_.GetSumByJobStateAndType(
             "/user_job/woodpecker",
             EJobState::Completed,
             FormatEnum(jobType));
 
-        if (value && *value > 0) {
+        if (value > 0) {
             innerErrors.emplace_back("Detected excessive disk IO in %Qlv jobs", jobType);
         }
     }
@@ -4220,7 +4216,7 @@ void TOperationControllerBase::AnalyzeJobsDuration()
     std::vector<TError> innerErrors;
 
     for (auto jobType : GetSupportedJobTypesForJobsDurationAnalyzer()) {
-        auto completedJobsSummary = AggregatedJobStatistics_.FindSummary(
+        auto completedJobsSummary = AggregatedJobStatistics_.FindSummaryByJobStateAndType(
             "/time/total",
             EJobState::Completed,
             FormatEnum(jobType));
@@ -8442,7 +8438,10 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .Item("state").Value(State.load())
         .Item("build_time").Value(TInstant::Now())
         .Item("ready_job_count").Value(GetPendingJobCount())
-        .Item("job_statistics").Value(AggregatedJobStatistics_)
+        .Item("job_statistics_v2").Value(AggregatedJobStatistics_)
+        .Item("job_statistics").Do([this] (TFluentAny fluent) {
+            AggregatedJobStatistics_.SerializeLegacy(fluent.GetConsumer());
+        })
         .Item("peak_memory_usage").Value(PeakMemoryUsage_)
         .Item("estimated_input_statistics").BeginMap()
             .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
@@ -9954,11 +9953,11 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
         i64 jobCount = 0;
 
         for (const auto& jobState : jobStates) {
-            auto summary = AggregatedJobStatistics_.FindSummary("/time/exec", jobState, taskName);
-            if (summary) {
-                totalExecutionTime += summary->GetSum();
-                jobCount += summary->GetCount();
-            }
+            auto summary = AggregatedJobStatistics_
+                .FindSummaryByJobStateAndType("/time/exec", jobState, taskName)
+                .value_or(NYT::TSummary());
+            totalExecutionTime += summary.GetSum();
+            jobCount += summary.GetCount();
         }
 
         double limit = getLimit(userJobSpecPtr);
@@ -9969,8 +9968,7 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
         i64 usage = 0;
         for (const auto& stat : usageStatistics) {
             for (const auto& jobState : jobStates) {
-                auto value = AggregatedJobStatistics_.FindNumericValue(stat, jobState, taskName);
-                usage += value.value_or(0);
+                usage += AggregatedJobStatistics_.GetSumByJobStateAndType(stat, jobState, taskName);
             }
         }
 
