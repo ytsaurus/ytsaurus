@@ -155,7 +155,8 @@ class TestChaos(DynamicTablesBase):
         for replica in replicas:
             path = replica["table_path"]
             driver = get_driver(cluster=replica["cluster"])
-            self._wait_for_era(path, era=repliation_card["era"], driver=driver)
+            check_write = replica["mode"] == "sync" and replica["state"] == "enabled"
+            self._wait_for_era(path, era=repliation_card["era"], check_write=check_write, driver=driver)
 
     def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_tablet_cells=True, mount_tables=True):
         card_id = create_replication_card(chaos_cell_id=cell_id)
@@ -380,8 +381,7 @@ class TestChaos(DynamicTablesBase):
             {"cluster": "primary", "content_type": "data", "mode": mode, "state": "disabled", "table_path": "//tmp/t"},
             {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False)
-        self._sync_replication_era(cell_id, card_id, replicas[1:])
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
         orchid = self._get_table_orchids("//tmp/t")[0]
         assert orchid["replication_card"]["replicas"][0]["mode"] == mode
@@ -414,8 +414,7 @@ class TestChaos(DynamicTablesBase):
             {"cluster": "primary", "content_type": "data", "mode": mode, "state": "enabled", "table_path": "//tmp/t"},
             {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False)
-        self._sync_replication_era(cell_id, card_id, replicas[1:])
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
         orchid = self._get_table_orchids("//tmp/t")[0]
         assert orchid["replication_card"]["replicas"][0]["mode"] == mode
@@ -472,8 +471,7 @@ class TestChaos(DynamicTablesBase):
             {"cluster": "primary", "content_type": "data", "mode": old_mode, "state": "enabled", "table_path": "//tmp/t"},
             {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False)
-        self._sync_replication_era(cell_id, card_id, replicas[1:])
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
         orchid = self._get_table_orchids("//tmp/t")[0]
         assert orchid["replication_card"]["replicas"][0]["mode"] == old_mode
@@ -514,8 +512,7 @@ class TestChaos(DynamicTablesBase):
             {"cluster": "primary", "content_type": "data", "mode": "async", "state": "enabled", "table_path": "//tmp/t"},
             {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False)
-        self._sync_replication_era(cell_id, card_id, replicas[1:])
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
         values = [{"key": 0, "value": "0"}]

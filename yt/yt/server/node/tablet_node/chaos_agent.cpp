@@ -190,16 +190,15 @@ private:
                 historyItemIndex);
 
             if (historyItemIndex == -1) {
-                if (selfReplica->History[0].Era == InitialReplicationEra) {
-                    forwardReplicationProgress(0);
-                } else {
-                    YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %llx)",
-                        static_cast<NChaosClient::TReplicationProgress>(*progress),
-                        *selfReplica,
-                        oldestTimestamp);
+                YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %llx)",
+                    static_cast<NChaosClient::TReplicationProgress>(*progress),
+                    *selfReplica,
+                    oldestTimestamp);
+            } else {
+                const auto& item = selfReplica->History[historyItemIndex];
+                if (item.Era == InitialReplicationEra || IsReplicaReallySync(item.Mode, item.State)) {
+                    forwardReplicationProgress(historyItemIndex + 1);
                 }
-            } else if (const auto& item = selfReplica->History[historyItemIndex]; IsReplicaReallySync(item.Mode, item.State)) {
-                forwardReplicationProgress(historyItemIndex + 1);
             }
         }
 
