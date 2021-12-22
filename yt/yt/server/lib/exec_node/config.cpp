@@ -48,6 +48,15 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringConfig::GetDefault
             .Item("gpu/utilization_clock_sm").BeginMap()
                 .Item("type").Value("gauge")
             .EndMap()
+            .Item("gpu/memory").BeginMap()
+                .Item("type").Value("gauge")
+            .EndMap()
+            .Item("gpu/power").BeginMap()
+                .Item("type").Value("gauge")
+            .EndMap()
+            .Item("gpu/clock_sm").BeginMap()
+                .Item("type").Value("gauge")
+            .EndMap()
         .EndMap());
 
     return DefaultSensors;
