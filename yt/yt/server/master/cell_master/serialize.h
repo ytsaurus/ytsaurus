@@ -140,6 +140,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemovedIsResponseKeeperWarmingUp)                             (1906))  // h0pless
     ((ChunkViewModifier)                                            (1907))  // ifsmirnov
     ((AccountGossipStatisticsOptimization)                          (1908))  // h0pless
+    ((MediumOverridesViaHeartbeats)                                 (1909))  // kvk1920
 );
 
 constexpr EMasterReign First_21_2_MasterReign = EMasterReign::MasterMergeJobs;

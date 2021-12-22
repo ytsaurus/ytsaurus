@@ -538,6 +538,10 @@ public:
     return end();
   }
 
+  bool contains(const_arg_type_t<KeyT> key) const {
+    return find(key) != end();
+  }
+
   /// Alternate version of find() which allows a different, and possibly
   /// less expensive, key type.
   /// The TDenseMapInfo is responsible for supplying methods

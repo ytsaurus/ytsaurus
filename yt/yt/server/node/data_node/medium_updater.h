@@ -2,14 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/core/actions/future.h>
-#include <yt/yt/core/actions/signal.h>
-
-#include <yt/yt/core/concurrency/public.h>
-
-#include <yt/yt/core/misc/error.h>
+#include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -21,31 +16,38 @@ class TMediumUpdater
     : public TRefCounted
 {
 public:
-    explicit TMediumUpdater(IBootstrap* bootstrap);
+    TMediumUpdater(
+        IBootstrap* bootstrap,
+        TMediumDirectoryManagerPtr mediumDirectoryManager,
+        TDuration legacyMediumUpdaterPeriod);
+    
+    void UpdateLocationMedia(
+        const NDataNodeTrackerClient::NProto::TMediumOverrides& mediumOverrides,
+        bool onInitialize = false);
+    
+    void LegacyInitializeLocationMedia();
+    void EnableLegacyMode(bool legacyModeIsEnabled);
 
-    void Start();
-
-    TFuture<void> Stop();
-    std::optional<TString> GetMediumOverride(TLocationUuid locationUuid) const;
-
-    void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& oldNodeConfig,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
+    void SetPeriod(TDuration legacyMediumUpdatePeriod);
 
 private:
-    void DoFetchConfig();
-    void TryFetchConfig();
+    using TLegacyMediumOverrides = THashMap<NChunkClient::TLocationUuid, TString>;
+    using TMediumOverrides = THashMap<NChunkClient::TLocationUuid, int>;
 
-    void UpdateMedia();
+    void OnLegacyUpdateLocationMedia(bool onInitialize = false);
+    void DoLegacyUpdateMedia(const TLegacyMediumOverrides& mediumOverrides, bool onInitialize = false);
+    void DoUpdateMedia(const TMediumOverrides& mediumOverrides, bool onInitialize = false);
 
     IBootstrap* const Bootstrap_;
+
+    // COMPAT(kvk1920): Remove periodic MediumUpdater.
     const IInvokerPtr ControlInvoker_;
-    NConcurrency::TPeriodicExecutorPtr Executor_;
-    bool Enabled_;
+    NConcurrency::TPeriodicExecutorPtr LegacyUpdateLocationMediaExecutor_;
+    bool UseHeartbeats_;
 
-    using TMediumOverrideMap = THashMap<NChunkClient::TLocationUuid, TString>;
+    TMediumDirectoryManagerPtr MediumDirectoryManager_;
 
-    TMediumOverrideMap MediumOverrides_;
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumUpdater)

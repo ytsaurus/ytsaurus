@@ -47,6 +47,7 @@ using NChunkClient::DefaultStoreMediumIndex;
 using NChunkClient::DefaultCacheMediumIndex;
 using NChunkClient::MaxMediumPriority;
 using NChunkClient::TDataCenterName;
+using NChunkClient::TLocationUuid;
 using NChunkClient::TMediumMap;
 using NChunkClient::TMediumIntMap;
 using NChunkClient::TConsistentReplicaPlacementHash;
@@ -81,6 +82,31 @@ DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
 DECLARE_MASTER_OBJECT_TYPE(TChunk)
 DECLARE_MASTER_OBJECT_TYPE(TChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
+
+struct TLocationUuidDenseMapInfo
+{
+    static inline TLocationUuid getEmptyKey()
+    {
+        return NChunkClient::EmptyLocationUuid;
+    }
+
+    static inline TLocationUuid getTombstoneKey()
+    {
+        return NChunkClient::InvalidLocationUuid;
+    }
+
+    static unsigned getHashValue(TLocationUuid value)
+    {
+        return static_cast<unsigned>(THash<TLocationUuid>()(value));
+    }
+
+    static bool isEqual(TLocationUuid lhs, TLocationUuid rhs)
+    {
+        return lhs == rhs;
+    }
+};
+
+constexpr int TypicalNodeLocationCount = 8;
 
 class TChunkTree;
 class TChunkOwnerBase;

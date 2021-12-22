@@ -1,20 +1,18 @@
 #include "medium_updater.h"
 
 #include "bootstrap.h"
-#include "config.h"
-#include "private.h"
-#include "master_connector.h"
 #include "chunk_store.h"
+#include "config.h"
 #include "location.h"
+#include "master_connector.h"
+#include "medium_directory_manager.h"
+#include "private.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-
-#include <yt/yt/ytlib/chunk_client/medium_directory.h>
-#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -23,6 +21,7 @@
 namespace NYT::NDataNode {
 
 using namespace NApi;
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NYTree;
@@ -34,112 +33,194 @@ static const auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMediumUpdater::TMediumUpdater(IBootstrap* bootstrap)
+TMediumUpdater::TMediumUpdater(
+    IBootstrap* bootstrap,
+    TMediumDirectoryManagerPtr mediumDirectoryManager,
+    TDuration legacyMediumUpdaterPeriod)
     : Bootstrap_(bootstrap)
     , ControlInvoker_(Bootstrap_->GetControlInvoker())
+    , UseHeartbeats_(true)
+    , MediumDirectoryManager_(std::move(mediumDirectoryManager))
 {
-
-    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-    dynamicConfigManager->SubscribeConfigChanged(BIND(&TMediumUpdater::OnDynamicConfigChanged, MakeWeak(this)));
-    const auto& config = dynamicConfigManager->GetConfig()->DataNode->MediumUpdater;
-    Enabled_ = config->Enabled;
-    Executor_ = New<TPeriodicExecutor>(
+    LegacyUpdateLocationMediaExecutor_ = New<TPeriodicExecutor>(
         ControlInvoker_,
-        BIND(&TMediumUpdater::UpdateMedia, MakeWeak(this)),
-        config->Period);
+        BIND(&TMediumUpdater::OnLegacyUpdateLocationMedia, MakeWeak(this), /*onInitialize*/ false),
+        legacyMediumUpdaterPeriod);
 }
 
-void TMediumUpdater::OnDynamicConfigChanged(
-    const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
-    const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+void TMediumUpdater::EnableLegacyMode(bool legacyModeIsEnabled)
 {
-    const auto& config = newNodeConfig->DataNode->MediumUpdater;
-    Executor_->SetPeriod(config->Period);
-    if (!Enabled_ && config->Enabled) {
-        Executor_->Start();
-    } else if (Enabled_ && !config->Enabled) {
-        Executor_->Stop();
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (UseHeartbeats_ != !legacyModeIsEnabled) {
+        UseHeartbeats_ = !legacyModeIsEnabled;
+
+        if (legacyModeIsEnabled) {
+            YT_LOG_INFO("Switching to legacy medium updater");
+            LegacyUpdateLocationMediaExecutor_->Start();
+        } else {
+            YT_LOG_INFO("Switching to heartbeat medium updater");
+            LegacyUpdateLocationMediaExecutor_->Stop();
+        }
     }
-    Enabled_ = config->Enabled;
 }
 
-void TMediumUpdater::Start()
+void TMediumUpdater::LegacyInitializeLocationMedia()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!Enabled_) {
+    YT_VERIFY(!UseHeartbeats_);
+
+    OnLegacyUpdateLocationMedia(/*onInitialize*/ true);
+}
+
+void TMediumUpdater::SetPeriod(TDuration legacyMediumUpdatePeriod)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    LegacyUpdateLocationMediaExecutor_->SetPeriod(legacyMediumUpdatePeriod);
+}
+
+void TMediumUpdater::UpdateLocationMedia(const NDataNodeTrackerClient::NProto::TMediumOverrides& protoMediumOverrides, bool onInitialize)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (!Bootstrap_->IsDataNode()) {
         return;
     }
 
-    Executor_->Start();
+    YT_VERIFY(UseHeartbeats_);
 
-    WaitFor(Executor_->GetExecutedEvent())
-        .ThrowOnError();
+    TMediumOverrides mediumOverrides;
+    mediumOverrides.reserve(protoMediumOverrides.overrides_size());
+
+    for (const auto& mediumOverride : protoMediumOverrides.overrides()) {
+        auto locationId = FromProto<TLocationUuid>(mediumOverride.location_id());
+        EmplaceOrCrash(mediumOverrides, locationId, mediumOverride.medium_index());
+    }
+
+    DoUpdateMedia(mediumOverrides, onInitialize);
 }
 
-TFuture<void> TMediumUpdater::Stop()
+void TMediumUpdater::OnLegacyUpdateLocationMedia(bool onInitialize)
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return Executor_->Stop();
-}
+    if (!Bootstrap_->IsDataNode()) {
+        return;
+    }
 
-void TMediumUpdater::UpdateMedia()
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
     YT_LOG_DEBUG("Starting media update");
 
     const auto& client = Bootstrap_->GetMasterClient();
 
-    auto myRpcAddress = Bootstrap_->GetDefaultLocalAddressOrThrow();
-    auto mediumConfigPath = Format("//sys/cluster_nodes/%s/@config/medium_overrides", myRpcAddress);
+    TString myRpcAddress;
+    try {
+        myRpcAddress = Bootstrap_->GetDefaultLocalAddressOrThrow();
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to update media");
+
+        // NB: If an error has happened during registering at primary master then report failure.
+        if (onInitialize) {
+            throw;
+        }
+
+        return;
+    }
+    auto mediumConfigPath = Format("//sys/data_nodes/%s/@config/medium_overrides", myRpcAddress);
     YT_LOG_DEBUG("Loading node media config (MediumConfigPath: %v)", mediumConfigPath);
 
     auto mediumConfigOrError = WaitFor(client->GetNode(mediumConfigPath));
 
+    TLegacyMediumOverrides mediumOverrides;
+
     if (mediumConfigOrError.IsOK()) {
         try {
-            MediumOverrides_ = NYT::NYTree::ConvertTo<TMediumOverrideMap>(mediumConfigOrError.Value());
+            mediumOverrides = ConvertTo<TLegacyMediumOverrides>(mediumConfigOrError.Value());
         } catch (const std::exception& ex) {
             // TODO(s-v-m): Also populate alert to MasterConnector.
-            YT_LOG_WARNING(TError(ex), "Can not parse medium config; skipping reconfiguration (MediumConfigPath: %v)", mediumConfigPath);
-            return;
+            YT_LOG_WARNING(ex, "Cannot parse medium config; skipping reconfiguration (MediumConfigPath: %v)", 
+                mediumConfigPath);
+
+            if (!onInitialize) {
+                return;
+            }
         }
     } else if (mediumConfigOrError.FindMatching(NYTree::EErrorCode::ResolveError)){
         YT_LOG_DEBUG("Medium config does not exist at master; Using empty configuration");
-        MediumOverrides_.clear();
     } else {
         YT_LOG_ERROR("Cannot load medium config from master; Skipping reconfiguration");
-        return;
+
+        if (!onInitialize) {
+            return;
+        }
     }
 
-    auto& chunkStore = Bootstrap_->GetChunkStore();
-    if (!chunkStore) {
-        YT_LOG_DEBUG("No chunk store is configured, skipping locations update");
-        return;
-    }
-    for (const auto& location : chunkStore->Locations()) {
-        auto it = MediumOverrides_.find(location->GetUuid());
-        auto newName = it != MediumOverrides_.end()
-            ? it->second
-            : location->GetConfig()->MediumName;
-        if (newName != location->GetMediumName()) {
-            YT_LOG_INFO("Changing location medium (Location: %v, OldMedium: %v, NewMedium: %v)",
-                location->GetUuid(),
-                location->GetMediumName(),
-                newName);
-            location->UpdateMediumName(newName);
+    DoLegacyUpdateMedia(mediumOverrides, onInitialize);
+}
+
+static TMediumDirectoryPtr GetMediumDirectoryOrCrash(
+    const TMediumDirectoryManagerPtr& mediumDirectoryManager,
+    bool onInitialize)
+{
+    try {
+        return mediumDirectoryManager->GetMediumDirectory();
+    } catch (const std::exception& ex) {
+        if (onInitialize) {
+            throw;
         }
+        
+        YT_LOG_FATAL(ex, "Cannot get medium directory after initialization");
     }
 }
 
-std::optional<TString> TMediumUpdater::GetMediumOverride(TLocationUuid locationUuid) const
+void TMediumUpdater::DoUpdateMedia(const TMediumOverrides& mediumOverrides, bool onInitialize)
 {
-    auto it = MediumOverrides_.find(locationUuid);
-    if (it != MediumOverrides_.end()) {
-        return it->second;
-    } else {
-        return std::nullopt;
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto& chunkStore = Bootstrap_->GetChunkStore();
+    auto mediumDirectory = GetMediumDirectoryOrCrash(MediumDirectoryManager_, onInitialize);
+
+    for (const auto& location : chunkStore->Locations()) {
+        const TMediumDescriptor* descriptor = nullptr;
+
+        if (auto it = mediumOverrides.find(location->GetUuid()); it != mediumOverrides.end()) {
+            descriptor = mediumDirectory->FindByIndex(it->second);
+            if (!descriptor) {
+                YT_LOG_ALERT("Overriden location medium does not exists (MediumIndex: %d, Location: %v)",
+                    it->second,
+                    location->GetId());
+            }
+        }
+
+        if (!descriptor) {
+            const auto& mediumName = location->GetConfig()->MediumName;
+            descriptor = mediumDirectory->FindByName(mediumName);
+            if (!descriptor) {
+                YT_LOG_ERROR("Configured location medium does not exist (MediumName: %v, Location: %v)",
+                    mediumName,
+                    location->GetId());
+                continue;
+            }
+        }
+
+        location->UpdateMediumDescriptor(*descriptor, onInitialize);
+    }
+}
+
+void TMediumUpdater::DoLegacyUpdateMedia(const TLegacyMediumOverrides& mediumOverrides, bool onInitialize)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    
+    auto& chunkStore = Bootstrap_->GetChunkStore();
+    auto mediumDirectory = GetMediumDirectoryOrCrash(MediumDirectoryManager_, onInitialize);
+    
+    for (const auto& location : chunkStore->Locations()) {
+        auto it = mediumOverrides.find(location->GetUuid());
+        auto newName = it != mediumOverrides.end()
+            ? it->second
+            : location->GetConfig()->MediumName;
+        location->UpdateMediumName(newName, mediumDirectory, onInitialize);
     }
 }
 

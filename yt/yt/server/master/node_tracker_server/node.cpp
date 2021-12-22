@@ -1,30 +1,37 @@
 #include "node.h"
+
+#include "config.h"
 #include "data_center.h"
 #include "host.h"
 #include "rack.h"
+#include "private.h"
+#include "rack.h"
 
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/server/master/cell_server/cell_base.h>
 
 #include <yt/yt/server/master/chunk_server/chunk.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/job.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
 
-#include <yt/yt/server/master/node_tracker_server/config.h>
-
-#include <yt/yt/server/master/cell_server/cell_base.h>
+#include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/yt/ytlib/node_tracker_client/interop.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/interop.h>
 
-#include <yt/yt/core/net/address.h>
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 #include <yt/yt/core/misc/collection_helpers.h>
+
+#include <yt/yt/core/net/address.h>
 
 #include <atomic>
 
@@ -43,8 +50,13 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NCellarClient;
 using namespace NCellarNodeTrackerClient::NProto;
+using namespace NYTree;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = NodeTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -388,7 +400,7 @@ TString TNode::GetCapitalizedObjectName() const
     return Format("Node %v", GetDefaultAddress());
 }
 
-void TNode::Save(NCellMaster::TSaveContext& context) const
+void TNode::Save(TSaveContext& context) const
 {
     TObject::Save(context);
 
@@ -453,9 +465,28 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ReportedHeartbeats_);
     Save(context, ReplicaEndorsements_);
     Save(context, ConsistentReplicaPlacementTokenCount_);
+    Save(context, MediumOverrides_);
 }
 
-void TNode::Load(NCellMaster::TLoadContext& context)
+// COMPAT(kvk1920)
+void TNode::TransformLegacyMediumOverrides(TBootstrap* bootstrap)
+{
+    YT_VERIFY(MediumOverrides_.empty());
+    const auto& chunkManager = bootstrap->GetChunkManager();
+    for (const auto& [locationUuid, mediumName] : LegacyMediumOverrides_) {
+        auto* medium = chunkManager->FindMediumByName(mediumName);
+        if (!IsObjectAlive(medium)) {
+            YT_LOG_ALERT("Invalid medium override for location; dropped (Node: %v, LocationId: %v, MediumName: %v)",
+                GetDefaultAddress(),
+                locationUuid,
+                mediumName);
+            continue;
+        }
+        YT_VERIFY(MediumOverrides_.emplace(locationUuid, medium->GetIndex()).second);
+    }
+}
+
+void TNode::Load(TLoadContext& context)
 {
     TObject::Load(context);
 
@@ -562,6 +593,23 @@ void TNode::Load(NCellMaster::TLoadContext& context)
                 ConsistentReplicaPlacementTokenCount_.clear();
             }
         }
+    }
+    // COMPAT(kvk1920)
+    if (context.GetVersion() < EMasterReign::MediumOverridesViaHeartbeats) {
+        if (auto config = FindAttribute("config")) {
+            try {
+                auto parsedConfig = ConvertToNode(config)->AsMap();
+                auto mediumOverrides = parsedConfig->GetChildOrThrow("medium_overrides");
+                LegacyMediumOverrides_ = ConvertTo<TNode::TLegacyMediumOverrideMap>(mediumOverrides);
+            } catch (const std::exception& ex) {
+                LegacyMediumOverrides_.shrink_and_clear();
+                YT_LOG_ALERT(ex, "Failed to parse //sys/cluster_nodes/%v/@config/medium_overrides (Config: %v)",
+                    GetDefaultAddress(),
+                    config);
+            }
+        }
+    } else {
+        Load(context, MediumOverrides_);
     }
 
     ComputeDefaultAddress();

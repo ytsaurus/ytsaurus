@@ -615,15 +615,11 @@ class TMediumUpdaterDynamicConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Whether media updater is enabled.
-    bool Enabled;
     //! Period of media config fetching from Cypress.
     TDuration Period;
 
     TMediumUpdaterDynamicConfig()
     {
-        RegisterParameter("enabled", Enabled)
-            .Default(false);
         RegisterParameter("period", Period)
             .Default(TDuration::Minutes(5));
     }

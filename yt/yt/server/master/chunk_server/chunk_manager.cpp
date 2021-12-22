@@ -3646,6 +3646,12 @@ private:
         ChunkMap_.LoadValues(context);
         ChunkListMap_.LoadValues(context);
         MediumMap_.LoadValues(context);
+
+        // COMPAT(kvk1920): move to OnAfterSnapshotLoaded
+        for (auto [mediumId, medium] : MediumMap_) {
+            RegisterMedium(medium);
+        }
+
         Load(context, ChunkRequisitionRegistry_);
         Load(context, ChunkListsAwaitingRequisitionTraverse_);
         ChunkViewMap_.LoadValues(context);
@@ -3715,10 +3721,6 @@ private:
                     parent->SetHunkRootChild(chunkList);
                 }
             }
-        }
-
-        for (auto [mediumId, medium] : MediumMap_) {
-            RegisterMedium(medium);
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();

@@ -30,6 +30,8 @@ struct IBootstrap
     // Master connection.
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 
+    // Medium stuff.
+    virtual const TMediumDirectoryManagerPtr& GetMediumDirectoryManager() const = 0;
     virtual const TMediumUpdaterPtr& GetMediumUpdater() const = 0;
 
     // Throttlers.

@@ -1218,6 +1218,35 @@ TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithIndexes chunkWithIndexes)
     return {chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()};
 }
 
+void SerializeMediumDirectory(
+    NChunkClient::NProto::TMediumDirectory* protoMediumDirectory,
+    const TChunkManagerPtr& chunkManager)
+{
+    for (auto [mediumId, medium] : chunkManager->Media()) {
+        auto* protoItem = protoMediumDirectory->add_items();
+        protoItem->set_index(medium->GetIndex());
+        protoItem->set_name(medium->GetName());
+        protoItem->set_priority(medium->GetPriority());
+    }
+}
+
+void SerializeMediumOverrides(
+    TNode* node,
+    NDataNodeTrackerClient::NProto::TMediumOverrides* mediumOverrides,
+    const TChunkManagerPtr& chunkManager)
+{
+    for (auto [locationUuid, mediumIndex] : node->MediumOverrides()) {
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        if (!IsObjectAlive(medium)) {
+            continue;
+        }
+
+        auto* mediumOverride = mediumOverrides->add_overrides();
+        ToProto(mediumOverride->mutable_location_id(), locationUuid);
+        mediumOverride->set_medium_index(medium->GetIndex());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

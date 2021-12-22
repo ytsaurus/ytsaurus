@@ -10,6 +10,8 @@
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/medium_directory_manager.h>
+#include <yt/yt/server/node/data_node/medium_updater.h>
 #include <yt/yt/server/node/data_node/network_statistics.h>
 #include <yt/yt/server/node/data_node/session_manager.h>
 
@@ -389,9 +391,10 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         try {
-            InitMedia();
             StartLeaseTransaction();
             RegisterAtPrimaryMaster();
+            // NB: InitMedia waiting for medium directory synchronization so we want to call it as late as possible.
+            InitMedia();
             if (*Config_->SyncDirectoriesOnConnect) {
                 SyncDirectories();
             }
@@ -417,43 +420,22 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        WaitFor(Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetMediumDirectorySynchronizer()
-            ->RecentSync())
-            .ThrowOnError();
-
-        if (Bootstrap_->IsDataNode()) {
-            const auto& storeLocations = Bootstrap_
-                ->GetDataNodeBootstrap()
-                ->GetChunkStore()
-                ->Locations();
-            for (const auto& location : storeLocations) {
-                location->UpdateMediumName(location->GetMediumName());
-            }
-        }
+        // NB: Media initialization for data node occured at registration at primary master.
 
         if (Bootstrap_->IsExecNode()) {
-            const auto& cacheLocations = Bootstrap_
-                ->GetExecNodeBootstrap()
-                ->GetChunkCache()
-                ->Locations();
+            const auto& nativeConnection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+            WaitFor(nativeConnection->GetMediumDirectorySynchronizer()->RecentSync())
+                .ThrowOnError();
+            auto mediumDirectory = nativeConnection->GetMediumDirectory();
+            
+            const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
+
+            const auto& cacheLocations = execNodeBootstrap->GetChunkCache()->Locations();
             for (const auto& location : cacheLocations) {
-                location->UpdateMediumName(location->GetMediumName());
+                location->UpdateMediumName(location->GetMediumName(), mediumDirectory, /*onInitialize*/ true);
             }
-        }
 
-        auto mediumDirectory = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetMediumDirectory();
-
-        if (Bootstrap_->IsExecNode()) {
-            Bootstrap_
-                ->GetExecNodeBootstrap()
-                ->GetSlotManager()
-                ->InitMedia(mediumDirectory);
+            execNodeBootstrap->GetSlotManager()->InitMedia(mediumDirectory);
         }
     }
 
@@ -544,6 +526,28 @@ private:
                 YT_LOG_INFO("Using new heartbeats");
             } else {
                 YT_LOG_INFO("Using old heartbeats");
+            }
+        }
+
+        if (Bootstrap_->IsDataNode()) {
+            const auto& dataNodeInfoExtTag = TDataNodeInfoExt::data_node_info_ext;
+            const auto& dataNodeBootstrap = Bootstrap_->GetDataNodeBootstrap();
+            const auto& mediumUpdater = dataNodeBootstrap->GetMediumUpdater();
+
+            bool hasDataNodeInfoExt = rsp->HasExtension(dataNodeInfoExtTag);
+
+            mediumUpdater->EnableLegacyMode(!hasDataNodeInfoExt);
+
+            if (hasDataNodeInfoExt) {
+                const auto& dataNodeInfoExt = rsp->GetExtension(dataNodeInfoExtTag);
+
+                YT_VERIFY(dataNodeInfoExt.has_medium_directory() && dataNodeInfoExt.has_medium_overrides());
+
+                const auto& mediumDirectoryManager = dataNodeBootstrap->GetMediumDirectoryManager();
+                mediumDirectoryManager->UpdateMediumDirectory(dataNodeInfoExt.medium_directory());
+                mediumUpdater->UpdateLocationMedia(dataNodeInfoExt.medium_overrides(), /*onInitialize*/ true);
+            } else {
+                mediumUpdater->LegacyInitializeLocationMedia();
             }
         }
 

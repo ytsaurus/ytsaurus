@@ -152,7 +152,7 @@ TLocation::TLocation(
     , Bootstrap_(bootstrap)
     , Type_(type)
     , Config_(config)
-    , MediumName_(Config_->MediumName)
+    , MediumDescriptor_(TMediumDescriptor{.Name = Config_->MediumName})
 {
     Profiler_ = LocationProfiler
         .WithSparse()
@@ -225,22 +225,22 @@ const TString& TLocation::GetDiskFamily() const
 bool TLocation::IsDirectIOEnabled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     return Config_->EnableDirectIO;
 }
 
 TString TLocation::GetMediumName() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return MediumName_.Load();
+
+    return GetMediumDescriptor().Name;
 }
 
-const TMediumDescriptor& TLocation::GetMediumDescriptor() const
+TMediumDescriptor TLocation::GetMediumDescriptor() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto* descriptor = CurrentMediumDescriptor_.load();
-    static const TMediumDescriptor Empty;
-    return descriptor ? *descriptor : Empty;
+    return MediumDescriptor_.Load();
 }
 
 const NProfiling::TProfiler& TLocation::GetProfiler() const
@@ -702,7 +702,13 @@ void TLocation::InitializeUuid()
         }
     } else {
         YT_LOG_INFO("Location uuid file is not found, creating");
-        Uuid_ = TLocationUuid::Create();
+        while (true) {
+            Uuid_ = TLocationUuid::Create();
+            if (Uuid_ != EmptyLocationUuid && Uuid_ != InvalidLocationUuid) {
+                break;
+            }
+            YT_LOG_ALERT("Bingo!");
+        }
         TFile file(uuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         TUnbufferedFileOutput output(file);
         output.Write(ToString(Uuid_));
@@ -747,7 +753,7 @@ void TLocation::OnHealthCheckFailed(const TError& error)
 
 void TLocation::MarkAsDisabled(const TError& error)
 {
-    Alert_.Store(TError("Chunk location at %v is disabled", GetPath())
+    LocationDisabledAlert_.Store(TError("Chunk location at %v is disabled", GetPath())
         << error);
 
     Enabled_.store(false);
@@ -826,74 +832,62 @@ void TLocation::DoStart()
     InitializeCellId();
     InitializeUuid();
 
-    if (Bootstrap_->IsDataNode()) {
-        auto mediumOverride = Bootstrap_->GetDataNodeBootstrap()->GetMediumUpdater()->GetMediumOverride(GetUuid());
-        if (mediumOverride) {
-            MediumName_.Store(*mediumOverride);
-        }
-    }
-
     HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker_->Start();
 }
 
-bool TLocation::UpdateMediumName(const TString& newMediumName)
+void TLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescriptor& newDescriptor, bool onInitialize)
 {
-    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-    const auto& mediumDirectorySynchronizer = connection->GetMediumDirectorySynchronizer();
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_DEBUG("Waiting for at least one Medium Directory synchronization since startup");
-    WaitFor(mediumDirectorySynchronizer
-        ->RecentSync())
-        .ThrowOnError();
-    YT_LOG_DEBUG("Medium Directory synchronization finished");
+    auto oldDescriptor = MediumDescriptor_.Exchange(newDescriptor);
 
-    const auto& mediumDirectory = connection->GetMediumDirectory();
+    MediumAlert_.Store(TError());
 
-    auto guard = Guard(MediumLock_);
-    auto oldMediumName = MediumName_.Load();
-
-    const auto& oldDescriptor = GetMediumDescriptor();
-    const auto* newDescriptor = mediumDirectory->FindByName(newMediumName);
-    if (!newDescriptor) {
-        YT_LOG_WARNING("Location %Qv refers to unknown medium %Qv",
-            GetId(),
-            newMediumName);
-        return false;
+    if (newDescriptor == oldDescriptor) {
+        return;
     }
-    if (newMediumName == oldMediumName &&
-        oldDescriptor.Index != GenericMediumIndex &&
-        oldDescriptor.Index != newDescriptor->Index)
-    {
-        THROW_ERROR_EXCEPTION("Medium %Qv has changed its index from %v to %v",
-            GetMediumName(),
-            oldDescriptor.Index,
-            newDescriptor->Index);
-    }
-    MediumName_.Store(newMediumName);
 
-    if (!MediumDescriptors_.empty() && *newDescriptor == *MediumDescriptors_.back()) {
-        return true;
-    }
-    MediumDescriptors_.push_back(std::make_unique<TMediumDescriptor>(*newDescriptor));
-    CurrentMediumDescriptor_ = MediumDescriptors_.back().get();
-    if (Bootstrap_->IsDataNode()) {
+    if (Bootstrap_->IsDataNode() && !onInitialize && newDescriptor.Index != oldDescriptor.Index) {
         const auto& chunkStore = Bootstrap_->GetDataNodeBootstrap()->GetChunkStore();
         chunkStore->ChangeLocationMedium(this, oldDescriptor.Index);
     }
 
-    YT_LOG_INFO("Location medium descriptor updated (Location: %v, MediumName: %v, MediumIndex: %v)",
+    YT_LOG_INFO("Location medium descriptor updated (Location: %v, MediumName: %v, MediumIndex: %v, Priority: %v)",
         GetId(),
-        newDescriptor->Name,
-        newDescriptor->Index);
+        newDescriptor.Name,
+        newDescriptor.Index,
+        newDescriptor.Priority);
+}
+
+bool TLocation::UpdateMediumName(
+    const TString& newMediumName,
+    const TMediumDirectoryPtr& mediumDirectory,
+    bool onInitialize)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    const auto* newDescriptor = mediumDirectory->FindByName(newMediumName);
+
+    if (!newDescriptor) {
+        auto error = TError("Location %Qv refers to unknown medium %Qv",
+            GetId(),
+            newMediumName);
+        YT_LOG_WARNING(error);
+        MediumAlert_.Store(std::move(error));
+        return false;
+    }
+
+    UpdateMediumDescriptor(*newDescriptor, onInitialize);
     return true;
 }
 
 void TLocation::PopulateAlerts(std::vector<TError>* alerts)
 {
-    auto alert = Alert_.Load();
-    if (!alert.IsOK()) {
-        alerts->push_back(alert);
+    for (const auto* alertHolder : {&LocationDisabledAlert_, &MediumAlert_}) {
+        if (auto alert = alertHolder->Load(); !alert.IsOK()) {
+            alerts->push_back(std::move(alert));
+        }
     }
 }
 

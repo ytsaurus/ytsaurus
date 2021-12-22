@@ -1770,6 +1770,7 @@ template <class T, class C>
 struct TSerializerTraits<std::optional<T>, C, void>
 {
     typedef TOptionalSerializer<> TSerializer;
+    typedef TValueBoundComparer TComparer;
 };
 
 template <class... Ts, class C>

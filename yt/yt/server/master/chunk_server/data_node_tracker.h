@@ -4,7 +4,11 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/server/master/node_tracker_server/public.h>
+
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
+
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -54,6 +58,11 @@ struct IDataNodeTracker
         NNodeTrackerServer::TNode* node,
         NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
         NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response) = 0;
+
+    virtual void ProcessRegisterNode(
+        NNodeTrackerServer::TNode* node,
+        NNodeTrackerClient::NProto::TReqRegisterNode* request,
+        NNodeTrackerClient::NProto::TRspRegisterNode* response) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDataNodeTracker)

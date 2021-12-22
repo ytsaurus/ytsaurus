@@ -76,6 +76,9 @@ extern const TChunkTreeId NullChunkTreeId;
 
 using TLocationUuid = TGuid;
 
+constexpr auto EmptyLocationUuid = TLocationUuid(0, 0);
+constexpr auto InvalidLocationUuid = TLocationUuid(-1, -1);
+
 constexpr int MinReplicationFactor = 1;
 constexpr int MaxReplicationFactor = 20;
 constexpr int DefaultReplicationFactor = 3;

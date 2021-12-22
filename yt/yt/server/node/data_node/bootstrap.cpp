@@ -7,6 +7,7 @@
 #include "chunk_registry.h"
 #include "chunk_store.h"
 #include "data_node_service.h"
+#include "medium_directory_manager.h"
 #include "job.h"
 #include "job_heartbeat_processor.h"
 #include "journal_dispatcher.h"
@@ -59,9 +60,10 @@ public:
     {
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
-        const auto& dynamicConfig = GetDynamicConfigManager()->GetConfig();
 
-        IOTracker_ = NIO::CreateIOTracker(dynamicConfig->DataNode->IOTracker);
+        const auto& dynamicConfig = GetDynamicConfigManager()->GetConfig()->DataNode;
+
+        IOTracker_ = NIO::CreateIOTracker(dynamicConfig->IOTracker);
 
         ChunkStore_ = New<TChunkStore>(GetConfig()->DataNode, this);
 
@@ -71,9 +73,16 @@ public:
 
         MasterConnector_ = CreateMasterConnector(this);
 
-        MediumUpdater_ = New<TMediumUpdater>(this);
-
         JournalDispatcher_ = CreateJournalDispatcher(this);
+
+        MediumDirectoryManager_ = New<TMediumDirectoryManager>(
+            this,
+            DataNodeLogger);
+
+        MediumUpdater_ = New<TMediumUpdater>(
+            this,
+            MediumDirectoryManager_,
+            dynamicConfig->MediumUpdater->Period);
 
         ChunkStore_->Initialize();
 
@@ -117,7 +126,7 @@ public:
             GetConfig()->DataNode->StorageLookupThreadCount,
             "StorageLookup");
         MasterJobThreadPool_ = New<TThreadPool>(
-            dynamicConfig->DataNode->MasterJobThreadCount,
+            dynamicConfig->MasterJobThreadCount,
             "MasterJob");
 
         P2PActionQueue_ = New<TActionQueue>("P2P");
@@ -180,8 +189,6 @@ public:
 
         MasterConnector_->Initialize();
 
-        MediumUpdater_->Start();
-
         P2PDistributor_->Start();
 
         SkynetHttpServer_->Start();
@@ -212,6 +219,11 @@ public:
     const IMasterConnectorPtr& GetMasterConnector() const override
     {
         return MasterConnector_;
+    }
+
+    const TMediumDirectoryManagerPtr& GetMediumDirectoryManager() const override
+    {
+        return MediumDirectoryManager_;
     }
 
     const TMediumUpdaterPtr& GetMediumUpdater() const override
@@ -311,7 +323,7 @@ private:
     TSessionManagerPtr SessionManager_;
 
     IMasterConnectorPtr MasterConnector_;
-
+    TMediumDirectoryManagerPtr MediumDirectoryManager_;
     TMediumUpdaterPtr MediumUpdater_;
 
     TEnumIndexedVector<EDataNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
@@ -349,6 +361,9 @@ private:
         P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
         P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);
         P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
+
+        const auto& mediumUpdaterConfig = newConfig->DataNode->MediumUpdater;
+        MediumUpdater_->SetPeriod(mediumUpdaterConfig->Period);
     }
 };
 
