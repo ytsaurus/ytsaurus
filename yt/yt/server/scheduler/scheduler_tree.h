@@ -85,8 +85,7 @@ struct ISchedulerTree
         TDuration safeTimeout,
         int minScheduleJobCallAttempts,
         const THashSet<EDeactivationReason>& deactivationReasons,
-        TDuration limitingAncestorSafeTimeout,
-        const TJobResourcesWithQuotaList& minNeededResources) = 0;
+        TDuration limitingAncestorSafeTimeout) = 0;
 
     virtual void ProcessActivatableOperations() = 0;
     virtual void TryRunAllPendingOperations() = 0;

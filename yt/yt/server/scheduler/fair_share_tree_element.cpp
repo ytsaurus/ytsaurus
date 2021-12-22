@@ -2475,6 +2475,11 @@ TJobResourcesWithQuotaList TSchedulerOperationElement::GetDetailedMinNeededJobRe
     return DetailedMinNeededJobResources_;
 }
 
+TJobResources TSchedulerOperationElement::GetAggregatedMinNeededJobResources() const
+{
+    return AggregatedMinNeededJobResources_;
+}
+
 void TSchedulerOperationElement::Disable(bool markAsNonAlive)
 {
     YT_LOG_DEBUG("Operation element disabled in strategy");
