@@ -1,5 +1,5 @@
 from yt_commands import (
-    authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, get,
+    authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, get, set,
     exists, create_user,
     create_group, make_ace, add_member, read_table, write_table, map, map_reduce, abort_job, abandon_job,
     get_job_fail_context, get_job_input, get_job_stderr, get_job_spec, dump_job_context,
@@ -13,6 +13,8 @@ from yt_env_setup import (
     Restarter,
     SCHEDULERS_SERVICE,
 )
+
+from yt_scheduler_helpers import scheduler_orchid_path
 
 import yt_error_codes
 
@@ -576,3 +578,16 @@ class TestSchedulerAcls(YTEnvSetup):
                 _abort_op,
                 operation_id=op.id,
             )
+
+    @authors("eshcherbin")
+    def test_revive_base_acl_with_write(self):
+        assert not get("//sys/operations/@acl")
+        set("//sys/operations/@acl/end", make_ace("allow", "users", ["write"]))
+        wait(lambda: [ace for ace in get(scheduler_orchid_path() + "/scheduler/operation_base_acl") if "users" in ace["subjects"]])
+
+        with self._run_op_context_manager() as (op, job_id):
+            with Restarter(self.Env, SCHEDULERS_SERVICE):
+                pass
+            op.wait_for_state("running")
+
+        set("//sys/operations/@acl", [])

@@ -38,8 +38,11 @@ static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
                 ace.Action)
                 << TErrorAttribute("ace", ace);
         }
-        if (Any(ace.Permissions & ~(EPermission::Read | EPermission::Manage))) {
-            THROW_ERROR_EXCEPTION("Only \"read\" and \"manage\" permissions are allowed in operation ACL, got %v",
+        if (Any(ace.Permissions & ~(EPermission::Read | EPermission::Manage | EPermission::Administer))) {
+            THROW_ERROR_EXCEPTION("Only %Qlv, %Qlv and %Qlv permissions are allowed in operation ACL, got %v",
+                EPermission::Read,
+                EPermission::Manage,
+                EPermission::Administer,
                 ConvertToYsonString(ace.Permissions, EYsonFormat::Text))
                 << TErrorAttribute("ace", ace);
         }
