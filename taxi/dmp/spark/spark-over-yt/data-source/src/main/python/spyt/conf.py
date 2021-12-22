@@ -181,4 +181,4 @@ def _get_spyt_minor_version(spyt_version):
 
 
 def _get_spark_cluster_minor_version(spark_cluster_version):
-    return ".".join(spark_cluster_version.split("-")[1].split(".")[:2])
+    return ".".join(spark_cluster_version.split("-")[0].split(".")[:2])

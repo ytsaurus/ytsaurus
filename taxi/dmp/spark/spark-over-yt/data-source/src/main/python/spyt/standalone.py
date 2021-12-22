@@ -20,6 +20,7 @@ from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spy
     worker_num_limit, validate_worker_num
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
 from .enabler import SpytEnablers
+from .version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -287,7 +288,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     operation_spec["description"] = {
         "Spark over YT": {
             "discovery_path": spark_discovery.base_discovery_path,
-            "version": config["cluster_version"],
+            "cluster_version": config["cluster_version"],
+            "client_version": __version__,
             "enable_byop": enablers.enable_byop,
             "enable_arrow": enablers.enable_arrow,
             "enable_mtn": enablers.enable_mtn
