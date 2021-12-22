@@ -1266,6 +1266,7 @@ public:
 
     //! Used in orchid.
     TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
+    TJobResources GetAggregatedMinNeededJobResources() const;
 
 protected:
     //! Pre update methods.

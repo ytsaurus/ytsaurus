@@ -398,8 +398,7 @@ public:
         TDuration safeTimeout,
         int minScheduleJobCallAttempts,
         const THashSet<EDeactivationReason>& deactivationReasons,
-        TDuration limitingAncestorSafeTimeout,
-        const TJobResourcesWithQuotaList& minNeededResources) override
+        TDuration limitingAncestorSafeTimeout) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -428,26 +427,14 @@ public:
             }
         }
 
-        // We only want to find the operations that are hanged due to poorly configured resource limits or a custom
-        // scheduling tag filter. Node shortage, e.g. due to a bulk restart, shouldn't fail the operation. See: YT-13329.
-        bool hasMinNeededResources = !minNeededResources.empty();
-        auto aggregatedMinNeededResources = TJobResources::Infinite();
-        for (const auto& jobResources : minNeededResources) {
-            aggregatedMinNeededResources = Min(aggregatedMinNeededResources, jobResources.ToJobResources());
-        }
-
-        bool canFitIntoTotalResources = TreeSnapshotImpl_ &&
-            Dominates(TreeSnapshotImpl_->RootElement()->GetTotalResourceLimits(), aggregatedMinNeededResources);
+        bool hasMinNeededResources = !element->GetDetailedMinNeededJobResources().empty();
+        auto aggregatedMinNeededResources = element->GetAggregatedMinNeededJobResources();
         bool shouldCheckLimitingAncestor = hasMinNeededResources &&
-            canFitIntoTotalResources &&
             Config_->EnableLimitingAncestorCheck &&
             element->IsLimitingAncestorCheckEnabled();
         if (shouldCheckLimitingAncestor) {
             auto it = OperationIdToFirstFoundLimitingAncestorTime_.find(operationId);
-
-            // NB(eshcherbin): Here we rely on the fact that |element->ResourceLimits_| is infinite
-            // if the element is not in the fair share tree snapshot yet.
-            if (auto* limitingAncestor = FindAncestorWithInsufficientResourceLimits(element, aggregatedMinNeededResources)) {
+            if (auto* limitingAncestor = FindAncestorWithInsufficientSpecifiedResourceLimits(element, aggregatedMinNeededResources)) {
                 TInstant firstFoundLimitingAncestorTime;
                 if (it == OperationIdToFirstFoundLimitingAncestorTime_.end()) {
                     firstFoundLimitingAncestorTime = now;
@@ -460,11 +447,11 @@ public:
                 if (activationTime + limitingAncestorSafeTimeout < now &&
                     firstFoundLimitingAncestorTime + limitingAncestorSafeTimeout < now)
                 {
-                    return TError("Operation has an ancestor whose resource limits are too small to satisfy operation's minimum job resource demand")
+                    return TError("Operation has an ancestor whose specified resource limits are too small to satisfy operation's minimum job resource demand")
                         << TErrorAttribute("safe_timeout", limitingAncestorSafeTimeout)
                         << TErrorAttribute("limiting_ancestor", limitingAncestor->GetId())
-                        << TErrorAttribute("resource_limits", limitingAncestor->GetResourceLimits())
-                        << TErrorAttribute("min_needed_resources", minNeededResources);
+                        << TErrorAttribute("resource_limits", limitingAncestor->GetSpecifiedResourceLimits())
+                        << TErrorAttribute("min_needed_resources", aggregatedMinNeededResources);
                 }
             } else if (it != OperationIdToFirstFoundLimitingAncestorTime_.end()) {
                 it->second = TInstant::Max();
@@ -2387,11 +2374,12 @@ private:
     }
 
     // Finds the lowest ancestor of |element| whose resource limits are too small to satisfy |neededResources|.
-    const TSchedulerElement* FindAncestorWithInsufficientResourceLimits(const TSchedulerElement* element, const TJobResources& neededResources) const
+    const TSchedulerElement* FindAncestorWithInsufficientSpecifiedResourceLimits(const TSchedulerElement* element, const TJobResources& neededResources) const
     {
         const TSchedulerElement* current = element;
         while (current) {
-            if (!Dominates(current->GetResourceLimits(), neededResources)) {
+            // NB(eshcherbin): We expect that |GetSpecifiedResourcesLimits| return infinite limits when no limits were specified.
+            if (!Dominates(current->GetSpecifiedResourceLimits(), neededResources)) {
                 return current;
             }
             current = current->GetParent();
@@ -2911,6 +2899,7 @@ private:
                     });
                 })
             .EndList()
+            .Item("aggregated_min_needed_job_resources").Value(element->GetAggregatedMinNeededJobResources())
             .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
             .Item("starving_since").Value(element->GetStarvationStatus() != EStarvationStatus::NonStarving
                 ? std::make_optional(element->GetLastNonStarvingTime())
