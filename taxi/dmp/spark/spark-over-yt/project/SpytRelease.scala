@@ -1,19 +1,80 @@
 package spyt
 
-import sbt.{IO, Project, SettingKey, State, TaskKey, ThisBuild}
+import sbt.{IO, Project, SettingKey, State, TaskKey}
 import sbtrelease.ReleasePlugin.autoImport.ReleaseKeys.versions
 import sbtrelease.ReleasePlugin.autoImport._
 import sbtrelease.ReleaseStateTransformations._
 import sbtrelease.Utilities.stateW
 import sbtrelease._
-import spyt.SpytPlugin.autoImport.{spytSparkVersionFile, _}
+import spyt.ReleaseUtils._
+import spyt.SpytPlugin.autoImport._
 
 import java.io.File
 
 object SpytRelease {
-  val isTeamCity: Boolean = sys.env.get("IS_TEAMCITY").contains("1")
+  lazy val clientReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
+    clientReleaseVersions,
+    setReleaseClientVersion,
+    setYtProxies,
+    ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
+    ReleaseStep(releaseStepTask(spytPublishClient)),
+    commitReleaseClientVersion,
+    setNextClientVersion,
+    ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
+    commitNextClientVersion,
+    maybePushChanges,
+    logClientVersion
+  )
 
-  def releaseVersions(st: State, versionSetting: SettingKey[String]): State = {
+  lazy val clusterReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
+    minorReleaseVersions,
+    setReleaseClusterVersion,
+    setReleaseClientVersion,
+    setYtProxies,
+    ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
+    ReleaseStep(releaseStepTask(spytPublishCluster)),
+    ReleaseStep(releaseStepTask(spytPublishClient)),
+    commitReleaseClusterVersion,
+    setNextClientVersion,
+    setNextClusterVersion,
+    ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
+    commitNextClusterVersion,
+    maybePushChanges,
+    logClusterVersion,
+    logClientVersion
+  )
+
+  lazy val sparkForkReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
+    minorReleaseVersions,
+    setReleaseClusterVersion,
+    setReleaseClientVersion,
+    sparkForkReleaseVersions,
+    setSparkForkReleaseVersion,
+    setYtProxies,
+    ReleaseStep(releaseStepTask(spytUpdatePythonVersion))
+  ) ++ sparkMvnDeployProcess ++ Seq(
+    ReleaseStep(releaseStepTask(spytPublishSparkFork)),
+    ReleaseStep(releaseStepTask(spytPublishCluster)),
+    ReleaseStep(releaseStepTask(spytPublishClient)),
+    commitReleaseClusterVersion,
+    commitReleaseSparkForkVersion,
+    setNextClientVersion,
+    setNextClusterVersion,
+    ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
+    commitNextClusterVersion,
+    maybePushChanges,
+    logSparkForkVersion,
+    logClusterVersion,
+    logClientVersion
+  )
+
+  private lazy val testProcess: Seq[ReleaseStep] = Seq(
+    checkSnapshotDependencies,
+    runClean,
+    runTest
+  )
+
+  private def releaseVersions(st: State, versionSetting: SettingKey[String]): State = {
     val extracted = Project.extract(st)
     st.log.info(s"Teamcity build: $isTeamCity")
 
@@ -33,7 +94,7 @@ object SpytRelease {
     st.put(versions, (releaseV, nextV))
   }
 
-  def releaseMinorVersions(st: State, versionSetting: SettingKey[String]): State = {
+  private def releaseMinorVersions(st: State, versionSetting: SettingKey[String]): State = {
     val extracted = Project.extract(st)
 
     val currentV = extracted.get(versionSetting)
@@ -47,37 +108,6 @@ object SpytRelease {
     st.log.info(s"Cluster next version: $nextV")
 
     st.put(versions, (releaseV, nextV))
-  }
-
-  def maybeSetVersion(spytVersions: Seq[(SettingKey[String], Versions => String)],
-                      fileSetting: SettingKey[File]): ReleaseStep = {
-    if (isTeamCity) {
-      identity[State](_)
-    } else {
-      setVersion(spytVersions, fileSetting)
-    }
-  }
-
-  def setVersion(spytVersions: Seq[(SettingKey[String], Versions => String)],
-                 fileSetting: SettingKey[File]): ReleaseStep = { st: State =>
-    val vs = st.get(versions).getOrElse(sys.error("No versions are set! Was this release part executed before inquireVersions?"))
-    val selected = spytVersions.map(v => v._1 -> v._2.apply(vs))
-
-    st.log.info(s"Setting ${selected.map { case (k, v) => s"${k.key} to $v" }.mkString(", ")}")
-
-    val file = st.extract.get(fileSetting)
-    writeVersion(selected, file)
-
-    reapply(selected.map { case (k, v) => ThisBuild / k := v }, st)
-  }
-
-  def writeVersion(versions: Seq[(SettingKey[String], String)],
-                   file: File): Unit = {
-    val versionStr =
-      s"""import spyt.SpytPlugin.autoImport._
-         |
-         |${versions.map { case (k, v) => s"""ThisBuild / ${k.key} := "$v"""" }.mkString("\n")}""".stripMargin
-    IO.writeLines(file, Seq(versionStr))
   }
 
   private def vcs(st: State): Vcs = {
@@ -125,66 +155,88 @@ object SpytRelease {
     st
   }
 
-  lazy val setRebuildSpark: ReleaseStep = { st: State =>
-    System.setProperty("rebuildSpark", "true")
-    st
+  private def getReleaseVersion(vs: Versions): String = vs._1
+
+  private def getReleasePythonVersion(vs: Versions): String = vs._1.split("-fork-").mkString("+")
+
+  private def getNextVersion(vs: Versions): String = vs._2
+
+  private def getNextPythonVersion(vs: Versions): String = vs._2.replace("-SNAPSHOT", "b1")
+
+  private lazy val maybePushChanges: ReleaseStep = if (isTeamCity) identity[State](_) else pushChanges
+
+  private lazy val setReleaseClusterVersion: ReleaseStep = {
+    setVersion(Seq(spytClusterVersion -> getReleaseVersion), spytClusterVersionFile)
   }
-
-  def getReleaseVersion(vs: Versions): String = vs._1
-
-  def getReleaseSparkVersion(vs: Versions): String = s"3.0.1+${vs._1}" //TODO 3.0.1 -> sparkVersion
-
-  def getNextVersion(vs: Versions): String = vs._2
-
-  def getNextPythonVersion(vs: Versions): String = vs._2.replace("-SNAPSHOT", "b1")
-
-  lazy val maybePushChanges: ReleaseStep = if (isTeamCity) identity[State](_) else pushChanges
-
-  lazy val clusterReleaseVersions: ReleaseStep = { st: State => releaseVersions(st, spytClusterVersion) }
-  lazy val setReleaseClusterVersion: ReleaseStep = setVersion(Seq(spytClusterVersion -> getReleaseVersion), spytClusterVersionFile)
-  lazy val maybeSetNextClusterVersion: ReleaseStep = maybeSetVersion(Seq(spytClusterVersion -> getNextVersion), spytClusterVersionFile)
-  lazy val maybeCommitReleaseClusterVersion = { st: State => maybeCommit(st, releaseClusterCommitMessage, Seq(spytClusterVersionFile)) }
-  lazy val maybeCommitNextClusterVersion = { st: State => maybeCommit(st, releaseNextClusterCommitMessage, Seq(spytClusterVersionFile)) }
-
-
-  lazy val clientReleaseVersions: ReleaseStep = { st: State => releaseVersions(st, spytClientVersion) }
-  lazy val setReleaseClientVersion: ReleaseStep = {
+  private lazy val setNextClusterVersion: ReleaseStep = {
+    maybeSetVersion(Seq(spytClusterVersion -> getNextVersion), spytClusterVersionFile)
+  }
+  private lazy val commitReleaseSparkForkVersion: ReleaseStep = { st: State =>
+    maybeCommit(
+      st,
+      releaseSparkForkCommitMessage,
+      Seq(spytSparkVersionFile, spytSparkDependencyFile)
+    )
+  }
+  private lazy val commitReleaseClusterVersion: ReleaseStep = { st: State =>
+    maybeCommit(
+      st,
+      releaseClusterCommitMessage,
+      Seq(spytClientVersionFile, spytClientVersionPyFile, spytClusterVersionFile)
+    )
+  }
+  private lazy val commitNextClusterVersion: ReleaseStep = { st: State =>
+    maybeCommit(
+      st,
+      releaseNextClusterCommitMessage,
+      Seq(spytClientVersionFile, spytClientVersionPyFile, spytClusterVersionFile)
+    )
+  }
+  private lazy val clientReleaseVersions: ReleaseStep = { st: State => releaseVersions(st, spytClientVersion) }
+  private lazy val setReleaseClientVersion: ReleaseStep = {
     setVersion(Seq(
       spytClientVersion -> getReleaseVersion,
       spytClientPythonVersion -> getReleaseVersion
     ), spytClientVersionFile)
   }
-  lazy val maybeSetNextClientVersion: ReleaseStep = {
+  private lazy val setNextClientVersion: ReleaseStep = {
     maybeSetVersion(Seq(
       spytClientVersion -> getNextVersion,
       spytClientPythonVersion -> getNextPythonVersion
     ), spytClientVersionFile)
   }
-  lazy val maybeCommitReleaseClientVersion = { st: State =>
+  private lazy val commitReleaseClientVersion: ReleaseStep = { st: State =>
     maybeCommit(st, releaseClientCommitMessage, Seq(spytClientVersionFile, spytClientVersionPyFile))
   }
-  lazy val maybeCommitNextClientVersion = { st: State =>
+  private lazy val commitNextClientVersion: ReleaseStep = { st: State =>
     maybeCommit(st, releaseNextClientCommitMessage, Seq(spytClientVersionFile, spytClientVersionPyFile))
   }
 
-  lazy val allReleaseVersions: ReleaseStep = { st: State => releaseMinorVersions(st, spytClusterVersion) }
-  lazy val setReleaseSparkVersion: ReleaseStep = setVersion(Seq(spytSparkPythonVersion -> getReleaseSparkVersion), spytSparkVersionFile)
-  lazy val setNextSparkVersion: ReleaseStep = setVersion(Seq(spytSparkPythonVersion -> getReleaseSparkVersion), spytSparkVersionFile)
-  lazy val commitReleaseAllVersion = { st: State =>
-    maybeCommit(st, releaseAllCommitMessage, Seq(
-      spytClientVersionFile,
-      spytClientVersionPyFile,
-      spytClusterVersionFile,
-      spytSparkVersionFile
-      //      spytSparkVersionPyFile
-    ))
+  private lazy val minorReleaseVersions: ReleaseStep = { st: State => releaseMinorVersions(st, spytClusterVersion) }
+  private lazy val sparkForkReleaseVersions: ReleaseStep = { st: State =>
+    val extracted = Project.extract(st)
+
+    val currentClusterVersion = extracted.get(spytClusterVersion)
+    val currentSparkMainVersion = extracted.get(spytSparkVersion).split("-").head
+
+    val releaseV = s"$currentSparkMainVersion-fork-$currentClusterVersion"
+    st.log.info(s"Release version: $releaseV")
+
+    st.put(versions, (releaseV, ""))
   }
-  lazy val commitNextAllVersion = { st: State =>
-    maybeCommit(st, releaseNextAllCommitMessage, Seq(
-      spytClientVersionFile,
-      spytClientVersionPyFile,
-      spytClusterVersionFile
-    ))
+  private lazy val setSparkForkReleaseVersion: ReleaseStep = {
+    setVersion(
+      Seq(
+        spytSparkVersion -> getReleaseVersion,
+        spytSparkPythonVersion -> getReleasePythonVersion
+      ), spytSparkVersionFile
+    )
   }
+  private lazy val sparkMvnDeployProcess: Seq[ReleaseStep] = Seq(
+    setSparkForkSnapshotVersionMvn,
+    ReleaseStep(releaseStepTask(spytMvnDeploySparkFork)),
+    unsetSparkForkSnapshotVersionMvn,
+    updateSparkForkDependency
+  )
 
 }

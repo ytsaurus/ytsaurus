@@ -37,6 +37,9 @@ object SparkPackagePlugin extends AutoPlugin {
     val sparkReleaseLinks = settingKey[Boolean]("If true, links in //sys/spark will be created, default is !sparkIsSnapshot")
     val sparkYtServerProxyPath = settingKey[Option[String]]("YT path of ytserver-proxy binary")
 
+    val sparkMvnInstall = taskKey[Unit]("")
+    val sparkMvnDeploy = taskKey[Unit]("")
+
     def createPackageMapping(src: File, dst: String): LinuxPackageMapping = {
 
       @tailrec
@@ -76,18 +79,15 @@ object SparkPackagePlugin extends AutoPlugin {
     sparkReleaseLinks := !sparkIsSnapshot.value,
     sparkLocalConfigs := {
       Seq(
-        (Compile / resourceDirectory).value / "spark-defaults.conf",
-        (Compile / resourceDirectory).value / "spark-env.sh",
-        (Compile / resourceDirectory).value / "metrics.properties",
-        (Compile / resourceDirectory).value / "log4j.properties",
-        (Compile / resourceDirectory).value / "log4j.workerLogJson.properties",
-        (Compile / resourceDirectory).value / "log4j.worker.properties"
+        baseDirectory.value / "spark-defaults.conf",
+        baseDirectory.value / "spark-env.sh",
+        baseDirectory.value / "metrics.properties",
+        baseDirectory.value / "log4j" / "log4j.properties",
+        baseDirectory.value / "log4j" / "log4j.workerLogJson.properties",
+        baseDirectory.value / "log4j" / "log4j.worker.properties"
       )
     },
-    sparkAdditionalBin := {
-      val pythonDir = sourceDirectory.value / "main" / "python" / "bin"
-      pythonDir.listFiles()
-    },
+    sparkAdditionalBin := Nil,
     sparkYtSubdir := {
       if (sparkIsSnapshot.value) "snapshots" else "releases"
     },
@@ -146,7 +146,7 @@ object SparkPackagePlugin extends AutoPlugin {
     sparkPackage := {
       val log = streams.value.log
       val sparkDist = sparkHome.value / "dist"
-      val rebuildSpark = Option(System.getProperty("rebuildSpark")).exists(_.toBoolean) || !sparkDist.exists()
+      val rebuildSpark = Option(System.getProperty("rebuildSpark")).forall(_.toBoolean) || !sparkDist.exists()
       log.info(s"System property rebuildSpark=${Option(System.getProperty("rebuildSpark"))}," +
         s"spark dist ${if (sparkDist.exists()) "already exists" else "doesn't exist"}")
       if (rebuildSpark) {
@@ -173,6 +173,12 @@ object SparkPackagePlugin extends AutoPlugin {
       sparkAdditionalPython.value.foreach(FileUtils.copyDirectory(_, pythonDir, ignorePython))
 
       sparkDist
+    },
+    sparkMvnInstall := {
+      mvnInstall(sparkHome.value)
+    },
+    sparkMvnDeploy := {
+      mvnInstall(sparkHome.value)
     }
   )
 
@@ -183,10 +189,38 @@ object SparkPackagePlugin extends AutoPlugin {
     val sparkBuildCommand = s"$sparkHome/dev/make-distribution.sh -Phadoop-2.7"
     println("Building spark...")
     val code = (sparkBuildCommand !)
+
     if (code != 0) {
       throw new RuntimeException("Spark build failed")
     }
     println("Spark build completed")
   }
 
+  def mvnInstall(sparkHome: File): Unit = {
+    import scala.language.postfixOps
+    import scala.sys.process._
+
+    val sparkBuildCommand = s"mvn -P scala-2.12 clean install -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
+    println("Building spark...")
+    val code = Process(sparkBuildCommand, cwd = sparkHome) !
+
+    if (code != 0) {
+      throw new RuntimeException("Spark installation failed")
+    }
+    println("Spark installation completed")
+  }
+
+  def mvnDeploy(sparkHome: File): Unit = {
+    import scala.language.postfixOps
+    import scala.sys.process._
+
+    val sparkBuildCommand = s"mvn -P scala-2.12 clean deploy -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
+    println("Building spark...")
+    val code = Process(sparkBuildCommand, cwd = sparkHome) !
+
+    if (code != 0) {
+      throw new RuntimeException("Spark installation failed")
+    }
+    println("Spark installation completed")
+  }
 }

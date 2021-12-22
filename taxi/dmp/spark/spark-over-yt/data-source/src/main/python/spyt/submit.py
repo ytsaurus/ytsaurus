@@ -17,13 +17,11 @@ def launch_gateway(memory="512m",
                    java_home=None,
                    java_opts=None):
     spark_home = _find_spark_home()
-    classpath = [os.path.join(spark_home, "jars", name) for name in os.listdir(os.path.join(spark_home, "jars"))]
-
     java = os.path.join(java_home, "bin", "java") if java_home else "java"
 
     command = [java, "-Xmx{}".format(memory)]
     command += java_opts or []
-    command += ["-cp", ":".join(classpath), "ru.yandex.spark.yt.submit.PythonGatewayServer"]
+    command += ["-cp", ":".join(_submit_classpath()), "ru.yandex.spark.yt.submit.PythonGatewayServer"]
 
     conn_info_dir = tempfile.mkdtemp()
     try:
@@ -67,6 +65,19 @@ def launch_gateway(memory="512m",
     # Store a reference to the Popen object for use by the caller (e.g., in reading stdout/stderr)
     gateway.proc = proc
     return gateway
+
+def _spyt_path():
+    import spyt
+    return spyt.__path__[0]
+
+def _list_path(path):
+    return [os.path.join(path, name) for name in os.listdir(path)]
+
+def _submit_classpath():
+    spark_home = _find_spark_home()
+    spark_classpath = _list_path(os.path.join(spark_home, "jars"))
+    spyt_classpath = _list_path(os.path.join(_spyt_path(), "jars"))
+    return spark_classpath + spyt_classpath
 
 
 def shutdown_gateway(gateway):

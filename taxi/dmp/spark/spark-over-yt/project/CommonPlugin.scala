@@ -1,8 +1,10 @@
+import Dependencies._
 import sbt.Keys._
 import sbt._
 import sbt.plugins.JvmPlugin
 import sbtassembly.AssemblyPlugin.autoImport._
-import Dependencies._
+import sbtassembly.ShadeRule
+import spyt.SparkForkVersion.sparkForkVersion
 import spyt.SpytPlugin.autoImport._
 import spyt.YtPublishPlugin
 
@@ -12,7 +14,25 @@ object CommonPlugin extends AutoPlugin {
   override def requires = JvmPlugin && YtPublishPlugin
 
   object autoImport {
-    val clusterShadeRules = Seq(ShadeRule.rename(
+    val commonShadeRules: Seq[ShadeRule] = {
+      // TODO get names from arrow dependency
+      // Preserve arrow classes from shading
+      val arrowBuffers = Seq("ArrowBuf", "ExpandableByteBuf", "LargeBuffer", "MutableWrappedByteBuf",
+        "NettyArrowBuf", "PooledByteBufAllocatorL", "UnsafeDirectLittleEndian")
+      val arrowRules = arrowBuffers.map(s"io.netty.buffer." + _).map(n => ShadeRule.rename(n -> n).inAll)
+      arrowRules ++ Seq(
+        ShadeRule.rename("javax.annotation.**" -> "shaded_spyt.javax.annotation.@1")
+          .inLibrary("com.google.code.findbugs" % "annotations" % "2.0.3"),
+        ShadeRule.zap("META-INF.org.apache.logging.log4j.core.config.plugins.Log4j2Plugins.dat")
+          .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0"),
+        ShadeRule.rename("com.google.common.**" -> "shaded_spyt.com.google.common.@1")
+          .inAll,
+        ShadeRule.rename("io.netty.**" -> "shaded_spyt.io.netty.@1")
+          .inAll
+      )
+    }
+
+    val clusterShadeRules: Seq[ShadeRule] = commonShadeRules ++ Seq(ShadeRule.rename(
       "ru.yandex.spark.yt.submit.*" -> "ru.yandex.spark.yt.submit.@1",
       "ru.yandex.spark.yt.fs.YtFileSystem" -> "ru.yandex.spark.yt.fs.YtFileSystem",
       "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem" -> "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem",
@@ -24,7 +44,7 @@ object CommonPlugin extends AutoPlugin {
       "NYT.**" -> "shadedyandex.NYT.@1"
     ).inAll)
 
-    val clientShadeRules = Seq(ShadeRule.rename(
+    val clientShadeRules: Seq[ShadeRule] = commonShadeRules ++ Seq(ShadeRule.rename(
       "ru.yandex.spark.yt.format.GlobalTransactionSparkListener" -> "ru.yandex.spark.yt.format.GlobalTransactionSparkListener",
       "ru.yandex.spark.yt.wrapper.**" -> "shadeddatasource.ru.yandex.spark.yt.wrapper.@1",
       "ru.yandex.yt.**" -> "shadeddatasource.ru.yandex.yt.@1",
@@ -35,6 +55,7 @@ object CommonPlugin extends AutoPlugin {
     ).inAll)
 
     lazy val printTestClasspath = taskKey[Unit]("")
+    lazy val commonDependencies = settingKey[Seq[ModuleID]]("")
   }
 
   import autoImport._
@@ -53,6 +74,7 @@ object CommonPlugin extends AutoPlugin {
     scalaVersion := "2.12.8",
     javacOptions ++= Seq("-source", "11", "-target", "11"),
     assembly / assemblyMergeStrategy := {
+      case x if x endsWith "ahc-default.properties" => MergeStrategy.first
       case x if x endsWith "io.netty.versions.properties" => MergeStrategy.first
       case x if x endsWith "Log4j2Plugins.dat" => MergeStrategy.last
       case x if x endsWith "git.properties" => MergeStrategy.last
@@ -62,24 +84,8 @@ object CommonPlugin extends AutoPlugin {
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
     },
-    assembly / assemblyShadeRules := {
-      // TODO get names from arrow dependency
-      // Preserve arrow classes from shading
-      val arrowBuffers = Seq("ArrowBuf", "ExpandableByteBuf", "LargeBuffer", "MutableWrappedByteBuf",
-      "NettyArrowBuf", "PooledByteBufAllocatorL", "UnsafeDirectLittleEndian")
-      val arrowRules = arrowBuffers.map(s"io.netty.buffer." + _).map(n => ShadeRule.rename(n -> n).inAll)
-      arrowRules ++ Seq(
-        ShadeRule.rename("javax.annotation.**" -> "shaded_spyt.javax.annotation.@1")
-          .inLibrary("com.google.code.findbugs" % "annotations" % "2.0.3"),
-        ShadeRule.zap("META-INF.org.apache.logging.log4j.core.config.plugins.Log4j2Plugins.dat")
-          .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0"),
-        ShadeRule.rename("com.google.common.**" -> "shaded_spyt.com.google.common.@1")
-          .inAll,
-        ShadeRule.rename("io.netty.**" -> "shaded_spyt.io.netty.@1")
-          .inAll
-      )
-    },
     assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false),
+    assembly / test := {},
     publishTo := {
       val nexus = "http://artifactory.yandex.net/artifactory/"
       if (isSnapshot.value)
@@ -92,6 +98,16 @@ object CommonPlugin extends AutoPlugin {
     Test / fork := true,
     printTestClasspath := {
       (Test / dependencyClasspath).value.files.foreach(f => println(f.getAbsolutePath))
-    }
+    },
+    ThisBuild / spytSparkForkDependency := {
+      Seq(
+        "org.apache.spark" %% "spark-core",
+        "org.apache.spark" %% "spark-sql"
+      ).map(_ % sparkForkVersion).map(_ excludeAll
+        ExclusionRule(organization = "org.apache.httpcomponents")
+      ).map(_ % Provided)
+    },
+    commonDependencies := yandexIceberg ++ (ThisBuild / spytSparkForkDependency).value ++ circe ++ logging.map(_ % Provided),
+    Global / excludeLintKeys += commonDependencies
   )
 }

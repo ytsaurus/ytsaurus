@@ -1,11 +1,11 @@
 import sbt._
+import spyt.SparkForkVersion.sparkForkVersion
 
 object Dependencies {
   lazy val circeVersion = "0.12.3"
   lazy val circeYamlVersion = "0.12.0"
   lazy val scalatestVersion = "3.0.8"
   lazy val sparkVersion = "3.0.1"
-  lazy val sparkForkVersion = "3.0.1-fork-1.21.0"
   lazy val yandexIcebergVersion = "8919388"
   lazy val slf4jVersion = "1.7.28"
   lazy val scalatraVersion = "2.7.0"
@@ -47,17 +47,11 @@ object Dependencies {
   )
 
   lazy val spark = Seq(
-    "org.apache.spark" %% "spark-core" % sparkForkVersion,
-    "org.apache.spark" %% "spark-sql" % sparkForkVersion
-  ).map(_ excludeAll
-    ExclusionRule(organization = "org.apache.httpcomponents")
-  ).map(_ % Provided)
-
-  lazy val sparkFork = Seq(
-    "org.apache.spark" %% "spark-core"
+    "org.apache.spark" %% "spark-core",
+    "org.apache.spark" %% "spark-sql"
   ).map(_ % sparkForkVersion).map(_ excludeAll
     ExclusionRule(organization = "org.apache.httpcomponents")
-  )
+  ).map(_ % Provided)
 
   lazy val yandexIceberg = Seq(
     "ru.yandex" % "java-ytclient" % yandexIcebergVersion

@@ -4,29 +4,11 @@ import sys
 import os
 import subprocess
 
-spark_home = os.environ.get("SPARK_HOME")
-if spark_home is None:
-    try:
-        bin_dir = os.path.dirname(os.path.realpath(__file__))
-        spark_home = subprocess.check_output("find_spark_home.py").strip().decode("utf-8")
-    except:
-        raise RuntimeError("Unable to find SPARK_HOME automatically from {}".format(os.path.realpath(__file__)))
-
-try:
-    from yt.wrapper import YtClient
-    from yt.wrapper.cli_helpers import ParseStructuredArgument
-    from yt.wrapper.http_helpers import get_user_name
-    from spyt.standalone import start_spark_cluster, find_spark_cluster, SparkDefaultArguments, SpytEnablers
-    from spyt import utils as spark_utils
-    sys.path.insert(0, os.path.join(spark_home, "bin", "python"))
-except Exception as err:
-    print("Spyt modules not found, falling back to pysark: %s " % err)
-    sys.path.insert(0, os.path.join(spark_home, "bin", "python"))
-    from yt.wrapper import YtClient
-    from yt.wrapper.cli_helpers import ParseStructuredArgument
-    from yt.wrapper.http_helpers import get_user_name
-    from spyt.standalone import start_spark_cluster, find_spark_cluster, SparkDefaultArguments, SpytEnablers
-    from spyt import utils as spark_utils
+from yt.wrapper import YtClient
+from yt.wrapper.cli_helpers import ParseStructuredArgument
+from yt.wrapper.http_helpers import get_user_name
+from spyt.standalone import start_spark_cluster, find_spark_cluster, SparkDefaultArguments, SpytEnablers
+from spyt import utils as spark_utils
 
 
 def main():

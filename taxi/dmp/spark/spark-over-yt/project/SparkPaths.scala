@@ -5,6 +5,8 @@ object SparkPaths {
   val sparkYtLegacyBasePath = "//sys/spark"
 
   val sparkYtBinPath = s"$sparkYtBasePath/bin"
+  val sparkYtSparkForkPath = s"$sparkYtBasePath/spark"
+  val sparkYtClusterPath = s"$sparkYtBasePath/bin"
   val sparkYtConfPath = s"$sparkYtBasePath/conf"
   val sparkYtDeltaLayerPath = s"$sparkYtBasePath/delta"
   val sparkYtClientPath = s"$sparkYtBasePath/spyt"
@@ -19,4 +21,18 @@ object SparkPaths {
   val ytPortoBaseLayersPath = "//porto_layers/base"
 
   val defaultYtServerProxyPath = "//sys/bin/ytserver-proxy/ytserver-proxy"
+
+  def isSnapshotVersion(version: String): Boolean = version.contains("SNAPSHOT")
+
+  def versionBasePath(basePath: String, version: String): String = {
+    if (isSnapshotVersion(version)) {
+      s"$basePath/snapshots"
+    } else {
+      s"$basePath/releases"
+    }
+  }
+
+  def versionPath(basePath: String, version: String): String = {
+    s"${versionBasePath(basePath, version)}/$version"
+  }
 }

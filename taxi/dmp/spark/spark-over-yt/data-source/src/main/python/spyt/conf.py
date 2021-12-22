@@ -2,7 +2,7 @@ import logging
 
 from yt.wrapper import get, YPath, list as yt_list, exists
 from yt.wrapper.common import update_inplace
-from .version import __version__
+from .version import __scala_version__
 
 SPARK_BASE_PATH = YPath("//home/spark")
 
@@ -14,7 +14,7 @@ SPYT_BASE_PATH = SPARK_BASE_PATH.join("spyt")
 RELEASES_SUBDIR = "releases"
 SNAPSHOTS_SUBDIR = "snapshots"
 
-SELF_VERSION = __version__ if "b" not in __version__ else "{}-SNAPSHOT".format(__version__.split("b")[0])
+SELF_VERSION = __scala_version__
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
