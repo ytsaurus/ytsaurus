@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import re
+import subprocess
 
 from yt.wrapper import YPath
 from yt.wrapper.cypress_commands import list as yt_list, create, exists
@@ -209,3 +210,13 @@ def parse_args(parser=None, parser_arguments=None):
 def tuple(element_types):
     from .types import tuple_type
     return tuple_type(element_types)
+
+def spark_home():
+    spark_home = os.environ.get("SPARK_HOME")
+    if spark_home is None:
+        try:
+            spark_home = subprocess.check_output("find_spark_home.py").strip().decode("utf-8")
+        except:
+            raise RuntimeError("Unable to find SPARK_HOME automatically from {}".format(os.path.realpath(__file__)))
+    return spark_home
+

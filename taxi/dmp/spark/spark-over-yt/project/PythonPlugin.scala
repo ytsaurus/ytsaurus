@@ -19,6 +19,8 @@ object PythonPlugin extends AutoPlugin {
     val pythonWheel = taskKey[Unit]("")
     val pythonUpload = taskKey[Unit]("")
     val pythonBuildAndUpload = taskKey[Unit]("")
+
+    val pythonDeps = taskKey[Seq[(String, File)]]("")
   }
 
   import autoImport._
@@ -31,18 +33,31 @@ object PythonPlugin extends AutoPlugin {
     }
   }
 
+  private def createDeps(deps: File, files: Seq[(String, File)]): Unit = {
+    if (files.nonEmpty) deps.mkdirs()
+    files.foreach { case (relativePath, file) =>
+      val targetDir = new File(deps, relativePath)
+      targetDir.mkdirs()
+      val target = new File(targetDir, file.getName)
+      IO.copyFile(file, target)
+    }
+  }
+
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     pythonCommand := "python3",
     pythonSetupName := "setup.py",
     pythonBuildDir := sourceDirectory.value / "main" / "python",
 
     pythonClean := {
-      val dirs = Seq("dist", "build").map(pythonBuildDir.value / _)
+      val dirs = Seq("dist", "build", "deps").map(pythonBuildDir.value / _)
       dirs.foreach(FileUtils.deleteDirectory(_, recursive = true))
     },
     pythonWheel := {
+      val deps = pythonBuildDir.value / "deps"
+      createDeps(deps, pythonDeps.value)
       val command = s"${pythonCommand.value} ${pythonSetupName.value} sdist bdist_wheel"
       runCommand(command, pythonBuildDir.value)
+      FileUtils.deleteDirectory(deps, recursive = true)
     },
     pythonUpload := {
       val log = streams.value.log
@@ -57,6 +72,7 @@ object PythonPlugin extends AutoPlugin {
       pythonClean,
       pythonWheel,
       pythonUpload
-    ).value
+    ).value,
+    pythonDeps := Nil
   )
 }

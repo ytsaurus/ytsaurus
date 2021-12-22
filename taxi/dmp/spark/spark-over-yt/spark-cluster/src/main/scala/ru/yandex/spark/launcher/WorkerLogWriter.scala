@@ -23,6 +23,7 @@ class WorkerLogWriter(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundCli
 
   case object MetaKey {
     def apply(block: WorkerLogBlock): MetaKey = (block.appDriver, block.execId, block.stream)
+
     def apply(meta: WorkerLogMeta): MetaKey = (meta.appDriver, meta.execId, meta.stream)
   }
 
@@ -78,7 +79,8 @@ class WorkerLogWriter(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundCli
           insertMetas(nonExisting, Some(transaction))
           existing.foreach(meta => updateMeta(meta, Some(transaction)))
           newData.foreach { case (key, logs) =>
-            upload(creationTimes(key).toLocalDate, logs, Some(transaction)) }
+            upload(creationTimes(key).toLocalDate, logs, Some(transaction))
+          }
 
           unflushedMeta
       }

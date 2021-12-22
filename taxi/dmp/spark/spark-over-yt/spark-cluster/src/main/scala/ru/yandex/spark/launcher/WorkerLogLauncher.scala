@@ -33,6 +33,7 @@ object WorkerLogLauncher extends VanillaLauncher {
 
   object WorkerLogConfig {
     val minimalInterval: Duration = 1 minute
+
     def create(sparkConf: Map[String, String], args: Array[String]): Option[WorkerLogConfig] = {
       create(sparkConf, Args(args))
     }
@@ -142,7 +143,7 @@ class LogServiceRunnable(workerLogConfig: WorkerLogConfig)(implicit yt: Compound
   private def readUntilEnd(reader: RandomAccessFile, ignoreLast: Boolean): Stream[(Long, String)] = {
     val stream = Stream
       .continually((Option(reader.readLine()), reader.getFilePointer))
-      .takeWhile{ case (line, _) => line.nonEmpty }
+      .takeWhile { case (line, _) => line.nonEmpty }
       .map { case (line, seek) => (seek, line.get) }
     if (ignoreLast) stream.dropRight(1)
     else stream

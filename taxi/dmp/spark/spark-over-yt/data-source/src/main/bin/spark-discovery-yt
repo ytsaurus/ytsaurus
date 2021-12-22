@@ -6,15 +6,6 @@ import sys
 import os
 import subprocess
 
-spark_home = os.environ.get("SPARK_HOME")
-if spark_home is None:
-    try:
-        bin_dir = os.path.dirname(os.path.realpath(__file__))
-        spark_home = subprocess.check_output("find_spark_home.py").strip().decode("utf-8")
-    except:
-        raise RuntimeError("Unable to find SPARK_HOME automatically from {}".format(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(spark_home, "bin", "python"))
-
 from yt.wrapper import YtClient
 from spyt import utils as spark_utils
 from spyt.standalone import find_spark_cluster
