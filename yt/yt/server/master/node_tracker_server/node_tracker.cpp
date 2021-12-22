@@ -2106,6 +2106,10 @@ private:
             request.add_flavors(static_cast<int>(flavor));
         }
 
+        if (GetDynamicConfig()->ReplicateHostNameDuringRegistration) {
+            request.set_host_name(node->GetHost()->GetName());
+        }
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
     }
