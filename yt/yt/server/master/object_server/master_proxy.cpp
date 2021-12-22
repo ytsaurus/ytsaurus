@@ -19,6 +19,7 @@
 #include <yt/yt/server/master/node_tracker_server/node_discovery_manager.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/helpers.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
 
 #include <yt/yt/ytlib/election/config.h>
@@ -207,14 +208,7 @@ private:
         }
 
         if (populateMediumDirectory) {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto* protoMediumDirectory = response->mutable_medium_directory();
-            for (auto [mediumId, medium] : chunkManager->Media()) {
-                auto* protoItem = protoMediumDirectory->add_items();
-                protoItem->set_index(medium->GetIndex());
-                protoItem->set_name(medium->GetName());
-                protoItem->set_priority(medium->GetPriority());
-            }
+            SerializeMediumDirectory(response->mutable_medium_directory(), Bootstrap_->GetChunkManager());
         }
 
         if (populateCellDirectory) {

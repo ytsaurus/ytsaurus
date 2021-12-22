@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 
+#include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
+
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/ytlib/journal_client/public.h>
@@ -134,6 +136,15 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
 std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk);
 
 NChunkClient::TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithIndexes chunkWithIndexes);
+
+void SerializeMediumDirectory(
+    NChunkClient::NProto::TMediumDirectory* protoMediumDirectory,
+    const TChunkManagerPtr& chunkManager);
+
+void SerializeMediumOverrides(
+    TNode* node,
+    NDataNodeTrackerClient::NProto::TMediumOverrides* protoMediumOverrides,
+    const TChunkManagerPtr& chunkManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

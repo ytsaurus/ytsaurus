@@ -3,6 +3,22 @@ package NYT.NDataNodeTrackerClient.NProto;
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/chunk_client/proto/heartbeat.proto";
+import "yt/ytlib/chunk_client/proto/medium_directory.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMediumOverride
+{
+    required NYT.NProto.TGuid location_id = 1;
+    required int32 medium_index = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMediumOverrides
+{
+    repeated TMediumOverride overrides = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +41,9 @@ message TRspFullHeartbeat
 
     repeated NChunkClient.NProto.TChunkReplicaAnnouncementRequest replica_announcement_requests = 2;
     optional bool enable_lazy_replica_announcements = 3;
+    
+    optional NChunkClient.NProto.TMediumDirectory medium_directory = 4;
+    optional TMediumOverrides medium_overrides = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,6 +78,9 @@ message TRspIncrementalHeartbeat
 
     repeated NChunkClient.NProto.TChunkReplicaAnnouncementRequest replica_announcement_requests = 3;
     optional bool enable_lazy_replica_announcements = 4;
+
+    optional NChunkClient.NProto.TMediumDirectory medium_directory = 5;
+    optional TMediumOverrides medium_overrides = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,9 +1,11 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
-    authors, print_debug, wait, create, ls, get, set, exists,
+    authors, wait, create, ls, get, set, exists,
     create_medium, write_file,
-    read_table, write_table, write_journal, wait_until_sealed, get_singular_chunk_id, update_nodes_dynamic_config, set_account_disk_space_limit, get_account_disk_space_limit, get_media)
+    read_table, write_table, write_journal, wait_until_sealed,
+    get_singular_chunk_id,
+    set_account_disk_space_limit, get_account_disk_space_limit, get_media)
 
 from yt.common import YtError
 
@@ -658,11 +660,11 @@ class TestMediaMulticell(TestMedia):
 
 class TestDynamicMedia(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 2
+    NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "dynamic_config_manager": {
-            "enable_unrecognized_options_alert": True,
+        "data_node": {
+            "incremental_heartbeat_period": 100,
         },
         "cluster_connection": {
             "medium_directory_synchronizer": {
@@ -671,51 +673,87 @@ class TestDynamicMedia(YTEnvSetup):
         }
     }
 
-    def setup(self):
-        update_nodes_dynamic_config(
-            {
-                "data_node": {
-                    "medium_updater":
-                        {
-                            "enabled": True,
-                            "period": 1
-                        }
-                }
-            }
-        )
+    @classmethod
+    def modify_node_config(cls, config):
+        assert len(config["data_node"]["store_locations"]) == 1
+        location_prototype = config["data_node"]["store_locations"][0]
 
-    @authors("s-v-m")
+        location0 = deepcopy(location_prototype)
+        location0["path"] += "_0"
+        location0["medium_name"] = "default"
+
+        location1 = deepcopy(location_prototype)
+        location1["path"] += "_1"
+        location1["medium_name"] = "default"
+
+        config["data_node"]["store_locations"] = [
+            location0,
+            location1,
+        ]
+
+    @authors("kvk1920")
     def test_medium_change_simple(self):
-        for i in range(10):
-            table = "//tmp/t{}".format(i)
-            create("table", table, attributes={"replication_factor": 1})
-            write_table(table, {"foo": "bar"})
-        node = ls("//sys/cluster_nodes")[0]
-        location_uuid = get("//sys/cluster_nodes/{0}/@statistics/locations/0/location_uuid".format(node))
-        print_debug(get("//sys/cluster_nodes/{0}/@statistics/locations".format(node)))
-        assert get("//sys/cluster_nodes/{0}/@statistics/locations/0/chunk_count".format(node)) > 0
+        node = "//sys/data_nodes/" + ls("//sys/data_nodes")[0]
+
+        def get_locations():
+            return {
+                location["location_uuid"]: location
+                for location in get(node + "/@statistics/locations")
+            }
 
         medium_name = "testmedium"
-        create_medium(medium_name)
-        set("//sys/cluster_nodes/{0}/@config".format(node), {
-            "medium_overrides": {
-                location_uuid: medium_name
+        if not exists("//sys/media/" + medium_name):
+            create_medium(medium_name)
+
+        table = "//tmp/t"
+        create("table", table, attributes={"replication_factor": 1})
+        write_table(table, {"foo": "bar"}, table_writer={"upload_replication_factor": 1})
+
+        location1, location2 = get_locations().keys()
+
+        wait(lambda: sum(map(lambda location: location["chunk_count"], get_locations().values())) == 1)
+
+        set(node + "/@medium_overrides", {location1: medium_name})
+
+        wait(lambda: get_locations()[location1]["medium_name"] == medium_name)
+        assert get_locations()[location2]["medium_name"] == "default"
+
+        wait(lambda: get_locations()[location1]["chunk_count"] == 0)
+        assert get_locations()[location2]["chunk_count"] == 1
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        assert get_locations()[location1]["medium_name"] == medium_name
+        assert get_locations()[location2]["medium_name"] == "default"
+
+        set(node + "/@medium_overrides", {location2: medium_name})
+
+        wait(lambda: get_locations()[location1]["medium_name"] == "default")
+        assert get_locations()[location2]["medium_name"] == medium_name
+
+        wait(lambda: get_locations()[location2]["chunk_count"] == 0)
+        assert get_locations()[location1]["chunk_count"] == 1
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        assert get_locations()[location1]["medium_name"] == "default"
+        assert get_locations()[location2]["medium_name"] == medium_name
+
+
+################################################################################
+
+
+class TestDynamicMediaWithOldHeartbeats(TestDynamicMedia):
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "incremental_heartbeat_period": 100,
+        },
+        "use_new_heartbeats": False,
+        "cluster_connection": {
+            "medium_directory_synchronizer": {
+                "sync_period": 1
             }
-        })
-        wait(lambda: get("//sys/cluster_nodes/{0}/@statistics/locations/0/medium_name".format(node)) == medium_name,
-             ignore_exceptions=True)
-        wait(lambda: get("//sys/cluster_nodes/{0}/@statistics/locations/0/chunk_count".format(node)) == 0, iter=100)
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        assert get("//sys/cluster_nodes/{0}/@statistics/locations/0/medium_name".format(node)) == medium_name
-
-        set("//sys/cluster_nodes/{0}/@config".format(node), {})
-        wait(lambda: get("//sys/cluster_nodes/{0}/@statistics/locations/0/medium_name".format(node)) == "default",
-             ignore_exceptions=True)
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        assert get("//sys/cluster_nodes/{0}/@statistics/locations/0/medium_name".format(node)) == "default"
+        }
+    }

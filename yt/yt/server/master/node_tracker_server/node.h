@@ -6,22 +6,27 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_replica.h>
 
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
-
 #include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
-
-#include <yt/yt/server/master/cell_server/public.h>
-
-#include <yt/yt/server/master/transaction_server/public.h>
 
 #include <yt/yt/server/master/object_server/object.h>
 
+#include <yt/yt/server/master/transaction_server/public.h>
+
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
-#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
-#include <yt/yt/client/node_tracker_client/node_directory.h>
-#include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
+#include <yt/yt/server/lib/hydra_common/entity_map.h>
 
+#include <yt/yt/client/chunk_client/public.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/chunk_client/public.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+
+#include <yt/yt/core/misc/dense_map.h>
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
@@ -79,6 +84,13 @@ public:
     using TMediumMap = NChunkClient::TMediumMap<T>;
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
+    // COMPAT(kvk1920)
+    using TLegacyMediumOverrideMap =
+    SmallDenseMap<NChunkServer::TLocationUuid, TString, NChunkServer::TypicalNodeLocationCount, NChunkServer::TLocationUuidDenseMapInfo>;
+
+    using TMediumOverrideMap =
+    SmallDenseMap<NChunkServer::TLocationUuid, int, NChunkServer::TypicalNodeLocationCount, NChunkServer::TLocationUuidDenseMapInfo>;
+
     DEFINE_BYREF_RO_PROPERTY(TMediumMap<double>, IOWeights);
     DEFINE_BYREF_RO_PROPERTY(TMediumMap<i64>, TotalSpace);
     DEFINE_BYREF_RW_PROPERTY(TMediumMap<int>, ConsistentReplicaPlacementTokenCount);
@@ -103,6 +115,13 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, NodeTags);
     //! User tags plus node tags.
     DEFINE_BYREF_RO_PROPERTY(THashSet<TString>, Tags);
+
+    // COMPAT(kvk1920)
+    DEFINE_BYREF_RW_PROPERTY(TLegacyMediumOverrideMap, LegacyMediumOverrides);
+    DEFINE_BYREF_RW_PROPERTY(TMediumOverrideMap, MediumOverrides);
+
+    // COMPAT(kvk1920)
+    void TransformLegacyMediumOverrides(NCellMaster::TBootstrap* bootstrap);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);

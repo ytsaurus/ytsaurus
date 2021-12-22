@@ -18,6 +18,8 @@
 
 #include <yt/yt/server/node/data_node/journal_dispatcher.h>
 #include <yt/yt/server/node/data_node/chunk_meta_manager.h>
+#include <yt/yt/server/node/data_node/medium_directory_manager.h>
+#include <yt/yt/server/node/data_node/medium_updater.h>
 
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
@@ -263,6 +265,12 @@ public:
         }
 
         OnlineCellCount_ += 1;
+
+        const auto& connection = Bootstrap_->GetMasterConnection();
+
+        if (cellTag == connection->GetPrimaryMasterCellTag()) {
+            ProcessHeartbeatResponseMediaInfo(response);
+        }
     }
 
     void OnIncrementalHeartbeatFailed(TCellTag cellTag) override
@@ -340,6 +348,12 @@ public:
         if (cellTag == PrimaryMasterCellTagSentinel) {
             const auto& sessionManager = Bootstrap_->GetSessionManager();
             sessionManager->SetDisableWriteSessions(response.disable_write_sessions() || Bootstrap_->Decommissioned());
+        }
+
+        const auto& connection = Bootstrap_->GetMasterConnection();
+
+        if (cellTag == connection->GetPrimaryMasterCellTag()) {
+            ProcessHeartbeatResponseMediaInfo(response);
         }
     }
 
@@ -749,7 +763,6 @@ private:
         i64 totalLowWatermarkSpace = 0;
         i64 totalUsedSpace = 0;
         int totalStoredChunkCount = 0;
-        int totalSessionCount = 0;
 
         THashMap<int, int> mediumIndexToIOWeight;
 
@@ -767,7 +780,6 @@ private:
 
             totalUsedSpace += location->GetUsedSpace();
             totalStoredChunkCount += location->GetChunkCount();
-            totalSessionCount += location->GetSessionCount();
 
             auto* locationStatistics = statistics->add_storage_locations();
 
@@ -944,6 +956,25 @@ private:
             return;
         }
         delta->ChangedMediumSinceLastSuccess.emplace(chunk, mediumIndex);
+    }
+
+    void ProcessHeartbeatResponseMediaInfo(const auto& response)
+    {
+        if (!Bootstrap_->IsDataNode()) {
+            return;
+        }
+
+        YT_VERIFY(response.has_medium_directory() == response.has_medium_overrides());
+
+        const auto& mediumDirectoryManager = Bootstrap_->GetMediumDirectoryManager();
+        const auto& mediumUpdater = Bootstrap_->GetMediumUpdater();
+
+        mediumUpdater->EnableLegacyMode(!response.has_medium_overrides());
+
+        if (response.has_medium_directory()) {
+            mediumDirectoryManager->UpdateMediumDirectory(response.medium_directory());
+            mediumUpdater->UpdateLocationMedia(response.medium_overrides());
+        }
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

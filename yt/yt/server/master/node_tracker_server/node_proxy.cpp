@@ -4,15 +4,15 @@
 #include "host.h"
 #include "rack.h"
 #include "node_tracker.h"
+#include "private.h"
 
-#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+
+#include <yt/yt/server/master/cell_server/cell_base.h>
+#include <yt/yt/server/master/cell_server/cell_bundle.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
-
-#include <yt/yt/ytlib/node_tracker_client/helpers.h>
-
-#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
@@ -21,10 +21,18 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/yt/server/master/cell_server/cell_base.h>
-#include <yt/yt/server/master/cell_server/cell_bundle.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/yt/client/chunk_client/public.h>
+
+#include <yt/yt/core/misc/dense_map.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/optional.h>
+
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NNodeTrackerServer {
 
@@ -124,6 +132,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimits)
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimitsOverrides)
+            .SetWritable(true)
+            .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MediumOverrides)
             .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkReplicaCount)
@@ -468,6 +479,20 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceLimitsOverrides());
                 return true;
+            
+            case EInternedAttributeKey::MediumOverrides: {
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                BuildYsonFluently(consumer).DoMapFor(
+                    node->MediumOverrides(), 
+                    [&] (TFluentMap map, const auto& pair) {
+                        const auto& [locationUuid, mediumIndex] = pair;
+                        auto medium = chunkManager->FindMediumByIndex(mediumIndex);
+                        if (IsObjectAlive(medium)) {
+                            map.Item(ToString(locationUuid)).Value(medium->GetName());
+                        }
+                    });
+                return true;
+            }
 
             case EInternedAttributeKey::ChunkReplicaCount: {
                 if (!isGood) {
@@ -603,6 +628,21 @@ private:
             case EInternedAttributeKey::UserTags:
                 nodeTracker->SetNodeUserTags(node, ConvertTo<std::vector<TString>>(value));
                 return true;
+            
+            case EInternedAttributeKey::MediumOverrides: {
+                auto uuidToMediumName = ConvertTo<THashMap<TLocationUuid, TString>>(value);
+                
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+                TNode::TMediumOverrideMap uuidToMediumIndex;
+                for (const auto& [locationUuid, mediumName] : uuidToMediumName) {
+                    auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+                    EmplaceOrCrash(uuidToMediumIndex, locationUuid, medium->GetIndex());
+                }
+
+                node->MediumOverrides() = std::move(uuidToMediumIndex);
+                return true;
+            }
 
             default:
                 break;

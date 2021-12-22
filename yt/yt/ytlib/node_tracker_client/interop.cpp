@@ -259,6 +259,10 @@ void FromFullHeartbeatResponse(
         fullDataNodeHeartbeatResponse->set_enable_lazy_replica_announcements(fullHeartbeatResponse.enable_lazy_replica_announcements());
     }
     fullDataNodeHeartbeatResponse->mutable_replica_announcement_requests()->CopyFrom(fullHeartbeatResponse.replica_announcement_requests());
+    if (fullHeartbeatResponse.has_medium_directory()) {
+        *fullDataNodeHeartbeatResponse->mutable_medium_directory() = fullHeartbeatResponse.medium_directory();
+        *fullDataNodeHeartbeatResponse->mutable_medium_overrides() = fullHeartbeatResponse.medium_overrides();
+    }
 }
 
 void FillFullHeartbeatResponse(
@@ -270,6 +274,10 @@ void FillFullHeartbeatResponse(
         fullHeartbeatResponse->set_enable_lazy_replica_announcements(fullDataNodeHeartbeatResponse.enable_lazy_replica_announcements());
     }
     fullHeartbeatResponse->mutable_replica_announcement_requests()->CopyFrom(fullDataNodeHeartbeatResponse.replica_announcement_requests());
+    if (fullDataNodeHeartbeatResponse.has_medium_directory()) {
+        *fullHeartbeatResponse->mutable_medium_directory() = fullDataNodeHeartbeatResponse.medium_directory();
+        *fullHeartbeatResponse->mutable_medium_overrides() = fullDataNodeHeartbeatResponse.medium_overrides();
+    }
 }
 
 void FromIncrementalHeartbeatResponse(
@@ -282,6 +290,10 @@ void FromIncrementalHeartbeatResponse(
         incrementalDataNodeHeartbeatResponse->set_enable_lazy_replica_announcements(incrementalHeartbeatResponse.enable_lazy_replica_announcements());
     }
     incrementalDataNodeHeartbeatResponse->mutable_replica_announcement_requests()->CopyFrom(incrementalHeartbeatResponse.replica_announcement_requests());
+    if (incrementalHeartbeatResponse.has_medium_directory()) {
+        *incrementalDataNodeHeartbeatResponse->mutable_medium_directory() = incrementalHeartbeatResponse.medium_directory();
+        *incrementalDataNodeHeartbeatResponse->mutable_medium_overrides() = incrementalHeartbeatResponse.medium_overrides();
+    }
 }
 
 void FillIncrementalHeartbeatResponse(
@@ -294,6 +306,10 @@ void FillIncrementalHeartbeatResponse(
         incrementalHeartbeatResponse->set_enable_lazy_replica_announcements(incrementalDataNodeHeartbeatResponse.enable_lazy_replica_announcements());
     }
     incrementalHeartbeatResponse->mutable_replica_announcement_requests()->CopyFrom(incrementalDataNodeHeartbeatResponse.replica_announcement_requests());
+    if (incrementalDataNodeHeartbeatResponse.has_medium_directory()) {
+        *incrementalHeartbeatResponse->mutable_medium_directory() = incrementalDataNodeHeartbeatResponse.medium_directory();
+        *incrementalHeartbeatResponse->mutable_medium_overrides() = incrementalDataNodeHeartbeatResponse.medium_overrides();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

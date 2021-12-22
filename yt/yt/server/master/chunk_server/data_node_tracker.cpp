@@ -1,4 +1,6 @@
 #include "data_node_tracker.h"
+
+#include "chunk_manager.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
@@ -7,12 +9,18 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/helpers.h>
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
+
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NChunkServer {
 
@@ -22,6 +30,9 @@ using namespace NDataNodeTrackerClient::NProto;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
+
+using NNodeTrackerClient::NProto::TReqRegisterNode;
+using NNodeTrackerClient::NProto::TRspRegisterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +94,11 @@ public:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
 
+        if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
+            SerializeMediumDirectory(response->mutable_medium_directory(), chunkManager);
+            SerializeMediumOverrides(node, response->mutable_medium_overrides(), chunkManager);
+        }
+        
         FullHeartbeat_.Fire(node, request, response);
     }
 
@@ -106,13 +122,16 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto& statistics = *request->mutable_statistics();
         node->SetDataNodeStatistics(std::move(statistics), chunkManager);
+
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
-            node->SetDisableWriteSessionsReportedByNode(request->write_sessions_disabled());
+            SerializeMediumDirectory(response->mutable_medium_directory(), chunkManager);
+            SerializeMediumOverrides(node, response->mutable_medium_overrides(), chunkManager);
 
+            node->SetDisableWriteSessionsReportedByNode(request->write_sessions_disabled());
             response->set_disable_write_sessions(node->GetDisableWriteSessions());
             node->SetDisableWriteSessionsSentToNode(node->GetDisableWriteSessions());
         }
@@ -209,6 +228,21 @@ private:
     {
         FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
         IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
+    }
+
+    void ProcessRegisterNode(
+        TNode* node,
+        TReqRegisterNode* /*request*/,
+        TRspRegisterNode* response) override
+    {
+        YT_VERIFY(node->IsDataNode());
+
+        if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
+            auto* dataNodeInfoExt = response->MutableExtension(NNodeTrackerClient::NProto::TDataNodeInfoExt::data_node_info_ext);
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            SerializeMediumDirectory(dataNodeInfoExt->mutable_medium_directory(), chunkManager);
+            SerializeMediumOverrides(node, dataNodeInfoExt->mutable_medium_overrides(), chunkManager);
+        }
     }
 };
 

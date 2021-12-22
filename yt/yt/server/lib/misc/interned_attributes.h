@@ -244,6 +244,7 @@
     XX(MaxTimestamp, max_timestamp) \
     XX(MD5, md5) \
     XX(Media, media) \
+    XX(MediumOverrides, medium_overrides) \
     XX(MemberCount, member_count) \
     XX(MemberOf, member_of) \
     XX(MemberOfClosure, member_of_closure) \

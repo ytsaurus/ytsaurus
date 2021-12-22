@@ -13,24 +13,25 @@
 
 // COMPAT(gritukan)
 #include "exec_node_tracker.h"
-#include "yt/server/master/node_tracker_server/proto/node_tracker.pb.h"
-#include <yt/yt/server/master/chunk_server/data_node_tracker.h>
-#include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
 
+#include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
-#include <yt/yt/server/master/cell_master/config_manager.h>
-#include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
+
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 #include <yt/yt/server/master/chunk_server/job.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 
 #include <yt/yt/server/master/object_server/attribute_set.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
@@ -43,20 +44,16 @@
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
-#include <yt/yt/ytlib/node_tracker_client/interop.h>
-
 #include <yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h>
-
-#include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
-
-#include <yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
-
-#include <yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/node_tracker_client/interop.h>
+
+#include <yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -64,51 +61,51 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/tablet_cell_client/tablet_cell_service_proxy.h>
 
-#include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
-
-#include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/compact_vector.h>
+
+#include <yt/yt/core/net/address.h>
+
+#include <yt/yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/ypath/token.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-#include <yt/yt/core/profiling/timing.h>
-
 namespace NYT::NNodeTrackerServer {
 
+using namespace NCellMaster;
+using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NNet;
-using namespace NYTree;
-using namespace NYPath;
-using namespace NNodeTrackerClient;
-using namespace NNodeTrackerClient::NProto;
-using namespace NHydra;
-using namespace NHiveServer;
-using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NCypressServer;
+using namespace NHiveServer;
+using namespace NHydra;
+using namespace NNet;
+using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
 using namespace NNodeTrackerServer::NProto;
-using namespace NTransactionServer;
-using namespace NSecurityServer;
+using namespace NObjectClient;
 using namespace NObjectServer;
-using namespace NCellMaster;
 using namespace NProfiling;
+using namespace NSecurityServer;
+using namespace NTransactionServer;
+using namespace NYPath;
 using namespace NYson;
-using namespace NChunkClient;
+using namespace NYTree;
 
 using NYT::FromProto;
 
@@ -957,6 +954,8 @@ private:
 
     // COMPAT(gritukan)
     bool NeedToCreateHostObjects_ = false;
+    // COMPAT(kvk1920)
+    bool NeedToTransformLegacyMediumOverrides_ = false;
 
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
 
@@ -1187,6 +1186,11 @@ private:
 
         response->set_node_id(node->GetId());
         response->set_use_new_heartbeats(GetDynamicConfig()->UseNewHeartbeats);
+
+        if (node->IsDataNode()) {
+            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+            dataNodeTracker->ProcessRegisterNode(node, request, response);
+        }
 
         // NB: Exec nodes should not report heartbeats to secondary masters,
         // so node can already be online for this cell.
@@ -1540,6 +1544,7 @@ private:
             HostMap_.LoadKeys(context);
         }
 
+        NeedToTransformLegacyMediumOverrides_ = context.GetVersion() < EMasterReign::MediumOverridesViaHeartbeats;
         NeedToCreateHostObjects_ = context.GetVersion() < EMasterReign::HostObjects;
     }
 
@@ -1614,6 +1619,11 @@ private:
             InsertToAddressMaps(node);
             InsertToFlavorSets(node);
             UpdateNodeCounters(node, +1);
+
+            // COMPAT(kvk1920)
+            if (NeedToTransformLegacyMediumOverrides_) {
+                node->TransformLegacyMediumOverrides(Bootstrap_);
+            }
 
             if (node->GetLeaseTransaction()) {
                 RegisterLeaseTransaction(node);

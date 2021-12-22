@@ -138,12 +138,22 @@ public:
     //! Returns the medium name.
     TString GetMediumName() const;
 
-    //! Sets medium name and reconfigures medium descriptors.
+    //! Sets medium name and reconfigures medium descriptors using given medium directory.
+    //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.
     //! Returns |true| if location medium was changed.
-    bool UpdateMediumName(const TString& newMediumName);
+    bool UpdateMediumName(
+        const TString& newMediumName,
+        const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
+        bool onInitialize = false);
+
+    //! Sets medium descriptor.
+    //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.
+    void UpdateMediumDescriptor(
+        const NChunkClient::TMediumDescriptor& mediumDescriptor,
+        bool onInitialize = false);
 
     //! Returns the medium descriptor.
-    const NChunkClient::TMediumDescriptor& GetMediumDescriptor() const;
+    NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
 
     const NProfiling::TProfiler& GetProfiler() const;
 
@@ -274,18 +284,17 @@ protected:
 private:
     friend class TPendingIOGuard;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
     const ELocationType Type_;
     const TStoreLocationConfigBasePtr Config_;
 
-
     TLocationUuid Uuid_;
 
-    TAtomicObject<TError> Alert_;
+    TAtomicObject<TError> LocationDisabledAlert_;
+    TAtomicObject<TError> MediumAlert_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MediumLock_);
-    TAtomicObject<TString> MediumName_;
-    std::atomic<NChunkClient::TMediumDescriptor*> CurrentMediumDescriptor_ = nullptr;
-    std::vector<std::unique_ptr<NChunkClient::TMediumDescriptor>> MediumDescriptors_;
+    TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
     mutable std::atomic<i64> AvailableSpace_ = 0;
     std::atomic<i64> UsedSpace_ = 0;
