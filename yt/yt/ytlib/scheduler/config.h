@@ -759,7 +759,7 @@ public:
     std::vector<TString> Owners;
 
     //! ACL for operation.
-    //! It can consist of "allow"-only ACE-s with "read" and "manage" permissions.
+    //! It can consist of "allow"-only ACE-s with "read", "manage" and "administer" permissions.
     NSecurityClient::TSerializableAccessControlList Acl;
 
     //! Add the "read" and "manage" rights for the authenticated_user to |Acl|.

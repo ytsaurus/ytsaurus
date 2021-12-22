@@ -2605,7 +2605,7 @@ private:
                 OperationBaseAcl_->Entries.emplace_back(
                     ESecurityAction::Allow,
                     ace.Subjects,
-                    EPermissionSet(EPermission::Read | EPermission::Manage));
+                    EPermissionSet(EPermission::Read | EPermission::Manage | EPermission::Administer));
             }
         }
     }
