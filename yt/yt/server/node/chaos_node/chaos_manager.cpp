@@ -758,7 +758,9 @@ private:
 
             if (auto it = newCellsSet.find(cellId)) {
                 newCellsSet.erase(it);
-            } else if (!oldCellsSet.contains(cellId)) {
+            }
+
+            if (!oldCellsSet.contains(cellId)) {
                 if (current != index) {
                     CoordinatorCellIds_[current] = cellId;
                 }
