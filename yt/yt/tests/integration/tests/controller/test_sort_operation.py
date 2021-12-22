@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, get, set, copy, remove, exists,
-    create_account, create_user, assert_statistics,
+    create_account, create_user, assert_statistics, raises_yt_error,
     make_ace, start_transaction, commit_transaction, insert_rows, read_table, write_table, sort, erase, get_operation,
     sync_create_cells, sync_mount_table, sync_unmount_table, get_singular_chunk_id, create_dynamic_table)
 
@@ -2295,6 +2295,21 @@ class TestSchedulerSortCommands(YTEnvSetup):
             key="chunk_reader_statistics.idle_time",
             assertion=lambda idle_time: idle_time > 0,
             job_type="simple_sort")
+
+    @authors("max42")
+    def test_column_selector_contradicting_sort_columns(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        row_count = 23
+        for i in range(row_count):
+            write_table("<append=%true>//tmp/t_in", [{"x": (i * 7) % row_count, "z": "A" * 65536}], verbose=False)
+
+        with raises_yt_error('Sort column "y" is discarded by input column selectors'):
+            sort(in_="//tmp/t_in{x}", out="//tmp/t_out", sort_by=["y"], spec={
+                "partition_count": 10,
+                "data_weight_per_sort_job": 10 ** 8,
+                "schema_inference_mode": "auto",
+            })
 
 
 ##################################################################

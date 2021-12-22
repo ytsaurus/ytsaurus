@@ -3247,7 +3247,7 @@ private:
                 YT_LOG_INFO("Adjusted partition count (PartitionCount: %v)", PartitionCount);
             }
 
-            YT_LOG_INFO("Building partition keys");
+            YT_LOG_INFO("Building partition keys (SimpleSort: %v)", SimpleSort);
 
             YT_PROFILE_TIMING("/operations/sort/samples_processing_time") {
                 if (!SimpleSort) {
@@ -3256,7 +3256,8 @@ private:
                         samples,
                         PartitionCount,
                         comparator,
-                        RowBuffer);
+                        RowBuffer,
+                        Logger);
                 }
             }
         } else {
