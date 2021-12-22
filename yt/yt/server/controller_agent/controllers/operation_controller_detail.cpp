@@ -9396,7 +9396,7 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
         }
     }
 
-    FilterOutputSchemaByInputColumnSelectors();
+    FilterOutputSchemaByInputColumnSelectors(sortColumns);
 }
 
 void TOperationControllerBase::InferSchemaFromInputOrdered()
@@ -9411,28 +9411,37 @@ void TOperationControllerBase::InferSchemaFromInputOrdered()
         // If only only one input table given, we inherit the whole schema including column attributes.
         outputUploadOptions.SchemaMode = InputTables_[0]->SchemaMode;
         outputUploadOptions.TableSchema = InputTables_[0]->Schema;
-        FilterOutputSchemaByInputColumnSelectors();
+        FilterOutputSchemaByInputColumnSelectors(/*sortColumns*/{});
         return;
     }
 
     InferSchemaFromInput();
 }
 
-void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors()
+void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors(const TSortColumns& sortColumns)
 {
-    THashSet<TString> columns;
+    THashSet<TString> selectedColumns;
     for (const auto& table : InputTables_) {
         if (auto selectors = table->Path.GetColumns()) {
             for (const auto& column : *selectors) {
-                columns.insert(column);
+                selectedColumns.insert(column);
             }
         } else {
             return;
         }
     }
 
-    OutputTables_[0]->TableUploadOptions.TableSchema =
-        OutputTables_[0]->TableUploadOptions.TableSchema->Filter(columns);
+    auto& outputSchema = OutputTables_[0]->TableUploadOptions.TableSchema;
+
+    for (const auto& sortColumn : sortColumns) {
+        if (!selectedColumns.contains(sortColumn.Name)) {
+            THROW_ERROR_EXCEPTION("Sort column %Qv is discarded by input column selectors", sortColumn.Name)
+                << TErrorAttribute("sort_columns", sortColumns)
+                << TErrorAttribute("selected_columns", selectedColumns);
+        }
+    }
+
+    outputSchema = outputSchema->Filter(selectedColumns);
 }
 
 void TOperationControllerBase::ValidateOutputSchemaOrdered() const

@@ -37,6 +37,7 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NApi;
+using namespace NLogging;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -212,8 +213,13 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     const std::vector<TSample>& samples,
     int partitionCount,
     const NTableClient::TComparator& comparator,
-    const TRowBufferPtr& rowBuffer)
+    const TRowBufferPtr& rowBuffer,
+    const TLogger& logger)
 {
+    const auto& Logger = logger;
+
+    YT_LOG_INFO("Building partition keys by samples (SampleCount: %v, PartitionCount: %v, Comparator: %v)", samples.size(), partitionCount, comparator);
+
     YT_VERIFY(partitionCount > 0);
 
     struct TComparableSample

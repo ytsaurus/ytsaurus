@@ -965,7 +965,7 @@ protected:
 
     void InferSchemaFromInput(const NTableClient::TSortColumns& sortColumns = NTableClient::TSortColumns());
     void InferSchemaFromInputOrdered();
-    void FilterOutputSchemaByInputColumnSelectors();
+    void FilterOutputSchemaByInputColumnSelectors(const NTableClient::TSortColumns& sortColumns);
     void ValidateOutputSchemaOrdered() const;
     void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns = false) const;
     // Validate that ESchemaInferenceMode::Auto is used when output table is dynamic.
