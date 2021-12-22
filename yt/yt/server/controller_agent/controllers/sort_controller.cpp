@@ -1679,8 +1679,24 @@ protected:
 
         void OnIntermediateSortCompleted(int partitionIndex)
         {
+            YT_LOG_DEBUG(
+                "Intermediate sorting completed, finishing sorted merge chunk pool (PartitionIndex: %v)",
+                partitionIndex);
+
             const auto& chunkPool = GetOrCrash(SortedMergeChunkPools_, partitionIndex);
-            chunkPool->Finish();
+
+            try {
+                chunkPool->Finish();
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(
+                    ex,
+                    "Error while finishing input for sorted chunk pool (PartitionIndex: %v)",
+                    partitionIndex);
+                Controller_->OnOperationFailed(
+                    TError("Error while finishing input for sorted chunk pool")
+                        << ex
+                        << TErrorAttribute("partition_index", partitionIndex));
+            }
         }
 
         void Finalize()

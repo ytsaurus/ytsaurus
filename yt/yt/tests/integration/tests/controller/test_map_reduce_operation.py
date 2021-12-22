@@ -2786,6 +2786,37 @@ done
 
         assert read_table("//tmp/t_out") == expected
 
+    @authors("max42")
+    @pytest.mark.parametrize("stage", ["partition_map", "reduce_combiner", "sorted_reduce"])
+    def test_data_weight_per_sorted_job_limit_exceeded(self, stage):
+        create("table", "//tmp/t_in")
+
+        light_row = "A"
+        heavy_row = "A" * 20
+        echo_heavy_row = "echo '{x=" + heavy_row + "}'"
+        cat = "cat"
+
+        write_table("//tmp/t_in", [{"x": heavy_row if stage == "partition_map" else light_row}])
+
+        create("table", "//tmp/t_out")
+
+        try:
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                mapper_command=cat,
+                reduce_combiner_command=echo_heavy_row if stage == "reduce_combiner" else cat,
+                reducer_command=echo_heavy_row if stage == "sorted_reduce" else cat,
+                reduce_by=["x"],
+                format="<format=text>yson",
+                spec={
+                    "force_reduce_combiners": True,
+                    "max_data_weight_per_job": 10,
+                }
+            )
+        except YtError as err:
+            assert "Exception thrown in operation controller" not in str(err)
+
 
 ##################################################################
 
