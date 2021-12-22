@@ -532,12 +532,12 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
 
     TComputedColumnPopulationMatcher::Data data{
         DB::WithContext(context),
-        .Entries = std::move(entries),
-        .BlockWithConstants = blockWithConstants,
-        .TableSchema = schema,
-        .PreparedSets = preparedSets,
-        .Settings = settings,
-        .Logger = logger
+        /*Entries=*/ std::move(entries),
+        /*BlockWithConstants=*/ blockWithConstants,
+        /*TableSchema=*/ schema,
+        /*PreparedSets=*/ preparedSets,
+        /*Settings=*/ settings,
+        /*Logger=*/ logger
     };
     auto oldAst = ast->clone();
     TComputedColumnPopulationVisitor(data).visit(ast);
