@@ -1053,6 +1053,7 @@ public:
         // More precisely, we compute MinComponent ignoring the resource types which are absent in the tree (e.g. GPU).
         TString bestTree;
         auto bestReserveRatio = std::numeric_limits<double>::lowest();
+        std::vector<TString> emptyTrees;
         for (const auto& [treeId, poolName] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
             YT_VERIFY(snapshots.contains(treeId));
             auto snapshot = snapshots[treeId];
@@ -1062,11 +1063,15 @@ public:
             }
 
             auto totalResourceLimits = snapshot->GetTotalResourceLimits();
-            TResourceVector currentDemandShare;
-            TResourceVector promisedFairShare;
+            if (totalResourceLimits == TJobResources()) {
+                emptyTrees.push_back(treeId);
+                continue;
+            }
 
             // If pool is not present in the snapshot (e.g. due to poor timings or if it is an ephemeral pool),
             // then its demand and guaranteed resources ratio are considered to be zero.
+            TResourceVector currentDemandShare;
+            TResourceVector promisedFairShare;
             if (auto poolStateSnapshot = snapshot->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
                 currentDemandShare = poolStateSnapshot->DemandShare;
                 promisedFairShare = poolStateSnapshot->PromisedFairShare;
@@ -1107,11 +1112,24 @@ public:
             }
         }
 
-        YT_VERIFY(bestTree);
-        YT_LOG_DEBUG("Chose best single tree for operation (OperationId: %v, BestTree: %v, BestReserveRatio: %v)",
-            operationId,
-            bestTree,
-            bestReserveRatio);
+        YT_VERIFY(bestTree || !emptyTrees.empty());
+
+        if (bestTree) {
+            YT_LOG_DEBUG("Chose best single tree for operation (OperationId: %v, BestTree: %v, BestReserveRatio: %v, EmptyCandidateTrees: %v)",
+                operationId,
+                bestTree,
+                bestReserveRatio,
+                emptyTrees);
+        } else {
+            bestTree = emptyTrees[0];
+
+            YT_LOG_DEBUG(
+                "Found no best single non-empty tree for operation; choosing first found empty tree"
+                "(OperationId: %v, BestTree: %v, EmptyCandidateTrees: %v)",
+                operationId,
+                bestTree,
+                emptyTrees);
+        }
 
         return bestTree;
     }
