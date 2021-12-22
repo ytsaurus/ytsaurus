@@ -6,7 +6,7 @@ object Dependencies {
   lazy val circeYamlVersion = "0.12.0"
   lazy val scalatestVersion = "3.0.8"
   lazy val sparkVersion = "3.0.1"
-  lazy val yandexIcebergVersion = "8919388"
+  lazy val yandexIcebergVersion = "8973557"
   lazy val slf4jVersion = "1.7.28"
   lazy val scalatraVersion = "2.7.0"
   lazy val mockitoVersion = "1.14.4"
