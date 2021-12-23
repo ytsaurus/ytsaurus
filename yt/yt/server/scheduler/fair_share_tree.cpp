@@ -2565,6 +2565,32 @@ private:
         }
     }
 
+    void ValidateSpecifiedResourceLimits(
+        const IOperationStrategyHost* operation,
+        const TSchedulerCompositeElementPtr& pool,
+        const TJobResourcesConfigPtr& requiredResourceLimits) const
+    {
+        auto requiredLimits = ToJobResources(requiredResourceLimits, TJobResources::Infinite());
+        auto actualLimits = ToJobResources(operation->GetStrategySpec()->ResourceLimits, TJobResources::Infinite());
+        if (Dominates(requiredLimits, actualLimits)) {
+            return;
+        }
+        const auto* current = pool.Get();
+        while (!current->IsRoot()) {
+            actualLimits = Min(actualLimits, current->GetSpecifiedResourceLimits());
+            if (Dominates(requiredLimits, actualLimits)) {
+                return;
+            }
+            current = current->GetParent();
+        }
+        THROW_ERROR_EXCEPTION(
+            "Required resource limits are not met for operation %v", 
+            operation->GetId())
+            << TErrorAttribute("required_resource_limits", requiredResourceLimits)
+            << TErrorAttribute("tree_id", TreeId_)
+            << TErrorAttribute("operation_type", operation->GetType());
+    }
+
     void DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const
     {
         TSchedulerCompositeElementPtr pool = FindPool(poolName.GetPool());
@@ -2577,6 +2603,9 @@ private:
             pool = GetPoolOrParent(poolName, operation->GetAuthenticatedUser());
         }
 
+        if (operation->GetType() == EOperationType::RemoteCopy && Config_->FailRemoteCopyOnMissingResourceLimits) {
+            ValidateSpecifiedResourceLimits(operation, pool, Config_->RequiredResourceLimitsForRemoteCopy);
+        }
         StrategyHost_->ValidatePoolPermission(GetPoolPath(pool), operation->GetAuthenticatedUser(), EPermission::Use);
     }
 

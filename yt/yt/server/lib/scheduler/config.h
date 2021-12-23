@@ -323,6 +323,11 @@ public:
 
     bool AllowAggressivePreemptionForGangOperations;
 
+    //! If set, remote copy operation will fail to start if it can acquire
+    //! more than RequiredResourceLimitsForRemoteCopy resources in any pool tree.
+    bool FailRemoteCopyOnMissingResourceLimits;
+    TJobResourcesConfigPtr RequiredResourceLimitsForRemoteCopy;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
