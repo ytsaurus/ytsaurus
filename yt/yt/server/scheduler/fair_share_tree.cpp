@@ -2820,10 +2820,6 @@ private:
                 .Item("max_running_operation_count").Value(element->GetMaxRunningOperationCount())
                 .Item("max_operation_count").Value(element->GetMaxOperationCount())
                 .Item("forbid_immediate_operations").Value(element->AreImmediateOperationsForbidden())
-                .Item("aggressive_starvation_enabled").Value(element->IsAggressiveStarvationEnabled())
-                .Item("effective_aggressive_starvation_enabled").Value(element->GetEffectiveAggressiveStarvationEnabled())
-                .Item("aggressive_preemption_allowed").Value(element->IsAggressivePreemptionAllowed())
-                .Item("effective_aggressive_preemption_allowed").Value(element->GetEffectiveAggressivePreemptionAllowed())
                 .Item("total_resource_flow_ratio").Value(attributes.TotalResourceFlowRatio)
                 .Item("total_burst_ratio").Value(attributes.TotalBurstRatio)
                 .DoIf(element->GetParent(), [&] (TFluentMap fluent) {
@@ -2923,6 +2919,10 @@ private:
             .Item("fair_share_starvation_timeout").Value(element->GetSpecifiedFairShareStarvationTimeout())
             .Item("effective_fair_share_starvation_tolerance").Value(element->GetEffectiveFairShareStarvationTolerance())
             .Item("effective_fair_share_starvation_timeout").Value(element->GetEffectiveFairShareStarvationTimeout())
+            .Item("aggressive_starvation_enabled").Value(element->IsAggressiveStarvationEnabled())
+            .Item("effective_aggressive_starvation_enabled").Value(element->GetEffectiveAggressiveStarvationEnabled())
+            .Item("aggressive_preemption_allowed").Value(element->IsAggressivePreemptionAllowed())
+            .Item("effective_aggressive_preemption_allowed").Value(element->GetEffectiveAggressivePreemptionAllowed())
             .DoIf(element->IsEligibleForPreemptiveScheduling(/*isAggressive*/ true), [&] (TFluentMap fluent) {
                 YT_VERIFY(element->GetLowestAggressivelyStarvingAncestor());
                 fluent.Item("lowest_aggressively_starving_ancestor").Value(element->GetLowestAggressivelyStarvingAncestor()->GetId());

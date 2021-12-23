@@ -5,11 +5,11 @@ from yt_commands import (
     events_on_fs, reset_events_on_fs,
     create, ls, get, set, remove, exists, create_pool, read_table, write_table,
     map, run_test_vanilla, run_sleeping_vanilla, get_job,
-    sync_create_cells, update_controller_agent_config, update_op_parameters,
-    create_test_tables, retry)
+    sync_create_cells, update_controller_agent_config, update_pool_tree_config_option,
+    update_op_parameters, create_test_tables, retry)
 
 from yt_scheduler_helpers import (
-    scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
+    scheduler_orchid_pool_path, scheduler_orchid_node_path, scheduler_orchid_default_pool_tree_path,
     scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path)
 
 from yt.packages.six.moves import range
@@ -19,6 +19,8 @@ from yt.test_helpers import are_almost_equal
 from yt.common import YtError
 
 import yt.environment.init_operation_archive as init_operation_archive
+
+import yt.yson as yson
 
 import pytest
 
@@ -784,35 +786,50 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 5)
         time.sleep(0.5)
 
+        nodes = ls("//sys/cluster_nodes")
+        for i, node in enumerate(nodes):
+            set("//sys/cluster_nodes/{}/@user_tags/end".format(node), self._get_node_group_tag(i % 2))
+        for i, node in enumerate(nodes):
+            wait(lambda: self._get_node_group_tag(i % 2) in get(scheduler_orchid_node_path(node) + "/tags"))
+
+    def _get_starvation_status(self, op):
+        return op.get_runtime_progress("scheduling_info_per_pool_tree/default/starvation_status")
+
+    def _get_fair_share_ratio(self, op):
+        return op.get_runtime_progress("scheduling_info_per_pool_tree/default/fair_share_ratio", 0.0)
+
+    def _get_usage_ratio(self, op):
+        return op.get_runtime_progress("scheduling_info_per_pool_tree/default/usage_ratio", 0.0)
+
+    def _get_node_group_tag(self, group_index):
+        return "group{}".format(group_index)
+
     @classmethod
     def modify_node_config(cls, config):
         for resource in ["cpu", "user_slots"]:
             config["exec_agent"]["job_controller"]["resource_limits"][resource] = 2
 
-    @authors("ignat")
+    @authors("ignat", "eshcherbin")
     def test_aggressive_preemption(self):
         create_pool("special_pool")
-        set("//sys/pools/special_pool/@enable_aggressive_starvation", True)
-
-        def get_fair_share_ratio(op):
-            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/fair_share_ratio", 0.0)
-
-        def get_usage_ratio(op):
-            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/usage_ratio", 0.0)
 
         ops = []
         for index in range(2):
             create("table", "//tmp/t_out" + str(index))
             op = run_sleeping_vanilla(
                 job_count=4,
-                spec={"pool": "fake_pool" + str(index), "locality_timeout": 0},
+                spec={
+                    "pool": "fake_pool{}".format(index),
+                    "locality_timeout": 0,
+                    "scheduling_tag_filter": self._get_node_group_tag(index),
+                },
             )
             ops.append(op)
         time.sleep(3)
 
         for op in ops:
-            wait(lambda: are_almost_equal(get_fair_share_ratio(op), 1.0 / 2.0))
-            wait(lambda: are_almost_equal(get_usage_ratio(op), 1.0 / 2.0))
+            wait(lambda: are_almost_equal(self._get_fair_share_ratio(op), 1.0 / 2.0))
+            wait(lambda: are_almost_equal(self._get_usage_ratio(op), 1.0 / 2.0))
             wait(lambda: len(op.get_running_jobs()) == 4)
 
         op = run_sleeping_vanilla(
@@ -820,10 +837,13 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
             spec={"pool": "special_pool", "locality_timeout": 0},
             task_patch={"cpu_limit": 2},
         )
-        time.sleep(3)
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op), 1.0 / 4.0))
 
-        wait(lambda: are_almost_equal(get_fair_share_ratio(op), 1.0 / 4.0))
-        wait(lambda: are_almost_equal(get_usage_ratio(op), 1.0 / 4.0))
+        time.sleep(3)
+        assert are_almost_equal(self._get_usage_ratio(op), 0.0)
+
+        set("//sys/pools/special_pool/@enable_aggressive_starvation", True)
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op), 1.0 / 4.0))
         wait(lambda: len(op.get_running_jobs()) == 1)
 
     @authors("eshcherbin")
@@ -831,15 +851,6 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         create_pool("fake_pool", attributes={"weight": 10.0})
         create_pool("regular_pool", attributes={"weight": 1.0})
         create_pool("special_pool", attributes={"weight": 2.0})
-
-        def get_starvation_status(op):
-            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/starvation_status")
-
-        def get_fair_share_ratio(op):
-            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/fair_share_ratio", 0.0)
-
-        def get_usage_ratio(op):
-            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/usage_ratio", 0.0)
 
         bad_op = run_sleeping_vanilla(
             job_count=8,
@@ -851,40 +862,75 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         )
         bad_op.wait_presence_in_scheduler()
 
-        wait(lambda: are_almost_equal(get_fair_share_ratio(bad_op), 1.0))
-        wait(lambda: are_almost_equal(get_usage_ratio(bad_op), 1.0))
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(bad_op), 1.0))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(bad_op), 1.0))
         wait(lambda: len(bad_op.get_running_jobs()) == 8)
 
         op1 = run_sleeping_vanilla(job_count=2, spec={"pool": "special_pool", "locality_timeout": 0})
         op1.wait_presence_in_scheduler()
 
-        wait(lambda: are_almost_equal(get_fair_share_ratio(op1), 2.0 / 12.0))
-        wait(lambda: are_almost_equal(get_usage_ratio(op1), 1.0 / 8.0))
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op1), 2.0 / 12.0))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op1), 1.0 / 8.0))
         wait(lambda: len(op1.get_running_jobs()) == 1)
 
         time.sleep(3)
-        assert are_almost_equal(get_usage_ratio(op1), 1.0 / 8.0)
+        assert are_almost_equal(self._get_usage_ratio(op1), 1.0 / 8.0)
         assert len(op1.get_running_jobs()) == 1
 
         op2 = run_sleeping_vanilla(job_count=1, spec={"pool": "regular_pool", "locality_timeout": 0})
         op2.wait_presence_in_scheduler()
 
-        wait(lambda: get_starvation_status(op2) == "starving")
-        wait(lambda: are_almost_equal(get_fair_share_ratio(op2), 1.0 / 13.0))
-        wait(lambda: are_almost_equal(get_usage_ratio(op2), 0.0))
+        wait(lambda: self._get_starvation_status(op2) == "starving")
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op2), 1.0 / 13.0))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op2), 0.0))
         wait(lambda: len(op2.get_running_jobs()) == 0)
 
         time.sleep(3)
-        assert are_almost_equal(get_usage_ratio(op2), 0.0)
+        assert are_almost_equal(self._get_usage_ratio(op2), 0.0)
         assert len(op2.get_running_jobs()) == 0
 
         # (1/8) / (1/6) = 0.75 < 0.9 (which is fair_share_starvation_tolerance).
-        assert get_starvation_status(op1) == "starving"
+        assert self._get_starvation_status(op1) == "starving"
 
         set("//sys/pools/special_pool/@enable_aggressive_starvation", True)
-        wait(lambda: are_almost_equal(get_usage_ratio(op1), 2.0 / 8.0))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op1), 2.0 / 8.0))
         wait(lambda: len(op1.get_running_jobs()) == 2)
-        assert get_starvation_status(op1) == "non_starving"
+        assert self._get_starvation_status(op1) == "non_starving"
+
+    @authors("eshcherbin")
+    def test_aggressive_preemption_for_gang_operations(self):
+        set("//sys/pool_trees/default/@config/enable_aggressive_starvation", True)
+        update_pool_tree_config_option("default", "allow_aggressive_preemption_for_gang_operations", False)
+
+        gang_ops = []
+        for i in range(2):
+            op = run_sleeping_vanilla(
+                job_count=4,
+                spec={"is_gang": True, "scheduling_tag_filter": self._get_node_group_tag(i)}
+            )
+            gang_ops.append(op)
+
+        for op in gang_ops:
+            wait(lambda: exists(scheduler_orchid_operation_path(op.id)))
+            wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/aggressive_preemption_allowed"))
+            wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/effective_aggressive_preemption_allowed"))
+            wait(lambda: are_almost_equal(self._get_fair_share_ratio(op), 1.0 / 2.0))
+            wait(lambda: are_almost_equal(self._get_usage_ratio(op), 1.0 / 2.0))
+            wait(lambda: len(op.get_running_jobs()) == 4)
+
+        starving_op = run_sleeping_vanilla(job_count=1, task_patch={"cpu_limit": 2})
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(starving_op), 1.0 / 4.0))
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/aggressive_preemption_allowed") == yson.YsonEntity())
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/effective_aggressive_preemption_allowed"))
+
+        time.sleep(3)
+        assert are_almost_equal(self._get_usage_ratio(starving_op), 0.0)
+
+        update_pool_tree_config_option("default", "allow_aggressive_preemption_for_gang_operations", True)
+        for op in gang_ops:
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/aggressive_preemption_allowed") == yson.YsonEntity())
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/effective_aggressive_preemption_allowed"))
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(starving_op), 1.0 / 4.0))
 
 
 # TODO(ignat): merge with class above.

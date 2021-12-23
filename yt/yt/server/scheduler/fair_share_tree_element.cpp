@@ -3205,6 +3205,10 @@ TString TSchedulerOperationElement::GetId() const
 
 std::optional<bool> TSchedulerOperationElement::IsAggressivePreemptionAllowed() const
 {
+    if (IsGang() && !TreeConfig_->AllowAggressivePreemptionForGangOperations) {
+        return false;
+    }
+
     return std::nullopt;
 }
 
