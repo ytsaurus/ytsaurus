@@ -5,8 +5,6 @@
 #include "chunk_detail.h"
 #include "chunk_meta_manager.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/server/lib/io/public.h>
 
 #include <yt/yt/ytlib/chunk_client/block.h>
@@ -58,7 +56,7 @@ public:
 
 protected:
     TBlobChunkBase(
-        NClusterNode::IBootstrapBase* bootstrap,
+        TChunkHostPtr host,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta);
@@ -93,7 +91,6 @@ private:
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
 
-    NClusterNode::IBootstrapBase* Bootstrap_;
     NChunkClient::NProto::TChunkInfo Info_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BlocksExtLock_);
@@ -150,7 +147,7 @@ class TStoredBlobChunk
 {
 public:
     TStoredBlobChunk(
-        NClusterNode::IBootstrapBase* bootstrap,
+        TChunkHostPtr host,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta = nullptr);
@@ -167,7 +164,7 @@ class TCachedBlobChunk
 {
 public:
     TCachedBlobChunk(
-        NClusterNode::IBootstrapBase* bootstrap,
+        TChunkHostPtr host,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta,

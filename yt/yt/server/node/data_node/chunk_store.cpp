@@ -11,6 +11,8 @@
 #include "session.h"
 #include "session_manager.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -59,6 +61,7 @@ void TChunkStore::Initialize()
         auto location = New<TStoreLocation>(
             "store" + ToString(index),
             locationConfig,
+            MakeStrong(this),
             Bootstrap_);
 
         futures.push_back(
@@ -599,14 +602,14 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
             return New<TStoredBlobChunk>(
-                Bootstrap_,
+                TChunkHost::Create(Bootstrap_),
                 location,
                 descriptor);
 
         case EObjectType::JournalChunk:
         case EObjectType::ErasureJournalChunk:
             return New<TJournalChunk>(
-                Bootstrap_,
+                TChunkHost::Create(Bootstrap_),
                 location,
                 descriptor);
 

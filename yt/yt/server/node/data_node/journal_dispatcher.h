@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -43,9 +45,10 @@ struct IJournalDispatcher
 
 DEFINE_REFCOUNTED_TYPE(IJournalDispatcher)
 
-IJournalDispatcherPtr CreateJournalDispatcher(IBootstrap* bootstrap);
+IJournalDispatcherPtr CreateJournalDispatcher(
+    TDataNodeConfigPtr dataNodeConfig,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-

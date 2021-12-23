@@ -7,6 +7,8 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/lazy_changelog.h>
 #include <yt/yt/server/lib/hydra_common/file_helpers.h>
@@ -1143,7 +1145,7 @@ private:
             }
 
             auto chunk = New<TJournalChunk>(
-                Impl_->Bootstrap_,
+                TChunkHost::Create(Impl_->Bootstrap_),
                 Impl_->Location_,
                 TChunkDescriptor(chunkId));
 
