@@ -14,6 +14,13 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobResourcesConfigPtr GetDefaultRequiredResourceLimitsForRemoteCopy()
+{
+    auto config = New<TJobResourcesConfig>();
+    config->UserSlots = 1000;
+    return config;
+}
+
 TJobResourcesConfigPtr GetDefaultMinSpareJobResourcesOnNode()
 {
     auto config = New<TJobResourcesConfig>();
@@ -374,6 +381,13 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_aggressive_preemption_for_gang_operations", &TThis::AllowAggressivePreemptionForGangOperations)
         .Default(true);
+
+    registrar.Parameter("fail_remote_copy_on_missing_resource_limits", &TThis::FailRemoteCopyOnMissingResourceLimits)
+        // TODO(egor-gutrov): set default to true
+        .Default(false);
+
+    registrar.Parameter("required_resource_limits_for_remote_copy", &TThis::RequiredResourceLimitsForRemoteCopy)
+        .DefaultCtor(&GetDefaultRequiredResourceLimitsForRemoteCopy);
 
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
