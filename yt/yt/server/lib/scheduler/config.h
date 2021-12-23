@@ -321,6 +321,8 @@ public:
 
     int MaxEventLogOperationBatchSize;
 
+    bool AllowAggressivePreemptionForGangOperations;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
