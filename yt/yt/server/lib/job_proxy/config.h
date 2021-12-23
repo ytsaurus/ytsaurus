@@ -48,7 +48,7 @@ public:
             .Default(1.5);
 
         RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(60));
     }
 };
 
@@ -375,7 +375,7 @@ public:
 
     bool ForceIdleCpuPolicy;
 
-    bool UploadDebugArtifactChunks; 
+    bool UploadDebugArtifactChunks;
 
     TJobProxyDynamicConfig()
     {

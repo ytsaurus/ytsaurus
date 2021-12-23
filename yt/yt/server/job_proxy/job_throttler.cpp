@@ -32,7 +32,7 @@ public:
     TFuture<void> Throttle(i64 count, EJobThrottlerType throttleDirection, TWorkloadDescriptor descriptor, TJobId jobId)
     {
         auto request = Proxy_.ThrottleJob();
-        request->set_throttler_type(static_cast<i32>(throttleDirection));
+        request->set_throttler_type(static_cast<int>(throttleDirection));
         request->set_count(count);
         ToProto(request->mutable_workload_descriptor(), descriptor);
         ToProto(request->mutable_job_id(), jobId);
