@@ -17,17 +17,17 @@ namespace NYT::NChunkClient {
 struct TChunkReaderStatistics
     : public TRefCounted
 {
-    std::atomic<i64> DataBytesReadFromDisk{0};
-    std::atomic<i64> DataBytesTransmitted{0};
-    std::atomic<i64> DataBytesReadFromCache{0};
-    std::atomic<i64> MetaBytesReadFromDisk{0};
-    std::atomic<i64> OmittedSuspiciousNodeCount{0};
+    std::atomic<i64> DataBytesReadFromDisk = 0;
+    std::atomic<i64> DataBytesTransmitted = 0;
+    std::atomic<i64> DataBytesReadFromCache = 0;
+    std::atomic<i64> MetaBytesReadFromDisk = 0;
+    std::atomic<i64> OmittedSuspiciousNodeCount = 0;
 
     // TODO(prime@): replace with max time. Cumulative disk IO time has not physical meaning.
-    std::atomic<NProfiling::TValue> DataWaitTime{0};
-    std::atomic<NProfiling::TValue> MetaWaitTime{0};
-    std::atomic<NProfiling::TValue> MetaReadFromDiskTime{0};
-    std::atomic<NProfiling::TValue> PickPeerWaitTime{0};
+    std::atomic<NProfiling::TValue> DataWaitTime = 0;
+    std::atomic<NProfiling::TValue> MetaWaitTime = 0;
+    std::atomic<NProfiling::TValue> MetaReadFromDiskTime = 0;
+    std::atomic<NProfiling::TValue> PickPeerWaitTime = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderStatistics)
@@ -62,12 +62,18 @@ public:
 
     explicit TChunkReaderStatisticsCounters(const NProfiling::TProfiler& profiler);
 
-    void Increment(const TChunkReaderStatisticsPtr& chunkReaderStatistics);
+    void Increment(
+        const TChunkReaderStatisticsPtr& chunkReaderStatistics,
+        bool failed);
 
 private:
     NProfiling::TCounter DataBytesReadFromDisk_;
     NProfiling::TCounter DataBytesTransmitted_;
     NProfiling::TCounter DataBytesReadFromCache_;
+    NProfiling::TCounter WastedDataBytesReadFromDisk_;
+    NProfiling::TCounter WastedDataBytesTransmitted_;
+    NProfiling::TCounter WastedDataBytesReadFromCache_;
+
     NProfiling::TCounter MetaBytesReadFromDisk_;
     NProfiling::TCounter OmittedSuspiciousNodeCount_;
 
@@ -80,4 +86,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-

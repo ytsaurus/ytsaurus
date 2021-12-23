@@ -670,8 +670,9 @@ private:
         auto statistics = DoExecuteImpl();
 
         auto updateProfiling = Finally([&] {
-            counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
-            counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics);
+            auto failed = std::uncaught_exceptions() != 0;
+            counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics, failed);
+            counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics, failed);
         });
 
         auto cpuTime = statistics.SyncTime;

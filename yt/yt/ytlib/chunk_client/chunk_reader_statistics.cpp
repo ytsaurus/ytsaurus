@@ -79,6 +79,9 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(const NProfiling:
     : DataBytesReadFromDisk_(profiler.Counter("/data_bytes_read_from_disk"))
     , DataBytesTransmitted_(profiler.Counter("/data_bytes_transmitted"))
     , DataBytesReadFromCache_(profiler.Counter("/data_bytes_read_from_cache"))
+    , WastedDataBytesReadFromDisk_(profiler.Counter("/wasted_data_bytes_read_from_disk"))
+    , WastedDataBytesTransmitted_(profiler.Counter("/wasted_data_bytes_transmitted"))
+    , WastedDataBytesReadFromCache_(profiler.Counter("/wasted_data_bytes_read_from_cache"))
     , MetaBytesReadFromDisk_(profiler.Counter("/meta_bytes_read_from_disk"))
     , OmittedSuspiciousNodeCount_(profiler.Counter("/omitted_suspicious_node_count"))
     , DataWaitTime_(profiler.TimeCounter("/data_wait_time"))
@@ -88,11 +91,18 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(const NProfiling:
 { }
 
 void TChunkReaderStatisticsCounters::Increment(
-    const TChunkReaderStatisticsPtr& chunkReaderStatistics)
+    const TChunkReaderStatisticsPtr& chunkReaderStatistics,
+    bool failed)
 {
     DataBytesReadFromDisk_.Increment(chunkReaderStatistics->DataBytesReadFromDisk);
     DataBytesTransmitted_.Increment(chunkReaderStatistics->DataBytesTransmitted);
     DataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache);
+    if (failed) {
+        WastedDataBytesReadFromDisk_.Increment(chunkReaderStatistics->DataBytesReadFromDisk);
+        WastedDataBytesTransmitted_.Increment(chunkReaderStatistics->DataBytesTransmitted);
+        WastedDataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache);
+    }
+
     MetaBytesReadFromDisk_.Increment(chunkReaderStatistics->MetaBytesReadFromDisk);
     OmittedSuspiciousNodeCount_.Increment(chunkReaderStatistics->OmittedSuspiciousNodeCount);
 

@@ -596,7 +596,7 @@ TTableSchemaPtr TTableSchema::Filter(const TColumnFilter& columnFilter, bool dis
         bool inKeyColumns = !discardSortOrder;
         for (int id : columnFilter.GetIndexes()) {
             if (id < 0 || id >= std::ssize(Columns_)) {
-                THROW_ERROR_EXCEPTION("Invalid column during schema filtering: excepted in range [0, %v), got %v",
+                THROW_ERROR_EXCEPTION("Invalid column during schema filtering: expected in range [0, %v), got %v",
                     Columns_.size(),
                     id);
             }

@@ -631,7 +631,9 @@ THunkChunkReaderCounters::THunkChunkReaderCounters(
     , ChunkReaderStatisticsCounters_(profiler.WithPrefix("/chunk_reader_statistics"))
 { }
 
-void THunkChunkReaderCounters::Increment(const IHunkChunkReaderStatisticsPtr& statistics)
+void THunkChunkReaderCounters::Increment(
+    const IHunkChunkReaderStatisticsPtr& statistics,
+    bool failed)
 {
     if (!statistics) {
         return;
@@ -645,7 +647,7 @@ void THunkChunkReaderCounters::Increment(const IHunkChunkReaderStatisticsPtr& st
 
     BackendRequestCount_.Increment(statistics->BackendRequestCount());
 
-    ChunkReaderStatisticsCounters_.Increment(statistics->GetChunkReaderStatistics());
+    ChunkReaderStatisticsCounters_.Increment(statistics->GetChunkReaderStatistics(), failed);
 
     IncrementColumnar(statistics);
 }
