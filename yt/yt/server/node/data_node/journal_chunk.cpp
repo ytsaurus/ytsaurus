@@ -1,6 +1,5 @@
 #include "journal_chunk.h"
 
-#include "bootstrap.h"
 #include "private.h"
 #include "journal_dispatcher.h"
 #include "location.h"
@@ -56,15 +55,13 @@ void UpdateMax(std::atomic<i64>& value, i64 candidate)
 ////////////////////////////////////////////////////////////////////////////////
 
 TJournalChunk::TJournalChunk(
-    IBootstrap* bootstrap,
+    TChunkHostPtr host,
     TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
     : TChunkBase(
-        bootstrap->GetChunkMetaManager(),
-        bootstrap->GetChunkRegistry(),
+        host,
         location,
         descriptor.Id)
-    , Bootstrap_(bootstrap)
     , StoreLocation_(location)
 {
     FlushedRowCount_.store(descriptor.RowCount);
@@ -187,20 +184,15 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
         MakeStrong(this),
         session);
 
-    Bootstrap_
-        ->GetStorageHeavyInvoker()
-        ->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
+    Host_->StorageHeavyInvoker->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
 
     return session->Promise;
 }
 
 void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 {
-    const auto& config = Bootstrap_->GetConfig()->DataNode;
-    const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
-
     try {
-        auto changelog = WaitFor(dispatcher->OpenChangelog(StoreLocation_, Id_))
+        auto changelog = WaitFor(Host_->JournalDispatcher->OpenChangelog(StoreLocation_, Id_))
             .ValueOrThrow();
 
         int firstBlockIndex = session->FirstBlockIndex;
@@ -217,8 +209,8 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         auto asyncBlocks = changelog->Read(
             firstBlockIndex,
-            std::min(blockCount, config->MaxBlocksPerRead),
-            config->MaxBytesPerRead);
+            std::min(blockCount, Host_->DataNodeConfig->MaxBlocksPerRead),
+            Host_->DataNodeConfig->MaxBytesPerRead);
         auto blocksOrError = WaitFor(asyncBlocks);
         if (!blocksOrError.IsOK()) {
             auto error = TError(
@@ -270,8 +262,7 @@ TFuture<void> TJournalChunk::AsyncRemove()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
-    return dispatcher->RemoveChangelog(this, true);
+    return Host_->JournalDispatcher->RemoveChangelog(this, true);
 }
 
 i64 TJournalChunk::GetFlushedRowCount() const
@@ -313,8 +304,7 @@ TFuture<void> TJournalChunk::Seal()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
-    return dispatcher->SealChangelog(this).Apply(
+    return Host_->JournalDispatcher->SealChangelog(this).Apply(
         BIND([this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG("Chunk is marked as sealed (ChunkId: %v)",
                 Id_);

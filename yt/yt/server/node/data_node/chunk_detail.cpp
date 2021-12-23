@@ -6,6 +6,9 @@
 #include "chunk_meta_manager.h"
 #include "chunk_registry.h"
 
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -22,23 +25,38 @@ using namespace NChunkClient::NProto;
 
 static const auto& Logger = DataNodeLogger;
 
+DEFINE_REFCOUNTED_TYPE(TChunkHost)
+
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkHostPtr TChunkHost::Create(NClusterNode::IBootstrapBase* bootstrap)
+{
+    return New<TChunkHost>(TChunkHost{
+        .ChunkMetaManager = bootstrap->GetChunkMetaManager(),
+        .ChunkRegistry = bootstrap->GetChunkRegistry(),
+        .BlockCache = bootstrap->GetBlockCache(),
+        .ChunkStore = bootstrap->IsDataNode() ? bootstrap->GetDataNodeBootstrap()->GetChunkStore() : nullptr,
+        .BlobReaderCache = bootstrap->GetBlobReaderCache(),
+        .DataNodeConfig = bootstrap->GetConfig()->DataNode,
+        .JournalDispatcher = bootstrap->IsDataNode() ? bootstrap->GetDataNodeBootstrap()->GetJournalDispatcher() : nullptr,
+        .StorageHeavyInvoker = bootstrap->GetStorageHeavyInvoker(),
+        .StorageLightInvoker = bootstrap->GetStorageLightInvoker(),
+    });
+}
+
 TChunkBase::TChunkBase(
-    IChunkMetaManagerPtr chunkMetaManager,
-    IChunkRegistryPtr chunkRegistry,
+    TChunkHostPtr host,
     TLocationPtr location,
     TChunkId id)
-    : ChunkMetaManager_(chunkMetaManager)
-    , ChunkRegistry_(chunkRegistry)
+    : Host_(std::move(host))
     , Location_(location)
     , Id_(id)
 { }
 
 TChunkBase::~TChunkBase()
 {
-    ChunkMetaManager_->RemoveCachedMeta(Id_);
-    ChunkMetaManager_->RemoveCachedBlocksExt(Id_);
+    Host_->ChunkMetaManager->RemoveCachedMeta(Id_);
+    Host_->ChunkMetaManager->RemoveCachedBlocksExt(Id_);
 }
 
 TChunkId TChunkBase::GetId() const
@@ -136,7 +154,7 @@ void TChunkBase::ReleaseReadLock()
         lockCount);
 
     if (scheduleReaderSweep) {
-        ChunkRegistry_->ScheduleChunkReaderSweep(this);
+        Host_->ChunkRegistry->ScheduleChunkReaderSweep(this);
     }
 
     if (removeNow) {
@@ -246,7 +264,7 @@ void TChunkBase::TrySweepReader()
     if (readerSweepLatch != 1) {
         guard.Release();
         // Re-schedule the sweep right away.
-        ChunkRegistry_->ScheduleChunkReaderSweep(this);
+        Host_->ChunkRegistry->ScheduleChunkReaderSweep(this);
         return;
     }
 

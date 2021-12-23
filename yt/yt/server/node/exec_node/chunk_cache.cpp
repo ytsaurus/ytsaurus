@@ -707,7 +707,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto chunk = New<TCachedBlobChunk>(
-            Bootstrap_,
+            TChunkHost::Create(Bootstrap_),
             location,
             descriptor,
             meta,

@@ -7,6 +7,7 @@
 #include "location.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 
@@ -39,7 +40,7 @@ TFuture<void> TJournalSession::DoStart()
 
         Changelog_ = changelog;
         Chunk_ = New<TJournalChunk>(
-            Bootstrap_,
+            TChunkHost::Create(Bootstrap_),
             Location_,
             TChunkDescriptor(GetChunkId()));
         Chunk_->SetActive(true);

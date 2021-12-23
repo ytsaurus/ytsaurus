@@ -73,7 +73,7 @@ public:
 
         MasterConnector_ = CreateMasterConnector(this);
 
-        JournalDispatcher_ = CreateJournalDispatcher(this);
+        JournalDispatcher_ = CreateJournalDispatcher(GetConfig()->DataNode, GetDynamicConfigManager());
 
         MediumDirectoryManager_ = New<TMediumDirectoryManager>(
             this,

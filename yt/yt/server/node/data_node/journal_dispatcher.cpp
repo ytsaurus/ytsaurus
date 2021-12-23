@@ -1,6 +1,5 @@
 #include "journal_dispatcher.h"
 
-#include "bootstrap.h"
 #include "private.h"
 #include "chunk.h"
 #include "chunk_store.h"
@@ -62,13 +61,13 @@ class TJournalDispatcher
     , public IJournalDispatcher
 {
 public:
-    explicit TJournalDispatcher(IBootstrap* bootstrap)
+    explicit TJournalDispatcher(
+        TDataNodeConfigPtr dataNodeConfig,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager)
         : TAsyncSlruCacheBase(
-            bootstrap->GetConfig()->DataNode->ChangelogReaderCache,
+            dataNodeConfig->ChangelogReaderCache,
             DataNodeProfiler.WithPrefix("/changelog_cache"))
-        , Bootstrap_(bootstrap)
     {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TJournalDispatcher::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
@@ -93,8 +92,6 @@ public:
     TFuture<void> SealChangelog(TJournalChunkPtr chunk) override;
 
 private:
-    IBootstrap* const Bootstrap_;
-
     friend class TCachedChangelog;
 
     IChangelogPtr OnChangelogOpenedOrCreated(
@@ -362,9 +359,13 @@ void TJournalDispatcher::OnRemoved(const TCachedChangelogPtr& changelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJournalDispatcherPtr CreateJournalDispatcher(IBootstrap* bootstrap)
+IJournalDispatcherPtr CreateJournalDispatcher(
+    TDataNodeConfigPtr dataNodeConfig,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager)
 {
-    return New<TJournalDispatcher>(bootstrap);
+    return New<TJournalDispatcher>(
+        dataNodeConfig,
+        dynamicConfigManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

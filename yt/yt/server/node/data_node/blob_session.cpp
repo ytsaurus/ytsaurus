@@ -415,7 +415,7 @@ TChunkInfo TBlobSession::OnFinished(const TError& error)
                 Pipeline_->GetChunkInfo().disk_space());
 
             auto chunk = New<TStoredBlobChunk>(
-                Bootstrap_,
+                TChunkHost::Create(Bootstrap_),
                 Location_,
                 descriptor,
                 Pipeline_->GetChunkMeta());

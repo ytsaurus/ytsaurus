@@ -105,6 +105,15 @@ DEFINE_REFCOUNTED_TYPE(TLocationPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ILocationHost
+    : public virtual TRefCounted
+{
+    virtual void ScheduleMasterHeartbeat() = 0;
+    virtual NObjectClient::TCellId GetCellId() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocation
     : public TDiskLocation
 {
@@ -118,6 +127,7 @@ public:
         ELocationType type,
         const TString& id,
         TStoreLocationConfigBasePtr config,
+        TChunkStorePtr chunkStore,
         NClusterNode::IBootstrapBase* bootstrap);
 
     //! Returns the type.
@@ -271,6 +281,7 @@ public:
 
 protected:
     NClusterNode::IBootstrapBase* const Bootstrap_;
+    const TChunkStorePtr ChunkStore_;
     NProfiling::TProfiler Profiler_;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
@@ -349,6 +360,7 @@ public:
     TStoreLocation(
         const TString& id,
         TStoreLocationConfigPtr config,
+        TChunkStorePtr chunkStore,
         NClusterNode::IBootstrapBase* bootstrap);
 
     //! Returns the location's config.

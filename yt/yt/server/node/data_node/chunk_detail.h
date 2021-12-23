@@ -3,6 +3,8 @@
 #include "public.h"
 #include "chunk.h"
 
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
@@ -27,6 +29,23 @@ struct TChunkDescriptor
     // For journal chunks only.
     i64 RowCount = 0;
     bool Sealed = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkHost final
+{
+    IChunkMetaManagerPtr ChunkMetaManager;
+    IChunkRegistryPtr ChunkRegistry;
+    TChunkStorePtr ChunkStore;
+    IPrioritizedInvokerPtr StorageHeavyInvoker;
+    IInvokerPtr StorageLightInvoker;
+    TDataNodeConfigPtr DataNodeConfig;
+    IJournalDispatcherPtr JournalDispatcher;
+    IBlobReaderCachePtr BlobReaderCache;
+    NChunkClient::IBlockCachePtr BlockCache;
+
+    static TChunkHostPtr Create(NClusterNode::IBootstrapBase* bootstrap);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,8 +79,7 @@ public:
     void TrySweepReader() override;
 
 protected:
-    const IChunkMetaManagerPtr ChunkMetaManager_;
-    const IChunkRegistryPtr ChunkRegistry_;
+    const TChunkHostPtr Host_;
     const TLocationPtr Location_;
     const TChunkId Id_;
 
@@ -97,8 +115,7 @@ protected:
     using TReadMetaSessionPtr = TIntrusivePtr<TReadMetaSession>;
 
     TChunkBase(
-        IChunkMetaManagerPtr chunkMetaManager,
-        IChunkRegistryPtr chunkRegistry,
+        TChunkHostPtr host,
         TLocationPtr location,
         TChunkId id);
     ~TChunkBase();

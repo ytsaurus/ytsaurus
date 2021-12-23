@@ -147,9 +147,11 @@ TLocation::TLocation(
     ELocationType type,
     const TString& id,
     TStoreLocationConfigBasePtr config,
+    TChunkStorePtr chunkStore,
     IBootstrapBase* bootstrap)
     : TDiskLocation(config, id, DataNodeLogger)
     , Bootstrap_(bootstrap)
+    , ChunkStore_(chunkStore)
     , Type_(type)
     , Config_(config)
     , MediumDescriptor_(TMediumDescriptor{.Name = Config_->MediumName})
@@ -848,9 +850,8 @@ void TLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescriptor& ne
         return;
     }
 
-    if (Bootstrap_->IsDataNode() && !onInitialize && newDescriptor.Index != oldDescriptor.Index) {
-        const auto& chunkStore = Bootstrap_->GetDataNodeBootstrap()->GetChunkStore();
-        chunkStore->ChangeLocationMedium(this, oldDescriptor.Index);
+    if (ChunkStore_ && !onInitialize && newDescriptor.Index != oldDescriptor.Index) {
+        ChunkStore_->ChangeLocationMedium(this, oldDescriptor.Index);
     }
 
     YT_LOG_INFO("Location medium descriptor updated (Location: %v, MediumName: %v, MediumIndex: %v, Priority: %v)",
@@ -896,11 +897,13 @@ void TLocation::PopulateAlerts(std::vector<TError>* alerts)
 TStoreLocation::TStoreLocation(
     const TString& id,
     TStoreLocationConfigPtr config,
+    TChunkStorePtr chunkStore,
     IBootstrapBase* bootstrap)
     : TLocation(
         ELocationType::Store,
         id,
         config,
+        chunkStore,
         bootstrap)
     , Config_(config)
     , JournalManager_(New<TJournalManager>(
@@ -1383,6 +1386,7 @@ TCacheLocation::TCacheLocation(
         ELocationType::Cache,
         id,
         config,
+        nullptr,
         bootstrap)
     , Config_(config)
     , InThrottler_(CreateNamedReconfigurableThroughputThrottler(
