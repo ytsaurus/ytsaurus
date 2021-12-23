@@ -260,14 +260,16 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
     def test_erasure_blob_chunks(self):
         data = [{"a": i, "b": 2 * i, "c": 3 * i} for i in range(100)]
 
-        from_barrier = write_log_barrier(self.get_node_address())
+        from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         create("table", "//tmp/table", attributes={"erasure_codec": "reed_solomon_3_3"})
         write_table("//tmp/table", data)
-        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
 
-        assert raw_events[0]["data_node_method@"] == "FinishChunk"
-        assert raw_events[0]["byte_count"] > 0
-        assert raw_events[0]["io_count"] > 0
+        for node_id in range(self.NUM_NODES):
+            raw_events, _ = self.wait_for_events(raw_count=1, node_id=node_id, from_barrier=from_barriers[node_id])
+
+            assert raw_events[0]["data_node_method@"] == "FinishChunk"
+            assert raw_events[0]["byte_count"] > 0
+            assert raw_events[0]["io_count"] > 0
 
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         assert read_table("//tmp/table") == data
@@ -278,7 +280,7 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
     def test_erasure_journal_chunks(self):
         data = [{"data": str(i)} for i in range(20)]
 
-        from_barrier = write_log_barrier(self.get_node_address())
+        from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         create("journal", "//tmp/journal", attributes={
             "erasure_codec": "reed_solomon_3_3",
             "replication_factor": 1,
@@ -286,11 +288,13 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
             "write_quorum": 6,
         })
         write_journal("//tmp/journal", data)
-        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
 
-        assert raw_events[0]["data_node_method@"] == "FlushBlocks"
-        assert raw_events[0]["byte_count"] > 0
-        assert raw_events[0]["io_count"] > 0
+        for node_id in range(self.NUM_NODES):
+            raw_events, _ = self.wait_for_events(raw_count=1, node_id=node_id, from_barrier=from_barriers[node_id])
+
+            assert raw_events[0]["data_node_method@"] == "FlushBlocks"
+            assert raw_events[0]["byte_count"] > 0
+            assert raw_events[0]["io_count"] > 0
 
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         assert read_journal("//tmp/journal") == data
