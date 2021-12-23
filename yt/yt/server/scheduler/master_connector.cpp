@@ -522,9 +522,9 @@ public:
                 .Handler = std::move(handler),
                 .AlertType = alertType,
             },
-            .WatcherType = type,
-            .Period = period,
-            .LockOptions = lockOptions
+            /*WatcherType*/ type,
+            /*Period*/ period,
+            /*LockOptions*/ lockOptions
         };
     }
 
