@@ -2491,6 +2491,10 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
     static const TString UtilizationPowerName = "gpu/utilization_power";
     static const TString UtilizationClocksSmName = "gpu/utilization_clocks_sm";
 
+    static const TString MemoryName = "gpu/memory";
+    static const TString PowerName = "gpu/power";
+    static const TString ClocksSmName = "gpu/clocks_sm";
+
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
     for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
         const auto& slot = GpuSlots_[index];
@@ -2506,18 +2510,30 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
         if (sensorNames.contains(UtilizationGpuName)) {
             writer->AddGauge("/" + UtilizationGpuName, gpuInfo.UtilizationGpuRate);
         }
+
         if (sensorNames.contains(UtilizationMemoryName)) {
             writer->AddGauge("/" + UtilizationMemoryName, gpuInfo.UtilizationMemoryRate);
         }
+        if (sensorNames.contains(MemoryName)) {
+            writer->AddGauge("/" + MemoryName, gpuInfo.MemoryUsed);
+        }
+
         if (sensorNames.contains(UtilizationPowerName)) {
             auto utilizationPower = gpuInfo.PowerLimit == 0
                 ? 0
                 : gpuInfo.PowerDraw / gpuInfo.PowerLimit;
             writer->AddGauge("/" + UtilizationPowerName, utilizationPower);
         }
+        if (sensorNames.contains(PowerName)) {
+            writer->AddGauge("/" + PowerName, gpuInfo.PowerDraw);
+        }
+
         if (sensorNames.contains(UtilizationClocksSmName)) {
             auto value = static_cast<double>(gpuInfo.ClocksSm) / gpuInfo.ClocksMaxSm;
             writer->AddGauge("/" + UtilizationClocksSmName, value);
+        }
+        if (sensorNames.contains(ClocksSmName)) {
+            writer->AddGauge("/" + PowerName, gpuInfo.ClocksSm);
         }
 
         writer->PopTag();
