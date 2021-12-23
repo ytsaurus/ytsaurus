@@ -3536,9 +3536,13 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
     // Discard the job in case of resource overcommit.
     if (scheduleJobResult->StartDescriptor) {
         const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
-        // Note: resourceDelta might be negative.
+        // Note: |resourceDelta| might be negative.
         const auto resourceDelta = startDescriptor.ResourceLimits.ToJobResources() - *precommittedResources;
-        auto increaseResult = TryIncreaseHierarchicalResourceUsagePrecommit(resourceDelta);
+        // NB: If the element is disabled, we still choose the success branch. This is kind of a hotfix. See: YT-16070.
+        auto increaseResult = EResourceTreeIncreaseResult::Success;
+        if (OperationElementSharedState_->Enabled()) {
+            increaseResult = TryIncreaseHierarchicalResourceUsagePrecommit(resourceDelta);
+        }
         switch (increaseResult) {
             case EResourceTreeIncreaseResult::Success: {
                 *precommittedResources += resourceDelta;
