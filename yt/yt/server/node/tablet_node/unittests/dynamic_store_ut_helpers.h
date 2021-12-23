@@ -141,7 +141,7 @@ inline bool AreRowsEqualImpl(TUnversionedRow row, const char* yson, const TNameT
 class TDynamicStoreTestBase
     : public ::testing::Test
 {
-protected:
+public:
     virtual IStoreManagerPtr CreateStoreManager(TTablet* /*tablet*/)
     {
         return nullptr;
@@ -149,6 +149,14 @@ protected:
 
 
     void SetUp() override
+    {
+        BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
+            .AsyncVia(TestQueue_->GetInvoker())
+            .Run()
+            .Get();
+    }
+
+    void DoSetUp()
     {
         auto schema = GetSchema();
 
@@ -160,6 +168,14 @@ protected:
         }
 
         ChunkReadOptions_.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
+
+        CreateTablet();
+    }
+
+    void CreateTablet(bool revive = false)
+    {
+        auto schema = GetSchema();
+        bool sorted = schema->IsSorted();
 
         Tablet_ = std::make_unique<TTablet>(
             NullTabletId,
@@ -181,7 +197,9 @@ protected:
         auto storeManager = CreateStoreManager(Tablet_.get());
         Tablet_->SetStoreManager(storeManager);
 
-        SetupTablet();
+        if (!revive) {
+            SetupTablet();
+        }
     }
 
     virtual void SetupTablet() = 0;
@@ -222,22 +240,34 @@ protected:
 
     void PrepareTransaction(TTransaction* transaction)
     {
+        PrepareTransaction(transaction, GenerateTimestamp());
+    }
+
+    void PrepareTransaction(TTransaction* transaction, TTimestamp timestamp)
+    {
         EXPECT_EQ(ETransactionState::Active, transaction->GetState());
-        transaction->SetPrepareTimestamp(GenerateTimestamp());
+        transaction->SetPrepareTimestamp(timestamp);
         transaction->SetState(ETransactionState::TransientCommitPrepared);
     }
 
     NTransactionClient::TTimestamp CommitTransaction(TTransaction* transaction)
     {
+        return CommitTransaction(transaction, GenerateTimestamp());
+    }
+
+    NTransactionClient::TTimestamp CommitTransaction(TTransaction* transaction, TTimestamp timestamp)
+    {
         EXPECT_EQ(ETransactionState::TransientCommitPrepared, transaction->GetState());
-        transaction->SetCommitTimestamp(GenerateTimestamp());
+        transaction->SetCommitTimestamp(timestamp);
         transaction->SetState(ETransactionState::Committed);
+        transaction->SetFinished();
         return transaction->GetCommitTimestamp();
     }
 
     void AbortTransaction(TTransaction* transaction)
     {
         transaction->SetState(ETransactionState::Aborted);
+        transaction->SetFinished();
     }
 
 
@@ -325,6 +355,8 @@ protected:
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
     TTabletContextMock TabletContext_;
+
+    const NConcurrency::TActionQueuePtr TestQueue_ = New<NConcurrency::TActionQueue>("Test");
 };
 
 ////////////////////////////////////////////////////////////////////////////////

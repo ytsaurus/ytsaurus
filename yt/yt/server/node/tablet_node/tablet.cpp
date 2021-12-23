@@ -1327,7 +1327,7 @@ void TTablet::StartEpoch(const ITabletSlotPtr& slot)
             // NB: Slot can be null in tests.
             slot
             ? slot->GetEpochAutomatonInvoker(queue)
-            : GetSyncInvoker());
+            : GetCurrentInvoker());
     }
 
     Eden_->StartEpoch();

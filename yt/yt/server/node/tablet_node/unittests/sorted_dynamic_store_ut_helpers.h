@@ -10,7 +10,7 @@ namespace {
 class TSortedDynamicStoreTestBase
     : public TDynamicStoreTestBase
 {
-protected:
+public:
     void SetupTablet() override
     {
         Tablet_->CreateInitialPartition();

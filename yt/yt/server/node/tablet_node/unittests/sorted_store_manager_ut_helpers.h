@@ -67,11 +67,10 @@ inline TVersionedOwningRow VersionedLookupRowImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 class TSortedStoreManagerTestBase
     : public TStoreManagerTestBase<TSortedDynamicStoreTestBase>
 {
-protected:
+public:
     IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
     {
         YT_VERIFY(!StoreManager_);
@@ -96,6 +95,18 @@ protected:
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction;
         return StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, TLockMask(), &context);
+    }
+
+    TSortedDynamicRowRef WriteAndLockRow(
+        TTransaction* transaction,
+        TUnversionedRow row,
+        TLockMask lockMask,
+        bool prelock)
+    {
+        TWriteContext context;
+        context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
+        context.Transaction = transaction;
+        return StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, lockMask, &context);
     }
 
     void WriteRow(const TUnversionedOwningRow& row, bool prelock = false)
@@ -173,9 +184,21 @@ protected:
 
     TUnversionedOwningRow LookupRow(const TLegacyOwningKey& key, TTimestamp timestamp)
     {
+        return LookupRow(key, timestamp, /*columnIndexes*/ {}, Tablet_->BuildSnapshot(nullptr));
+    }
+
+    TUnversionedOwningRow LookupRow(
+        const TLegacyOwningKey& key,
+        TTimestamp timestamp,
+        const std::vector<int>& columnIndexes,
+        const TTabletSnapshotPtr& tabletSnapshot)
+    {
         TSharedRef request;
         {
             TReqLookupRows req;
+            if (!columnIndexes.empty()) {
+                ToProto(req.mutable_column_filter()->mutable_indexes(), columnIndexes);
+            }
             std::vector<TUnversionedRow> keys(1, key);
 
             TWireProtocolWriter writer;
@@ -191,7 +214,7 @@ protected:
             TWireProtocolReader reader(request);
             TWireProtocolWriter writer;
             LookupRows(
-                Tablet_->BuildSnapshot(nullptr),
+                tabletSnapshot,
                 TReadTimestampRange{
                     .Timestamp = timestamp,
                 },
@@ -221,6 +244,59 @@ protected:
     {
         return Tablet_->GetActiveStore()->AsSortedDynamic();
     }
+
+    using TStoreSnapshot = std::pair<TString, TCallback<void(TSaveContext&)>>;
+
+    TStoreSnapshot BeginReserializeTablet()
+    {
+        TString buffer;
+
+        TStringOutput output(buffer);
+        TSaveContext saveContext;
+        saveContext.SetVersion(static_cast<int>(GetCurrentReign()));
+        saveContext.SetOutput(&output);
+        Tablet_->Save(saveContext);
+
+        return std::make_pair(buffer, Tablet_->AsyncSave());
+    }
+
+    void EndReserializeTablet(const TStoreSnapshot& snapshot)
+    {
+        auto buffer = snapshot.first;
+
+        TStringOutput output(buffer);
+        TSaveContext saveContext;
+        saveContext.SetVersion(static_cast<int>(GetCurrentReign()));
+        saveContext.SetOutput(&output);
+        snapshot.second.Run(saveContext);
+
+        TStringInput input(buffer);
+        StoreManager_.Reset();
+        CreateTablet(/*revive*/ true);
+        {
+            TLoadContext loadContext;
+            loadContext.SetVersion(static_cast<int>(GetCurrentReign()));
+            loadContext.SetInput(&input);
+            Tablet_->Load(loadContext);
+        }
+        {
+            TLoadContext loadContext;
+            loadContext.SetVersion(static_cast<int>(GetCurrentReign()));
+            loadContext.SetInput(&input);
+            Tablet_->AsyncLoad(loadContext);
+        }
+
+        Tablet_->StartEpoch(nullptr);
+
+        StoreManager_.Reset();
+        CreateStoreManager(Tablet_.get());
+    }
+
+    void ReserializeTablet()
+    {
+        EndReserializeTablet(BeginReserializeTablet());
+    }
+
 
     TSortedStoreManagerPtr StoreManager_;
 };
