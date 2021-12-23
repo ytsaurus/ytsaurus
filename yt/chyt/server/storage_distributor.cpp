@@ -83,20 +83,19 @@ DB::Settings PrepareLeafJobSettings(const DB::Settings& settings)
 
     // Does not matter on remote servers, because queries are sent under different user.
     newSettings.max_concurrent_queries_for_user = 0;
-    // Set as unchanged to avoid sending to remote server.
-    newSettings.max_concurrent_queries_for_user.changed = false;
+    newSettings.max_concurrent_queries_for_user.changed = true;
     // Same as above.
     newSettings.max_memory_usage_for_user = 0;
-    newSettings.max_memory_usage_for_user.changed = false;
+    newSettings.max_memory_usage_for_user.changed = true;
 
     // Result limits should not be processed in secondary queries
     // because its results are not final.
     // Otherwise, queries like 'insert into ...' will loose rows (CHYT-621).
     newSettings.max_result_bytes = 0;
-    newSettings.max_result_bytes.changed = false;
+    newSettings.max_result_bytes.changed = true;
     // Same as above.
     newSettings.max_result_rows = 0;
-    newSettings.max_result_rows.changed = false;
+    newSettings.max_result_rows.changed = true;
 
     // TODO(dakovalkov): Remove it after CHYT-670.
     // Disable query size limit for secondary queries manually
