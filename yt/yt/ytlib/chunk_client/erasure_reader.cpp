@@ -180,7 +180,9 @@ private:
             }
 
             if (erasedIndicesOnPreviousIteration && bannedPartIndices == *erasedIndicesOnPreviousIteration) {
-                THROW_ERROR_EXCEPTION("Error reading chunk %v with repair; cannot proceed since the list of valid underlying part readers did not change",
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::AutoRepairFailed,
+                    "Error reading chunk %v with repair; cannot proceed since the list of valid underlying part readers did not change",
                     reader->GetChunkId())
                     << TErrorAttribute("banned_part_indexes", bannedPartIndicesList)
                     << innerErrors;
@@ -190,7 +192,9 @@ private:
 
             auto optionalRepairIndices = Codec_->GetRepairIndices(bannedPartIndicesList);
             if (!optionalRepairIndices) {
-                THROW_ERROR_EXCEPTION("Not enough parts to read chunk %v with repair",
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::AutoRepairFailed,
+                    "Not enough parts to read chunk %v with repair",
                     reader->GetChunkId())
                     << TErrorAttribute("banned_part_indexes", bannedPartIndicesList)
                     << innerErrors;
@@ -434,7 +438,9 @@ TRefCountedChunkMetaPtr TAdaptiveRepairingErasureReader::DoGetMeta(
         errors.push_back(result);
     }
 
-    THROW_ERROR_EXCEPTION("Failed to get chunk meta of chunk %v from any of valid part readers",
+    THROW_ERROR_EXCEPTION(
+        NChunkClient::EErrorCode::ChunkMetaFetchFailed,
+        "Failed to get chunk meta of chunk %v from any of valid part readers",
         GetChunkId())
         << errors;
 }

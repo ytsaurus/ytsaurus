@@ -49,7 +49,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidBlockChecksum)                  (721))
     ((BlockOutOfRange)                       (722))
     ((MissingExtension)                      (724))
-    ((BandwidthThrottlingFailed)             (725))
+    ((ReaderThrottlingFailed)                (725))
     ((ReaderTimeout)                         (726))
     ((NoSuchChunkView)                       (727))
     ((IncorrectChunkFileChecksum)            (728))
@@ -60,6 +60,17 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidInputChunk)                     (733))
     ((UnsupportedChunkFeature)               (734))
     ((IncompatibleChunkMetas)                (735))
+    ((AutoRepairFailed)                      (736))
+    ((ChunkBlockFetchFailed)                 (737))
+    ((ChunkMetaFetchFailed)                  (738))
+    ((RowsLookupFailed)                      (739))
+    ((BlockChecksumMismatch)                 (740))
+    ((NoChunkSeedsKnown)                     (741))
+    ((NoChunkSeedsGiven)                     (742))
+    ((ChunkIsLost)                           (743))
+    ((ChunkReadSessionSlow)                  (744))
+    ((NodeProbeFailed)                       (745))
+    ((WaitedForSchemaForTooLong)             (746))
 );
 
 using TChunkId = NObjectClient::TObjectId;
