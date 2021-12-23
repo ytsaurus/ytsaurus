@@ -197,6 +197,7 @@ public:
     {
         if (!Options_->AllowFetchingSeedsFromMaster && seedReplicas.empty()) {
             THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::NoChunkSeedsGiven,
                 "Cannot read chunk %v: master seeds retries are disabled and no initial seeds are given",
                 ChunkId_);
         }
@@ -268,7 +269,7 @@ public:
     TError RunSlownessChecker(i64 bytesReceived, TInstant startTimestamp)
     {
         if (!SlownessChecker_) {
-            return TError();
+            return {};
         }
         auto timePassed = TInstant::Now() - startTimestamp;
         return SlownessChecker_(bytesReceived, timePassed);
@@ -551,7 +552,7 @@ protected:
         auto throttleResult = WaitFor(throttler->Throttle(count));
         if (!throttleResult.IsOK()) {
             auto error = TError(
-                NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                NChunkClient::EErrorCode::ReaderThrottlingFailed,
                 "Failed to apply throttling in reader")
                 << throttleResult;
             OnSessionFailed(true, error);
@@ -566,7 +567,7 @@ protected:
             .Subscribe(BIND([=, this_ = MakeStrong(this), onSuccess = std::move(onSuccess)] (const TError& throttleResult) {
                 if (!throttleResult.IsOK()) {
                     auto error = TError(
-                        NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                        NChunkClient::EErrorCode::ReaderThrottlingFailed,
                         "Failed to apply throttling in reader")
                         << throttleResult;
                     OnSessionFailed(true, error);
@@ -940,7 +941,9 @@ protected:
         }
 
         if (PeerQueue_.empty()) {
-            RegisterError(TError("No feasible seeds to start a pass"));
+            RegisterError(TError(
+                NChunkClient::EErrorCode::NoChunkSeedsKnown,
+                "No feasible seeds to start a pass"));
             if (ReaderOptions_->AllowFetchingSeedsFromMaster) {
                 OnRetryFailed();
             } else {
@@ -970,7 +973,9 @@ protected:
         }
 
         if (RetryStartTime_ + ReaderConfig_->RetryTimeout < TInstant::Now()) {
-            RegisterError(TError(EErrorCode::ReaderTimeout, "Replication reader retry %v out of %v timed out",
+            RegisterError(TError(
+                EErrorCode::ReaderTimeout,
+                "Replication reader retry %v out of %v timed out",
                  RetryIndex_,
                  ReaderConfig_->RetryCount)
                  << TErrorAttribute("retry_start_time", RetryStartTime_)
@@ -1165,7 +1170,9 @@ private:
         SeedReplicas_ = result.Value();
         reader->UpdateLastSeenReplicas(SeedReplicas_.Replicas);
         if (!SeedReplicas_) {
-            RegisterError(TError("Chunk is lost"));
+            RegisterError(TError(
+                NChunkClient::EErrorCode::ChunkIsLost,
+                "Chunk is lost"));
             if (ReaderConfig_->FailOnNoSeeds) {
                 DiscardSeeds();
                 OnSessionFailed(/* fatal */ true);
@@ -1186,7 +1193,9 @@ private:
         }
 
         if (StartTime_ + ReaderConfig_->SessionTimeout < TInstant::Now()) {
-            RegisterError(TError(EErrorCode::ReaderTimeout, "Replication reader session timed out")
+            RegisterError(TError(
+                NChunkClient::EErrorCode::ReaderTimeout,
+                "Replication reader session timed out")
                  << TErrorAttribute("session_start_time", StartTime_)
                  << TErrorAttribute("session_timeout", ReaderConfig_->SessionTimeout));
             OnSessionFailed(/* fatal */ false);
@@ -1195,7 +1204,9 @@ private:
 
         auto error = reader->RunSlownessChecker(TotalBytesReceived_, StartTime_);
         if (!error.IsOK()) {
-            RegisterError(TError("Read session of chunk %v is slow; may attempting repair",
+            RegisterError(TError(
+                "Read session of chunk %v is slow; may attempting repair",
+                NChunkClient::EErrorCode::ChunkReadSessionSlow,
                 ChunkId_)
                 << error);
             OnSessionFailed(/* fatal */ false);
@@ -1363,7 +1374,9 @@ private:
                             ProcessError(
                                 suspiciousResultValue.second,
                                 suspiciousResultValue.first,
-                                TError("Error probing suspicious node %v",
+                                TError(
+                                    NChunkClient::EErrorCode::NodeProbeFailed,
+                                    "Error probing suspicious node %v",
                                     suspiciousResultValue.first.AddressWithNetwork));
                         }
                     }
@@ -1390,7 +1403,10 @@ private:
                 ProcessError(
                     probeResultOrError,
                     peer,
-                    TError("Error probing node %v queue length", peer.AddressWithNetwork));
+                    TError(
+                        NChunkClient::EErrorCode::NodeProbeFailed,
+                        "Error probing node %v queue length",
+                        peer.AddressWithNetwork));
                 continue;
             }
 
@@ -1751,7 +1767,9 @@ private:
         // One extra request for actually getting blocks.
         // Hedging requests are disregarded.
         if (!SyncThrottle(RpsThrottler_, 1 + candidates.size())) {
-            cancelAll(TError("Failed to apply throttling in reader"));
+            cancelAll(TError(
+                NChunkClient::EErrorCode::ReaderThrottlingFailed,
+                "Failed to apply throttling in reader"));
             return false;
         }
 
@@ -1778,7 +1796,9 @@ private:
             // If estimated size was not given, we fallback to post-throttling on actual received size.
             BytesThrottled_ = *EstimatedSize_;
             if (!SyncThrottle(BandwidthThrottler_, *EstimatedSize_)) {
-                cancelAll(TError("Failed to apply throttling in reader"));
+                cancelAll(TError(
+                    NChunkClient::EErrorCode::ReaderThrottlingFailed,
+                    "Failed to apply throttling in reader"));
                 return false;
             }
         }
@@ -1809,7 +1829,9 @@ private:
         const auto& respondedPeer = backup ? peers[1] : peers[0];
 
         if (!rspOrError.IsOK()) {
-            auto wrappingError = TError("Error fetching blocks from node %v", respondedPeer.AddressWithNetwork);
+            auto wrappingError = TError(
+                "Error fetching blocks from node %v",
+                respondedPeer.AddressWithNetwork);
             ProcessError(
                 rspOrError,
                 respondedPeer,
@@ -1858,7 +1880,9 @@ private:
 
             if (auto error = block.ValidateChecksum(); !error.IsOK()) {
                 RegisterError(
-                    TError("Failed to validate received block checksum")
+                    TError(
+                        NChunkClient::EErrorCode::BlockChecksumMismatch,
+                        "Failed to validate received block checksum")
                         << TErrorAttribute("block_id", ToString(blockId))
                         << TErrorAttribute("peer", respondedPeer.AddressWithNetwork)
                         << error,
@@ -1910,7 +1934,9 @@ private:
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
             if (!SyncThrottle(BandwidthThrottler_, delta)) {
-                cancelAll(TError("Failed to apply throttling in reader"));
+                cancelAll(TError(
+                    NChunkClient::EErrorCode::ReaderThrottlingFailed,
+                    "Failed to apply throttling in reader"));
                 return false;
             }
         }
@@ -1997,6 +2023,7 @@ private:
     void OnSessionFailed(bool fatal) override
     {
         auto error = BuildCombinedError(TError(
+            NChunkClient::EErrorCode::ChunkBlockFetchFailed,
             "Error fetching blocks for chunk %v",
             ChunkId_));
         OnSessionFailed(fatal, error);
@@ -2178,7 +2205,9 @@ private:
             ProcessError(
                 rspOrError,
                 peer,
-                TError("Error fetching blocks from node %v", peerAddressWithNetwork));
+                TError(
+                    "Error fetching blocks from node %v",
+                    peerAddressWithNetwork));
             RequestBlocks();
             return;
         }
@@ -2202,7 +2231,9 @@ private:
 
             if (auto error = block.ValidateChecksum(); !error.IsOK()) {
                 RegisterError(
-                    TError("Failed to validate received block checksum")
+                    TError(
+                        NChunkClient::EErrorCode::BlockChecksumMismatch,
+                        "Failed to validate received block checksum")
                         << TErrorAttribute("block_id", ToString(TBlockId(ChunkId_, FirstBlockIndex_ + blocksReceived)))
                         << TErrorAttribute("peer", peerAddressWithNetwork)
                         << error,
@@ -2265,6 +2296,7 @@ private:
     void OnSessionFailed(bool fatal) override
     {
         auto error = BuildCombinedError(TError(
+            NChunkClient::EErrorCode::ChunkBlockFetchFailed,
             "Error fetching blocks for chunk %v",
             ChunkId_));
         OnSessionFailed(fatal, error);
@@ -2419,7 +2451,9 @@ private:
             ProcessError(
                 rspOrError,
                 respondedPeer,
-                TError("Error fetching meta from node %v", respondedPeer.AddressWithNetwork));
+                TError(
+                    "Error fetching meta from node %v",
+                    respondedPeer.AddressWithNetwork));
             RequestMeta();
             return;
         }
@@ -2455,6 +2489,7 @@ private:
     void OnSessionFailed(bool fatal) override
     {
         auto error = BuildCombinedError(TError(
+            NChunkClient::EErrorCode::ChunkMetaFetchFailed,
             "Error fetching meta for chunk %v",
             ChunkId_));
         OnSessionFailed(fatal, error);
@@ -2613,6 +2648,7 @@ private:
         if (PassIndex_ >= ReaderConfig_->LookupRequestPassCount) {
             if (WaitedForSchemaForTooLong_) {
                 RegisterError(TError(
+                    NChunkClient::EErrorCode::WaitedForSchemaForTooLong,
                     "Some data node was healthy but was waiting for schema for too long; probably other tablet node has failed"));
             }
             if (RetryIndex_ >= ReaderConfig_->LookupRequestRetryCount) {
@@ -2638,7 +2674,8 @@ private:
     void OnSessionFailed(bool fatal) override
     {
         auto error = BuildCombinedError(TError(
-            "Error during rows lookup for chunk %v",
+            NChunkClient::EErrorCode::RowsLookupFailed,
+            "Error looking up rows in chunk %v",
             ChunkId_));
         OnSessionFailed(fatal, error);
     }
@@ -2860,7 +2897,9 @@ private:
             ProcessError(
                 rspOrError,
                 chosenPeer,
-                TError("Error fetching rows from node %v", peerAddressWithNetwork));
+                TError(
+                    "Error fetching rows from node %v",
+                    peerAddressWithNetwork));
 
             YT_LOG_WARNING("Data node lookup request failed "
                 "(Address: %v, PeerType: %v, CandidateIndex: %v, IterationCount: %v, BytesToThrottle: %v)",

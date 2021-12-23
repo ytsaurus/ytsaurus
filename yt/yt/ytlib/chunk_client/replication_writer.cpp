@@ -1067,7 +1067,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
             throttleFuture = writer->Throttler_->Throttle(Size_).Apply(BIND([] (const TError& error) {
                 if (!error.IsOK()) {
                     return TError(
-                        NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                        NChunkClient::EErrorCode::ReaderThrottlingFailed,
                         "Failed to throttle bandwidth in writer")
                         << error;
                 } else {
@@ -1101,7 +1101,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
                 GetEndBlockIndex(),
                 node->Descriptor.GetDefaultAddress());
         } else {
-            if (rspOrError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) && !writer->StateError_.IsSet()) {
+            if (rspOrError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) && !writer->StateError_.IsSet()) {
                 YT_LOG_WARNING(rspOrError, "Chunk writer failed");
                 writer->CancelWriter();
                 writer->StateError_.TrySet(rspOrError);

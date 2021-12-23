@@ -2085,7 +2085,7 @@ std::optional<EAbortReason> TJob::GetAbortReason(const TJobResult& jobResult)
         const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         if (!resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) &&
-            !resultError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) &&
+            !resultError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) &&
             schedulerResultExt.failed_chunk_ids_size() > 0)
         {
             return EAbortReason::FailedChunks;
@@ -2127,10 +2127,13 @@ std::optional<EAbortReason> TJob::GetAbortReason(const TJobResult& jobResult)
     }
 
     if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
-        resultError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) ||
+        resultError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
         resultError.FindMatching(NChunkClient::EErrorCode::ReaderTimeout) ||
+        resultError.FindMatching(NChunkClient::EErrorCode::ChunkBlockFetchFailed) ||
+        resultError.FindMatching(NChunkClient::EErrorCode::ChunkMetaFetchFailed) ||
+        resultError.FindMatching(NChunkClient::EErrorCode::AutoRepairFailed) ||
         resultError.FindMatching(NExecNode::EErrorCode::ConfigCreationFailed) ||
         resultError.FindMatching(NExecNode::EErrorCode::SlotNotFound) ||
         resultError.FindMatching(NExecNode::EErrorCode::JobEnvironmentDisabled) ||
