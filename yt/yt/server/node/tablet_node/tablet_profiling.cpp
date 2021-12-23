@@ -364,9 +364,9 @@ void TReaderProfiler::Profile(
     counters->UnmergedDataWeight.Increment(DataStatistics_.data_weight());
     counters->DecompressionCpuTime.Add(compressionCpuTime);
 
-    counters->ChunkReaderStatisticsCounters.Increment(ChunkReaderStatistics_);
+    counters->ChunkReaderStatisticsCounters.Increment(ChunkReaderStatistics_, failed);
 
-    counters->HunkChunkReaderCounters.Increment(HunkChunkReaderStatistics_);
+    counters->HunkChunkReaderCounters.Increment(HunkChunkReaderStatistics_, failed);
 }
 
 void TReaderProfiler::Update(

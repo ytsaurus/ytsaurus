@@ -871,11 +871,14 @@ private:
                 endProgress.UpperKey = progress.UpperKey;
                 endProgress.Segments.push_back({progress.Segments[0].LowerKey, maxTimestamp});
 
+                // TODO(savrus, akozhikhov): Use Finally here to track failed requests.
                 auto counters = tabletSnapshot->TableProfiler->GetPullRowsCounters(GetCurrentProfilingUser());
                 counters->DataWeight.Increment(responseDataWeight);
                 counters->RowCount.Increment(responseRowCount);
                 counters->WastedRowCount.Increment(totalRowCount - responseRowCount);
-                counters->ChunkReaderStatisticsCounters.Increment(chunkReadOptions.ChunkReaderStatistics);
+                counters->ChunkReaderStatisticsCounters.Increment(
+                    chunkReadOptions.ChunkReaderStatistics,
+                    /*failed*/ false);
 
                 response->set_row_count(responseRowCount);
                 response->set_data_weight(responseDataWeight);

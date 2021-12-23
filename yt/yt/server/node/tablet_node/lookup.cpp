@@ -268,6 +268,8 @@ public:
 
     void UpdateProfilingCounters(TDuration cpuTime, TDuration wallTime)
     {
+        auto failed = std::uncaught_exceptions() != 0;
+
         auto counters = TabletSnapshot_->TableProfiler->GetLookupCounters(GetCurrentProfilingUser());
 
         counters->CacheHits.Increment(CacheHits_);
@@ -284,9 +286,9 @@ public:
         counters->CpuTime.Add(cpuTime);
         counters->DecompressionCpuTime.Add(DecompressionCpuTime_);
 
-        counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
+        counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics, failed);
 
-        counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics);
+        counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics, failed);
 
         if (TabletSnapshot_->Settings.MountConfig->EnableDetailedProfiling) {
             counters->LookupDuration.Record(wallTime);

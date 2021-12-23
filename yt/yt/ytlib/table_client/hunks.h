@@ -144,7 +144,9 @@ public:
         const NProfiling::TProfiler& profiler,
         const TTableSchemaPtr& schema);
 
-    void Increment(const IHunkChunkReaderStatisticsPtr& statistics);
+    void Increment(
+        const IHunkChunkReaderStatisticsPtr& statistics,
+        bool failed);
 
 private:
     NProfiling::TCounter DataWeight_;
