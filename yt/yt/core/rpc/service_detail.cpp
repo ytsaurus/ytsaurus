@@ -225,6 +225,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
         Format("%v.%v <-", ServiceId.ServiceName, Descriptor.Method)))
     , ResponseLoggingAnchor(NLogging::TLogManager::Get()->RegisterDynamicAnchor(
         Format("%v.%v ->", ServiceId.ServiceName, Descriptor.Method)))
+    , RequestQueueSizeLimitErrorCounter(Profiler.Counter("/request_queue_size_errors"))
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(DefaultLoggingSuppressionFailedRequestThrottlerConfig))
     , DefaultRequestQueue("default")
@@ -1428,6 +1429,7 @@ void TServiceBase::HandleRequest(
     RegisterRequestQueue(runtimeInfo, requestQueue);
 
     if (requestQueue->IsQueueLimitSizeExceeded()) {
+        runtimeInfo->RequestQueueSizeLimitErrorCounter.Increment();
         replyError(TError(
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
             "Request queue size limit exceeded")
