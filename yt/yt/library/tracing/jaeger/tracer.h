@@ -101,7 +101,7 @@ public:
 
 private:
     const NConcurrency::TActionQueuePtr ActionQueue_;
-    NConcurrency::TPeriodicExecutorPtr Flusher_;
+    const NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 
     TAtomicObject<TJaegerTracerConfigPtr> Config_;
 
@@ -113,8 +113,7 @@ private:
     i64 QueueMemory_ = 0;
     i64 QueueSize_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueueEmptyLock_);
-    TPromise<void> QueueEmpty_ = NewPromise<void>();
+    TAtomicObject<TPromise<void>> QueueEmptyPromise_ = NewPromise<void>();
 
     NRpc::IChannelPtr CollectorChannel_;
     NRpc::NGrpc::TChannelConfigPtr OpenChannelConfig_;
