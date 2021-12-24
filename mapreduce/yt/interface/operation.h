@@ -11,6 +11,7 @@
 #include "errors.h"
 #include "io.h"
 #include "job_statistics.h"
+#include "job_counters.h"
 
 #include <library/cpp/threading/future/future.h>
 #include <library/cpp/type_info/type_info.h>
@@ -2206,6 +2207,10 @@ struct TOperationProgress
     ///
     /// @brief Total job statistics.
     TJobStatistics JobStatistics;
+
+    ///
+    /// @brief Job counter for various job states with hierarchy.
+    TJobCounters JobCounters;
 };
 
 ///

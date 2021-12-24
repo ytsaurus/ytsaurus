@@ -380,7 +380,10 @@ TOperationAttributes ParseOperationAttributes(const TNode& node)
         LOG_DEBUG("Received operation progress (OperationId: %s, BuildTime: %s)",
             GetGuidAsString(result.Id.GetOrElse(TOperationId())).c_str(),
             buildTimeNode.AsString().c_str());
-        result.Progress = TOperationProgress{TJobStatistics((*progressNode)["job_statistics"])};
+        result.Progress = TOperationProgress{
+            TJobStatistics((*progressNode)["job_statistics"]), 
+            TJobCounters((*progressNode)["total_job_counter"])
+        };
     }
     if (auto eventsNode = mapNode.FindPtr("events")) {
         result.Events.ConstructInPlace().reserve(eventsNode->Size());

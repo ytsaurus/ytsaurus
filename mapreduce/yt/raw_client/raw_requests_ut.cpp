@@ -87,6 +87,32 @@ Y_UNIT_TEST_SUITE(OperationsApiParsing) {
                         };
                     };
                 };
+                "total_job_counter" = {
+                    "completed" = {
+                        "total" = 3;
+                        "non-interrupted" = 1;
+                        "interrupted" = {
+                            "whatever_interrupted" = 2;
+                        };
+                    };
+                    "aborted" = {
+                        "non_scheduled" = {
+                            "whatever_non_scheduled" = 3;
+                        };
+                        "scheduled" = {
+                            "whatever_scheduled" = 4;
+                        };
+                        "total" = 7;
+                    };
+                    "lost" = 5;
+                    "invalidated" = 6;
+                    "failed" = 7;
+                    "running" = 8;
+                    "suspended" = 9;
+                    "pending" = 10;
+                    "blocked" = 11;
+                    "total" = 66;
+                };
             };
             "events" = [
                 {"state" = "pending"; "time" = "2018-01-01T00:00:00.000000Z";};
@@ -130,6 +156,12 @@ Y_UNIT_TEST_SUITE(OperationsApiParsing) {
 
         UNIT_ASSERT(attrs.Progress);
         UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobStatistics.JobState({}).GetStatistics("data/input/row_count").Sum(), 85);
+        UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobCounters.GetCompletedInterrupted().GetTotal(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobCounters.GetAbortedNonScheduled().GetTotal(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobCounters.GetAbortedScheduled().GetTotal(), 4);
+        UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobCounters.GetAborted().GetTotal(), 7);
+        UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobCounters.GetFailed().GetTotal(), 7);
+        UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobCounters.GetTotal(), 66);
 
         UNIT_ASSERT(attrs.Events);
         UNIT_ASSERT_VALUES_EQUAL((*attrs.Events)[1].State, "materializing");
