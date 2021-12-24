@@ -61,15 +61,18 @@ public:
 
     void Clear() override;
 
-    void Reconfigure(const TTableMountCacheConfigPtr& config) override;
+    void Reconfigure(TTableMountCacheConfigPtr config) override;
 
 protected:
-    const TTableMountCacheConfigPtr Config_;
     const NLogging::TLogger Logger;
 
     TTabletInfoCache TabletInfoCache_;
 
     virtual void InvalidateTable(const TTableMountInfoPtr& tableInfo) = 0;
+
+private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    TTableMountCacheConfigPtr Config_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

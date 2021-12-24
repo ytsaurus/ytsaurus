@@ -154,7 +154,7 @@ struct ITableMountCache
 
     virtual void Clear() = 0;
 
-    virtual void Reconfigure(const TTableMountCacheConfigPtr& config) = 0;
+    virtual void Reconfigure(TTableMountCacheConfigPtr config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITableMountCache)
