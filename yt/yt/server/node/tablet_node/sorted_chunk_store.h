@@ -86,6 +86,9 @@ private:
 
     const NTableClient::TKeyComparer KeyComparer_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ChunkColumnMappingLock_);
+    NTableClient::TChunkColumnMappingPtr ChunkColumnMapping_;
+
     TSharedRange<TLegacyKey> FilterKeysByReadRange(
         const TSharedRange<TLegacyKey>& keys,
         int* skippedBefore,
@@ -110,6 +113,10 @@ private:
 
     NTableClient::IVersionedReaderPtr MaybeWrapWithTimestampResettingAdapter(
         NTableClient::IVersionedReaderPtr underlyingReader) const;
+
+    NTableClient::TChunkColumnMappingPtr GetChunkColumnMapping(
+        const NTableClient::TTableSchemaPtr& tableSchema,
+        const NTableClient::TTableSchemaPtr& chunkSchema);
 
     NTableClient::TChunkStatePtr PrepareChunkState(
         const NChunkClient::IChunkReaderPtr& chunkReader,

@@ -22,6 +22,7 @@
 
 #include <yt/yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/lookup_reader.h>
@@ -340,6 +341,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkState->ChunkMeta,
             Schema_,
             columnFilter,
+            chunkState->ChunkColumnMapping,
             chunkState->BlockCache,
             GetReaderConfig(),
             chunkReader,
@@ -485,6 +487,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkMeta,
             Schema_,
             columnFilter,
+            chunkState->ChunkColumnMapping,
             BlockCache_,
             GetReaderConfig(),
             readers.ChunkReader,
@@ -603,6 +606,28 @@ IVersionedReaderPtr TSortedChunkStore::MaybeWrapWithTimestampResettingAdapter(
     }
 }
 
+NTableClient::TChunkColumnMappingPtr TSortedChunkStore::GetChunkColumnMapping(
+    const NTableClient::TTableSchemaPtr& tableSchema,
+    const NTableClient::TTableSchemaPtr& chunkSchema)
+{
+    // Fast lane.
+    {
+        auto guard = ReaderGuard(ChunkColumnMappingLock_);
+        if (ChunkColumnMapping_) {
+            return ChunkColumnMapping_;
+        }
+    }
+
+    auto chunkColumnMapping = New<TChunkColumnMapping>(tableSchema, chunkSchema);
+
+    {
+        auto guard = WriterGuard(ChunkColumnMappingLock_);
+        ChunkColumnMapping_ = chunkColumnMapping;
+    }
+
+    return chunkColumnMapping;
+}
+
 TChunkStatePtr TSortedChunkStore::PrepareChunkState(
     const IChunkReaderPtr& chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
@@ -615,16 +640,19 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
 
     auto chunkMeta = GetCachedVersionedChunkMeta(chunkReader, chunkReadOptions, prepareColumnarMeta);
 
-    return New<TChunkState>(
+    auto chunkState = New<TChunkState>(
         BlockCache_,
         std::move(chunkSpec),
-        std::move(chunkMeta),
+        chunkMeta,
         ChunkTimestamp_,
         /*lookupHashTable*/ nullptr,
         PerformanceCounters_,
         GetKeyComparer(),
         /*virtualValueDirectory*/ nullptr,
-        Schema_);
+        Schema_,
+        GetChunkColumnMapping(Schema_, chunkMeta->GetChunkSchema()));
+
+    return chunkState;
 }
 
 void TSortedChunkStore::ValidateBlockSize(

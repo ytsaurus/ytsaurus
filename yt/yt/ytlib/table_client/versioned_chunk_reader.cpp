@@ -1,4 +1,5 @@
 #include "cached_versioned_chunk_meta.h"
+#include "chunk_column_mapping.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_reader_base.h"
 #include "chunk_state.h"
@@ -55,111 +56,6 @@ using NYT::ToProto;
 
 static constexpr i64 CacheSize = 32_KBs;
 static constexpr i64 MinRowsPerRead = 32;
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<TColumnIdMapping> BuildVersionedSimpleSchemaIdMapping(
-    const TColumnFilter& columnFilter,
-    const TTableSchemaPtr& tableSchema,
-    const TTableSchemaPtr& chunkSchema)
-{
-    std::vector<TColumnIdMapping> valueIdMapping;
-    valueIdMapping.reserve(tableSchema->GetColumnCount() - tableSchema->GetKeyColumnCount());
-
-    THashMap<TStringBuf, int> chunkValueColumnNames;
-    for (int index = chunkSchema->GetKeyColumnCount(); index < chunkSchema->GetColumnCount(); ++index) {
-        const auto& column = chunkSchema->Columns()[index];
-        chunkValueColumnNames.emplace(column.Name(), index);
-    }
-
-    auto addMapping = [&] (int index) {
-        auto& column = tableSchema->Columns()[index];
-
-        auto it = chunkValueColumnNames.find(column.Name());
-        if (it == chunkValueColumnNames.end()) {
-            // This is a valid case, simply skip the column.
-            return;
-        }
-
-        auto chunkIndex = it->second;
-
-        TColumnIdMapping mapping;
-        mapping.ChunkSchemaIndex = chunkIndex;
-        mapping.ReaderSchemaIndex = index;
-        valueIdMapping.push_back(mapping);
-    };
-
-    if (columnFilter.IsUniversal()) {
-        for (int index = tableSchema->GetKeyColumnCount(); index < tableSchema->GetColumnCount(); ++index) {
-            addMapping(index);
-        }
-    } else {
-        for (auto index : columnFilter.GetIndexes()) {
-            if (index < tableSchema->GetKeyColumnCount()) {
-                continue;
-            }
-
-            addMapping(index);
-        }
-    }
-
-    return valueIdMapping;
-}
-
-std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
-    const TColumnFilter& columnFilter,
-    const TTableSchemaPtr& tableSchema,
-    const TTableSchemaPtr& chunkSchema)
-{
-    int chunkKeyColumnCount = chunkSchema->GetKeyColumnCount();
-
-    std::vector<TColumnIdMapping> idMapping;
-    idMapping.resize(
-        chunkSchema->GetColumnCount(),
-        TColumnIdMapping{-1,-1});
-
-    for (int index = 0; index < chunkKeyColumnCount; ++index) {
-        idMapping[index].ReaderSchemaIndex = index;
-    }
-
-    THashMap<TStringBuf, int> chunkValueColumnNames;
-    for (int index = chunkSchema->GetKeyColumnCount(); index < chunkSchema->GetColumnCount(); ++index) {
-        const auto& column = chunkSchema->Columns()[index];
-        chunkValueColumnNames.emplace(column.Name(), index);
-    }
-
-    auto addMapping = [&] (int index) {
-        auto& column = tableSchema->Columns()[index];
-
-        auto it = chunkValueColumnNames.find(column.Name());
-        if (it == chunkValueColumnNames.end()) {
-            // This is a valid case, simply skip the column.
-            return;
-        }
-
-        auto chunkIndex = it->second;
-        YT_VERIFY(chunkIndex < std::ssize(idMapping));
-        YT_VERIFY(chunkIndex >= chunkKeyColumnCount);
-        idMapping[chunkIndex].ReaderSchemaIndex = index;
-    };
-
-
-    if (columnFilter.IsUniversal()) {
-        for (int index = tableSchema->GetKeyColumnCount(); index < tableSchema->GetColumnCount(); ++index) {
-            addMapping(index);
-        }
-    } else {
-        for (auto index : columnFilter.GetIndexes()) {
-            if (index < tableSchema->GetKeyColumnCount()) {
-                continue;
-            }
-
-            addMapping(index);
-        }
-    }
-
-    return idMapping;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1800,10 +1696,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     YT_VERIFY(timestamp != AllCommittedTimestamp || columnFilter.IsUniversal());
 
-    auto schemaIdMapping = BuildVersionedSimpleSchemaIdMapping(
-        columnFilter,
-        chunkState->TableSchema,
-        chunkMeta->GetChunkSchema());
+    auto schemaIdMapping = chunkState->ChunkColumnMapping
+        ? chunkState->ChunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter)
+        : TChunkColumnMapping(chunkState->TableSchema, chunkMeta->GetChunkSchema())
+            .BuildVersionedSimpleSchemaIdMapping(columnFilter);
 
     IVersionedReaderPtr reader;
 
@@ -1983,10 +1879,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     YT_VERIFY(timestamp != AllCommittedTimestamp || columnFilter.IsUniversal());
 
-    auto schemaIdMapping = BuildVersionedSimpleSchemaIdMapping(
-        columnFilter,
-        chunkState->TableSchema,
-        chunkMeta->GetChunkSchema());
+    auto schemaIdMapping = chunkState->ChunkColumnMapping
+        ? chunkState->ChunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter)
+        : TChunkColumnMapping(chunkState->TableSchema, chunkMeta->GetChunkSchema())
+            .BuildVersionedSimpleSchemaIdMapping(columnFilter);
 
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableVersionedSimple:
