@@ -341,6 +341,7 @@ public:
             TDuration::Seconds(10)))
         , LookupMountCacheWaitTime_(Profiler_.Timer("/lookup_mount_cache_wait_time"))
         , SelectMountCacheWaitTime_(Profiler_.Timer("/select_mount_cache_wait_time"))
+        , WastedLookupSubrequestCount_(Profiler_.Counter("/wasted_lookup_subrequest_count"))
     { }
 
     const TEventTimer& LookupDurationTimer() const
@@ -361,6 +362,11 @@ public:
     const TEventTimer& SelectMountCacheWaitTimer() const
     {
         return SelectMountCacheWaitTime_;
+    }
+
+    const TCounter& WastedLookupSubrequestCount() const
+    {
+        return WastedLookupSubrequestCount_;
     }
 
     TCounter* GetRetryCounterByReason(TErrorCode reason)
@@ -385,6 +391,8 @@ private:
     //! Timers.
     TEventTimer LookupMountCacheWaitTime_;
     TEventTimer SelectMountCacheWaitTime_;
+
+    TCounter WastedLookupSubrequestCount_;
 
     //! Retryable error code to counter map.
     NConcurrency::TSyncMap<TErrorCode, TCounter> RetryCounters_;
@@ -2928,8 +2936,14 @@ private:
             counters = GetOrCreateDetailedProfilingCounters(detailedProfilingInfo->TablePath);
             counters->LookupDurationTimer().Record(timer.GetElapsedTime());
             counters->LookupMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
-        } else if (!detailedProfilingInfo->RetryReasons.empty()) {
+        } else if (!detailedProfilingInfo->RetryReasons.empty() ||
+            detailedProfilingInfo->WastedSubrequestCount > 0)
+        {
             counters = GetOrCreateDetailedProfilingCounters(std::nullopt);
+        }
+
+        if (detailedProfilingInfo->WastedSubrequestCount > 0) {
+            counters->WastedLookupSubrequestCount().Increment(detailedProfilingInfo->WastedSubrequestCount);
         }
 
         for (const auto& reason : detailedProfilingInfo->RetryReasons) {

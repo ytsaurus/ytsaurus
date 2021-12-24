@@ -853,11 +853,23 @@ TRowset TClient::DoLookupRowsOnce(
     auto results = WaitFor(AllSet(std::move(asyncResults)))
         .ValueOrThrow();
 
+    if (!options.EnablePartialResult && options.DetailedProfilingInfo) {
+        int failedSubrequestCount = 0;
+        for (int cellIndex = 0; cellIndex < std::ssize(results); ++cellIndex) {
+            if (!results[cellIndex].IsOK()) {
+                ++failedSubrequestCount;
+            }
+        }
+        if (failedSubrequestCount > 0) {
+            options.DetailedProfilingInfo->WastedSubrequestCount += std::ssize(results) - failedSubrequestCount;
+        }
+    }
+
     uniqueResultRows.resize(currentResultIndex, TTypeErasedRow{nullptr});
 
     auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
 
-    for (size_t cellIndex = 0; cellIndex < results.size(); ++cellIndex) {
+    for (int cellIndex = 0; cellIndex < std::ssize(results); ++cellIndex) {
         if (options.EnablePartialResult && !results[cellIndex].IsOK()) {
             continue;
         }
@@ -865,7 +877,7 @@ TRowset TClient::DoLookupRowsOnce(
         const auto& batches = batchesByCells[cellIndex];
         const auto& result = results[cellIndex].ValueOrThrow();
 
-        for (size_t batchIndex = 0; batchIndex < batches.size(); ++batchIndex) {
+        for (int batchIndex = 0; batchIndex < std::ssize(batches); ++batchIndex) {
             const auto& attachment = result->Attachments()[batchIndex];
 
             if (options.EnablePartialResult && attachment.Empty()) {
