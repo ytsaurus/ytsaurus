@@ -22,7 +22,8 @@ struct TChunkState
         TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
         TKeyComparer keyComparer = {},
         TVirtualValueDirectoryPtr virtualValueDirectory = nullptr,
-        TTableSchemaPtr tableSchema = nullptr);
+        TTableSchemaPtr tableSchema = nullptr,
+        TChunkColumnMappingPtr chunkColumnMapping = nullptr);
 
     NChunkClient::IBlockCachePtr BlockCache;
     NChunkClient::NProto::TChunkSpec ChunkSpec;
@@ -34,6 +35,7 @@ struct TChunkState
     TVirtualValueDirectoryPtr VirtualValueDirectory;
     TTableSchemaPtr TableSchema;
     std::optional<NChunkClient::TDataSource> DataSource;
+    TChunkColumnMappingPtr ChunkColumnMapping;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkState)

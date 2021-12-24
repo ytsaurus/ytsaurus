@@ -37,6 +37,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/lookup_reader.h>
 
@@ -976,7 +977,10 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         PerformanceCounters_,
         GetKeyComparer(),
         /*virtualValueDirectory*/ nullptr,
-        Schema_);
+        Schema_,
+        New<TChunkColumnMapping>(
+            Schema_,
+            chunkData->ChunkMeta->GetChunkSchema()));
 }
 
 TChunkId TChunkStoreBase::GetChunkId() const

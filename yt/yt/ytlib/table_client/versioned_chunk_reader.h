@@ -37,18 +37,6 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TColumnIdMapping> BuildVersionedSimpleSchemaIdMapping(
-    const TColumnFilter& columnFilter,
-    const TTableSchemaPtr& tableSchema,
-    const TTableSchemaPtr& chunkSchema);
-
-std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
-    const TColumnFilter& columnFilter,
-    const TTableSchemaPtr& tableSchema,
-    const TTableSchemaPtr& chunkSchema);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Creates a versioned chunk reader for a given range of rows.
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,

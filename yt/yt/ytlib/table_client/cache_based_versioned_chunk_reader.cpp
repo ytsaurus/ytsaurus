@@ -1,6 +1,7 @@
 #include "cache_based_versioned_chunk_reader.h"
 
 #include "cached_versioned_chunk_meta.h"
+#include "chunk_column_mapping.h"
 #include "chunk_lookup_hash_table.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_reader_base.h"
@@ -490,10 +491,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             return New<TCacheBasedSimpleVersionedLookupChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 chunkState,
                 keys,
-                BuildSchemalessHorizontalSchemaIdMapping(
-                    columnFilter,
-                    chunkState->TableSchema,
-                    chunkState->ChunkMeta->GetChunkSchema()),
+                chunkState->ChunkColumnMapping->BuildSchemalessHorizontalSchemaIdMapping(
+                    columnFilter),
                 chunkTimestamp,
                 produceAllVersions);
         }
@@ -502,10 +501,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             return New<TCacheBasedSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>(
                 chunkState,
                 keys,
-                BuildVersionedSimpleSchemaIdMapping(
-                    columnFilter,
-                    chunkState->TableSchema,
-                    chunkState->ChunkMeta->GetChunkSchema()),
+                chunkState->ChunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(
+                    columnFilter),
                 timestamp,
                 produceAllVersions);
 
@@ -703,10 +700,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             return New<TSimpleCacheBasedVersionedRangeChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 chunkState,
                 std::move(ranges),
-                BuildSchemalessHorizontalSchemaIdMapping(
-                    columnFilter,
-                    chunkState->TableSchema,
-                    chunkState->ChunkMeta->GetChunkSchema()),
+                chunkState->ChunkColumnMapping->BuildSchemalessHorizontalSchemaIdMapping(
+                    columnFilter),
                 chunkTimestamp,
                 produceAllVersions,
                 singletonClippingRange);
@@ -716,10 +711,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             return New<TSimpleCacheBasedVersionedRangeChunkReader<TSimpleVersionedBlockReader>>(
                 chunkState,
                 std::move(ranges),
-                BuildVersionedSimpleSchemaIdMapping(
-                    columnFilter,
-                    chunkState->TableSchema,
-                    chunkState->ChunkMeta->GetChunkSchema()),
+                chunkState->ChunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(
+                    columnFilter),
                 timestamp,
                 produceAllVersions,
                 singletonClippingRange);

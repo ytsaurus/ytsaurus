@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/ytlib/query_client/coordination_helpers.h>
@@ -54,6 +55,9 @@ using NTableClient::TRowBatchReadOptions;
 using NTableClient::CreateEmptyVersionedRowBatch;
 
 using NTableClient::TTableSchemaPtr;
+
+using NTableClient::TChunkColumnMapping;
+using NTableClient::TChunkColumnMappingPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -521,6 +525,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TTableSchemaPtr& tableSchema,
     const TColumnFilter& columnFilter,
+    const TChunkColumnMappingPtr& chunkColumnMapping,
     IBlockCachePtr blockCache,
     const TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
@@ -539,10 +544,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto windowsList = BuildReadWindows(readItems, chunkMeta);
     readerStatistics->BuildReadWindowsTime = BuildReadWindowsTimer.GetElapsedTime();
 
-    auto valuesIdMapping = BuildVersionedSimpleSchemaIdMapping(
-        columnFilter,
-        tableSchema,
-        chunkMeta->GetChunkSchema());
+    auto valuesIdMapping = chunkColumnMapping
+        ? chunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter)
+        : TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
+            .BuildVersionedSimpleSchemaIdMapping(columnFilter);
 
     TWallTimer createColumnBlockHoldersTimer;
     auto groupIds = GetGroupsIds(*preparedChunkMeta, chunkMeta->GetChunkKeyColumnCount(), valuesIdMapping);
@@ -669,6 +674,7 @@ IVersionedReaderPtr CreateVersionedChunkReader<TRowRange>(
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TTableSchemaPtr& tableSchema,
     const TColumnFilter& columnFilter,
+    const TChunkColumnMappingPtr& chunkColumnMapping,
     IBlockCachePtr blockCache,
     const TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
@@ -684,6 +690,7 @@ IVersionedReaderPtr CreateVersionedChunkReader<TLegacyKey>(
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TTableSchemaPtr& tableSchema,
     const TColumnFilter& columnFilter,
+    const TChunkColumnMappingPtr& chunkColumnMapping,
     IBlockCachePtr blockCache,
     const TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,

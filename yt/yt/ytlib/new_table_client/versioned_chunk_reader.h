@@ -20,6 +20,7 @@ NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(
     NTableClient::TCachedVersionedChunkMetaPtr chunkMeta,
     const NTableClient::TTableSchemaPtr& tableSchema,
     const NTableClient::TColumnFilter& columnFilter,
+    const NTableClient::TChunkColumnMappingPtr& chunkColumnMapping,
     NChunkClient::IBlockCachePtr blockCache,
     const NTableClient::TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr underlyingReader,

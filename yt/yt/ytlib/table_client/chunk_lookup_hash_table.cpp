@@ -4,6 +4,7 @@
 #include "schemaless_block_reader.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
+#include "chunk_column_mapping.h"
 
 namespace NYT::NTableClient {
 
@@ -164,7 +165,8 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     chunkMeta->GetChunkSchema(),
                     chunkMeta->GetChunkKeyColumnCount(),
                     chunkMeta->GetKeyColumnCount(),
-                    BuildVersionedSimpleSchemaIdMapping(TColumnFilter(), tableSchema, chunkMeta->GetChunkSchema()),
+                    TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
+                        .BuildVersionedSimpleSchemaIdMapping(TColumnFilter()),
                     keyComparer,
                     AllCommittedTimestamp,
                     true,
@@ -176,7 +178,8 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     uncompressedBlock.Data,
                     blockMeta,
                     chunkMeta->GetChunkSchema(),
-                    BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter(), tableSchema, chunkMeta->GetChunkSchema()),
+                    TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
+                        .BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter()),
                     chunkMeta->GetChunkKeyColumnCount(),
                     chunkMeta->GetKeyColumnCount(),
                     chunkMeta->Misc().min_timestamp());
