@@ -2570,6 +2570,8 @@ private:
         const TSchedulerCompositeElementPtr& pool,
         const TJobResourcesConfigPtr& requiredResourceLimits) const
     {
+        // TODO(egor-gutrov): remove after fixing test_user_slots_validation
+        YT_LOG_DEBUG("Validating resource limits (RequiredResourceLimits.UserSlots: %v)", requiredResourceLimits->UserSlots);
         auto requiredLimits = ToJobResources(requiredResourceLimits, TJobResources::Infinite());
         auto actualLimits = ToJobResources(operation->GetStrategySpec()->ResourceLimits, TJobResources::Infinite());
         if (Dominates(requiredLimits, actualLimits)) {
@@ -2584,11 +2586,11 @@ private:
             current = current->GetParent();
         }
         THROW_ERROR_EXCEPTION(
-            "Required resource limits are not met for operation %v", 
-            operation->GetId())
+            "Operations of type %Qv must have small enough specified resource limits in spec or in some of ancestor pools",
+            operation->GetType())
+            << TErrorAttribute("operation_id", operation->GetId())
             << TErrorAttribute("required_resource_limits", requiredResourceLimits)
-            << TErrorAttribute("tree_id", TreeId_)
-            << TErrorAttribute("operation_type", operation->GetType());
+            << TErrorAttribute("tree_id", TreeId_);
     }
 
     void DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const

@@ -13,7 +13,7 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, sync_compact_table,
     multicell_sleep, set_banned_flag,
     raises_yt_error, get_driver,
-    create_pool)
+    create_pool, update_pool_tree_config_option)
 
 from yt_helpers import skip_if_no_descending
 from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
@@ -704,9 +704,8 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("egor-gutrov")
     def test_user_slots_validation(self):
-        set("//sys/pool_trees/default/@config/fail_remote_copy_on_missing_resource_limits", True)
-        set("//sys/pool_trees/default/@config/required_resource_limits_for_remote_copy", {"user_slots": 10})
-        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+        update_pool_tree_config_option("default", "fail_remote_copy_on_missing_resource_limits", True)
+        update_pool_tree_config_option("default", "required_resource_limits_for_remote_copy", {"user_slots": 10})
 
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
@@ -747,9 +746,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             out="//tmp/t2",
             spec={
                 "cluster_name": self.REMOTE_CLUSTER_NAME,
-                "scheduling_options_per_pool_tree": {
-                    "default": {"pool": "cool_pool"},
-                },
+                "pool": "cool_pool",
             },
         )
         assert read_table("//tmp/t2") == [{"a": "b"}]
@@ -762,9 +759,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 out="//tmp/t2",
                 spec={
                     "cluster_name": self.REMOTE_CLUSTER_NAME,
-                    "scheduling_options_per_pool_tree": {
-                        "default": {"pool": "limitless_pool"},
-                    },
+                    "pool": "limitless_pool",
                 },
             )
 
