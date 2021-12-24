@@ -1604,6 +1604,9 @@ void TJobController::TImpl::OnDynamicConfigChanged(
     RecentlyRemovedJobCleaner_->SetPeriod(
         jobControllerConfig->RecentlyRemovedJobsCleanPeriod.value_or(
             Config_->RecentlyRemovedJobsCleanPeriod));
+    JobProxyBuildInfoUpdater_->SetPeriod(
+        jobControllerConfig->JobProxyBuildInfoUpdatePeriod.value_or(
+            Config_->JobProxyBuildInfoUpdatePeriod));
 }
 
 void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
@@ -1708,7 +1711,8 @@ void TJobController::TImpl::UpdateJobProxyBuildInfo()
 
         CachedJobProxyBuildInfo_ = TYsonString(ysonBytes);
     } catch (const std::exception& ex) {
-        auto error = TError(ex);
+        auto error = TError(NExecNode::EErrorCode::JobProxyUnavailable, "Failed to receive job proxy build info")
+            << ex;
         CachedJobProxyBuildInfo_ = error;
     }
 

@@ -33,6 +33,7 @@ import pytest
 import time
 import datetime
 import os
+import shutil
 
 ##################################################################
 
@@ -2007,7 +2008,7 @@ class TestUserJobMonitoring(YTEnvSetup):
 ##################################################################
 
 
-class TestRepairExecNode(YTEnvSetup):
+class TestHealExecNode(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -2022,12 +2023,12 @@ class TestRepairExecNode(YTEnvSetup):
     }
 
     @authors("alexkolodezny")
-    def test_heal_exec_node(self):
+    def test_heal_locations(self):
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
 
-        node_id = list(get("//sys/cluster_nodes"))[0]
+        node_address = ls("//sys/cluster_nodes")[0]
 
-        locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_agent/slot_manager/locations".format(node_id))
+        locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_agent/slot_manager/locations".format(node_address))
 
         for location in locations:
             with open("{}/disabled".format(location["path"]), "w") as f:
@@ -2046,17 +2047,53 @@ class TestRepairExecNode(YTEnvSetup):
             op.track()
 
         with raises_yt_error('Unknown location: "[unknownslot]"'):
-            heal_exec_node(node_id, ["unknownslot"])
+            heal_exec_node(node_address, ["unknownslot"])
 
         with raises_yt_error("Lock file is found"):
-            heal_exec_node(node_id, ["slot0"])
+            heal_exec_node(node_address, ["slot0"])
 
         for location in locations:
             os.remove("{}/disabled".format(location["path"]))
 
-        heal_exec_node(node_id, ["slot0"])
+        heal_exec_node(node_address, ["slot0"])
 
         wait(lambda: not is_disabled())
+
+    @authors("ignat")
+    def test_reset_alerts(self):
+        job_proxy_path = os.path.join(self.bin_path, "ytserver-job-proxy")
+        assert os.path.exists(job_proxy_path)
+
+        node_address = ls("//sys/cluster_nodes")[0]
+        assert not get("//sys/cluster_nodes/{}/@alerts".format(node_address))
+
+        def has_job_proxy_build_info_missing_alert():
+            return any(error["code"] == yt_error_codes.JobProxyUnavailable
+                       for error in get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
+
+        job_proxy_moved_path = os.path.join(self.bin_path, "ytserver-job-proxy-moved")
+
+        try:
+            shutil.move(job_proxy_path, job_proxy_moved_path)
+            wait(has_job_proxy_build_info_missing_alert)
+            update_nodes_dynamic_config({
+                "exec_agent": {
+                    "job_controller": {
+                        "job_proxy_build_info_update_period": 600000,
+                    }
+                }
+            })
+        finally:
+            if not os.path.exists(job_proxy_path):
+                shutil.move(job_proxy_moved_path, job_proxy_path)
+
+        assert has_job_proxy_build_info_missing_alert()
+
+        with raises_yt_error("is not eligible to reset"):
+            heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"])
+
+        heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"], force_reset=True)
+        wait(lambda: not get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
 
 
 ##################################################################

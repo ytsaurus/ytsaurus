@@ -31,6 +31,8 @@ DEFINE_ENUM(ESlotManagerAlertType,
     ((JobProxyUnavailable)            (3))
 )
 
+bool IsSlotManagerAlertEligibleToReset(ESlotManagerAlertType alertType);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Controls acquisition and release of slots.
@@ -76,6 +78,8 @@ public:
     bool IsInitialized() const;
     bool IsEnabled() const;
     bool HasFatalAlert() const;
+
+    void ResetAlert(ESlotManagerAlertType alertType);
 
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 
