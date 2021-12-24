@@ -5,7 +5,8 @@ import yt_commands
 from yt_commands import (
     alter_table, authors, create, get, read_journal, wait, read_table, write_journal, create_account,
     write_table, update_nodes_dynamic_config, get_singular_chunk_id, set_node_banned,
-    sync_create_cells, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table)
+    sync_create_cells, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table,
+    reduce, map_reduce, merge)
 
 from yt_helpers import read_structured_log, write_log_barrier
 from yt_driver_bindings import Driver
@@ -717,3 +718,186 @@ class TestClientRpcProxyIOTracking(TestClientIOTracking):
 
     def _get_proxy_type(self):
         return "rpc"
+
+##################################################################
+
+
+class TestJobsIOTracking(TestNodeIOTrackingBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "block_cache": {
+                "compressed_data": {
+                    "capacity": 0,
+                },
+                "uncompressed_data": {
+                    "capacity": 0,
+                },
+            },
+        },
+    }
+
+    @authors("gepardo")
+    @pytest.mark.parametrize("op_type", ["map", "reduce"])
+    def test_basic_operations(self, op_type):
+        table_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create(
+            "table",
+            "//tmp/table_in",
+            attributes={"schema": [
+                {"name": "id", "type": "int64", "sort_order": "ascending"},
+                {"name": "name", "type": "string"},
+            ]}
+        )
+        create("table", "//tmp/table_out")
+        write_table("//tmp/table_in", table_data)
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        run_op = yt_commands.map if op_type == "map" else reduce
+        run_op(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            command="cat",
+            reduce_by=["id"],  # ignored for maps
+        )
+        raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
+        raw_events.sort(key=lambda event: event["data_node_method@"])
+
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+        assert raw_events[0]["user@"] == "job:root"
+        assert raw_events[0]["byte_count"] > 0
+        assert raw_events[0]["io_count"] > 0
+        # TODO(gepardo): Add table tags to output tables and check them here.
+
+        assert raw_events[1]["data_node_method@"] == "GetBlockSet"
+        assert raw_events[1]["object_path"] == "//tmp/table_in"
+        assert "object_id" in raw_events[1]
+        assert raw_events[1]["account@"] == "tmp"
+        assert raw_events[1]["user@"] == "job:root"
+        assert raw_events[1]["byte_count"] > 0
+        assert raw_events[1]["io_count"] > 0
+
+        assert read_table("//tmp/table_out") == table_data
+
+    @authors("gepardo")
+    def test_merge(self):
+        first_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 2, "name": "dog"},
+        ]
+        second_data = [
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in1")
+        create("table", "//tmp/table_in2")
+        create("table", "//tmp/table_out")
+        write_table("//tmp/table_in1", first_data)
+        write_table("//tmp/table_in2", second_data)
+        raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+        assert raw_events[1]["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        merge(
+            mode="unordered",
+            in_=["//tmp/table_in1", "//tmp/table_in2"],
+            out="//tmp/table_out",
+            spec={"force_transform": True}
+        )
+        raw_events, _ = self.wait_for_events(raw_count=3, from_barrier=from_barrier)
+
+        for event in raw_events:
+            assert event["byte_count"] > 0
+            assert event["io_count"] > 0
+            assert event["user@"] == "job:root"
+
+        read_events = [event for event in raw_events if event["data_node_method@"] == "GetBlockSet"]
+        write_events = [event for event in raw_events if event["data_node_method@"] == "FinishChunk"]
+        assert len(read_events) == 2
+        assert len(write_events) == 1
+
+        read_events.sort(key=lambda event: event["object_path"])
+
+        assert read_events[0]["object_path"] == "//tmp/table_in1"
+        assert "object_id" in read_events[0]
+        assert read_events[0]["account@"] == "tmp"
+
+        assert read_events[1]["object_path"] == "//tmp/table_in2"
+        assert "object_id" in read_events[1]
+        assert read_events[1]["account@"] == "tmp"
+
+        # TODO(gepardo): Add table tags to output tables and check them here.
+
+        assert sorted(read_table("//tmp/table_out")) == sorted(first_data + second_data)
+
+    @authors("gepardo")
+    def test_map_reduce(self):
+        table_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        write_table("//tmp/table_in", table_data)
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        map_reduce(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            mapper_command="cat",
+            reducer_command="cat",
+            reduce_by="id",
+        )
+        raw_events, _ = self.wait_for_events(raw_count=4, from_barrier=from_barrier)
+
+        for event in raw_events:
+            assert event["byte_count"] > 0
+            assert event["io_count"] > 0
+            assert event["user@"] == "job:root"
+
+        read_events = [event for event in raw_events if event["data_node_method@"] == "GetBlockSet"]
+        write_events = [event for event in raw_events if event["data_node_method@"] == "FinishChunk"]
+        assert len(read_events) == 2
+        assert len(write_events) == 2
+
+        if read_events[0]["object_path"] != "//tmp/table_in":
+            read_events[0], read_events[1] = read_events[1], read_events[0]
+
+        assert read_events[0]["object_path"] == "//tmp/table_in"
+        assert "object_id" in read_events[0]
+        assert read_events[0]["account@"] == "tmp"
+
+        assert read_events[1]["object_path"] == "<intermediate_0>"
+        assert read_events[1]["account@"] == "intermediate"
+
+        # TODO(gepardo): Add table tags to output tables and check them here.
+
+        assert sorted(read_table("//tmp/table_out")) == sorted(table_data)

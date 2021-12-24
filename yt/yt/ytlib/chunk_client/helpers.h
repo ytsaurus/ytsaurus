@@ -191,6 +191,8 @@ struct TUserObject
     std::vector<NSecurityClient::TSecurityTag> SecurityTags;
     i64 ChunkCount = -1;
 
+    std::optional<TString> Account;
+
     virtual ~TUserObject() = default;
 
     //! Returns |true| if TUserObject::ObjectId is non-null.
@@ -290,21 +292,21 @@ void ValidateChunkFeatures(
 struct TChunkWriterCounters
 {
     TChunkWriterCounters() = default;
- 
+
     explicit TChunkWriterCounters(const NProfiling::TProfiler& profiler);
- 
+
     void Increment(
         const NProto::TDataStatistics& dataStatistics,
         const TCodecStatistics& codecStatistics,
         int replicationFactor);
- 
+
     NProfiling::TCounter DiskSpace;
     NProfiling::TCounter DataWeight;
     NProfiling::TTimeCounter CompressionCpuTime;
 };
- 
+
 ///////////////////////////////////////////////////////////////////////////////
- 
+
 struct TAllyReplicasInfo
 {
     NChunkClient::TChunkReplicaWithMediumList Replicas;

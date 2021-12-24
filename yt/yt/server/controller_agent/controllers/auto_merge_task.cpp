@@ -482,6 +482,7 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
             /*omittedInaccessibleColumns*/ {},
             /*columnRenameDescriptors*/ {}));
         dataSourceDirectory->DataSources().back().SetObjectId(TaskHost_->GetOutputTable(tableIndex)->ObjectId);
+        dataSourceDirectory->DataSources().back().SetAccount(TaskHost_->GetOutputTable(tableIndex)->Account);
 
         NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
         ToProto(&dataSourceDirectoryExt, dataSourceDirectory);

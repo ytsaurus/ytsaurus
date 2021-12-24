@@ -3526,7 +3526,7 @@ private:
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).ToString());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
@@ -3543,7 +3543,7 @@ private:
                 SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
             } else {
                 schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-                SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
+                SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
             }
 
             auto* sortJobSpecExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -3570,7 +3570,7 @@ private:
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).ToString());
 
@@ -3584,7 +3584,7 @@ private:
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).ToString());
 
@@ -4338,7 +4338,7 @@ private:
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).ToString());
 
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
+            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).ToString());
 
@@ -4349,7 +4349,9 @@ private:
             partitionJobSpecExt->set_use_sequential_reader(Spec->EnableIntermediateOutputRecalculation || Spec->Ordered);
         }
 
-        auto intermediateDataSourceDirectory = BuildIntermediateDataSourceDirectory(IntermediateStreamSchemas_);
+        auto intermediateDataSourceDirectory = BuildIntermediateDataSourceDirectory(
+            GetSpec()->IntermediateDataAccount,
+            IntermediateStreamSchemas_);
         const auto castAnyToComposite = !AreAllEqual(IntermediateStreamSchemas_);
 
         auto intermediateReaderOptions = New<TTableReaderOptions>();

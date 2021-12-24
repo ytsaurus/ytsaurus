@@ -66,6 +66,7 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
                 inputTable->ColumnRenameDescriptors);
 
         dataSource.SetObjectId(inputTable->ObjectId);
+        dataSource.SetAccount(inputTable->Account);
         dataSource.SetForeign(inputTable->IsForeign());
         dataSourceDirectory->DataSources().push_back(dataSource);
     }

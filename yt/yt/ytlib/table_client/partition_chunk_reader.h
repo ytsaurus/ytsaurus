@@ -8,6 +8,8 @@
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/multi_reader_manager.h>
 
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
@@ -41,6 +43,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         int partitionTag,
+        const NChunkClient::TDataSource& dataSource,
         NChunkClient::TChunkReaderMemoryManagerPtr chunkReaderMemoryManager = nullptr);
 
     template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
