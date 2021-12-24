@@ -6047,6 +6047,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 "content_revision",
                 "enable_dynamic_store_read",
                 "tablet_state",
+                "account",
             });
             AddCellTagToSyncWith(req, table->ObjectId);
             SetTransactionId(req, table->ExternalTransactionId);
@@ -6096,6 +6097,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
         table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
         table->ChunkCount = attributes->Get<int>("chunk_count");
         table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
+        table->Account = attributes->Get<TString>("account");
 
         haveTablesWithEnabledDynamicStoreRead |= attributes->Get<bool>("enable_dynamic_store_read", false);
 
@@ -6899,6 +6901,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 SetTransactionId(req, *file.TransactionId);
                 std::vector<TString> attributeKeys;
                 attributeKeys.push_back("file_name");
+                attributeKeys.push_back("account");
                 switch (file.Type) {
                     case EObjectType::File:
                         attributeKeys.push_back("executable");
@@ -7013,6 +7016,8 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         default:
                             YT_ABORT();
                     }
+
+                    file.Account = attributes.Get<TString>("account");
 
                     i64 chunkCount = attributes.Get<i64>("chunk_count");
                     if (file.Type == EObjectType::File && chunkCount > Config->MaxUserFileChunkCount) {

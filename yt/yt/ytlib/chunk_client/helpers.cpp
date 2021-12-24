@@ -897,6 +897,10 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
     if (context.GetVersion() >= 300302) {
         Persist(context, ChunkCount);
     }
+    // COMPAT(gepardo)
+    if (context.GetVersion() >= 300705) {
+        Persist(context, Account);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

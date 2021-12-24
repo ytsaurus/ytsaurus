@@ -45,6 +45,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixSimpleSort)                        (300702))
     ((InputStreamPerRange)                  (300703))
     ((RefactorStatistics)                   (300704))
+    ((AddAccountIntoUserObject)             (300705))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

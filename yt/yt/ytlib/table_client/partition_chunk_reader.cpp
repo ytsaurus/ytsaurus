@@ -4,6 +4,7 @@
 #include "chunk_meta_extensions.h"
 #include "columnar_chunk_meta.h"
 #include "schemaless_multi_chunk_reader.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -31,6 +32,7 @@ using namespace NRpc;
 using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NYTree;
+using namespace NTracing;
 
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
@@ -46,6 +48,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
     int partitionTag,
+    const NChunkClient::TDataSource& dataSource,
     TChunkReaderMemoryManagerPtr memoryManager)
     : TChunkReaderBase(
         std::move(config),
@@ -56,6 +59,8 @@ TPartitionChunkReader::TPartitionChunkReader(
     , NameTable_(nameTable)
     , PartitionTag_(partitionTag)
 {
+    PackBaggageFromDataSource(TraceContext_, dataSource);
+
     SetReadyEvent(BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         .Run());
@@ -63,6 +68,8 @@ TPartitionChunkReader::TPartitionChunkReader(
 
 TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 {
+    TCurrentTraceContextGuard traceGuard(TraceContext_);
+
     const std::vector<int> extensionTags = {
         TProtoExtensionTag<TMiscExt>::Value,
         TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
@@ -109,6 +116,8 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
 void TPartitionChunkReader::InitFirstBlock()
 {
+    TCurrentTraceContextGuard traceGuard(TraceContext_);
+
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
     auto schema = GetTableSchema(*ChunkMeta_);
     BlockReader_ = new THorizontalBlockReader(
@@ -222,6 +231,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         blockCache,
                         chunkReadOptions,
                         partitionTag,
+                        dataSource,
                         multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
                 });
 

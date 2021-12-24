@@ -114,6 +114,7 @@ void BuildFileSpecs(
                 file.Path.GetRetentionTimestamp().value_or(NullTimestamp),
                 file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
             dataSource.SetObjectId(file.ObjectId);
+            dataSource.SetAccount(file.Account);
 
             ToProto(descriptor->mutable_data_source(), dataSource);
         } else {
@@ -126,6 +127,7 @@ void BuildFileSpecs(
                     file.OmittedInaccessibleColumns,
                     file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
             dataSource.SetObjectId(file.ObjectId);
+            dataSource.SetAccount(file.Account);
 
             ToProto(descriptor->mutable_data_source(), dataSource);
         }
@@ -161,6 +163,7 @@ TString GetIntermediatePath(int streamIndex)
 }
 
 TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
+    const TString& intermediateAccount,
     const std::vector<NTableClient::TTableSchemaPtr>& schemas)
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
@@ -171,6 +174,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
             /*columns*/ std::nullopt,
             /*omittedInaccessibleColumns*/ {},
             /*columnRenameDescriptors*/ {}));
+        dataSourceDirectory->DataSources().back().SetAccount(intermediateAccount);
     } else {
         for (int i = 0; i < std::ssize(schemas); ++i) {
             dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
@@ -179,6 +183,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
                 /*columns*/ std::nullopt,
                 /*omittedInaccessibleColumns*/ {},
                 /*columnRenameDescriptors*/ {}));
+            dataSourceDirectory->DataSources().back().SetAccount(intermediateAccount);
         }
     }
 
