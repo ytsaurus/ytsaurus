@@ -5,6 +5,8 @@ package NYT.NExecNode.NProto;
 message TReqHealNode
 {
     repeated string locations = 1;
+    repeated string alert_types_to_reset = 2;
+    optional bool force_reset = 3;
 }
 
 message TRspHealNode

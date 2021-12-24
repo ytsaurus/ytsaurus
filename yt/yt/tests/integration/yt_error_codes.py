@@ -16,6 +16,7 @@ AuthorizationErrorCode = 901
 AccountLimitExceeded = 902
 InvalidObjectType = 1006
 TmpfsOverflow = 1124
+JobProxyUnavailable = 1127
 UserJobProducedCoreFiles = 1206
 TabletNotMounted = 1702
 AllWritesDisabled = 1703

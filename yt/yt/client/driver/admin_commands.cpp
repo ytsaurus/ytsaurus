@@ -81,7 +81,12 @@ void TSwitchLeaderCommand::DoExecute(ICommandContextPtr context)
 THealExecNodeCommand::THealExecNodeCommand()
 {
     RegisterParameter("address", Address_);
-    RegisterParameter("locations", Options.Locations);
+    RegisterParameter("locations", Options.Locations)
+        .Optional();
+    RegisterParameter("alert_types_to_reset", Options.AlertTypesToReset)
+        .Optional();
+    RegisterParameter("force_reset", Options.ForceReset)
+        .Optional();
 }
 
 void THealExecNodeCommand::DoExecute(ICommandContextPtr context)

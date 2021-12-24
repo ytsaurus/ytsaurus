@@ -263,6 +263,8 @@ public:
     std::optional<TDuration> RecentlyRemovedJobsCleanPeriod;
     std::optional<TDuration> RecentlyRemovedJobsStoreTimeout;
 
+    std::optional<TDuration> JobProxyBuildInfoUpdatePeriod;
+
     std::optional<bool> DisableJobProxyProfiling;
 
     TGpuManagerDynamicConfigPtr GpuManager;
@@ -297,6 +299,9 @@ public:
 
         RegisterParameter("gpu_manager", GpuManager)
             .DefaultNew();
+        
+        RegisterParameter("job_proxy_build_info_update_period", JobProxyBuildInfoUpdatePeriod)
+            .Default();
 
         RegisterParameter("disable_job_proxy_profiling", DisableJobProxyProfiling)
             .Default();

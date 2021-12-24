@@ -40,6 +40,7 @@ DEFINE_ENUM(EErrorCode,
     ((TmpfsOverflow)                 (1124))
     ((GpuCheckCommandFailed)         (1125))
     ((GpuCheckCommandIncorrect)      (1126))
+    ((JobProxyUnavailable)           (1127))
 );
 
 DEFINE_ENUM(ESandboxKind,

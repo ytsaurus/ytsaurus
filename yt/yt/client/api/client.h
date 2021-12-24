@@ -1372,6 +1372,8 @@ struct THealExecNodeOptions
     : public TTimeoutOptions
 {
     std::vector<TString> Locations;
+    std::vector<TString> AlertTypesToReset;
+    bool ForceReset = false;
 };
 
 using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;

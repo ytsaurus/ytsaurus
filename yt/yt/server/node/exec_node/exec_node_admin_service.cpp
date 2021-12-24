@@ -37,9 +37,14 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, HealNode)
     {
-        context->SetRequestInfo("Locations: %v", request->locations());
+        context->SetRequestInfo("Locations: %v, AlertTypesToReset: %v, ForceReset: %v",
+            request->locations(),
+            request->alert_types_to_reset(),
+            request->force_reset());
 
-        auto locations = Bootstrap_->GetSlotManager()->GetLocations();
+        auto slotManager = Bootstrap_->GetSlotManager();
+
+        auto locations = slotManager->GetLocations();
 
         THashSet<TString> requestLocations(
             request->locations().begin(),
@@ -58,6 +63,18 @@ private:
 
         if (!requestLocations.empty()) {
             THROW_ERROR_EXCEPTION("Unknown location: %Qv", requestLocations);
+        }
+
+        THashSet<TString> alertTypesToReset(
+            request->alert_types_to_reset().begin(),
+            request->alert_types_to_reset().end());
+        for (const auto& alertTypeString : alertTypesToReset) {
+            auto alertType = ParseEnum<ESlotManagerAlertType>(alertTypeString);
+            if (!IsSlotManagerAlertEligibleToReset(alertType) && !request->force_reset()) {
+                THROW_ERROR_EXCEPTION("Alert %Qv is not eligible to reset",
+                    FormatEnum(alertType));
+            }
+            slotManager->ResetAlert(alertType);
         }
 
         context->ReplyFrom(AllSucceeded(futures));

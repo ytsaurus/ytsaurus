@@ -349,6 +349,10 @@ void TClient::DoHealExecNode(
     for (const auto& location : options.Locations) {
         req->add_locations(location);
     }
+    for (const auto& alertType : options.AlertTypesToReset) {
+        req->add_alert_types_to_reset(alertType);
+    }
+    req->set_force_reset(options.ForceReset);
 
     WaitFor(req->Invoke())
         .ThrowOnError();

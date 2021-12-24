@@ -39,6 +39,14 @@ static const auto& Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsSlotManagerAlertEligibleToReset(ESlotManagerAlertType alertType)
+{
+    return alertType == ESlotManagerAlertType::GpuCheckFailed ||
+        alertType == ESlotManagerAlertType::TooManyConsecutiveJobAbortions;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSlotManager::TSlotManager(
     TSlotManagerConfigPtr config,
     IBootstrap* bootstrap)
@@ -226,6 +234,12 @@ bool TSlotManager::HasFatalAlert() const
 {
     auto guard = Guard(SpinLock_);
     return !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK();
+}
+
+void TSlotManager::ResetAlert(ESlotManagerAlertType alertType)
+{
+    auto guard = Guard(SpinLock_);
+    Alerts_[alertType] = TError();
 }
 
 void TSlotManager::OnJobsCpuLimitUpdated()

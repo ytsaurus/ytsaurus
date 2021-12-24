@@ -1546,8 +1546,14 @@ def switch_leader(cell_id, new_leader_address):
     return execute_command("switch_leader", parameters, parse_yson=True)
 
 
-def heal_exec_node(address, locations):
-    parameters = {"address": address, "locations": locations}
+def heal_exec_node(address, locations=None, alert_types_to_reset=None, force_reset=None):
+    parameters = {"address": address}
+    if locations is not None:
+        parameters["locations"] = locations
+    if alert_types_to_reset is not None:
+        parameters["alert_types_to_reset"] = alert_types_to_reset
+    if force_reset is not None:
+        parameters["force_reset"] = True
     return execute_command("heal_exec_node", parameters, parse_yson=True)
 
 
