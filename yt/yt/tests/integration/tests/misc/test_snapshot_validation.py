@@ -5,6 +5,8 @@ from yt_commands import (
 
 import yt.yson as yson
 
+from flaky import flaky
+
 import subprocess
 import os
 import os.path
@@ -50,6 +52,8 @@ class TestSnapshotValidation(YTEnvSetup):
         assert ret.returncode == 0
 
     @authors("akozhikhov")
+    # FIXME(akozhikhov): YT-15664
+    @flaky(max_runs=3)
     def test_tablet_cell_snapshot_validation(self):
         [cell_id] = sync_create_cells(1)
 
