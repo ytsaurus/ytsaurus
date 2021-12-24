@@ -11,6 +11,7 @@ from yt.yson import to_yson_type
 from yt.common import YtError
 
 import pytest
+from flaky import flaky
 
 import datetime
 import time
@@ -609,6 +610,7 @@ wait $child_pid
             interrupt_job(job_id)
 
     @authors("ignat")
+    @flaky(max_runs=3)  # More details in YT-15821.
     def test_successful_interrupts(self):
         exit_code = 17
         command = """(trap "exit {}" SIGINT; BREAKPOINT; trap "exit 0" SIGINT; sleep 100)""".format(exit_code)
