@@ -604,8 +604,6 @@ class YTEnvSetup(object):
             if driver is None:
                 continue
 
-            self._reset_nodes(driver=driver)
-
             master_cell_roles = self.get_param("MASTER_CELL_ROLES", cluster_index)
 
             scheduler_count = self.get_param("NUM_SCHEDULERS", cluster_index)
@@ -776,6 +774,8 @@ class YTEnvSetup(object):
             driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 continue
+
+            self._reset_nodes(driver=driver)
 
             if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 self._remove_operations(driver=driver)
