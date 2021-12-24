@@ -92,6 +92,8 @@ struct TDetailedProfilingInfo
     NYPath::TYPath TablePath;
     TDuration MountCacheWaitTime;
 
+    int WastedSubrequestCount = 0;
+
     std::vector<TErrorCode> RetryReasons;
 };
 
