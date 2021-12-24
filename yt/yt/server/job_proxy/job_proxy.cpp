@@ -451,14 +451,12 @@ void TJobProxy::Run()
             }
         }
 
-
-        auto schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
+        const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_restart_exit_code()) {
                 auto error = FromProto<TError>(result.error());
-                auto userJobFailedError = error.FindMatching(EErrorCode::UserJobFailed);
-                if (userJobFailedError) {
+                if (auto userJobFailedError = error.FindMatching(EErrorCode::UserJobFailed)) {
                     auto processFailedError = userJobFailedError->FindMatching(EProcessErrorCode::NonZeroExitCode);
                     if (processFailedError && processFailedError->Attributes().Get<int>("exit_code", 0) == userJobSpec.restart_exit_code()) {
                         YT_LOG_DEBUG("Job exited with code that indicates job restart (ExitCode: %v)",
@@ -650,7 +648,7 @@ TJobResult TJobProxy::DoRun()
                     : CpuGuarantee_.load();
                 environment->SetCpuLimit(limit);
             }
-            
+
             if (Config_->ForceIdleCpuPolicy) {
                 environment->SetCpuPolicy("idle");
             }
