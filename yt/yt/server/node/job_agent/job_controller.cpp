@@ -1042,7 +1042,7 @@ void TJobController::TImpl::AbortJob(const IJobPtr& job, const TJobToAbort& abor
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO("Job abort requested (JobId: %v, AbortReason: %v, PreemptionReason: %v)",
+    YT_LOG_INFO("Aborting job (JobId: %v, AbortReason: %v, PreemptionReason: %v)",
         job->GetId(),
         abortAttributes.AbortReason,
         abortAttributes.PreemptionReason);
@@ -1062,7 +1062,7 @@ void TJobController::TImpl::FailJob(const IJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO("Job fail requested (JobId: %v)",
+    YT_LOG_INFO("Failing job (JobId: %v)",
         job->GetId());
 
     try {
@@ -1077,7 +1077,7 @@ void TJobController::TImpl::InterruptJob(const IJobPtr& job)
     VERIFY_THREAD_AFFINITY(JobThread);
 
 
-    YT_LOG_INFO("Job interrupt requested (JobId: %v)",
+    YT_LOG_INFO("Interrupting job (JobId: %v)",
         job->GetId());
 
     try {
@@ -1164,7 +1164,7 @@ void TJobController::TImpl::OnPortsReleased(const TWeakPtr<IJob>& weakJob)
     }
 
     const auto& ports = job->GetPorts();
-    YT_LOG_INFO("Releasing ports (JobId: %v, PortCount: %v, Ports: %v)",
+    YT_LOG_INFO("Releasing job ports (JobId: %v, PortCount: %v, Ports: %v)",
         job->GetId(),
         ports.size(),
         ports);
@@ -1312,8 +1312,7 @@ TFuture<void> TJobController::TImpl::ProcessHeartbeatResponse(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return
-        BIND(&TJobController::TImpl::DoProcessHeartbeatResponse, MakeStrong(this))
+    return BIND(&TJobController::TImpl::DoProcessHeartbeatResponse, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run(response, jobObjectType);
 }
