@@ -1205,8 +1205,8 @@ private:
         auto error = reader->RunSlownessChecker(TotalBytesReceived_, StartTime_);
         if (!error.IsOK()) {
             RegisterError(TError(
-                "Read session of chunk %v is slow; may attempting repair",
                 NChunkClient::EErrorCode::ChunkReadSessionSlow,
+                "Read session of chunk %v is slow; may attempting repair",
                 ChunkId_)
                 << error);
             OnSessionFailed(/* fatal */ false);
