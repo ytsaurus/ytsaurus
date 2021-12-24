@@ -143,16 +143,21 @@ TTableMountCacheBase::TTableMountCacheBase(
         config,
         logger.WithTag("Cache: TableMount"),
         profiler)
-    , Config_(std::move(config))
     , Logger(std::move(logger))
     , TabletInfoCache_(Logger)
+    , Config_(std::move(config))
 { }
 
 TFuture<TTableMountInfoPtr> TTableMountCacheBase::GetTableInfo(const NYPath::TYPath& path)
 {
     auto [future, requestInitialized] = TAsyncExpiringCache::GetExtended(path);
 
-    if (Config_->RejectIfEntryIsRequestedButNotReady && !requestInitialized && !future.IsSet()) {
+    bool shouldThrow = false;
+    if (!requestInitialized && !future.IsSet()) {
+        auto guard = ReaderGuard(SpinLock_);
+        shouldThrow = Config_->RejectIfEntryIsRequestedButNotReady;
+    }
+    if (shouldThrow) {
         // COMPAT(babenko): replace with TransientFailure error code.
         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable,
             "Mount info is unavailable, please try again")
@@ -242,9 +247,13 @@ void TTableMountCacheBase::Clear()
     YT_LOG_DEBUG("Table mount info cache cleared");
 }
 
-void TTableMountCacheBase::Reconfigure(const TTableMountCacheConfigPtr& config)
+void TTableMountCacheBase::Reconfigure(TTableMountCacheConfigPtr config)
 {
     TAsyncExpiringCache::Reconfigure(config);
+    {
+        auto guard = WriterGuard(SpinLock_);
+        Config_ = std::move(config);
+    }
     YT_LOG_DEBUG("Table mount info cache reconfigured");
 }
 

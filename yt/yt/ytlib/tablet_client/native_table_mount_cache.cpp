@@ -191,11 +191,12 @@ private:
 
         TMasterReadOptions GetMasterReadOptions()
         {
-            auto refreshTime = Owner_->Config_->RefreshTime.value_or(TDuration::Max());
+            auto cacheConfig = Owner_->GetConfig();
+            auto refreshTime = cacheConfig->RefreshTime.value_or(TDuration::Max());
             return {
                 .ReadFrom = EMasterChannelKind::Cache,
-                .ExpireAfterSuccessfulUpdateTime = Min(Owner_->Config_->ExpireAfterSuccessfulUpdateTime, refreshTime),
-                .ExpireAfterFailedUpdateTime = Min(Owner_->Config_->ExpireAfterFailedUpdateTime, refreshTime),
+                .ExpireAfterSuccessfulUpdateTime = Min(cacheConfig->ExpireAfterSuccessfulUpdateTime, refreshTime),
+                .ExpireAfterFailedUpdateTime = Min(cacheConfig->ExpireAfterFailedUpdateTime, refreshTime),
                 .EnableClientCacheStickiness = true
             };
         }
