@@ -1387,7 +1387,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->TableSchema = TableSchema_;
     snapshot->PhysicalSchema = PhysicalSchema_;
     snapshot->QuerySchema = PhysicalSchema_->ToQuery();
-    snapshot->PhysicalSchemaData = PhysicalSchemaData_;
+    snapshot->TableSchemaData = TableSchemaData_;
     snapshot->KeysSchemaData = KeysSchemaData_;
     snapshot->Atomicity = Atomicity_;
     snapshot->UpstreamReplicaId = UpstreamReplicaId_;
@@ -1492,7 +1492,7 @@ void TTablet::Initialize()
 {
     PhysicalSchema_ = IsReplicated() ? TableSchema_->ToReplicationLog() : TableSchema_;
 
-    PhysicalSchemaData_ = TWireProtocolReader::GetSchemaData(*PhysicalSchema_);
+    TableSchemaData_ = TWireProtocolReader::GetSchemaData(*TableSchema_);
     KeysSchemaData_ = TWireProtocolReader::GetSchemaData(*PhysicalSchema_->ToKeys());
 
     RowKeyComparer_ = Context_->GetRowComparerProvider()->Get(PhysicalSchema_->GetKeyColumnTypes());

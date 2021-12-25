@@ -688,7 +688,7 @@ private:
                         break;
 
                     case ERowModificationType::VersionedWrite:
-                        if (tableInfo->IsReplicated()) {
+                        if (tableInfo->IsReplicated() && !tableInfo->ReplicationCardToken) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustNotBeReplicated,
                                 "Cannot perform versioned writes into a replicated table %v",
@@ -1900,11 +1900,10 @@ private:
         for (const auto& [path, session] : TablePathToSession_) {
             if (session->GetInfo()->IsReplicated()) {
                 CommitOptions_.Force2PC = true;
-                break;
             }
             if (auto chaosCellId = session->GetInfo()->ReplicationCardToken.ChaosCellId;
                 chaosCellId &&
-                session->GetReplicationCard()->Era > 0 &&
+                session->GetReplicationCard()->Era > InitialReplicationEra &&
                 !options.CoordinatorCellId)
             {
                 CommitOptions_.Force2PC = true;

@@ -544,3 +544,92 @@ class TestChaos(DynamicTablesBase):
 
         orchid = get("#{0}/orchid".format(tablet_id))
         assert orchid["replication_progress"] == progress
+
+    @authors("savrus")
+    def test_async_queue_replica(self):
+        self._create_chaos_cell_bundle("c")
+        cell_id = self._sync_create_chaos_cell("c")
+
+        replicas = [
+            {"cluster": "primary", "content_type": "queue", "mode": "async", "state": "enabled", "table_path": "//tmp/q"},
+            {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        def _pull_rows(replica_index, versioned=False):
+            rows = pull_rows(
+                replicas[replica_index]["table_path"],
+                replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
+                upstream_replica_id=replica_ids[replica_index],
+                driver=get_driver(cluster=replicas[replica_index]["cluster"]))
+            if versioned:
+                return rows
+            return [{"key": row["key"], "value": str(row["value"][0])} for row in rows]
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/q", values)
+        wait(lambda: _pull_rows(1) == values)
+        wait(lambda: _pull_rows(0) == values)
+
+        async_rows = _pull_rows(0, True)
+        sync_rows = _pull_rows(1, True)
+        assert async_rows == sync_rows
+
+    @authors("savrus")
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_queue_replica_enable_disable(self, mode):
+        self._create_chaos_cell_bundle("c")
+        cell_id = self._sync_create_chaos_cell("c")
+
+        replicas = [
+            {"cluster": "primary", "content_type": "queue", "mode": mode, "state": "enabled", "table_path": "//tmp/t"},
+            {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        def _pull_rows(replica_index):
+            rows = pull_rows(
+                replicas[replica_index]["table_path"],
+                replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
+                upstream_replica_id=replica_ids[replica_index],
+                driver=get_driver(cluster=replicas[replica_index]["cluster"]))
+            return [{"key": row["key"], "value": str(row["value"][0])} for row in rows]
+
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values0)
+        wait(lambda: _pull_rows(replica_index=1) == values0)
+        wait(lambda: _pull_rows(replica_index=0) == values0)
+
+        alter_replication_card_replica(
+            chaos_cell_id=cell_id,
+            replication_card_id=card_id,
+            replica_id=replica_ids[0],
+            enabled=False)
+        wait(lambda: self._get_table_orchids("//tmp/t")[0]["replication_card"]["replicas"][0]["state"] == "disabled")
+        orchid = self._get_table_orchids("//tmp/t")[0]
+        wait(lambda: get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)["era"] == orchid["replication_card"]["era"])
+
+        values1 = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values1)
+
+        wait(lambda: _pull_rows(replica_index=1) == values0 + values1)
+        assert _pull_rows(replica_index=0) == values0
+
+        alter_replication_card_replica(
+            chaos_cell_id=cell_id,
+            replication_card_id=card_id,
+            replica_id=replica_ids[0],
+            enabled=True)
+        wait(lambda: self._get_table_orchids("//tmp/t")[0]["replication_card"]["replicas"][0]["state"] == "enabled")
+        orchid = self._get_table_orchids("//tmp/t")[0]
+        wait(lambda: get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)["era"] == orchid["replication_card"]["era"])
+
+        wait(lambda: _pull_rows(replica_index=0) == values0 + values1)
+        if mode == "sync":
+            wait(lambda: self._get_table_orchids("//tmp/t")[0]["write_mode"] == "direct")
+
+        values2 = [{"key": 2, "value": "2"}]
+        insert_rows("//tmp/t", values2)
+        values = values0 + values1 + values2
+        wait(lambda: _pull_rows(replica_index=1) == values)
+        wait(lambda: _pull_rows(replica_index=0) == values)

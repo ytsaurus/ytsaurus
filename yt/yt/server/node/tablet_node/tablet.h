@@ -193,7 +193,7 @@ struct TTabletSnapshot
     TLegacyOwningKey NextPivotKey;
     NTableClient::TTableSchemaPtr PhysicalSchema;
     NTableClient::TTableSchemaPtr QuerySchema;
-    NTableClient::TSchemaData PhysicalSchemaData;
+    NTableClient::TSchemaData TableSchemaData;
     NTableClient::TSchemaData KeysSchemaData;
     NTransactionClient::EAtomicity Atomicity;
     NTabletClient::TTableReplicaId UpstreamReplicaId;
@@ -392,7 +392,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::TTableSchemaPtr, TableSchema);
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::TTableSchemaPtr, PhysicalSchema);
 
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::TSchemaData, PhysicalSchemaData);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::TSchemaData, TableSchemaData);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TSchemaData, KeysSchemaData);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);

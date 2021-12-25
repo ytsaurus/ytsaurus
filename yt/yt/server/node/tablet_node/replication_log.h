@@ -22,6 +22,11 @@ TUnversionedRow BuildLogRow(
     const NTableClient::TTableSchemaPtr& tableSchema,
     NTableClient::TUnversionedRowBuilder* rowBuilder);
 
+TUnversionedRow BuildLogRow(
+    NTableClient::TVersionedRow row,
+    const NTableClient::TTableSchemaPtr& tableSchema,
+    NTableClient::TUnversionedRowBuilder* rowBuilder);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IReplicationLogParser)

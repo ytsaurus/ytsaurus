@@ -146,7 +146,7 @@ bool TSortedStoreManager::ExecuteWrites(
             }
 
             case EWireProtocolCommand::VersionedWriteRow: {
-                auto row = reader->ReadVersionedRow(Tablet_->PhysicalSchemaData(), false);
+                auto row = reader->ReadVersionedRow(Tablet_->TableSchemaData(), false);
                 rowRef = ModifyRow(row, context);
                 break;
             }
