@@ -344,14 +344,14 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
             treeId);
     }
 
-    TWithTagGuard treeTagGuard(sensorWriter, TTag{ProfilingPoolTreeKey, treeId});
+    TWithTagGuard treeTagGuard(sensorWriter, ProfilingPoolTreeKey, treeId);
     if (segmentedSchedulingEnabled) {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
             auto profileResourceAmountPerSegment = [&] (const TString& sensorName, const TSegmentToResourceAmount& resourceAmountMap) {
                 const auto& valueAtSegment = resourceAmountMap.At(segment);
                 if (IsModuleAwareSchedulingSegment(segment)) {
                     for (const auto& schedulingSegmentModule : strategyTreeState.Modules) {
-                        TWithTagGuard guard(sensorWriter, TTag{"module", ToString(schedulingSegmentModule)});
+                        TWithTagGuard guard(sensorWriter, "module", ToString(schedulingSegmentModule));
                         sensorWriter->AddGauge(sensorName, valueAtSegment.GetOrDefaultAt(schedulingSegmentModule));
                     }
                 } else {
@@ -359,15 +359,15 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
                 }
             };
 
-            TWithTagGuard guard(sensorWriter, TTag{"segment", FormatEnum(segment)});
+            TWithTagGuard guard(sensorWriter, "segment", FormatEnum(segment));
             profileResourceAmountPerSegment("/fair_resource_amount", strategyTreeState.FairResourceAmountPerSegment);
             profileResourceAmountPerSegment("/current_resource_amount", currentResourceAmountPerSegment);
         }
     } else {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-            TWithTagGuard guard(sensorWriter, TTag{"segment", FormatEnum(segment)});
+            TWithTagGuard guard(sensorWriter, "segment", FormatEnum(segment));
             if (IsModuleAwareSchedulingSegment(segment)) {
-                guard.AddTag(TTag{"module", ToString(NullModule)});
+                guard.AddTag("module", ToString(NullModule));
             }
 
             sensorWriter->AddGauge("/fair_resource_amount", 0.0);
@@ -379,7 +379,7 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
         auto it = totalResourceAmountPerModule.find(schedulingSegmentModule);
         auto moduleCapacity = it != totalResourceAmountPerModule.end() ? it->second : 0.0;
 
-        TWithTagGuard guard(sensorWriter, TTag{"module", ToString(schedulingSegmentModule)});
+        TWithTagGuard guard(sensorWriter, "module", ToString(schedulingSegmentModule));
         sensorWriter->AddGauge("/module_capacity", moduleCapacity);
     }
 }

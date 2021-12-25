@@ -507,13 +507,17 @@ TEST(TSolomonRegistry, GaugeProducer)
     auto result = CollectSensors(impl).Gauges;
     ASSERT_TRUE(result.empty());
 
-    p0->Buffer.PushTag(std::pair<TString, TString>{"thread", "Control"});
-    p0->Buffer.AddGauge("/user_time", 98);
-    p0->Buffer.AddGauge("/system_time", 15);
+    {
+        TWithTagGuard tagGuard(&p0->Buffer, "thread", "Control");
+        p0->Buffer.AddGauge("/user_time", 98);
+        p0->Buffer.AddGauge("/system_time", 15);
+    }
 
-    p1->Buffer.PushTag(std::pair<TString, TString>{"thread", "Profiler"});
-    p1->Buffer.AddGauge("/user_time", 2);
-    p1->Buffer.AddGauge("/system_time", 25);
+    {
+        TWithTagGuard tagGuard(&p1->Buffer, "thread", "Profiler");
+        p1->Buffer.AddGauge("/user_time", 2);
+        p1->Buffer.AddGauge("/system_time", 25);
+    }
 
     result = CollectSensors(impl).Gauges;
     ASSERT_EQ(result["yt.d.cpu.user_time{thread=Control}"], 98.0);
@@ -590,18 +594,18 @@ TEST(TSolomonRegistry, DisableProjections)
     r.WithProjectionsDisabled().AddProducer("/bigb", p0);
 
     {
-        TWithTagGuard guard(&p0->Buffer, TTag{"mode", "sum"});
+        TWithTagGuard guard(&p0->Buffer, "mode", "sum");
         p0->Buffer.AddGauge("", 10);
     }
 
     {
-        TWithTagGuard guard(&p0->Buffer, TTag{"mode", "percentile"});
+        TWithTagGuard guard(&p0->Buffer, "mode", "percentile");
         {
-            TWithTagGuard guard(&p0->Buffer, TTag{"p", "50"});
+            TWithTagGuard guard(&p0->Buffer, "p", "50");
             p0->Buffer.AddCounter("", 20);
         }
         {
-            TWithTagGuard guard(&p0->Buffer, TTag{"p", "99"});
+            TWithTagGuard guard(&p0->Buffer, "p", "99");
             p0->Buffer.AddCounter("", 1);
         }
     }

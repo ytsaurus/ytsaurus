@@ -2302,14 +2302,12 @@ private:
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             for (auto [mediumIndex, space] : statistics.SpacePerMedium) {
                 const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                if (!medium) {
+                if (!IsObjectAlive(medium)) {
                     continue;
                 }
-
-                buffer.PushTag({"medium", medium->GetName()});
+                TWithTagGuard tagGuard(&buffer, "medium", medium->GetName());
                 buffer.AddGauge("/available_space_per_medium", space.Available);
                 buffer.AddGauge("/used_space_per_medium", space.Used);
-                buffer.PopTag();
             }
 
             buffer.AddGauge("/chunk_replica_count", statistics.ChunkReplicaCount);
@@ -2322,24 +2320,22 @@ private:
             buffer.AddGauge("/full_node_count", statistics.FullNodeCount);
 
             for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
-                buffer.PushTag({"node_role", FormatEnum(nodeRole)});
-                buffer.AddGauge(
-                    "/node_count",
-                    NodeListPerRole_[nodeRole].Nodes().size());
-                buffer.PopTag();
+                TWithTagGuard tagGuard(&buffer, "node_role", FormatEnum(nodeRole));
+                buffer.AddGauge("/node_count", NodeListPerRole_[nodeRole].Nodes().size());
             }
         };
-        buffer.PushTag({"flavor", "cluster"});
-        profileStatistics(GetAggregatedNodeStatistics());
-        buffer.PopTag();
+
+        {
+            TWithTagGuard tagGuard(&buffer, "flavor", "cluster");
+            profileStatistics(GetAggregatedNodeStatistics());
+        }
 
         for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
             if (flavor == ENodeFlavor::Cluster) {
                 continue;
             }
-            buffer.PushTag({"flavor", FormatEnum(flavor)});
+            TWithTagGuard tagGuard(&buffer, "flavor", FormatEnum(flavor));
             profileStatistics(GetFlavoredNodeStatistics(flavor));
-            buffer.PopTag();
         }
 
         BufferedProducer_->Update(buffer);
@@ -2492,7 +2488,7 @@ private:
         }
 
         NodeStatisticsUpdateDeadline_ =
-            NProfiling::GetCpuInstant() +
+            GetCpuInstant() +
             DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
     }
 

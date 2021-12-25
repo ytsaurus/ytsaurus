@@ -17,7 +17,7 @@ struct ISensorWriter
 {
     virtual ~ISensorWriter() = default;
 
-    virtual void PushTag(const TTag& tag) = 0;
+    virtual void PushTag(TTag tag) = 0;
     virtual void PopTag() = 0;
 
     virtual void AddGauge(const TString& name, double value) = 0;
@@ -31,19 +31,24 @@ struct ISensorWriter
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! RAII guard for ISensorWriter::PushTag/ISensorWriter::PopTag.
 class TWithTagGuard
 {
 public:
+    TWithTagGuard(const TWithTagGuard&) = delete;
+    TWithTagGuard(TWithTagGuard&&) = delete;
+
     explicit TWithTagGuard(ISensorWriter* writer);
     // NB: For convenience.
-    TWithTagGuard(ISensorWriter* writer, const TTag& tag);
+    TWithTagGuard(ISensorWriter* writer, TString tagKey, TString tagValue);
 
     ~TWithTagGuard();
 
-    void AddTag(const TTag& tag);
+    void AddTag(TTag tag);
+    void AddTag(TString tagKey, TString tagValue);
 
 private:
-    ISensorWriter* Writer_;
+    ISensorWriter* const Writer_;
     int AddedTagCount_ = 0;
 };
 
@@ -53,7 +58,7 @@ class TSensorBuffer final
     : public ISensorWriter
 {
 public:
-    void PushTag(const TTag& tag) override;
+    void PushTag(TTag tag) override;
     void PopTag() override;
 
     void AddGauge(const TString& name, double value) override;
@@ -100,7 +105,8 @@ public:
     TIntrusivePtr<TSensorBuffer> GetBuffer() override;
 
     void Update(TSensorBuffer buffer);
-    void Update(std::function<void(ISensorWriter*)> cb);
+    void Update(const std::function<void(ISensorWriter*)>& callback);
+
     void SetEnabled(bool enabled);
 
 private:

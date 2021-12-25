@@ -177,9 +177,8 @@ void TMemoryTagQueue::CollectSensors(ISensorWriter* writer)
     }
 
     for (int tag = 1; tag < cachedTagCount; ++tag) {
-        writer->PushTag(TTag{"tag", ToString(tag)});
+        TWithTagGuard tagGuard(writer, "tag", ToString(tag));
         writer->AddGauge("/memory_usage", cachedMemoryUsage[tag]);
-        writer->PopTag();
     }
 }
 

@@ -122,13 +122,13 @@ void TDiskTracker::CollectSensors(ISensorWriter* writer)
         InitDiskNames();
         auto stats = GetDiskStats();
         for (const auto& diskName : Disks_) {
-            
+
             auto it = stats.find(diskName);
             if (it == stats.end()) {
                 continue;
             }
 
-            TWithTagGuard diskNameGuard(writer, {"disk", diskName});
+            TWithTagGuard diskNameGuard(writer, "disk", diskName);
             const auto& diskStat = it->second;
 
             writer->AddCounter(
@@ -372,14 +372,13 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
         auto threadCount = profilingKeyToCount[profilingKey];
         double utilization = (userCpuTime + systemCpuTime) / (100 * threadCount);
 
-        writer->PushTag(std::pair<TString, TString>("thread", profilingKey));
+        TWithTagGuard tagGuard(writer, "thread", profilingKey);
         writer->AddGauge("/user_cpu", userCpuTime);
         writer->AddGauge("/system_cpu", systemCpuTime);
         writer->AddGauge("/total_cpu", userCpuTime + systemCpuTime);
         writer->AddGauge("/cpu_wait", waitTime);
         writer->AddGauge("/thread_count", threadCount);
         writer->AddGauge("/utilization", utilization);
-        writer->PopTag();
 
         maxUtilization = std::max(maxUtilization, utilization);
 

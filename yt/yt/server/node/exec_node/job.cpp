@@ -2506,9 +2506,10 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
         if (it == gpuInfoMap.end()) {
             continue;
         }
-        const TGpuInfo& gpuInfo = it->second;
 
-        writer->PushTag({"gpu_slot", ToString(index)});
+        const auto& gpuInfo = it->second;
+
+        TWithTagGuard tagGuard(writer, "gpu_slot", ToString(index));
 
         if (sensorNames.contains(UtilizationGpuName)) {
             writer->AddGauge("/" + UtilizationGpuName, gpuInfo.UtilizationGpuRate);
@@ -2538,8 +2539,6 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
         if (sensorNames.contains(ClocksSmName)) {
             writer->AddGauge("/" + PowerName, gpuInfo.ClocksSm);
         }
-
-        writer->PopTag();
     }
 }
 

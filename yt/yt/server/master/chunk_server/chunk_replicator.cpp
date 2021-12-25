@@ -2240,10 +2240,9 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
     auto now = NProfiling::GetInstant();
     if (now - LastDestroyedReplicasProfilingTime_ >= GetDynamicConfig()->DestroyedReplicasProfilingPeriod) {
         for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
-            buffer->PushTag({"node_address", node->GetDefaultAddress()});
+            TWithTagGuard tagGuard(buffer, "node_address", node->GetDefaultAddress());
             buffer->AddGauge("/destroyed_replicas_size", node->DestroyedReplicas().size());
             buffer->AddGauge("/removal_queue_size", node->ChunkRemovalQueue().size());
-            buffer->PopTag();
         }
         LastDestroyedReplicasProfilingTime_ = now;
     }

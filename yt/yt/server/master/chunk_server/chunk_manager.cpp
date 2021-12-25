@@ -4619,15 +4619,15 @@ private:
         buffer.AddCounter("/chunk_lists_destroyed", ChunkListsDestroyed_);
 
         {
-            TWithTagGuard guard(&buffer, TTag{"mode", "immediate"});
+            TWithTagGuard guard(&buffer, "mode", "immediate");
             buffer.AddCounter("/ally_replicas_announced", ImmediateAllyReplicasAnnounced_);
         }
         {
-            TWithTagGuard guard(&buffer, TTag{"mode", "delayed"});
+            TWithTagGuard guard(&buffer, "mode", "delayed");
             buffer.AddCounter("/ally_replicas_announced", DelayedAllyReplicasAnnounced_);
         }
         {
-            TWithTagGuard guard(&buffer, TTag{"mode", "lazy"});
+            TWithTagGuard guard(&buffer, "mode", "lazy");
             buffer.AddCounter("/ally_replicas_announced", LazyAllyReplicasAnnounced_);
         }
 

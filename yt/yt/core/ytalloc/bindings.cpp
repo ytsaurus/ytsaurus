@@ -127,7 +127,7 @@ private:
         size_t rank,
         const TEnumIndexedVector<ESmallArenaCounter, ssize_t>& counters)
     {
-        NProfiling::TWithTagGuard withTagGuard(writer, {"rank", ToString(rank)});
+        NProfiling::TWithTagGuard withTagGuard(writer, "rank", ToString(rank));
         PushAllocationCounterStatistics(writer, "/small_arena", counters);
     }
 
@@ -147,7 +147,7 @@ private:
         size_t rank,
         const TEnumIndexedVector<ELargeArenaCounter, ssize_t>& counters)
     {
-        NProfiling::TWithTagGuard withTagGuard(writer, {"rank", ToString(rank)});
+        NProfiling::TWithTagGuard withTagGuard(writer, "rank", ToString(rank));
 
         PushAllocationCounterStatistics(writer, "/large_arena", counters);
 
@@ -182,7 +182,7 @@ private:
         for (auto type : TEnumTraits<ETimingEventType>::GetDomainValues()) {
             const auto& counters = timingEventCounters[type];
 
-            NProfiling::TWithTagGuard withTagGuard(writer, {"type", ToString(type)});
+            NProfiling::TWithTagGuard withTagGuard(writer, "type", ToString(type));
             writer->AddGauge("/timing_events/count", counters.Count);
             writer->AddGauge("/timing_events/size", counters.Size);
         }

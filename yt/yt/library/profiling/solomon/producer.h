@@ -27,7 +27,8 @@ struct TProducerCounters final
     bool IsEmpty() const;
 };
 
-class TCounterWriter final : public ISensorWriter
+class TCounterWriter final
+    : public ISensorWriter
 {
 public:
     TCounterWriter(
@@ -35,7 +36,7 @@ public:
         TProducerCountersPtr counters,
         i64 iteration);
 
-    void PushTag(const TTag& tag) override;
+    void PushTag(TTag tag) override;
     void PopTag() override;
     void AddGauge(const TString& name, double value) override;
     void AddCounter(const TString& name, i64 value) override;
