@@ -110,6 +110,14 @@ bool TReplicatedStoreManager::ExecuteWrites(
                 break;
             }
 
+            case EWireProtocolCommand::VersionedWriteRow: {
+                auto row = reader->ReadVersionedRow(Tablet_->TableSchemaData(), false);
+                LogStoreManager_->WriteRow(
+                    BuildLogRow(row, tableSchema, &LogRowBuilder_),
+                    context);
+                break;
+            }
+
             default:
                 THROW_ERROR_EXCEPTION("Unsupported write command %v",
                     command);

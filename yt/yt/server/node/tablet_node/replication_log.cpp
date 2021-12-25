@@ -101,6 +101,57 @@ TUnversionedRow BuildSortedLogRow(
     return rowBuilder->GetRow();
 }
 
+TUnversionedRow BuildSortedLogRow(
+    TVersionedRow row,
+    const TTableSchemaPtr& tableSchema,
+    TUnversionedRowBuilder* rowBuilder)
+{
+    YT_VERIFY(row.GetDeleteTimestampCount() == 1 || row.GetWriteTimestampCount() == 1);
+
+    if (row.GetDeleteTimestampCount() == 1) {
+        rowBuilder->AddValue(MakeUnversionedUint64Value(row.BeginDeleteTimestamps()[0], 0));
+        rowBuilder->AddValue(MakeUnversionedInt64Value(static_cast<int>(ERowModificationType::Delete), 1));
+        return rowBuilder->GetRow();
+    }
+
+    rowBuilder->AddValue(MakeUnversionedUint64Value(row.BeginWriteTimestamps()[0], 0));
+    rowBuilder->AddValue(MakeUnversionedInt64Value(static_cast<int>(ERowModificationType::Write), 1));
+
+    int keyColumnCount = tableSchema->GetKeyColumnCount();
+    int valueColumnCount = tableSchema->GetValueColumnCount();
+
+    YT_VERIFY(static_cast<int>(row.GetKeyCount()) >= keyColumnCount);
+    for (int index = 0; index < keyColumnCount; ++index) {
+        auto value = row.BeginKeys()[index];
+        value.Id += 2;
+        rowBuilder->AddValue(value);
+    }
+
+    for (int index = 0; index < valueColumnCount; ++index) {
+        rowBuilder->AddValue(MakeUnversionedSentinelValue(
+            EValueType::Null,
+            index * 2 + keyColumnCount + 2));
+        rowBuilder->AddValue(MakeUnversionedUint64Value(
+            static_cast<ui64>(EReplicationLogDataFlags::Missing),
+            index * 2 + keyColumnCount + 3));
+    }
+
+    auto logRow = rowBuilder->GetRow();
+
+    for (int index = 0; index < static_cast<int>(row.GetValueCount()); ++index) {
+        auto value = row.BeginValues()[index];
+        value.Id = (value.Id - keyColumnCount) * 2 + keyColumnCount + 2;
+        logRow[value.Id] = static_cast<TUnversionedValue>(value);
+        auto& flags = logRow[value.Id + 1].Data.Uint64;
+        flags &= ~static_cast<ui64>(EReplicationLogDataFlags::Missing);
+        if (Any(value.Flags & EValueFlags::Aggregate)) {
+            flags |= static_cast<ui64>(EReplicationLogDataFlags::Aggregate);
+        }
+    }
+
+    return logRow;
+}
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +170,18 @@ TUnversionedRow BuildLogRow(
     } else {
         return NDetail::BuildOrderedLogRow(row, changeType, rowBuilder);
     }
+}
+
+TUnversionedRow BuildLogRow(
+    TVersionedRow row,
+    const TTableSchemaPtr& tableSchema,
+    TUnversionedRowBuilder* rowBuilder)
+{
+    rowBuilder->Reset();
+
+    YT_VERIFY(tableSchema->IsSorted());
+
+    return NDetail::BuildSortedLogRow(row, tableSchema, rowBuilder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
