@@ -14,17 +14,21 @@ TWithTagGuard::TWithTagGuard(ISensorWriter* writer)
     YT_VERIFY(Writer_);
 }
 
-TWithTagGuard::TWithTagGuard(ISensorWriter* writer, const TTag& tag)
-    : Writer_(writer)
+TWithTagGuard::TWithTagGuard(ISensorWriter* writer, TString tagKey, TString tagValue)
+    : TWithTagGuard(writer)
 {
-    YT_VERIFY(Writer_);
-    AddTag(tag);
+    AddTag(std::move(tagKey), std::move(tagValue));
 }
 
-void TWithTagGuard::AddTag(const TTag& tag)
+void TWithTagGuard::AddTag(TTag tag)
 {
-    Writer_->PushTag(tag);
+    Writer_->PushTag(std::move(tag));
     ++AddedTagCount_;
+}
+
+void TWithTagGuard::AddTag(TString tagKey, TString tagValue)
+{
+    AddTag({std::move(tagKey), std::move(tagValue)});
 }
 
 TWithTagGuard::~TWithTagGuard()
@@ -36,9 +40,9 @@ TWithTagGuard::~TWithTagGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSensorBuffer::PushTag(const TTag& tag)
+void TSensorBuffer::PushTag(TTag tag)
 {
-    Tags_.push_back(tag);
+    Tags_.push_back(std::move(tag));
 }
 
 void TSensorBuffer::PopTag()
@@ -136,10 +140,10 @@ void TBufferedProducer::Update(TSensorBuffer buffer)
     Buffer_ = ptr;
 }
 
-void TBufferedProducer::Update(std::function<void(ISensorWriter*)> cb)
+void TBufferedProducer::Update(const std::function<void(ISensorWriter*)>& callback)
 {
     TSensorBuffer buffer;
-    cb(&buffer);
+    callback(&buffer);
     Update(std::move(buffer));
 }
 

@@ -1735,9 +1735,8 @@ void TJobController::TImpl::OnProfiling()
         auto jobs = GetJobsByOrigin();
 
         for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
-            writer->PushTag(TTag{"origin", FormatEnum(origin)});
+            TWithTagGuard tagGuard(writer, "origin", FormatEnum(origin));
             writer->AddGauge("/active_job_count", jobs[origin].size());
-            writer->PopTag();
         }
     });
 
@@ -1753,13 +1752,10 @@ void TJobController::TImpl::OnProfiling()
         const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
         GpuUtilizationBuffer_->Update([gpuManager] (ISensorWriter* writer) {
             for (const auto& [index, gpuInfo] : gpuManager->GetGpuInfoMap()) {
-                writer->PushTag(TTag{"gpu_name", gpuInfo.Name});
-                writer->PushTag(TTag{"device_number", ToString(index)});
-
+                TWithTagGuard tagGuard(writer);
+                tagGuard.AddTag("gpu_name", gpuInfo.Name);
+                tagGuard.AddTag("device_number", ToString(index));
                 ProfileGpuInfo(writer, gpuInfo);
-
-                writer->PopTag();
-                writer->PopTag();
             }
         });
     }

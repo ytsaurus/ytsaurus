@@ -188,15 +188,12 @@ void TJobRegistry::OnProfiling(TSensorBuffer* buffer) const
 {
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
         if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
-            buffer->PushTag({"job_type", FormatEnum(jobType)});
-
+            TWithTagGuard tagGuard(buffer, "job_type", FormatEnum(jobType));
             buffer->AddGauge("/running_job_count", RunningJobs_[jobType]);
             buffer->AddCounter("/jobs_started", JobsStarted_[jobType]);
             buffer->AddCounter("/jobs_completed", JobsCompleted_[jobType]);
             buffer->AddCounter("/jobs_failed", JobsFailed_[jobType]);
             buffer->AddCounter("/jobs_aborted", JobsAborted_[jobType]);
-
-            buffer->PopTag();
         }
     }
 }

@@ -637,9 +637,8 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
         if (!account.IsAlive()) {
             continue;
         }
-        buffer->PushTag({"account", account->GetName()});
+        TWithTagGuard tagGuard(buffer, "account", account->GetName());
         buffer->AddGauge("/chunk_merger_account_queue_size", queue.size());
-        buffer->PopTag();
     }
 
     buffer->AddGauge("/chunk_merger_jobs_awaiting_chunk_creation", JobsAwaitingChunkCreation_.size());
@@ -656,9 +655,8 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
         if (mergerMode == NChunkClient::EChunkMergerMode::None) {
             continue;
         }
-        buffer->PushTag({"merger_mode", FormatEnum(mergerMode)});
+        TWithTagGuard tagGuard(buffer, "merger_mode", FormatEnum(mergerMode));
         buffer->AddCounter("/chunk_merger_completed_job_count", CompletedJobCountPerMode_[mergerMode]);
-        buffer->PopTag();
     }
     buffer->AddCounter("/chunk_merger_auto_merge_fallback_count", AutoMergeFallbackJobCount_);
 }

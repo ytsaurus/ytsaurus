@@ -70,12 +70,12 @@ TCounterWriter::TCounterWriter(
     IRegistryImplPtr registry,
     TProducerCountersPtr counters,
     i64 iteration)
-    : Registry_(registry)
-    , Counters_{{counters}}
+    : Registry_(std::move(registry))
+    , Counters_{{std::move(counters)}}
     , Iteration_{iteration}
 { }
 
-void TCounterWriter::PushTag(const TTag& tag)
+void TCounterWriter::PushTag(TTag tag)
 {
     auto& [nested, iteration] = Counters_.back()->Tags[tag];
     iteration = Iteration_;
@@ -85,7 +85,7 @@ void TCounterWriter::PushTag(const TTag& tag)
         nested->Prefix = Counters_.back()->Prefix;
         nested->ProducerTags = Counters_.back()->ProducerTags;
         nested->Options = Counters_.back()->Options;
-        nested->ProducerTags.AddTag(tag);
+        nested->ProducerTags.AddTag(std::move(tag));
     }
 
     Counters_.push_back(nested);

@@ -1101,7 +1101,7 @@ private:
             if (stat.MessageRate < Config_->MinLoggedMessageRateToProfile) {
                 continue;
             }
-            TWithTagGuard withTagGuard(&sensorBuffer, {"message", stat.Anchor->AnchorMessage});
+            TWithTagGuard tagGuard(&sensorBuffer, "message", stat.Anchor->AnchorMessage);
             sensorBuffer.AddGauge("/logged_messages/rate", stat.MessageRate);
             sensorBuffer.AddGauge("/logged_bytes/rate", stat.ByteRate);
         }

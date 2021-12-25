@@ -297,10 +297,10 @@ void TFairShareTreeProfileManager::ProfileElement(
     for (const auto& [schedulingStage, scheduledResourcesMap] : ScheduledResourcesByStageMap_) {
         auto scheduledResourcesIt = scheduledResourcesMap.find(element->GetId());
         if (scheduledResourcesIt != scheduledResourcesMap.end()) {
-            auto tag = TTag{"scheduling_stage", schedulingStage
-                ? FormatEnum(*schedulingStage)
-                : ToString(schedulingStage)};
-            TWithTagGuard guard(writer, tag);
+            TWithTagGuard guard(
+                writer,
+                "scheduling_stage",
+                schedulingStage ? FormatEnum(*schedulingStage) : ToString(schedulingStage));
             ProfileResources(writer, scheduledResourcesIt->second, "/scheduled_job_resources", EMetricType::Counter);
         }
     }
@@ -309,7 +309,7 @@ void TFairShareTreeProfileManager::ProfileElement(
         auto preemptedResourcesIt = PreemptedResourcesByReasonMap_[preemptionReason].find(element->GetId());
         auto preemptedResourceTimesIt = PreemptedResourceTimesByReasonMap_[preemptionReason].find(element->GetId());
 
-        TWithTagGuard guard(writer, TTag{"preemption_reason", FormatEnum(preemptionReason)});
+        TWithTagGuard guard(writer, "preemption_reason", FormatEnum(preemptionReason));
         if (preemptedResourcesIt != PreemptedResourcesByReasonMap_[preemptionReason].end()) {
             ProfileResources(writer, preemptedResourcesIt->second, "/preempted_job_resources", EMetricType::Counter);
         }

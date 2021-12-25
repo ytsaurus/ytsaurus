@@ -176,10 +176,8 @@ void TTcpDispatcher::TImpl::StartPeriodicExecutors()
 void TTcpDispatcher::TImpl::CollectSensors(ISensorWriter* writer)
 {
     NetworkStatistics_.IterateReadOnly([writer] (const auto& name, const auto& statistics) {
-        writer->PushTag(std::pair<TString, TString>("network", name));
-
         auto counters = statistics.Counters->ToStatistics();
-
+        TWithTagGuard tagGuard(writer, "network", name);
         writer->AddCounter("/in_bytes", counters.InBytes);
         writer->AddCounter("/in_packets", counters.InPackets);
         writer->AddCounter("/out_bytes", counters.OutBytes);
@@ -195,8 +193,6 @@ void TTcpDispatcher::TImpl::CollectSensors(ISensorWriter* writer)
         writer->AddCounter("/tcp_retransmits", counters.Retransmits);
         writer->AddCounter("/encoder_errors", counters.EncoderErrors);
         writer->AddCounter("/decoder_errors", counters.DecoderErrors);
-
-        writer->PopTag();
     });
 }
 
