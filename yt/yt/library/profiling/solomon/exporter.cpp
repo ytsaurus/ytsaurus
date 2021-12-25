@@ -409,6 +409,7 @@ std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
         auto readOptions = options;
         readOptions.Times.emplace_back(std::vector<int>{Registry_->IndexOf(Window_.back().first)}, TInstant::Zero());
         readOptions.ConvertCountersToRateGauge = false;
+        readOptions.EnableHistogramCompat = true;
         readOptions.ExportSummary |= this_->Config_->ExportSummary;
         readOptions.ExportSummaryAsMax |= this_->Config_->ExportSummaryAsMax;
         readOptions.ExportSummaryAsAvg |= this_->Config_->ExportSummaryAsAvg;
