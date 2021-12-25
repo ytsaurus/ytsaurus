@@ -41,6 +41,38 @@ TEST(TSolomonExporter, MemoryLeak)
     actionQueue->Shutdown();
 }
 
+TEST(TSolomonExporter, ReadJsonHistogram)
+{
+    auto registry = New<TSolomonRegistry>();
+    auto hist = TProfiler{registry, "yt"}.Histogram("/foo", TDuration::MilliSeconds(1), TDuration::Seconds(1));
+
+    auto config = New<TSolomonExporterConfig>();
+    config->GridStep = TDuration::Seconds(1);
+    config->EnableCoreProfilingCompatibility = true;
+    config->EnableSelfProfiling = false;
+
+    auto actionQueue = New<TActionQueue>("Leak");
+
+    auto exporter = NYT::New<TSolomonExporter>(config, actionQueue->GetInvoker(), registry);
+    auto json = exporter->ReadJson();
+    EXPECT_FALSE(json);
+
+    exporter->Start();
+
+    hist.Record(TDuration::MilliSeconds(500));
+    hist.Record(TDuration::MilliSeconds(500));
+    hist.Record(TDuration::MilliSeconds(500));
+    Sleep(TDuration::Seconds(5));
+
+    json = exporter->ReadJson();
+    ASSERT_TRUE(json);
+    Cerr << *json;
+
+    exporter->Stop();
+
+    actionQueue->Shutdown();  
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

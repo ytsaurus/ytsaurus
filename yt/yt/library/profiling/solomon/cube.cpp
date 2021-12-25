@@ -455,13 +455,14 @@ int TCube<T>::ReadSensors(
                 size_t n = value.Bounds.size();
                 auto hist = NMonitoring::TExplicitHistogramSnapshot::New(n + 1);
 
-                if (options.ConvertCountersToRateGauge) {
+                if (options.ConvertCountersToRateGauge || options.EnableHistogramCompat) {
                     if (options.RateDenominator < 0.1) {
                         THROW_ERROR_EXCEPTION("Invalid rate denominator");
                     }
 
                     for (size_t i = 0; i < n; ++i) {
                         int bucketValue = i < value.Values.size() ? value.Values[i] : 0u;
+
                         (*hist)[i] = {value.Bounds[i], bucketValue / options.RateDenominator};
                     }
 
@@ -472,11 +473,11 @@ int TCube<T>::ReadSensors(
 
                     for (size_t i = 0; i < n; ++i) {
                         int bucketValue = i < rollup.Values.size() ? rollup.Values[i] : 0u;
-                        (*hist)[i] = {rollup.Bounds[i], bucketValue / options.RateDenominator};
+                        (*hist)[i] = {rollup.Bounds[i], bucketValue};
                     }
 
                     // add inf
-                    (*hist)[n] = {Max<NMonitoring::TBucketBound>(), n < rollup.Values.size() ? (rollup.Values[n] / options.RateDenominator) : 0u};
+                    (*hist)[n] = {Max<NMonitoring::TBucketBound>(), n < rollup.Values.size() ? (rollup.Values[n]) : 0u};
                 }
 
                 sensorCount = n + 1;
