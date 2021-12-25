@@ -222,7 +222,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         Load(context, EndorsementRequired_);
     }
     // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::CRP) {
+    if (context.GetVersion() >= EMasterReign::Crp) {
         Load(context, ConsistentReplicaPlacementHash_);
     }
 

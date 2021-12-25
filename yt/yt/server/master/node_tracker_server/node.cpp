@@ -576,7 +576,7 @@ void TNode::Load(TLoadContext& context)
         Load(context, ReplicaEndorsements_);
     }
 
-    if (context.GetVersion() >= EMasterReign::CRP) {
+    if (context.GetVersion() >= EMasterReign::Crp) {
         Load(context, ConsistentReplicaPlacementTokenCount_);
         if (context.GetVersion() < EMasterReign::CrpTokenCountFixes) {
             if (IsValidWriteTarget()) {
