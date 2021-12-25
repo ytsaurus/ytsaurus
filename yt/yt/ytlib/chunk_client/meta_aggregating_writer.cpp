@@ -144,13 +144,13 @@ private:
     bool MetaFinalized_ = false;
     TChunkId FirstChunkId_;
 
-    int RowCount_ = 0;
+    i64 RowCount_ = 0;
     i64 UncompressedDataSize_ = 0;
     i64 CompressedDataSize_ = 0;
     i64 DataWeight_ = 0;
     i64 LargestBlockSize_ = 0;
-    int BlockIndex_ = 0;
-    int ValueCount_ = 0;
+    i64 BlockIndex_ = 0;
+    i64 ValueCount_ = 0;
 
     TComparator SchemaComparator_;
 
