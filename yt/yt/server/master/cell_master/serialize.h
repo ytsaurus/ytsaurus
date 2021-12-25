@@ -125,7 +125,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixClusterNodeMapMigration)                                   (1813))  // gritukan
     ((ChunkAutotomizer)                                             (1814))  // gritukan
     ((ForbidNestedPortals)                                          (1815))  // gritukan
-    ((CRP)                                                          (1816))  // shakurov
+    ((Crp)                                                          (1816))  // shakurov
     ((EnableCrpBuiltinAttribute)                                    (1817))  // shakurov
     ((CrpTokenCountFixes)                                           (1818))  // shakurov
     ((OneMoreChunkMergerOptimization)                               (1819))  // aleksandra-zh
