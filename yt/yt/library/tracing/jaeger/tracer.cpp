@@ -238,7 +238,7 @@ void TJaegerTracer::Stop()
     FlushExecutor_->ScheduleOutOfBand();
 
     auto config = Config_.Load();
-    Y_UNUSED(WaitFor(WaitFlush().WithTimeout(config->StopTimeout)));
+    Y_UNUSED(WaitFor(flushFuture.WithTimeout(config->StopTimeout)));
 
     FlushExecutor_->Stop();
     ActionQueue_->Shutdown();
