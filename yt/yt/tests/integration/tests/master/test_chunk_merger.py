@@ -424,9 +424,11 @@ class TestChunkMerger(YTEnvSetup):
     def test_merge_does_not_overwrite_data(self):
         create("table", "//tmp/t")
 
-        write_table("<append=true>//tmp/t", {"a": "b"})
-        write_table("<append=true>//tmp/t", {"b": "c"})
-        write_table("<append=true>//tmp/t", {"c": "d"})
+        all_rows = [{"a{}".format(i): "b{}".format(i)} for i in range(6)]
+
+        write_table("<append=true>//tmp/t", all_rows[0])
+        write_table("<append=true>//tmp/t", all_rows[1])
+        write_table("<append=true>//tmp/t", all_rows[2])
 
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
         set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
@@ -434,16 +436,13 @@ class TestChunkMerger(YTEnvSetup):
 
         wait(lambda: get("//tmp/t/@is_being_merged"))
 
-        write_table("//tmp/t", {"q": "r"})
-        write_table("<append=true>//tmp/t", {"w": "t"})
-        write_table("<append=true>//tmp/t", {"e": "y"})
+        write_table("//tmp/t", all_rows[3])
+        write_table("<append=true>//tmp/t", all_rows[4])
+        write_table("<append=true>//tmp/t", all_rows[5])
 
-        rows = read_table("//tmp/t")
-
-        assert get("//tmp/t/@chunk_count") > 1
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
 
-        assert read_table("//tmp/t") == rows
+        assert read_table("//tmp/t") == all_rows[3:6]
 
     @authors("aleksandra-zh")
     def test_remove(self):
