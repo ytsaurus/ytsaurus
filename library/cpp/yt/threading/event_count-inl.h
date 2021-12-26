@@ -50,18 +50,17 @@ inline void TEventCount::NotifyMany(int count)
 
 inline TEventCount::TCookie TEventCount::PrepareWait()
 {
-    ui64 prev = Value_.fetch_add(AddWaiter, std::memory_order_acq_rel);
-    return TCookie(static_cast<ui32>(prev >> EpochShift));
+    ui64 value = Value_.load(std::memory_order_acquire);
+    return TCookie(static_cast<ui32>(value >> EpochShift));
 }
 
 inline void TEventCount::CancelWait()
-{
-    ui64 prev = Value_.fetch_add(SubWaiter, std::memory_order_seq_cst);
-    YT_ASSERT((prev & WaiterMask) != 0);
-}
+{ }
 
 inline bool TEventCount::Wait(TCookie cookie, TInstant deadline)
 {
+    Value_.fetch_add(AddWaiter, std::memory_order_acq_rel);
+
     bool result = true;
 #ifdef _linux_
     while ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
