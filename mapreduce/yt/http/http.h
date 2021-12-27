@@ -83,8 +83,18 @@ public:
     TAddressPtr Resolve(const TString& hostName);
 
 private:
-    THashMap<TString, TAddressPtr> Cache_;
+    struct TCacheEntry {
+        TAddressPtr Address;
+        TInstant ExpirationTime;
+    };
+
+private:
+    TAddressPtr FindAddress(const TString& hostName) const;
+    void AddAddress(TString hostName, TAddressPtr address);
+
+private:
     TRWMutex Lock_;
+    THashMap<TString, TCacheEntry> Cache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,8 +125,8 @@ private:
     static SOCKET DoConnect(TAddressCache::TAddressPtr address);
 
 private:
-    TConnectionMap Connections_;
     TMutex Lock_;
+    TConnectionMap Connections_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

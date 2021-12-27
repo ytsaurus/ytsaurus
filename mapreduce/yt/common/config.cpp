@@ -149,6 +149,8 @@ void TConfig::LoadTimings()
         GetDuration("YT_SEND_RECEIVE_TIMEOUT", // common
             TDuration::Seconds(60)));
 
+    AddressCacheExpirationTimeout = TDuration::Minutes(15);
+
     TxTimeout = GetDuration("YT_TX_TIMEOUT",
         TDuration::Seconds(120));
 
