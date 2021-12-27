@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+
 def lsb_release():
     """ Simplified implementation of distro.linux_distribution().
 
@@ -30,6 +31,7 @@ def lsb_release():
 
     return (props["distributor_id"], props["release"], props["codename"])
 
+
 def get_platform_version():
     import sys
 
@@ -45,6 +47,7 @@ def get_platform_version():
             pass
     return tuple(version)
 
+
 def filter_out_modules(module_path, filter_function):
     import os
     for path, dirnames, filenames in os.walk(module_path):
@@ -52,6 +55,7 @@ def filter_out_modules(module_path, filter_function):
             file_path = os.path.join(path, file_name)
             if filter_function(file_path):
                 os.remove(file_path)
+
 
 def main():
     # We should use local imports because of replacing __main__ module cause cleaning globals.
@@ -117,10 +121,12 @@ def main():
         server_python_version = platform.python_version()
 
         if modules_info["enable_modules_compatibility_filter"]:
-            python_filter_function = lambda path: \
-                path.endswith(".pyc") and os.path.exists(path[:-1]) or "hashlib" in path
-            platform_filter_function = lambda path: \
-                path.endswith(".so") and not path.endswith("yson_lib.so") or python_filter_function(path)
+
+            def python_filter_function(path):
+                return path.endswith(".pyc") and os.path.exists(path[:-1]) or "hashlib" in path
+
+            def platform_filter_function(path):
+                return path.endswith(".so") and not path.endswith("yson_lib.so") or python_filter_function(path)
 
             if client_version != server_version or client_python_version != server_python_version:
                 for module_path in module_locations:
@@ -156,6 +162,7 @@ def main():
     import yt.wrapper
 
     yt.wrapper.py_runner_helpers.process_rows(__operation_dump_filename, __config_dump_filename, start_time=start_time)
+
 
 if __name__ == "__main__":
     main()
