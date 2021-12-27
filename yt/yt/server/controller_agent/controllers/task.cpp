@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/client/misc/io_tags.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -1474,6 +1476,14 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     schedulerJobSpecExt->set_task_name(GetVertexDescriptor());
     schedulerJobSpecExt->set_tree_id(joblet->TreeId);
     schedulerJobSpecExt->set_authenticated_user(TaskHost_->GetAuthenticatedUser());
+
+    auto ioTags = CreateEphemeralAttributes();
+    // TODO(gepardo): Add EAggregateIOTag::Pool here when schedulers will pass pool information to controller.
+    // See YT-16119 for details.
+    AddTagToBaggage(ioTags, EAggregateIOTag::OperationType, ToString(GetTaskHost()->GetOperationType()));
+    AddTagToBaggage(ioTags, EAggregateIOTag::TaskName, GetTitle());
+    AddTagToBaggage(ioTags, EAggregateIOTag::PoolTree, joblet->TreeId);
+    ToProto(schedulerJobSpecExt->mutable_io_tags(), *ioTags);
 
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }

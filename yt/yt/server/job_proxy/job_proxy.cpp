@@ -39,6 +39,8 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/misc/io_tags.h>
+
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -585,6 +587,14 @@ TJobResult TJobProxy::DoRun()
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
         RetrieveJobSpec();
+
+        auto baggage = RootSpan_->UnpackOrCreateBaggage();
+        auto ioTags = FromProto(JobSpecHelper_->GetSchedulerJobSpecExt().io_tags());
+        baggage->MergeFrom(*ioTags);
+        AddTagToBaggage(baggage, ERawIOTag::OperationId, ToString(OperationId_));
+        AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(JobId_));
+        AddTagToBaggage(baggage, EAggregateIOTag::JobType, ToString(JobSpecHelper_->GetJobType()));
+        RootSpan_->PackBaggage(baggage);
 
         auto clusterConnection = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
