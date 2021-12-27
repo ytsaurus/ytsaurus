@@ -412,17 +412,9 @@ bool ContainsAddressOfRequiredVersion(const TAddressCache::TAddressPtr& address)
 
 TAddressCache::TAddressPtr TAddressCache::Resolve(const TString& hostName)
 {
-    TAddressPtr entry;
-    if (TReadGuard guard(Lock_); auto* entryPtr = Cache_.FindPtr(hostName)) {
-        entry = *entryPtr;
-    }
-    if (entry) {
-        if (ContainsAddressOfRequiredVersion(entry)) {
-            return entry;
-        } else {
-            LOG_DEBUG("Address of required version not found for host %s, will retry resolution",
-                hostName.data());
-        }
+    auto address = FindAddress(hostName);
+    if (address) {
+        return address;
     }
 
     TString host(hostName);
@@ -437,14 +429,14 @@ TAddressCache::TAddressPtr TAddressCache::Resolve(const TString& hostName)
     auto retryPolicy = CreateDefaultRequestRetryPolicy();
     auto error = yexception() << "can not resolve address of required version for host " << hostName;
     while (true) {
-        entry = new TNetworkAddress(host, port);
-        if (ContainsAddressOfRequiredVersion(entry)) {
+        address = new TNetworkAddress(host, port);
+        if (ContainsAddressOfRequiredVersion(address)) {
             break;
         }
         retryPolicy->NotifyNewAttempt();
         LOG_DEBUG("Failed to resolve address of required version for host %s, retrying: %s",
-            hostName.data(),
-            retryPolicy->GetAttemptDescription().data());
+            hostName.c_str(),
+            retryPolicy->GetAttemptDescription().c_str());
         if (auto backoffDuration = retryPolicy->OnGenericError(error)) {
             NDetail::TWaitProxy::Get()->Sleep(*backoffDuration);
         } else {
@@ -452,9 +444,48 @@ TAddressCache::TAddressPtr TAddressCache::Resolve(const TString& hostName)
         }
     }
 
-    TWriteGuard guard(Lock_);
-    Cache_.insert({hostName, entry});
-    return entry;
+    AddAddress(hostName, address);
+    return address;
+}
+
+TAddressCache::TAddressPtr TAddressCache::FindAddress(const TString& hostName) const
+{
+    TCacheEntry entry;
+    {
+        TReadGuard guard(Lock_);
+        auto it = Cache_.find(hostName);
+        if (it == Cache_.end()) {
+            return nullptr;
+        }
+        entry = it->second;
+    }
+
+    if (TInstant::Now() > entry.ExpirationTime) {
+        LOG_DEBUG("Address resolution cache entry for host %s is expired, will retry resolution",
+            hostName.c_str());
+        return nullptr;
+    }
+
+    if (!ContainsAddressOfRequiredVersion(entry.Address)) {
+        LOG_DEBUG("Address of required version not found for host %s, will retry resolution",
+            hostName.c_str());
+        return nullptr;
+    }
+
+    return entry.Address;
+}
+
+void TAddressCache::AddAddress(TString hostName, TAddressPtr address)
+{
+    auto entry = TCacheEntry{
+        .Address = std::move(address),
+        .ExpirationTime = TInstant::Now() + TConfig::Get()->AddressCacheExpirationTimeout,
+    };
+
+    {
+        TWriteGuard guard(Lock_);
+        Cache_.emplace(std::move(hostName), std::move(entry));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -61,6 +61,7 @@ struct TConfig
 
     TDuration ConnectTimeout;
     TDuration SocketTimeout;
+    TDuration AddressCacheExpirationTimeout;
     TDuration TxTimeout;
     TDuration PingTimeout;
     TDuration PingInterval;
