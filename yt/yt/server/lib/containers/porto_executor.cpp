@@ -436,6 +436,11 @@ private:
                 ipConfig->set_dev("veth0");
                 ipConfig->set_ip(ToString(address));
             }
+
+            if (spec.EnableNat64) {
+                // Behave like nanny does.
+                portoSpec.set_resolv_conf("nameserver fd64::1;nameserver 2a02:6b8:0:3400::5005;options attempts:1 timeout:1");
+            }
         }
 
         for (const auto& [key, value] : spec.Labels) {

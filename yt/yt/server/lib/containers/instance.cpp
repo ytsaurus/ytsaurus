@@ -224,9 +224,10 @@ public:
         Spec_.User = user;
     }
 
-    void SetIPAddresses(const std::vector<NNet::TIP6Address>& addresses) override
+    void SetIPAddresses(const std::vector<NNet::TIP6Address>& addresses, bool enableNat64) override
     {
         Spec_.IPAddresses = addresses;
+        Spec_.EnableNat64 = enableNat64;
     }
 
     void SetHostName(const TString& hostName) override

@@ -209,6 +209,10 @@ message TUserJobSpec
     optional string enabled_profiler = 62;
 
     repeated string gpu_check_binary_args = 63;
+
+    // Enables NAT64 - YT-15665.
+    // Only to be used with user network projects.
+    optional bool enable_nat64 = 64;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
