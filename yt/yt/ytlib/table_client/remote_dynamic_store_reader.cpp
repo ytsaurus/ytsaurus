@@ -900,7 +900,17 @@ protected:
     TFuture<void> LocateDynamicStore()
     {
         if (RetryCount_ == Config_->RetryCount) {
-            return MakeFuture(TError("Too many locate retries failed, backing off"));
+            auto storeId = GetObjectIdFromDataSplit(ChunkSpec_);
+            auto tabletId = GetTabletIdFromDataSplit(ChunkSpec_);
+            auto cellId = GetCellIdFromDataSplit(ChunkSpec_);
+
+            auto error = TError("Too many dynamic store locate retries failed")
+                << TErrorAttribute("dynamic_store_id", storeId)
+                << TErrorAttribute("tablet_id", tabletId)
+                << TErrorAttribute("cell_id", cellId)
+                << TErrorAttribute("retry_count", RetryCount_);
+
+            return MakeFuture(error);
         }
 
         auto locateDynamicStoreAsync = BIND(&TRetryingRemoteDynamicStoreReaderBase::DoLocateDynamicStore, MakeStrong(this))
