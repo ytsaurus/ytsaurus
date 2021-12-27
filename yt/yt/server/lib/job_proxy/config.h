@@ -207,6 +207,8 @@ public:
     //! Hostname to set in container.
     std::optional<TString> HostName;
 
+    bool EnableNat64;
+
     //! Network addresses to bind into container.
     std::vector<TUserJobNetworkAddressPtr> NetworkAddresses;
 
@@ -298,6 +300,9 @@ public:
 
         RegisterParameter("host_name", HostName)
             .Default();
+
+        RegisterParameter("enable_nat64", EnableNat64)
+            .Default(false);
 
         RegisterParameter("network_addresses", NetworkAddresses)
             .Default();

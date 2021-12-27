@@ -1803,6 +1803,10 @@ TJobProxyConfigPtr TJob::CreateConfig()
             THROW_ERROR_EXCEPTION("No IPv6 node addresses were resolved");
         }
 
+        if (UserJobSpec_ && UserJobSpec_->has_enable_nat64()) {
+            proxyConfig->EnableNat64 = UserJobSpec_->enable_nat64();
+        }
+
         proxyConfig->HostName = Format("slot_%v.%v",
             Slot_->GetSlotIndex(),
             Bootstrap_->GetConfig()->Addresses[0].second);

@@ -387,7 +387,7 @@ public:
                 addresses.push_back(address->Address);
             }
 
-            launcher->SetIPAddresses(addresses);
+            launcher->SetIPAddresses(addresses, Options_.EnableNat64);
         }
 
         launcher->SetEnablePorto(Options_.EnablePorto);

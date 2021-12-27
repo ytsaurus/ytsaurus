@@ -9085,8 +9085,18 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 *jobSpecConfig->NetworkProject);
         }
 
-        auto getRspOrError = WaitFor(client->GetNode(networkProjectPath + "/@project_id"));
-        jobSpec->set_network_project_id(ConvertTo<ui32>(getRspOrError.ValueOrThrow()));
+        TGetNodeOptions options {
+            .Attributes = std::vector<TString>{"project_id", "enable_nat64"}
+        };
+        auto networkProject = WaitFor(client->GetNode(networkProjectPath, options))
+            .ValueOrThrow();
+        auto networkProjectNode = ConvertToNode(networkProject);
+        jobSpec->set_network_project_id(networkProjectNode->Attributes().Get<ui32>("project_id"));
+
+        auto enableNat64 = networkProjectNode->Attributes().Find<bool>("enable_nat64");
+        if (enableNat64) {
+            jobSpec->set_enable_nat64(*enableNat64);
+        }
     }
 
     // COMPAT(gritukan): Drop it when nodes will be fresh enough.

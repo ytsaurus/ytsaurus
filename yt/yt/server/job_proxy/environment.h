@@ -47,6 +47,7 @@ struct TUserJobEnvironmentOptions
 
     std::optional<TString> HostName;
     std::vector<TUserJobNetworkAddressPtr> NetworkAddresses;
+    bool EnableNat64;
 
     bool EnableCudaGpuCoreDump = false;
 

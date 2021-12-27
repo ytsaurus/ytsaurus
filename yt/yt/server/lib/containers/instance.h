@@ -41,7 +41,9 @@ struct IInstanceLauncher
     virtual void EnableMemoryTracking() = 0;
     virtual void SetGroup(int groupId) = 0;
     virtual void SetUser(const TString& user) = 0;
-    virtual void SetIPAddresses(const std::vector<NNet::TIP6Address>& addresses) = 0;
+    virtual void SetIPAddresses(
+        const std::vector<NNet::TIP6Address>& addresses,
+        bool enableNat64=false) = 0;
     virtual void SetHostName(const TString& hostName) = 0;
 
     virtual TFuture<IInstancePtr> Launch(
@@ -64,7 +66,7 @@ struct IInstance
     virtual void Kill(int signal) = 0;
     virtual void Stop() = 0;
     virtual void Destroy() = 0;
-    
+
     virtual TResourceUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
     virtual TResourceLimits GetResourceLimits() const = 0;
     virtual void SetCpuGuarantee(double cores) = 0;
@@ -78,13 +80,13 @@ struct IInstance
 
     virtual TString GetName() const = 0;
     virtual std::optional<TString> GetParentName() const = 0;
-    
+
     //! Returns externally visible pid of the root proccess inside container.
     //! Throws if container is not running.
     virtual pid_t GetPid() const = 0;
     //! Returns the list of externally visible pids of processes running inside container.
     virtual std::vector<pid_t> GetPids() const = 0;
-    
+
     //! Future is set when container reaches terminal state (stopped or dead).
     //! Resulting error is OK iff container exited with code 0.
     virtual TFuture<void> Wait() = 0;

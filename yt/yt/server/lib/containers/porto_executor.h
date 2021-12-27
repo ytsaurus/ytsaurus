@@ -90,6 +90,7 @@ struct TRunnableContainerSpec
 
     std::optional<TString> HostName;
     std::vector<NYT::NNet::TIP6Address> IPAddresses;
+    bool EnableNat64;
 
     THashMap<TString, TString> Labels;
     THashMap<TString, TString> Env;
