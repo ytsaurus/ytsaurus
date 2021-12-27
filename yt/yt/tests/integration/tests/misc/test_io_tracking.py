@@ -773,7 +773,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
         run_op = yt_commands.map if op_type == "map" else reduce
-        run_op(
+        op = run_op(
             in_="//tmp/table_in",
             out="//tmp/table_out",
             command="cat",
@@ -781,6 +781,17 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         )
         raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
         raw_events.sort(key=lambda event: event["data_node_method@"])
+
+        operation_type = "Map" if op_type == "map" else "Reduce"
+        job_type = "Map" if op_type == "map" else "SortedReduce"
+        task_name = "Map" if op_type == "map" else "SortedReduce"
+        for event in raw_events:
+            assert event["pool_tree@"] == "default"
+            assert event["operation_id"] == op.id
+            assert event["operation_type@"] == operation_type
+            assert "job_id" in event
+            assert event["job_type@"] == job_type
+            assert event["task_name@"] == task_name
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
         assert raw_events[0]["user@"] == "job:root"
@@ -820,15 +831,21 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert raw_events[1]["data_node_method@"] == "FinishChunk"
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        merge(
+        op = merge(
             mode="unordered",
             in_=["//tmp/table_in1", "//tmp/table_in2"],
             out="//tmp/table_out",
-            spec={"force_transform": True}
+            spec={"force_transform": True},
         )
         raw_events, _ = self.wait_for_events(raw_count=3, from_barrier=from_barrier)
 
         for event in raw_events:
+            assert event["pool_tree@"] == "default"
+            assert event["operation_id"] == op.id
+            assert event["operation_type@"] == "Merge"
+            assert "job_id" in event
+            assert event["job_type@"] == "UnorderedMerge"
+            assert event["task_name@"] == "UnorderedMerge"
             assert event["byte_count"] > 0
             assert event["io_count"] > 0
             assert event["user@"] == "job:root"
@@ -869,7 +886,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        map_reduce(
+        op = map_reduce(
             in_="//tmp/table_in",
             out="//tmp/table_out",
             mapper_command="cat",
@@ -879,9 +896,15 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         raw_events, _ = self.wait_for_events(raw_count=4, from_barrier=from_barrier)
 
         for event in raw_events:
+            assert event["pool_tree@"] == "default"
+            assert event["operation_id"] == op.id
+            assert event["operation_type@"] == "MapReduce"
+            assert "job_id" in event
             assert event["byte_count"] > 0
             assert event["io_count"] > 0
             assert event["user@"] == "job:root"
+        assert {event["job_type@"] for event in raw_events} == {"PartitionMap", "PartitionReduce"}
+        assert {event["task_name@"] for event in raw_events} == {"Partition(0)", "PartitionReduce"}
 
         read_events = [event for event in raw_events if event["data_node_method@"] == "GetBlockSet"]
         write_events = [event for event in raw_events if event["data_node_method@"] == "FinishChunk"]

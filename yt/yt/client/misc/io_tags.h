@@ -14,6 +14,7 @@ DEFINE_ENUM(ERawIOTag,
     ((JobId)          (2))
     ((ObjectPath)     (3))
     ((ObjectId)       (4))
+    ((OperationId)    (5))
 );
 
 DEFINE_ENUM(EAggregateIOTag,
@@ -27,6 +28,10 @@ DEFINE_ENUM(EAggregateIOTag,
     ((Account)        (7))
     ((ApiMethod)      (8))
     ((ProxyType)      (9))
+    ((Pool)           (10))
+    ((PoolTree)       (11))
+    ((OperationType)  (12))
+    ((TaskName)       (13))
 );
 
 TString FormatIOTag(ERawIOTag tag);

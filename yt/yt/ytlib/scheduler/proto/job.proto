@@ -3,6 +3,7 @@ package NYT.NScheduler.NProto;
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/protobuf_helpers.proto";
 import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt/ytlib/chunk_client/proto/data_source.proto";
 import "yt/ytlib/core_dump/proto/core_info.proto";
@@ -168,7 +169,7 @@ message TUserJobSpec
     optional int64 prepare_time_limit = 42;
 
     optional string interruption_signal = 43;
-    
+
     optional bool signal_root_process_only = 44 [default = false];
 
     optional bool enable_gpu_layers = 45 [default = true];
@@ -333,6 +334,8 @@ message TSchedulerJobSpecExt
     optional bool is_traced = 30 [default = false];
 
     optional bytes testing_options = 31 [(NYT.NYson.NProto.yson_string) = true];
+
+    optional NYT.NYTree.NProto.TAttributeDictionary io_tags = 32;
 }
 
 message TSchedulerJobResultExt
