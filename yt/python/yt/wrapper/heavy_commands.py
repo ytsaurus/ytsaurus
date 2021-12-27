@@ -20,6 +20,7 @@ from yt.common import join_exceptions
 
 from yt.packages.six.moves import xrange
 
+import sys
 import time
 
 class _ProgressReporter(object):
@@ -313,7 +314,11 @@ def _try_get_size(path, client, request_size):
     return None
 
 def _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False):
-    enable_progress_bar = get_config(client)["read_progress_bar"]["enable"]
+    if sys.stderr.isatty():
+        enable_progress_bar = get_config(client)["read_progress_bar"]["enable"]
+    else:
+        enable_progress_bar = False
+
     if enable_progress_bar:
         bar = SimpleProgressBar("download", size_hint=size_hint,
                                 filename_hint=filename_hint, enable=enable_progress_bar)
