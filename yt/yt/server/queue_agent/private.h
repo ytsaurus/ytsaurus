@@ -1,0 +1,27 @@
+#pragma once
+
+#include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
+namespace NYT::NQueueAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger QueueAgentLogger;
+extern const NProfiling::TProfiler QueueAgentProfiler;
+extern const TString QueueAgentUserName;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TQueueAgent)
+DECLARE_REFCOUNTED_CLASS(TQueueAgentConfig)
+DECLARE_REFCOUNTED_CLASS(TQueueAgentServerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TAgentId = TString;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NQueueAgent

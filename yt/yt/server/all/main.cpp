@@ -13,6 +13,7 @@
 #include <yt/yt/server/timestamp_provider/program.h>
 #include <yt/yt/server/master_cache/program.h>
 #include <yt/yt/server/cell_balancer/program.h>
+#include <yt/yt/server/queue_agent/program.h>
 
 #include <yt/yt/ytlib/program/program.h>
 
@@ -39,7 +40,7 @@ void TryProgram(int argc, const char** argv, const TString& nameSuffix)
     if (TStringBuf(argv[0]).EndsWith("ytserver-" + nameSuffix)) {
         T().Run(argc, argv);
     }
-}
+}   
 
 int main(int argc, const char** argv)
 {
@@ -59,7 +60,7 @@ int main(int argc, const char** argv)
     TryProgram<NTimestampProvider::TTimestampProviderProgram>(argc, argv, "timestamp-provider");
     TryProgram<NMasterCache::TMasterCacheProgram>(argc, argv, "master-cache");
     TryProgram<NCellBalancer::TCellBalancerProgram>(argc, argv, "cell-balancer");
-
+    TryProgram<NQueueAgent::TQueueAgentProgram>(argc, argv, "queue-agent");
     // Handles auxiliary flags like --version and --build.
     TAllProgram().Run(argc, argv);
 }
