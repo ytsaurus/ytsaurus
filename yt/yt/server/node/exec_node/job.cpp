@@ -1597,7 +1597,7 @@ void TJob::Cleanup()
     if (!error.IsOK()) {
         // NB: it is required to report error that occurred in some place different
         // from OnJobFinished method.
-        HandleJobReport(TNodeJobReport().Error(error));
+        HandleJobReport(MakeDefaultJobReport().Error(error));
     }
 
     YT_LOG_INFO(error, "Setting final job state (JobState: %v)", GetState());
