@@ -480,14 +480,7 @@ TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto sessionId = TSessionId(
-        chunk->GetId(),
-        chunk->GetLocation()->GetMediumDescriptor().Index);
-    const auto& sessionManager = Bootstrap_->GetSessionManager();
-    if (auto session = sessionManager->FindSession(sessionId)) {
-        session->Cancel(TError("Chunk %v is about to be removed",
-            chunk->GetId()));
-    }
+    ChunkRemovalScheduled_.Fire(chunk);
 
     return chunk->ScheduleRemove().Apply(
         BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk));

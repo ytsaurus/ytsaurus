@@ -63,6 +63,9 @@ void TSessionManager::Initialize()
 
     Bootstrap_->SubscribeMasterDisconnected(
         BIND(&TSessionManager::OnMasterDisconnected, MakeWeak(this)));
+
+    Bootstrap_->GetChunkStore()->SubscribeChunkRemovalScheduled(
+        BIND(&TSessionManager::OnChunkRemovalScheduled, MakeWeak(this)));
 }
 
 ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
@@ -280,6 +283,17 @@ void TSessionManager::OnMasterDisconnected()
 
     for (const auto& [sessionId, session] : sessionMap) {
         session->Cancel(TError("Node has disconnected from master"));
+    }
+}
+
+void TSessionManager::OnChunkRemovalScheduled(const IChunkPtr& chunk)
+{
+    auto sessionId = TSessionId(
+        chunk->GetId(),
+        chunk->GetLocation()->GetMediumDescriptor().Index);
+    if (auto session = FindSession(sessionId)) {
+        session->Cancel(TError("Chunk %v is about to be removed",
+            chunk->GetId()));
     }
 }
 
