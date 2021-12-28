@@ -484,9 +484,9 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
         dataSourceDirectory->DataSources().back().SetObjectId(TaskHost_->GetOutputTable(tableIndex)->ObjectId);
         dataSourceDirectory->DataSources().back().SetAccount(TaskHost_->GetOutputTable(tableIndex)->Account);
 
-        NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
-        ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
-        SetProtoExtension(schedulerJobSpecExt->mutable_extensions(), dataSourceDirectoryExt);
+        SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            dataSourceDirectory);
         schedulerJobSpecExt->set_io_config(
             ConvertToYsonString(autoMergeSpec->JobIO).ToString());
 

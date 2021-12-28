@@ -30,6 +30,7 @@
 #include <yt/yt/ytlib/chunk_client/key_set.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
@@ -3513,7 +3514,9 @@ private:
             auto* schedulerJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig)).ToString());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(RootPartitionJobIOConfig).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
+            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildDataSourceDirectoryFromInputTables(InputTables_));
             auto* partitionJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
@@ -3526,7 +3529,9 @@ private:
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).ToString());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
+            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
@@ -3540,10 +3545,14 @@ private:
 
             if (SimpleSort) {
                 schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).ToString());
-                SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
+                SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                    schedulerJobSpecExt->mutable_extensions(),
+                    BuildDataSourceDirectoryFromInputTables(InputTables_));
             } else {
                 schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-                SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
+                SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                    schedulerJobSpecExt->mutable_extensions(),
+                    BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
             }
 
             auto* sortJobSpecExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -3570,7 +3579,9 @@ private:
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
+            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).ToString());
 
@@ -3584,7 +3595,9 @@ private:
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
+            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).ToString());
 
@@ -4310,7 +4323,9 @@ private:
             auto* schedulerJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig)).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
+            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildDataSourceDirectoryFromInputTables(InputTables_));
 
             if (Spec->InputQuery) {
                 WriteInputQueryToJobSpec(schedulerJobSpecExt);
@@ -4338,7 +4353,9 @@ private:
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).ToString());
 
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
+            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).ToString());
 
@@ -4360,7 +4377,9 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).ToString());
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, intermediateDataSourceDirectory);
+            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                intermediateDataSourceDirectory);
 
             if (Spec->HasNontrivialReduceCombiner()) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
@@ -4390,7 +4409,9 @@ private:
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, intermediateDataSourceDirectory);
+            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                intermediateDataSourceDirectory);
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).ToString());
 
@@ -4413,7 +4434,9 @@ private:
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
-            SetDataSourceDirectory(schedulerJobSpecExt, intermediateDataSourceDirectory);
+            SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                intermediateDataSourceDirectory);
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).ToString());
 

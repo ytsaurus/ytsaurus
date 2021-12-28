@@ -324,6 +324,9 @@ std::optional<T> FindProtoExtension(const NYT::NProto::TExtensionSet& extensions
 //! Overwrites any extension with the same tag (if exists).
 template <class T>
 void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value);
+template <class TProto, class TValue>
+std::enable_if_t<!std::is_same_v<TProto, TValue>, void>
+SetProtoExtension(NProto::TExtensionSet* extensions, const TValue& value);
 
 //! Tries to remove the extension.
 //! Returns |true| iff the proper extension is found.

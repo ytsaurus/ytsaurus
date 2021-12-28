@@ -24,6 +24,7 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
@@ -843,7 +844,9 @@ public:
         auto* mergeJobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
-        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
+        SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            BuildDataSourceDirectoryFromInputTables(InputTables_));
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(PrimarySortColumns_));
@@ -1044,7 +1047,9 @@ public:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
-        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
+        SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
