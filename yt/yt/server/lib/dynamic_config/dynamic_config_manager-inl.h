@@ -39,6 +39,15 @@ TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
 { }
 
 template <typename TConfig>
+TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
+    TDynamicConfigManagerBase::TConfigPtr staticConfig)
+    : AppliedConfigNode_(ConvertTo<NYTree::IMapNodePtr>(staticConfig))
+    , AppliedConfig_(staticConfig)
+{
+    ConfigLoadedPromise_.TrySet();
+}
+
+template <typename TConfig>
 void TDynamicConfigManagerBase<TConfig>::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();
