@@ -1890,6 +1890,10 @@ TListJobsResult TClient::DoListJobs(
     const TOperationIdOrAlias& operationIdOrAlias,
     const TListJobsOptions& options)
 {
+    if (options.Offset < 0 || options.Limit < 0) {
+        THROW_ERROR_EXCEPTION("offset and limit must be nonnegative numbers");
+    }
+
     auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListJobsTimeout);
     auto deadline = timeout.ToDeadLine();
 
@@ -1971,9 +1975,9 @@ TListJobsResult TClient::DoListJobs(
     }
 
     // Take the correct range [offset, offset + limit).
+    result.Jobs.resize(std::min<int>(result.Jobs.size(), options.Offset + options.Limit));
     auto beginIt = std::min(result.Jobs.end(), result.Jobs.begin() + options.Offset);
-    auto endIt = std::min(result.Jobs.end(), beginIt + options.Limit);
-    result.Jobs = std::vector<TJob>(std::make_move_iterator(beginIt), std::make_move_iterator(endIt));
+    result.Jobs.erase(result.Jobs.begin(), beginIt);
 
     // Extract statistics if available.
     if (statisticsFuture) {
