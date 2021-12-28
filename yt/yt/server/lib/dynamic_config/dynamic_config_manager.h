@@ -39,6 +39,9 @@ public:
         NApi::IClientPtr masterClient,
         IInvokerPtr invoker);
 
+    explicit TDynamicConfigManagerBase(
+        TConfigPtr staticConfig);
+
     //! Starts the dynamic config manager.
     void Start();
 

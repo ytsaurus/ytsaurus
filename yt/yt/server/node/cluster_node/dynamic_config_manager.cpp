@@ -24,6 +24,11 @@ TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(IBootstrap* b
     , Bootstrap_(bootstrap)
 { }
 
+TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(TClusterNodeDynamicConfigPtr staticConfig)
+    : TDynamicConfigManagerBase(staticConfig)
+    , Bootstrap_(nullptr)
+{ }
+
 void TClusterNodeDynamicConfigManager::Start()
 {
     TDynamicConfigManagerBase::Start();

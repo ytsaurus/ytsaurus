@@ -20,6 +20,8 @@ class TClusterNodeDynamicConfigManager
 public:
     explicit TClusterNodeDynamicConfigManager(IBootstrap* bootstrap);
 
+    explicit TClusterNodeDynamicConfigManager(TClusterNodeDynamicConfigPtr staticConfig);
+
     //! Starts the dynamic config manager.
     void Start();
 
