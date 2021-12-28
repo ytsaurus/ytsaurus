@@ -252,6 +252,7 @@ void TObjectServiceCache::EndLookup(
 
     auto rate = 0.0;
     auto lastUpdateTime = TInstant::Now();
+
     {
         auto guard = WriterGuard(ExpiredEntriesLock_);
 
@@ -262,6 +263,7 @@ void TObjectServiceCache::EndLookup(
             ExpiredEntries_.erase(it);
         }
     }
+    MaybeEraseTopEntry(key);
 
     auto entry = New<TObjectServiceCacheEntry>(
         key,
@@ -271,7 +273,7 @@ void TObjectServiceCache::EndLookup(
         responseMessage,
         rate,
         lastUpdateTime);
-    TouchEntry(entry);
+    TouchEntry(entry, /*forceRenewTop*/ true);
 
     cookie.EndInsert(entry);
 }
@@ -346,10 +348,15 @@ void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
     auto guard = ReaderGuard(ExpiredEntriesLock_);
 
     if (!ExpiredEntries_.contains(key)) {
-        auto guard = WriterGuard(TopEntriesLock_);
-        if (TopEntries_.erase(key) > 0) {
-            YT_LOG_DEBUG("Removed entry from top (Key: %v)", key);
-        }
+        MaybeEraseTopEntry(key);
+    }
+}
+
+void TObjectServiceCache::MaybeEraseTopEntry(const TObjectServiceCacheKey& key)
+{
+    auto guard = WriterGuard(TopEntriesLock_);
+    if (TopEntries_.erase(key) > 0) {
+        YT_LOG_DEBUG("Removed entry from top (Key: %v)", key);
     }
 }
 
@@ -370,7 +377,7 @@ bool TObjectServiceCache::IsExpired(
         (entry->GetSuccess() ? expireAfterSuccessfulUpdateTime : expireAfterFailedUpdateTime);
 }
 
-void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)
+void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry, bool forceRenewTop)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -381,7 +388,7 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)
     auto current = entry->GetByteRate();
 
     auto topEntryByteRateThreshold = TopEntryByteRateThreshold_.load();
-    if (previous < topEntryByteRateThreshold && current >= topEntryByteRateThreshold) {
+    if ((previous < topEntryByteRateThreshold && current >= topEntryByteRateThreshold) || forceRenewTop) {
         auto guard = WriterGuard(TopEntriesLock_);
 
         if (entry->GetByteRate() >= topEntryByteRateThreshold) {
@@ -394,7 +401,7 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)
         }
     }
 
-    if (previous >= topEntryByteRateThreshold && current < topEntryByteRateThreshold) {
+    if ((previous >= topEntryByteRateThreshold && current < topEntryByteRateThreshold) || forceRenewTop) {
         auto guard = WriterGuard(TopEntriesLock_);
 
         if (entry->GetByteRate() < topEntryByteRateThreshold) {
@@ -410,30 +417,40 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)
 
 void TObjectServiceCache::DoBuildOrchid(IYsonConsumer* consumer)
 {
-    std::vector<std::pair<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr>> top;
+    struct TFrozenEntry
+    {
+        TObjectServiceCacheKey Key;
+        double ByteRate;
+    };
+
+    std::vector<TFrozenEntry> top;
     {
         auto guard = ReaderGuard(TopEntriesLock_);
-        top = {TopEntries_.begin(), TopEntries_.end()};
+        for (const auto& [key, entry] : TopEntries_) {
+            top.push_back({
+                .Key = key,
+                .ByteRate = entry->GetByteRate()
+            });
+        }
     }
 
-    std::sort(top.begin(), top.end(), [] (const auto& rhs, const auto& lhs) {
-        return rhs.second->GetByteRate() > lhs.second->GetByteRate();
+    std::sort(top.begin(), top.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs.ByteRate > rhs.ByteRate;
     });
 
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("top_requests")
                 .DoListFor(top, [&] (auto fluent, const auto& item) {
-                    const auto& [key, entry] = item;
                     fluent
                         .Item().BeginMap()
-                            .Item("cell_tag").Value(key.CellTag)
-                            .Item("user").Value(key.User)
-                            .Item("service").Value(key.Service)
-                            .Item("method").Value(key.Method)
-                            .Item("path").Value(key.Path)
-                            .Item("request_body_hash").Value(key.RequestBodyHash)
-                            .Item("byte_rate").Value(entry->GetByteRate())
+                            .Item("cell_tag").Value(item.Key.CellTag)
+                            .Item("user").Value(item.Key.User)
+                            .Item("service").Value(item.Key.Service)
+                            .Item("method").Value(item.Key.Method)
+                            .Item("path").Value(item.Key.Path)
+                            .Item("request_body_hash").Value(item.Key.RequestBodyHash)
+                            .Item("byte_rate").Value(item.ByteRate)
                         .EndMap();
                 })
         .EndMap();
