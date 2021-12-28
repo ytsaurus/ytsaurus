@@ -144,6 +144,8 @@ private:
 
     bool IsResurrectionSupported() const override;
 
+    void MaybeEraseTopEntry(const TObjectServiceCacheKey& key);
+
     void OnAdded(const TObjectServiceCacheEntryPtr& entry) override;
     void OnRemoved(const TObjectServiceCacheEntryPtr& entry) override;
     i64 GetWeight(const TObjectServiceCacheEntryPtr& entry) const override;
@@ -153,7 +155,7 @@ private:
         TDuration expireAfterSuccessfulUpdateTime,
         TDuration expireAfterFailedUpdateTime);
 
-    void TouchEntry(const TObjectServiceCacheEntryPtr& entry);
+    void TouchEntry(const TObjectServiceCacheEntryPtr& entry, bool forceRenewTop = false);
     void DoBuildOrchid(NYson::IYsonConsumer* consumer);
 };
 
