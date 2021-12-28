@@ -43,10 +43,25 @@ class TestUsers(YTEnvSetup):
 
         get("//tmp", authenticated_user="u")
 
-    @authors("babenko", "ignat")
-    def test_user_ban2(self):
+    @authors("babenko", "ignat", "gritukan")
+    def test_ban_superuser(self):
+        def is_banned(user):
+            try:
+                get("//tmp", authenticated_user=user)
+                return False
+            except:
+                return True
+
+        create_user("u")
+        add_member("u", "superusers")
+        assert not is_banned("u")
+        set("//sys/users/u/@banned", True)
+        assert is_banned("u")
+
+        assert not is_banned("root")
         with pytest.raises(YtError):
             set("//sys/users/root/@banned", True)
+        assert not is_banned("root")
 
     @authors("babenko")
     def test_request_rate_limit1(self):

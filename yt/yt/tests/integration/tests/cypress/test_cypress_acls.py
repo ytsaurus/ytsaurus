@@ -105,9 +105,12 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
-    @authors("kiselyovp")
-    def test_banned_user_permission(self):
+    @authors("kiselyovp", "gritukan")
+    @pytest.mark.parametrize("superuser", [False, True])
+    def test_banned_user_permission(self, superuser):
         create_user("u")
+        if superuser:
+            add_member("u", "superusers")
         set("//sys/users/u/@banned", True)
         assert check_permission("u", "read", "//tmp")["action"] == "deny"
 
