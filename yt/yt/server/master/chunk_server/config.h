@@ -666,7 +666,7 @@ public:
             .GreaterThan(0)
             .Default(1000000);
         RegisterParameter("max_cached_replicas_per_fetch", MaxCachedReplicasPerFetch)
-            .GreaterThan(0)
+            .GreaterThanOrEqual(0)
             .Default(20);
 
         RegisterParameter("job_timeout", JobTimeout)
@@ -739,7 +739,7 @@ public:
 
         RegisterParameter("chunk_autotomizer", ChunkAutotomizer)
             .DefaultNew();
-        
+
         RegisterParameter("finished_jobs_queue_size", FinishedJobsQueueSize)
             .GreaterThanOrEqual(0)
             .Default(50'000);
