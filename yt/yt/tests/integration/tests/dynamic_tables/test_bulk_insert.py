@@ -1909,6 +1909,27 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), expected)
         assert expected == read_table("//tmp/t")
 
+    def test_delete_particular_keys_with_input_query(self):
+        # YT-16150.
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        rows = [
+            {"key": 1, "value": "foo"},
+            {"key": 2, "value": "bar"},
+            {"key": 3, "value": "baz"},
+        ]
+        insert_rows("//tmp/t", rows)
+
+        merge(
+            in_="//tmp/t",
+            out="<schema_modification=unversioned_update;append=%true>//tmp/t",
+            mode="ordered",
+            spec={"input_query": "1u as [$change_type], key where key in (1, 3)"})
+
+        expected = [{"key": 2, "value": "bar"}]
+        assert_items_equal(select_rows("* from [//tmp/t]"), expected)
+        assert expected == read_table("//tmp/t")
 
 ##################################################################
 

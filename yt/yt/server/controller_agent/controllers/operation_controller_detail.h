@@ -669,6 +669,7 @@ protected:
     void LockUserFiles();
     void GetUserFilesAttributes();
     virtual void CustomPrepare();
+    void InferInputRanges();
 
     // Materialization.
     void FetchInputTables();
