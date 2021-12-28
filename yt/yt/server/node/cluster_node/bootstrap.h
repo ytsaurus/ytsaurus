@@ -124,6 +124,7 @@ struct IBootstrapBase
     virtual const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const = 0;
     virtual const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const = 0;
     virtual const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const = 0;
+    virtual const NDataNode::TChunkReaderSweeperPtr& GetChunkReaderSweeper() const = 0;
 
     // Orchid.
     virtual const NYTree::IMapNodePtr& GetOrchidRoot() const = 0;
@@ -253,6 +254,7 @@ public:
     const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const override;
     const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override;
     const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override;
+    const NDataNode::TChunkReaderSweeperPtr& GetChunkReaderSweeper() const override;
 
     const NYTree::IMapNodePtr& GetOrchidRoot() const override;
 
