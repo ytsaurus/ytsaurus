@@ -68,6 +68,8 @@ object CommonPlugin extends AutoPlugin {
       .withAllowInsecureProtocol(true),
     resolvers += ("YandexSparkReleases" at "http://artifactory.yandex.net/artifactory/yandex_spark_releases")
       .withAllowInsecureProtocol(true),
+    resolvers += ("YandexSparkSnapshots" at "http://artifactory.yandex.net/artifactory/yandex_spark_snapshots")
+      .withAllowInsecureProtocol(true),
     ThisBuild / version := (ThisBuild / spytClusterVersion).value,
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
