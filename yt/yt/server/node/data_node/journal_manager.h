@@ -22,7 +22,7 @@ public:
     TJournalManager(
         TDataNodeConfigPtr config,
         TStoreLocation* location,
-        IBootstrap* bootstrap);
+        TChunkHostPtr chunkHost);
     ~TJournalManager();
 
     void Initialize();

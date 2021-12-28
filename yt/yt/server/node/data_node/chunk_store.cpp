@@ -89,19 +89,26 @@ IChunkStoreHostPtr CreateChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStore::TChunkStore(TDataNodeConfigPtr config, IBootstrap* bootstrap)
+TChunkStore::TChunkStore(
+    TDataNodeConfigPtr config,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+    IInvokerPtr controlInvoker,
+    TChunkHostPtr chunkHost,
+    IChunkStoreHostPtr chunkStoreHost)
     : Config_(std::move(config))
-    , Bootstrap_(bootstrap)
-    , ChunkStoreHost_(CreateChunkStoreHost(bootstrap))
+    , DynamicConfigManager_(dynamicConfigManager)
+    , ControlInvoker_(controlInvoker)
+    , ChunkHost_(chunkHost)
+    , ChunkStoreHost_(chunkStoreHost)
     , ProfilingExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetControlInvoker(),
+        ControlInvoker_,
         BIND(&TChunkStore::OnProfiling, MakeWeak(this)),
         ProfilingPeriod))
 { }
 
 void TChunkStore::Initialize()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_INFO("Initializing chunk store");
 
@@ -112,8 +119,10 @@ void TChunkStore::Initialize()
         auto location = New<TStoreLocation>(
             "store" + ToString(index),
             locationConfig,
+            DynamicConfigManager_,
             MakeStrong(this),
-            Bootstrap_);
+            ChunkHost_,
+            ChunkStoreHost_);
 
         futures.push_back(
             BIND(&TChunkStore::InitializeLocation, MakeStrong(this))
@@ -646,14 +655,14 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
             return New<TStoredBlobChunk>(
-                TChunkHost::Create(Bootstrap_),
+                ChunkHost_,
                 location,
                 descriptor);
 
         case EObjectType::JournalChunk:
         case EObjectType::ErasureJournalChunk:
             return New<TJournalChunk>(
-                TChunkHost::Create(Bootstrap_),
+                ChunkHost_,
                 location,
                 descriptor);
 
@@ -745,9 +754,9 @@ void TChunkStore::OnLocationDisabled(int locationIndex)
 
         ChunkMap_ = std::move(newChunkMap);
     })
-    .AsyncVia(Bootstrap_->GetControlInvoker())
-    .Run())
-    .ThrowOnError();
+        .AsyncVia(ControlInvoker_)
+        .Run())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

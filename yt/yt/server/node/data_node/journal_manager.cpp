@@ -889,12 +889,12 @@ public:
     TImpl(
         TDataNodeConfigPtr config,
         TStoreLocation* location,
-        IBootstrap* bootstrap)
+        TChunkHostPtr chunkHost)
         : MultiplexedChangelogConfig_(UpdateYsonSerializable(config->MultiplexedChangelog, location->GetConfig()->MultiplexedChangelog))
         , HighLatencySplitChangelogConfig_(UpdateYsonSerializable(config->HighLatencySplitChangelog, location->GetConfig()->HighLatencySplitChangelog))
         , LowLatencySplitChangelogConfig_(UpdateYsonSerializable(config->LowLatencySplitChangelog, location->GetConfig()->LowLatencySplitChangelog))
         , Location_(location)
-        , Bootstrap_(bootstrap)
+        , ChunkHost_(chunkHost)
         , Logger(DataNodeLogger.WithTag("LocationId: %v", Location_->GetId()))
     {
         MultiplexedChangelogDispatcher_ = CreateFileChangelogDispatcher(
@@ -1029,7 +1029,7 @@ private:
     const TFileChangelogConfigPtr HighLatencySplitChangelogConfig_;
     const TFileChangelogConfigPtr LowLatencySplitChangelogConfig_;
     TStoreLocation* const Location_;
-    IBootstrap* const Bootstrap_;
+    TChunkHostPtr ChunkHost_;
 
     const NLogging::TLogger Logger;
 
@@ -1139,17 +1139,17 @@ private:
 
         IChangelogPtr CreateSplitChangelog(TChunkId chunkId) override
         {
-            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Location_->GetChunkStore();
             if (chunkStore->FindChunk(chunkId)) {
                 return nullptr;
             }
 
             auto chunk = New<TJournalChunk>(
-                TChunkHost::Create(Impl_->Bootstrap_),
+                Impl_->ChunkHost_,
                 Impl_->Location_,
                 TChunkDescriptor(chunkId));
 
-            const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
+            const auto& dispatcher = Impl_->ChunkHost_->JournalDispatcher;
             auto asyncChangelog = dispatcher->CreateChangelog(
                 chunk->GetStoreLocation(),
                 chunkId,
@@ -1166,13 +1166,13 @@ private:
 
         IChangelogPtr OpenSplitChangelog(TChunkId chunkId) override
         {
-            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Location_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
                 return nullptr;
             }
 
-            const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
+            const auto& dispatcher = Impl_->ChunkHost_->JournalDispatcher;
             auto journalChunk = chunk->AsJournalChunk();
             auto changelog = WaitFor(dispatcher->OpenChangelog(journalChunk->GetStoreLocation(), chunkId))
                 .ValueOrThrow();
@@ -1184,7 +1184,7 @@ private:
 
         void FlushSplitChangelog(TChunkId chunkId) override
         {
-            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Location_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
                 return;
@@ -1201,7 +1201,7 @@ private:
 
         bool RemoveSplitChangelog(TChunkId chunkId) override
         {
-            const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
+            const auto& chunkStore = Impl_->Location_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
                 return false;
@@ -1210,7 +1210,7 @@ private:
             auto journalChunk = chunk->AsJournalChunk();
             chunkStore->UnregisterChunk(chunk);
 
-            const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
+            const auto& dispatcher = Impl_->ChunkHost_->JournalDispatcher;
             WaitFor(dispatcher->RemoveChangelog(journalChunk, false))
                 .ThrowOnError();
 
@@ -1242,8 +1242,8 @@ private:
 TJournalManager::TJournalManager(
     TDataNodeConfigPtr config,
     TStoreLocation* location,
-    IBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, location, bootstrap))
+    TChunkHostPtr chunkHost)
+    : Impl_(New<TImpl>(config, location, chunkHost))
 { }
 
 TJournalManager::~TJournalManager() = default;

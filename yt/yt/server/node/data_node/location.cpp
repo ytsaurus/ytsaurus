@@ -1,6 +1,5 @@
 #include "location.h"
 
-#include "bootstrap.h"
 #include "private.h"
 #include "blob_chunk.h"
 #include "blob_reader_cache.h"
@@ -147,12 +146,15 @@ TLocation::TLocation(
     ELocationType type,
     const TString& id,
     TStoreLocationConfigBasePtr config,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     TChunkStorePtr chunkStore,
-    IBootstrapBase* bootstrap)
+    TChunkHostPtr chunkHost,
+    IChunkStoreHostPtr chunkStoreHost)
     : TDiskLocation(config, id, DataNodeLogger)
-    , Bootstrap_(bootstrap)
+    , DynamicConfigManager_(dynamicConfigManager)
     , ChunkStore_(chunkStore)
-    , ChunkStoreHost_(CreateChunkStoreHost(bootstrap))
+    , ChunkHost_(chunkHost)
+    , ChunkStoreHost_(chunkStoreHost)
     , Type_(type)
     , Config_(config)
     , MediumDescriptor_(TMediumDescriptor{.Name = Config_->MediumName})
@@ -188,7 +190,7 @@ TLocation::TLocation(
     UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", Profiler_);
 
     HealthChecker_ = New<TDiskHealthChecker>(
-        Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
+        ChunkHost_->DataNodeConfig->DiskHealthChecker,
         GetPath(),
         GetAuxPoolInvoker(),
         DataNodeLogger,
@@ -348,8 +350,7 @@ void TLocation::Disable(const TError& reason)
         TProgram::Exit(EProgramExitCode::ProgramError);
     }
 
-    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-    const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
+    const auto& dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
     if (dynamicConfig->AbortOnLocationDisabled) {
         TProgram::Exit(EProgramExitCode::ProgramError);
     }
@@ -886,30 +887,41 @@ void TLocation::PopulateAlerts(std::vector<TError>* alerts)
     }
 }
 
+const TChunkStorePtr& TLocation::GetChunkStore() const
+{
+    return ChunkStore_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreLocation::TStoreLocation(
     const TString& id,
     TStoreLocationConfigPtr config,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     TChunkStorePtr chunkStore,
-    IBootstrapBase* bootstrap)
+    TChunkHostPtr chunkHost,
+    IChunkStoreHostPtr chunkStoreHost)
     : TLocation(
         ELocationType::Store,
         id,
         config,
+        dynamicConfigManager,
         chunkStore,
-        bootstrap)
+        chunkHost,
+        chunkStoreHost)
     , Config_(config)
     , JournalManager_(New<TJournalManager>(
-        bootstrap->GetConfig()->DataNode,
+        chunkHost->DataNodeConfig,
         this,
-        bootstrap->GetDataNodeBootstrap()))
+        chunkHost))
     , TrashCheckQueue_(New<TActionQueue>(Format("Trash:%v", id)))
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         TrashCheckQueue_->GetInvoker(),
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         Config_->TrashCheckPeriod))
 {
+    YT_VERIFY(chunkStore);
+
     auto diskThrottlerProfiler = GetProfiler().WithPrefix("/disk_throttler");
     auto createThrottler = [&] (const auto& config, const auto& name) {
         return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, diskThrottlerProfiler);
@@ -1239,7 +1251,7 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(TChunkId chun
     bool hasIndex = NFS::Exists(indexFileName);
 
     if (hasData) {
-        const auto& dispatcher = Bootstrap_->GetDataNodeBootstrap()->GetJournalDispatcher();
+        const auto& dispatcher = ChunkHost_->JournalDispatcher;
         // NB: This also creates the index file, if missing.
         auto changelog = WaitFor(dispatcher->OpenChangelog(this, chunkId))
             .ValueOrThrow();
@@ -1375,13 +1387,17 @@ void TStoreLocation::DoStart()
 TCacheLocation::TCacheLocation(
     const TString& id,
     TCacheLocationConfigPtr config,
-    IBootstrapBase* bootstrap)
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+    TChunkHostPtr chunkHost,
+    IChunkStoreHostPtr chunkStoreHost)
     : TLocation(
         ELocationType::Cache,
         id,
         config,
+        dynamicConfigManager,
         nullptr,
-        bootstrap)
+        chunkHost,
+        chunkStoreHost)
     , Config_(config)
     , InThrottler_(CreateNamedReconfigurableThroughputThrottler(
         Config_->InThrottler,
