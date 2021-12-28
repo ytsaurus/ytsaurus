@@ -33,14 +33,14 @@ TChunkHostPtr TChunkHost::Create(NClusterNode::IBootstrapBase* bootstrap)
 {
     return New<TChunkHost>(TChunkHost{
         .ChunkMetaManager = bootstrap->GetChunkMetaManager(),
-        .ChunkReaderSweeper = bootstrap->GetChunkReaderSweeper(),
-        .BlockCache = bootstrap->GetBlockCache(),
-        .ChunkStore = bootstrap->IsDataNode() ? bootstrap->GetDataNodeBootstrap()->GetChunkStore() : nullptr,
-        .BlobReaderCache = bootstrap->GetBlobReaderCache(),
-        .DataNodeConfig = bootstrap->GetConfig()->DataNode,
-        .JournalDispatcher = bootstrap->IsDataNode() ? bootstrap->GetDataNodeBootstrap()->GetJournalDispatcher() : nullptr,
+
         .StorageHeavyInvoker = bootstrap->GetStorageHeavyInvoker(),
         .StorageLightInvoker = bootstrap->GetStorageLightInvoker(),
+        .DataNodeConfig = bootstrap->GetConfig()->DataNode,
+
+        .ChunkReaderSweeper = bootstrap->GetChunkReaderSweeper(),
+        .BlobReaderCache = bootstrap->GetBlobReaderCache(),
+        .JournalDispatcher = bootstrap->IsDataNode() ? bootstrap->GetDataNodeBootstrap()->GetJournalDispatcher() : nullptr,
     });
 }
 

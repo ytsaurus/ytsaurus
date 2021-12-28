@@ -48,7 +48,10 @@ class TChunkStore
 public:
     TChunkStore(
         TDataNodeConfigPtr config,
-        IBootstrap* bootstrap);
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+        IInvokerPtr controlInvoker,
+        TChunkHostPtr chunkHost,
+        IChunkStoreHostPtr chunkStoreHost);
 
     //! Scans locations for chunks and registers them.
     /*!
@@ -154,7 +157,9 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    IBootstrap* const Bootstrap_;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
+    const IInvokerPtr ControlInvoker_;
+    const TChunkHostPtr ChunkHost_;
     const IChunkStoreHostPtr ChunkStoreHost_;
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 

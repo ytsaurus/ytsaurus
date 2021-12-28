@@ -118,8 +118,10 @@ public:
         ELocationType type,
         const TString& id,
         TStoreLocationConfigBasePtr config,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
-        NClusterNode::IBootstrapBase* bootstrap);
+        TChunkHostPtr chunkHost,
+        IChunkStoreHostPtr chunkStoreHost);
 
     //! Returns the type.
     ELocationType GetType() const;
@@ -270,10 +272,14 @@ public:
     //! Called when all the chunk files are destroyed.
     void Unlock(TChunkId chunkId);
 
+    const TChunkStorePtr& GetChunkStore() const;
+
 protected:
-    NClusterNode::IBootstrapBase* const Bootstrap_;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const TChunkStorePtr ChunkStore_;
+    const TChunkHostPtr ChunkHost_;
     const IChunkStoreHostPtr ChunkStoreHost_;
+
     NProfiling::TProfiler Profiler_;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
@@ -352,8 +358,10 @@ public:
     TStoreLocation(
         const TString& id,
         TStoreLocationConfigPtr config,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
-        NClusterNode::IBootstrapBase* bootstrap);
+        TChunkHostPtr chunkHost,
+        IChunkStoreHostPtr chunkStoreHost);
 
     //! Returns the location's config.
     const TStoreLocationConfigPtr& GetConfig() const;
@@ -437,7 +445,9 @@ public:
     TCacheLocation(
         const TString& id,
         TCacheLocationConfigPtr config,
-        NClusterNode::IBootstrapBase* bootstrap);
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+        TChunkHostPtr chunkHost,
+        IChunkStoreHostPtr chunkStoreHost);
 
     const NConcurrency::IThroughputThrottlerPtr& GetInThrottler() const;
 

@@ -252,8 +252,8 @@ void TBlobChunkBase::DoReadMeta(
                 Id_,
                 Location_->GetId());
 
-            if (Host_->ChunkStore) {
-                Host_->ChunkStore->RemoveChunk(this);
+            if (const auto& chunkStore = Location_->GetChunkStore()) {
+                chunkStore->RemoveChunk(this);
             } else {
                 ScheduleRemove();
             }
@@ -312,7 +312,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         }
 
         if (session->Options.PopulateCache) {
-            const auto& blockCache = Host_->BlockCache;
+            const auto& blockCache = session->Options.BlockCache;
 
             auto blockId = TBlockId(Id_, entry.BlockIndex);
             entry.Cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
@@ -538,8 +538,8 @@ void TBlobChunkBase::OnBlocksRead(
                     Id_,
                     Location_->GetId());
 
-                if (Host_->ChunkStore) {
-                    Host_->ChunkStore->RemoveChunk(this);
+                if (const auto& chunkStore = Location_->GetChunkStore()) {
+                    chunkStore->RemoveChunk(this);
                 } else {
                     ScheduleRemove();
                 }

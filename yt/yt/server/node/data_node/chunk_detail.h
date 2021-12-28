@@ -36,14 +36,15 @@ struct TChunkDescriptor
 struct TChunkHost final
 {
     IChunkMetaManagerPtr ChunkMetaManager;
-    TChunkReaderSweeperPtr ChunkReaderSweeper;
-    TChunkStorePtr ChunkStore;
+
     IPrioritizedInvokerPtr StorageHeavyInvoker;
     IInvokerPtr StorageLightInvoker;
     TDataNodeConfigPtr DataNodeConfig;
+
+    TChunkReaderSweeperPtr ChunkReaderSweeper;
+    // NB: might be null for exec node
     IJournalDispatcherPtr JournalDispatcher;
     IBlobReaderCachePtr BlobReaderCache;
-    NChunkClient::IBlockCachePtr BlockCache;
 
     static TChunkHostPtr Create(NClusterNode::IBootstrapBase* bootstrap);
 };

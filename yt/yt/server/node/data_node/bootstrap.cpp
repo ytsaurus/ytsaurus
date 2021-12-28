@@ -19,6 +19,7 @@
 #include "skynet_http_handler.h"
 #include "table_schema_cache.h"
 #include "ytree_integration.h"
+#include "chunk_detail.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -65,15 +66,20 @@ public:
 
         IOTracker_ = NIO::CreateIOTracker(dynamicConfig->IOTracker);
 
-        ChunkStore_ = New<TChunkStore>(GetConfig()->DataNode, this);
+        JournalDispatcher_ = CreateJournalDispatcher(GetConfig()->DataNode, GetDynamicConfigManager());
+
+        ChunkStore_ = New<TChunkStore>(
+            GetConfig()->DataNode,
+            GetDynamicConfigManager(),
+            GetControlInvoker(),
+            TChunkHost::Create(this),
+            CreateChunkStoreHost(this));
 
         ChunkBlockManager_ = CreateChunkBlockManager(ClusterNodeBootstrap_->GetChunkRegistry());
 
         SessionManager_ = New<TSessionManager>(GetConfig()->DataNode, this);
 
         MasterConnector_ = CreateMasterConnector(this);
-
-        JournalDispatcher_ = CreateJournalDispatcher(GetConfig()->DataNode, GetDynamicConfigManager());
 
         MediumDirectoryManager_ = New<TMediumDirectoryManager>(
             this,
