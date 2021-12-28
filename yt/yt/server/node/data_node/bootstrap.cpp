@@ -67,7 +67,7 @@ public:
 
         ChunkStore_ = New<TChunkStore>(GetConfig()->DataNode, this);
 
-        ChunkBlockManager_ = CreateChunkBlockManager(this);
+        ChunkBlockManager_ = CreateChunkBlockManager(ClusterNodeBootstrap_->GetChunkRegistry());
 
         SessionManager_ = New<TSessionManager>(GetConfig()->DataNode, this);
 

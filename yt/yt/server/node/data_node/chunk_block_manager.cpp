@@ -40,8 +40,8 @@ class TChunkBlockManager
     : public IChunkBlockManager
 {
 public:
-    explicit TChunkBlockManager(IBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
+    explicit TChunkBlockManager(IChunkRegistryPtr chunkRegistry)
+        : ChunkRegistry_(chunkRegistry)
     { }
 
     TFuture<std::vector<TBlock>> ReadBlockRange(
@@ -53,9 +53,8 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
             // NB: At the moment, range read requests are only possible for the whole chunks.
-            auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
+            auto chunk = ChunkRegistry_->GetChunkOrThrow(chunkId);
             return chunk->ReadBlockRange(
                 firstBlockIndex,
                 blockCount,
@@ -73,8 +72,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
-            auto chunk = chunkRegistry->FindChunk(chunkId);
+            auto chunk = ChunkRegistry_->FindChunk(chunkId);
             if (!chunk) {
                 return MakeFuture<std::vector<TBlock>>({});
             }
@@ -85,14 +83,14 @@ public:
     }
 
 private:
-    IBootstrap* const Bootstrap_;
+    IChunkRegistryPtr ChunkRegistry_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkBlockManagerPtr CreateChunkBlockManager(IBootstrap* bootstrap)
+IChunkBlockManagerPtr CreateChunkBlockManager(IChunkRegistryPtr chunkRegistry)
 {
-    return New<TChunkBlockManager>(bootstrap);
+    return New<TChunkBlockManager>(chunkRegistry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
