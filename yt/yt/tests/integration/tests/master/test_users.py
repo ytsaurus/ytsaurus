@@ -111,6 +111,7 @@ class TestUsers(YTEnvSetup):
                 "tablet_cell_snapshotter",
                 "table_mount_informer",
                 "alien_cell_synchronizer",
+                "queue_agent",
             ],
         )
 
@@ -124,6 +125,7 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/users/tablet_cell_changelogger/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/tablet_cell_snapshotter/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/table_mount_informer/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/queue_agent/@member_of"), ["superusers"])
 
         assert_items_equal(
             get("//sys/users/root/@member_of_closure"),
@@ -160,6 +162,10 @@ class TestUsers(YTEnvSetup):
         )
         assert_items_equal(
             get("//sys/users/table_mount_informer/@member_of_closure"),
+            ["superusers", "users", "everyone"],
+        )
+        assert_items_equal(
+            get("//sys/users/queue_agent/@member_of_closure"),
             ["superusers", "users", "everyone"],
         )
 

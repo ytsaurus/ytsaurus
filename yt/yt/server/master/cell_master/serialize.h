@@ -141,6 +141,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkViewModifier)                                            (1907))  // ifsmirnov
     ((AccountGossipStatisticsOptimization)                          (1908))  // h0pless
     ((MediumOverridesViaHeartbeats)                                 (1909))  // kvk1920
+    ((QueueAgentUser)                                               (1910))  // max42
 );
 
 constexpr EMasterReign First_21_2_MasterReign = EMasterReign::MasterMergeJobs;
