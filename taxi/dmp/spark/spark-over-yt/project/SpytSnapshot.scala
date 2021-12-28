@@ -105,7 +105,7 @@ object SpytSnapshot {
   }
 
   object SnapshotVersion {
-    private val snapshotVersionRegex = "^([0-9.]*)(-fork-)*([0-9.]*?)(-[a-z0-9]*?)?(-[0-9]*?)?(-[a-f0-9]{8})?-SNAPSHOT$".r
+    private val snapshotVersionRegex = "^([0-9.]*)(-fork-)*([0-9.]*?)(-[a-z0-9]*?)?(-[0-9]*?)?(-[a-f0-9]*?)?-SNAPSHOT$".r
     private val releaseVersionRegex = "^([0-9.]*)(-fork-)*(\\d+)\\.(\\d+)\\.(\\d+)$".r
     private val pythonVersionRegex = "^([0-9.]*)[+]*([0-9.]*)([ab](\\d+))?(\\.dev(\\d+))?([.+].*)?$".r
 
