@@ -1,5 +1,7 @@
 #include "fair_throttler.h"
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include "private.h"
 
 namespace NYT::NConcurrency {
@@ -58,6 +60,7 @@ struct TBucketThrottleRequest
     i64 Reserved = 0;
     TPromise<void> Promise = NewPromise<void>();
     std::atomic<bool> Cancelled = false;
+    NProfiling::TCpuInstant StartTime = NProfiling::GetCpuInstant();
 
     void Cancel(const TError& /*error*/)
     {
@@ -76,6 +79,7 @@ class TBucketThrottler
 public:
     TBucketThrottler(const NProfiling::TProfiler& profiler)
         : Value_(profiler.Counter("/value"))
+        , WaitTime_(profiler.Timer("/wait_time"))
     {
         profiler.AddFuncGauge("/queue_size", MakeStrong(this), [this] {
             return GetQueueTotalCount();
@@ -209,7 +213,6 @@ public:
 
                 if (request->Pending <= quota) {
                     quota -= request->Pending;
-
                     Queue_.pop_front();
                     readyList.push_back(std::move(request));
                 } else {
@@ -229,7 +232,10 @@ public:
         Quota_ += satisfyRequests(nextOptimisticLimit);
         guard.Release();
 
+        auto now = NProfiling::GetCpuInstant();
         for (const auto& request : readyList) {
+            auto waitTime = NProfiling::CpuDurationToDuration(now - request->StartTime);
+            WaitTime_.Record(waitTime);
             Value_.Increment(request->Pending + request->Reserved);
             request->Promise.TrySet();
         }
@@ -237,6 +243,7 @@ public:
 
 private:
     NProfiling::TCounter Value_;
+    NProfiling::TEventTimer WaitTime_;
 
     i64 LastLimit_ = 0;
     std::atomic<i64> Quota_ = {};
