@@ -139,10 +139,10 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
     :param dict table_writer: spec of "write" operation.
     :param int max_row_buffer_size: option for testing purposes only, consult yt@ if you want to use it.
     :param bool is_stream_compressed: expect stream to contain compressed table data. \
-    This data can be passed directly to proxy without recompression. Be careful! this option \
+    This data can be passed directly to proxy without recompression. Be careful! This option \
     disables write retries.
-    :param bool force_create: unconditionally try to create table whether it exists \
-    (if not specified the pure write_table call will create table if it is not exists). \
+    :param bool force_create: try to create table regardless of its existence \
+    (if not specified the pure write_table call will create table if it is doesn't exist). \
     Use this option only if you know what you do.
 
     The function tries to split input stream to portions of fixed size and write its with retries.
@@ -240,17 +240,33 @@ def _try_get_schema(table, client=None):
             return None
         raise
 
+def _try_infer_schema(table, row_type):
+    if table.attributes.get("schema") is not None:
+        return
+    if table.attributes.get("append", False):
+        return
+    schema = TableSchema.from_row_type(row_type)
+    sorted_by = table.attributes.get("sorted_by")
+    if sorted_by is not None:
+        schema = schema.build_schema_sorted_by(sorted_by)
+        del table.attributes["sorted_by"]
+    table.attributes["schema"] = schema
+
 def write_table_structured(table, row_type, input_stream, table_writer=None, max_row_buffer_size=None,
-                           is_stream_compressed=False, force_create=None, client=None):
+                           force_create=None, client=None):
     """Writes rows from input_stream to table in structured format. Cf. docstring for write_table"""
+    table = TablePath(table, client=client)
     schema = _try_get_schema(table, client=client)
+    if schema is None or schema.is_empty_nonstrict():
+        _try_infer_schema(table, row_type)
+
     write_table(
         table,
         input_stream,
         format=StructuredSkiffFormat([_create_row_py_schema(row_type, schema)], for_reading=False),
         table_writer=table_writer,
         max_row_buffer_size=max_row_buffer_size,
-        is_stream_compressed=is_stream_compressed,
+        is_stream_compressed=False,
         force_create=force_create,
         raw=False,
         client=client,
@@ -721,7 +737,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         return format.load_rows(response)
 
 def read_table_structured(table, row_type, table_reader=None, unordered=None,
-                          enable_read_parallel=None, client=None):
+                          response_parameters=None, enable_read_parallel=None, client=None):
     """Reads rows from table in structured format. Cf. docstring for read_table"""
     schema = _try_get_schema(table, client=client)
     control_attributes = {
@@ -741,7 +757,7 @@ def read_table_structured(table, row_type, table_reader=None, unordered=None,
         control_attributes=control_attributes,
         unordered=unordered,
         raw=False,
-        response_parameters=None,
+        response_parameters=response_parameters,
         enable_read_parallel=enable_read_parallel,
         client=client,
     )

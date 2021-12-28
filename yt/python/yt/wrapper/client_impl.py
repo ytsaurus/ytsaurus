@@ -700,7 +700,7 @@ class YtClient(ClientState):
         :param str mode: blocking type, one of ["snapshot", "shared" or "exclusive"], "exclusive" by default.
         :param bool waitable: wait for lock if node is under blocking.
         :param int wait_for: wait interval in milliseconds. If timeout occurred,     :class:`YtError <yt.common.YtError>` is raised.
-        :return: taken lock id (as :class:`YsonString <yt.yson.yson_types.YsonString>`) or throws     :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` with 40* code if lock conflict detected.
+        :return: map with lock information (as dict) or throws     :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` with 40* code if lock conflict detected.
 
         .. seealso:: `lock in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions#locks>`_
 
@@ -855,11 +855,11 @@ class YtClient(ClientState):
         """
         return client_api.read_table(table, client=self, format=format, table_reader=table_reader, control_attributes=control_attributes, unordered=unordered, raw=raw, response_parameters=response_parameters, enable_read_parallel=enable_read_parallel)
 
-    def read_table_structured(self, table, row_type, table_reader=None, unordered=None, enable_read_parallel=None):
+    def read_table_structured(self, table, row_type, table_reader=None, unordered=None, response_parameters=None, enable_read_parallel=None):
         """
         Reads rows from table in structured format. Cf. docstring for read_table
         """
-        return client_api.read_table_structured(table, row_type, client=self, table_reader=table_reader, unordered=unordered, enable_read_parallel=enable_read_parallel)
+        return client_api.read_table_structured(table, row_type, client=self, table_reader=table_reader, unordered=unordered, response_parameters=response_parameters, enable_read_parallel=enable_read_parallel)
 
     def remount_table(self, path, first_tablet_index=None, last_tablet_index=None):
         """
@@ -1324,7 +1324,6 @@ class YtClient(ClientState):
 
         :param str source_pool: pool to transfer resources from.
         :param str destination_pool: pool to transfer resources to.
-        :param str pool_tree: pool_tree where both pools are present.
         :param resource_delta: the amount of transferred resources as a dict.
 
         """
@@ -1416,8 +1415,8 @@ class YtClient(ClientState):
         :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
         :param dict table_writer: spec of "write" operation.
         :param int max_row_buffer_size: option for testing purposes only, consult yt@ if you want to use it.
-        :param bool is_stream_compressed: expect stream to contain compressed table data.     This data can be passed directly to proxy without recompression. Be careful! this option     disables write retries.
-        :param bool force_create: unconditionally try to create table whether it exists     (if not specified the pure write_table call will create table if it is not exists).     Use this option only if you know what you do.
+        :param bool is_stream_compressed: expect stream to contain compressed table data.     This data can be passed directly to proxy without recompression. Be careful! This option     disables write retries.
+        :param bool force_create: try to create table regardless of its existence     (if not specified the pure write_table call will create table if it is doesn't exist).     Use this option only if you know what you do.
 
         The function tries to split input stream to portions of fixed size and write its with retries.
         If splitting fails, stream is written as is through HTTP.
@@ -1428,8 +1427,8 @@ class YtClient(ClientState):
         """
         return client_api.write_table(table, input_stream, client=self, format=format, table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, is_stream_compressed=is_stream_compressed, force_create=force_create, raw=raw)
 
-    def write_table_structured(self, table, row_type, input_stream, table_writer=None, max_row_buffer_size=None, is_stream_compressed=False, force_create=None):
+    def write_table_structured(self, table, row_type, input_stream, table_writer=None, max_row_buffer_size=None, force_create=None):
         """
         Writes rows from input_stream to table in structured format. Cf. docstring for write_table
         """
-        return client_api.write_table_structured(table, row_type, input_stream, client=self, table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, is_stream_compressed=is_stream_compressed, force_create=force_create)
+        return client_api.write_table_structured(table, row_type, input_stream, client=self, table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, force_create=force_create)

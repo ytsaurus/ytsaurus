@@ -59,7 +59,8 @@ public:
     int mapping_length() override;
     Py::Object mapping_subscript(const Py::Object& key) override;
     int mapping_ass_subscript(const Py::Object& key, const Py::Object& value) override;
-    
+    Py::Object repr() override;
+
     static void InitType();
 
     TStringBuf GetYsonString();

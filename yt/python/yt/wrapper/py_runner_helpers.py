@@ -147,7 +147,7 @@ class StructuredKeySwitchGroup(object):
                 self._outstanding_row = row
                 raise StopIteration()
         if self._with_context:
-            return (self._structured_iterator, row)
+            return (row, self._structured_iterator)
         else:
             return row
 
@@ -162,7 +162,7 @@ def group_structured_rows_by_key_switch(structured_iterator):
         return
     while True:
         group = StructuredKeySwitchGroup(structured_iterator, first_row)
-        yield (group,)
+        yield group
         # Read all the remaining rows.
         for _ in group:
             pass
@@ -378,6 +378,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
                     chain.from_iterable(imap(run, rows)),
                     finish())
             else:
+                is_aggregator = params.attributes.get("is_reduce_aggregator", False)
                 if is_structured_skiff:
                     assert grouped_rows is None
                     grouped_rows = group_structured_rows_by_key_switch(rows)
@@ -386,13 +387,22 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
                         grouped_rows = group_by_key_switch(rows, extract_key_by_group_by)
                     else:
                         grouped_rows = groupby(rows, extract_key_by_group_by)
-                if params.attributes.get("is_reduce_aggregator", False):
+
+                if is_aggregator:
                     result = run(grouped_rows)
                 else:
-                    result = chain(
-                        start(),
-                        chain.from_iterable(starmap(run, grouped_rows)),
-                        finish())
+                    if is_structured_skiff:
+                        result = chain(
+                            start(),
+                            chain.from_iterable(imap(run, grouped_rows)),
+                            finish(),
+                        )
+                    else:
+                        result = chain(
+                            start(),
+                            chain.from_iterable(starmap(run, grouped_rows)),
+                            finish(),
+                        )
 
         result = process_frozen_dict(result)
 
