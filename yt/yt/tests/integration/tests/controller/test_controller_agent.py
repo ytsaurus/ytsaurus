@@ -145,9 +145,9 @@ class TestControllerMemoryUsage(YTEnvSetup):
         usage = get(small_usage_path)
 
         print_debug("small_usage =", usage)
-        assert usage < 5 * 10 ** 5
+        assert usage < 640 * 1024
 
-        wait(lambda: check("1", op_small, 0, 5 * 10 ** 5))
+        wait(lambda: check("1", op_small, 0, 640 * 1024))
 
         op_small.abort()
 
