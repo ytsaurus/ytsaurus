@@ -54,7 +54,7 @@ TPythonToSkiffConverter WrapPythonToSkiffConverterImpl(TConverter converter)
 {
     if constexpr (IsPySchemaOptional || IsTITypeOptional) {
         return CreateOptionalPythonToSkiffConverter<IsPySchemaOptional>(std::move(converter));
-    } else {  
+    } else {
         return converter;
     }
 }
@@ -84,7 +84,7 @@ public:
             Write(obj, writer);
             return;
         } catch (const Py::BaseException& pyException) {
-            error = Py::BuildErrorFromPythonException(/*clear*/ true); 
+            error = Py::BuildErrorFromPythonException(/*clear*/ true);
         } catch (const std::exception& exception) {
             error = TError(exception);
         }
@@ -239,7 +239,7 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverter(TString descriptio
                     THROW_ERROR_EXCEPTION("It's a bug, please contact yt@. Unexpected wire type %Qlv for \"int\" python type",
                         wireType);
             }
-        
+
         case EPythonType::Bytes:
             return CreatePrimitivePythonToSkiffConverterImpl<IsPySchemaOptional, EWireType::String32, EPythonType::Bytes>(
                 description,
@@ -361,8 +361,13 @@ public:
                     OtherColumnsFieldName_)
                     << Py::BuildErrorFromPythonException(/*clear*/ true);
             }
-            Py::PythonClassObject<TSkiffOtherColumns> otherColumns(field.get());
-            writer->WriteYson32(otherColumns.getCxxObject()->GetYsonString());
+            if (field.get() == Py_None) {
+                static constexpr TStringBuf EmptyMapYson = "{}";
+                writer->WriteYson32(EmptyMapYson);
+            } else {
+                Py::PythonClassObject<TSkiffOtherColumns> otherColumns(field.get());
+                writer->WriteYson32(otherColumns.getCxxObject()->GetYsonString());
+            }
         }
     }
 

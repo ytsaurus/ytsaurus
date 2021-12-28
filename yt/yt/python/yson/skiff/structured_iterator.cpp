@@ -64,6 +64,8 @@ public:
         behaviors().supportGetattro();
         behaviors().supportSetattro();
         behaviors().supportIter();
+
+        behaviors().readyType();
     }
 
 private:
@@ -167,6 +169,8 @@ Py::Object TSkiffStructuredIterator::WithContext()
 
 void TSkiffStructuredIterator::InitType()
 {
+    TIteratorWithContext::InitType();
+
     behaviors().name("yson_lib.SkiffStructuredIterator");
     behaviors().doc("Iterates over stream with skiff rows and returns their structured representation");
     behaviors().supportGetattro();

@@ -1,5 +1,5 @@
 from .types import yt_dataclass, is_yt_dataclass, create_annotated_type, OutputRow
-from .table_schema import ColumnSchema, TableSchema
+from .table_schema import ColumnSchema, TableSchema, SortColumn
 
 from .internal_schema import _row_py_schema_to_skiff_schema, _validate_py_schema
 from . import internal_schema

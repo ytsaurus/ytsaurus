@@ -42,6 +42,12 @@ class TheRow:
 
 
 @yt_dataclass
+class RowWithContext(TheRow):
+    row_index: int = -1
+    table_index: int = -1
+
+
+@yt_dataclass
 class Row1:
     str_field: str
     int32_field: Int64
@@ -109,6 +115,21 @@ class IdentityMapper(TypedJob):
         return len(self._row_types)
 
 
+@yt.with_context
+class MapperWithContext(TypedJob):
+    def prepare_operation(self, context, preparer):
+        preparer.inputs([0, 1], type=TheRow).output(0, type=RowWithContext)
+
+    def __call__(self, row, context):
+        yield RowWithContext(
+            int32_field=row.int32_field,
+            str_field=row.str_field,
+            struct_field=row.struct_field,
+            row_index=context.get_row_index(),
+            table_index=context.get_table_index(),
+        )
+
+
 class IdentityReducer(TypedJob):
     def prepare_operation(self, context, preparer):
         preparer.input(0, type=TheRow).output(0, type=TheRow)
@@ -123,7 +144,7 @@ class EmptyInputReducer(TypedJob):
         preparer.input(0, type=TheRow).output(0, type=TheRow)
 
     def __call__(self, rows):
-        assert len(list(rows)) == 0
+        assert False, "The method should have never been called"
 
     def finish(self):
         # Check that the job has actually been run.
@@ -148,6 +169,21 @@ class TwoOutputMapper(TypedJob):
 
     def get_intermediate_stream_count(self):
         return 2 if self._for_map_reduce else 0
+
+
+@yt.aggregator
+class AggregatorTwoOutputMapper(TypedJob):
+    def prepare_operation(self, context, preparer):
+        (preparer.input(0, type=TheRow).output(0, type=TheRow).output(1, type=Row1))
+
+    def __call__(self, rows):
+        for row, context in rows.with_context():
+            assert context.get_table_index() == 0
+            yield OutputRow(row, table_index=0)
+            yield OutputRow(
+                Row1(int32_field=row.int32_field + 1, str_field="Mapped: " + row.str_field),
+                table_index=1,
+            )
 
 
 @yt.with_context
@@ -177,7 +213,7 @@ class TwoInputReducer(TypedJob):
         preparer.input(0, type=TheRow).input(1, type=Row1).output(0, type=TheRow)
 
     def __call__(self, rows):
-        for ctx, row in rows.with_context():
+        for row, ctx in rows.with_context():
             if ctx.get_table_index() == 0:
                 assert isinstance(row, TheRow)
                 yield row
@@ -212,7 +248,7 @@ class TwoInputSummingReducer(TypedJob):
     def __call__(self, rows):
         s = 0
         key = None
-        for ctx, row in rows.with_context():
+        for row, ctx in rows.with_context():
             if ctx.get_table_index() == 0:
                 assert isinstance(row, TheRow)
             else:
@@ -288,6 +324,29 @@ class TestTypedApi(object):
         assert read_rows == []
 
     @authors("levysotsky")
+    @pytest.mark.parametrize("create", [True, False])
+    def test_write_schema_inference(self, create):
+        table = "//tmp/table"
+        yt.remove(table, force=True)
+
+        if create:
+            yt.create("table", table)
+            assert TableSchema.from_yson_type(yt.get(table + "/@schema")) == TableSchema(strict=False)
+
+        yt.write_table_structured(table, TheRow, ROWS)
+
+        expected_schema = TableSchema() \
+            .add_column("int32_field", ti.Int64) \
+            .add_column("str_field", ti.Utf8) \
+            .add_column("struct_field", ti.Optional[ti.Struct[
+                "str_field": ti.Utf8,
+                "uint8_field": ti.Optional[ti.Uint64],
+            ]])
+
+        assert TableSchema.from_row_type(TheRow) == expected_schema
+        assert TableSchema.from_yson_type(yt.get(table + "/@schema")) == expected_schema
+
+    @authors("levysotsky")
     def test_read_ranges(self):
         table = "//tmp/table"
         yt.remove(table, force=True)
@@ -316,20 +375,53 @@ class TestTypedApi(object):
         with pytest.raises(StopIteration):
             next(iterator)
 
-    @authors("levysotsky")
-    def test_basic_map(self):
-        input_table = "//tmp/input"
-        output_table = "//tmp/output"
-        yt.remove(input_table, force=True)
-        schema = TableSchema.from_row_type(TheRow)
-        yt.create("table", input_table, attributes={"schema": schema})
-        yt.write_table(input_table, ROW_DICTS)
-        yt.run_map(IdentityMapper(), input_table, output_table, spec={"max_failed_job_count": 1})
-        read_rows = list(yt.read_table(output_table))
-        assert read_rows == ROW_DICTS
+        iterator = yt.read_table_structured(path_with_ranges, TheRow).with_context()
+        for range_index, (begin, end) in enumerate(ranges):
+            for row_index in range(begin, end):
+                row, context = next(iterator)
+                assert context.get_row_index() == row_index
+                assert context.get_table_index() == 0
+                assert context.get_key_switch() is False
+                assert context.get_range_index() == range_index
+                assert row == TheRow(int32_field=row_index, str_field=str(row_index))
+        with pytest.raises(StopIteration):
+            next(iterator)
 
     @authors("levysotsky")
-    def test_map_two_outputs(self):
+    def test_map_with_context(self):
+        input_tables = ["//tmp/input1", "//tmp/input2"]
+        output_table = "//tmp/output"
+        schema = TableSchema.from_row_type(TheRow)
+        for input_table in input_tables:
+            yt.remove(input_table, force=True)
+            yt.create("table", input_table, attributes={"schema": schema})
+            yt.write_table(input_table, ROW_DICTS)
+
+        yt.run_map(
+            MapperWithContext(),
+            input_tables,
+            output_table,
+            spec={"max_failed_job_count": 1},
+        )
+
+        expected_rows = []
+        for table_index in range(2):
+            for row_index, row in enumerate(ROW_DICTS):
+                row_copy = copy.deepcopy(row)
+                row_copy.update({
+                    "row_index": row_index,
+                    "table_index": table_index,
+                })
+                expected_rows.append(row_copy)
+        read_rows = sorted(
+            yt.read_table(output_table),
+            key=lambda row: (row["table_index"], row["row_index"]),
+        )
+        assert read_rows == expected_rows
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("aggregator", [True, False])
+    def test_map_two_outputs(self, aggregator):
         input_table = "//tmp/input"
         output_table1 = "//tmp/output1"
         output_table2 = "//tmp/output2"
@@ -337,8 +429,14 @@ class TestTypedApi(object):
         schema = TableSchema.from_row_type(TheRow)
         yt.create("table", input_table, attributes={"schema": schema})
         yt.write_table(input_table, ROW_DICTS)
+
+        if aggregator:
+            mapper = AggregatorTwoOutputMapper()
+        else:
+            mapper = TwoOutputMapper(for_map_reduce=False)
+
         yt.run_map(
-            TwoOutputMapper(for_map_reduce=False),
+            mapper,
             input_table,
             [output_table1, output_table2],
             spec={"max_failed_job_count": 1},
@@ -525,10 +623,6 @@ class TestTypedApi(object):
             {"int32_field": 100, "str_field": "z"},
         ]
 
-        expected_rows = [
-            ROWS[0]
-        ]
-
         input_table = "//tmp/input"
         schema = TableSchema.from_row_type(TheRow).build_schema_sorted_by(["str_field"])
         yt.create_table(input_table, attributes={"schema": schema})
@@ -548,7 +642,10 @@ class TestTypedApi(object):
             reduce_by=["str_field"],
         )
 
-        assert list(yt.read_table(output_table)) == [ROW_DICTS[0]]
+        expected_rows = [
+            ROWS[0],
+        ]
+        assert list(yt.read_table(output_table)) == expected_rows
 
     @authors("levysotsky")
     @pytest.mark.parametrize("other_columns_as_bytes", [True, False])

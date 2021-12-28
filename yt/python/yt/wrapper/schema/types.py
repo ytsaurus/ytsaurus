@@ -119,11 +119,11 @@ def _is_py_type_compatible_with_ti_type(py_type, ti_type):
     elif py_type is str:
         return ti_type in (ti.Utf8, ti.String)
     elif py_type is bytes:
-        return ti_type in (ti.String, ti.Yson,)
+        return ti_type in (ti.String, ti.Yson, ti.Utf8)
     elif py_type is bool:
         return ti_type == ti.Bool
     elif py_type is float:
-        return ti_type in (ti.Float, ti.Double,)
+        return ti_type in (ti.Float, ti.Double)
     else:
         assert False, "Unsupported python type {}".format(py_type)
 

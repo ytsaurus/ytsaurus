@@ -95,6 +95,12 @@ int TSkiffOtherColumns::mapping_ass_subscript(const Py::Object& key, const Py::O
     return 0;
 }
 
+Py::Object TSkiffOtherColumns::repr()
+{
+    MaybeMaterializeMap();
+    return Map_->str();
+}
+
 TStringBuf TSkiffOtherColumns::GetUnparsedBytes() const
 {
     char* buffer;
@@ -126,6 +132,7 @@ void TSkiffOtherColumns::InitType()
         behaviors().support_mapping_ass_subscript |
         behaviors().support_mapping_subscript |
         behaviors().support_mapping_length);
+    behaviors().supportRepr();
     behaviors().supportCompare();
 
     behaviors().readyType();

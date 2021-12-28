@@ -694,16 +694,16 @@ class UserJobSpecBuilder(object):
                 raise YtError("Typed job {} is incompatible with \"input_query\" spec field".format(type(command)))
             assert operation_preparation_context is not None
 
+            if self._supports_row_index(operation_type):
+                self._set_control_attribute(job_io_spec, "enable_row_index", True)
+            self._set_control_attribute(job_io_spec, "enable_key_switch", True)
+            spec["enable_input_table_index"] = True
             input_format, output_format, input_tables, output_tables = run_operation_preparation(
                 command,
                 operation_preparation_context,
+                input_control_attributes=job_io_spec["control_attributes"],
             )
-
-
             should_process_key_switch = True
-            if self._supports_row_index(operation_type):
-                self._set_control_attribute(job_io_spec, "enable_row_index", True)
-            spec["enable_input_table_index"] = True
 
         elif _CPP_WRAPPER_AVAILABLE and isinstance(command, CppJob):
             if "input_format" in spec or "output_format" in spec or "format" in spec:

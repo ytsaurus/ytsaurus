@@ -57,41 +57,73 @@ class OperationPreparationContext:
 
     @abstractmethod
     def get_input_count(self):
+        """
+        Get number of input streams.
+        """
         pass
 
     @abstractmethod
     def get_output_count(self):
+        """
+        Get number of output streams.
+        """
         pass
 
     @abstractmethod
     def get_input_schemas(self):
+        """
+        Get list of input schemas.
+        """
         pass
 
     @abstractmethod
     def get_output_schemas(self):
+        """
+        Get list of output schemas. Some schemas may be None if a table does not exist.
+        """
         pass
 
     @abstractmethod
     def get_input_paths(self):
+        """
+        Get list of input table paths.
+        """
         pass
 
     @abstractmethod
     def get_output_paths(self):
+        """
+        Get list of output table paths.
+        """
         pass
 
 
 class OperationPreparer:
     """
     Class used to specify input and output row types for a job.
-    Also input column filter, input column renaming and output schemas can be specified.
+    Input column filter, input column renaming and output schemas also can be specified.
     """
 
-    def input(self, index, **kwargs):
+    def input(self, index, type=None, **kwargs):
+        """
+        Single-index version of :func:`~OperationPreparer.inputs`.
+        """
+
         if not isinstance(index, int):
             raise TypeError("Expected index to be of type int")
+        kwargs["type"] = type
         return self.inputs([index], **kwargs)
 
     def inputs(self, indices, type=None, column_filter=None, column_renaming=None):
+        """
+        Specify row type, column filter and renaming for several input streams.
+
+        :param indices: iterable of indices of input streams to apply modification to.
+        :param type: type of input row. Must be declared with @yt_dataclass decorator.
+        :param column_filter: iterable of column names to be requested inside job.
+        :param column_renaming: dict mapping original (from schema) to new column name (visible in the job).
+        """
+
         index_list = list(indices)
         if type is not None:
             if not is_yt_dataclass(type):
@@ -103,12 +135,26 @@ class OperationPreparer:
             self._set_elements("Input column renaming", self._input_column_renamings, index_list, column_renaming)
         return self
 
-    def output(self, index, **kwargs):
+    def output(self, index, type=None, **kwargs):
+        """
+        Single-index version of :func:`~OperationPreparer.outputs`.
+        """
+
         if not isinstance(index, int):
             raise TypeError("Expected index to be of type int")
+        kwargs["type"] = type
         return self.outputs([index], **kwargs)
 
     def outputs(self, indices, type=None, schema=None, infer_strict_schema=True):
+        """
+        Specify row type and schema for several output streams.
+
+        :param indices: iterable of indices of output streams to apply modification to.
+        :param type: type of output row. Must be declared with @yt_dataclass decorator.
+        :param schema: schema of output table (for empty or nonexistent output tables). By default it is inferred from ``type``.
+        :param infer_strict_schema: whether the schema inferred from ``type`` must be strict.
+        """
+
         index_list = list(indices)
         if type is not None:
             if not is_yt_dataclass(type):
@@ -119,7 +165,7 @@ class OperationPreparer:
             self._set_elements("Output schema", self._output_schemas, index_list, schema)
         return self
 
-    def __init__(self, context):
+    def __init__(self, context, input_control_attributes=None):
         self._context = context
         self._input_count = self._context.get_input_count()
         self._output_count = self._context.get_output_count()
@@ -131,6 +177,11 @@ class OperationPreparer:
         self._input_py_schemas = []
         self._output_py_schemas = []
         self._infer_strict_output_schemas = [True] * self._output_count
+        if input_control_attributes is None:
+            input_control_attributes = {
+                "enable_key_switch": True,
+            }
+        self._input_control_attributes = input_control_attributes
 
     @staticmethod
     def _set_elements(name, list_, indices, value):
@@ -154,9 +205,6 @@ class OperationPreparer:
     def _finish(self):
         input_schemas = self._context.get_input_schemas()
         output_schemas = self._context.get_output_schemas()
-        input_control_attributes = {
-            "enable_key_switch": True,
-        }
         for index, type_ in enumerate(self._input_types):
             if type_ is None:
                 self._raise_missing("input", index)
@@ -165,7 +213,7 @@ class OperationPreparer:
                 type_,
                 input_schemas[index],
                 column_renaming=column_renaming,
-                control_attributes=input_control_attributes,
+                control_attributes=self._input_control_attributes,
             )
             self._input_py_schemas.append(py_schema)
             _validate_py_schema(py_schema, for_reading=True)
@@ -266,9 +314,9 @@ class IntermediateOperationPreparationContext(OperationPreparationContext):
         return self._output_paths
 
 
-def run_operation_preparation(job, context):
+def run_operation_preparation(job, context, input_control_attributes):
     assert isinstance(job, TypedJob)
-    preparer = OperationPreparer(context)
+    preparer = OperationPreparer(context, input_control_attributes=input_control_attributes)
     job.prepare_operation(context, preparer)
     output_schemas = context.get_output_schemas()
     preparer._finish()
