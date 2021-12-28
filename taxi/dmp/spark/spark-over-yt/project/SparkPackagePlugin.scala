@@ -178,7 +178,7 @@ object SparkPackagePlugin extends AutoPlugin {
       mvnInstall(sparkHome.value)
     },
     sparkMvnDeploy := {
-      mvnInstall(sparkHome.value)
+      mvnDeploy(sparkHome.value)
     }
   )
 
