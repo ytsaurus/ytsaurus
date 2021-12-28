@@ -120,7 +120,10 @@ struct IChunkMetaManager
 
 DEFINE_REFCOUNTED_TYPE(IChunkMetaManager)
 
-IChunkMetaManagerPtr CreateChunkMetaManager(NClusterNode::IBootstrapBase* bootstrap);
+IChunkMetaManagerPtr CreateChunkMetaManager(
+    TDataNodeConfigPtr dataNodeConfig,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+    NClusterNode::TNodeMemoryTrackerPtr memoryUsageTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -823,7 +823,10 @@ private:
 
         BlobReaderCache_ = CreateBlobReaderCache(this);
 
-        ChunkMetaManager_ = CreateChunkMetaManager(this);
+        ChunkMetaManager_ = CreateChunkMetaManager(
+            Config_->DataNode,
+            GetDynamicConfigManager(),
+            GetMemoryUsageTracker());
         VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(Config_->TabletNode->VersionedChunkMetaCache, this);
 
         NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);

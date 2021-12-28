@@ -60,31 +60,27 @@ class TChunkMetaManager
     : public IChunkMetaManager
 {
 public:
-    explicit TChunkMetaManager(IBootstrapBase* bootstrap)
-        : Bootstrap_(bootstrap)
-        , Config_(Bootstrap_->GetConfig()->DataNode)
+    explicit TChunkMetaManager(
+        TDataNodeConfigPtr dataNodeConfig,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+        NClusterNode::TNodeMemoryTrackerPtr memoryUsageTracker)
+        : Config_(dataNodeConfig)
         , ChunkMetaCache_(New<TChunkMetaCache>(
             Config_->ChunkMetaCache,
-            Bootstrap_
-                ->GetMemoryUsageTracker()
+            memoryUsageTracker
                 ->WithCategory(EMemoryCategory::ChunkMeta),
             DataNodeProfiler.WithPrefix("/chunk_meta_cache")))
         , BlocksExtCache_(New<TBlocksExtCache>(
             Config_->BlocksExtCache,
-            Bootstrap_
-                ->GetMemoryUsageTracker()
+            memoryUsageTracker
                 ->WithCategory(EMemoryCategory::BlocksExt),
             DataNodeProfiler.WithPrefix("/blocks_ext_cache")))
         , BlockMetaCache_(New<TBlockMetaCache>(
             Config_->BlockMetaCache,
-            Bootstrap_
-                ->GetMemoryUsageTracker()
+            memoryUsageTracker
                 ->WithCategory(EMemoryCategory::ChunkBlockMeta),
             DataNodeProfiler.WithPrefix("/block_meta_cache")))
     {
-        YT_VERIFY(Bootstrap_);
-
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TChunkMetaManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
@@ -179,7 +175,6 @@ public:
     }
 
 private:
-    IBootstrapBase* const Bootstrap_;
     const TDataNodeConfigPtr Config_;
 
     class TChunkMetaCache
@@ -245,9 +240,15 @@ private:
     }
 };
 
-IChunkMetaManagerPtr CreateChunkMetaManager(IBootstrapBase* bootstrap)
+IChunkMetaManagerPtr CreateChunkMetaManager(
+    TDataNodeConfigPtr dataNodeConfig,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+    NClusterNode::TNodeMemoryTrackerPtr memoryUsageTracker)
 {
-    return New<TChunkMetaManager>(bootstrap);
+    return New<TChunkMetaManager>(
+        dataNodeConfig,
+        dynamicConfigManager,
+        memoryUsageTracker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
