@@ -4023,14 +4023,14 @@ private:
                 return ESecurityAction::Deny;
             }
 
-            // "root" and "superusers" need no authorization.
-            if (Impl_->IsSuperuser(User_)) {
-                return ESecurityAction::Allow;
-            }
-
             // Banned users are denied any permission.
             if (User_->GetBanned()) {
                 return ESecurityAction::Deny;
+            }
+
+            // "root" and "superusers" need no authorization.
+            if (Impl_->IsSuperuser(User_)) {
+                return ESecurityAction::Allow;
             }
 
             // Non-reads are forbidden in safe mode.
