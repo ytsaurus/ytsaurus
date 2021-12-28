@@ -196,6 +196,15 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
     extension->set_tag(tag);
 }
 
+template <class TProto, class TValue>
+std::enable_if_t<!std::is_same_v<TProto, TValue>, void>
+SetProtoExtension(NProto::TExtensionSet* extensions, const TValue& value)
+{
+    TProto proto;
+    ToProto(&proto, value);
+    SetProtoExtension(extensions, proto);
+}
+
 template <class T>
 bool RemoveProtoExtension(NProto::TExtensionSet* extensions)
 {

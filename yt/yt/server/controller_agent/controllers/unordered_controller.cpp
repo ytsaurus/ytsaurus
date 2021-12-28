@@ -21,6 +21,7 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
@@ -490,7 +491,9 @@ protected:
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).ToString());
 
-        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
+        SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         if (Spec->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);

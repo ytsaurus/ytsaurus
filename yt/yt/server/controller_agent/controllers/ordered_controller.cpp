@@ -25,6 +25,7 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
@@ -577,7 +578,9 @@ private:
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
+        SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            BuildDataSourceDirectoryFromInputTables(InputTables_));
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
     }
 
@@ -789,7 +792,9 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
-        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
+        SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         if (Spec_->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
@@ -1031,7 +1036,9 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
-        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
+        SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
@@ -1296,7 +1303,9 @@ private:
 
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
         schedulerJobSpecExt->set_table_reader_options("");
-        SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
+        SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         auto connectionConfig = CloneYsonSerializable(GetRemoteConnectionConfig());
         if (Spec_->NetworkName) {

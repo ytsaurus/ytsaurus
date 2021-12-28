@@ -5,7 +5,6 @@
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/scheduler/proto/output_result.pb.h>
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
@@ -188,15 +187,6 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     }
 
     return dataSourceDirectory;
-}
-
-void SetDataSourceDirectory(
-    NScheduler::NProto::TSchedulerJobSpecExt* jobSpec,
-    const TDataSourceDirectoryPtr& dataSourceDirectory)
-{
-    NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
-    ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
-    SetProtoExtension(jobSpec->mutable_extensions(), dataSourceDirectoryExt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
