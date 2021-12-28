@@ -34,6 +34,7 @@ extern const TString TabletCellChangeloggerUserName;
 extern const TString TabletCellSnapshotterUserName;
 extern const TString TableMountInformerUserName;
 extern const TString AlienCellSynchronizerUserName;
+extern const TString QueueAgentUserName;
 
 extern const TString EveryoneGroupName;
 extern const TString UsersGroupName;

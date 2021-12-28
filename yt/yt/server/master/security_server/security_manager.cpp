@@ -475,6 +475,7 @@ public:
         TabletCellSnapshotterUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffeb);
         TableMountInformerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffea);
         AlienCellSynchronizerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffe9);
+        QueueAgentUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffe8);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -2431,6 +2432,9 @@ private:
     TUserId AlienCellSynchronizerUserId_;
     TUser* AlienCellSynchronizerUser_ = nullptr;
 
+    TUserId QueueAgentUserId_;
+    TUser* QueueAgentUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
@@ -2594,7 +2598,8 @@ private:
             id == TabletCellChangeloggerUserId_ ||
             id == TabletCellSnapshotterUserId_ ||
             id == TableMountInformerUserId_ ||
-            id == AlienCellSynchronizerUserId_)
+            id == AlienCellSynchronizerUserId_ ||
+            id == QueueAgentUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -3160,6 +3165,7 @@ private:
         TabletCellSnapshotterUser_ = nullptr;
         TableMountInformerUser_ = nullptr;
         AlienCellSynchronizerUser_ = nullptr;
+        QueueAgentUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
         FileCacheUser_ = nullptr;
@@ -3253,7 +3259,7 @@ private:
         if (EnsureBuiltinUserInitialized(RootUser_, RootUserId_, RootUserName)) {
             RootUser_->SetRequestRateLimit(std::nullopt, EUserWorkloadType::Read);
             RootUser_->SetRequestRateLimit(std::nullopt, EUserWorkloadType::Write);
-            RootUser_->SetRequestQueueSizeLimit(1000000);
+            RootUser_->SetRequestQueueSizeLimit(1'000'000);
         }
 
         // guest
@@ -3261,23 +3267,23 @@ private:
 
         if (EnsureBuiltinUserInitialized(JobUser_, JobUserId_, JobUserName)) {
             // job
-            JobUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
-            JobUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
-            JobUser_->SetRequestQueueSizeLimit(1000000);
+            JobUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
+            JobUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
+            JobUser_->SetRequestQueueSizeLimit(1'000'000);
         }
 
         // scheduler
         if (EnsureBuiltinUserInitialized(SchedulerUser_, SchedulerUserId_, SchedulerUserName)) {
-            SchedulerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
-            SchedulerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
-            SchedulerUser_->SetRequestQueueSizeLimit(1000000);
+            SchedulerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
+            SchedulerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
+            SchedulerUser_->SetRequestQueueSizeLimit(1'000'000);
         }
 
         // replicator
         if (EnsureBuiltinUserInitialized(ReplicatorUser_, ReplicatorUserId_, ReplicatorUserName)) {
-            ReplicatorUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
-            ReplicatorUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
-            ReplicatorUser_->SetRequestQueueSizeLimit(1000000);
+            ReplicatorUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
+            ReplicatorUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
+            ReplicatorUser_->SetRequestQueueSizeLimit(1'000'000);
         }
 
         // owner
@@ -3285,48 +3291,51 @@ private:
 
         // file cache
         if (EnsureBuiltinUserInitialized(FileCacheUser_, FileCacheUserId_, FileCacheUserName)) {
-            FileCacheUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
-            FileCacheUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
-            FileCacheUser_->SetRequestQueueSizeLimit(1000000);
+            FileCacheUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
+            FileCacheUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
+            FileCacheUser_->SetRequestQueueSizeLimit(1'000'000);
         }
 
         // operations cleaner
         if (EnsureBuiltinUserInitialized(OperationsCleanerUser_, OperationsCleanerUserId_, OperationsCleanerUserName)) {
-            OperationsCleanerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
-            OperationsCleanerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
-            OperationsCleanerUser_->SetRequestQueueSizeLimit(1000000);
+            OperationsCleanerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
+            OperationsCleanerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
+            OperationsCleanerUser_->SetRequestQueueSizeLimit(1'000'000);
         }
 
         // operations client
         if (EnsureBuiltinUserInitialized(OperationsClientUser_, OperationsClientUserId_, OperationsClientUserName)) {
-            OperationsClientUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
-            OperationsClientUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
-            OperationsClientUser_->SetRequestQueueSizeLimit(1000000);
+            OperationsClientUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
+            OperationsClientUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
+            OperationsClientUser_->SetRequestQueueSizeLimit(1'000'000);
         }
 
         // tablet cell changelogger
         if (EnsureBuiltinUserInitialized(TabletCellChangeloggerUser_, TabletCellChangeloggerUserId_, TabletCellChangeloggerUserName)) {
-            TabletCellChangeloggerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
-            TabletCellChangeloggerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
-            TabletCellChangeloggerUser_->SetRequestQueueSizeLimit(1000000);
+            TabletCellChangeloggerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
+            TabletCellChangeloggerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
+            TabletCellChangeloggerUser_->SetRequestQueueSizeLimit(1'000'000);
         }
 
         // tablet cell snapshotter
         if (EnsureBuiltinUserInitialized(TabletCellSnapshotterUser_, TabletCellSnapshotterUserId_, TabletCellSnapshotterUserName)) {
-            TabletCellSnapshotterUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
-            TabletCellSnapshotterUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
-            TabletCellSnapshotterUser_->SetRequestQueueSizeLimit(1000000);
+            TabletCellSnapshotterUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
+            TabletCellSnapshotterUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
+            TabletCellSnapshotterUser_->SetRequestQueueSizeLimit(1'000'000);
         }
 
         // table mount informer
         if (EnsureBuiltinUserInitialized(TableMountInformerUser_, TableMountInformerUserId_, TableMountInformerUserName)) {
-            TableMountInformerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
-            TableMountInformerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
-            TableMountInformerUser_->SetRequestQueueSizeLimit(1000000);
+            TableMountInformerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
+            TableMountInformerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
+            TableMountInformerUser_->SetRequestQueueSizeLimit(1'000'000);
         }
 
         // alien cell synchronizer
         EnsureBuiltinUserInitialized(AlienCellSynchronizerUser_, AlienCellSynchronizerUserId_, AlienCellSynchronizerUserName);
+
+        // queue agent
+        EnsureBuiltinUserInitialized(QueueAgentUser_, QueueAgentUserId_, QueueAgentUserName);
 
         // Accounts
         // root, infinite resources, not meant to be used
@@ -3336,15 +3345,15 @@ private:
         RootAccount_->SetAllowChildrenLimitOvercommit(true);
 
         auto defaultResources = TClusterResourceLimits()
-            .SetNodeCount(100000)
-            .SetChunkCount(1000000000)
+            .SetNodeCount(100'000)
+            .SetChunkCount(1'000'000'000)
             .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB)
             .SetMasterMemory({100_GB, 100_GB, {}});
 
         // sys, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks, 100 000 tablets, 10TB tablet static memory, 100_GB master memory allowed for: root
         if (EnsureBuiltinAccountInitialized(SysAccount_, SysAccountId_, SysAccountName)) {
             auto resourceLimits = defaultResources;
-            resourceLimits.SetTabletCount(100000);
+            resourceLimits.SetTabletCount(100'000);
             resourceLimits.SetTabletStaticMemory(10_TB);
             TrySetResourceLimits(SysAccount_, resourceLimits);
 
