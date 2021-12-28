@@ -1,6 +1,7 @@
 #include <yt/yt/core/concurrency/poller.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/library/ytprof/http/handler.h>
@@ -35,22 +36,31 @@ int main(int argc, char* argv[])
             data[ToString(i)].resize(1024);
         }
 
-        ui64 value = 0;
-        while (true) {
-            THash<TString> hasher;
-            for (int i = 0; i < 10000000; i++) {
-                value += hasher(ToString(i));
-            }
+        auto burnCpu = [] {
+            ui64 value = 0;
+            while (true) {
+                THash<TString> hasher;
+                for (int i = 0; i < 10000000; i++) {
+                    value += hasher(ToString(i));
+                }
 
-            std::vector<TString> data;
-            for (int i = 0; i < 10000; i++) {
-                data.push_back(TString(1024, 'x'));
-            }
+                std::vector<TString> data;
+                for (int i = 0; i < 10000; i++) {
+                    data.push_back(TString(1024, 'x'));
+                }
 
-            if (value == 1) {
-                Sleep(TDuration::Seconds(1));
+                if (value == 1) {
+                    Sleep(TDuration::Seconds(1));
+                }
             }
+        };
+
+        auto pool = New<TThreadPool>(64, "Pool");
+        for (int i = 0; i < 64; i++) {
+            pool->GetInvoker()->Invoke(BIND(burnCpu));
         }
+
+        burnCpu();
     } catch (const std::exception& ex) {
         Cerr << ex.what() << Endl;
         _exit(1);
