@@ -13,10 +13,27 @@
 
 #include <yt/yt/core/misc/property.h>
 
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NDataNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IChunkStoreHost
+    : public TRefCounted
+{
+    virtual void ScheduleMasterHeartbeat() = 0;
+    virtual NObjectClient::TCellId GetCellId() = 0;
+    virtual void SubscribePopulateAlerts(TCallback<void(std::vector<TError>*)> alerts) = 0;
+    virtual NClusterNode::TMasterEpoch GetMasterEpoch() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IChunkStoreHost)
+
+IChunkStoreHostPtr CreateChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,6 +155,7 @@ public:
 private:
     const TDataNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
+    const IChunkStoreHostPtr ChunkStoreHost_;
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     struct TChunkEntry

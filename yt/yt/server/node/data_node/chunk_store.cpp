@@ -10,6 +10,7 @@
 #include "legacy_master_connector.h"
 #include "session.h"
 #include "session_manager.h"
+#include "master_connector.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -39,9 +40,59 @@ static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkStoreHost
+    : public IChunkStoreHost
+{
+public:
+    TChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
+    void ScheduleMasterHeartbeat() override
+    {
+        if (Bootstrap_->IsDataNode()) {
+            if (Bootstrap_->UseNewHeartbeats()) {
+                const auto& masterConnector = Bootstrap_->GetDataNodeBootstrap()->GetMasterConnector();
+                masterConnector->ScheduleHeartbeat(/*immediately*/ true);
+            } else {
+                const auto& masterConnector = Bootstrap_->GetLegacyMasterConnector();
+                masterConnector->ScheduleNodeHeartbeat(/*immediately*/ true);
+            }
+        }
+    }
+
+    NObjectClient::TCellId GetCellId() override
+    {
+        return Bootstrap_->GetCellId();
+    }
+
+    void SubscribePopulateAlerts(TCallback<void(std::vector<TError>*)> alerts) override
+    {
+        Bootstrap_->SubscribePopulateAlerts(alerts);
+    }
+
+    NClusterNode::TMasterEpoch GetMasterEpoch() override
+    {
+        return Bootstrap_->GetMasterEpoch();
+    }
+
+private:
+    NClusterNode::IBootstrapBase* Bootstrap_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkStoreHost)
+
+IChunkStoreHostPtr CreateChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap)
+{
+    return New<TChunkStoreHost>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkStore::TChunkStore(TDataNodeConfigPtr config, IBootstrap* bootstrap)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
+    , ChunkStoreHost_(CreateChunkStoreHost(bootstrap))
     , ProfilingExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
         BIND(&TChunkStore::OnProfiling, MakeWeak(this)),
@@ -113,7 +164,7 @@ void TChunkStore::RegisterNewChunk(const IChunkPtr& chunk, const ISessionPtr& se
     {
         auto guard = WriterGuard(ChunkMapLock_);
 
-        auto masterEpoch = Bootstrap_->GetMasterEpoch();
+        auto masterEpoch = ChunkStoreHost_->GetMasterEpoch();
         if (session && masterEpoch != session->GetMasterEpoch()) {
             THROW_ERROR_EXCEPTION("Node has reconnected to master during chunk upload")
                 << TErrorAttribute("session_master_epoch", session->GetMasterEpoch())

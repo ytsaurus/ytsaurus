@@ -152,6 +152,7 @@ TLocation::TLocation(
     : TDiskLocation(config, id, DataNodeLogger)
     , Bootstrap_(bootstrap)
     , ChunkStore_(chunkStore)
+    , ChunkStoreHost_(CreateChunkStoreHost(bootstrap))
     , Type_(type)
     , Config_(config)
     , MediumDescriptor_(TMediumDescriptor{.Name = Config_->MediumName})
@@ -193,7 +194,7 @@ TLocation::TLocation(
         DataNodeLogger,
         Profiler_);
 
-    Bootstrap_->SubscribePopulateAlerts(BIND(&TLocation::PopulateAlerts, MakeWeak(this)));
+    ChunkStoreHost_->SubscribePopulateAlerts(BIND(&TLocation::PopulateAlerts, MakeWeak(this)));
 }
 
 const NIO::IIOEnginePtr& TLocation::GetIOEngine() const
@@ -355,17 +356,7 @@ void TLocation::Disable(const TError& reason)
 
     Disabled_.Fire();
 
-    // Notify masters about disaster as soon as possible via out-of-order heartbeat.
-    // NB: Heartbeat should be reported after all the signal subscribers completed.
-    if (Bootstrap_->IsDataNode()) {
-        if (Bootstrap_->UseNewHeartbeats()) {
-            const auto& masterConnector = Bootstrap_->GetDataNodeBootstrap()->GetMasterConnector();
-            masterConnector->ScheduleHeartbeat(/*immediately*/ true);
-        } else {
-            const auto& masterConnector = Bootstrap_->GetLegacyMasterConnector();
-            masterConnector->ScheduleNodeHeartbeat(/*immediately*/ true);
-        }
-    }
+    ChunkStoreHost_->ScheduleMasterHeartbeat();
 }
 
 void TLocation::UpdateUsedSpace(i64 size)
@@ -671,6 +662,8 @@ void TLocation::ValidateWritable()
 void TLocation::InitializeCellId()
 {
     auto cellIdPath = NFS::CombinePaths(GetPath(), CellIdFileName);
+    auto expectedCellId = ChunkStoreHost_->GetCellId();
+
     if (NFS::Exists(cellIdPath)) {
         TUnbufferedFileInput file(cellIdPath);
         auto cellIdString = file.ReadAll();
@@ -679,16 +672,17 @@ void TLocation::InitializeCellId()
             THROW_ERROR_EXCEPTION("Failed to parse cell id %Qv",
                 cellIdString);
         }
-        if (cellId != Bootstrap_->GetCellId()) {
+
+        if (cellId != expectedCellId) {
             THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, found %v",
-                Bootstrap_->GetCellId(),
+                expectedCellId,
                 cellId);
         }
     } else {
         YT_LOG_INFO("Cell id file is not found, creating");
         TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         TUnbufferedFileOutput output(file);
-        output.Write(ToString(Bootstrap_->GetCellId()));
+        output.Write(ToString(expectedCellId));
     }
 }
 
