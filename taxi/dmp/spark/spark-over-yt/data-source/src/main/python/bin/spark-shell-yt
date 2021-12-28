@@ -1,0 +1,27 @@
+#!/usr/bin/env python
+
+import sys
+import os
+import subprocess
+
+from yt.wrapper import YtClient
+from spyt.standalone import shell
+from spyt import utils as spark_utils
+
+
+def main():
+    parser = spark_utils.get_default_arg_parser(description="Spark Shell")
+    parser.add_argument("--spyt-version", required=False)
+
+    args, unknown_args = spark_utils.parse_args(parser)
+    yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
+    shell(discovery_path=args.discovery_path,
+          spark_home=spark_utils.spark_home(),
+          spark_args=unknown_args,
+          spyt_version=args.spyt_version,
+          client=yt_client,
+          spark_id=args.id)
+
+
+if __name__ == '__main__':
+    main()

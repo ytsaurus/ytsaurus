@@ -90,7 +90,8 @@ lazy val `spark-submit` = (project in file("spark-submit"))
   .settings(
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= py4j,
-    libraryDependencies ++= yandexIceberg.map(_ % Provided) ++ spark ++ circe.map(_ % Provided) ++ logging.map(_ % Provided),
+    libraryDependencies ++= yandexIceberg.map(_ % Provided) ++ (ThisBuild / spytSparkForkDependency).value ++
+      circe.map(_ % Provided) ++ logging.map(_ % Provided),
     assembly / assemblyJarName := s"spark-yt-submit.jar",
     assembly / assemblyShadeRules ++= clusterShadeRules
   )
