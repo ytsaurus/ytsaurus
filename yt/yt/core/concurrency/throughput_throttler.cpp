@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/misc/singleton.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <queue>
 
 namespace NYT::NConcurrency {
@@ -23,9 +25,12 @@ struct TThrottlerRequest
     i64 Count;
     TPromise<void> Promise;
     std::atomic_flag Set = ATOMIC_FLAG_INIT;
+    NProfiling::TCpuInstant StartTime = NProfiling::GetCpuInstant();
 };
 
 DEFINE_REFCOUNTED_TYPE(TThrottlerRequest)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TReconfigurableThroughputThrottler
     : public IReconfigurableThroughputThrottler
@@ -38,6 +43,7 @@ public:
         : Logger(logger)
         , ValueCounter_(profiler.Counter("/value"))
         , QueueSizeCounter_(profiler.Gauge("/queue_size"))
+        , WaitTimer_(profiler.Timer("/wait_time"))
     {
         Reconfigure(config);
     }
@@ -220,6 +226,7 @@ private:
 
     NProfiling::TCounter ValueCounter_;
     NProfiling::TGauge QueueSizeCounter_;
+    NProfiling::TEventTimer WaitTimer_;
 
     std::atomic<TInstant> LastUpdated_ = TInstant::Zero();
     std::atomic<i64> Available_ = 0;
@@ -341,13 +348,18 @@ private:
         while (!Requests_.empty() && (limit < 0 || Available_ >= 0)) {
             const auto& request = Requests_.front();
             if (!request->Set.test_and_set()) {
-                YT_LOG_DEBUG("Finished waiting for throttler (Count: %v)", request->Count);
+                auto waitTime = NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - request->StartTime);
+                YT_LOG_DEBUG("Finished waiting for throttler (Count: %v, WaitTime: %v)",
+                    request->Count,
+                    waitTime);
+
                 if (limit) {
                     Available_ -= request->Count;
                 }
                 readyList.push_back(request);
                 QueueTotalCount_ -= request->Count;
                 QueueSizeCounter_.Update(QueueTotalCount_);
+                WaitTimer_.Record(waitTime);
             }
             Requests_.pop();
         }
