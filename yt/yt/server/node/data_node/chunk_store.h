@@ -129,6 +129,9 @@ public:
     //! Raised when a chunk is removed from the store.
     DEFINE_SIGNAL(void(const IChunkPtr&), ChunkRemoved);
 
+    //! Raised when a chunk is removal is scheduled.
+    DEFINE_SIGNAL(void(const IChunkPtr&), ChunkRemovalScheduled);
+
     //! Raised when an underlying medium for a chunk changed.
     DEFINE_SIGNAL(void(const IChunkPtr& chunk, int oldMediumIndex), ChunkMediumChanged);
 

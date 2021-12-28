@@ -69,6 +69,8 @@ private:
     void OnLocationDisabled(const TLocationPtr& location);
 
     void OnMasterDisconnected();
+
+    void OnChunkRemovalScheduled(const IChunkPtr& chunk);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSessionManager)
