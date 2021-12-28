@@ -448,16 +448,8 @@ private:
             return false;
         }
 
-        // Compute candidate epoch.
-        // Use the local one for self
-        // (others may still be following with an outdated epoch).
-        auto candidateEpochId =
-            candidateId == Owner_->CellManager_->GetSelfPeerId()
-            ? Owner_->VoteEpochId_
-            : candidateStatus.VoteEpochId;
-
         // Count votes (including self) and quorum.
-        int voteCount = CountVotesFor(candidateId, candidateEpochId);
+        int voteCount = CountVotesFor(candidateId, candidateStatus.VoteEpochId);
         int quorumCount = Owner_->CellManager_->GetQuorumPeerCount();
 
         // Check for quorum.
@@ -516,18 +508,16 @@ private:
         }
     }
 
+    using TCandidate = std::pair<TPeerId, TPeerPriority>;
+
     // Compare votes lexicographically by (priority, id).
-    static bool IsBetterCandidate(const TStatus& lhs, const TStatus& rhs)
+    static bool IsBetterCandidate(const TCandidate& lhs, const TCandidate& rhs)
     {
-        if (lhs.Priority > rhs.Priority) {
-            return true;
+        if (lhs.second != rhs.second) {
+            return lhs.second > rhs.second;
         }
 
-        if (lhs.Priority < rhs.Priority) {
-            return false;
-        }
-
-        return lhs.VoteId < rhs.VoteId;
+        return lhs.first < rhs.first;
     }
 
     void OnComplete(const TError&)
@@ -538,24 +528,33 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Voting round completed");
+        YT_LOG_DEBUG("Voting round completed, choosing the best vote");
 
         // Choose the best vote.
-        std::optional<TStatus> bestCandidate;
-        for (const auto& [_, currentCandidate] : StatusTable_) {
-            if (StatusTable_.find(currentCandidate.VoteId) != StatusTable_.end() &&
-                (!bestCandidate || IsBetterCandidate(currentCandidate, *bestCandidate)))
-            {
+        std::optional<TCandidate> bestCandidate;
+        for (const auto& [currentCandidateId, currentCandidateStatus] : StatusTable_) {
+            YT_LOG_DEBUG("Considering peer (PeerId: %v, State: %v, VoteId: %v, Priority: %v, VoteEpochId: %v)",
+                currentCandidateId,
+                currentCandidateStatus.State,
+                currentCandidateStatus.VoteId,
+                Owner_->ElectionCallbacks_->FormatPriority(currentCandidateStatus.Priority),
+                currentCandidateStatus.VoteEpochId);
+            auto currentCandidate = std::make_pair(currentCandidateId, currentCandidateStatus.Priority);
+            if (!bestCandidate || IsBetterCandidate(currentCandidate, *bestCandidate)) {
                 bestCandidate = currentCandidate;
+                YT_LOG_DEBUG("Updated best candidate (PeerId: %v, Priority %v)",
+                    currentCandidateId,
+                    currentCandidateStatus.Priority);
             }
         }
 
-        if (bestCandidate && StatusTable_[bestCandidate->VoteId].Priority >= Owner_->ElectionCallbacks_->GetPriority()) {
+        if (bestCandidate) {
             // Extract the status of the best candidate.
             // His status must be present in the table by the above checks.
-            const auto& candidateStatus = StatusTable_[bestCandidate->VoteId];
-            Owner_->ContinueVoting(candidateStatus.VoteId, candidateStatus.VoteEpochId);
+            const auto& candidateStatus = StatusTable_[bestCandidate->first];
+            Owner_->ContinueVoting(bestCandidate->first, candidateStatus.VoteEpochId);
         } else {
+            YT_LOG_DEBUG("No suitable candidate to vote for");
             Owner_->StartVoting();
         }
     }
