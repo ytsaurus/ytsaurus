@@ -105,15 +105,6 @@ DEFINE_REFCOUNTED_TYPE(TLocationPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ILocationHost
-    : public virtual TRefCounted
-{
-    virtual void ScheduleMasterHeartbeat() = 0;
-    virtual NObjectClient::TCellId GetCellId() = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TLocation
     : public TDiskLocation
 {
@@ -282,6 +273,7 @@ public:
 protected:
     NClusterNode::IBootstrapBase* const Bootstrap_;
     const TChunkStorePtr ChunkStore_;
+    const IChunkStoreHostPtr ChunkStoreHost_;
     NProfiling::TProfiler Profiler_;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
