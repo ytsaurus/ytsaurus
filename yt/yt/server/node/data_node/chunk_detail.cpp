@@ -4,7 +4,7 @@
 #include "location.h"
 #include "session_manager.h"
 #include "chunk_meta_manager.h"
-#include "chunk_registry.h"
+#include "chunk_reader_sweeper.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -33,7 +33,7 @@ TChunkHostPtr TChunkHost::Create(NClusterNode::IBootstrapBase* bootstrap)
 {
     return New<TChunkHost>(TChunkHost{
         .ChunkMetaManager = bootstrap->GetChunkMetaManager(),
-        .ChunkRegistry = bootstrap->GetChunkRegistry(),
+        .ChunkReaderSweeper = bootstrap->GetChunkReaderSweeper(),
         .BlockCache = bootstrap->GetBlockCache(),
         .ChunkStore = bootstrap->IsDataNode() ? bootstrap->GetDataNodeBootstrap()->GetChunkStore() : nullptr,
         .BlobReaderCache = bootstrap->GetBlobReaderCache(),
@@ -154,7 +154,7 @@ void TChunkBase::ReleaseReadLock()
         lockCount);
 
     if (scheduleReaderSweep) {
-        Host_->ChunkRegistry->ScheduleChunkReaderSweep(this);
+        Host_->ChunkReaderSweeper->ScheduleChunkReaderSweep(this);
     }
 
     if (removeNow) {
@@ -264,7 +264,7 @@ void TChunkBase::TrySweepReader()
     if (readerSweepLatch != 1) {
         guard.Release();
         // Re-schedule the sweep right away.
-        Host_->ChunkRegistry->ScheduleChunkReaderSweep(this);
+        Host_->ChunkReaderSweeper->ScheduleChunkReaderSweep(this);
         return;
     }
 

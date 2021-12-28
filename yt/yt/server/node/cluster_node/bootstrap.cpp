@@ -21,6 +21,7 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/yt/server/node/data_node/chunk_registry.h>
+#include <yt/yt/server/node/data_node/chunk_reader_sweeper.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/data_node_service.h>
@@ -504,6 +505,11 @@ public:
         return ChunkMetaManager_;
     }
 
+    const NDataNode::TChunkReaderSweeperPtr& GetChunkReaderSweeper() const override
+    {
+        return ChunkReaderSweeper_;
+    }
+
     const IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override
     {
         return VersionedChunkMetaManager_;
@@ -671,6 +677,8 @@ private:
     IChunkRegistryPtr ChunkRegistry_;
     IBlobReaderCachePtr BlobReaderCache_;
 
+    TChunkReaderSweeperPtr ChunkReaderSweeper_;
+
     TError UnrecognizedOptionsAlert_;
 
     TObjectServiceCachePtr ObjectServiceCache_;
@@ -809,6 +817,9 @@ private:
         DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
         ChunkRegistry_ = CreateChunkRegistry(this);
+        ChunkReaderSweeper_ = New<TChunkReaderSweeper>(
+            GetDynamicConfigManager(),
+            GetStorageHeavyInvoker());
 
         BlobReaderCache_ = CreateBlobReaderCache(this);
 
@@ -1431,6 +1442,11 @@ const IClientBlockCachePtr& TBootstrapBase::GetClientBlockCache() const
 const IChunkMetaManagerPtr& TBootstrapBase::GetChunkMetaManager() const
 {
     return Bootstrap_->GetChunkMetaManager();
+}
+
+const TChunkReaderSweeperPtr& TBootstrapBase::GetChunkReaderSweeper() const
+{
+    return Bootstrap_->GetChunkReaderSweeper();
 }
 
 const IVersionedChunkMetaManagerPtr& TBootstrapBase::GetVersionedChunkMetaManager() const

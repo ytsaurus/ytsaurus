@@ -32,13 +32,7 @@ class TChunkRegistry
 public:
     explicit TChunkRegistry(IBootstrapBase* bootstrap)
         : Bootstrap_(bootstrap)
-        , ChunkReaderSweepExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetStorageHeavyInvoker(),
-            BIND(&TChunkRegistry::OnChunkReaderSweep, MakeWeak(this)),
-            ChunkReaderSweepPeriod))
-    {
-        ChunkReaderSweepExecutor_->Start();
-    }
+    { }
 
     IChunkPtr FindChunk(
         TChunkId chunkId,
@@ -85,42 +79,8 @@ public:
         return chunk;
     }
 
-    void ScheduleChunkReaderSweep(IChunkPtr chunk) override
-    {
-        auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
-        ChunkReaderSweepStack_.Enqueue({
-            .Chunk = std::move(chunk),
-            .Deadline = TInstant::Now() + dynamicConfig->DataNode->ChunkReaderRetentionTimeout
-        });
-    }
-
 private:
     IBootstrapBase* const Bootstrap_;
-    const TPeriodicExecutorPtr ChunkReaderSweepExecutor_;
-
-    struct TChunkReaderSweepEntry
-    {
-        IChunkPtr Chunk;
-        TInstant Deadline;
-    };
-
-    TMpscStack<TChunkReaderSweepEntry> ChunkReaderSweepStack_;
-    TRingQueue<TChunkReaderSweepEntry> ChunkReaderSweepQueue_;
-
-    static constexpr auto ChunkReaderSweepPeriod = TDuration::Seconds(1);
-
-    void OnChunkReaderSweep()
-    {
-        ChunkReaderSweepStack_.DequeueAll(true, [&] (auto&& entry) {
-            ChunkReaderSweepQueue_.push(std::move(entry));
-        });
-
-        auto now = TInstant::Now();
-        while (!ChunkReaderSweepQueue_.empty() && ChunkReaderSweepQueue_.front().Deadline < now) {
-            ChunkReaderSweepQueue_.front().Chunk->TrySweepReader();
-            ChunkReaderSweepQueue_.pop();
-        }
-    }
 };
 
 IChunkRegistryPtr CreateChunkRegistry(IBootstrapBase* bootstrap)

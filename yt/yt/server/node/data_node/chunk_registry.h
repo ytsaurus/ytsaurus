@@ -28,10 +28,6 @@ struct IChunkRegistry
     virtual IChunkPtr GetChunkOrThrow(
         TChunkId chunkId,
         int mediumIndex = NChunkClient::AllMediaIndex) = 0;
-
-    //! Schedules calling #IChunk::TrySweepReader after a configured period of time
-    //! (see #TDataNodeDynamicConfig::ChunkReaderRetentionTimeout).
-    virtual void ScheduleChunkReaderSweep(IChunkPtr chunk) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkRegistry)

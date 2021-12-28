@@ -36,7 +36,7 @@ struct TChunkDescriptor
 struct TChunkHost final
 {
     IChunkMetaManagerPtr ChunkMetaManager;
-    IChunkRegistryPtr ChunkRegistry;
+    TChunkReaderSweeperPtr ChunkReaderSweeper;
     TChunkStorePtr ChunkStore;
     IPrioritizedInvokerPtr StorageHeavyInvoker;
     IInvokerPtr StorageLightInvoker;
