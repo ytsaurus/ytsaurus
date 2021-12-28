@@ -1019,8 +1019,9 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     CustomPrepare();
 
-    // NB: this call must be after CustomPrepare() since some controllers may alter input table ranges
-    // (e.g. TEraseController which inverts provided range).
+    // NB: these calls must be after CustomPrepare() since some controllers may alter input table ranges
+    // (e.g. TEraseController which inverts the user-provided range).
+    InferInputRanges();
     InitInputStreamDirectory();
 
     YT_LOG_INFO("Operation prepared");
@@ -5487,11 +5488,9 @@ void TOperationControllerBase::FetchInputTables()
     i64 totalChunkCount = 0;
     i64 totalExtensionSize = 0;
 
-    YT_LOG_INFO("Started fetching input tables");
-
-    TQueryOptions queryOptions;
-    queryOptions.VerboseLogging = true;
-    queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
+    YT_LOG_INFO(
+        "Started fetching input tables (TableCount: %v)",
+        InputTables_.size());
 
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
@@ -5536,13 +5535,11 @@ void TOperationControllerBase::FetchInputTables()
         },
         Logger);
 
-    // We fetch columnar statistics only for the tables that have column selectors specified.
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
         yielder.TryYield();
 
         auto& table = InputTables_[tableIndex];
         auto ranges = table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());
-        int originalRangeCount = ranges.size();
 
         // XXX(max42): does this ever happen?
         if (ranges.empty()) {
@@ -5550,37 +5547,6 @@ void TOperationControllerBase::FetchInputTables()
         }
 
         bool hasColumnSelectors = table->Path.GetColumns().operator bool();
-
-        if (InputQuery && table->Schema->IsSorted()) {
-            auto rangeInferrer = CreateRangeInferrer(
-                InputQuery->Query->WhereClause,
-                table->Schema,
-                table->Schema->GetKeyColumns(),
-                Host->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
-                BuiltinRangeExtractorMap,
-                queryOptions);
-
-            std::vector<TReadRange> inferredRanges;
-            for (const auto& range : ranges) {
-                yielder.TryYield();
-
-                auto legacyRange = ReadRangeToLegacyReadRange(range);
-                auto lower = legacyRange.LowerLimit().HasLegacyKey()
-                    ? legacyRange.LowerLimit().GetLegacyKey()
-                    : MinKey();
-                auto upper = legacyRange.UpperLimit().HasLegacyKey()
-                    ? legacyRange.UpperLimit().GetLegacyKey()
-                    : MaxKey();
-                auto result = rangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
-                for (const auto& inferred : result) {
-                    auto inferredRange = legacyRange;
-                    inferredRange.LowerLimit().SetLegacyKey(TLegacyOwningKey(inferred.first));
-                    inferredRange.UpperLimit().SetLegacyKey(TLegacyOwningKey(inferred.second));
-                    inferredRanges.push_back(ReadRangeFromLegacyReadRange(inferredRange, table->Comparator.GetLength()));
-                }
-            }
-            ranges = std::move(inferredRanges);
-        }
 
         if (std::ssize(ranges) > Config->MaxRangesOnTable) {
             THROW_ERROR_EXCEPTION(
@@ -5590,10 +5556,12 @@ void TOperationControllerBase::FetchInputTables()
                 << TErrorAttribute("table_path", table->Path);
         }
 
-        YT_LOG_INFO("Adding input table for fetch (Path: %v, RangeCount: %v, InferredRangeCount: %v, "
+        YT_LOG_DEBUG("Adding input table for fetch (Path: %v, Id: %v, Dynamic: %v, ChunkCount: %v, RangeCount: %v, "
             "HasColumnSelectors: %v, EnableDynamicStoreRead: %v)",
             table->GetPath(),
-            originalRangeCount,
+            table->ObjectId,
+            table->Dynamic,
+            table->ChunkCount,
             ranges.size(),
             hasColumnSelectors,
             Spec_->EnableDynamicStoreRead);
@@ -5644,6 +5612,7 @@ void TOperationControllerBase::FetchInputTables()
             }
             RegisterInputChunk(table->Chunks.back());
 
+            // We fetch columnar statistics only for the tables that have column selectors specified.
             auto hasColumnSelectors = table->Path.GetColumns().operator bool();
             if (hasColumnSelectors && Spec_->InputTableColumnarStatistics->Enabled) {
                 columnarStatisticsFetcher->AddChunk(inputChunk, *table->Path.GetColumns());
@@ -7297,6 +7266,70 @@ void TOperationControllerBase::CustomPrepare()
 
 void TOperationControllerBase::CustomMaterialize()
 { }
+
+void TOperationControllerBase::InferInputRanges()
+{
+    TPeriodicYielder yielder(PrepareYieldPeriod);
+
+    if (!InputQuery) {
+        return;
+    }
+
+    YT_LOG_INFO("Inferring ranges for input tables");
+
+    TQueryOptions queryOptions;
+    queryOptions.VerboseLogging = true;
+    queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
+
+    for (auto& table : InputTables_) {
+        yielder.TryYield();
+
+        auto ranges = table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());
+
+        // XXX(max42): does this ever happen?
+        if (ranges.empty()) {
+            continue;
+        }
+
+        if (!table->Schema->IsSorted()) {
+            continue;
+        }
+
+        auto rangeInferrer = CreateRangeInferrer(
+            InputQuery->Query->WhereClause,
+            table->Schema,
+            table->Schema->GetKeyColumns(),
+            Host->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
+            BuiltinRangeExtractorMap,
+            queryOptions);
+
+        std::vector<TReadRange> inferredRanges;
+        for (const auto& range : ranges) {
+            yielder.TryYield();
+
+            auto legacyRange = ReadRangeToLegacyReadRange(range);
+            auto lower = legacyRange.LowerLimit().HasLegacyKey()
+                ? legacyRange.LowerLimit().GetLegacyKey()
+                : MinKey();
+            auto upper = legacyRange.UpperLimit().HasLegacyKey()
+                ? legacyRange.UpperLimit().GetLegacyKey()
+                : MaxKey();
+            auto result = rangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
+            for (const auto& inferred : result) {
+                auto inferredRange = legacyRange;
+                inferredRange.LowerLimit().SetLegacyKey(TLegacyOwningKey(inferred.first));
+                inferredRange.UpperLimit().SetLegacyKey(TLegacyOwningKey(inferred.second));
+                inferredRanges.push_back(ReadRangeFromLegacyReadRange(inferredRange, table->Comparator.GetLength()));
+            }
+        }
+        table->Path.SetRanges(inferredRanges);
+
+        YT_LOG_DEBUG("Input table ranges inferred (Path: %v, RangeCount: %v, InferredRangeCount: %v)",
+            table->GetPath(),
+            ranges.size(),
+            inferredRanges.size());
+    }
+}
 
 TError TOperationControllerBase::GetAutoMergeError() const
 {
