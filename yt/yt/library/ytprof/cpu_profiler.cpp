@@ -166,7 +166,7 @@ void TCpuProfiler::StopTimer()
     struct sigaction sig;
     sig.sa_flags = 0;
     sigemptyset(&sig.sa_mask);
-    sig.sa_handler = SIG_DFL;
+    sig.sa_handler = SIG_IGN;
 
     if (sigaction(SIGPROF, &sig, NULL) != 0) {
         throw TSystemError(LastSystemError());
