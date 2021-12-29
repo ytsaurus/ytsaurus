@@ -159,6 +159,10 @@ private:
             writeMode,
             ReplicationCard_->Era);
 
+        if (selfReplica->State == EReplicaState::Disabled) {
+            return;
+        }
+
         auto forwardReplicationProgress = [&] (int historyItemIndex) {
             if (historyItemIndex >= std::ssize(selfReplica->History)) {
                 YT_LOG_DEBUG("Will not advance replication progress to the next era because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",
