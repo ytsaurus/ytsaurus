@@ -22,6 +22,8 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/client/node_tracker_client/public.h>
+
 #include <yt/yt/core/rpc/config.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -1543,6 +1545,7 @@ class TRemoteCopyOperationSpec
 public:
     std::optional<TString> ClusterName;
     std::optional<TString> NetworkName;
+    std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
     std::optional<NApi::NNative::TConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;

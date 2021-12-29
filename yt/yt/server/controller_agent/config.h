@@ -468,14 +468,11 @@ class TRemoteCopyOperationOptions
 {
 public:
     NScheduler::TCpuResource CpuLimit;
+    std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
 
     REGISTER_YSON_STRUCT(TRemoteCopyOperationOptions)
 
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("cpu_limit", &TThis::CpuLimit)
-            .Default(NScheduler::TCpuResource(0.1));
-    }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationOptions, 0xf3893dc8);

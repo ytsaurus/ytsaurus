@@ -13,7 +13,8 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, sync_compact_table,
     multicell_sleep, set_banned_flag,
     raises_yt_error, get_driver,
-    create_pool, update_pool_tree_config_option)
+    create_pool, update_pool_tree_config_option,
+    update_controller_agent_config)
 
 from yt_helpers import skip_if_no_descending
 from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
@@ -802,6 +803,101 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
             },
         )
 
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("egor-gutrov")
+    def test_network_preference_list(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        with pytest.raises(YtError):
+            remote_copy(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                    "networks": ["unexisting"],
+                },
+            )
+
+        with pytest.raises(YtError):
+            remote_copy(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                    "networks": ["default"],
+                    "network_name": "default",
+                },
+            )
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "networks": ["unexisting", "custom_network"],
+            },
+        )
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "networks": ["custom_network", "unexisting"],
+            },
+        )
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "network_names": ["custom_network", "unexisting"],
+            },
+        )
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("egor-gutrov")
+    def test_network_with_spec_template(self):
+        update_controller_agent_config("remote_copy_operation_options/networks", ["undefined"], False)
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        with pytest.raises(YtError):
+            remote_copy(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                },
+            )
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "network_name": "custom_network",
+            },
+        )
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "networks": ["custom_network"],
+            },
+        )
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
 
