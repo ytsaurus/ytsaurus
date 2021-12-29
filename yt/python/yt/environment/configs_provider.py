@@ -747,6 +747,7 @@ def _build_chaos_node_configs(chaos_node_dirs,
 
         set_at(config, "cellar_node/cellar_manager/cellars/chaos/occupant/hydra_manager", _get_hydra_manager_config(), merge=True)
         set_at(config, "cellar_node/cellar_manager/cellars/chaos/occupant/hydra_manager/restart_backoff_time", 100)
+        set_at(config, "cellar_node/cellar_manager/cellars/chaos/occupant/response_keeper", _get_response_keeper_config())
 
         config["logging"] = _init_logging(logs_dir, "chaos-node-{0}".format(index), yt_config)
         configs.append(config)
@@ -1182,13 +1183,15 @@ def _get_hydra_manager_config():
         "leader_lease_check_period": 100,
         "leader_lease_timeout": 20000,
         "disable_leader_lease_grace_delay": True,
-        "response_keeper": {
-            "enable_warmup": False,
-            "expiration_time": 25000,
-            "warmup_time": 30000,
-        }
+        "response_keeper": _get_response_keeper_config()
     }
 
+def _get_response_keeper_config():
+    return { 
+        "enable_warmup": False,
+        "expiration_time": 25000,
+        "warmup_time": 30000,
+    }
 
 def _get_balancing_channel_config():
     return {

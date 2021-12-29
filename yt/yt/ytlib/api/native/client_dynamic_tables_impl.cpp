@@ -2502,7 +2502,7 @@ TPullRowsResult TClient::DoPullRows(
     return combinedResult;
 }
 
-IChannelPtr TClient::GetChaosChannel(TCellId chaosCellId)
+IChannelPtr TClient::GetChaosChannel(TCellId chaosCellId, EPeerKind peerKind)
 {
     auto channel = [&] {
         const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();
@@ -2523,7 +2523,7 @@ IChannelPtr TClient::GetChaosChannel(TCellId chaosCellId)
         YT_VERIFY(std::ssize(descriptors) == 1);
 
         cellDirectory->ReconfigureCell(descriptors[0]);
-        return cellDirectory->GetChannelOrThrow(chaosCellId, EPeerKind::LeaderOrFollower);
+        return cellDirectory->GetChannelOrThrow(chaosCellId, peerKind);
     }();
 
     return CreateRetryingChannel(GetNativeConnection()->GetConfig()->ChaosCellChannel, std::move(channel));
@@ -2560,7 +2560,7 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
             .ValueOrThrow();
     }
 
-    auto channel = GetChaosChannel(replicationCardToken.ChaosCellId);
+    auto channel = GetChaosChannel(replicationCardToken.ChaosCellId, EPeerKind::LeaderOrFollower);
     auto proxy = TChaosServiceProxy(channel);
     auto req = proxy.GetReplicationCard();
 
