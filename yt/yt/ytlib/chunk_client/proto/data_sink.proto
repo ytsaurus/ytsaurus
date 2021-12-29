@@ -1,0 +1,19 @@
+package NYT.NChunkClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TDataSink
+{
+    optional string object_path = 1;
+    optional NYT.NProto.TGuid object_id = 2;
+    optional string account = 3;
+}
+
+message TDataSinkDirectoryExt
+{
+    repeated TDataSink data_sinks = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

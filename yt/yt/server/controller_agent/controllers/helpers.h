@@ -22,6 +22,7 @@ NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
 ////////////////////////////////////////////////////////////////////////////////
 
 NChunkClient::TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vector<TInputTablePtr>& inputTables);
+NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryFromOutputTables(const std::vector<TOutputTablePtr>& outputTables);
 
 ////////////////////////////////////////////////////////////////////////////////
 

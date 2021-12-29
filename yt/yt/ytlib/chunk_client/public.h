@@ -35,6 +35,9 @@ class TRspExecuteBatch;
 class TDataSource;
 class TDataSourceDirectoryExt;
 
+class TDataSink;
+class TDataSinkDirectoryExt;
+
 class TReqGetChunkMeta;
 
 class TAllyReplicasInfo;
@@ -192,6 +195,7 @@ DECLARE_REFCOUNTED_CLASS(TInputChunkSlice)
 DECLARE_REFCOUNTED_STRUCT(TLegacyDataSlice)
 
 DECLARE_REFCOUNTED_CLASS(TDataSourceDirectory)
+DECLARE_REFCOUNTED_CLASS(TDataSinkDirectory)
 
 DECLARE_REFCOUNTED_CLASS(TChunkScraper)
 DECLARE_REFCOUNTED_CLASS(TScraperTask)
