@@ -91,6 +91,13 @@ class TestNewUpToNodes(ClusterSetupTestBase):
         "trunk": ["node", "job-proxy", "exec", "tools", "scheduler", "controller-agent", "proxy", "http-proxy"],
     }
 
+
+class TestNewNodesOldSchedulerAndCA(ClusterSetupTestBase):
+    ARTIFACT_COMPONENTS = {
+        "21_3": ["master", "scheduler", "controller-agent"],
+        "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],
+    }
+
 # There is no need in test with new masters, such test should not belong to this test suite.
 
 
