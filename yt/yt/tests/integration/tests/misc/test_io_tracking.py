@@ -329,6 +329,8 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
         write_table("//tmp/table", [{"a": 1, "b": 2, "c": 3}])
 
         has_replication_job = False
+        read_count = 0
+        write_count = 0
         for node_id in range(self.NUM_NODES):
             raw_events, _ = self.wait_for_events(
                 raw_count=1, from_barrier=from_barriers[node_id], node_id=node_id,
@@ -338,10 +340,21 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
             has_replication_job = True
             assert raw_events[0]["job_type@"] == "ReplicateChunk"
             assert "job_id" in raw_events[0]
+            assert "medium@" in raw_events[0]
+            assert "location_id@" in raw_events[0]
+            assert "disk_family@" in raw_events[0]
             assert raw_events[0]["byte_count"] > 0
             assert raw_events[0]["io_count"] > 0
+            direction = raw_events[0]["direction@"]
+            assert direction in ["read", "write"]
+            if direction == "read":
+                read_count += 1
+            else:
+                write_count += 1
 
         assert has_replication_job
+        assert read_count >= 0
+        assert write_count >= 0
 
     @authors("gepardo")
     def test_large_replicate(self):

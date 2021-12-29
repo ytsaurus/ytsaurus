@@ -753,11 +753,18 @@ private:
                 }
             }
             if (totalBlockSize > 0 && Bootstrap_->GetIOTracker()->IsEnabled()) {
+                const auto& location = chunk->GetLocation();
+
                 Bootstrap_->GetIOTracker()->Enqueue(TIOCounters{
                     .ByteCount = totalBlockSize,
                     .IOCount = 1
                 },
-                /*tags*/ {});
+                /*tags*/ {
+                    {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
+                    {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
+                    {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
+                    {FormatIOTag(EAggregateIOTag::Direction), "read"},
+                });
             }
 
             std::vector<TBlock> writeBlocks;
@@ -1160,7 +1167,12 @@ private:
                         .ByteCount = totalRecordsSize,
                         .IOCount = 1
                     },
-                    /*tags*/ {});
+                    /*tags*/ {
+                        {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
+                        {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
+                        {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
+                        {FormatIOTag(EAggregateIOTag::Direction), "write"},
+                    });
                 }
 
                 currentRowCount += blockCount;
