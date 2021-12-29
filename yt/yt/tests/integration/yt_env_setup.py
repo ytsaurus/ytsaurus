@@ -239,6 +239,7 @@ class YTEnvSetup(object):
     USE_DYNAMIC_TABLES = False
     USE_MASTER_CACHE = False
     USE_PERMISSION_CACHE = True
+    USE_PRIMARY_CLOCKS = True
     ENABLE_BULK_INSERT = False
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
@@ -322,7 +323,10 @@ class YTEnvSetup(object):
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
             secondary_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
             defer_secondary_cell_start=cls.get_param("DEFER_SECONDARY_CELL_START", index),
-            clock_count=cls.get_param("NUM_CLOCKS", index),
+            clock_count=(
+                cls.get_param("NUM_CLOCKS", index)
+                if not cls.get_param("USE_PRIMARY_CLOCKS", index) or index == 0
+                else 0),
             timestamp_provider_count=cls.get_param("NUM_TIMESTAMP_PROVIDERS", index),
             cell_balancer_count=cls.get_param("NUM_CELL_BALANCERS", index),
             discovery_server_count=cls.get_param("NUM_DISCOVERY_SERVERS", index),
@@ -529,23 +533,24 @@ class YTEnvSetup(object):
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
             for index, config in enumerate(configs["master"][tag]):
-                configs["master"][tag][index] = update_inplace(
-                    config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index)
-                )
+                config = update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
+                configs["master"][tag][index] = cls.update_timestamp_provider_config(cluster_index, config)
                 cls.modify_master_config(configs["master"][tag][index], tag, index)
         for index, config in enumerate(configs["scheduler"]):
-            configs["scheduler"][index] = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index])
         for index, config in enumerate(configs["cell_balancer"]):
-            configs["cell_balancer"][index] = update_inplace(config, cls.get_param("DELTA_CELL_BALANCER_CONFIG", cluster_index))
+            config = update_inplace(config, cls.get_param("DELTA_CELL_BALANCER_CONFIG", cluster_index))
+            configs["cell_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_cell_balancer_config(configs["cell_balancer"][index])
         for index, config in enumerate(configs["controller_agent"]):
             delta_config = cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
-            configs["controller_agent"][index] = update_inplace(
+            config = update_inplace(
                 update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG),
                 delta_config,
             )
-
+            configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index])
         for index, config in enumerate(configs["node"]):
             config = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
@@ -556,24 +561,42 @@ class YTEnvSetup(object):
 
             config["exec_agent"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
 
+            config = cls.update_timestamp_provider_config(cluster_index, config)
             configs["node"][index] = config
             cls.modify_node_config(configs["node"][index])
 
+        for index, config in enumerate(configs["chaos_node"]):
+            configs["chaos_node"][index] = cls.update_timestamp_provider_config(cluster_index, config)
+
         for index, config in enumerate(configs["http_proxy"]):
-            configs["http_proxy"][index] = update_inplace(config, cls.get_param("DELTA_PROXY_CONFIG", cluster_index))
+            config = update_inplace(config, cls.get_param("DELTA_PROXY_CONFIG", cluster_index))
+            configs["http_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_proxy_config(configs["http_proxy"])
 
         for index, config in enumerate(configs["rpc_proxy"]):
-            configs["rpc_proxy"][index] = update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
+            config = update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
+            configs["rpc_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_rpc_proxy_config(configs["rpc_proxy"])
 
         for key, config in iteritems(configs["driver"]):
-            configs["driver"][key] = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+            config = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+            configs["driver"][key] = cls.update_timestamp_provider_config(cluster_index, config)
 
         configs["rpc_driver"] = update_inplace(
             configs["rpc_driver"],
             cls.get_param("DELTA_RPC_DRIVER_CONFIG", cluster_index),
         )
+
+    @classmethod
+    def update_timestamp_provider_config(cls, cluster_index, config):
+        if cls.get_param("NUM_CLOCKS", cluster_index) == 0 or cluster_index == 0 or not cls.get_param("USE_PRIMARY_CLOCKS", cluster_index):
+            return config
+        primary_timestamp_provider = cls.Env.configs["chaos_node"][0]["cluster_connection"]["timestamp_provider"]
+        if "timestamp_provider" in config.keys():
+            config["timestamp_provider"] = primary_timestamp_provider
+        if "cluster_connection" in config.keys():
+            config["cluster_connection"]["timestamp_provider"] = primary_timestamp_provider
+        return config
 
     @classmethod
     def teardown_class(cls):
