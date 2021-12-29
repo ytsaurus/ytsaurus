@@ -46,6 +46,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((InputStreamPerRange)                  (300703))
     ((RefactorStatistics)                   (300704))
     ((AddAccountIntoUserObject)             (300705))
+    ((RemoteCopyNetworks)                   (300706))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

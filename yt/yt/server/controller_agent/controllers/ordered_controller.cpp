@@ -1092,7 +1092,12 @@ public:
             operation)
         , Spec_(spec)
         , Options_(options)
-    { }
+        , Networks_(Spec_->Networks)
+    {
+        if (!Networks_ && Options_->Networks) {
+            Networks_ = Options_->Networks;
+        }
+    }
 
     void Persist(const TPersistenceContext& context) override
     {
@@ -1102,6 +1107,9 @@ public:
         Persist(context, Spec_);
         Persist(context, Options_);
         Persist<TAttributeDictionarySerializer>(context, InputTableAttributes_);
+        if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::RemoteCopyNetworks) {
+            Persist(context, Networks_);
+        }
     }
 
 private:
@@ -1109,6 +1117,7 @@ private:
 
     TRemoteCopyOperationSpecPtr Spec_;
     TRemoteCopyOperationOptionsPtr Options_;
+    std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks_;
 
     IAttributeDictionaryPtr InputTableAttributes_;
 
@@ -1132,7 +1141,7 @@ private:
         TOperationControllerBase::BuildBriefSpec(fluent);
         fluent
             .Item("cluster_name").Value(Spec_->ClusterName)
-            .Item("network_name").Value(Spec_->NetworkName);
+            .Item("networks").Value(Networks_);
     }
 
     // Custom bits of preparation pipeline.
@@ -1308,8 +1317,8 @@ private:
             BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         auto connectionConfig = CloneYsonSerializable(GetRemoteConnectionConfig());
-        if (Spec_->NetworkName) {
-            connectionConfig->Networks = {*Spec_->NetworkName};
+        if (Networks_) {
+            connectionConfig->Networks = *Networks_;
         }
 
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);

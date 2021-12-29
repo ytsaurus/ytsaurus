@@ -1616,6 +1616,9 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("output_table_path", &TThis::OutputTablePath);
     registrar.Parameter("network_name", &TThis::NetworkName)
         .Default();
+    registrar.Parameter("networks", &TThis::Networks)
+        .Alias("network_names")
+        .Default();
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
         .Default();
     registrar.Parameter("max_chunk_count_per_job", &TThis::MaxChunkCountPerJob)
@@ -1650,8 +1653,16 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         spec->InputTablePaths = NYPath::Normalize(spec->InputTablePaths);
         spec->OutputTablePath = spec->OutputTablePath.Normalize();
 
+        if (spec->NetworkName) {
+            if (spec->Networks) {
+                THROW_ERROR_EXCEPTION("Options \"network_name\" and \"networks\"/\"network_names\" cannot be specified simultaneously");
+            }
+            spec->Networks = {*spec->NetworkName};
+            spec->NetworkName.reset();
+        }
+        
         if (!spec->ClusterName && !spec->ClusterConnection) {
-            THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified.");
+            THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified");
         }
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {

@@ -382,6 +382,14 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
+void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cpu_limit", &TThis::CpuLimit)
+        .Default(NScheduler::TCpuResource(0.1));
+    registrar.Parameter("networks", &TThis::Networks)
+        .Default();
+}
+
 void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_monitored_user_jobs_per_operation", &TThis::MaxMonitoredUserJobsPerOperation)
