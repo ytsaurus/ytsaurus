@@ -755,16 +755,18 @@ private:
             if (totalBlockSize > 0 && Bootstrap_->GetIOTracker()->IsEnabled()) {
                 const auto& location = chunk->GetLocation();
 
-                Bootstrap_->GetIOTracker()->Enqueue(TIOCounters{
-                    .ByteCount = totalBlockSize,
-                    .IOCount = 1
-                },
-                /*tags*/ {
-                    {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
-                    {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
-                    {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
-                    {FormatIOTag(EAggregateIOTag::Direction), "read"},
-                });
+                Bootstrap_->GetIOTracker()->Enqueue(
+                    TIOCounters{
+                        .ByteCount = totalBlockSize,
+                        .IOCount = 1
+                    },
+                    /*tags*/ {
+                        {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
+                        {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
+                        {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
+                        {FormatIOTag(EAggregateIOTag::Direction), "read"},
+                        {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(chunkId).Id)},
+                    });
             }
 
             std::vector<TBlock> writeBlocks;
@@ -1163,16 +1165,18 @@ private:
                     totalRecordsSize += block.Size();
                 }
                 if (totalRecordsSize > 0 && Bootstrap_->GetIOTracker()->IsEnabled()) {
-                    Bootstrap_->GetIOTracker()->Enqueue(TIOCounters{
-                        .ByteCount = totalRecordsSize,
-                        .IOCount = 1
-                    },
-                    /*tags*/ {
-                        {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
-                        {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
-                        {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
-                        {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                    });
+                    Bootstrap_->GetIOTracker()->Enqueue(
+                        TIOCounters{
+                            .ByteCount = totalRecordsSize,
+                            .IOCount = 1
+                        },
+                        /*tags*/ {
+                            {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
+                            {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
+                            {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
+                            {FormatIOTag(EAggregateIOTag::Direction), "write"},
+                            {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(chunkId).Id)},
+                        });
                 }
 
                 currentRowCount += blockCount;

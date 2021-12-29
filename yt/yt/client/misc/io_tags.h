@@ -15,6 +15,7 @@ DEFINE_ENUM(ERawIOTag,
     ((ObjectPath)     (3))
     ((ObjectId)       (4))
     ((OperationId)    (5))
+    ((ChunkId)        (6))
 );
 
 DEFINE_ENUM(EAggregateIOTag,

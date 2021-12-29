@@ -116,9 +116,11 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         create("table", "//tmp/table")
         write_table("//tmp/table", [{"a": 1, "b": 2, "c": 3}])
         raw_events, aggregate_events = self.wait_for_events(raw_count=1, aggregate_count=1, from_barrier=from_barrier)
+        chunk_id = get("//tmp/table/@chunk_ids")[0]
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
         assert raw_events[0]["direction@"] == "write"
+        assert raw_events[0]["chunk_id"] == chunk_id
         for counter in ["byte_count", "io_count"]:
             assert raw_events[0][counter] > 0 and raw_events[0][counter] == aggregate_events[0][counter]
 
@@ -129,15 +131,19 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         write_table("//tmp/table", [{"number": 42, "good": True}])
         write_table("<append=%true>//tmp/table", [{"number": 43, "good": False}])
         raw_events, aggregate_events = self.wait_for_events(raw_count=2, aggregate_count=1, from_barrier=from_barrier)
+        chunk_ids = get("//tmp/table/@chunk_ids")
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
         assert raw_events[0]["direction@"] == "write"
+        assert raw_events[0]["chunk_id"] in chunk_ids
         assert raw_events[1]["data_node_method@"] == "FinishChunk"
         assert raw_events[1]["direction@"] == "write"
+        assert raw_events[1]["chunk_id"] in chunk_ids
         for counter in ["byte_count", "io_count"]:
             assert raw_events[0][counter] > 0
             assert raw_events[1][counter] > 0
             assert raw_events[0][counter] + raw_events[1][counter] == aggregate_events[0][counter]
+        assert raw_events[0]["chunk_id"] != raw_events[1]["chunk_id"]
 
     @authors("gepardo")
     def test_read_table(self):
@@ -146,11 +152,14 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         write_table("//tmp/table", [{"a": 1, "b": 2, "c": 3}])
         assert read_table("//tmp/table") == [{"a": 1, "b": 2, "c": 3}]
         raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
+        chunk_id = get("//tmp/table/@chunk_ids")[0]
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
         assert raw_events[0]["direction@"] == "write"
+        assert raw_events[0]["chunk_id"] == chunk_id
         assert raw_events[1]["data_node_method@"] == "GetBlockSet"
         assert raw_events[1]["direction@"] == "read"
+        assert raw_events[1]["chunk_id"] == chunk_id
         for counter in ["byte_count", "io_count"]:
             assert raw_events[0][counter] > 0
             assert raw_events[1][counter] > 0
@@ -193,9 +202,11 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         create("journal", "//tmp/journal")
         write_journal("//tmp/journal", data)
         raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+        chunk_id = get("//tmp/journal/@chunk_ids")[0]
 
         assert raw_events[0]["data_node_method@"] == "FlushBlocks"
         assert raw_events[0]["direction@"] == "write"
+        assert raw_events[0]["chunk_id"] == chunk_id
         assert raw_events[0]["byte_count"] > 0
         assert raw_events[0]["io_count"] > 0
 
@@ -205,6 +216,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
         assert raw_events[0]["data_node_method@"] == "GetBlockRange"
         assert raw_events[0]["direction@"] == "read"
+        assert raw_events[0]["chunk_id"] == chunk_id
         assert raw_events[0]["byte_count"] > 0
         assert raw_events[0]["io_count"] > 0
 
@@ -264,11 +276,13 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         create("table", "//tmp/table", attributes={"erasure_codec": "reed_solomon_3_3"})
         write_table("//tmp/table", data)
+        chunk_id = get("//tmp/table/@chunk_ids")[0]
 
         for node_id in range(self.NUM_NODES):
             raw_events, _ = self.wait_for_events(raw_count=1, node_id=node_id, from_barrier=from_barriers[node_id])
 
             assert raw_events[0]["data_node_method@"] == "FinishChunk"
+            assert raw_events[0]["chunk_id"] == chunk_id
             assert raw_events[0]["byte_count"] > 0
             assert raw_events[0]["io_count"] > 0
 
@@ -289,11 +303,13 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
             "write_quorum": 6,
         })
         write_journal("//tmp/journal", data)
+        chunk_id = get("//tmp/journal/@chunk_ids")[0]
 
         for node_id in range(self.NUM_NODES):
             raw_events, _ = self.wait_for_events(raw_count=1, node_id=node_id, from_barrier=from_barriers[node_id])
 
             assert raw_events[0]["data_node_method@"] == "FlushBlocks"
+            assert raw_events[0]["chunk_id"] == chunk_id
             assert raw_events[0]["byte_count"] > 0
             assert raw_events[0]["io_count"] > 0
 
@@ -327,6 +343,11 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         create("table", "//tmp/table", attributes={"replication_factor": self.NUM_NODES})
         write_table("//tmp/table", [{"a": 1, "b": 2, "c": 3}])
+        chunk_id = get("//tmp/table/@chunk_ids")[0]
+
+        def event_filter(event):
+            return event.get("data_node_method@") == "FinishChunk" and \
+                event["chunk_id"] == chunk_id
 
         has_replication_job = False
         read_count = 0
@@ -334,7 +355,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
         for node_id in range(self.NUM_NODES):
             raw_events, _ = self.wait_for_events(
                 raw_count=1, from_barrier=from_barriers[node_id], node_id=node_id,
-                filter=lambda event: event.get("data_node_method@") == "FinishChunk")
+                filter=event_filter)
             if "job_type@" not in raw_events[0]:
                 continue
             has_replication_job = True
@@ -363,6 +384,11 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         create("table", "//tmp/table", attributes={"replication_factor": self.NUM_NODES})
         write_table("//tmp/table", large_data)
+        chunk_id = get("//tmp/table/@chunk_ids")[0]
+
+        def event_filter(event):
+            return event.get("data_node_method@") == "FinishChunk" and \
+                event["chunk_id"] == chunk_id
 
         disk_space = get("//tmp/table/@resource_usage/disk_space")
         min_data_bound = 0.95 * large_data_size
@@ -375,7 +401,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
         for node_id in range(self.NUM_NODES):
             raw_events, _ = self.wait_for_events(
                 raw_count=1, from_barrier=from_barriers[node_id], node_id=node_id,
-                filter=lambda event: event.get("data_node_method@") == "FinishChunk")
+                filter=event_filter)
             event = raw_events[0]
             if "job_type@" not in event:
                 continue

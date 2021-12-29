@@ -105,7 +105,8 @@ THashMap<TString, TString> MakeWriteIOTags(TString method, const ISessionPtr& se
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
         {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
-        {FormatIOTag(EAggregateIOTag::Direction), "write"}
+        {FormatIOTag(EAggregateIOTag::Direction), "write"},
+        {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(session->GetChunkId()).Id)},
     };
 }
 
@@ -113,6 +114,7 @@ THashMap<TString, TString> MakeReadIOTags(
     TString method,
     const TLocationPtr& location,
     const IServiceContextPtr& context,
+    const TChunkId& chunkId,
     TGuid readSessionId = TGuid())
 {
     THashMap<TString, TString> result{
@@ -121,7 +123,8 @@ THashMap<TString, TString> MakeReadIOTags(
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
         {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
-        {FormatIOTag(EAggregateIOTag::Direction), "read"}
+        {FormatIOTag(EAggregateIOTag::Direction), "read"},
+        {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(chunkId).Id)},
     };
     if (readSessionId) {
         result[FormatIOTag(ERawIOTag::ReadSessionId)] = ToString(readSessionId);
@@ -852,7 +855,7 @@ private:
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
             ioTracker->Enqueue(
                 TIOCounters{.ByteCount = bytesReadFromDisk, .IOCount = 1},
-                MakeReadIOTags("GetBlockSet", chunk->GetLocation(), context));
+                MakeReadIOTags("GetBlockSet", chunk->GetLocation(), context, chunkId));
         }
 
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
@@ -991,7 +994,7 @@ private:
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
             ioTracker->Enqueue(
                 TIOCounters{.ByteCount = bytesReadFromDisk, .IOCount = 1},
-                MakeReadIOTags("GetBlockRange", chunk->GetLocation(), context));
+                MakeReadIOTags("GetBlockRange", chunk->GetLocation(), context, chunkId));
         }
 
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
@@ -1208,15 +1211,28 @@ private:
                                 auto& result = results[resultIndex];
                                 const auto& fragmentIndices = locationFragmentIndices[resultIndex];
                                 YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
-                                for (int index = 0; index < std::ssize(fragmentIndices); ++index) {
-                                    response->Attachments()[fragmentIndices[index]] = std::move(result.OutputBuffers[index]);
-                                }
 
                                 const auto& ioTracker = Bootstrap_->GetIOTracker();
                                 if (result.PaddedBytesRead > 0 && ioTracker->IsEnabled()) {
-                                    ioTracker->Enqueue(
-                                        TIOCounters{.ByteCount = result.PaddedBytesRead, .IOCount = 1},
-                                        MakeReadIOTags("GetChunkFragmentSet", requestedLocations[resultIndex].first, context, readSessionId));
+                                    for (int index = 0; index < std::ssize(fragmentIndices); ++index) {
+                                        auto byteCount = static_cast<i64>(result.OutputBuffers[index].Size());
+                                        if (byteCount == 0) {
+                                            continue;
+                                        }
+                                        const auto& chunk = chunkRequestInfos[fragmentIndices[index]].Guard.GetChunk();
+                                        ioTracker->Enqueue(
+                                            TIOCounters{.ByteCount = byteCount, .IOCount = 1},
+                                            MakeReadIOTags(
+                                                "GetChunkFragmentSet",
+                                                requestedLocations[resultIndex].first,
+                                                context,
+                                                chunk->GetId(),
+                                                readSessionId));
+                                    }
+                                }
+
+                                for (int index = 0; index < std::ssize(fragmentIndices); ++index) {
+                                    response->Attachments()[fragmentIndices[index]] = std::move(result.OutputBuffers[index]);
                                 }
 
                                 dataBytesReadFromDisk += result.PaddedBytesRead;
