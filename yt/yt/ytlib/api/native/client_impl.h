@@ -844,7 +844,7 @@ private:
         const NChaosClient::TReplicationCardToken& replicationCardToken,
         NChaosClient::TReplicaId replicaId,
         const TUpdateReplicationProgressOptions& options);
-    NRpc::IChannelPtr GetChaosChannel(NObjectClient::TCellId chaosCellId);
+    NRpc::IChannelPtr GetChaosChannel(NObjectClient::TCellId chaosCellId, NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
     //
     // Cypress.
