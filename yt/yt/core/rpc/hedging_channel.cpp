@@ -75,40 +75,52 @@ public:
         , HedgingOptions_(hedgingOptions)
     {
         auto hedgingResponseHandler = New<THedgingResponseHandler>(this, false);
+
         auto requestControl = PrimaryChannel_->Send(
             Request_,
             std::move(hedgingResponseHandler),
             SendOptions_);
 
-        // NB: No locking is needed
-        RequestControls_.push_back(std::move(requestControl));
+        RegisterSentRequest(std::move(requestControl));
 
         if (HedgingOptions_.Delay == TDuration::Zero()) {
             OnDeadlineReached(false);
         } else {
             DeadlineCookie_ = TDelayedExecutor::Submit(
-                BIND(&THedgingSession::OnDeadlineReached, MakeStrong(this)),
+                BIND(&THedgingSession::OnDeadlineReached, MakeWeak(this)),
                 HedgingOptions_.Delay);
         }
     }
 
     void HandleAcknowledgement(bool backup)
     {
-        bool expected = false;
-        if (!Acknowledged_.compare_exchange_strong(expected, true)) {
-            return;
+        IClientResponseHandlerPtr responseHandler;
+        {
+            auto guard = Guard(SpinLock_);
+            if (Acknowledged_ || !ResponseHandler_) {
+                return;
+            }
+            Acknowledged_ = true;
+            responseHandler = ResponseHandler_;
         }
 
         YT_LOG_DEBUG_IF(backup, "Request acknowledged by backup (RequestId: %v)",
             Request_->GetRequestId());
-        ResponseHandler_->HandleAcknowledgement();
+
+        responseHandler->HandleAcknowledgement();
     }
 
     void HandleResponse(TSharedRefArray message, TString address, bool backup)
     {
-        bool expected = false;
-        if (!Responded_.compare_exchange_strong(expected, true)) {
-            return;
+        IClientResponseHandlerPtr responseHandler;
+        {
+            auto guard = Guard(SpinLock_);
+            if (Responded_ || !ResponseHandler_) {
+                return;
+            }
+            Responded_ = true;
+            std::swap(ResponseHandler_, responseHandler);
+            TDelayedExecutor::CancelAndClear(DeadlineCookie_);
         }
 
         if (backup) {
@@ -130,39 +142,44 @@ public:
             message = SetResponseHeader(std::move(message), header);
         }
 
-        ResponseHandler_->HandleResponse(std::move(message), std::move(address));
-        Cleanup();
+        responseHandler->HandleResponse(std::move(message), std::move(address));
     }
 
     void HandleError(const TError& error, bool backup)
     {
-        if (!backup && error.GetCode() == NYT::EErrorCode::Canceled && PrimaryCanceled_.load()) {
-            return;
-        }
-
-        bool expected = false;
-        if (!Responded_.compare_exchange_strong(expected, true)) {
-            return;
+        IClientResponseHandlerPtr responseHandler;
+        {
+            auto guard = Guard(SpinLock_);
+            if (Responded_ || !ResponseHandler_) {
+                return;
+            }
+            if (!backup && error.GetCode() == NYT::EErrorCode::Canceled && PrimaryCanceled_) {
+                return;
+            }
+            Responded_ = true;
+            std::swap(ResponseHandler_, responseHandler);
+            TDelayedExecutor::CancelAndClear(DeadlineCookie_);
         }
 
         YT_LOG_DEBUG_IF(backup, "Request failed at backup (RequestId: %v)",
             Request_->GetRequestId());
 
-        ResponseHandler_->HandleError(
+        responseHandler->HandleError(
             backup
             ? error << TErrorAttribute(BackupFailedKey, true)
             : error);
-
-        Cleanup();
     }
 
     // IClientRequestControl implementation.
     void Cancel() override
     {
-        Acknowledged_.store(true);
-        Responded_.store(true);
-        Cleanup();
-        CancelSentRequests();
+        IClientResponseHandlerPtr responseHandler;
+        {
+            auto guard = Guard(SpinLock_);
+            std::swap(ResponseHandler_, responseHandler);
+            TDelayedExecutor::CancelAndClear(DeadlineCookie_);
+            CancelSentRequests(std::move(guard));
+        }
     }
 
     TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
@@ -177,7 +194,7 @@ public:
 
 private:
     const IClientRequestPtr Request_;
-    const IClientResponseHandlerPtr ResponseHandler_;
+    IClientResponseHandlerPtr ResponseHandler_;
     const TSendOptions SendOptions_;
     const IChannelPtr PrimaryChannel_;
     const IChannelPtr BackupChannel_;
@@ -185,30 +202,29 @@ private:
 
     TDelayedExecutorCookie DeadlineCookie_;
 
-    std::atomic<bool> Acknowledged_ = false;
-    std::atomic<bool> Responded_ = false;
-    std::atomic<bool> PrimaryCanceled_ = false;
-
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    bool Acknowledged_ = false;
+    bool Responded_ = false;
+    bool PrimaryCanceled_ = false;
     TCompactVector<IClientRequestControlPtr, 2> RequestControls_; // always at most 2 items
 
 
-    void CancelSentRequests()
+    void RegisterSentRequest(IClientRequestControlPtr requestControl)
+    {
+        auto guard = Guard(SpinLock_);
+        RequestControls_.push_back(std::move(requestControl));
+    }
+
+    void CancelSentRequests(TGuard<NThreading::TSpinLock>&& guard)
     {
         TCompactVector<IClientRequestControlPtr, 2> requestControls;
-        {
-            auto guard = Guard(SpinLock_);
-            RequestControls_.swap(requestControls);
-        }
+        std::swap(RequestControls_, requestControls);
+
+        guard.Release();
 
         for (const auto& control : requestControls) {
             control->Cancel();
         }
-    }
-
-    void Cleanup()
-    {
-        TDelayedExecutor::CancelAndClear(DeadlineCookie_);
     }
 
     std::optional<TDuration> GetBackupTimeout()
@@ -231,20 +247,21 @@ private:
             return;
         }
 
-        // Shortcut.
-        if (Responded_.load(std::memory_order_relaxed)) {
-            return;
-        }
-
         auto backupTimeout = GetBackupTimeout();
         if (backupTimeout == TDuration::Zero()) {
             // Makes no sense to send the request anyway.
             return;
         }
 
-        if (HedgingOptions_.CancelPrimary && HedgingOptions_.Delay != TDuration::Zero()) {
-            PrimaryCanceled_.store(true);
-            CancelSentRequests();
+        {
+            auto guard = Guard(SpinLock_);
+            if (Responded_ || !ResponseHandler_) {
+                return;
+            }
+            if (HedgingOptions_.CancelPrimary && HedgingOptions_.Delay != TDuration::Zero()) {
+                PrimaryCanceled_ = true;
+                CancelSentRequests(std::move(guard));
+            }
         }
 
         YT_LOG_DEBUG("Resending request to backup (RequestId: %v)",
@@ -254,15 +271,13 @@ private:
 
         auto backupOptions = SendOptions_;
         backupOptions.Timeout = backupTimeout;
+
         auto requestControl = BackupChannel_->Send(
             Request_,
             std::move(responseHandler),
             backupOptions);
 
-        {
-            auto guard = Guard(SpinLock_);
-            RequestControls_.push_back(std::move(requestControl));
-        }
+        RegisterSentRequest(std::move(requestControl));
     }
 };
 
