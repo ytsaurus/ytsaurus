@@ -3,6 +3,8 @@
 #include "table.h"
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
+
 #include <yt/yt/ytlib/scheduler/proto/output_result.pb.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -72,6 +74,19 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
     }
 
     return dataSourceDirectory;
+}
+
+TDataSinkDirectoryPtr BuildDataSinkDirectoryFromOutputTables(const std::vector<TOutputTablePtr>& outputTables)
+{
+    auto dataSinkDirectory = New<TDataSinkDirectory>();
+    dataSinkDirectory->DataSinks().reserve(outputTables.size());
+    for (const auto& outputTable : outputTables) {
+        auto& dataSink = dataSinkDirectory->DataSinks().emplace_back();
+        dataSink.SetPath(outputTable->GetPath());
+        dataSink.SetObjectId(outputTable->ObjectId);
+        dataSink.SetAccount(outputTable->Account);
+    }
+    return dataSinkDirectory;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,6 +18,7 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
@@ -494,6 +495,13 @@ protected:
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             schedulerJobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
+
+        // TODO(gepardo): Build data sinks when auto-merge is enabled.
+        if (AutoMergeTask_) {
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildDataSinkDirectoryFromOutputTables(OutputTables_));
+        }
 
         if (Spec->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
