@@ -586,6 +586,7 @@ class TestChaos(DynamicTablesBase):
             {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        remote_driver0=get_driver(cluster=replicas[1]["cluster"])
 
         def _pull_rows(replica_index):
             rows = pull_rows(
@@ -606,8 +607,9 @@ class TestChaos(DynamicTablesBase):
             replica_id=replica_ids[0],
             enabled=False)
         wait(lambda: self._get_table_orchids("//tmp/t")[0]["replication_card"]["replicas"][0]["state"] == "disabled")
-        orchid = self._get_table_orchids("//tmp/t")[0]
-        wait(lambda: get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)["era"] == orchid["replication_card"]["era"])
+        era = self._get_table_orchids("//tmp/t")[0]["replication_card"]["era"]
+        wait(lambda: get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)["era"] == era)
+        wait(lambda: self._get_table_orchids("//tmp/r0", driver=remote_driver0)[0]["replication_card"]["era"] == era)
 
         values1 = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values1)
@@ -621,8 +623,9 @@ class TestChaos(DynamicTablesBase):
             replica_id=replica_ids[0],
             enabled=True)
         wait(lambda: self._get_table_orchids("//tmp/t")[0]["replication_card"]["replicas"][0]["state"] == "enabled")
-        orchid = self._get_table_orchids("//tmp/t")[0]
-        wait(lambda: get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)["era"] == orchid["replication_card"]["era"])
+        era = self._get_table_orchids("//tmp/t")[0]["replication_card"]["era"]
+        wait(lambda: get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)["era"] == era)
+        wait(lambda: self._get_table_orchids("//tmp/r0", driver=remote_driver0)[0]["replication_card"]["era"] == era)
 
         wait(lambda: _pull_rows(replica_index=0) == values0 + values1)
         if mode == "sync":
