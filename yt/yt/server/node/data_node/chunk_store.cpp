@@ -144,6 +144,13 @@ void TChunkStore::Initialize()
     ProfilingExecutor_->Start();
 }
 
+void TChunkStore::Shutdown()
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    Locations_.clear();
+}
+
 void TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
 {
     VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());

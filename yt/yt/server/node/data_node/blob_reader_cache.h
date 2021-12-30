@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
 #include <yt/yt/server/lib/io/public.h>
 
@@ -33,7 +33,10 @@ struct IBlobReaderCache
 
 DEFINE_REFCOUNTED_TYPE(IBlobReaderCache)
 
-IBlobReaderCachePtr CreateBlobReaderCache(NClusterNode::IBootstrapBase* bootstrap);
+IBlobReaderCachePtr CreateBlobReaderCache(
+    TDataNodeConfigPtr dataNodeConfig,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+    IChunkMetaManagerPtr chunkMetaManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

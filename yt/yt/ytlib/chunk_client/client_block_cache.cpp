@@ -172,23 +172,6 @@ public:
         return std::make_unique<TCachedBlockCookie>(std::move(cookie));
     }
 
-    std::vector<TBlockCacheEntry> GetSnapshot()
-    {
-        auto entries = GetAll();
-
-        std::vector<TBlockCacheEntry> snapshot;
-        snapshot.reserve(entries.size());
-        for (const auto& entry : entries) {
-            snapshot.push_back(TBlockCacheEntry{
-                .BlockId = entry->GetKey(),
-                .BlockType = Type_,
-                .Block = entry->GetCachedBlock()
-            });
-        }
-
-        return snapshot;
-    }
-
 private:
     const EBlockType Type_;
 
@@ -266,19 +249,6 @@ public:
     EBlockType GetSupportedBlockTypes() const override
     {
         return SupportedBlockTypes_;
-    }
-
-    std::vector<TBlockCacheEntry> GetSnapshot(EBlockType blockTypes) const override
-    {
-        std::vector<TBlockCacheEntry> snapshot;
-        for (const auto& [blockType, cache] : PerTypeCaches_) {
-            if (Any(blockType & blockTypes)) {
-                auto cacheSnapshot = cache->GetSnapshot();
-                snapshot.insert(snapshot.end(), cacheSnapshot.begin(), cacheSnapshot.end());
-            }
-        }
-
-        return snapshot;
     }
 
     void Reconfigure(const TBlockCacheDynamicConfigPtr& config) override

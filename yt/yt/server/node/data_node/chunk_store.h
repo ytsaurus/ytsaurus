@@ -60,6 +60,8 @@ public:
      */
     void Initialize();
 
+    void Shutdown();
+
     //! Registers a just-written chunk.
     void RegisterNewChunk(const IChunkPtr& chunk, const ISessionPtr& session);
 

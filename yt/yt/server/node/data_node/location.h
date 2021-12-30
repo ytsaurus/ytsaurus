@@ -2,8 +2,6 @@
 
 #include "disk_location.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/server/lib/io/public.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
