@@ -14,6 +14,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/helpers.h>
 
 #include <yt/yt/server/master/chunk_server/chunk.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
@@ -38,6 +39,17 @@ using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+bool IsCompressionCodecValidationSuppressed()
+{
+    return IsSubordinateMutation();
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,11 +82,13 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const auto& cypressManagerConfig = this->Bootstrap_->GetConfig()->CypressManager;
     const auto& chunkManagerConfig = this->Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
 
-    if (auto compressionCodecValue = context.ExplicitAttributes->FindYson("compression_codec")) {
-        ValidateCompressionCodec(
-            compressionCodecValue,
-            chunkManagerConfig->DeprecatedCodecIds,
-            chunkManagerConfig->DeprecatedCodecNameToAlias);
+    if (!IsCompressionCodecValidationSuppressed()) {
+        if (auto compressionCodecValue = context.ExplicitAttributes->FindYson("compression_codec")) {
+            ValidateCompressionCodec(
+                compressionCodecValue,
+                chunkManagerConfig->DeprecatedCodecIds,
+                chunkManagerConfig->DeprecatedCodecNameToAlias);
+        }
     }
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);

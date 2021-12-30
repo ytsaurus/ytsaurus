@@ -13,6 +13,7 @@
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/helpers.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -128,6 +129,11 @@ TPathResolver::TResolveResult ResolvePath(
             populateResult.UnresolvedPathSuffix);
     }
     return result;
+}
+
+bool IsObjectLifeStageValidationSuppressed()
+{
+    return IsSubordinateMutation();
 }
 
 } // namespace
@@ -1395,7 +1401,7 @@ bool TObjectManager::TImpl::IsObjectLifeStageValid(const TObject* object) const
 {
     YT_VERIFY(IsObjectAlive(object));
 
-    if (NHiveServer::IsHiveMutation() && !NTransactionServer::IsBoomerangMutation()) {
+    if (IsObjectLifeStageValidationSuppressed()) {
         return true;
     }
 

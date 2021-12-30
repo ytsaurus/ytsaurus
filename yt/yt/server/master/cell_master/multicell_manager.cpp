@@ -7,7 +7,7 @@
 #include "serialize.h"
 #include "hydra_facade.h"
 #include "world_initializer.h"
-#include "helpers.h"
+#include "cell_statistics.h"
 
 #include <yt/yt/core/ytree/ypath_client.h>
 

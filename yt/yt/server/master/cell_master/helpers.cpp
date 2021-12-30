@@ -1,46 +1,17 @@
 #include "helpers.h"
 
-#include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
+#include <yt/yt/server/master/transaction_server/boomerang_tracker.h>
 
-#include <yt/yt/core/misc/format.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProto::TCellStatistics& operator += (NProto::TCellStatistics& lhs, const NProto::TCellStatistics& rhs)
+bool IsSubordinateMutation()
 {
-    #define XX(name) lhs.set_##name(lhs.name() + rhs.name());
-    ITERATE_CELL_STATISTICS(XX)
-    #undef XX
-    return lhs;
+    return NHiveServer::IsHiveMutation() && !NTransactionServer::IsBoomerangMutation();
 }
-
-NProto::TCellStatistics operator +  (const NProto::TCellStatistics& lhs, const NProto::TCellStatistics& rhs)
-{
-    NProto::TCellStatistics result;
-    #define XX(name) result.set_##name(lhs.name() + rhs.name());
-    ITERATE_CELL_STATISTICS(XX)
-    #undef XX
-    return result;
-}
-
-namespace NProto {
-
-void FormatValue(TStringBuilderBase* builder, const NProto::TCellStatistics& statistics, TStringBuf /*format*/)
-{
-    builder->AppendFormat("ChunkCount: %v, LostVitalChunkCount: %v, OnlineNodeCount: %v",
-        statistics.chunk_count(),
-        statistics.lost_vital_chunk_count(),
-        statistics.online_node_count());
-}
-
-TString ToString(const NProto::TCellStatistics& statistics)
-{
-    return ToStringViaBuilder(statistics);
-}
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
