@@ -210,6 +210,7 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TCounter ControllerScheduleJobTimedOutCount;
 
     TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TCounter> ControllerScheduleJobFail;
+    TEnumIndexedVector<EDeactivationReason, NProfiling::TCounter> DeactivationCount;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> SchedulingIndexCounters;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> MaxSchedulingIndexCounters;
 };

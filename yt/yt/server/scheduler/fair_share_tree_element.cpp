@@ -88,6 +88,11 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
             .WithTag("reason", FormatEnum(reason))
             .Counter("/controller_schedule_job_fail");
     }
+    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+        DeactivationCount[reason] = profiler
+            .WithTag("reason", FormatEnum(reason))
+            .Counter("/deactivation_count");
+    }
     for (int rangeIndex = 0; rangeIndex <= SchedulingIndexProfilingRangeCount; ++rangeIndex) {
         SchedulingIndexCounters[rangeIndex] = profiler
             .WithTag("scheduling_index", FormatProfilingRangeIndex(rangeIndex))
@@ -265,6 +270,9 @@ void TScheduleJobsContext::ProfileStageStatistics()
 
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
         profilingCounters->ControllerScheduleJobFail[reason].Increment(StageState_->FailedScheduleJob[reason]);
+    }
+    for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+        profilingCounters->DeactivationCount[reason].Increment(StageState_->DeactivationReasons[reason]);
     }
 
     for (auto [schedulingIndex, count] : StageState_->SchedulingIndexToScheduleJobAttemptCount) {
