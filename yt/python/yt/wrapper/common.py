@@ -567,15 +567,13 @@ def is_of_iterable_type(obj):
 
 
 def load_certificate(path=None):
+    # NB: Underlying libraries can distinguish file paths from loaded certificates.
     if path is not None:
-        with open(path, "r") as f:
-            return f.read()
+        return path
 
     if is_arcadia_python():
         import library.python.resource
 
         return library.python.resource.find("/yt/YandexInternalRootCA.crt")
 
-    path = os.path.join(os.path.dirname(__file__), "YandexInternalRootCA.crt")
-    with open(path, "r") as f:
-        return f.read()
+    return os.path.join(os.path.dirname(__file__), "YandexInternalRootCA.crt")
