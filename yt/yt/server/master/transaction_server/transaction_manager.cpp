@@ -308,6 +308,7 @@ public:
             GetDynamicConfig()->EnableDedicatedUploadTransactionObjectTypes)
         {
             if (IsHiveMutation()) {
+                // COMPAT(shakurov)
                 // This is a hive mutation posted by a pre-20.3 master (and being
                 // applied by a post-20.3 one).
                 YT_LOG_ALERT_UNLESS(IsRecovery(),
