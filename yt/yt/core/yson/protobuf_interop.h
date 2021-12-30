@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "protobuf_interop_options.h"
 
 #include <yt/yt/core/misc/defines.h>
 
@@ -124,27 +124,6 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
 
 constexpr int UnknownYsonFieldNumber = 3005;
 
-DEFINE_ENUM(EUnknownYsonFieldsMode,
-    (Skip)
-    (Fail)
-    (Keep)
-);
-
-struct TProtobufWriterOptions
-{
-    //! Keep: all unknown fields found during YSON parsing
-    //! are translated into Protobuf unknown fields (each has number UnknownYsonFieldNumber
-    //! and is a key-value pair with field name being its key and YSON being the value).
-    //!
-    //! Skip: all unknown fields are silently skipped;
-    //!
-    //! Fail: an exception is thrown whenever an unknown field is found.
-    EUnknownYsonFieldsMode UnknownYsonFieldsMode = EUnknownYsonFieldsMode::Fail;
-
-    //! If |true| then required fields not found in protobuf metadata are
-    //! silently skipped; otherwise an exception is thrown.
-    bool SkipRequiredFields = false;
-};
 
 //! Creates a YSON consumer that converts IYsonConsumer calls into
 //! a byte sequence in protobuf wire format.
