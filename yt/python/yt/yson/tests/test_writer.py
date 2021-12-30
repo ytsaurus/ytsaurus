@@ -234,10 +234,15 @@ class YsonWriterTestBase(object):
 
     def test_to_yson_type(self):
         class A:
+            def __init__(self):
+                self.value = 234
+                self.attributes = {"foo": "bar"}
+
             def to_yson_type(self):
-                d = YsonUint64(234)
-                d.attributes = {"foo": "bar"}
+                d = YsonUint64(self.value)
+                d.attributes = self.attributes
                 return d
+
         assert b'<"foo"="bar";>234u' == self.dumps(A())
 
     @pytest.mark.skipif("not PY3")

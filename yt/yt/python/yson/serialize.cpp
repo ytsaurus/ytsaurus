@@ -274,6 +274,12 @@ void Serialize(
         context = contextHolder.get();
     }
 
+    if (obj.hasAttr("to_yson_type") && obj.getAttr("to_yson_type").isCallable()) {
+        auto repr = obj.callMemberFunction("to_yson_type");
+        Serialize(repr, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
+        return;
+    }
+
     const char* attributesStr = "attributes";
     if ((!ignoreInnerAttributes || depth == 0) && HasAttributes(obj)) {
         auto attributeObject = obj.getAttr(attributesStr);
@@ -306,9 +312,6 @@ void Serialize(
         SerializePythonInteger(obj, consumer, context);
     } else if (YsonStringProxyClass && Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject*>(YsonStringProxyClass)) {
         consumer->OnStringScalar(ConvertToStringBuf(obj.getAttr("_bytes")));
-    } else if (obj.hasAttr("to_yson_type") && obj.getAttr("to_yson_type").isCallable()) {
-        auto repr = obj.callMemberFunction("to_yson_type");
-        Serialize(repr, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
     } else if (obj.isMapping() && obj.hasAttr("items") || IsYsonLazyMap(obj.ptr())) {
         bool allowBeginEnd =  depth > 0 || ysonType != NYson::EYsonType::MapFragment;
         if (allowBeginEnd) {
