@@ -872,7 +872,7 @@ TEST(TYsonToProtobufTest, SkipUnknownFields)
 
     {
         TProtobufWriterOptions options;
-        options.UnknownYsonFieldsMode = EUnknownYsonFieldsMode::Keep;
+        options.UnknownYsonFieldModeResolver = TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode::Keep);
 
         TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
             .BeginMap()
@@ -940,7 +940,7 @@ TEST(TYsonToProtobufTest, KeepUnknownFields)
     TString protobufString;
     StringOutputStream protobufOutput(&protobufString);
     TProtobufWriterOptions options;
-    options.UnknownYsonFieldsMode = EUnknownYsonFieldsMode::Keep;
+    options.UnknownYsonFieldModeResolver = TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode::Keep);
     auto protobufWriter = CreateProtobufWriter(&protobufOutput, ReflectProtobufMessageType<NYT::NYson::NProto::TExtensibleMessage>(), options);
     ParseYsonStringBuffer(ysonString.ToString(), EYsonType::Node, protobufWriter.get());
 
@@ -975,6 +975,425 @@ TEST(TYsonToProtobufTest, Entities)
     TEST_EPILOGUE(TMessage)
 
     EXPECT_FALSE(message.has_nested_message1());
+}
+
+TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
+{
+    {
+        // Basic usage of custom resolver with state.
+        TProtobufWriterOptions options;
+        int unknownKeyCount = 0;
+        options.UnknownYsonFieldModeResolver = [&unknownKeyCount](const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+            if (path == "/nested_message1/nested_message/unknown_map") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            } else if (path == "/nested_message1/nested_message/unknown_map/first_unknown_key" || path == "/nested_message1/nested_message/unknown_map/second_unknown_key") {
+                ++unknownKeyCount;
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            }
+            return NYson::EUnknownYsonFieldsMode::Keep;
+        };
+
+        TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+            .BeginMap()
+                .Item("int32_field").Value(10000)
+                .Item("unknown_field").Value(1)
+                .Item("nested_message1").BeginMap()
+                    .Item("int32_field").Value(123)
+                    .Item("nested_message").BeginMap()
+                        .Item("unknown_map").BeginMap()
+                            .Item("first_unknown_key").Value(11)
+                            .Item("second_unknown_key").Value(22)
+                        .EndMap()
+                    .EndMap()
+                .EndMap()
+                .Item("repeated_nested_message1").BeginList()
+                    .Item().BeginMap()
+                        .Item("int32_field").Value(456)
+                        .Item("unknown_list").BeginList()
+                        .EndList()
+                    .EndMap()
+                .EndList()
+            .EndMap();
+
+        TEST_EPILOGUE(TMessage)
+        EXPECT_EQ(10000, message.int32_field_xxx());
+
+        EXPECT_TRUE(message.has_nested_message1());
+        EXPECT_EQ(123, message.nested_message1().int32_field());
+        EXPECT_TRUE(message.nested_message1().has_nested_message());
+
+        EXPECT_EQ(1, message.repeated_nested_message1().size());
+        EXPECT_EQ(456, message.repeated_nested_message1().Get(0).int32_field());
+        EXPECT_EQ(2, unknownKeyCount);
+    }
+    {
+        auto ysonStringBeforeSerialization = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("known_string").Value("hello")
+            .Item("unknown_skipped_int1").Value(1)
+            .Item("unknown_skipped_int2").Value(2)
+            .Item("unknown_map1").BeginMap()
+                .Item("a").Value(1)
+                .Item("b").Value("test")
+                .Item("c").Entity()
+                .Item("unknown_map2").BeginMap()
+                    .Item("x").Value(10)
+                    .Item("y").Entity()
+                    .Item("z").Value(1.12)
+                .EndMap()
+            .EndMap()
+            .Item("known_submessage").BeginMap()
+                .Item("known_int").Value(555)
+                .Item("unknown_list1").BeginList()
+                    .Item().Value(1)
+                    .Item().Value(2)
+                    .Item().Value(3)
+                .EndList()
+            .EndMap()
+        .EndMap();
+
+
+        TString protobufString;
+        StringOutputStream protobufOutput(&protobufString);
+        TProtobufWriterOptions options;
+        options.UnknownYsonFieldModeResolver = [](const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+            if (path == "/unknown_map1") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            if (path.StartsWith("/unknown_map1/")) {
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            }
+            if (path == "/unknown_skipped_int1" || path == "/unknown_skipped_int2") {
+                return NYson::EUnknownYsonFieldsMode::Skip;
+            }
+            if (path == "/known_submessage/unknown_list1") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            if (path.StartsWith("/known_submessage/unknown_list1/")) {
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            }
+            return NYson::EUnknownYsonFieldsMode::Fail;
+        };
+        auto protobufWriter = CreateProtobufWriter(&protobufOutput, ReflectProtobufMessageType<NYT::NYson::NProto::TExtensibleMessage>(), options);
+        ParseYsonStringBuffer(ysonStringBeforeSerialization.ToString(), EYsonType::Node, protobufWriter.get());
+
+        auto expectedYsonStringAfterSerialization = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("known_string").Value("hello")
+                .Item("unknown_map1").BeginMap()
+                    .Item("a").Value(1)
+                    .Item("b").Value("test")
+                    .Item("c").Entity()
+                    .Item("unknown_map2").BeginMap()
+                        .Item("x").Value(10)
+                        .Item("y").Entity()
+                        .Item("z").Value(1.12)
+                    .EndMap()
+                .EndMap()
+                .Item("known_submessage").BeginMap()
+                    .Item("known_int").Value(555)
+                    .Item("unknown_list1").BeginList()
+                        .Item().Value(1)
+                        .Item().Value(2)
+                        .Item().Value(3)
+                    .EndList()
+                .EndMap()
+            .EndMap();
+
+        NYT::NYson::NProto::TExtensibleMessage message;
+        EXPECT_TRUE(message.ParseFromArray(protobufString.data(), protobufString.length()));
+
+        TString newYsonString;
+        TStringOutput newYsonOutputStream(newYsonString);
+        TYsonWriter ysonWriter(&newYsonOutputStream, EYsonFormat::Pretty);
+        ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+        ParseProtobuf(&ysonWriter, &protobufInput, ReflectProtobufMessageType<NYT::NYson::NProto::TExtensibleMessage>());
+        EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(newYsonString)), ConvertToNode(expectedYsonStringAfterSerialization)));
+    }
+    {
+        TProtobufWriterOptions options;
+        options.UnknownYsonFieldModeResolver = [](const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+            if (path == "/nested_message1/unknown_map") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            if (path == "/nested_message1/unknown_map/ok_value") {
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            }
+            if (path == "/nested_message1/unknown_map/fail_value") {
+                return NYson::EUnknownYsonFieldsMode::Fail;
+            }
+            return NYson::EUnknownYsonFieldsMode::Keep;
+        };
+        EXPECT_YPATH({
+            TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+                .BeginMap()
+                    .Item("nested_message1").BeginMap()
+                        .Item("int32_field").Value(11)
+                        .Item("unknown_map").BeginMap()
+                            .Item("ok_value").Value(0)
+                            .Item("fail_value").Value(1)
+                        .EndMap()
+                    .EndMap()
+                .EndMap();
+        }, "/nested_message1/unknown_map/fail_value");
+    }
+    {
+        // Don't fail if Forward is returned on empty map or empty list.
+        TProtobufWriterOptions options;
+        options.UnknownYsonFieldModeResolver = [](const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+            if (path == "/nested_message1/unknown_map") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            if (path == "/nested_message1/unknown_map/ok_value") {
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            }
+            if (path == "/nested_message1/unknown_map/forwarded_empty_map") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            if (path == "/nested_message1/unknown_map/forwarded_empty_list") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            return NYson::EUnknownYsonFieldsMode::Keep;
+        };
+        TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+            .BeginMap()
+                .Item("nested_message1").BeginMap()
+                    .Item("int32_field").Value(11)
+                    .Item("unknown_map").BeginMap()
+                        .Item("ok_value").Value(0)
+                        .Item("forwarded_empty_map").BeginMap()
+                        .EndMap()
+                        .Item("forwarded_empty_list").BeginList()
+                        .EndList()
+                    .EndMap()
+                .EndMap()
+            .EndMap();
+    }
+    {
+        // Fail if leaf is scalar and returns Forward.
+        {
+            TProtobufWriterOptions options;
+            options.UnknownYsonFieldModeResolver = [](const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+                if (path == "/nested_message1/unknown_map") {
+                    return NYson::EUnknownYsonFieldsMode::Forward;
+                }
+                if (path == "/nested_message1/unknown_map/forwarded_scalar_value") {
+                    return NYson::EUnknownYsonFieldsMode::Forward;
+                }
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            };
+            EXPECT_YPATH({
+                TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+                    .BeginMap()
+                        .Item("nested_message1").BeginMap()
+                            .Item("int32_field").Value(11)
+                            .Item("unknown_map").BeginMap()
+                                .Item("forwarded_scalar_value").Value(0)
+                            .EndMap()
+                        .EndMap()
+                    .EndMap();
+            }, "/nested_message1/unknown_map/forwarded_scalar_value");
+        }
+        {
+            // Fail on forwarded scalar value on the top level.
+            TProtobufWriterOptions options;
+            options.UnknownYsonFieldModeResolver = [](const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+                if (path == "/nested_message1/unknown_map") {
+                    return NYson::EUnknownYsonFieldsMode::Forward;
+                }
+                if (path == "/nested_message1/unknown_map/kept_scalar_value") {
+                    return NYson::EUnknownYsonFieldsMode::Keep;
+                }
+                if (path == "/nested_message1/forwarded_scalar_value") {
+                    return NYson::EUnknownYsonFieldsMode::Forward;
+                }
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            };
+            EXPECT_YPATH({
+                TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+                    .BeginMap()
+                        .Item("nested_message1").BeginMap()
+                            .Item("int32_field").Value(11)
+                            .Item("unknown_map").BeginMap()
+                                .Item("kept_scalar_value").Value("val")
+                            .EndMap()
+                            .Item("forwarded_scalar_value").Value(0)
+                        .EndMap()
+                    .EndMap();
+            }, "/nested_message1/forwarded_scalar_value");
+        }
+    }
+    {
+        TProtobufWriterOptions options;
+        options.UnknownYsonFieldModeResolver = [](const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+            if (path == "/nested_message1/unknown_map") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            if (path == "/nested_message1/unknown_map/ok_value") {
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            }
+            if (path == "/nested_message1/unknown_map/forwarded_empty_list") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            if (path == "/nested_message1/unknown_map/forwarded_empty_list/2") {
+                return NYson::EUnknownYsonFieldsMode::Fail;
+            }
+            return NYson::EUnknownYsonFieldsMode::Keep;
+        };
+        EXPECT_YPATH({
+            TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+                .BeginMap()
+                    .Item("nested_message1").BeginMap()
+                        .Item("int32_field").Value(11)
+                        .Item("unknown_map").BeginMap()
+                            .Item("ok_value").Value(0)
+                            .Item("forwarded_empty_list").BeginList()
+                                .Item().Value("0")
+                                .Item().Value("1")
+                                .Item().Value("2")
+                            .EndList()
+                        .EndMap()
+                    .EndMap()
+                .EndMap();
+        }, "/nested_message1/unknown_map/forwarded_empty_list/2");
+        TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+            .BeginMap()
+                .Item("nested_message1").BeginMap()
+                    .Item("int32_field").Value(11)
+                    .Item("unknown_map").BeginMap()
+                        .Item("ok_value").Value(0)
+                        .Item("forwarded_empty_list").BeginList()
+                            .Item().BeginList()
+                            .EndList()
+                        .EndList()
+                    .EndMap()
+                .EndMap()
+            .EndMap();
+    }
+    {
+        auto ysonStringBeforeSerialization = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("nested_message1").BeginMap()
+                    .Item("int32_field").Value(11)
+                    .Item("unknown_map1").BeginMap()
+                        .Item("ok_value").Value(0)
+                        .Item("skip_value1").Value("aa")
+                        .Item("unknown_map2").BeginMap()
+                            .Item("skip_value2").Value(1)
+                        .EndMap()
+                        .Item("skipped_map").BeginMap()
+                            .Item("fail_value").Value(12)
+                        .EndMap()
+                        .Item("kept_map").BeginMap()
+                            .Item("fail_value").Value(12)
+                        .EndMap()
+                    .EndMap()
+                .EndMap()
+            .EndMap();
+        TString protobufString;
+        StringOutputStream protobufOutput(&protobufString);
+        TProtobufWriterOptions options;
+        options.UnknownYsonFieldModeResolver = [](const NYPath::TYPath& path) -> NYson::EUnknownYsonFieldsMode {
+            if (path == "/nested_message1/unknown_map1") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            if (path == "/nested_message1/unknown_map1/ok_value") {
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            }
+            if (path == "/nested_message1/unknown_map1/skip_value1") {
+                return NYson::EUnknownYsonFieldsMode::Skip;
+            }
+            if (path == "/nested_message1/unknown_map1/unknown_map2") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            if (path == "/nested_message1/unknown_map1/unknown_map2/skip_value2") {
+                return NYson::EUnknownYsonFieldsMode::Skip;
+            }
+            if (path == "/nested_message1/unknown_map1/skipped_map") {
+                return NYson::EUnknownYsonFieldsMode::Skip;
+            }
+            if (path == "/nested_message1/unknown_map1/kept_map") {
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            }
+            // Shall not be invoked.
+            return NYson::EUnknownYsonFieldsMode::Fail;
+        };
+
+        auto protobufWriter = CreateProtobufWriter(&protobufOutput, ReflectProtobufMessageType<NYT::NYson::NProto::TMessage>(), options);
+        ParseYsonStringBuffer(ysonStringBeforeSerialization.ToString(), EYsonType::Node, protobufWriter.get());
+
+        auto expectedYsonStringAfterSerialization = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("nested_message1").BeginMap()
+                    .Item("int32_field").Value(11)
+                    .Item("unknown_map1").BeginMap()
+                        .Item("ok_value").Value(0)
+                        .Item("unknown_map2").BeginMap()
+                        .EndMap()
+                        .Item("kept_map").BeginMap()
+                            .Item("fail_value").Value(12)
+                        .EndMap()
+                    .EndMap()
+                .EndMap()
+            .EndMap();
+
+        NYT::NYson::NProto::TMessage message;
+        EXPECT_TRUE(message.ParseFromArray(protobufString.data(), protobufString.length()));
+
+        TString newYsonString;
+        TStringOutput newYsonOutputStream(newYsonString);
+        TYsonWriter ysonWriter(&newYsonOutputStream, EYsonFormat::Pretty);
+        ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+        ParseProtobuf(&ysonWriter, &protobufInput, ReflectProtobufMessageType<NYT::NYson::NProto::TMessage>());
+
+        Cerr << newYsonString << Endl;
+
+        EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(newYsonString)), ConvertToNode(expectedYsonStringAfterSerialization)));
+    }
+    {
+        TProtobufWriterOptions options;
+        options.UnknownYsonFieldModeResolver = [](const NYPath::TYPath& path) {
+            if (path == "/forwarded_attr") {
+                return NYson::EUnknownYsonFieldsMode::Forward;
+            }
+            if (path == "/kept_attr") {
+                return NYson::EUnknownYsonFieldsMode::Keep;
+            }
+            return NYson::EUnknownYsonFieldsMode::Fail;
+        };
+        auto ysonStringBeforeSerialization = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("forwarded_attr").BeginAttributes()
+                    .Item("key1").BeginList()
+                        .Item().Value("list_item1")
+                    .EndList()
+                .EndAttributes().BeginMap()
+                .EndMap()
+                .Item("kept_attr").BeginAttributes()
+                    .Item("key1").BeginAttributes()
+                        .Item("key2").Value(true)
+                    .EndAttributes().Value("11212")
+                .EndAttributes().Value(111)
+            .EndMap();
+
+        TString protobufString;
+        StringOutputStream protobufOutput(&protobufString);
+
+        auto protobufWriter = CreateProtobufWriter(&protobufOutput, ReflectProtobufMessageType<NYT::NYson::NProto::TMessage>(), options);
+        ParseYsonStringBuffer(ysonStringBeforeSerialization.ToString(), EYsonType::Node, protobufWriter.get());
+
+        auto expectedYsonStringAfterSerialization = ysonStringBeforeSerialization;
+
+        TString newYsonString;
+        TStringOutput newYsonOutputStream(newYsonString);
+        TYsonWriter ysonWriter(&newYsonOutputStream, EYsonFormat::Pretty);
+        ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+        ParseProtobuf(&ysonWriter, &protobufInput, ReflectProtobufMessageType<NYT::NYson::NProto::TMessage>());
+
+        Cerr << newYsonString << Endl;
+
+        EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(newYsonString)), ConvertToNode(expectedYsonStringAfterSerialization)));
+    }
 }
 
 TEST(TYsonToProtobufTest, ReservedFields)

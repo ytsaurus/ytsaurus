@@ -39,6 +39,13 @@ class TYsonPullParserCursor;
 
 class TForwardingYsonConsumer;
 
+DEFINE_ENUM(EUnknownYsonFieldsMode,
+    (Skip)
+    (Fail)
+    (Keep)
+    (Forward)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int DefaultYsonParserNestingLevelLimit = 64;

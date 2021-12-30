@@ -737,9 +737,9 @@ private:
         ::google::protobuf::io::StringOutputStream outputStream(&result);
 
         TProtobufWriterOptions options;
-        options.UnknownYsonFieldsMode = skipUnknownFields.value_or(false)
-            ? EUnknownYsonFieldsMode::Skip
-            : EUnknownYsonFieldsMode::Fail;
+        options.UnknownYsonFieldModeResolver = skipUnknownFields.value_or(false)
+            ? TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode::Skip)
+            : TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode::Fail);
         auto writer = CreateProtobufWriter(&outputStream, messageType, options);
 
         ParseYsonStringBuffer(ConvertToStringBuf(stringObject), EYsonType::Node, writer.get());

@@ -6,7 +6,9 @@
 #include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/yson/forwarding_consumer.h>
 #include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/protobuf_interop_unknown_fields.h>
 
+#include <yt/yt/core/ypath/stack.h>
 #include <yt/yt/core/ypath/token.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
@@ -704,76 +706,6 @@ TStringBuf FindProtobufEnumLiteralByValueUntyped(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYPathStack
-{
-public:
-    void Push(const TProtobufField* field)
-    {
-        Items_.push_back(field);
-    }
-
-    void Push(TString key)
-    {
-        Items_.emplace_back(std::move(key));
-    }
-
-    void Push(int index)
-    {
-        Items_.push_back(index);
-    }
-
-    void Pop()
-    {
-        Items_.pop_back();
-    }
-
-    bool IsEmpty() const
-    {
-        return Items_.empty();
-    }
-
-    TYPath GetPath() const
-    {
-        if (Items_.empty()) {
-            return {};
-        }
-        TStringBuilder builder;
-        for (const auto& item : Items_) {
-            builder.AppendChar('/');
-            Visit(item,
-                [&] (const TProtobufField* protobufField) {
-                    builder.AppendString(ToYPathLiteral(protobufField->GetYsonName()));
-                },
-                [&] (const TString& string) {
-                    builder.AppendString(ToYPathLiteral(string));
-                },
-                [&] (int integer) {
-                    builder.AppendFormat("%v", integer);
-                });
-        }
-        return builder.Flush();
-    }
-
-    TYPath GetHumanReadablePath() const
-    {
-        auto path = GetPath();
-        if (path.empty()) {
-            static const TYPath Root("(root)");
-            return Root;
-        }
-        return path;
-    }
-
-private:
-    using TEntry = std::variant<
-        const TProtobufField*,
-        TString,
-        int>;
-    std::vector<TEntry> Items_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TProtobufTranscoderBase
 {
 protected:
@@ -795,7 +727,7 @@ protected:
             if (!std::binary_search(numbers.begin(), numbers.end(), number)) {
                 const auto* field = type->FindFieldByNumber(number);
                 YT_VERIFY(field);
-                YPathStack_.Push(field);
+                YPathStack_.Push(TString{field->GetYsonName()});
                 THROW_ERROR_EXCEPTION("Missing required field %v",
                     YPathStack_.GetPath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath())
@@ -812,7 +744,7 @@ protected:
         for (auto index = 0; index + 1 < std::ssize(numbers); ++index) {
             if (numbers[index] == numbers[index + 1]) {
                 const auto* field = type->GetFieldByNumber(numbers[index]);
-                YPathStack_.Push(field);
+                YPathStack_.Push(TString{field->GetYsonName()});
                 THROW_ERROR_EXCEPTION("Duplicate field %v",
                     YPathStack_.GetPath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath())
@@ -844,6 +776,7 @@ public:
         , YsonStringWriter_(&YsonStringStream_)
         , UnknownYsonFieldValueStringStream_(UnknownYsonFieldValueString_)
         , UnknownYsonFieldValueStringWriter_(&UnknownYsonFieldValueStringStream_)
+        , ForwardingUnknownYsonFieldValueWriter_(UnknownYsonFieldValueStringWriter_, Options_.UnknownYsonFieldModeResolver)
         , TreeBuilder_(CreateBuilderFromFactory(GetEphemeralNodeFactory()))
     { }
 
@@ -913,6 +846,7 @@ private:
     TString UnknownYsonFieldValueString_;
     TStringOutput UnknownYsonFieldValueStringStream_;
     TBufferedBinaryYsonWriter UnknownYsonFieldValueStringWriter_;
+    TForwardingUnknownYsonFieldValueWriter ForwardingUnknownYsonFieldValueWriter_;
 
     std::unique_ptr<ITreeBuilder> TreeBuilder_;
 
@@ -1155,21 +1089,43 @@ private:
         auto& typeEntry = TypeStack_.back();
         const auto* type = TypeStack_.back().Type;
         const auto* field = type->FindFieldByName(key);
+
         if (!field) {
-            if (Options_.UnknownYsonFieldsMode == EUnknownYsonFieldsMode::Keep) {
+            YPathStack_.Push(TString{key});
+            auto path = YPathStack_.GetPath();
+            YPathStack_.Pop();
+            auto unknownYsonFieldsMode = Options_.UnknownYsonFieldModeResolver(path);
+            auto onFinishForwarding = [this] (auto& writer) {
+                writer.Flush();
+                BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(UnknownYsonFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+                WriteKeyValuePair(UnknownYsonFieldKey_, UnknownYsonFieldValueString_);
+            };
+            if (unknownYsonFieldsMode == EUnknownYsonFieldsMode::Keep) {
                 UnknownYsonFieldKey_ = TString(key);
                 UnknownYsonFieldValueString_.clear();
                 Forward(
                     &UnknownYsonFieldValueStringWriter_,
-                    [this] {
-                        UnknownYsonFieldValueStringWriter_.Flush();
-                        BodyCodedStream_.WriteTag(google::protobuf::internal::WireFormatLite::MakeTag(UnknownYsonFieldNumber, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
-                        WriteKeyValuePair(UnknownYsonFieldKey_, UnknownYsonFieldValueString_);
+                    [this, onFinishForwarding] {
+                        onFinishForwarding(UnknownYsonFieldValueStringWriter_);
                     });
                 return;
             }
 
-            if (Options_.UnknownYsonFieldsMode == EUnknownYsonFieldsMode::Skip || type->IsReservedFieldName(key)) {
+            if (unknownYsonFieldsMode == EUnknownYsonFieldsMode::Forward) {
+                ForwardingUnknownYsonFieldValueWriter_.YPathStack() = YPathStack_;
+                ForwardingUnknownYsonFieldValueWriter_.YPathStack().Push(TString(key));
+                ForwardingUnknownYsonFieldValueWriter_.Reset();
+                UnknownYsonFieldKey_ = TString(key);
+                UnknownYsonFieldValueString_.clear();
+                Forward(
+                    &ForwardingUnknownYsonFieldValueWriter_,
+                    [this, onFinishForwarding] {
+                        onFinishForwarding(ForwardingUnknownYsonFieldValueWriter_);
+                    });
+                return;
+            }
+
+            if (unknownYsonFieldsMode == EUnknownYsonFieldsMode::Skip || type->IsReservedFieldName(key)) {
                 Forward(GetNullYsonConsumer(), [] {});
                 return;
             }
@@ -1189,7 +1145,7 @@ private:
             typeEntry.NonRequiredFieldNumbers.push_back(number);
         }
         FieldStack_.emplace_back(field);
-        YPathStack_.Push(field);
+        YPathStack_.Push(TString{field->GetYsonName()});
 
         if (field->IsYsonString()) {
             YsonString_.clear();
@@ -1761,7 +1717,7 @@ private:
     void OnKeyedItem(const TProtobufField* field)
     {
         Consumer_->OnKeyedItem(field->GetYsonName());
-        YPathStack_.Push(field);
+        YPathStack_.Push(TString{field->GetYsonName()});
     }
 
     void OnKeyedItem(TString key)
