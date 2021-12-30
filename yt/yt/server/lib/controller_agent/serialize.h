@@ -44,9 +44,10 @@ DEFINE_ENUM(ESnapshotVersion,
     ((HostObjects)                          (300701))
     ((FixSimpleSort)                        (300702))
     ((InputStreamPerRange)                  (300703))
-    ((RefactorStatistics)                   (300704))
+    ((RemoteCopyNetworks)                   (300704))
     ((AddAccountIntoUserObject)             (300705))
-    ((RemoteCopyNetworks)                   (300706))
+    // 22.1 start here
+    ((RefactorStatistics)                   (300801))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
