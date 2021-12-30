@@ -28,7 +28,6 @@ message TReqCoordinatorCommitDistributedTransactionPhaseOne
     required uint64 prepare_timestamp = 4;
     required string user = 8;
     optional string user_tag = 10;
-
 }
 
 message TReqCoordinatorCommitDistributedTransactionPhaseTwo

@@ -41,6 +41,7 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
     NRpc::TResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
     TCellId selfCellId,
+    NObjectClient::TCellTag selfClockCellTag,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
     std::vector<ITransactionParticipantProviderPtr> participantProviders);
 

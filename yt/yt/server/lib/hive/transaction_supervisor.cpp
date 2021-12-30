@@ -80,6 +80,7 @@ public:
         TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
         TCellId selfCellId,
+        TCellTag selfClockCellTag,
         ITimestampProviderPtr timestampProvider,
         std::vector<ITransactionParticipantProviderPtr> participantProviders)
         : TCompositeAutomatonPart(
@@ -92,6 +93,7 @@ public:
         , ResponseKeeper_(std::move(responseKeeper))
         , TransactionManager_(std::move(transactionManager))
         , SelfCellId_(selfCellId)
+        , SelfClockCellTag_(selfClockCellTag)
         , TimestampProvider_(std::move(timestampProvider))
         , ParticipantProviders_(std::move(participantProviders))
         , Logger(HiveServerLogger.WithTag("CellId: %v", SelfCellId_))
@@ -186,6 +188,7 @@ private:
     const TResponseKeeperPtr ResponseKeeper_;
     const ITransactionManagerPtr TransactionManager_;
     const TCellId SelfCellId_;
+    const TCellTag SelfClockCellTag_;
     const ITimestampProviderPtr TimestampProvider_;
     const std::vector<ITransactionParticipantProviderPtr> ParticipantProviders_;
 
@@ -207,11 +210,13 @@ private:
             TCellId cellId,
             TTransactionSupervisorConfigPtr config,
             ITimestampProviderPtr coordinatorTimestampProvider,
+            TCellTag coordinatorClockCellTag,
             const std::vector<ITransactionParticipantProviderPtr>& providers,
             const NLogging::TLogger logger)
             : CellId_(cellId)
             , Config_(std::move(config))
             , CoordinatorTimestampProvider_(std::move(coordinatorTimestampProvider))
+            , CoordinatorClockCellTag_(coordinatorClockCellTag)
             , Providers_(providers)
             , ProbationExecutor_(New<TPeriodicExecutor>(
                 NRpc::TDispatcher::Get()->GetLightInvoker(),
@@ -294,6 +299,7 @@ private:
                     return participant->PrepareTransaction(
                         transactionId,
                         prepareTimestamp,
+                        GetTimestampCellTag(participant, inheritCommitTimestamp),
                         cellIdsToSyncWith,
                         identity);
                 });
@@ -306,7 +312,10 @@ private:
                 false,
                 commit,
                 [
+                    this,
+                    this_ = MakeStrong(this),
                     transactionId = commit->GetTransactionId(),
+                    inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
                     commitTimestamps = commit->CommitTimestamps(),
                     identity = commit->AuthenticationIdentity()
                 ]
@@ -316,6 +325,7 @@ private:
                     return participant->CommitTransaction(
                         transactionId,
                         commitTimestamp,
+                        GetTimestampCellTag(participant, inheritCommitTimestamp),
                         identity);
                 });
         }
@@ -375,6 +385,7 @@ private:
         const TCellId CellId_;
         const TTransactionSupervisorConfigPtr Config_;
         const ITimestampProviderPtr CoordinatorTimestampProvider_;
+        const TCellTag CoordinatorClockCellTag_;
         const std::vector<ITransactionParticipantProviderPtr> Providers_;
         const TPeriodicExecutorPtr ProbationExecutor_;
         const NLogging::TLogger Logger;
@@ -574,6 +585,17 @@ private:
                 ? CoordinatorTimestampProvider_
                 : participant->GetTimestampProvider();
             return timestampProvider->GetLatestTimestamp();
+        }
+
+        TCellTag GetTimestampCellTag(
+            const ITransactionParticipantPtr& participant,
+            bool inheritCommitTimestamp) const
+        {
+            if (inheritCommitTimestamp) {
+                return CoordinatorClockCellTag_;
+            } else {
+                return participant->GetClockCellTag();
+            }
         }
     };
 
@@ -819,11 +841,13 @@ private:
 
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto prepareTimestamp = request->prepare_timestamp();
+            auto prepareTimestampCellTag = request->prepare_timestamp_cell_tag();
             auto cellIdsToSyncWith = FromProto<std::vector<TCellId>>(request->cell_ids_to_sync_with());
 
-            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %llx, CellIdsToSyncWith: %v",
+            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %llx@%v, CellIdsToSyncWith: %v",
                 transactionId,
                 prepareTimestamp,
+                prepareTimestampCellTag,
                 cellIdsToSyncWith);
 
             NHiveServer::NProto::TReqParticipantPrepareTransaction hydraRequest;
@@ -863,10 +887,12 @@ private:
 
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto commitTimestamp = request->commit_timestamp();
+            auto commitTimestampCellTag = request->commit_timestamp_cell_tag();
 
-            context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %llx",
+            context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %llx@%v",
                 transactionId,
-                commitTimestamp);
+                commitTimestamp,
+                commitTimestampCellTag);
 
             NHiveServer::NProto::TReqParticipantCommitTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
@@ -1789,6 +1815,7 @@ private:
                 cellId,
                 Config_,
                 TimestampProvider_,
+                SelfClockCellTag_,
                 ParticipantProviders_,
                 Logger);
             YT_VERIFY(ParticipantMap_.emplace(cellId, participant).second);
@@ -2165,6 +2192,7 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
     TResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
     TCellId selfCellId,
+    TCellTag selfClockCellTag,
     ITimestampProviderPtr timestampProvider,
     std::vector<ITransactionParticipantProviderPtr> participantProviders)
 {
@@ -2177,6 +2205,7 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
         std::move(responseKeeper),
         std::move(transactionManager),
         selfCellId,
+        selfClockCellTag,
         std::move(timestampProvider),
         std::move(participantProviders));
 }

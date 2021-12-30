@@ -19,6 +19,7 @@ using namespace NConcurrency;
 using namespace NElection;
 using namespace NHiveClient;
 using namespace NHydra;
+using namespace NObjectClient;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,6 +48,11 @@ public:
         return CellId_;
     }
 
+    TCellTag GetClockCellTag() const override
+    {
+        return Connection_->GetPrimaryMasterCellTag();
+    }
+
     const ITimestampProviderPtr& GetTimestampProvider() const override
     {
         return TimestampProvider_;
@@ -66,6 +72,7 @@ public:
     TFuture<void> PrepareTransaction(
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
+        TCellTag prepareTimestampCellTag,
         const std::vector<TCellId>& cellIdsToSyncWith,
         const NRpc::TAuthenticationIdentity& identity) override
     {
@@ -79,6 +86,7 @@ public:
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_prepare_timestamp(prepareTimestamp);
+                req->set_prepare_timestamp_cell_tag(prepareTimestampCellTag);
                 ToProto(req->mutable_cell_ids_to_sync_with(), cellIdsToSyncWith);
                 return req;
             });
@@ -87,6 +95,7 @@ public:
     TFuture<void> CommitTransaction(
         TTransactionId transactionId,
         TTimestamp commitTimestamp,
+        TCellTag commitTimestampCellTag,
         const NRpc::TAuthenticationIdentity& identity) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
@@ -99,6 +108,7 @@ public:
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_commit_timestamp(commitTimestamp);
+                req->set_commit_timestamp_cell_tag(commitTimestampCellTag);
                 return req;
             });
     }
