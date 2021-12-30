@@ -460,6 +460,7 @@ public:
                 ResponseKeeper_,
                 occupier->GetOccupierTransactionManager(),
                 GetCellId(),
+                connection->GetPrimaryMasterCellTag(),
                 connection->GetTimestampProvider(),
                 std::move(providers));
 

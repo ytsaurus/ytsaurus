@@ -25,6 +25,12 @@ struct ITransactionParticipant
     : public virtual TRefCounted
 {
     virtual TCellId GetCellId() const = 0;
+
+    //! Returns cell tag uniquely defining source of timestamps for a given participant.
+    //! For now equals to cell tag of primary master cell of a cluster participant
+    //! belongs to.
+    virtual NObjectClient::TCellTag GetClockCellTag() const = 0;
+
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const = 0;
 
     virtual ETransactionParticipantState GetState() const = 0;
@@ -32,11 +38,13 @@ struct ITransactionParticipant
     virtual TFuture<void> PrepareTransaction(
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
+        NObjectClient::TCellTag prepareTimestampCellTag,
         const std::vector<TCellId>& cellIdsToSyncWith,
         const NRpc::TAuthenticationIdentity& identity) = 0;
     virtual TFuture<void> CommitTransaction(
         TTransactionId transactionId,
         TTimestamp commitTimestamp,
+        NObjectClient::TCellTag commitTimestampCellTag,
         const NRpc::TAuthenticationIdentity& identity) = 0;
     virtual TFuture<void> AbortTransaction(
         TTransactionId transactionId,
