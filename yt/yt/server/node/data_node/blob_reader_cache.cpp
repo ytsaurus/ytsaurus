@@ -91,13 +91,19 @@ class TBlobReaderCache
     , public IBlobReaderCache
 {
 public:
-    explicit TBlobReaderCache(IBootstrapBase* bootstrap)
+    TBlobReaderCache(
+        TDataNodeConfigPtr dataNodeConfig,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+        IChunkMetaManagerPtr chunkMetaManager)
         : TSyncSlruCacheBase(
-            bootstrap->GetConfig()->DataNode->BlobReaderCache,
+            dataNodeConfig->BlobReaderCache,
             DataNodeProfiler.WithPrefix("/blob_reader_cache"))
-        , Bootstrap_(bootstrap)
-        , Config_(Bootstrap_->GetConfig()->DataNode)
-    { }
+        , Config_(dataNodeConfig)
+        , ChunkMetaManager_(chunkMetaManager)
+    {
+        dynamicConfigManager->SubscribeConfigChanged(
+            BIND(&TBlobReaderCache::OnDynamicConfigChanged, MakeWeak(this)));
+    }
 
     TChunkFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) override
     {
@@ -108,7 +114,7 @@ public:
 
         auto fileName = chunk->GetFileName();
         auto reader = New<TCachedBlobReader>(
-            Bootstrap_->GetChunkMetaManager(),
+            ChunkMetaManager_,
             chunk,
             fileName,
             Config_->ValidateBlockChecksums);
@@ -127,8 +133,8 @@ public:
     }
 
 private:
-    IBootstrapBase* const Bootstrap_;
     const TDataNodeConfigPtr Config_;
+    const IChunkMetaManagerPtr ChunkMetaManager_;
 
     void OnDynamicConfigChanged(
         const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
@@ -141,9 +147,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBlobReaderCachePtr CreateBlobReaderCache(IBootstrapBase* bootstrap)
+IBlobReaderCachePtr CreateBlobReaderCache(
+    TDataNodeConfigPtr dataNodeConfig,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+    IChunkMetaManagerPtr chunkMetaManager)
 {
-    return New<TBlobReaderCache>(bootstrap);
+    return New<TBlobReaderCache>(
+        dataNodeConfig,
+        dynamicConfigManager,
+        chunkMetaManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
