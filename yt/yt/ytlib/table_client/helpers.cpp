@@ -717,6 +717,21 @@ void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const 
     context->PackBaggage(baggage);
 }
 
+void PackBaggageFromDataSink(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSink& dataSink)
+{
+    auto baggage = context->UnpackOrCreateBaggage();
+    if (dataSink.GetPath()) {
+        AddTagToBaggage(baggage, ERawIOTag::ObjectPath, *dataSink.GetPath());
+    }
+    if (dataSink.GetObjectId()) {
+        AddTagToBaggage(baggage, ERawIOTag::ObjectId, ToString(dataSink.GetObjectId()));
+    }
+    if (dataSink.GetAccount()) {
+        AddTagToBaggage(baggage, EAggregateIOTag::Account, *dataSink.GetAccount());
+    }
+    context->PackBaggage(baggage);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

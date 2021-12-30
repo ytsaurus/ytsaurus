@@ -140,7 +140,8 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
-        const TChunkTimestamps& chunkTimestamps)
+        const TChunkTimestamps& chunkTimestamps,
+        const std::optional<NChunkClient::TDataSink>& dataSink)
         : Logger(TableClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
         , Schema_(std::move(schema))
         , ChunkTimestamps_(chunkTimestamps)
@@ -153,14 +154,22 @@ public:
             std::move(chunkWriter),
             std::move(blockCache),
             Logger))
+        , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
+        , FinishGuard_(TraceContext_)
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
     {
         ColumnarStatisticsExt_.mutable_data_weights()->Resize(ChunkNameTable_->GetSize(), 0);
+
+        if (dataSink) {
+            PackBaggageFromDataSink(TraceContext_, *dataSink);
+        }
     }
 
     TFuture<void> Close() override
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         if (RowCount_ == 0) {
             // Empty chunk.
             return VoidFuture;
@@ -248,6 +257,9 @@ protected:
     TLegacyOwningKey LastKey_;
 
     NProto::TBlockMetaExt BlockMetaExt_;
+
+    const TTraceContextPtr TraceContext_;
+    const TTraceContextFinishGuard FinishGuard_;
 
     virtual EChunkFormat GetChunkFormat() const = 0;
     virtual bool SupportBoundaryKeys() const = 0;
@@ -508,14 +520,16 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
-        const TChunkTimestamps& chunkTimestamps)
+        const TChunkTimestamps& chunkTimestamps,
+        const std::optional<NChunkClient::TDataSink>& dataSink)
         : TUnversionedChunkWriterBase(
             std::move(config),
             std::move(options),
             std::move(chunkWriter),
             std::move(blockCache),
             std::move(schema),
-            chunkTimestamps)
+            chunkTimestamps,
+            dataSink)
         , BlockWriter_(std::make_unique<THorizontalBlockWriter>())
     { }
 
@@ -527,6 +541,8 @@ public:
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         for (auto row : rows) {
             UpdateDataWeight(row);
             ++RowCount_;
@@ -584,16 +600,20 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
-        const TChunkTimestamps& chunkTimestamps)
+        const TChunkTimestamps& chunkTimestamps,
+        const std::optional<NChunkClient::TDataSink>& dataSink)
         : TUnversionedChunkWriterBase(
             std::move(config),
             std::move(options),
             std::move(chunkWriter),
             std::move(blockCache),
             std::move(schema),
-            chunkTimestamps)
+            chunkTimestamps,
+            dataSink)
         , DataToBlockFlush_(Config_->BlockSize)
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         // Only scan-optimized version for now.
         THashMap<TString, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_->Columns()) {
@@ -603,7 +623,6 @@ public:
                 auto groupIndex = BlockWriters_.size();
                 blockWriter->SetGroupIndex(groupIndex);
                 BlockWriters_.emplace_back(std::move(blockWriter));
-
             }
         }
 
@@ -642,6 +661,8 @@ public:
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         int startRowIndex = 0;
         while (startRowIndex < std::ssize(rows)) {
             i64 weight = 0;
@@ -785,6 +806,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterOptionsPtr options,
     TTableSchemaPtr schema,
     IChunkWriterPtr chunkWriter,
+    const std::optional<NChunkClient::TDataSink>& dataSink,
     const TChunkTimestamps& chunkTimestamps,
     IBlockCachePtr blockCache)
 {
@@ -796,7 +818,8 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
                 std::move(chunkWriter),
                 std::move(blockCache),
                 std::move(schema),
-                chunkTimestamps);
+                chunkTimestamps,
+                dataSink);
         case EOptimizeFor::Scan:
             return New<TColumnUnversionedChunkWriter>(
                 std::move(config),
@@ -804,7 +827,8 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
                 std::move(chunkWriter),
                 std::move(blockCache),
                 std::move(schema),
-                chunkTimestamps);
+                chunkTimestamps,
+                dataSink);
         default:
             YT_ABORT();
     }
@@ -822,14 +846,16 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
-        int partitionCount)
+        int partitionCount,
+        const std::optional<NChunkClient::TDataSink>& dataSink)
         : TUnversionedChunkWriterBase(
             std::move(config),
             std::move(options),
             std::move(chunkWriter),
             std::move(blockCache),
             std::move(schema),
-            TChunkTimestamps())
+            TChunkTimestamps(),
+            dataSink)
     {
         PartitionsExt_.mutable_row_counts()->Resize(partitionCount, 0);
         PartitionsExt_.mutable_uncompressed_data_sizes()->Resize(partitionCount, 0);
@@ -837,6 +863,8 @@ public:
 
     bool WriteBlock(TBlock block)
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         RowCount_ += block.Meta.row_count();
         block.Meta.set_chunk_row_count(RowCount_);
 
@@ -1005,7 +1033,6 @@ protected:
     const TTableSchemaPtr Schema_;
 
     TError Error_;
-
 
     virtual TNameTablePtr GetChunkNameTable() = 0;
 
@@ -1282,7 +1309,8 @@ public:
         IPartitionerPtr partitioner,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
-        IBlockCachePtr blockCache)
+        IBlockCachePtr blockCache,
+        const std::optional<NChunkClient::TDataSink>& dataSink)
         : TSchemalessMultiChunkWriterBase(
             config,
             options,
@@ -1317,7 +1345,8 @@ public:
                 std::move(underlyingWriter),
                 blockCache,
                 Schema_,
-                partitionCount);
+                partitionCount,
+                dataSink);
         };
     }
 
@@ -1492,6 +1521,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTransactionId transactionId,
     TChunkListId parentChunkListId,
     IPartitionerPtr partitioner,
+    const std::optional<NChunkClient::TDataSink>& dataSink,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -1509,7 +1539,8 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         std::move(partitioner),
         std::move(trafficMeter),
         std::move(throttler),
-        std::move(blockCache));
+        std::move(blockCache),
+        dataSink);
 
     writer->Init();
 
@@ -1855,6 +1886,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TString localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
+    const std::optional<NChunkClient::TDataSink>& dataSink,
     TChunkListId parentChunkListId,
     const TChunkTimestamps& chunkTimestamps,
     TTrafficMeterPtr trafficMeter,
@@ -1869,6 +1901,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
                     options,
                     schema,
                     underlyingWriter,
+                    dataSink,
                     chunkTimestamps,
                     blockCache);
             };
@@ -1901,6 +1934,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
                     options,
                     schema,
                     std::move(underlyingWriter),
+                    dataSink,
                     blockCache);
             };
 
@@ -1960,11 +1994,7 @@ public:
         , Logger(TableClientLogger.WithTag("Path: %v, TransactionId: %v",
             richPath.GetPath(),
             TransactionId_))
-        , TraceContext_(CreateTraceContextFromCurrent("TableWriter"))
-        , FinishGuard_(TraceContext_)
     {
-        TCurrentTraceContextGuard traceGuard(TraceContext_);
-
         if (Transaction_) {
             StartListenTransaction(Transaction_);
         }
@@ -1972,8 +2002,6 @@ public:
 
     TFuture<void> Open()
     {
-        TCurrentTraceContextGuard traceGuard(TraceContext_);
-
         return BIND(&TSchemalessTableWriter::DoOpen, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
             .Run();
@@ -1981,8 +2009,6 @@ public:
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
-        TCurrentTraceContextGuard traceGuard(TraceContext_);
-
         if (IsAborted()) {
             return false;
         }
@@ -1999,8 +2025,6 @@ public:
 
     TFuture<void> Close() override
     {
-        TCurrentTraceContextGuard traceGuard(TraceContext_);
-
         return BIND(&TSchemalessTableWriter::DoClose, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
             .Run();
@@ -2034,9 +2058,6 @@ private:
     TTableUploadOptions TableUploadOptions_;
     ITransactionPtr UploadTransaction_;
     ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
-
-    const TTraceContextPtr TraceContext_;
-    const TTraceContextFinishGuard FinishGuard_;
 
     TTableSchemaPtr GetChunkSchema() const
     {
@@ -2185,12 +2206,6 @@ private:
             Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema->HasComputedColumns();
             Options_->TableSchema = GetSchema();
 
-            auto baggage = TraceContext_->UnpackOrCreateBaggage();
-            AddTagToBaggage(baggage, ERawIOTag::ObjectPath, userObject.GetPath());
-            AddTagToBaggage(baggage, ERawIOTag::ObjectId, ToString(userObject.ObjectId));
-            AddTagToBaggage(baggage, EAggregateIOTag::Account, Options_->Account);
-            TraceContext_->PackBaggage(baggage);
-
             auto chunkWriterConfig = attributes.FindYson("chunk_writer");
             if (chunkWriterConfig) {
                 ReconfigureYsonSerializable(writerConfig, chunkWriterConfig);
@@ -2285,6 +2300,11 @@ private:
         auto timestamp = WaitFor(Client_->GetNativeConnection()->GetTimestampProvider()->GenerateTimestamps())
             .ValueOrThrow();
 
+        NChunkClient::TDataSink dataSink;
+        dataSink.SetPath(userObject.GetPath());
+        dataSink.SetObjectId(userObject.ObjectId);
+        dataSink.SetAccount(Options_->Account);
+
         UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
             writerConfig,
             Options_,
@@ -2295,6 +2315,7 @@ private:
             LocalHostName_,
             externalCellTag,
             UploadTransaction_->GetId(),
+            dataSink,
             chunkListId,
             TChunkTimestamps{timestamp, timestamp},
             /* trafficMeter */ nullptr,

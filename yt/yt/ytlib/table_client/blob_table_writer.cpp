@@ -35,6 +35,7 @@ TBlobTableWriter::TBlobTableWriter(
     TBlobTableWriterConfigPtr blobTableWriterConfig,
     TTableWriterOptionsPtr tableWriterOptions,
     TTransactionId transactionId,
+    const std::optional<NChunkClient::TDataSink>& dataSink,
     TChunkListId chunkListId,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
@@ -77,6 +78,7 @@ TBlobTableWriter::TBlobTableWriter(
         /*localHostName*/ TString(), // Locality is not important for table upload.
         NObjectClient::CellTagFromId(chunkListId),
         transactionId,
+        dataSink,
         chunkListId,
         TChunkTimestamps(),
         trafficMeter,

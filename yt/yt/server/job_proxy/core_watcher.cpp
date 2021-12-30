@@ -365,6 +365,7 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TStri
         BlobTableWriterConfig_,
         TableWriterOptions_,
         Transaction_,
+        /*dataSink*/ std::nullopt,
         ChunkList_,
         JobHost_->GetTrafficMeter(),
         JobHost_->GetOutBandwidthThrottler());

@@ -688,6 +688,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 storeWriterOptions,
                 tabletSnapshot->PhysicalSchema,
                 storeChunkWriter,
+                /*dataSink*/ std::nullopt,
                 blockCache),
             tabletSnapshot->PhysicalSchema,
             hunkChunkPayloadWriter,

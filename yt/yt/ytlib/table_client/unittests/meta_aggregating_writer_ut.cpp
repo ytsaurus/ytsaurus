@@ -99,7 +99,8 @@ protected:
                 ChunkWriterConfig_,
                 options,
                 Schema_,
-                memoryWriter);
+                memoryWriter,
+                /*dataSink*/ std::nullopt);
 
             TUnversionedRowsBuilder builder;
             for (int i = 0; i < RowCount; ++i) {

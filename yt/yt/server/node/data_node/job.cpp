@@ -1410,7 +1410,8 @@ private:
             New<TChunkWriterConfig>(),
             chunkWriterOptions,
             Schema_,
-            confirmingWriter);
+            confirmingWriter,
+            /*dataSink*/ std::nullopt);
 
         auto rowBuffer = New<TRowBuffer>();
         auto writeNameTable = writer->GetNameTable();

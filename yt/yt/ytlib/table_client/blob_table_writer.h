@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/blob_reader.h>
@@ -48,6 +49,7 @@ public:
         TBlobTableWriterConfigPtr blobTableWriterConfig,
         TTableWriterOptionsPtr tableWriterOptions,
         NTransactionClient::TTransactionId transactionId,
+        const std::optional<NChunkClient::TDataSink>& dataSink,
         NChunkClient::TChunkListId chunkListId,
         NChunkClient::TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler);

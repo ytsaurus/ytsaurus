@@ -132,6 +132,7 @@ public:
                 transactionId,
                 chunkListId,
                 CreatePartitioner(PartitionJobSpecExt_),
+                /*dataSink*/ std::nullopt,
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler());
         };

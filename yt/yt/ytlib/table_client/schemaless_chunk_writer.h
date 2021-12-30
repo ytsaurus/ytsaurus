@@ -6,6 +6,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_writer_base.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/multi_chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -46,6 +47,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterOptionsPtr options,
     TTableSchemaPtr schema,
     NChunkClient::IChunkWriterPtr chunkWriter,
+    const std::optional<NChunkClient::TDataSink>& dataSink,
     const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
@@ -70,6 +72,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TString localHostName,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
+    const std::optional<NChunkClient::TDataSink>& dataSink,
     NChunkClient::TChunkListId parentChunkListId = NChunkClient::NullChunkListId,
     const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
@@ -87,6 +90,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     NTransactionClient::TTransactionId transactionId,
     NChunkClient::TChunkListId parentChunkListId,
     IPartitionerPtr partitioner,
+    const std::optional<NChunkClient::TDataSink>& dataSink,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
