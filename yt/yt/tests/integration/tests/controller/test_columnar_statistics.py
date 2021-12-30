@@ -62,12 +62,13 @@ class TestColumnarStatistics(YTEnvSetup):
         all_columns,
         all_expected_data_weights,
         all_expected_timestamp_weight=None,
+        schema_columns=None,
     ):
         assert len(paths) == len(all_columns)
         for index in range(len(paths)):
-            paths[index] = "{0}{{{1}}}[{2}:{3}]".format(
+            paths[index] = "{0}{1}[{2}:{3}]".format(
                 paths[index],
-                all_columns[index],
+                "{" + all_columns[index] + "}" if all_columns[index] is not None else "",
                 "#" + str(lower_row_indices[index]) if lower_row_indices[index] is not None else "",
                 "#" + str(upper_row_indices[index]) if upper_row_indices[index] is not None else "",
             )
@@ -75,15 +76,16 @@ class TestColumnarStatistics(YTEnvSetup):
         for path in paths:
             yson_paths += '"' + path + '";'
         yson_paths += "]"
-        allStatistics = get_table_columnar_statistics(yson_paths)
-        assert len(allStatistics) == len(all_expected_data_weights)
-        for index in range(len(allStatistics)):
-            assert allStatistics[index]["legacy_chunks_data_weight"] == 0
-            assert allStatistics[index]["column_data_weights"] == dict(
-                zip(all_columns[index].split(","), all_expected_data_weights[index])
+        all_statistics = get_table_columnar_statistics(yson_paths)
+        assert len(all_statistics) == len(all_expected_data_weights)
+        for index in range(len(all_statistics)):
+            assert all_statistics[index]["legacy_chunks_data_weight"] == 0
+            expected_columns = all_columns[index] if all_columns[index] is not None else schema_columns[index]
+            assert all_statistics[index]["column_data_weights"] == dict(
+                zip(expected_columns.split(","), all_expected_data_weights[index])
             )
             if all_expected_timestamp_weight is not None:
-                assert allStatistics[index] == all_expected_timestamp_weight[index]
+                assert all_statistics[index] == all_expected_timestamp_weight[index]
 
     def _create_simple_dynamic_table(self, path, optimize_for="lookup"):
         create(
@@ -238,6 +240,82 @@ class TestColumnarStatistics(YTEnvSetup):
             upper_row_indices,
             all_columns,
             all_expected_data_weights,
+        )
+
+    @authors("achulkov2")
+    def test_get_table_columnar_statistics_schema_fetching(self):
+        create("table", "//tmp/t")
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 10, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 20}, {"c": True}])
+        write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 100}])
+
+        create("table", "//tmp/t2", attributes={
+            "schema": [
+                {"name": "a", "type": "string"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "any"}
+            ]
+        })
+        write_table("<append=%true>//tmp/t2", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t2", [{"a": "x" * 200}, {"c": True}])
+        write_table("<append=%true>//tmp/t2", [{"b": None, "c": 0}, {"a": "x" * 1000}])
+
+        paths = []
+        lower_row_indices = []
+        upper_row_indices = []
+        all_columns = []
+        all_expected_data_weights = []
+        schema_columns = []
+
+        paths.append("//tmp/t")
+        lower_row_indices.append(None)
+        upper_row_indices.append(None)
+        all_columns.append("a,b")
+        schema_columns.append(None)
+        all_expected_data_weights.append([130, 8])
+
+        paths.append("//tmp/t2")
+        lower_row_indices.append(None)
+        upper_row_indices.append(None)
+        all_columns.append(None)
+        schema_columns.append("a,b,c")
+        all_expected_data_weights.append([1300, 8, 17])
+
+        paths.append("//tmp/t2")
+        lower_row_indices.append(None)
+        upper_row_indices.append(None)
+        all_columns.append("c,a,x")
+        schema_columns.append(None)
+        all_expected_data_weights.append([17, 1300, 0])
+
+        paths.append("//tmp/t2")
+        lower_row_indices.append(None)
+        upper_row_indices.append(None)
+        all_columns.append("a,b,c")
+        schema_columns.append(None)
+        all_expected_data_weights.append([1300, 8, 17])
+
+        paths.append("//tmp/t")
+        lower_row_indices.append(2)
+        upper_row_indices.append(5)
+        all_columns.append("a")
+        schema_columns.append(None)
+        all_expected_data_weights.append([120])
+
+        paths.append("//tmp/t2")
+        lower_row_indices.append(None)
+        upper_row_indices.append(None)
+        all_columns.append(None)
+        schema_columns.append("a,b,c")
+        all_expected_data_weights.append([1300, 8, 17])
+
+        self._expect_multi_statistics(
+            paths,
+            lower_row_indices,
+            upper_row_indices,
+            all_columns,
+            all_expected_data_weights,
+            schema_columns=schema_columns
         )
 
     @authors("max42")

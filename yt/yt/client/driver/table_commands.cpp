@@ -311,17 +311,6 @@ TGetTableColumnarStatisticsCommand::TGetTableColumnarStatisticsCommand()
         .Default(EColumnarStatisticsFetcherMode::FromNodes);
     RegisterParameter("max_chunks_per_node_fetch", MaxChunksPerNodeFetch)
         .Default();
-
-    RegisterPostprocessor([&] {
-        for (auto& path : Paths) {
-            path = path.Normalize();
-            const auto& columns = path.GetColumns();
-            if (!columns) {
-                THROW_ERROR_EXCEPTION("It is required to specify column selectors in YPath for getting columnar statistics")
-                    << TErrorAttribute("path", path);
-            }
-        }
-    });
 }
 
 void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
@@ -334,13 +323,12 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
         Options.FetcherConfig->MaxChunksPerNodeFetch = *MaxChunksPerNodeFetch;
     }
 
-    std::vector<std::vector<TString>> allColumns;
-    allColumns.reserve(Paths.size());
-    for (int index = 0; index < std::ssize(Paths); ++index) {
-        allColumns.push_back(*Paths[index].GetColumns());
-    }
-
     Options.FetcherMode = FetcherMode;
+
+    // NB: Important for columns to appear in the paths' attributes.
+    for (auto& path : Paths) {
+        path = path.Normalize();
+    }
 
     auto transaction = AttachTransaction(context, false);
 
@@ -371,6 +359,30 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
         TDuration::MilliSeconds(100));
     keepAliveExecutor->Start();
 
+    std::vector<TFuture<NYson::TYsonString>> asyncSchemaYsons;
+    for (int index = 0; index < std::ssize(Paths); ++index) {
+        if (Paths[index].GetColumns()) {
+            continue;
+        }
+        asyncSchemaYsons.push_back(context->GetClient()->GetNode(Paths[index].GetPath() + "/@schema"));
+    }
+
+    if (!asyncSchemaYsons.empty()) {
+        YT_LOG_DEBUG("Fetching schemas for tables without column selectors (TableCount: %v)", asyncSchemaYsons.size());
+        auto allSchemas = WaitFor(AllSucceeded(asyncSchemaYsons))
+            .ValueOrThrow();
+        for (int pathIndex = 0, missingColumnIndex = 0; pathIndex < std::ssize(Paths); ++pathIndex) {
+            if (!Paths[pathIndex].GetColumns()) {
+                auto columnNames = ConvertTo<TTableSchema>(allSchemas[missingColumnIndex]).GetColumnNames();
+                if (columnNames.empty()) {
+                    THROW_ERROR_EXCEPTION("Table %Qv does not have schema and column selector is not specified", Paths[pathIndex]);
+                }
+                Paths[pathIndex].SetColumns(columnNames);
+                ++missingColumnIndex;
+            }
+        }
+    }
+
     auto allStatisticsOrError = WaitFor(context->GetClient()->GetColumnarStatistics(Paths, Options));
 
     {
@@ -387,22 +399,22 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
 
     YT_VERIFY(allStatistics.size() == Paths.size());
     for (int index = 0; index < std::ssize(allStatistics); ++index) {
-        YT_VERIFY(allColumns[index].size() == allStatistics[index].ColumnDataWeights.size());
+        YT_VERIFY(Paths[index].GetColumns()->size() == allStatistics[index].ColumnDataWeights.size());
     }
 
     ProduceOutput(context, [&] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .DoList([&] (TFluentList fluent) {
                 for (int index = 0; index < std::ssize(Paths); ++index) {
-                    const auto& columns = allColumns[index];
+                    const auto& columns = Paths[index].GetColumns();
                     const auto& statistics = allStatistics[index];
                     fluent
                         .Item()
                         .BeginMap()
                             .Item("column_data_weights").DoMap([&] (TFluentMap fluent) {
-                                for (int index = 0; index < std::ssize(columns); ++index) {
+                                for (int index = 0; index < std::ssize(*columns); ++index) {
                                     fluent
-                                        .Item(columns[index]).Value(statistics.ColumnDataWeights[index]);
+                                        .Item((*columns)[index]).Value(statistics.ColumnDataWeights[index]);
                                 }
                             })
                             .OptionalItem("timestamp_total_weight", statistics.TimestampTotalWeight)
