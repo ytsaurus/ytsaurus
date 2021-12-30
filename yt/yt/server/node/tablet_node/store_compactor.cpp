@@ -292,6 +292,7 @@ private:
                 StoreWriterOptions_,
                 TabletSnapshot_->PhysicalSchema,
                 std::move(underlyingWriter),
+                /*dataSink*/ std::nullopt,
                 BlockCache_),
             TabletSnapshot_->PhysicalSchema,
             HunkChunkPayloadWriter_,

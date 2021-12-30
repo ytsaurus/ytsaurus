@@ -19,6 +19,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/encoding_chunk_writer.h>
@@ -46,6 +47,7 @@ using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NApi;
 using namespace NTableClient::NProto;
+using namespace NTracing;
 
 using NYT::TRange;
 using NYT::ToProto;
@@ -65,7 +67,8 @@ public:
         TChunkWriterOptionsPtr options,
         TTableSchemaPtr schema,
         IChunkWriterPtr chunkWriter,
-        IBlockCachePtr blockCache)
+        IBlockCachePtr blockCache,
+        const std::optional<NChunkClient::TDataSink>& dataSink)
         : Logger(TableClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
         , Config_(config)
         , Schema_(schema)
@@ -84,7 +87,13 @@ public:
 #if 0
         , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
 #endif
-    { }
+        , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
+        , FinishGuard_(TraceContext_)
+    {
+        if (dataSink) {
+            PackBaggageFromDataSink(TraceContext_, *dataSink);
+        }
+    }
 
     TFuture<void> GetReadyEvent() override
     {
@@ -98,6 +107,8 @@ public:
 
     bool Write(TRange<TVersionedRow> rows) override
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         if (rows.Empty()) {
             return EncodingChunkWriter_->IsReady();
         }
@@ -122,6 +133,8 @@ public:
 
     TFuture<void> Close() override
     {
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+
         // psushin@ forbids empty chunks :)
         YT_VERIFY(RowCount_ > 0);
 
@@ -202,6 +215,9 @@ protected:
 #if 0
     TBloomFilterBuilder KeyFilter_;
 #endif
+
+    const TTraceContextPtr TraceContext_;
+    const TTraceContextFinishGuard FinishGuard_;
 
     virtual void DoClose() = 0;
     virtual void DoWriteRows(TRange<TVersionedRow> rows) = 0;
@@ -285,13 +301,15 @@ public:
         TChunkWriterOptionsPtr options,
         TTableSchemaPtr schema,
         IChunkWriterPtr chunkWriter,
-        IBlockCachePtr blockCache)
+        IBlockCachePtr blockCache,
+        const std::optional<NChunkClient::TDataSink>& dataSink)
         : TVersionedChunkWriterBase(
             std::move(config),
             std::move(options),
             std::move(schema),
             std::move(chunkWriter),
-            std::move(blockCache))
+            std::move(blockCache),
+            dataSink)
         , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_))
     { }
 
@@ -428,13 +446,15 @@ public:
         TChunkWriterOptionsPtr options,
         TTableSchemaPtr schema,
         IChunkWriterPtr chunkWriter,
-        IBlockCachePtr blockCache)
+        IBlockCachePtr blockCache,
+        const std::optional<NChunkClient::TDataSink>& dataSink)
         : TVersionedChunkWriterBase(
             std::move(config),
             std::move(options),
             std::move(schema),
             std::move(chunkWriter),
-            std::move(blockCache))
+            std::move(blockCache),
+            dataSink)
         , DataToBlockFlush_(Config_->BlockSize)
     {
         auto createBlockWriter = [&] {
@@ -666,6 +686,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     TTableSchemaPtr schema,
     IChunkWriterPtr chunkWriter,
+    const std::optional<NChunkClient::TDataSink>& dataSink,
     IBlockCachePtr blockCache)
 {
     if (blockCache->GetSupportedBlockTypes() != EBlockType::None) {
@@ -682,14 +703,16 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
             std::move(options),
             std::move(schema),
             std::move(chunkWriter),
-            std::move(blockCache));
+            std::move(blockCache),
+            dataSink);
     } else {
         return New<TSimpleVersionedChunkWriter>(
             std::move(config),
             std::move(options),
             std::move(schema),
             std::move(chunkWriter),
-            std::move(blockCache));
+            std::move(blockCache),
+            dataSink);
     }
 }
 
@@ -737,6 +760,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TString localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
+    const std::optional<NChunkClient::TDataSink>& dataSink,
     TChunkListId parentChunkListId,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -747,6 +771,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
             options,
             schema,
             std::move(underlyingWriter),
+            dataSink,
             blockCache);
     };
 

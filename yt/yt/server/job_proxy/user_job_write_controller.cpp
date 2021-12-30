@@ -258,6 +258,7 @@ void TUserJobWriteController::Init()
                 stderrTableWriterConfig,
                 options,
                 debugTransactionId,
+                /*dataSink*/ std::nullopt,
                 FromProto<TChunkListId>(outputTableSpec.chunk_list_id()),
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler()));

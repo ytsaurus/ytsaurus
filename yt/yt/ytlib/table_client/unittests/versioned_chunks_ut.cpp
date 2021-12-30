@@ -109,7 +109,8 @@ protected:
             config,
             options,
             Schema,
-            MemoryWriter);
+            MemoryWriter,
+            /*dataSink*/ std::nullopt);
     }
 
     void GetRowAndResetWriter()
@@ -413,7 +414,8 @@ protected:
             config,
             options,
             writeSchema,
-            memoryWriter);
+            memoryWriter,
+            /*dataSink*/ std::nullopt);
 
         chunkWriter->Write(InitialRows_);
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());

@@ -130,6 +130,7 @@ public:
                 Host_->GetLocalHostName(),
                 CellTagFromId(chunkListId),
                 transactionId,
+                /*dataSink*/ std::nullopt,
                 chunkListId,
                 TChunkTimestamps{timestamp, timestamp},
                 Host_->GetTrafficMeter(),

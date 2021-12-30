@@ -206,7 +206,8 @@ protected:
             config,
             options,
             New<TTableSchema>(std::get<1>(GetParam())),
-            memoryWriter);
+            memoryWriter,
+            /*dataSink*/ std::nullopt);
 
         WriteNameTable_ = chunkWriter->GetNameTable();
         InitNameTable(WriteNameTable_);
@@ -364,7 +365,8 @@ protected:
             config,
             options,
             Schema_,
-            memoryWriter);
+            memoryWriter,
+            /*dataSink*/ std::nullopt);
 
         TUnversionedRowsBuilder builder;
 
@@ -603,7 +605,8 @@ protected:
             config,
             options,
             schema,
-            memoryWriter);
+            memoryWriter,
+            /*dataSink*/ std::nullopt);
 
         WriteNameTable_ = chunkWriter->GetNameTable();
         InitRows(rowCount, schema, WriteNameTable_);

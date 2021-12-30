@@ -1965,7 +1965,8 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             tableWriterConfig,
             tableWriterOptions,
             Schema_,
-            chunkWriter);
+            chunkWriter,
+            /*dataSink*/ std::nullopt);
 
         TRowBatchReadOptions options{
             .MaxRowsPerRead = SnapshotRowsPerRead

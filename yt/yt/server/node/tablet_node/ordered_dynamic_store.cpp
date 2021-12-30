@@ -329,7 +329,8 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
             tableWriterConfig,
             tableWriterOptions,
             Schema_,
-            chunkWriter);
+            chunkWriter,
+            /*dataSink*/ std::nullopt);
 
         YT_LOG_DEBUG("Serializing store snapshot");
 

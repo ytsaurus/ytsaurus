@@ -78,6 +78,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         std::move(localHostName),
         CellTagFromId(chunkListId),
         transactionId,
+        /*dataSink*/ std::nullopt,
         chunkListId,
         chunkTimestamps,
         std::move(trafficMeter),
@@ -575,6 +576,7 @@ public:
                 transactionId,
                 chunkListId,
                 std::move(partitioner),
+                /*dataSink*/ std::nullopt,
                 TrafficMeter_,
                 OutBandwidthThrottler_);
         } else {
