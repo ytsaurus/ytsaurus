@@ -164,7 +164,7 @@ void TCpuProfiler::StopTimer()
     }
 
     struct sigaction sig;
-    sig.sa_flags = 0;
+    sig.sa_flags = SA_RESTART;
     sigemptyset(&sig.sa_mask);
     sig.sa_handler = SIG_IGN;
 
