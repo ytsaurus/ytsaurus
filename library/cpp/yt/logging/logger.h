@@ -12,6 +12,8 @@
 
 #include <library/cpp/yt/misc/guid.h>
 
+#include <library/cpp/yt/memory/leaky_singleton.h>
+
 #include <util/system/src_location.h>
 
 #include <atomic>
@@ -285,8 +287,8 @@ void LogStructuredEvent(
         \
         ::NYT::NLogging::TLoggingAnchor* anchor__##__LINE__ = (anchor); \
         if (!anchor__##__LINE__) { \
-            static ::NYT::NLogging::TLoggingAnchor staticAnchor__##__LINE__; \
-            anchor__##__LINE__ = &staticAnchor__##__LINE__; \
+            static ::NYT::TLeakyStorage<::NYT::NLogging::TLoggingAnchor> staticAnchor__##__LINE__; \
+            anchor__##__LINE__ = staticAnchor__##__LINE__.Get(); \
         } \
         \
         bool anchorUpToDate__##__LINE__ = logger__##__LINE__.IsAnchorUpToDate(*anchor__##__LINE__); \
