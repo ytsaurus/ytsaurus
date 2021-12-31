@@ -94,7 +94,7 @@ TString ConvertYson(
         [&] (const TYsonClientToServerConverter& clientToServerConverter) {
             if (clientToServerConverter) {
                 auto value = clientToServerConverter(MakeUnversionedStringValue(sourceYson));
-                convertedYson = TStringBuf(value.Data.String, value.Length);
+                convertedYson = value.AsStringBuf();
             } else {
                 convertedYson = CanonizeYson(sourceYson);
             }

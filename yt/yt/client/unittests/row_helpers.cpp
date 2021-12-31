@@ -45,19 +45,19 @@ bool GetBoolean(const TUnversionedValue& row)
 TString GetString(const TUnversionedValue& row)
 {
     EnsureTypesMatch(EValueType::String, row.Type);
-    return TString(row.Data.String, row.Length);
+    return row.AsString();
 }
 
 NYTree::INodePtr GetAny(const NTableClient::TUnversionedValue& row)
 {
     EnsureTypesMatch(EValueType::Any, row.Type);
-    return NYTree::ConvertToNode(NYson::TYsonString(TString(row.Data.String, row.Length)));
+    return NYTree::ConvertToNode(NYson::TYsonString(row.AsString()));
 }
 
 NYTree::INodePtr GetComposite(const NTableClient::TUnversionedValue& row)
 {
     EnsureTypesMatch(EValueType::Composite, row.Type);
-    return NYTree::ConvertToNode(NYson::TYsonString(TString(row.Data.String, row.Length)));
+    return NYTree::ConvertToNode(NYson::TYsonString(row.AsString()));
 }
 
 bool IsNull(const NTableClient::TUnversionedValue& row)

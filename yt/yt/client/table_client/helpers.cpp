@@ -329,7 +329,7 @@ void FromUnversionedValue(TGuid* value, TUnversionedValue unversionedValue)
         THROW_ERROR_EXCEPTION("Cannot parse object id value from %Qlv",
             unversionedValue.Type);
     }
-    *value = TGuid::FromString(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+    *value = TGuid::FromString(unversionedValue.AsStringBuf());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,7 +373,7 @@ void FromUnversionedValue(TStringBuf* value, TUnversionedValue unversionedValue)
         THROW_ERROR_EXCEPTION("Cannot parse string value from %Qlv",
             unversionedValue.Type);
     }
-    *value = TStringBuf(unversionedValue.Data.String, unversionedValue.Length);
+    *value = unversionedValue.AsStringBuf();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -437,7 +437,7 @@ void FromUnversionedValue(TYsonString* value, TUnversionedValue unversionedValue
         THROW_ERROR_EXCEPTION("Cannot parse YSON string from %Qlv",
             unversionedValue.Type);
     }
-    *value = TYsonString(TString(unversionedValue.Data.String, unversionedValue.Length));
+    *value = TYsonString(unversionedValue.AsString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -459,7 +459,7 @@ void FromUnversionedValue(NYson::TYsonStringBuf* value, TUnversionedValue unvers
         THROW_ERROR_EXCEPTION("Cannot parse YSON string from %Qlv",
             unversionedValue.Type);
     }
-    *value = TYsonStringBuf(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+    *value = TYsonStringBuf(unversionedValue.AsStringBuf());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -664,7 +664,7 @@ void UnversionedValueToProtobufImpl(
     options.UnknownYsonFieldModeResolver = TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode::Keep);
     auto protobufWriter = CreateProtobufWriter(&outputStream, type, options);
     ParseYsonStringBuffer(
-        TStringBuf(unversionedValue.Data.String, unversionedValue.Length),
+        unversionedValue.AsStringBuf(),
         EYsonType::Node,
         protobufWriter.get());
     if (!value->ParseFromArray(wireBytes.data(), wireBytes.size())) {
@@ -856,7 +856,7 @@ void UnversionedValueToListImpl(
     } consumer(std::move(appender), type);
 
     ParseYsonStringBuffer(
-        TStringBuf(unversionedValue.Data.String, unversionedValue.Length),
+        unversionedValue.AsStringBuf(),
         EYsonType::Node,
         &consumer);
 }
@@ -975,7 +975,7 @@ void UnversionedValueToListImpl(
     } consumer(std::move(appender));
 
     ParseYsonStringBuffer(
-        TStringBuf(unversionedValue.Data.String, unversionedValue.Length),
+        unversionedValue.AsStringBuf(),
         EYsonType::Node,
         &consumer);
 }
@@ -1167,7 +1167,7 @@ void UnversionedValueToMapImpl(
     } consumer(std::move(appender), type);
 
     ParseYsonStringBuffer(
-        TStringBuf(unversionedValue.Data.String, unversionedValue.Length),
+        unversionedValue.AsStringBuf(),
         EYsonType::Node,
         &consumer);
 }
@@ -1187,11 +1187,11 @@ void UnversionedValueToYson(TUnversionedValue unversionedValue, TCheckedInDebugY
             tokenWriter->WriteBinaryDouble(unversionedValue.Data.Double);
             return;
         case EValueType::String:
-            tokenWriter->WriteBinaryString(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+            tokenWriter->WriteBinaryString(unversionedValue.AsStringBuf());
             return;
         case EValueType::Any:
         case EValueType::Composite:
-            tokenWriter->WriteRawNodeUnchecked(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+            tokenWriter->WriteRawNodeUnchecked(unversionedValue.AsStringBuf());
             return;
         case EValueType::Boolean:
             tokenWriter->WriteBinaryBoolean(unversionedValue.Data.Boolean);
@@ -1220,11 +1220,11 @@ void UnversionedValueToYson(TUnversionedValue unversionedValue, IYsonConsumer* c
             consumer->OnDoubleScalar(unversionedValue.Data.Double);
             return;
         case EValueType::String:
-            consumer->OnStringScalar(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+            consumer->OnStringScalar(unversionedValue.AsStringBuf());
             return;
         case EValueType::Any:
         case EValueType::Composite:
-            consumer->OnRaw(TStringBuf(unversionedValue.Data.String, unversionedValue.Length), EYsonType::Node);
+            consumer->OnRaw(unversionedValue.AsStringBuf(), EYsonType::Node);
             return;
         case EValueType::Boolean:
             consumer->OnBooleanScalar(unversionedValue.Data.Boolean);
@@ -1271,12 +1271,12 @@ void ToAny(
                 *result = *value;
                 return;
             } else {
-                writer.OnRaw(TStringBuf(value->Data.String, value->Length));
+                writer.OnRaw(value->AsStringBuf());
             }
             break;
         }
         case EValueType::String: {
-            writer.OnStringScalar(TStringBuf(value->Data.String, value->Length));
+            writer.OnStringScalar(value->AsStringBuf());
             break;
         }
         case EValueType::Int64: {

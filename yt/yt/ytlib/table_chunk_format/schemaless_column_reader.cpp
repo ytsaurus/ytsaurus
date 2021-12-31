@@ -58,7 +58,7 @@ public:
 
                 if (value.Type == EValueType::Any) {
                     value = MakeUnversionedValue(
-                        TStringBuf(value.Data.String, value.Length),
+                        value.AsStringBuf(),
                         value.Id,
                         Lexer_);
                 }

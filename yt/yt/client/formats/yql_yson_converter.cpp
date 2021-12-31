@@ -659,7 +659,7 @@ public:
         } else if constexpr (Type == EValueType::String) {
             auto bytesLeft = totalLimit - static_cast<i64>(consumer->GetWrittenByteCount());
             consumer->OnStringScalarWeightLimited(
-                TStringBuf(value.Data.String, value.Length),
+                value.AsStringBuf(),
                 bytesLeft);
         } else if constexpr (Type == EValueType::Double) {
             consumer->OnDoubleScalar(value.Data.Double);
@@ -705,7 +705,7 @@ public:
         }
 
         char buffer[NDecimal::TDecimal::MaxTextSize];
-        const auto binaryDecimal = TStringBuf(value.Data.String, value.Length);
+        const auto binaryDecimal = value.AsStringBuf();
         const auto textDecimal = NDecimal::TDecimal::BinaryToText(binaryDecimal, Precision_, Scale_, buffer, sizeof(buffer));
         consumer->OnStringScalarNoWeightLimit(textDecimal);
 

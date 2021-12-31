@@ -69,7 +69,7 @@ void WriteUnversionedValue(const TUnversionedValue& value, IOutputStream* output
             output->Write(FormatBool(value.Data.Boolean));
             return;
         case EValueType::String:
-            EscapeAndWrite(TStringBuf(value.Data.String, value.Length), output, escapeTable);
+            EscapeAndWrite(value.AsStringBuf(), output, escapeTable);
             return;
 
         case EValueType::Any:

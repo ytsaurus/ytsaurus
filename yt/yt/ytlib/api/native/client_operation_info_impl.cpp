@@ -823,7 +823,7 @@ void TClient::DoListOperationsFromCypress(
                     return;
                 }
                 YT_VERIFY(value.Type == EValueType::Any);
-                lightOperation.UpdateBriefProgress(TStringBuf(value.Data.String, value.Length));
+                lightOperation.UpdateBriefProgress(value.AsStringBuf());
             });
         }
     }

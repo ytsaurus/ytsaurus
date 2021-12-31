@@ -30,7 +30,7 @@ inline void GetValue(bool* result, const TUnversionedValue& value)
 
 inline void GetValue(TStringBuf* result, const TUnversionedValue& value)
 {
-    *result = TStringBuf(value.Data.String, value.Length);
+    *result = value.AsStringBuf();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

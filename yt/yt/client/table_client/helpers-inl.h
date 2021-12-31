@@ -152,7 +152,7 @@ void FromUnversionedValue(
             *value = static_cast<T>(unversionedValue.Data.Uint64);
             break;
         case EValueType::String:
-            *value = NYT::ParseEnum<T>(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+            *value = NYT::ParseEnum<T>(unversionedValue.AsStringBuf());
             break;
         default:
             THROW_ERROR_EXCEPTION("Cannot parse enum value from %Qlv",

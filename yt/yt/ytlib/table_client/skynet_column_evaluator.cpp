@@ -183,7 +183,7 @@ void TSkynetColumnEvaluator::UnpackFields(
     if (fullRow[FilenameId_].Type != EValueType::String) {
         THROW_ERROR_EXCEPTION("Missing \"filename\" column");
     }
-    *filename = TStringBuf(fullRow[FilenameId_].Data.String, fullRow[FilenameId_].Length);
+    *filename = fullRow[FilenameId_].AsStringBuf();
 
     YT_VERIFY(static_cast<int>(fullRow.GetCount()) >= PartIndexId_);
     if (fullRow[PartIndexId_].Type != EValueType::Int64) {
@@ -195,7 +195,7 @@ void TSkynetColumnEvaluator::UnpackFields(
     if (fullRow[DataId_].Type != EValueType::String) {
         THROW_ERROR_EXCEPTION("Missing \"data\" column");
     }
-    *data = TStringBuf(fullRow[DataId_].Data.String, fullRow[DataId_].Length);
+    *data = fullRow[DataId_].AsStringBuf();
 
     YT_VERIFY(static_cast<int>(fullRow.GetCount()) >= Sha1Id_);
     *sha1 = &fullRow[Sha1Id_];

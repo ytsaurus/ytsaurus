@@ -461,7 +461,7 @@ public:
                 visitor->OnUint64(Value_.Data.Uint64);
                 return;
             case EValueType::String:
-                visitor->OnString(TStringBuf(Value_.Data.String, Value_.Length), type);
+                visitor->OnString(Value_.AsStringBuf(), type);
                 return;
             default:
                 const auto* enumDescription = type->EnumerationDescription;

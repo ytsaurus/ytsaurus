@@ -59,7 +59,7 @@ NTableClient::TUnversionedValue TNamedValue::ToUnversionedValue(const NTableClie
 TNamedValue::TValue TNamedValue::ExtractValue(const NTableClient::TUnversionedValue& value)
 {
     auto getString = [] (const TUnversionedValue& value) {
-        return TString(value.Data.String, value.Length);
+        return value.AsString();
     };
     switch (value.Type) {
         case EValueType::Null:

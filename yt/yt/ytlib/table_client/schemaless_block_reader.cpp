@@ -115,7 +115,7 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
         const auto remappedId = IdMapping_[value.Id].ReaderSchemaIndex;
         if (remappedId >= 0) {
             if (value.Type == EValueType::Any) {
-                auto data = TStringBuf(value.Data.String, value.Length);
+                auto data = value.AsStringBuf();
                 // Try to unpack any value.
                 if (value.Id < IsCompositeColumn_.size() && IsCompositeColumn_[value.Id]) {
                     value.Type = EValueType::Composite;
@@ -167,7 +167,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         if (id >= Comparator_.GetLength()) {
             value.Id = id;
             if (value.Type == EValueType::Any) {
-                auto data = TStringBuf(value.Data.String, value.Length);
+                auto data = value.AsStringBuf();
                 // Try to unpack any value.
                 if (value.Id < IsCompositeColumn_.size() && IsCompositeColumn_[value.Id]) {
                     value.Type = EValueType::Composite;

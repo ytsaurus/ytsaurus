@@ -541,7 +541,7 @@ private:
             case EProtobufType::StructuredMessage:
                 YT_VERIFY(value.Type == EValueType::String);
                 ColumnConsumer_.OnBeginList();
-                ProcessStructuredMessage(TStringBuf(value.Data.String, value.Length), description.Type, depth + 1);
+                ProcessStructuredMessage(value.AsStringBuf(), description.Type, depth + 1);
                 ColumnConsumer_.OnEndList();
                 break;
             case EProtobufType::OtherColumns:

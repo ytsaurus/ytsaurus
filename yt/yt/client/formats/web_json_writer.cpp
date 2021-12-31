@@ -413,7 +413,7 @@ public:
         switch (value.Type) {
             case EValueType::Any:
             case EValueType::Composite: {
-                const auto data = TStringBuf(value.Data.String, value.Length);
+                const auto data = value.AsStringBuf();
                 auto key = std::pair<int,int>(tableIndex, value.Id);
                 auto it = YsonConverters_.find(key);
                 if (it == YsonConverters_.end()) {
@@ -429,7 +429,7 @@ public:
             }
             case EValueType::String:
                 Consumer_->OnStringScalarWeightLimited(
-                    TStringBuf(value.Data.String, value.Length),
+                    value.AsStringBuf(),
                     FieldWeightLimit_);
                 return;
             case EValueType::Int64:

@@ -116,7 +116,7 @@ public:
         std::vector<INodePtr> actualNodes;
         for (const auto& actualValue : actualValueRange) {
             ASSERT_EQ(EValueType::Composite, actualValue.Type);
-            actualNodes.emplace_back(ConvertToNode(TYsonStringBuf(TStringBuf(actualValue.Data.String, actualValue.Length))));
+            actualNodes.emplace_back(ConvertToNode(TYsonStringBuf(actualValue.AsStringBuf())));
         }
         ASSERT_EQ(expectedNodes.size(), actualNodes.size());
         int index = 0;

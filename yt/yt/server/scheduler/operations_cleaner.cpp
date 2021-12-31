@@ -1426,7 +1426,7 @@ private:
         for (int i = 0; i < static_cast<int>(requests.size()); ++i) {
             if (!requests[i].BriefProgress && rows[i] && rows[i][briefProgressIndex].Type != EValueType::Null) {
                 auto value = rows[i][briefProgressIndex];
-                requests[i].BriefProgress = TYsonString(TString(value.Data.String, value.Length));
+                requests[i].BriefProgress = TYsonString(value.AsString());
             }
         }
     }

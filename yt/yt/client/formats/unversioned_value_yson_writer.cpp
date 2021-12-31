@@ -64,11 +64,11 @@ void TUnversionedValueYsonWriter::WriteValue(const TUnversionedValue& value, IYs
             consumer->OnBooleanScalar(value.Data.Boolean);
             return;
         case EValueType::String:
-            consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+            consumer->OnStringScalar(value.AsStringBuf());
             return;
         case EValueType::Any:
         case EValueType::Composite:
-            consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+            consumer->OnRaw(value.AsStringBuf(), EYsonType::Node);
             return;
         case EValueType::Null:
         case EValueType::Min:

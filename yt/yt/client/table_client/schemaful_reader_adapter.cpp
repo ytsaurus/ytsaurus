@@ -149,13 +149,13 @@ private:
                 writer.OnBooleanScalar(value.Data.Boolean);
                 break;
             case EValueType::String:
-                writer.OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                writer.OnStringScalar(value.AsStringBuf());
                 break;
             case EValueType::Null:
                 writer.OnEntity();
                 break;
             case EValueType::Composite:
-                writer.OnRaw(TStringBuf(value.Data.String, value.Length));
+                writer.OnRaw(value.AsStringBuf());
                 break;
 
             case EValueType::Min:
