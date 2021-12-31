@@ -741,3 +741,13 @@ def get_watcher_config():
         "logs_rotate_size": "1M",
         "logs_rotate_interval": 600,
     }
+
+def get_queue_agent_config():
+    return yson.loads(
+b"""
+{
+    queue_agent = {
+        root = "//sys/queue_agents";
+    }
+}
+""")

@@ -95,6 +95,15 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         logs_dir,
         yt_config)
 
+    queue_agent_configs = _build_queue_agent_configs(
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_config),
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        ports_generator,
+        logs_dir,
+        yt_config)
+
     scheduler_configs = _build_scheduler_configs(
         dirs["scheduler"],
         deepcopy(master_connection_configs),
@@ -170,6 +179,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         "master": master_configs,
         "clock": clock_configs,
         "discovery": discovery_configs,
+        "queue_agent": queue_agent_configs,
         "timestamp_provider": timestamp_provider_configs,
         "cell_balancer": cell_balancer_configs,
         "driver": driver_configs,
@@ -375,6 +385,30 @@ def _build_discovery_server_configs(yt_config, ports_generator, logs_dir):
                                           log_errors_to_stderr=True)
 
         config["rpc_port"], config["monitoring_port"] = ports[i]
+        configs.append(config)
+
+    return configs
+
+
+def _build_queue_agent_configs(master_connection_configs, clock_connection_config, timestamp_provider_addresses,
+                               master_cache_addresses, ports_generator, logs_dir, yt_config):
+    configs = []
+    for i in xrange(yt_config.queue_agent_count):
+        config = default_config.get_queue_agent_config()
+        config["logging"] = _init_logging(logs_dir,
+                                          "queue-agent-" + str(i),
+                                          yt_config,
+                                          log_errors_to_stderr=True)
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_config,
+                timestamp_provider_addresses,
+                master_cache_addresses)
+
+        config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
         configs.append(config)
 
     return configs
@@ -1180,7 +1214,7 @@ def _get_hydra_manager_config():
     }
 
 def _get_response_keeper_config():
-    return { 
+    return {
         "enable_warmup": False,
         "expiration_time": 25000,
         "warmup_time": 30000,

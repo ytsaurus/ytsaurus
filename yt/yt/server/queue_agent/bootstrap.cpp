@@ -63,6 +63,7 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NTransactionClient;
+using namespace NSecurityClient;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NApi;
