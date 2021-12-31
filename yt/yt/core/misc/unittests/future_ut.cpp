@@ -1375,12 +1375,12 @@ TEST_W(TFutureTest, Holder)
     EXPECT_TRUE(promise.IsCanceled());
 }
 
-TEST_F(TFutureTest, JustAbanbon)
+TEST_F(TFutureTest, JustAbandon)
 {
     Y_UNUSED(NewPromise<void>());
 }
 
-TEST_F(TFutureTest, AbanbonIsSet)
+TEST_F(TFutureTest, AbandonIsSet)
 {
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
@@ -1388,7 +1388,7 @@ TEST_F(TFutureTest, AbanbonIsSet)
     EXPECT_TRUE(future.IsSet());
 }
 
-TEST_F(TFutureTest, AbanbonTryGet)
+TEST_F(TFutureTest, AbandonTryGet)
 {
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
@@ -1396,7 +1396,7 @@ TEST_F(TFutureTest, AbanbonTryGet)
     EXPECT_EQ(EErrorCode::Canceled, future.TryGet()->GetCode());
 }
 
-TEST_F(TFutureTest, AbanbonGet)
+TEST_F(TFutureTest, AbandonGet)
 {
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
@@ -1404,7 +1404,7 @@ TEST_F(TFutureTest, AbanbonGet)
     EXPECT_EQ(EErrorCode::Canceled, future.Get().GetCode());
 }
 
-TEST_F(TFutureTest, AbanbonSubscribe)
+TEST_F(TFutureTest, AbandonSubscribe)
 {
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
@@ -1414,7 +1414,7 @@ TEST_F(TFutureTest, AbanbonSubscribe)
     EXPECT_TRUE(called);
 }
 
-TEST_F(TFutureTest, SubscribeAbanbon)
+TEST_F(TFutureTest, SubscribeAbandon)
 {
     bool called = false;
     auto promise = NewPromise<void>();
@@ -1428,7 +1428,7 @@ TEST_F(TFutureTest, SubscribeAbanbon)
     EXPECT_TRUE(called);
 }
 
-TEST_F(TFutureTest, OnCanceledAbanbon)
+TEST_F(TFutureTest, OnCanceledAbandon)
 {
     bool called = false;
     auto promise = NewPromise<void>();
