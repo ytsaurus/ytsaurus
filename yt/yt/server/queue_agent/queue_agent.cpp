@@ -51,7 +51,7 @@ void TQueueAgent::UpdateOrchidNode()
             .EndMap()
         .EndMap());
 
-    auto orchidPath = Format("%v/instances/%v", Config_->Root, AgentId_);
+    auto orchidPath = Format("%v/instances/%v/orchid", Config_->Root, AgentId_);
 
     WaitFor(Client_->CreateNode(orchidPath, EObjectType::Orchid, options))
         .ThrowOnError();

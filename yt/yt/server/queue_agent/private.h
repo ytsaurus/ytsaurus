@@ -10,7 +10,6 @@ namespace NYT::NQueueAgent {
 
 extern const NLogging::TLogger QueueAgentLogger;
 extern const NProfiling::TProfiler QueueAgentProfiler;
-extern const TString QueueAgentUserName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

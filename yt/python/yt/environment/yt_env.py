@@ -290,6 +290,9 @@ class YTInstance(object):
         if self.yt_config.secondary_cell_count > 0:
             logger.info("  secondary cells       %d", self.yt_config.secondary_cell_count)
 
+        if self.yt_config.queue_agent_count > 0:
+            logger.info("  queue agents          %d", self.yt_config.queue_agent_count)
+
         logger.info("  HTTP proxies          %d                 (version: %s)", self.yt_config.http_proxy_count, self._binaries["ytserver-http-proxy"].literal)
         logger.info("  RPC proxies           %d                 (version: %s)", self.yt_config.rpc_proxy_count, self._binaries["ytserver-proxy"].literal)
         logger.info("  working dir           %s", self.yt_config.path)
@@ -333,6 +336,8 @@ class YTInstance(object):
             self._prepare_rpc_proxies(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"])
         if self.yt_config.cell_balancer_count > 0:
             self._prepare_cell_balancers(cluster_configuration["cell_balancer"])
+        if self.yt_config.queue_agent_count > 0:
+            self._prepare_queue_agents(cluster_configuration["queue_agent"])
 
         self._prepare_drivers(
             cluster_configuration["driver"],
@@ -401,6 +406,9 @@ class YTInstance(object):
 
             if self.yt_config.cell_balancer_count > 0:
                 self.start_cell_balancers(sync=False)
+
+            if self.yt_config.queue_agent_count > 0:
+                self.start_queue_agents(sync=False)
 
             self.synchronize()
 
@@ -1059,6 +1067,43 @@ class YTInstance(object):
 
     def start_discovery_server(self, sync=True):
         self._run_yt_component("discovery")
+
+    def _prepare_queue_agents(self, queue_agent_configs):
+        for queue_agent_index in xrange(self.yt_config.queue_agent_count):
+            queue_agent_config_name = "queue_agent-{0}.yson".format(queue_agent_index)
+            config_path = os.path.join(self.configs_path, queue_agent_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Queue agent config {0} not found. It is possible that you requested "
+                                  "more queue agents than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = queue_agent_configs[queue_agent_index]
+                write_config(config, config_path)
+
+            self.configs["queue_agent"].append(config)
+            self.config_paths["queue_agent"].append(config_path)
+            self._service_processes["queue_agent"].append(None)
+
+    def start_queue_agents(self, sync=True):
+        self._run_yt_component("queue-agent", name="queue_agent")
+
+        client = self._create_cluster_client()
+
+        def queue_agents_ready():
+            self._validate_processes_are_running("queue_agent")
+
+            if not client.exists("//sys/queue_agents/instances"):
+                return False
+            instances = client.list("//sys/queue_agents/instances")
+            if len(instances) != self.yt_config.queue_agent_count:
+                return False
+
+            return True
+
+        self._wait_or_skip(
+            lambda: self._wait_for(queue_agents_ready, "queue_agent", max_wait_time=20),
+            sync)
 
     def _prepare_timestamp_providers(self, timestamp_provider_configs):
         for timestamp_provider_index in xrange(self.yt_config.timestamp_provider_count):

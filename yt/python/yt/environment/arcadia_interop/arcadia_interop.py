@@ -86,7 +86,8 @@ PROGRAMS = [("master", "master/bin"),
             ("scheduler", "scheduler/bin"),
             ("controller-agent", "controller_agent/bin"),
             ("cell-balancer", "cell_balancer/bin"),
-            ("master-cache", "master_cache/bin")]
+            ("master-cache", "master_cache/bin"),
+            ("queue-agent", "queue_agent/bin")]
 
 def prepare_yt_binaries(destination,
                         source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=True,
