@@ -1,25 +1,2 @@
-#pragma once
-
-#include "common.h"
-
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define DECLARE_LEAKY_SINGLETON_FRIEND() \
-    template <class T>                   \
-    friend T* ::NYT::LeakySingleton();
-
-template <class T>
-T* LeakySingleton();
-
-template <class T>
-TIntrusivePtr<T> LeakyRefCountedSingleton();
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
-
-#define SINGLETON_INL_H_
-#include "singleton-inl.h"
-#undef SINGLETON_INL_H_
+#include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
+#include <library/cpp/yt/memory/leaky_singleton.h>
