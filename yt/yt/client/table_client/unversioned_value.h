@@ -22,6 +22,8 @@ union TUnversionedValueData
     //! |Boolean| value.
     bool Boolean;
     //! String value for |String| type or YSON-encoded value for |Any| type.
+    //! NB: string is not zero-terminated, so never use it as a TString.
+    //! Use #TUnversionedValue::AsStringBuf() or #TUnversionedValue::AsString() instead.
     const char* String;
 };
 
@@ -46,6 +48,11 @@ struct TUnversionedValue
 
     //! Payload.
     TUnversionedValueData Data;
+
+    //! Assuming #IsStringLikeType(Type), return string data as a TStringBuf.
+    TStringBuf AsStringBuf() const;
+    //! Assuming #IsStringLikeType(Type), return string data as a TString.
+    TString AsString() const;
 };
 
 static_assert(

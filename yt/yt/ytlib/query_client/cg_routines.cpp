@@ -1142,7 +1142,7 @@ re2::RE2* RegexCreate(TUnversionedValue* regexp)
     if (!re2->ok()) {
         THROW_ERROR_EXCEPTION(
             "Error parsing regular expression %Qv",
-            TString(regexp->Data.String, regexp->Length))
+            regexp->AsString())
             << TError(re2->error().c_str());
     }
     return re2.release();
@@ -1321,7 +1321,7 @@ int XdeltaMerge(
     DEFINE_YPATH_GET_IMPL2(, TYPE, STATEMENT_OK, \
         THROW_ERROR_EXCEPTION("Value of type %Qlv is not found at YPath %v", \
             EValueType::TYPE, \
-            TStringBuf(ypath->Data.String, ypath->Length));)
+            ypath->AsStringBuf());)
 
 #define DEFINE_YPATH_GET(TYPE) \
     DEFINE_YPATH_GET_IMPL(TYPE, \
@@ -1352,7 +1352,7 @@ DEFINE_YPATH_GET_ANY
             return; \
         } \
         NYson::TToken token; \
-        auto anyString = TStringBuf(anyValue->Data.String, anyValue->Length); \
+        auto anyString = anyValue->AsStringBuf(); \
         NYson::GetToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::TYPE) { \
             STATEMENT_OK \
@@ -1371,7 +1371,7 @@ DEFINE_YPATH_GET_ANY
             return; \
         } \
         NYson::TToken token; \
-        auto anyString = TStringBuf(anyValue->Data.String, anyValue->Length); \
+        auto anyString = anyValue->AsStringBuf(); \
         NYson::GetToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             *result = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
@@ -1581,7 +1581,7 @@ extern "C" void MakeMap(
                 EValueType::String,
                 nameArg.Type);
         }
-        writer.OnKeyedItem(TStringBuf(nameArg.Data.String, nameArg.Length));
+        writer.OnKeyedItem(nameArg.AsStringBuf());
 
         switch (valueArg.Type) {
             case EValueType::Int64:
@@ -1597,10 +1597,10 @@ extern "C" void MakeMap(
                 writer.OnBooleanScalar(valueArg.Data.Boolean);
                 continue;
             case EValueType::String:
-                writer.OnStringScalar(TStringBuf(valueArg.Data.String, valueArg.Length));
+                writer.OnStringScalar(valueArg.AsStringBuf());
                 continue;
             case EValueType::Any:
-                writer.OnRaw(TStringBuf(valueArg.Data.String, valueArg.Length));
+                writer.OnRaw(valueArg.AsStringBuf());
                 continue;
             case EValueType::Null:
                 writer.OnEntity();
@@ -1647,7 +1647,7 @@ void ListContains(
     bool found;
     switch (what->Type) {
         case EValueType::String:
-            found = ListContainsImpl<TString>(node, TString(what->Data.String, what->Length));
+            found = ListContainsImpl<TString>(node, what->AsString());
             break;
         case EValueType::Int64:
             found = ListContainsImpl<i64>(node, what->Data.Int64);
@@ -1742,7 +1742,7 @@ extern "C" void NumericToString(
             return; \
         } \
         NYson::TToken token; \
-        auto valueString = TStringBuf(value->Data.String, value->Length); \
+        auto valueString = value->AsStringBuf(); \
         NYson::GetToken(valueString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             *result = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \

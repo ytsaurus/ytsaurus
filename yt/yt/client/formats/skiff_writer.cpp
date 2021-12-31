@@ -187,7 +187,7 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
     } else if constexpr (wireType == EWireType::Double) {
         writer->WriteDouble(value.Data.Double);
     } else if constexpr (wireType == EWireType::String32) {
-        writer->WriteString32(TStringBuf(value.Data.String, value.Length));
+        writer->WriteString32(value.AsStringBuf());
     } else if constexpr (wireType == EWireType::Yson32) {
         context->TmpBuffer->Clear();
         {
@@ -230,7 +230,7 @@ public:
                 value.Type);
         }
         if constexpr (ExpectedValueType == EValueType::String) {
-            Function_(TStringBuf(value.Data.String, value.Length), writer);
+            Function_(value.AsStringBuf(), writer);
         } else {
             // TODO(ermolovd) support other types and use this class instead of ConvertSimpleValueImpl
             // poor man's static assert false

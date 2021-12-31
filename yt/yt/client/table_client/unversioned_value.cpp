@@ -19,11 +19,21 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStringBuf TUnversionedValue::AsStringBuf() const
+{
+    return TStringBuf(Data.String, Length);
+}
+
+TString TUnversionedValue::AsString() const
+{
+    return TString(Data.String, Length);
+}
+
 ui64 GetHash(const TUnversionedValue& value)
 {
     if (value.Type == EValueType::Composite) {
         // NB: Composite types doesn't support FarmHash yet.
-        return CompositeHash(TStringBuf(value.Data.String, value.Length));
+        return CompositeHash(value.AsStringBuf());
     } else {
         // NB: hash function may change in future. Use fingerprints for persistent hashing.
         return GetFarmFingerprint(value);

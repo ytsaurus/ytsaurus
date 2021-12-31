@@ -117,7 +117,7 @@ inline bool AreRowsEqualImpl(TUnversionedRow row, const char* yson, const TNameT
                 if (it == expectedRowParts.end()) {
                     return false;
                 }
-                if (it->second->GetValue<TString>() != TString(value.Data.String, value.Length)) {
+                if (it->second->GetValue<TString>() != value.AsString()) {
                     return false;
                 }
                 break;

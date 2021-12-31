@@ -58,13 +58,13 @@ bool TSchemafulWriter::Write(TRange<TUnversionedRow> rows)
                     Consumer_->OnBooleanScalar(value.Data.Boolean);
                     break;
                 case EValueType::String:
-                    Consumer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                    Consumer_->OnStringScalar(value.AsStringBuf());
                     break;
                 case EValueType::Null:
                     Consumer_->OnEntity();
                     break;
                 case EValueType::Any:
-                    Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                    Consumer_->OnRaw(value.AsStringBuf(), EYsonType::Node);
                     break;
 
                 case EValueType::Composite:

@@ -274,7 +274,7 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
             break;
 
         case EValueType::String:
-            writer.OnStringScalar(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+            writer.OnStringScalar(unversionedValue.AsStringBuf());
             break;
 
         case EValueType::Boolean:
@@ -328,7 +328,7 @@ TString ToString(const TUnversionedValue& value, bool valueOnly)
             break;
 
         case EValueType::String:
-            builder.AppendFormat("%Qv", TStringBuf(value.Data.String, value.Length));
+            builder.AppendFormat("%Qv", value.AsStringBuf());
             break;
 
         case EValueType::Any:
@@ -338,7 +338,7 @@ TString ToString(const TUnversionedValue& value, bool valueOnly)
                 builder.AppendString("><");
             }
             builder.AppendString(ConvertToYsonString(
-                TYsonString(TString(value.Data.String, value.Length)),
+                TYsonString(value.AsString()),
                 EYsonFormat::Text).AsStringBuf());
             break;
     }
@@ -391,8 +391,8 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
             return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
         }
-        auto lhsData = TStringBuf(lhs.Data.String, lhs.Length);
-        auto rhsData = TStringBuf(rhs.Data.String, rhs.Length);
+        auto lhsData = lhs.AsStringBuf();
+        auto rhsData = rhs.AsStringBuf();
         try {
             return CompareCompositeValues(lhsData, rhsData);
         } catch (const std::exception& ex) {
@@ -824,7 +824,7 @@ void ValidateDynamicValue(const TUnversionedValue& value, bool isKey)
                     value.Length,
                     MaxAnyValueLength);
             }
-            ValidateAnyValue(TStringBuf(value.Data.String, value.Length));
+            ValidateAnyValue(value.AsStringBuf());
             break;
 
         case EValueType::Double:
@@ -1071,7 +1071,7 @@ Y_FORCE_INLINE auto GetValue(const TUnversionedValue& value)
         return value.Data.Boolean;
     } else {
         static_assert(physicalType == EValueType::String || physicalType == EValueType::Any);
-        return TStringBuf(value.Data.String, value.Length);
+        return value.AsStringBuf();
     }
 }
 
@@ -1137,7 +1137,7 @@ void ValidateValueType(
                     }
                 } else {
                     ValidateColumnType(EValueType::Composite, value);
-                    ValidateComplexLogicalType(TStringBuf(value.Data.String, value.Length), columnSchema.LogicalType());
+                    ValidateComplexLogicalType(value.AsStringBuf(), columnSchema.LogicalType());
                 }
                 return;
             case ESimpleLogicalValueType::String:
@@ -1148,7 +1148,7 @@ void ValidateValueType(
                     auto type = UnwrapTaggedAndOptional(columnSchema.LogicalType());
                     YT_VERIFY(type->GetMetatype() == ELogicalMetatype::Decimal);
                     NDecimal::TDecimal::ValidateBinaryValue(
-                        TStringBuf(value.Data.String, value.Length),
+                        value.AsStringBuf(),
                         type->UncheckedAsDecimalTypeRef().GetPrecision(),
                         type->UncheckedAsDecimalTypeRef().GetScale());
                 }
@@ -1696,14 +1696,14 @@ void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer, bool any
             break;
 
         case EValueType::String:
-            consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+            consumer->OnStringScalar(value.AsStringBuf());
             break;
 
         case EValueType::Any:
             if (anyAsRaw) {
-                consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                consumer->OnRaw(value.AsStringBuf(), EYsonType::Node);
             } else {
-                ParseYsonStringBuffer(TStringBuf(value.Data.String, value.Length), EYsonType::Node, consumer);
+                ParseYsonStringBuffer(value.AsStringBuf(), EYsonType::Node, consumer);
             }
             break;
 
@@ -1717,9 +1717,9 @@ void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer, bool any
             consumer->OnStringScalar(FormatEnum(type));
             consumer->OnEndAttributes();
             if (anyAsRaw) {
-                consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                consumer->OnRaw(value.AsStringBuf(), EYsonType::Node);
             } else {
-                ParseYsonStringBuffer(TStringBuf(value.Data.String, value.Length), EYsonType::Node, consumer);
+                ParseYsonStringBuffer(value.AsStringBuf(), EYsonType::Node, consumer);
             }
             break;
 

@@ -44,13 +44,13 @@ bool TVersionedWriter::Write(TRange<TVersionedRow> rows)
                 Consumer_->OnBooleanScalar(value.Data.Boolean);
                 return;
             case EValueType::String:
-                Consumer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                Consumer_->OnStringScalar(value.AsStringBuf());
                 return;
             case EValueType::Null:
                 Consumer_->OnEntity();
                 return;
             case EValueType::Any:
-                Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                Consumer_->OnRaw(value.AsStringBuf(), EYsonType::Node);
                 return;
             case EValueType::Composite:
             case EValueType::Min:

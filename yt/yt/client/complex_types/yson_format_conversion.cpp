@@ -195,7 +195,7 @@ public:
     void operator () (TUnversionedValue value, IYsonConsumer* consumer)
     {
         CheckValueType(value.Type, EValueType::String);
-        auto data = TStringBuf(value.Data.String, value.Length);
+        auto data = value.AsStringBuf();
         auto converted = TDecimal::BinaryToText(data, Precision_, Scale_, Buffer_.data(), Buffer_.size());
         consumer->OnStringScalar(converted);
     }
@@ -219,7 +219,7 @@ public:
     TUnversionedValue operator () (TUnversionedValue value)
     {
         CheckValueType(value.Type, EValueType::String);
-        auto data = TStringBuf(value.Data.String, value.Length);
+        auto data = value.AsStringBuf();
         auto converted = TDecimal::TextToBinary(data, Precision_, Scale_, Buffer_.data(), Buffer_.size());
         return MakeUnversionedStringValue(converted);
     }
@@ -336,7 +336,7 @@ public:
     TUnversionedValue operator () (TUnversionedValue value)
     {
         CheckValueType(value.Type, EValueType::String);
-        auto data = TStringBuf(value.Data.String, value.Length);
+        auto data = value.AsStringBuf();
         return MakeUnversionedUint64Value(BinaryTimeFromText(data, ValueType_));
     }
 
@@ -413,7 +413,7 @@ public:
     void operator () (TUnversionedValue value, IYsonConsumer* consumer)
     {
         CheckValueType(value.Type, EValueType::String);
-        Convert(TStringBuf(value.Data.String, value.Length), consumer);
+        Convert(value.AsStringBuf(), consumer);
     }
 
     void operator () (TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
@@ -456,7 +456,7 @@ public:
     TUnversionedValue operator () (TUnversionedValue value)
     {
         CheckValueType(value.Type, EValueType::String);
-        auto data = TStringBuf(value.Data.String, value.Length);
+        auto data = value.AsStringBuf();
         return MakeUnversionedStringValue(Convert(data));
     }
 

@@ -1062,9 +1062,9 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult)
                     }
                     if (expectedValue.Type == EValueType::Any) {
                         // Slow path.
-                        auto expectedYson = TYsonString(TString(expectedValue.Data.String, expectedValue.Length));
+                        auto expectedYson = TYsonString(expectedValue.AsString());
                         auto expectedStableYson = ConvertToYsonStringStable(ConvertToNode(expectedYson));
-                        auto yson = TYsonString(TString(value.Data.String, value.Length));
+                        auto yson = TYsonString(value.AsString());
                         auto stableYson = ConvertToYsonStringStable(ConvertToNode(yson));
                         EXPECT_EQ(expectedStableYson, stableYson);
                     } else {

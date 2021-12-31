@@ -275,7 +275,7 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
             writer.OnBooleanScalar(value.Data.Boolean);
             break;
         case EValueType::String:
-            writer.OnStringScalar(TStringBuf(value.Data.String, value.Length));
+            writer.OnStringScalar(value.AsStringBuf());
             break;
         case EValueType::Null:
             writer.OnEntity();
