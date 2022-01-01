@@ -17,7 +17,7 @@ void PutMethodInfoInTraceContext(const TStringBuf& methodName)
     if (auto traceContext = GetCurrentTraceContext()) {
         auto baggage = traceContext->UnpackOrCreateBaggage();
         AddTagToBaggage(baggage, EAggregateIOTag::ApiMethod, methodName);
-        AddTagToBaggage(baggage, EAggregateIOTag::ProxyType, "rpc");
+        AddTagToBaggage(baggage, EAggregateIOTag::ProxyKind, "rpc");
         traceContext->PackBaggage(baggage);
     }
 }

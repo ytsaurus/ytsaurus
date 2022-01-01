@@ -535,7 +535,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         }
     }
 
-    def _get_proxy_type(self):
+    def _get_proxy_kind(self):
         return "http"
 
     @authors("gepardo")
@@ -572,7 +572,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         assert event1["account@"] == "gepardo"
         assert event1["object_path"] == "//tmp/table1"
         assert event1["api_method@"] == "write_table"
-        assert event1["proxy_type@"] == self._get_proxy_type()
+        assert event1["proxy_kind@"] == self._get_proxy_kind()
         assert "object_id" in event1
 
         assert min_data_bound <= event2["byte_count"] <= max_data_bound
@@ -580,7 +580,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         assert event2["account@"] == "some_other_account"
         assert event2["object_path"] == "//tmp/table2"
         assert event2["api_method@"] == "write_table"
-        assert event2["proxy_type@"] == self._get_proxy_type()
+        assert event2["proxy_kind@"] == self._get_proxy_kind()
         assert "object_id" in event2
 
     @authors("gepardo")
@@ -618,7 +618,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         assert event1["account@"] == "gepardo"
         assert event1["object_path"] == "//tmp/table1"
         assert event1["api_method@"] == "read_table"
-        assert event1["proxy_type@"] == self._get_proxy_type()
+        assert event1["proxy_kind@"] == self._get_proxy_kind()
         assert "object_id" in event1
 
         assert min_data_bound <= event2["byte_count"] <= max_data_bound
@@ -626,7 +626,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         assert event2["account@"] == "some_other_account"
         assert event2["object_path"] == "//tmp/table2"
         assert event2["api_method@"] == "read_table"
-        assert event2["proxy_type@"] == self._get_proxy_type()
+        assert event2["proxy_kind@"] == self._get_proxy_kind()
         assert "object_id" in event2
 
     @authors("gepardo")
@@ -654,7 +654,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         assert event["account@"] == "gepardo"
         assert event["object_path"] == "//tmp/table"
         assert event["api_method@"] == "read_table"
-        assert event["proxy_type@"] == self._get_proxy_type()
+        assert event["proxy_kind@"] == self._get_proxy_kind()
         assert "object_id" in event
 
     @authors("gepardo")
@@ -694,7 +694,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
             assert event["io_count"] > 0
             assert event["object_path"] == "//tmp/my_dyntable"
             assert event["api_method@"] == "read_table"
-            assert event["proxy_type@"] == self._get_proxy_type()
+            assert event["proxy_kind@"] == self._get_proxy_kind()
             assert event["account@"] == "gepardo"
             assert "object_id" in event
 
@@ -736,7 +736,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
             assert event["io_count"] > 0
             assert event["object_path"] == "//tmp/table"
             assert event["api_method@"] == "read_table"
-            assert event["proxy_type@"] == self._get_proxy_type()
+            assert event["proxy_kind@"] == self._get_proxy_kind()
             assert event["account@"] == "gepardo"
             assert "object_id" in event
 
@@ -755,7 +755,7 @@ class TestClientRpcProxyIOTracking(TestClientIOTracking):
         native_config = deepcopy(self.Env.configs["driver"])
         self.__native_driver = Driver(native_config)
 
-    def _get_proxy_type(self):
+    def _get_proxy_kind(self):
         return "rpc"
 
 ##################################################################
