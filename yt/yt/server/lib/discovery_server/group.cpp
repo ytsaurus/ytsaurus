@@ -47,7 +47,12 @@ TMemberPtr TGroup::AddMember(const TMemberInfo& memberInfo, TDuration leaseTimeo
 {
     VERIFY_WRITER_SPINLOCK_AFFINITY(MembersLock_);
 
-    auto onMemberLeaseExpired = BIND([=, memberId = memberInfo.Id, this_ = MakeStrong(this)] {
+    auto onMemberLeaseExpired = BIND([=, memberId = memberInfo.Id, weakThis = MakeWeak(this)] {
+        auto this_ = weakThis.Lock();
+        if (!this_) {
+            return;
+        }
+
         YT_LOG_DEBUG("Member lease expired (MemberId: %v)", memberId);
 
         auto guard = WriterGuard(MembersLock_);
