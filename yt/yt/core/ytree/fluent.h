@@ -219,15 +219,13 @@ public:
             : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
-        template <class TFunc>
-        TDeepThis Do(TFunc func)
+        TDeepThis Do(auto func)
         {
             InvokeFluentFunc<TShallowThis>(func, this->Consumer);
             return static_cast<TDeepThis&&>(*this);
         }
 
-        template <class TFunc>
-        TDeepThis DoIf(bool condition, TFunc func)
+        TDeepThis DoIf(bool condition, auto func)
         {
             if (condition) {
                 InvokeFluentFunc<TShallowThis>(func, this->Consumer);
@@ -235,8 +233,7 @@ public:
             return static_cast<TDeepThis&&>(*this);
         }
 
-        template <class TFunc, class TIterator>
-        TDeepThis DoFor(TIterator begin, TIterator end, TFunc func)
+        TDeepThis DoFor(auto begin, auto end, auto func)
         {
             for (auto current = begin; current != end; ++current) {
                 InvokeFluentFunc<TShallowThis>(func, this->Consumer, current);
@@ -244,8 +241,7 @@ public:
             return static_cast<TDeepThis&&>(*this);
         }
 
-        template <class TFunc, class TCollection>
-        TDeepThis DoFor(const TCollection& collection, TFunc func)
+        TDeepThis DoFor(const auto& collection, auto func)
         {
             for (const auto& item : collection) {
                 InvokeFluentFunc<TShallowThis>(func, this->Consumer, item);
@@ -265,17 +261,15 @@ public:
             : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
-        template <class TFuncAny>
-        TUnwrappedParent Do(TFuncAny func)
+        TUnwrappedParent Do(auto funcAny)
         {
-            InvokeFluentFunc<TShallowThis>(func, this->Consumer);
+            InvokeFluentFunc<TShallowThis>(funcAny, this->Consumer);
             return this->GetUnwrappedParent();
         }
 
-        template <class T, class... TExtraArgs>
-        TUnwrappedParent Value(const T& value, TExtraArgs&&... extraArgs)
+        TUnwrappedParent Value(const auto& value, auto&&... extraArgs)
         {
-            WriteValue(this->Consumer, value, std::forward<TExtraArgs>(extraArgs)...);
+            WriteValue(this->Consumer, value, std::forward<decltype(extraArgs)>(extraArgs)...);
             return this->GetUnwrappedParent();
         }
 
@@ -285,8 +279,7 @@ public:
             return this->GetUnwrappedParent();
         }
 
-        template <class TCollection>
-        TUnwrappedParent List(const TCollection& collection)
+        TUnwrappedParent List(const auto& collection)
         {
             this->Consumer->OnBeginList();
             for (const auto& item : collection) {
@@ -297,8 +290,7 @@ public:
             return this->GetUnwrappedParent();
         }
 
-        template <class TCollection>
-        TUnwrappedParent ListLimited(const TCollection& collection, size_t maxSize)
+        TUnwrappedParent ListLimited(const auto& collection, size_t maxSize)
         {
             this->Consumer->OnBeginAttributes();
             this->Consumer->OnKeyedItem("count");
@@ -323,32 +315,29 @@ public:
             return TFluentList<TParent>(this->Consumer, std::move(this->Parent));
         }
 
-        template <class TFuncList>
-        TUnwrappedParent DoList(TFuncList func)
+        TUnwrappedParent DoList(auto funcList)
         {
             this->Consumer->OnBeginList();
-            InvokeFluentFunc<TFluentList<TFluentYsonVoid>>(func, this->Consumer);
+            InvokeFluentFunc<TFluentList<TFluentYsonVoid>>(funcList, this->Consumer);
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
         }
 
-        template <class TFuncList, class TIterator>
-        TUnwrappedParent DoListFor(TIterator begin, TIterator end, TFuncList func)
+        TUnwrappedParent DoListFor(auto begin, auto end, auto funcList)
         {
             this->Consumer->OnBeginList();
             for (auto current = begin; current != end; ++current) {
-                InvokeFluentFunc<TFluentList<TFluentYsonVoid>>(func, this->Consumer, current);
+                InvokeFluentFunc<TFluentList<TFluentYsonVoid>>(funcList, this->Consumer, current);
             }
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
         }
 
-        template <class TFuncList, class TCollection>
-        TUnwrappedParent DoListFor(const TCollection& collection, TFuncList func)
+        TUnwrappedParent DoListFor(const auto& collection, auto funcList)
         {
             this->Consumer->OnBeginList();
             for (const auto& item : collection) {
-                InvokeFluentFunc<TFluentList<TFluentYsonVoid>>(func, this->Consumer, item);
+                InvokeFluentFunc<TFluentList<TFluentYsonVoid>>(funcList, this->Consumer, item);
             }
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
@@ -360,32 +349,29 @@ public:
             return TFluentMap<TParent>(this->Consumer, std::move(this->Parent));
         }
 
-        template <class TFuncMap>
-        TUnwrappedParent DoMap(TFuncMap func)
+        TUnwrappedParent DoMap(auto funcMap)
         {
             this->Consumer->OnBeginMap();
-            InvokeFluentFunc<TFluentMap<TFluentYsonVoid>>(func, this->Consumer);
+            InvokeFluentFunc<TFluentMap<TFluentYsonVoid>>(funcMap, this->Consumer);
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
         }
 
-        template <class TFuncMap, class TIterator>
-        TUnwrappedParent DoMapFor(TIterator begin, TIterator end, TFuncMap func)
+        TUnwrappedParent DoMapFor(auto begin, auto end, auto funcMap)
         {
             this->Consumer->OnBeginMap();
             for (auto current = begin; current != end; ++current) {
-                InvokeFluentFunc<TFluentMap<TFluentYsonVoid>>(func, this->Consumer, current);
+                InvokeFluentFunc<TFluentMap<TFluentYsonVoid>>(funcMap, this->Consumer, current);
             }
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
         }
 
-        template <class TFuncMap, class TCollection>
-        TUnwrappedParent DoMapFor(const TCollection& collection, TFuncMap func)
+        TUnwrappedParent DoMapFor(const auto& collection, auto funcMap)
         {
             this->Consumer->OnBeginMap();
             for (const auto& item : collection) {
-                InvokeFluentFunc<TFluentMap<TFluentYsonVoid>>(func, this->Consumer, item);
+                InvokeFluentFunc<TFluentMap<TFluentYsonVoid>>(funcMap, this->Consumer, item);
             }
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
@@ -473,12 +459,11 @@ public:
             return *this;
         }
 
-        template <class T, class... TExtraArgs>
-        TThis& OptionalItem(TStringBuf key, const T& optionalValue, TExtraArgs&&... extraArgs)
+        TThis& OptionalItem(TStringBuf key, const auto& optionalValue, auto&&... extraArgs)
         {
             if (optionalValue) {
                 this->Consumer->OnKeyedItem(key);
-                WriteValue(this->Consumer, optionalValue, std::forward<TExtraArgs>(extraArgs)...);
+                WriteValue(this->Consumer, optionalValue, std::forward<decltype(extraArgs)>(extraArgs)...);
             }
             return *this;
         }
@@ -517,12 +502,11 @@ public:
             return *this;
         }
 
-        template <class T, class... TExtraArgs>
-        TThis& OptionalItem(const T& optionalValue, TExtraArgs&&... extraArgs)
+        TThis& OptionalItem(const auto& optionalValue, auto&&... extraArgs)
         {
             if (optionalValue) {
                 this->Consumer->OnListItem();
-                WriteValue(this->Consumer, optionalValue, std::forward<TExtraArgs>(extraArgs)...);
+                WriteValue(this->Consumer, optionalValue, std::forward<decltype(extraArgs)>(extraArgs)...);
             }
             return *this;
         }
@@ -583,12 +567,11 @@ public:
             return *this;
         }
 
-        template <class T, class... TExtraArgs>
-        TThis& OptionalItem(TStringBuf key, const T& optionalValue, TExtraArgs&&... extraArgs)
+        TThis& OptionalItem(TStringBuf key, const auto& optionalValue, auto&&... extraArgs)
         {
             if (optionalValue) {
                 this->Consumer->OnKeyedItem(key);
-                WriteValue(this->Consumer, optionalValue, std::forward<TExtraArgs>(extraArgs)...);
+                WriteValue(this->Consumer, optionalValue, std::forward<decltype(extraArgs)>(extraArgs)...);
             }
             return *this;
         }
