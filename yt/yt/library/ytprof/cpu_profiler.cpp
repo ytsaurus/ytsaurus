@@ -118,6 +118,8 @@ std::atomic<bool> TCpuProfiler::HandlingSigprof_;
 
 void TCpuProfiler::SigProfHandler(int /* sig */, siginfo_t* info, void* ucontext)
 {
+    int savedErrno = errno;
+
     while (HandlingSigprof_.exchange(true)) {
         SchedYield();
     }
@@ -128,6 +130,8 @@ void TCpuProfiler::SigProfHandler(int /* sig */, siginfo_t* info, void* ucontext
     }
 
     HandlingSigprof_.store(false);
+
+    errno = savedErrno;
 }
 
 void TCpuProfiler::StartTimer()
