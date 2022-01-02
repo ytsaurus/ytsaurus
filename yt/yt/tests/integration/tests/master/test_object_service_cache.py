@@ -1,8 +1,6 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import authors, wait, get, ls
 
-import time
-
 ##################################################################
 
 
@@ -26,8 +24,9 @@ class TestObjectServiceCache(YTEnvSetup):
         )
 
         node = get("//sys/cluster_nodes/@master_cache_nodes")[0]
-        for _ in range(15):
-            ls("//tmp", read_from="cache")
-            time.sleep(0.25)
 
-        assert len(get("//sys/cluster_nodes/{0}/orchid/object_service_cache/top_requests".format(node))) > 0
+        def check():
+            ls("//tmp", read_from="cache")
+            requests = get("//sys/cluster_nodes/{0}/orchid/object_service_cache/top_requests".format(node))
+            return any(r["path"] == "//tmp" and r["method"] == "List" and r["service"] == "Node" for r in requests)
+        wait(check)

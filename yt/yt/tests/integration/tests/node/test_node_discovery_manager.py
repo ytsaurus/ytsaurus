@@ -67,7 +67,6 @@ class Base:
     @authors("aleksandra-zh")
     def test_dynamic_discovery(self):
         self.set_node_tags(0, ["cache_here"])
-        self.set_update_period(100)
         self.set_node_tag_filter("cache_here")
 
         self.wait_for_config([0])
@@ -76,7 +75,6 @@ class Base:
     def test_dynamic_reconfig(self):
         self.set_node_tags(0, ["foo"])
         self.set_node_tags(1, ["bar"])
-        self.set_update_period(100)
         self.set_node_tag_filter("foo")
 
         self.wait_for_config([0])
@@ -87,7 +85,6 @@ class Base:
 
     @authors("aleksandra-zh")
     def test_no_available_proveders(self):
-        self.set_update_period(100)
         self.set_node_tag_filter("some_long_and_creepy_tag")
 
         self.wait_for_config([])
@@ -95,7 +92,6 @@ class Base:
     @authors("aleksandra-zh")
     def test_ban_node(self):
         self.set_node_tags(0, ["foo"])
-        self.set_update_period(100)
         self.set_node_tag_filter("foo")
         self.wait_for_config([0])
 
@@ -186,12 +182,6 @@ class TestMasterCache(Base, YTEnvSetup):
             max_peers_per_rack,
         )
 
-    def set_update_period(self, update_period):
-        set(
-            "//sys/@config/node_tracker/master_cache_manager/update_period",
-            update_period,
-        )
-
     def set_node_tag_filter(self, node_tag_filter):
         set(
             "//sys/@config/node_tracker/master_cache_manager/node_tag_filter",
@@ -239,12 +229,6 @@ class TestTimestampProvider(Base, YTEnvSetup):
             expected_node_ids,
             {"yt_service": "TimestampService", "method": "GenerateTimestamps"},
             start_transaction,
-        )
-
-    def set_update_period(self, update_period):
-        set(
-            "//sys/@config/node_tracker/timestamp_provider_manager/update_period",
-            update_period,
         )
 
     def set_node_tag_filter(self, node_tag_filter):

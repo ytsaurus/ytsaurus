@@ -59,6 +59,12 @@ b"""
     };
 
     node_tracker = {
+        master_cache_manager = {
+            update_period = 1000;
+        };
+        timestamp_provider_manager = {
+            update_period = 1000;
+        };
         full_node_states_gossip_period = 1000;
         total_node_statistics_update_period = 1000;
         use_new_heartbeats = %true;

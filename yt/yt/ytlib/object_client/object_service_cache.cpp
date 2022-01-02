@@ -82,7 +82,7 @@ i64 TObjectServiceCacheKey::ComputeExtraSpace() const
 
 void FormatValue(TStringBuilderBase* builder, const TObjectServiceCacheKey& key, TStringBuf /*format*/)
 {
-    builder->AppendFormat("{%v %v %v.%v %v %x}",
+    builder->AppendFormat("{%v %v %v.%v %v %zx}",
         key.CellTag,
         key.User,
         key.Service,
