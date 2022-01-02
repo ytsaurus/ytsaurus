@@ -55,7 +55,7 @@ public:
     {
         Occupants_.resize(Config_->Size);
 
-        YT_LOG_DEBUG("Cellar initialized (CellarType: %Qlv, Size: %v)",
+        YT_LOG_DEBUG("Cellar initialized (CellarType: %v, Size: %v)",
             Type_,
             Config_->Size);
     }
