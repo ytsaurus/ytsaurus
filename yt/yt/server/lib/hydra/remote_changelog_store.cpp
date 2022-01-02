@@ -409,7 +409,8 @@ private:
                 auto writerOptions = Owner_->GetJournalWriterOptions();
                 Writer_ = Owner_->Client_->CreateJournalWriter(Path_, writerOptions);
                 PendingRecordsFlushed_ = Writer_->Open()
-                    .Apply(BIND(&TRemoteChangelog::FlushPendingRecords, MakeStrong(this)));
+                    .Apply(BIND(&TRemoteChangelog::FlushPendingRecords, MakeStrong(this))
+                        .AsyncVia(GetHydraIOInvoker()));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to open remote changelog writer")
                     << TErrorAttribute("changelog_path", Path_)
