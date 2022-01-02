@@ -3,6 +3,8 @@
 #include "public.h"
 #include "spin_lock_base.h"
 
+#include <library/cpp/yt/system/thread_id.h>
+
 #include <util/system/types.h>
 
 #include <atomic>
@@ -36,9 +38,9 @@ private:
     static constexpr int ThreadIdShift = 32;
     static constexpr TValue RecursionDepthMask = (1ULL << ThreadIdShift) - 1;
 
-    bool TryAndTryAcquire() noexcept;
+    static_assert(sizeof(TSequentialThreadId) == 4);
 
-    static ui32 GetThreadId() noexcept;
+    bool TryAndTryAcquire() noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
