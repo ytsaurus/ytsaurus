@@ -18,8 +18,14 @@ class TQueueAgentConfig
     : public NYTree::TYsonStruct
 {
 public:
-
+    //! The path of directory containing queue agent state.
     NYPath::TYPath Root;
+
+    //! State table poll period.
+    TDuration PollPeriod;
+
+    //! Controller thread pool thread count.
+    int ControllerThreadCount;
 
     REGISTER_YSON_STRUCT(TQueueAgentConfig)
 
@@ -41,6 +47,9 @@ public:
     NYTree::IMapNodePtr CypressAnnotations;
 
     bool AbortOnUnrecognizedOptions;
+
+    //! User for native client; defaults to queue-agent.
+    TString User;
 
     REGISTER_YSON_STRUCT(TQueueAgentServerConfig)
 

@@ -115,7 +115,7 @@ void TBootstrap::DoRun()
         Config_->ClusterConnection,
         std::move(connectionOptions));
 
-    auto clientOptions = TClientOptions::FromUser(QueueAgentUserName);
+    auto clientOptions = TClientOptions::FromUser(Config_->User);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
@@ -154,7 +154,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/queue_agent",
-        CreateVirtualNode(QueueAgent_->GetOrchid()->Via(ControlInvoker_)));
+        CreateVirtualNode(QueueAgent_->GetOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "queue_agent");
@@ -165,6 +165,8 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         ControlInvoker_));
+
+    QueueAgent_->Start();
 
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
