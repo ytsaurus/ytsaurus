@@ -540,33 +540,7 @@ TCellTagList TBootstrap::GetKnownParticipantCellTags() const
 
 NNative::IConnectionPtr TBootstrap::CreateClusterConnection() const
 {
-    auto config = Config_->ClusterConnection;
-
-    // COMPAT(savrus)
-    if (!config) {
-        auto cloneMasterConfig = [] (const auto& cellConfig) {
-            auto result = New<NNative::TMasterConnectionConfig>();
-            result->CellId = cellConfig->CellId;
-            result->Addresses.emplace();
-            for (const auto& peer : cellConfig->Peers) {
-                if (peer.Address) {
-                    result->Addresses->push_back(*peer.Address);
-                }
-            }
-            return result;
-        };
-
-        config = New<NNative::TConnectionConfig>();
-        config->Networks = Config_->Networks;
-        config->PrimaryMaster = cloneMasterConfig(Config_->PrimaryMaster);
-        config->SecondaryMasters.reserve(Config_->SecondaryMasters.size());
-        for (const auto& secondaryMaster : Config_->SecondaryMasters) {
-            config->SecondaryMasters.push_back(cloneMasterConfig(secondaryMaster));
-        }
-        config->TimestampProvider = Config_->TimestampProvider;
-    }
-
-    auto connection = NNative::CreateConnection(config);
+    auto connection = NNative::CreateConnection(Config_->ClusterConnection);
     connection->GetClusterDirectorySynchronizer()->Start();
     return connection;
 }
@@ -575,8 +549,8 @@ class TDiskSpaceProfiler
     : public NProfiling::ISensorProducer
 {
 public:
-    TDiskSpaceProfiler(const TCellMasterConfigPtr& config)
-        : Config_(config)
+    explicit TDiskSpaceProfiler(TCellMasterConfigPtr config)
+        : Config_(std::move(config))
     { }
 
     void CollectSensors(ISensorWriter* writer) override
