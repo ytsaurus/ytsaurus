@@ -6,14 +6,15 @@ from yt_commands import (
     insert_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
     create_replication_card, get_replication_card, create_replication_card_replica, alter_replication_card_replica)
 
+from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
+
 import yt.yson as yson
 
 import pytest
 
+import __builtin__
 from copy import deepcopy
-
-from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -166,6 +167,55 @@ class TestChaos(DynamicTablesBase):
         if sync_replication_era:
             self._sync_replication_era(cell_id, card_id, replicas)
         return card_id, replica_ids
+
+    def _sync_alter_replication_card_replica(self, cell_id, card_id, replicas, replica_ids, replica_index, **kwargs):
+        enabled = kwargs.get("enabled", None)
+        mode = kwargs.get("mode", None)
+
+        alter_replication_card_replica(
+            chaos_cell_id=cell_id,
+            replication_card_id=card_id,
+            replica_id=replica_ids[replica_index],
+            **kwargs)
+
+        def _replica_checker(replica_info):
+            if enabled is not None and replica_info["state"] != ("enabled" if enabled else "disabled"):
+                return False
+            if mode is not None and replica_info["mode"] != mode:
+                return False
+            return True
+
+        def _check():
+            replica = replicas[replica_index]
+            orchids = self._get_table_orchids(replica["table_path"], driver=get_driver(cluster=replica["cluster"]))
+            if not all(_replica_checker(orchid["replication_card"]["replicas"][replica_index]) for orchid in orchids):
+                return False
+            if len(__builtin__.set(orchid["replication_card"]["era"] for orchid in orchids)) > 1:
+                return False
+            replica_info = orchids[0]["replication_card"]["replicas"][replica_index]
+            if replica_info["mode"] == "sync" and replica_info["state"] == "enabled":
+                if not all(orchid["write_mode"] == "direct" for orchid in orchids):
+                    return False
+            return True
+
+        wait(_check)
+        era = self._get_table_orchids("//tmp/t")[0]["replication_card"]["era"]
+
+        # Include coordinators to use same replication card cache key as insert_rows does.
+        wait(lambda: get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)["era"] == era)
+        replication_card = get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)
+        assert replication_card["era"] == era
+
+        def _check_sync():
+            for replica in replication_card["replicas"]:
+                if replica["mode"] != "sync" or replica["state"] != "enabled":
+                    continue
+                orchids = self._get_table_orchids(replica["table_path"], driver=get_driver(cluster=replica["cluster"]))
+                if not all(orchid["replication_card"]["era"] == era for orchid in orchids):
+                    return False
+            return True
+
+        wait(_check_sync)
 
     def setup_method(self, method):
         super(TestChaos, self).setup_method(method)
@@ -425,21 +475,7 @@ class TestChaos(DynamicTablesBase):
         insert_rows("//tmp/t", values)
         wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
 
-        alter_replication_card_replica(
-            chaos_cell_id=cell_id,
-            replication_card_id=card_id,
-            replica_id=replica_ids[0],
-            enabled=False)
-
-        wait(lambda: self._get_table_orchids("//tmp/t")[0]["replication_card"]["replicas"][0]["state"] == "disabled")
-        orchid = self._get_table_orchids("//tmp/t")[0]
-
-        import logging
-        logger = logging.getLogger()
-        logger.debug("Tablet replication card: {0}".format(orchid["replication_card"]))
-
-        # Include coordinators to use same replication card cache key as insert_rows does.
-        wait(lambda: get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)["era"] == orchid["replication_card"]["era"])
+        self._sync_alter_replication_card_replica(cell_id, card_id, replicas, replica_ids, 0, enabled=False)
 
         values = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values)
@@ -482,11 +518,7 @@ class TestChaos(DynamicTablesBase):
         insert_rows("//tmp/t", values[:1])
 
         _check_lookup([{"key": 0}], values[:1], old_mode)
-        alter_replication_card_replica(
-            chaos_cell_id=cell_id,
-            replication_card_id=card_id,
-            replica_id=replica_ids[0],
-            mode=new_mode)
+        self._sync_alter_replication_card_replica(cell_id, card_id, replicas, replica_ids, 0, mode=new_mode)
 
         def _insistent_insert_rows():
             try:
@@ -519,13 +551,8 @@ class TestChaos(DynamicTablesBase):
         insert_rows("//tmp/t", values)
         wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
 
-        alter_replication_card_replica(
-            chaos_cell_id=cell_id,
-            replication_card_id=card_id,
-            replica_id=replica_ids[0],
-            enabled=False)
+        self._sync_alter_replication_card_replica(cell_id, card_id, replicas, replica_ids, 0, enabled=False)
 
-        wait(lambda: get("#{0}/orchid".format(tablet_id))["replication_card"]["replicas"][0]["state"] == "disabled")
         orchid = get("#{0}/orchid".format(tablet_id))
         progress = orchid["replication_progress"]
 
@@ -586,7 +613,6 @@ class TestChaos(DynamicTablesBase):
             {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
-        remote_driver0=get_driver(cluster=replicas[1]["cluster"])
 
         def _pull_rows(replica_index):
             rows = pull_rows(
@@ -601,15 +627,7 @@ class TestChaos(DynamicTablesBase):
         wait(lambda: _pull_rows(replica_index=1) == values0)
         wait(lambda: _pull_rows(replica_index=0) == values0)
 
-        alter_replication_card_replica(
-            chaos_cell_id=cell_id,
-            replication_card_id=card_id,
-            replica_id=replica_ids[0],
-            enabled=False)
-        wait(lambda: self._get_table_orchids("//tmp/t")[0]["replication_card"]["replicas"][0]["state"] == "disabled")
-        era = self._get_table_orchids("//tmp/t")[0]["replication_card"]["era"]
-        wait(lambda: get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)["era"] == era)
-        wait(lambda: self._get_table_orchids("//tmp/r0", driver=remote_driver0)[0]["replication_card"]["era"] == era)
+        self._sync_alter_replication_card_replica(cell_id, card_id, replicas, replica_ids, 0, enabled=False)
 
         values1 = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values1)
@@ -617,19 +635,9 @@ class TestChaos(DynamicTablesBase):
         wait(lambda: _pull_rows(replica_index=1) == values0 + values1)
         assert _pull_rows(replica_index=0) == values0
 
-        alter_replication_card_replica(
-            chaos_cell_id=cell_id,
-            replication_card_id=card_id,
-            replica_id=replica_ids[0],
-            enabled=True)
-        wait(lambda: self._get_table_orchids("//tmp/t")[0]["replication_card"]["replicas"][0]["state"] == "enabled")
-        era = self._get_table_orchids("//tmp/t")[0]["replication_card"]["era"]
-        wait(lambda: get_replication_card(chaos_cell_id=cell_id, replication_card_id=card_id, include_coordinators=True)["era"] == era)
-        wait(lambda: self._get_table_orchids("//tmp/r0", driver=remote_driver0)[0]["replication_card"]["era"] == era)
+        self._sync_alter_replication_card_replica(cell_id, card_id, replicas, replica_ids, 0, enabled=True)
 
         wait(lambda: _pull_rows(replica_index=0) == values0 + values1)
-        if mode == "sync":
-            wait(lambda: self._get_table_orchids("//tmp/t")[0]["write_mode"] == "direct")
 
         values2 = [{"key": 2, "value": "2"}]
         insert_rows("//tmp/t", values2)
