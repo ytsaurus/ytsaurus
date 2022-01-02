@@ -1,6 +1,7 @@
 #include "bootstrap.h"
 
 #include "master_connector.h"
+#include "private.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -25,6 +26,10 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = CellarNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,6 +100,8 @@ public:
 
     void Initialize() override
     {
+        YT_LOG_INFO("Initializing cellar node");
+
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
