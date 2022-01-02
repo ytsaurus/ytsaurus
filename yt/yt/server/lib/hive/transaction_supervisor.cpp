@@ -1608,8 +1608,7 @@ private:
 
     void SetCommitResponse(TCommit* commit, TSharedRefArray responseMessage, bool remember = true)
     {
-        auto mutationId = commit->GetMutationId();
-        if (mutationId) {
+        if (auto mutationId = commit->GetMutationId()) {
             ResponseKeeper_->EndRequest(mutationId, responseMessage, remember);
         }
 
@@ -1659,13 +1658,13 @@ private:
         return &pair.first->second;
     }
 
-    void SetAbortFailed(TAbort* abort, const TError& error, bool remember = true)
+    void SetAbortFailed(TAbort* abort, const TError& error)
     {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error, "Transaction abort failed (TransactionId: %v)",
             abort->GetTransactionId());
 
         auto responseMessage = CreateErrorResponseMessage(error);
-        SetAbortResponse(abort, std::move(responseMessage), remember);
+        SetAbortResponse(abort, std::move(responseMessage), /*remember*/ false);
     }
 
     void SetAbortSucceeded(TAbort* abort)
@@ -2133,7 +2132,7 @@ private:
         TransientCommitMap_.Clear();
 
         for (auto& [transactionId, abort] : TransientAbortMap_) {
-            SetAbortFailed(&abort, error, /*remember*/ false);
+            SetAbortFailed(&abort, error);
         }
         TransientAbortMap_.clear();
 
