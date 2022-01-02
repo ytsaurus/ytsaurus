@@ -47,6 +47,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = DataNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBootstrap
     : public IBootstrap
     , public TBootstrapBase
@@ -59,6 +63,8 @@ public:
 
     void Initialize() override
     {
+        YT_LOG_INFO("Initializing data node");
+
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 

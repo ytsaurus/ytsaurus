@@ -43,6 +43,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = ExecNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBootstrap
     : public IBootstrap
     , public TBootstrapBase
@@ -55,6 +59,8 @@ public:
 
     void Initialize() override
     {
+        YT_LOG_INFO("Initializing exec node");
+
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
@@ -272,7 +278,7 @@ private:
         JobProxyConfigTemplate_->SupervisorRpcTimeout = GetConfig()->ExecNode->SupervisorRpcTimeout;
 
         JobProxyConfigTemplate_->HeartbeatPeriod = GetConfig()->ExecNode->JobProxyHeartbeatPeriod;
-        
+
         JobProxyConfigTemplate_->UploadDebugArtifactChunks = GetConfig()->ExecNode->JobProxyUploadDebugArtifactChunks;
 
         JobProxyConfigTemplate_->JobEnvironment = GetConfig()->ExecNode->SlotManager->JobEnvironment;

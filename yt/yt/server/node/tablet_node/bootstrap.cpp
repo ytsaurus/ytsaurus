@@ -51,6 +51,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBootstrap
     : public IBootstrap
     , public TBootstrapBase
@@ -63,6 +67,8 @@ public:
 
     void Initialize() override
     {
+        YT_LOG_INFO("Initializing tablet node");
+
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 

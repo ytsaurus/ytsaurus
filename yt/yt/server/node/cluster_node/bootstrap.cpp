@@ -709,7 +709,7 @@ private:
             Flavors_ = THashSet<ENodeFlavor>(flavors.begin(), flavors.end());
         }
 
-        YT_LOG_INFO("Initializing node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v, Flavors: %v)",
+        YT_LOG_INFO("Initializing cluster node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v, Flavors: %v)",
             GetValues(localRpcAddresses),
             Config_->ClusterConnection->PrimaryMaster->Addresses,
             Config_->Tags,
