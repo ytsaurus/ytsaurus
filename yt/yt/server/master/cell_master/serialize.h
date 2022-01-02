@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((MediumOverridesViaHeartbeats)                                 (1909))  // kvk1920
     ((QueueAgentUser)                                               (1910))  // max42
     ((BanSuperusers)                                                (1911))  // gritukan
+    ((EnablePortalAwareStatisticsGossip)                            (1912))  // babenko
 );
 
 constexpr EMasterReign First_21_2_MasterReign = EMasterReign::MasterMergeJobs;
