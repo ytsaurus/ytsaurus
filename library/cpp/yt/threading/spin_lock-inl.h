@@ -30,24 +30,33 @@ inline void TSpinLock::Release() noexcept
 #ifdef NDEBUG
     Value_.store(UnlockedValue, std::memory_order_relaxed);
 #else
-    YT_ASSERT(Value_.exchange(UnlockedValue, std::memory_order_relaxed) == LockedValue);
+    YT_ASSERT(Value_.exchange(UnlockedValue, std::memory_order_relaxed) != UnlockedValue);
 #endif
 }
 
 inline bool TSpinLock::IsLocked() const noexcept
 {
-    return Value_.load() == LockedValue;
+    return Value_.load() != UnlockedValue;
 }
 
 inline bool TSpinLock::TryAcquire() noexcept
 {
-    auto expected = UnlockedValue;
-    return Value_.compare_exchange_weak(expected, LockedValue);
+    auto expectedValue = UnlockedValue;
+#ifdef YT_ENABLE_SPIN_LOCK_OWNERSHIP_TRACKING
+    auto newValue = GetSequentialThreadId();
+#else
+    auto newValue = LockedValue;
+#endif
+    return Value_.compare_exchange_weak(expectedValue, newValue);
 }
 
 inline bool TSpinLock::TryAndTryAcquire() noexcept
 {
-    if (Value_.load(std::memory_order_relaxed) != 0) {
+    auto value = Value_.load(std::memory_order_relaxed);
+#ifdef YT_ENABLE_SPIN_LOCK_OWNERSHIP_TRACKING
+    YT_ASSERT(value != GetSequentialThreadId());
+#endif
+    if (value != UnlockedValue) {
         return false;
     }
     return TryAcquire();
