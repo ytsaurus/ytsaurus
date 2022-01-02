@@ -78,9 +78,6 @@ TConnectionConfig::TConnectionConfig()
         .GreaterThanOrEqual(0)
         .Default(0);
 
-    RegisterParameter("enable_multi_lookup", EnableMultiLookup)
-        .Default(false);
-
     RegisterPreprocessor([&] {
         DynamicChannelPool->MaxPeerCount = 100;
     });

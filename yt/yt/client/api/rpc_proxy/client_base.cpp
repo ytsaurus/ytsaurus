@@ -782,27 +782,6 @@ TFuture<std::vector<IUnversionedRowsetPtr>> TClientBase::MultiLookup(
     const std::vector<TMultiLookupSubrequest>& subrequests,
     const TMultiLookupOptions& options)
 {
-    // COMPAT(akozhikhov)
-    if (!GetRpcProxyConnection()->GetConfig()->EnableMultiLookup) {
-        TLookupRowsOptions lookupOptions;
-        static_cast<TTimeoutOptions&>(lookupOptions) = options;
-        static_cast<TMultiplexingBandOptions&>(lookupOptions) = options;
-        static_cast<TTabletReadOptionsBase&>(lookupOptions) = options;
-
-        std::vector<TFuture<IUnversionedRowsetPtr>> asyncResults;
-        asyncResults.reserve(subrequests.size());
-        for (const auto& subrequest : subrequests) {
-            static_cast<TLookupRequestOptions&>(lookupOptions) = subrequest.Options;
-            asyncResults.push_back(LookupRows(
-                subrequest.Path,
-                subrequest.NameTable,
-                subrequest.Keys,
-                lookupOptions));
-        }
-
-        return AllSucceeded(std::move(asyncResults));
-    }
-
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.MultiLookup();
