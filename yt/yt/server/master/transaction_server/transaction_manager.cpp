@@ -1141,33 +1141,6 @@ private:
         NTransactionServer::NProto::TReqStartTransaction* request,
         NTransactionServer::NProto::TRspStartTransaction* response)
     {
-        // COMPAT(shakurov)
-        if (auto hintId = FromProto<TTransactionId>(request->hint_id())) {
-            // This is a hive mutation posted by a pre-20.3 master (and being
-            // applied by a post-20.3 one). These days, TReqStartForeignTransaction
-            // is used instead.
-            YT_VERIFY(IsHiveMutation());
-
-            auto isUpload =
-                TypeFromId(hintId) == EObjectType::UploadTransaction ||
-                TypeFromId(hintId) == EObjectType::UploadNestedTransaction;
-            auto parentId = FromProto<TTransactionId>(request->parent_id());
-            auto* parent = parentId ? GetTransactionOrThrow(parentId) : nullptr;
-            auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
-
-            DoStartTransaction(
-                isUpload,
-                parent,
-                {} /*prerequisiteTransactions*/,
-                {} /*replicatedToCellTags*/,
-                std::nullopt /*timeout*/,
-                std::nullopt /*deadline*/,
-                title,
-                EmptyAttributes(),
-                hintId);
-            return;
-        }
-
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
