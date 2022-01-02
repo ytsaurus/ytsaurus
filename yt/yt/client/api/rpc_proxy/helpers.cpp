@@ -1431,7 +1431,10 @@ NJobTrackerClient::EJobState ConvertJobStateFromProto(
 
 bool IsRetriableError(const TError& error, bool retryProxyBanned)
 {
-    if (error.FindMatching(NRpcProxy::EErrorCode::ProxyBanned)) {
+    // COMPAT(babenko): this is NRpcProxy::EErrorCode::ProxyBanned
+    if (error.FindMatching(TErrorCode(2100)) ||
+        error.FindMatching(NRpc::EErrorCode::PeerBanned))
+    {
         return retryProxyBanned;
     }
 
