@@ -116,6 +116,11 @@ def raises_yt_error(code=None, required=True):
         result_list.append(e)
 
 
+def assert_yt_error(error, *args, **kwargs):
+    with raises_yt_error(*args, **kwargs):
+        raise error
+
+
 def print_debug(*args):
     if args:
         root_logger.debug(" ".join(builtins.map(str, args)))

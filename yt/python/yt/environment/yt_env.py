@@ -1098,6 +1098,9 @@ class YTInstance(object):
             instances = client.list("//sys/queue_agents/instances")
             if len(instances) != self.yt_config.queue_agent_count:
                 return False
+            for instance in instances:
+                if not client.exists("//sys/queue_agents/instances/" + instance + "/orchid/queue_agent"):
+                    return False
 
             return True
 
