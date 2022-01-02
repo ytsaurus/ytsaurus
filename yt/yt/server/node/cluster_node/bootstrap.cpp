@@ -698,8 +698,6 @@ private:
     {
         auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
-        SetExplodeOnNullRowRowBufferDeserialization();
-
         if (!Config_->ClusterConnection->Networks) {
             Config_->ClusterConnection->Networks = GetLocalNetworks();
         }
