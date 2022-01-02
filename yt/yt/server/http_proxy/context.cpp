@@ -259,7 +259,7 @@ bool TContext::TryCheckMethod()
     if (Request_->GetMethod() != expectedMethod) {
         Response_->SetStatus(EStatusCode::MethodNotAllowed);
         Response_->GetHeaders()->Set("Allow", TString(ToHttpString(expectedMethod)));
-        ReplyError(TError{Format("Command %Qv have to be executed with the %Qv HTTP method",
+        ReplyError(TError{Format("Command %Qv must be executed with %Qv HTTP method",
             Descriptor_->CommandName,
             ToHttpString(expectedMethod))});
 
