@@ -998,34 +998,28 @@ private:
                 ->CommitAndLog(Logger);
 
             // Send statistics to secondary cells.
+            auto allCellTags = GetRegisteredMasterCellTags();
+            std::sort(allCellTags.begin(), allCellTags.end());
 
-            if (GetDynamicConfig()->EnablePortalAwareCellStatisticsGossip) {
-                auto allCellTags = GetRegisteredMasterCellTags();
-                std::sort(allCellTags.begin(), allCellTags.end());
+            auto portalCellTags = GetRoleMasterCells(EMasterCellRole::CypressNodeHost);
+            YT_VERIFY(std::is_sorted(portalCellTags.begin(), portalCellTags.end()));
 
-                auto portalCellTags = GetRoleMasterCells(EMasterCellRole::CypressNodeHost);
-                YT_VERIFY(std::is_sorted(portalCellTags.begin(), portalCellTags.end()));
+            TCellTagList nonPortalCellTags;
+            std::set_difference(
+                allCellTags.begin(),
+                allCellTags.end(),
+                portalCellTags.begin(),
+                portalCellTags.end(),
+                std::back_inserter(nonPortalCellTags));
 
-                TCellTagList nonPortalCellTags;
-                std::set_difference(
-                    allCellTags.begin(),
-                    allCellTags.end(),
-                    portalCellTags.begin(),
-                    portalCellTags.end(),
-                    std::back_inserter(nonPortalCellTags));
+            if (!portalCellTags.empty()) {
+                auto multicellRequest = GetMulticellStatistics();
+                PostToMasters(multicellRequest, portalCellTags, /* reliable */ false);
+            }
 
-                if (!portalCellTags.empty()) {
-                    auto multicellRequest = GetMulticellStatistics();
-                    PostToMasters(multicellRequest, portalCellTags, /* reliable */ false);
-                }
-
-                if (!nonPortalCellTags.empty()) {
-                    auto clusterRequest = GetClusterCellStatistics();
-                    PostToMasters(clusterRequest, nonPortalCellTags, /* reliable */ false);
-                }
-            } else {
+            if (!nonPortalCellTags.empty()) {
                 auto clusterRequest = GetClusterCellStatistics();
-                PostToSecondaryMasters(clusterRequest, /* reliable */ false);
+                PostToMasters(clusterRequest, nonPortalCellTags, /* reliable */ false);
             }
         } else {
             PostToPrimaryMaster(localRequest, /*reliable*/ false);
