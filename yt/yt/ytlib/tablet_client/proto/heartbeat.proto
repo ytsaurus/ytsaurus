@@ -63,23 +63,14 @@ message TTableReplicaInfo
 
 message TTabletInfo
 {
-    // COMPAT(ifsmirnov)
-    message TErrorEntry
-    {
-        required int32 key = 1;
-        required NYT.NProto.TError value = 2;
-    }
-
     required NYT.NProto.TGuid tablet_id = 1;
     required uint64 mount_revision = 8;
     required TTabletStatistics statistics = 2;
     repeated TTableReplicaInfo replicas = 3;
     required TTabletPerformanceCounters performance_counters = 4;
+    optional int32 error_count = 7;
 
-    reserved 5;
-    reserved 6;
-
-    optional int32 error_count = 7 [default = 0];
+    reserved 5, 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
