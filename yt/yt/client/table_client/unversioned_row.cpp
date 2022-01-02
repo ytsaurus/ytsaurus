@@ -1511,19 +1511,10 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow, std
     *row = DeserializeFromString(protoRow, nullPaddingWidth);
 }
 
-bool ExplodeOnNullRowRowBufferDeserialization = false;
-void SetExplodeOnNullRowRowBufferDeserialization()
-{
-    ExplodeOnNullRowRowBufferDeserialization = true;
-}
-
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer)
 {
     if (protoRow == SerializedNullRow) {
         *row = TUnversionedRow();
-        if (ExplodeOnNullRowRowBufferDeserialization) {
-            YT_ABORT();
-        }
         return;
     }
 
