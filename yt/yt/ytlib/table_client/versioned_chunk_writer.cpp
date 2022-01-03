@@ -84,9 +84,6 @@ public:
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
-#if 0
-        , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
-#endif
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
         , FinishGuard_(TraceContext_)
     {
@@ -212,10 +209,6 @@ protected:
 
     NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
 
-#if 0
-    TBloomFilterBuilder KeyFilter_;
-#endif
-
     const TTraceContextPtr TraceContext_;
     const TTraceContextFinishGuard FinishGuard_;
 
@@ -241,13 +234,6 @@ protected:
         SetProtoExtension(meta->mutable_extensions(), BlockMetaExt_);
         SetProtoExtension(meta->mutable_extensions(), SamplesExt_);
         SetProtoExtension(meta->mutable_extensions(), ColumnarStatisticsExt_);
-
-#if 0
-        if (KeyFilter_.IsValid()) {
-            KeyFilter_.Shrink();
-            //FIXME: write bloom filter to chunk.
-        }
-#endif
 
         auto& miscExt = EncodingChunkWriter_->MiscExt();
         miscExt.set_sorted(true);
