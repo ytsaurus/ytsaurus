@@ -709,7 +709,7 @@ void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const 
         AddTagToBaggage(baggage, ERawIOTag::ObjectPath, *dataSource.GetPath());
     }
     if (dataSource.GetObjectId()) {
-        AddTagToBaggage(baggage, ERawIOTag::ObjectId, ToString(*dataSource.GetObjectId()));
+        AddTagToBaggage(baggage, ERawIOTag::ObjectId, ToString(dataSource.GetObjectId()));
     }
     if (dataSource.GetAccount()) {
         AddTagToBaggage(baggage, EAggregateIOTag::Account, *dataSource.GetAccount());

@@ -99,7 +99,7 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     }
 
     if (dataSource.GetObjectId()) {
-        ToProto(protoDataSource->mutable_object_id(), *dataSource.GetObjectId());
+        ToProto(protoDataSource->mutable_object_id(), dataSource.GetObjectId());
     }
 
     if (dataSource.GetAccount()) {

@@ -29,7 +29,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(EDataSourceType, Type, EDataSourceType::UnversionedTable);
     DEFINE_BYVAL_RW_PROPERTY(bool, Foreign, false);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NYPath::TYPath>, Path);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NObjectClient::TObjectId>, ObjectId);
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TObjectId, ObjectId);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchemaPtr, Schema);
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<TString>>, Columns);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, OmittedInaccessibleColumns);
