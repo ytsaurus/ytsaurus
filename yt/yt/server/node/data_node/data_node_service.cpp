@@ -124,8 +124,10 @@ THashMap<TString, TString> MakeReadIOTags(
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
         {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
         {FormatIOTag(EAggregateIOTag::Direction), "read"},
-        {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(chunkId).Id)},
     };
+    if (chunkId) {
+        result[FormatIOTag(ERawIOTag::ChunkId)] = ToString(DecodeChunkId(chunkId).Id);
+    }
     if (readSessionId) {
         result[FormatIOTag(ERawIOTag::ReadSessionId)] = ToString(readSessionId);
     }
@@ -1207,38 +1209,37 @@ private:
                             YT_VERIFY(results.size() == locationFragmentIndices.size());
 
                             i64 dataBytesReadFromDisk = 0;
+                            i64 dataIOCount = 0;
                             for (int resultIndex = 0; resultIndex < std::ssize(results); ++resultIndex) {
                                 auto& result = results[resultIndex];
                                 const auto& fragmentIndices = locationFragmentIndices[resultIndex];
                                 YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
-
-                                const auto& ioTracker = Bootstrap_->GetIOTracker();
-                                if (result.PaddedBytesRead > 0 && ioTracker->IsEnabled()) {
-                                    for (int index = 0; index < std::ssize(fragmentIndices); ++index) {
-                                        auto byteCount = static_cast<i64>(result.OutputBuffers[index].Size());
-                                        if (byteCount == 0) {
-                                            continue;
-                                        }
-                                        const auto& chunk = chunkRequestInfos[fragmentIndices[index]].Guard.GetChunk();
-                                        ioTracker->Enqueue(
-                                            TIOCounters{.ByteCount = byteCount, .IOCount = 1},
-                                            MakeReadIOTags(
-                                                "GetChunkFragmentSet",
-                                                requestedLocations[resultIndex].first,
-                                                context,
-                                                chunk->GetId(),
-                                                readSessionId));
-                                    }
-                                }
-
                                 for (int index = 0; index < std::ssize(fragmentIndices); ++index) {
                                     response->Attachments()[fragmentIndices[index]] = std::move(result.OutputBuffers[index]);
                                 }
 
-                                dataBytesReadFromDisk += result.PaddedBytesRead;
+                                const auto& ioTracker = Bootstrap_->GetIOTracker();
+                                if (result.PaddedByteCount > 0 && ioTracker->IsEnabled()) {
+                                    ioTracker->Enqueue(
+                                        TIOCounters{
+                                            .ByteCount = result.PaddedByteCount,
+                                            .IOCount = result.IOCount
+                                        },
+                                        // NB: Now we do not track chunk id for this method.
+                                        MakeReadIOTags(
+                                            "GetChunkFragmentSet",
+                                            requestedLocations[resultIndex].first,
+                                            context,
+                                            NullChunkId,
+                                            readSessionId));
+                                }
+
+                                dataBytesReadFromDisk += result.PaddedByteCount;
+                                dataIOCount += result.IOCount;
                             }
 
                             response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);
+                            response->mutable_chunk_reader_statistics()->set_data_io_count(dataIOCount);
 
                             if (netThrottler->IsOverdraft()) {
                                 context->SetComplete();

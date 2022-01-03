@@ -255,16 +255,26 @@ struct TStoreRotationCounters
     NProfiling::TSummary RotatedMemoryUsage;
 };
 
+struct TStoreCompactionCounterGroup
+{
+    TStoreCompactionCounterGroup() = default;
+
+    explicit TStoreCompactionCounterGroup(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter InDataWeight;
+    NProfiling::TCounter OutDataWeight;
+    NProfiling::TCounter InStoreCount;
+    NProfiling::TCounter OutStoreCount;
+};
+
 struct TStoreCompactionCounters
 {
     TStoreCompactionCounters() = default;
 
     explicit TStoreCompactionCounters(const NProfiling::TProfiler& profiler);
 
-    NProfiling::TCounter InDataWeight;
-    NProfiling::TCounter OutDataWeight;
-    NProfiling::TCounter InStoreCount;
-    NProfiling::TCounter OutStoreCount;
+    TStoreCompactionCounterGroup StoreChunks;
+    TStoreCompactionCounterGroup HunkChunks;
 };
 
 struct TPartitionBalancingCounters
@@ -289,13 +299,17 @@ public:
     void ProfileCompaction(
         NLsm::EStoreCompactionReason reason,
         bool isEden,
-        const NChunkClient::NProto::TDataStatistics readerStatistics,
-        const NChunkClient::NProto::TDataStatistics writerStatistics);
+        const NChunkClient::NProto::TDataStatistics& readerStatistics,
+        const NChunkClient::NProto::TDataStatistics& writerStatistics,
+        const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
+        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics);
 
     void ProfilePartitioning(
         NLsm::EStoreCompactionReason reason,
-        const NChunkClient::NProto::TDataStatistics readerStatistics,
-        const NChunkClient::NProto::TDataStatistics writerStatistics);
+        const NChunkClient::NProto::TDataStatistics& readerStatistics,
+        const NChunkClient::NProto::TDataStatistics& writerStatistics,
+        const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
+        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics);
 
     void ProfilePartitionSplit();
     void ProfilePartitionMerge();
@@ -317,8 +331,10 @@ private:
 
     void DoProfileCompaction(
         TStoreCompactionCounters* counters,
-        const NChunkClient::NProto::TDataStatistics readerStatistics,
-        const NChunkClient::NProto::TDataStatistics writerStatistics);
+        const NChunkClient::NProto::TDataStatistics& readerStatistics,
+        const NChunkClient::NProto::TDataStatistics& writerStatistics,
+        const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
+        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

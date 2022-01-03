@@ -379,8 +379,7 @@ public:
         if (enableHunkColumnarProfiling) {
             ColumnIdToStatistics_.emplace();
             for (auto id : schema->GetHunkColumnIds()) {
-                YT_VERIFY(ColumnIdToStatistics_->emplace(id, TAtomicColumnarStatistics{})
-                    .second);
+                EmplaceOrCrash(*ColumnIdToStatistics_, id, TAtomicColumnarStatistics{});
             }
         }
     }
@@ -488,10 +487,7 @@ private:
     {
         auto it = ColumnIdToStatistics_.find(columnId);
         if (it == ColumnIdToStatistics_.end()) {
-            it = ColumnIdToStatistics_.emplace(
-                columnId,
-                TColumnarHunkChunkStatistics{})
-                .first;
+            it = EmplaceOrCrash(ColumnIdToStatistics_, columnId, TColumnarHunkChunkStatistics{});
         }
         return &it->second;
     }
@@ -519,6 +515,11 @@ public:
         return DroppedDataWeight_;
     }
 
+    std::atomic<int>& ChunkCount() override
+    {
+        return ChunkCount_;
+    }
+
     std::atomic<int>& InlineValueCount() override
     {
         return InlineValueCount_;
@@ -534,16 +535,24 @@ public:
         return BackendRequestCount_;
     }
 
+    std::atomic<int>& BackendProbingRequestCount() override
+    {
+        return BackendProbingRequestCount_;
+    }
+
 private:
     const TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<TChunkReaderStatistics>();
 
     std::atomic<i64> DataWeight_ = 0;
     std::atomic<i64> DroppedDataWeight_ = 0;
 
+    std::atomic<int> ChunkCount_ = 0;
+
     std::atomic<int> InlineValueCount_ = 0;
     std::atomic<int> RefValueCount_ = 0;
 
     std::atomic<int> BackendRequestCount_ = 0;
+    std::atomic<int> BackendProbingRequestCount_ = 0;
 };
 
 IHunkChunkReaderStatisticsPtr CreateHunkChunkReaderStatistics(
@@ -573,7 +582,7 @@ IHunkChunkWriterStatisticsPtr CreateHunkChunkWriterStatistics(
     bool enableHunkColumnarProfiling,
     const TTableSchemaPtr& schema)
 {
-    // NB: No need to create object if |enableHunkColumnarProfiling| is false.
+    // NB: No need to create object if #enableHunkColumnarProfiling is false.
     if (!schema->HasHunkColumns() || !enableHunkColumnarProfiling) {
         return nullptr;
     }
@@ -628,6 +637,7 @@ THunkChunkReaderCounters::THunkChunkReaderCounters(
     , InlineValueCount_(profiler.Counter("/inline_value_count"))
     , RefValueCount_(profiler.Counter("/ref_value_count"))
     , BackendRequestCount_(profiler.Counter("/backend_request_count"))
+    , BackendProbingRequestCount_(profiler.Counter("/backend_probing_request_count"))
     , ChunkReaderStatisticsCounters_(profiler.WithPrefix("/chunk_reader_statistics"))
 { }
 
@@ -646,6 +656,7 @@ void THunkChunkReaderCounters::Increment(
     RefValueCount_.Increment(statistics->RefValueCount());
 
     BackendRequestCount_.Increment(statistics->BackendRequestCount());
+    BackendProbingRequestCount_.Increment(statistics->BackendProbingRequestCount());
 
     ChunkReaderStatisticsCounters_.Increment(statistics->GetChunkReaderStatistics(), failed);
 
@@ -996,9 +1007,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
         value->Flags &= ~EValueFlags::Hunk;
     };
 
-    i64 dataWeight = 0;
     int inlineHunkValueCount = 0;
-    int refHunkValueCount = 0;
     std::vector<IChunkFragmentReader::TChunkFragmentRequest> requests;
     std::vector<TUnversionedValue*> requestedValues;
     for (auto* value : values) {
@@ -1025,20 +1034,13 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                     .BlockOffset = globalRefHunkValue.BlockOffset
                 });
                 requestedValues.push_back(value);
-                dataWeight += globalRefHunkValue.Length;
-                ++refHunkValueCount;
             });
     }
 
     auto hunkChunkReaderStatistics = options.HunkChunkReaderStatistics;
     if (hunkChunkReaderStatistics) {
-        // NB: Chunk fragment reader does not update any hunk chunk reader statistics.
         options.ChunkReaderStatistics = hunkChunkReaderStatistics->GetChunkReaderStatistics();
-        hunkChunkReaderStatistics->DataWeight() += dataWeight;
-        hunkChunkReaderStatistics->InlineValueCount() += inlineHunkValueCount;
-        hunkChunkReaderStatistics->RefValueCount() += refHunkValueCount;
     }
-
     if (columnarStatisticsThunk) {
         columnarStatisticsThunk->MergeTo(hunkChunkReaderStatistics);
     }
@@ -1060,7 +1062,13 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
             }
 
             if (hunkChunkReaderStatistics) {
+                // NB: Chunk fragment reader does not update any hunk chunk reader statistics.
+                hunkChunkReaderStatistics->DataWeight() += response.DataWeight;
+                hunkChunkReaderStatistics->ChunkCount() += response.ChunkCount;
+                hunkChunkReaderStatistics->InlineValueCount() += inlineHunkValueCount;
+                hunkChunkReaderStatistics->RefValueCount() += std::ssize(requestedValues);
                 hunkChunkReaderStatistics->BackendRequestCount() += response.BackendRequestCount;
+                hunkChunkReaderStatistics->BackendProbingRequestCount() += response.BackendProbingRequestCount;
             }
 
             return MakeSharedRange(values, values, std::move(response.Fragments));

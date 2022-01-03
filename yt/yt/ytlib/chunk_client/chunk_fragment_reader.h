@@ -29,7 +29,12 @@ struct IChunkFragmentReader
     struct TReadFragmentsResponse
     {
         std::vector<TSharedRef> Fragments;
+
+        i64 DataWeight = 0;
+        int ChunkCount = 0;
+
         int BackendRequestCount = 0;
+        int BackendProbingRequestCount = 0;
     };
 
     //! Asynchronously reads a given set of chunk fragments.
