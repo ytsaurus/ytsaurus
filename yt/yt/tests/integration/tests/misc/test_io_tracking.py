@@ -836,11 +836,9 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["user@"] == "job:root"
         assert raw_events[0]["byte_count"] > 0
         assert raw_events[0]["io_count"] > 0
-        # TODO(gepardo): Check unconditionally when IO tags will be added to SortedReduce.
-        if op_type == "map":
-            assert raw_events[0]["account@"] == "tmp"
-            assert "object_id" in raw_events[0]
-            assert raw_events[0]["object_path"] == "//tmp/table_out"
+        assert raw_events[0]["account@"] == "tmp"
+        assert "object_id" in raw_events[0]
+        assert raw_events[0]["object_path"] == "//tmp/table_out"
 
         assert raw_events[1]["data_node_method@"] == "GetBlockSet"
         assert raw_events[1]["object_path"] == "//tmp/table_in"
