@@ -99,7 +99,7 @@ public:
         auto request = New<TBucketThrottleRequest>(count);
         QueueSize_ += count;
 
-        request->Promise.OnCanceled(BIND(&TBucketThrottleRequest::Cancel, request));
+        request->Promise.OnCanceled(BIND(&TBucketThrottleRequest::Cancel, MakeWeak(request)));
         request->Promise.ToFuture().Subscribe(BIND(&TBucketThrottler::OnRequestComplete, MakeWeak(this), count));
 
         auto guard = Guard(Lock_);
