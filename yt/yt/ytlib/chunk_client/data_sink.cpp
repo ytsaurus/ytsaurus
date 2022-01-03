@@ -13,7 +13,7 @@ void FromProto(TDataSink* dataSink, const NProto::TDataSink& protoDataSink)
     using NYT::FromProto;
 
     if (protoDataSink.has_object_path()) {
-        dataSink->SetAccount(protoDataSink.object_path());
+        dataSink->SetPath(protoDataSink.object_path());
     }
 
     if (protoDataSink.has_object_id()) {

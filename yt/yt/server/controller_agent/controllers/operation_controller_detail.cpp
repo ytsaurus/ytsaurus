@@ -6451,6 +6451,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 }
             }
 
+            table->Account = attributes->Get<TString>("account");
+
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
                 table->TableWriterOptions->ValidateSorted = true;
                 table->TableWriterOptions->ValidateUniqueKeys = table->TableUploadOptions.TableSchema->GetUniqueKeys();
