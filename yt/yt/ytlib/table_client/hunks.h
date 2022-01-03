@@ -85,10 +85,13 @@ struct IHunkChunkReaderStatistics
     virtual std::atomic<i64>& DataWeight() = 0;
     virtual std::atomic<i64>& DroppedDataWeight() = 0;
 
+    virtual std::atomic<int>& ChunkCount() = 0;
+
     virtual std::atomic<int>& InlineValueCount() = 0;
     virtual std::atomic<int>& RefValueCount() = 0;
 
     virtual std::atomic<int>& BackendRequestCount() = 0;
+    virtual std::atomic<int>& BackendProbingRequestCount() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IHunkChunkReaderStatistics)
@@ -156,6 +159,7 @@ private:
     NProfiling::TCounter RefValueCount_;
 
     NProfiling::TCounter BackendRequestCount_;
+    NProfiling::TCounter BackendProbingRequestCount_;
 
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters_;
 };

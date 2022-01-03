@@ -1545,7 +1545,9 @@ private:
             tabletSnapshot->TableProfiler->GetLsmCounters()->ProfilePartitioning(
                 task->Reason,
                 reader->GetDataStatistics(),
-                writerDataStatistics);
+                writerDataStatistics,
+                chunkReadOptions.HunkChunkReaderStatistics,
+                partitioningResult.HunkWriter->GetDataStatistics());
         }
 
         eden->CheckedSetState(EPartitionState::Partitioning, EPartitionState::Normal);
@@ -1882,7 +1884,9 @@ private:
                 task->Reason,
                 partition->IsEden(),
                 reader->GetDataStatistics(),
-                compactionResult.StoreWriter->GetDataStatistics());
+                compactionResult.StoreWriter->GetDataStatistics(),
+                chunkReadOptions.HunkChunkReaderStatistics,
+                compactionResult.HunkWriter->GetDataStatistics());
         }
 
         partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);

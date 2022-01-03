@@ -745,7 +745,7 @@ public:
 
         auto invoker = ThreadPool_.GetReadInvoker(category, sessionId);
 
-        i64 paddedBytesRead = 0;
+        i64 paddedByteCount = 0;
         TSharedRefArray result;
         std::vector<TMutableRef> buffers;
         buffers.reserve(requests.size());
@@ -753,7 +753,7 @@ public:
             i64 totalSize = 0;
             for (const auto& request : requests) {
                 totalSize += request.Size;
-                paddedBytesRead += GetPaddedSize(request.Offset, request.Size, DefaultPageSize);
+                paddedByteCount += GetPaddedSize(request.Offset, request.Size, DefaultPageSize);
             }
 
             TSharedRefArrayBuilder resultBuilder(requests.size(), totalSize, tagCookie);
@@ -776,12 +776,15 @@ public:
             }
         }
 
+        TReadResponse response{
+            .OutputBuffers = result.ToVector(),
+            .PaddedByteCount = paddedByteCount,
+            .IOCount = std::ssize(futures)
+        };
+
         return AllSucceeded(std::move(futures))
-            .Apply(BIND([paddedBytesRead, result = std::move(result)] {
-                return TReadResponse{
-                    .OutputBuffers = result.ToVector(),
-                    .PaddedBytesRead = paddedBytesRead
-                };
+            .Apply(BIND([response = std::move(response)] {
+                return response;
             }));
     }
 
@@ -1312,15 +1315,16 @@ struct TReadUringRequest
     TCompactVector<int, TypicalSubrequestCount> PendingReadSubrequestIndexes;
     TReadRequestCombiner ReadRequestCombiner;
 
-    i64 PaddedBytesRead = 0;
+    i64 PaddedByteCount = 0;
     int FinishedSubrequestCount = 0;
 
 
     void TrySetReadSucceeded()
     {
         IIOEngine::TReadResponse response{
-            .PaddedBytesRead = PaddedBytesRead,
-            .OutputBuffers = std::move(ReadRequestCombiner.ReleaseOutputBuffers())
+            .PaddedByteCount = PaddedByteCount,
+            .OutputBuffers = std::move(ReadRequestCombiner.ReleaseOutputBuffers()),
+            .IOCount = FinishedSubrequestCount
         };
         if (Promise.TrySet(std::move(response))) {
             YT_LOG_TRACE("Request succeeded (Request: %p)",
@@ -1959,7 +1963,7 @@ private:
             int count = 0;
             {
                 TRequestStatsGuard statsGuard(Sensors.IoSubmitSensors);
-                Uring_.Submit();
+                count = Uring_.Submit();
             }
             if (count > 0) {
                 YT_LOG_TRACE("SQEs submitted (SqeCount: %v, PendingRequestCount: %v)",
@@ -2081,7 +2085,7 @@ public:
 
         for (int index = 0; index < std::ssize(ioRequests); ++index) {
             const auto& ioRequest = ioRequests[index];
-            uringRequest->PaddedBytesRead += GetPaddedSize(
+            uringRequest->PaddedByteCount += GetPaddedSize(
                 ioRequest.Offset,
                 ioRequest.Size,
                 handles[index]->IsOpenForDirectIO() ? Config_->DirectIOPageSize : DefaultPageSize);

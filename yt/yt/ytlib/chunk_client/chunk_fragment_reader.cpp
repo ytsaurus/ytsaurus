@@ -502,10 +502,12 @@ private:
             return;
         }
 
+        i64 dataWeight = 0;
         THashMap<TChunkId, std::vector<TFragmentInfo>> chunkIdToFragmentInfos;
         for (int i = 0; i < std::ssize(Requests_); ++i) {
             const auto& request = Requests_[i];
 
+            dataWeight += request.Length;
             chunkIdToFragmentInfos[request.ChunkId].push_back({
                 .FragmentIndex = i,
                 .Length = request.Length,
@@ -513,6 +515,9 @@ private:
                 .BlockOffset = request.BlockOffset
             });
         }
+
+        Response_.ChunkCount = std::ssize(chunkIdToFragmentInfos);
+        Response_.DataWeight = dataWeight;
 
         std::vector<TNodeId> nodeIds;
         {
@@ -855,6 +860,8 @@ private:
                     chunkLowestProbingPenalty[chunkIndex] = currentProbingPenalty;
                 }
             }
+
+            ++Response_.BackendProbingRequestCount;
         }
 
         for (int chunkIndex = 0; chunkIndex < std::ssize(chunkBestNodeIndex); ++chunkIndex) {

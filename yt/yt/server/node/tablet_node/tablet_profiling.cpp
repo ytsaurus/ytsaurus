@@ -198,11 +198,16 @@ TStoreRotationCounters::TStoreRotationCounters(const TProfiler& profiler)
     , RotatedMemoryUsage(profiler.Summary("/rotated_memory_usage"))
 { }
 
-TStoreCompactionCounters::TStoreCompactionCounters(const TProfiler& profiler)
+TStoreCompactionCounterGroup::TStoreCompactionCounterGroup(const TProfiler& profiler)
     : InDataWeight(profiler.Counter("/in_data_weight"))
     , OutDataWeight(profiler.Counter("/out_data_weight"))
     , InStoreCount(profiler.Counter("/in_store_count"))
     , OutStoreCount(profiler.Counter("/out_store_count"))
+{ }
+
+TStoreCompactionCounters::TStoreCompactionCounters(const TProfiler& profiler)
+    : StoreChunks(profiler)
+    , HunkChunks(profiler.WithPrefix("/hunks"))
 { }
 
 TPartitionBalancingCounters::TPartitionBalancingCounters(const TProfiler& profiler)
@@ -263,22 +268,36 @@ void TLsmCounters::ProfileRotation(EStoreRotationReason reason, i64 rowCount, i6
 void TLsmCounters::ProfileCompaction(
     EStoreCompactionReason reason,
     bool isEden,
-    const NChunkClient::NProto::TDataStatistics readerStatistics,
-    const NChunkClient::NProto::TDataStatistics writerStatistics)
+    const NChunkClient::NProto::TDataStatistics& readerStatistics,
+    const NChunkClient::NProto::TDataStatistics& writerStatistics,
+    const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
+    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics)
 {
     auto& counters = CompactionCounters_
         [reason][isEden ? 1 : 0][EStoreCompactorActivityKind::Compaction];
-    DoProfileCompaction(&counters, readerStatistics, writerStatistics);
+    DoProfileCompaction(
+        &counters,
+        readerStatistics,
+        writerStatistics,
+        hunkChunkReaderStatistics,
+        hunkChunkWriterStatistics);
 }
 
 void TLsmCounters::ProfilePartitioning(
     EStoreCompactionReason reason,
-    const NChunkClient::NProto::TDataStatistics readerStatistics,
-    const NChunkClient::NProto::TDataStatistics writerStatistics)
+    const NChunkClient::NProto::TDataStatistics& readerStatistics,
+    const NChunkClient::NProto::TDataStatistics& writerStatistics,
+    const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
+    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics)
 {
     auto& counters = CompactionCounters_
         [reason][/*isEden*/ 1][EStoreCompactorActivityKind::Partitioning];
-    DoProfileCompaction(&counters, readerStatistics, writerStatistics);
+    DoProfileCompaction(
+        &counters,
+        readerStatistics,
+        writerStatistics,
+        hunkChunkReaderStatistics,
+        hunkChunkWriterStatistics);
 }
 
 void TLsmCounters::ProfilePartitionSplit()
@@ -293,13 +312,22 @@ void TLsmCounters::ProfilePartitionMerge()
 
 void TLsmCounters::DoProfileCompaction(
     TStoreCompactionCounters* counters,
-    const NChunkClient::NProto::TDataStatistics readerStatistics,
-    const NChunkClient::NProto::TDataStatistics writerStatistics)
+    const NChunkClient::NProto::TDataStatistics& readerStatistics,
+    const NChunkClient::NProto::TDataStatistics& writerStatistics,
+    const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
+    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics)
 {
-    counters->InDataWeight.Increment(readerStatistics.data_weight());
-    counters->InStoreCount.Increment(readerStatistics.chunk_count());
-    counters->OutDataWeight.Increment(writerStatistics.data_weight());
-    counters->OutStoreCount.Increment(writerStatistics.chunk_count());
+    counters->StoreChunks.InDataWeight.Increment(readerStatistics.data_weight());
+    counters->StoreChunks.InStoreCount.Increment(readerStatistics.chunk_count());
+    counters->StoreChunks.OutDataWeight.Increment(writerStatistics.data_weight());
+    counters->StoreChunks.OutStoreCount.Increment(writerStatistics.chunk_count());
+
+    if (hunkChunkReaderStatistics) {
+        counters->HunkChunks.InDataWeight.Increment(hunkChunkReaderStatistics->DataWeight());
+        counters->HunkChunks.InStoreCount.Increment(hunkChunkReaderStatistics->ChunkCount());
+        counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.data_weight());
+        counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
