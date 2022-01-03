@@ -96,7 +96,7 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
 
 void TSimpleTabletManager::InitializeStoreManager(bool sorted)
 {
-    auto* tablet = TabletMap_.Get(NullTabletId);
+    auto* tablet = GetTablet();
     if (sorted) {
         StoreManager_ = New<TSortedStoreManager>(
             New<TTabletManagerConfig>(),
@@ -174,7 +174,7 @@ TCellId TSimpleTabletManager::GetCellId() const
     return NullCellId;
 }
 
-TTablet* TSimpleTabletManager::Tablet()
+TTablet* TSimpleTabletManager::GetTablet()
 {
     return TabletMap_.Get(NullTabletId);
 }
@@ -192,7 +192,7 @@ void TSimpleTabletManager::LoadValues(TLoadContext& context)
 
     TabletMap_.LoadValues(context);
 
-    auto* tablet = TabletMap_.Get(NullTabletId);
+    auto* tablet = GetTablet();
 
     tablet->SetStructuredLogger(CreateMockPerTabletStructuredLogger(tablet));
 
@@ -201,7 +201,7 @@ void TSimpleTabletManager::LoadValues(TLoadContext& context)
 
 void TSimpleTabletManager::LoadAsync(TLoadContext& context)
 {
-    TabletMap_.Get(NullTabletId)->AsyncLoad(context);
+    GetTablet()->AsyncLoad(context);
 }
 
 void TSimpleTabletManager::SaveKeys(TSaveContext& context)
@@ -220,7 +220,7 @@ void TSimpleTabletManager::SaveValues(TSaveContext& context)
 
 TCallback<void(TSaveContext&)> TSimpleTabletManager::SaveAsync()
 {
-    return TabletMap_.Get(NullTabletId)->AsyncSave();
+    return GetTablet()->AsyncSave();
 }
 
 void TSimpleTabletManager::Clear()

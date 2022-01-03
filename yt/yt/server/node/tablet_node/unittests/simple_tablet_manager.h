@@ -55,7 +55,7 @@ public:
     void AdvanceReplicatedTrimmedRowCount(TTablet* /*tablet*/, TTransaction* /*transaction*/) override;
     TCellId GetCellId() const override;
 
-    TTablet* Tablet();
+    TTablet* GetTablet();
 
 private:
     class TTabletMapTraits
@@ -76,8 +76,8 @@ private:
 
     // This invoker helps to deal with TabletMap_ thread affinity verifications.
     const IInvokerPtr AutomatonInvoker_;
-
     const TTransactionManagerPtr TransactionManager_;
+
     NTabletClient::TDynamicTabletCellOptionsPtr DynamicOptions_ = New<NTabletClient::TDynamicTabletCellOptions>();
     TTabletManagerConfigPtr Config_ = New<TTabletManagerConfig>();
 

@@ -52,7 +52,7 @@ protected:
 
     TVersionedOwningRow VersionedLookupRow(const TLegacyOwningKey& key, int minDataVersions = 100, TTimestamp timestamp = AsyncLastCommittedTimestamp)
     {
-        return VersionedLookupRowImpl(TabletSlot_->TabletManager()->Tablet(), key, minDataVersions, timestamp);
+        return VersionedLookupRowImpl(TabletSlot_->TabletManager()->GetTablet(), key, minDataVersions, timestamp);
     }
 
 private:
@@ -123,6 +123,8 @@ TEST_F(TTestSortedTabletWriteBasic, TestConflictWithPrelockedRow)
                 .ThrowOnError();
         },
         ThrowsMessage<std::exception>(HasSubstr("lock conflict due to concurrent write")));
+
+    HydraManager()->ApplyAll();
 }
 
 TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByLeader)
@@ -252,6 +254,8 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedInFlight)
 
     // NB: in contrast to previous two tests, we cannot expect the same error after recovering from snapshot.
     // Note that WriteRows is not accepted during recovery.
+
+    HydraManager()->ApplyAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -539,7 +543,7 @@ protected:
         auto columnFilter = TColumnFilter{2};
 
         auto result = ReadRowsImpl(
-            TabletSlot_->TabletManager()->Tablet()->GetActiveStore()->AsOrderedDynamic(),
+            TabletSlot_->TabletManager()->GetTablet()->GetActiveStore()->AsOrderedDynamic(),
             /*tabletIndex*/ 0,
             lowerRowIndex,
             upperRowIndex,
