@@ -31,19 +31,19 @@ class TestLayers(YTEnvSetup):
     def setup_files(self):
         create("file", "//tmp/layer1")
         file_name = "layers/static-bin.tar.gz"
-        write_file("//tmp/layer1", open(file_name).read())
+        write_file("//tmp/layer1", open(file_name, "rb").read())
 
         create("file", "//tmp/layer2")
         file_name = "layers/test.tar.gz"
-        write_file("//tmp/layer2", open(file_name).read())
+        write_file("//tmp/layer2", open(file_name, "rb").read())
 
         create("file", "//tmp/corrupted_layer")
         file_name = "layers/corrupted.tar.gz"
-        write_file("//tmp/corrupted_layer", open(file_name).read())
+        write_file("//tmp/corrupted_layer", open(file_name, "rb").read())
 
         create("file", "//tmp/static_cat")
         file_name = "layers/static_cat"
-        write_file("//tmp/static_cat", open(file_name).read())
+        write_file("//tmp/static_cat", open(file_name, "rb").read())
 
         set("//tmp/static_cat/@executable", True)
 
@@ -58,7 +58,8 @@ class TestLayers(YTEnvSetup):
                         os.mkdir(layer_location["path"])
                     except OSError:
                         pass
-                    open(layer_location["path"] + "/disabled", "w")
+                    with open(layer_location["path"] + "/disabled", "w"):
+                        pass
 
         wait_for_nodes()
 
@@ -117,7 +118,7 @@ class TestLayers(YTEnvSetup):
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
         for job_id in job_ids:
-            assert "static-bin" in op.read_stderr(job_id)
+            assert b"static-bin" in op.read_stderr(job_id)
 
     @authors("psushin")
     def test_two_layers(self):
@@ -144,8 +145,8 @@ class TestLayers(YTEnvSetup):
         assert len(job_ids) == 1
         for job_id in job_ids:
             stderr = op.read_stderr(job_id)
-            assert "static-bin" in stderr
-            assert "test" in stderr
+            assert b"static-bin" in stderr
+            assert b"test" in stderr
 
     @authors("psushin")
     def test_bad_layer(self):
@@ -199,11 +200,11 @@ class TestTmpfsLayerCache(YTEnvSetup):
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
         file_name = "layers/static-bin.tar.gz"
-        write_file("//tmp/layer1", open(file_name).read())
+        write_file("//tmp/layer1", open(file_name, "rb").read())
 
         create("file", "//tmp/static_cat", attributes={"replication_factor": 1})
         file_name = "layers/static_cat"
-        write_file("//tmp/static_cat", open(file_name).read())
+        write_file("//tmp/static_cat", open(file_name, "rb").read())
 
         set("//tmp/static_cat/@executable", True)
 
@@ -241,7 +242,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
         for job_id in job_ids:
-            assert "static-bin" in op.read_stderr(job_id)
+            assert b"static-bin" in op.read_stderr(job_id)
 
         remove("//tmp/cached_layers/layer1")
         for node in ls("//sys/cluster_nodes"):
@@ -277,7 +278,7 @@ class TestJobSetup(YTEnvSetup):
         file_name = "layers/static-bin.tar.gz"
         write_file(
             "//tmp/layer1",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -306,4 +307,4 @@ class TestJobSetup(YTEnvSetup):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "SETUP-OUTPUT\n"
+        assert res == b"SETUP-OUTPUT\n"

@@ -58,7 +58,7 @@ class TestGpuJobSetup(YTEnvSetup):
         file_name = "layers/static-bin.tar.gz"
         write_file(
             "//tmp/layer1",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -87,7 +87,7 @@ class TestGpuJobSetup(YTEnvSetup):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "SETUP-OUTPUT\n"
+        assert res == b"SETUP-OUTPUT\n"
 
         op = map(
             in_="//tmp/t_in",
@@ -107,7 +107,7 @@ class TestGpuJobSetup(YTEnvSetup):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "SETUP-GPU-OUTPUT\n"
+        assert res == b"SETUP-GPU-OUTPUT\n"
 
 
 @authors("mrkastep")
@@ -145,7 +145,7 @@ class TestSkipGpuJobSetup(YTEnvSetup):
         file_name = "layers/static-bin.tar.gz"
         write_file(
             "//tmp/layer1",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -174,7 +174,7 @@ class TestSkipGpuJobSetup(YTEnvSetup):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "SETUP-OUTPUT\n"
+        assert res == b"SETUP-OUTPUT\n"
 
 
 @authors("mrkastep")
@@ -224,7 +224,7 @@ class TestGpuLayer(YTEnvSetup):
         file_name = "layers/static-bin.tar.gz"
         write_file(
             "//tmp/drivers/test_version",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
             tx=tx,
         )
@@ -233,7 +233,7 @@ class TestGpuLayer(YTEnvSetup):
         file_name = "layers/test.tar.gz"
         write_file(
             "//tmp/layer2",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
             tx=tx,
         )
@@ -278,7 +278,7 @@ class TestGpuLayer(YTEnvSetup):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "SETUP-OUTPUT\n"
+        assert res == b"SETUP-OUTPUT\n"
 
 
 @authors("mrkastep")
@@ -308,13 +308,13 @@ class TestGpuLayerUpdate(YTEnvSetup):
         },
     }
 
-    # USE_PORTO = True
+    USE_PORTO = True
 
     def _write_driver_layer(self, name):
         path = "layers/{}.tar.gz".format(name)
         write_file(
             "//tmp/drivers/test_version",
-            open(path).read(),
+            open(path, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -333,7 +333,7 @@ class TestGpuLayerUpdate(YTEnvSetup):
         file_name = "layers/static-bin.tar.gz"
         write_file(
             "//tmp/bin",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
             tx=tx,
         )
@@ -377,7 +377,7 @@ class TestGpuLayerUpdate(YTEnvSetup):
             assert len(job_ids) == 1
             job_id = job_ids[0]
 
-            res = op.read_stderr(job_id)
+            res = op.read_stderr(job_id).decode("ascii")
             return res == content
 
         self._write_driver_layer("olli")
@@ -428,7 +428,7 @@ class TestCudaLayer(YTEnvSetup):
         file_name = "layers/static-bin.tar.gz"
         write_file(
             "//tmp/cuda/" + cuda_version,
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -436,7 +436,7 @@ class TestCudaLayer(YTEnvSetup):
         file_name = "layers/test.tar.gz"
         write_file(
             "//tmp/layer2",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -478,7 +478,7 @@ class TestCudaLayer(YTEnvSetup):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "SETUP-OUTPUT\n"
+        assert res == b"SETUP-OUTPUT\n"
 
     def test_dynamic_config_for_cuda_toolkit_version(self):
         self.setup_files(cuda_version="1")
@@ -518,7 +518,7 @@ class TestCudaLayer(YTEnvSetup):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "SETUP-OUTPUT\n"
+        assert res == b"SETUP-OUTPUT\n"
 
 
 @authors("mrkastep")
@@ -566,7 +566,7 @@ class TestForceCudaLayer(YTEnvSetup):
         file_name = "layers/static-bin.tar.gz"
         write_file(
             "//tmp/cuda/0",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -574,7 +574,7 @@ class TestForceCudaLayer(YTEnvSetup):
         file_name = "layers/test.tar.gz"
         write_file(
             "//tmp/layer2",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -582,7 +582,7 @@ class TestForceCudaLayer(YTEnvSetup):
         file_name = "layers/playground.tar.gz"
         write_file(
             "//tmp/drivers/0",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -626,7 +626,7 @@ class TestForceCudaLayer(YTEnvSetup):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "SETUP-OUTPUT\n"
+        assert res == b"SETUP-OUTPUT\n"
 
 
 @authors("mrkastep")
@@ -660,7 +660,7 @@ class TestSetupUser(YTEnvSetup):
         file_name = "layers/static-bin.tar.gz"
         write_file(
             "//tmp/layer1",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -668,7 +668,7 @@ class TestSetupUser(YTEnvSetup):
         file_name = "layers/playground.tar.gz"
         write_file(
             "//tmp/playground_layer",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -697,7 +697,7 @@ class TestSetupUser(YTEnvSetup):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "2019\n"
+        assert res == b"2019\n"
 
 
 class TestRootFS(YTEnvSetup):
@@ -743,7 +743,7 @@ class TestRootFS(YTEnvSetup):
         table_stderrs_per_task = Counter(row["data"] for row in table_stderrs)
 
         job_ids = op.list_jobs()
-        cypress_stderrs_per_task = Counter(op.read_stderr(job_id) for job_id in job_ids)
+        cypress_stderrs_per_task = Counter(op.read_stderr(job_id).decode("ascii") for job_id in job_ids)
 
         assert dict(table_stderrs_per_task) == {"task_a\n": 1, "task_b\n": 1}
         assert dict(cypress_stderrs_per_task) == {"task_a\n": 1, "task_b\n": 1}
@@ -757,7 +757,7 @@ class GpuCheckBase(object):
         file_name = "layers/gpu_check.tar.gz"
         write_file(
             "//tmp/gpu_check/0",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -765,7 +765,7 @@ class GpuCheckBase(object):
         file_name = "rootfs/rootfs.tar.gz"
         write_file(
             "//tmp/base_layer",
-            open(file_name).read(),
+            open(file_name, "rb").read(),
             file_writer={"upload_replication_factor": 1},
         )
 
@@ -773,7 +773,7 @@ class GpuCheckBase(object):
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes").values()[0]["resource_limits"]["user_slots"] > 0)
+        wait(lambda: list(get("//sys/scheduler/orchid/scheduler/nodes").values())[0]["resource_limits"]["user_slots"] > 0)
 
     def setup_tables(self):
         create(
@@ -862,7 +862,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "AAA\n"
+        assert res == b"AAA\n"
 
     def test_gpu_check_success_with_failed_job(self):
         self.setup_gpu_layer_and_reset_nodes()
@@ -1123,7 +1123,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         job_id = job_ids[0]
 
         res = op.read_stderr(job_id)
-        assert res == "AAA\n"
+        assert res == b"AAA\n"
 
 
 @authors("ignat")
