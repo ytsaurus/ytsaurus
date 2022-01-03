@@ -63,7 +63,8 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     TTableSchemaPtr tableSchema,
     const TChunkTimestamps& chunkTimestamps,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    const std::optional<TDataSink>& dataSink)
 {
     auto nameTable = New<TNameTable>();
     nameTable->SetEnableColumnNameValidation();
@@ -78,7 +79,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         std::move(localHostName),
         CellTagFromId(chunkListId),
         transactionId,
-        /*dataSink*/ std::nullopt,
+        dataSink,
         chunkListId,
         chunkTimestamps,
         std::move(trafficMeter),
@@ -225,7 +226,8 @@ struct TUserJobIOFactoryBase
         TChunkListId chunkListId,
         TTransactionId transactionId,
         TTableSchemaPtr tableSchema,
-        const TChunkTimestamps& chunkTimestamps) override
+        const TChunkTimestamps& chunkTimestamps,
+        const std::optional<TDataSink>& dataSink) override
     {
         return CreateTableWriter(
             std::move(client),
@@ -237,7 +239,8 @@ struct TUserJobIOFactoryBase
             std::move(tableSchema),
             chunkTimestamps,
             TrafficMeter_,
-            OutBandwidthThrottler_);
+            OutBandwidthThrottler_,
+            dataSink);
     }
 
 protected:
@@ -534,7 +537,8 @@ public:
         TChunkListId chunkListId,
         TTransactionId transactionId,
         TTableSchemaPtr tableSchema,
-        const TChunkTimestamps& chunkTimestamps) override
+        const TChunkTimestamps& chunkTimestamps,
+        const std::optional<TDataSink>& dataSink) override
     {
         const auto& jobSpec = JobSpecHelper_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -576,7 +580,7 @@ public:
                 transactionId,
                 chunkListId,
                 std::move(partitioner),
-                /*dataSink*/ std::nullopt,
+                dataSink,
                 TrafficMeter_,
                 OutBandwidthThrottler_);
         } else {
@@ -591,7 +595,8 @@ public:
                 std::move(tableSchema),
                 chunkTimestamps,
                 TrafficMeter_,
-                OutBandwidthThrottler_);
+                OutBandwidthThrottler_,
+                dataSink);
         }
     }
 

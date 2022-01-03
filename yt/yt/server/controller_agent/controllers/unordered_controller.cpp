@@ -497,7 +497,7 @@ protected:
             BuildDataSourceDirectoryFromInputTables(InputTables_));
 
         // TODO(gepardo): Build data sinks when auto-merge is enabled.
-        if (AutoMergeTask_) {
+        if (!AutoMergeTask_) {
             SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryFromOutputTables(OutputTables_));

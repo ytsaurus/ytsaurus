@@ -5,7 +5,9 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 
@@ -28,6 +30,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 
 namespace NYT::NJobProxy {
@@ -206,7 +209,16 @@ void TUserJobWriteController::Init()
 
     const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
     auto outputTransactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());
-    for (const auto& outputSpec : schedulerJobSpecExt.output_table_specs()) {
+
+    TDataSinkDirectoryPtr dataSinkDirectory = nullptr;
+    if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(schedulerJobSpecExt.extensions())) {
+        dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
+        YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == schedulerJobSpecExt.output_table_specs_size());
+    }
+
+    for (int index = 0; index < schedulerJobSpecExt.output_table_specs_size(); ++index) {
+        const auto& outputSpec = schedulerJobSpecExt.output_table_specs(index);
+        auto dataSink = dataSinkDirectory ? std::make_optional(dataSinkDirectory->DataSinks()[index]) : std::nullopt;
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->EnableValidationOptions();
 
@@ -234,7 +246,8 @@ void TUserJobWriteController::Init()
             chunkListId,
             outputTransactionId,
             schema,
-            TChunkTimestamps{timestamp, timestamp});
+            TChunkTimestamps{timestamp, timestamp},
+            dataSink);
 
         Writers_.push_back(writer);
     }
