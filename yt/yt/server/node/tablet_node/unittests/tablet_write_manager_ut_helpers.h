@@ -68,7 +68,7 @@ public:
         TransactionManager_ = New<TTransactionManager>(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, CreateNullTransactionLeaseTracker());
         TransactionSupervisor_ = New<TSimpleTransactionSupervisor>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
         TabletManager_ = New<TSimpleTabletManager>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
-        TabletWriteManager_ = CreateTabletWriteManager(TabletManager_.Get(), HydraManager_, Automaton_, TMemoryUsageTrackerGuard(), AutomatonInvoker_);
+        TabletWriteManager_ = CreateTabletWriteManager(TabletManager_, HydraManager_, Automaton_, TMemoryUsageTrackerGuard(), AutomatonInvoker_);
 
         TabletManager_->InitializeTablet(options);
         TabletWriteManager_->Initialize();
@@ -101,7 +101,16 @@ public:
 
     void Shutdown()
     {
-        AutomatonQueue_->Shutdown();
+        YT_VERIFY(HydraManager_->GetPendingMutationCount() == 0);
+        AutomatonQueue_->Shutdown(/*graceful*/ true);
+        AutomatonQueue_.Reset();
+        AutomatonInvoker_.Reset();
+        Automaton_.Reset();
+        HydraManager_.Reset();
+        TransactionManager_.Reset();
+        TransactionSupervisor_.Reset();
+        TabletManager_.Reset();
+        TabletWriteManager_.Reset();
     }
 
     const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() override
@@ -235,9 +244,16 @@ protected:
         TTransactionSignature signature = -1,
         TTransactionGeneration generation = 0)
     {
-        auto* tablet = TabletSlot_->TabletManager()->Tablet();
+        auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
-        auto asyncResult = BIND([transactionId, rows = std::move(rows), signature, generation, tabletWriteManager = TabletWriteManager(), tabletSnapshot] {
+        return BIND([
+            transactionId,
+            rows = std::move(rows),
+            signature,
+            generation,
+            tabletWriteManager = TabletWriteManager(),
+            tabletSnapshot
+        ] {
             TWireProtocolWriter writer;
             i64 dataWeight = 0;
             for (const auto& row : rows) {
@@ -248,7 +264,7 @@ protected:
             auto wireData = writer.Finish();
             struct TTag {};
             TWireProtocolReader reader(MergeRefsToRef<TTag>(wireData));
-            TFuture<void> asyncResult;
+            TFuture<void> future;
             tabletWriteManager->Write(
                 tabletSnapshot,
                 transactionId,
@@ -261,20 +277,19 @@ protected:
                 /*versioned*/ false,
                 TSyncReplicaIdList(),
                 &reader,
-                &asyncResult);
+                &future);
 
-            // NB: we are not going to return asyncResult since it will be set only when
+            // NB: we are not going to return future since it will be set only when
             // WriteRows mutation (or mutations) are applied; we are applying mutations
             // manually in these unittests, so this future is meaningless.
             // Still, it is useful to check that no error is thrown in WriteRows mutation handler.
-            asyncResult
-                .Subscribe(BIND([] (TError error) {
+            future
+                .Subscribe(BIND([] (const TError& error) {
                     YT_VERIFY(error.IsOK());
                 }));
         })
             .AsyncVia(AutomatonInvoker())
             .Run();
-        return asyncResult;
     }
 
     TFuture<void> WriteVersionedRows(
@@ -282,7 +297,7 @@ protected:
         std::vector<TVersionedOwningRow> rows,
         TTransactionSignature signature = -1)
     {
-        auto* tablet = TabletSlot_->TabletManager()->Tablet();
+        auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
         auto asyncResult = BIND([transactionId, rows = std::move(rows), signature, tabletWriteManager = TabletWriteManager(), tabletSnapshot] {
             TWireProtocolWriter writer;
@@ -368,7 +383,7 @@ protected:
 
     void ExpectFullyUnlocked()
     {
-        auto* tablet = TabletSlot_->TabletManager()->Tablet();
+        auto* tablet = TabletSlot_->TabletManager()->GetTablet();
 
         auto [lockCount, hasActiveLocks] = RunInAutomaton([&] {
             return std::make_pair(tablet->GetTabletLockCount(), tablet->GetStoreManager()->HasActiveLocks());
@@ -380,7 +395,7 @@ protected:
 
     bool HasActiveStoreLocks()
     {
-        auto* tablet = TabletSlot_->TabletManager()->Tablet();
+        auto* tablet = TabletSlot_->TabletManager()->GetTablet();
 
         return RunInAutomaton([&] {
             return tablet->GetStoreManager()->HasActiveLocks();

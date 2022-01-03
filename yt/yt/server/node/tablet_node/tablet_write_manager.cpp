@@ -66,12 +66,11 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Host_->GetTransactionManager();
-
-        transactionManager->SubscribeTransactionPrepared(BIND(&TTabletWriteManager::OnTransactionPrepared, MakeStrong(this)));
-        transactionManager->SubscribeTransactionCommitted(BIND(&TTabletWriteManager::OnTransactionCommitted, MakeStrong(this)));
-        transactionManager->SubscribeTransactionSerialized(BIND(&TTabletWriteManager::OnTransactionSerialized, MakeStrong(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(&TTabletWriteManager::OnTransactionAborted, MakeStrong(this)));
-        transactionManager->SubscribeTransactionTransientReset(BIND(&TTabletWriteManager::OnTransactionTransientReset, MakeStrong(this)));
+        transactionManager->SubscribeTransactionPrepared(BIND(&TTabletWriteManager::OnTransactionPrepared, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCommitted(BIND(&TTabletWriteManager::OnTransactionCommitted, MakeWeak(this)));
+        transactionManager->SubscribeTransactionSerialized(BIND(&TTabletWriteManager::OnTransactionSerialized, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND(&TTabletWriteManager::OnTransactionAborted, MakeWeak(this)));
+        transactionManager->SubscribeTransactionTransientReset(BIND(&TTabletWriteManager::OnTransactionTransientReset, MakeWeak(this)));
     }
 
     void Write(

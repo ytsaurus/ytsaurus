@@ -18,7 +18,7 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger Logger("SimpleHydra");
+static const TLogger Logger("SimpleHydra");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +60,7 @@ int TSimpleHydraManagerMock::GetAppliedSequenceNumber() const
 
 int TSimpleHydraManagerMock::GetCommittedSequenceNumber() const
 {
-    return MutationRequests_.size();
+    return std::ssize(MutationRequests_);
 }
 
 TSimpleHydraManagerMock::TSnapshot TSimpleHydraManagerMock::SaveSnapshot()
