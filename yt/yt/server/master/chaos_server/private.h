@@ -10,8 +10,9 @@ namespace NYT::NChaosServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger ChaosServerLogger;
-extern const NProfiling::TProfiler ChaosServerProfiler;
+inline const NLogging::TLogger ChaosServerLogger("ChaosServer");
+inline const NProfiling::TProfiler ChaosServerProfiler("/chaos_server");
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

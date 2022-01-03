@@ -1,12 +1,14 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/core/logging/log.h>
 
 namespace NYT::NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger MonitoringLogger;
+inline const NLogging::TLogger MonitoringLogger("Monitoring");
 
 ////////////////////////////////////////////////////////////////////////////////
 

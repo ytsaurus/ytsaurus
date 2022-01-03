@@ -8,7 +8,7 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger CypressServerLogger;
+inline const NLogging::TLogger CypressServerLogger("Cypress");
 
 DECLARE_REFCOUNTED_CLASS(TAccessTracker)
 DECLARE_REFCOUNTED_CLASS(TExpirationTracker)

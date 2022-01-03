@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/yt/core/logging/log.h>
+#include "public.h"
 
-#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger TracingLogger;
+inline const NLogging::TLogger TracingLogger("Tracing");
 
 ////////////////////////////////////////////////////////////////////////////////
 

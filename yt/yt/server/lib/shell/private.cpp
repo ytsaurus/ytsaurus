@@ -8,10 +8,7 @@ namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger ShellLogger("Shell");
-
 const TString ShellToolDirectory("/yt_runtime");
-
 const TString ShellToolPath(NFS::CombinePaths(ShellToolDirectory, NTools::ToolsProgramName));
 
 ////////////////////////////////////////////////////////////////////////////////

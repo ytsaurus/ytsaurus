@@ -42,11 +42,11 @@ static constexpr auto SelectThrottlerRpcTimeout = TDuration::Seconds(15);
 static constexpr auto CompactionReadThrottlerRpcTimeout = TDuration::Minutes(1);
 static constexpr auto WriteThrottlerRpcTimeout = TDuration::Seconds(15);
 
-extern const TErrorAttribute HardErrorAttribute;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger LsmLogger;
+inline const TErrorAttribute HardErrorAttribute("hard", true);
+
+inline const NLogging::TLogger LsmLogger("Lsm");
 
 ////////////////////////////////////////////////////////////////////////////////
 

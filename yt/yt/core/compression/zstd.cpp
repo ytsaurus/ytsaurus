@@ -1,5 +1,6 @@
 #include "zstd.h"
 #include "details.h"
+#include "private.h"
 
 #include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/finally.h>
@@ -13,22 +14,24 @@ namespace NYT::NCompression {
 
 static const auto& Logger = CompressionLogger;
 
-static const size_t MaxBlockSize = 1_MB;
+static constexpr size_t MaxZstdBlockSize = 1_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TZstdCompressBufferTag {};
+struct TZstdCompressBufferTag
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static size_t EstimateOutputSize(size_t totalInputSize)
 {
     size_t headerSize = ZSTD_compressBound(0);
-    size_t fullBlocksNumber = totalInputSize / MaxBlockSize;
-    size_t lastBlockSize = totalInputSize % MaxBlockSize;
-    return headerSize +
-           fullBlocksNumber * ZSTD_compressBound(MaxBlockSize) +
-           ZSTD_compressBound(lastBlockSize);
+    size_t fullBlocksNumber = totalInputSize / MaxZstdBlockSize;
+    size_t lastBlockSize = totalInputSize % MaxZstdBlockSize;
+    return
+        headerSize +
+        fullBlocksNumber * ZSTD_compressBound(MaxZstdBlockSize) +
+        ZSTD_compressBound(lastBlockSize);
 }
 
 void ZstdCompress(int level, StreamSource* source, TBlob* output)
@@ -80,7 +83,7 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
         curOutputPos += compressedSize;
     };
 
-    TBlob block(TZstdCompressBufferTag(), MaxBlockSize, false);
+    TBlob block(TZstdCompressBufferTag(), MaxZstdBlockSize, false);
     size_t blockSize = 0;
     auto flushBlock = [&] () {
         compressAndAppendBuffer(block.Begin(), blockSize);
@@ -101,18 +104,18 @@ void ZstdCompress(int level, StreamSource* source, TBlob* output)
         };
 
         if (blockSize != 0) {
-            size_t takeSize = std::min(remainingSize, MaxBlockSize - blockSize);
+            size_t takeSize = std::min(remainingSize, MaxZstdBlockSize - blockSize);
             fillBlock(takeSize);
-            if (blockSize == MaxBlockSize) {
+            if (blockSize == MaxZstdBlockSize) {
                 flushBlock();
             }
         }
 
-        while (remainingSize >= MaxBlockSize) {
-            compressAndAppendBuffer(inputPtr, MaxBlockSize);
-            source->Skip(MaxBlockSize);
+        while (remainingSize >= MaxZstdBlockSize) {
+            compressAndAppendBuffer(inputPtr, MaxZstdBlockSize);
+            source->Skip(MaxZstdBlockSize);
             inputPtr = source->Peek(&inputSize);
-            remainingSize -= MaxBlockSize;
+            remainingSize -= MaxZstdBlockSize;
         }
 
         if (remainingSize > 0) {

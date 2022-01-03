@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/yt/core/logging/log.h>
+#include "public.h"
 
-#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -10,8 +10,8 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger ObjectServerLogger;
-extern const NProfiling::TProfiler ObjectServerProfiler;
+inline const NLogging::TLogger ObjectServerLogger("ObjectServer");
+inline const NProfiling::TProfiler ObjectServerProfiler("/object_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

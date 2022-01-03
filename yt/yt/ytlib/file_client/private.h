@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/yt/core/logging/log.h>
+#include "public.h"
 
-#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger FileClientLogger;
+inline const NLogging::TLogger FileClientLogger("FileClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,8 +4,6 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLogging::TLogger JobProxyClientLogger("JobProxyClient");
-
 TString GetDefaultJobsMetaContainerName()
 {
     return "jm";

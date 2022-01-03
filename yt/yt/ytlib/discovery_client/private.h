@@ -1,12 +1,14 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/core/logging/log.h>
 
 namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger DiscoveryClientLogger;
+inline const NLogging::TLogger DiscoveryClientLogger("DiscoveryClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

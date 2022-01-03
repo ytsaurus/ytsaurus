@@ -1,5 +1,6 @@
 #include "address.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -17,6 +18,7 @@
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/generic/singleton.h>
+
 #include <util/string/hex.h>
 
 #ifdef _win_
@@ -42,7 +44,7 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLogging::TLogger Logger("Network");
+static const auto& Logger = NetLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

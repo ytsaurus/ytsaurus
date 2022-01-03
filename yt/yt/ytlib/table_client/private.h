@@ -4,13 +4,11 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger TableClientLogger;
+inline const NLogging::TLogger TableClientLogger("TableClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

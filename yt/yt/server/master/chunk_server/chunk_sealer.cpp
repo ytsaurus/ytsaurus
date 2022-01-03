@@ -123,8 +123,8 @@ public:
     explicit TChunkSealer(TBootstrap* bootstrap)
         : Config_(bootstrap->GetConfig()->ChunkManager)
         , Bootstrap_(bootstrap)
-        , SuccessfulSealCounter_(ChunkServerProfilerRegistry.Counter("/chunk_sealer/successful_seals"))
-        , UnsuccessfuleSealCounter_(ChunkServerProfilerRegistry.Counter("/chunk_sealer/unsuccessful_seals"))
+        , SuccessfulSealCounter_(ChunkServerProfiler.Counter("/chunk_sealer/successful_seals"))
+        , UnsuccessfuleSealCounter_(ChunkServerProfiler.Counter("/chunk_sealer/unsuccessful_seals"))
         , SealExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
             BIND(&TChunkSealer::OnRefresh, MakeWeak(this))))

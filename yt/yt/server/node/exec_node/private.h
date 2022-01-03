@@ -10,10 +10,10 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger ExecNodeLogger;
-extern const NProfiling::TProfiler ExecNodeProfiler;
+inline const NLogging::TLogger ExecNodeLogger("ExecNode");
+inline const NProfiling::TProfiler ExecNodeProfiler("/exec_node");
 
-extern const int TmpfsRemoveAttemptCount;
+constexpr int TmpfsRemoveAttemptCount = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -54,7 +54,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLogging::TLogger Logger("Proc");
+static inline const NLogging::TLogger Logger("Proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1374,7 +1374,7 @@ THashMap<TString, TDiskStat> GetDiskStats()
         auto parsed = ParseDiskStat(line);
         result[parsed.DeviceName] = parsed;
     }
-    
+
     return result;
 #else
     return {};

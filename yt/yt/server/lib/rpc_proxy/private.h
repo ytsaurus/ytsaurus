@@ -6,8 +6,8 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger RpcProxyStructuredLoggerMain;
-extern const NLogging::TLogger RpcProxyStructuredLoggerError;
+inline const NLogging::TLogger RpcProxyStructuredLoggerMain("RpcProxyStructuredMain");
+inline const NLogging::TLogger RpcProxyStructuredLoggerError("RpcProxyStructuredError");
 
 ////////////////////////////////////////////////////////////////////////////////
 

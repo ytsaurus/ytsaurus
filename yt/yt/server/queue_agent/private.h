@@ -8,8 +8,8 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger QueueAgentLogger;
-extern const NProfiling::TProfiler QueueAgentProfiler;
+inline const NLogging::TLogger QueueAgentLogger("QueueAgent");
+inline const NProfiling::TProfiler QueueAgentProfiler("/queue_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
 

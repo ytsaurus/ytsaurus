@@ -1,12 +1,14 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/core/logging/log.h>
 
 namespace NYT::NJournalServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger JournalServerLogger;
+inline const NLogging::TLogger JournalServerLogger("JournalServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 

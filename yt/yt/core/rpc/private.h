@@ -10,11 +10,11 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger RpcServerLogger;
-extern const NLogging::TLogger RpcClientLogger;
+inline const NLogging::TLogger RpcServerLogger("RpcServer");
+inline const NLogging::TLogger RpcClientLogger("RpcClient");
 
-extern const NProfiling::TProfiler RpcServerProfiler;
-extern const NProfiling::TProfiler RpcClientProfiler;
+inline const NProfiling::TProfiler RpcServerProfiler("/rpc/server");
+inline const NProfiling::TProfiler RpcClientProfiler("/rpc/client");
 
 ////////////////////////////////////////////////////////////////////////////////
 

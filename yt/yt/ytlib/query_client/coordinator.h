@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "callbacks.h"
 #include "query.h"
 
@@ -9,8 +9,6 @@
 #include <yt/yt/core/logging/log.h>
 
 namespace NYT::NQueryClient {
-
-extern const NLogging::TLogger QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

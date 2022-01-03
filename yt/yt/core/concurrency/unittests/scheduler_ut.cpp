@@ -49,9 +49,9 @@ using ::testing::ContainsRegex;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto SleepQuantum = TDuration::MilliSeconds(100);
+constexpr auto SleepQuantum = TDuration::MilliSeconds(100);
 
-const NLogging::TLogger Logger("SchedulerTest");
+inline const NLogging::TLogger Logger("SchedulerTest");
 
 ////////////////////////////////////////////////////////////////////////////////
 

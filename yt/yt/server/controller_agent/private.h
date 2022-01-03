@@ -37,12 +37,12 @@ struct TLivePreviewTableBase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger ControllerLogger;
-extern const NLogging::TLogger ControllerAgentLogger;
-extern const NLogging::TLogger ControllerEventLogger;
-extern const NLogging::TLogger ControllerFeatureStructuredLogger;
+inline const NLogging::TLogger ControllerLogger("Controller");
+inline const NLogging::TLogger ControllerAgentLogger("ControllerAgent");
+inline const NLogging::TLogger ControllerEventLogger("ControllerEventLog");
+inline const NLogging::TLogger ControllerFeatureStructuredLogger("ControllerFeatureStructuredLog");
 
-extern const NProfiling::TProfiler ControllerAgentProfiler;
+inline const NProfiling::TProfiler ControllerAgentProfiler("/controller_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
 

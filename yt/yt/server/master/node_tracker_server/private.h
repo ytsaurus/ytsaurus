@@ -10,8 +10,8 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger NodeTrackerServerLogger;
-extern const NProfiling::TProfiler NodeTrackerProfiler;
+inline const NLogging::TLogger NodeTrackerServerLogger("NodeTrackerServer");
+inline const NProfiling::TProfiler NodeTrackerProfiler("/node_tracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 

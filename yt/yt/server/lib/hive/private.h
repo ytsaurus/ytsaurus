@@ -13,12 +13,13 @@ namespace NYT::NHiveServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
+
 class TAbort;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger HiveServerLogger;
-extern const NProfiling::TProfiler HiveServerProfiler;
+inline const NLogging::TLogger HiveServerLogger("HiveServer");
+inline const NProfiling::TProfiler HiveServerProfiler("/hive");
 
 ////////////////////////////////////////////////////////////////////////////////
 

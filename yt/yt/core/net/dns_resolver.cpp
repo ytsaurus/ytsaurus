@@ -1,4 +1,5 @@
 #include "dns_resolver.h"
+#include "private.h"
 
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/invoker.h>
@@ -100,7 +101,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLogging::TLogger Logger("Dns");
+static const auto& Logger = NetLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

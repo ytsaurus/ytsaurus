@@ -23,7 +23,9 @@ using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
 
-const NLogging::TLogger JobShellStructuredLogger("JobShell");
+////////////////////////////////////////////////////////////////////////////////
+
+static inline const NLogging::TLogger JobShellStructuredLogger("JobShell");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -549,7 +549,7 @@ public:
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
         BufferedProducer_ = New<TBufferedProducer>();
-        ChunkServerProfilerRegistry
+        ChunkServerProfiler
             .WithDefaultDisabled()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", BufferedProducer_);

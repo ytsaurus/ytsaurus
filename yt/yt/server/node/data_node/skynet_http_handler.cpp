@@ -43,7 +43,7 @@ using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger Logger("SkynetHandler");
+static inline const NLogging::TLogger Logger("SkynetHandler");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -278,7 +278,7 @@ private:
             byteWritten += blob.Size();
             WaitFor(rsp->Write(blob))
                 .ThrowOnError();
-            
+
             if (byteLimit && byteWritten == *byteLimit) {
                 break;
             }
