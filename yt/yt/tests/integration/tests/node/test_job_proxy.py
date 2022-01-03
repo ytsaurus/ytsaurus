@@ -158,7 +158,7 @@ class TestJobProxyProfiling(YTEnvSetup):
 
         thread_count = profiler.gauge("resource_tracker/thread_count")
 
-        wait(lambda: thread_count.get() > 0)
+        wait(lambda: thread_count.get() and thread_count.get() > 0)
 
         op.abort()
 

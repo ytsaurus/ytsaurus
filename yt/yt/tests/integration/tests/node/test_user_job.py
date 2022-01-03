@@ -25,8 +25,6 @@ import yt.yson as yson
 from yt.test_helpers import are_almost_equal
 from yt.common import update, YtError
 
-from yt.packages.six.moves import xrange
-
 from flaky import flaky
 
 import pytest
@@ -78,7 +76,7 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        content = op.read_stderr(job_ids[0])
+        content = op.read_stderr(job_ids[0]).decode("ascii")
 
         words = content.strip().split()
         assert ["file", "content"] == words
@@ -103,7 +101,7 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        content = op.read_stderr(job_ids[0])
+        content = op.read_stderr(job_ids[0]).decode("ascii")
         words = content.strip().split()
         assert ["file", "content"] == words
 
@@ -157,12 +155,12 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        content = op.read_stderr(job_ids[0])
+        content = op.read_stderr(job_ids[0]).decode("ascii")
         words = content.strip().split()
         assert ["file", "content"] == words
 
         create("file", "//tmp/test_file")
-        write_file("//tmp/test_file", "".join(["0"] * (1024 * 1024 + 1)))
+        write_file("//tmp/test_file", b"".join([b"0"] * (1024 * 1024 + 1)))
         map(
             command="cat",
             in_="//tmp/t_input",
@@ -190,10 +188,10 @@ class TestSandboxTmpfs(YTEnvSetup):
         )
 
         script = (
-            "#!/usr/bin/env python\n"
-            "import sys\n"
-            "sys.stdout.write(sys.stdin.read())\n"
-            "with open('test_file', 'w') as f: f.write('Hello world!')"
+            b"#!/usr/bin/env python3\n"
+            b"import sys\n"
+            b"sys.stdout.write(sys.stdin.read())\n"
+            b"with open('test_file', 'w') as f: f.write('Hello world!')"
         )
         create("file", "//tmp/script")
         write_file("//tmp/script", script)
@@ -388,7 +386,7 @@ class TestSandboxTmpfs(YTEnvSetup):
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        mapper = """
+        mapper = b"""
 #!/usr/bin/python
 
 import mmap, time
@@ -479,7 +477,7 @@ time.sleep(10)
         write_table("//tmp/t_input", {"foo": "bar"})
 
         create("file", "//tmp/file.txt")
-        write_file("//tmp/file.txt", "{trump = moron};\n")
+        write_file("//tmp/file.txt", b"{trump = moron};\n")
 
         map(
             command="cat; cat ./tmpfs/trump.txt",
@@ -528,7 +526,7 @@ time.sleep(10)
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        content = op.read_stderr(job_ids[0])
+        content = op.read_stderr(job_ids[0]).decode("ascii")
         words = content.strip().split()
         assert ["file", "content_1", "file", "content_2"] == words
 
@@ -647,7 +645,7 @@ time.sleep(10)
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        content = op.read_stderr(job_ids[0])
+        content = op.read_stderr(job_ids[0]).decode("ascii")
         words = content.strip().split()
         assert ["file", "content_1", "file", "content_2"] == words
 
@@ -797,7 +795,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
             job_info = get_job(op.id, job)
             try:
                 sum = 0
-                for key, value in job_info["statistics"]["user_job"]["tmpfs_volumes"].iteritems():
+                for key, value in job_info["statistics"]["user_job"]["tmpfs_volumes"].items():
                     sum += value["max_size"]["sum"]
                 return sum
             except KeyError:
@@ -845,7 +843,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        content = op.read_stderr(job_ids[0])
+        content = op.read_stderr(job_ids[0]).decode("ascii")
         words = content.strip().split()
         assert ["file", "content"] == words
 
@@ -872,7 +870,7 @@ class TestFilesInSandbox(YTEnvSetup):
             "//tmp/script",
             attributes={"replication_factor": 1, "executable": True},
         )
-        write_file("//tmp/script", "#!/bin/bash\ncat")
+        write_file("//tmp/script", b"#!/bin/bash\ncat")
 
         chunk_id = get_singular_chunk_id("//tmp/script")
 
@@ -929,7 +927,7 @@ class TestFilesInSandbox(YTEnvSetup):
             out="//tmp/t_out",
             file=["<format=<format=text>yson;rename_columns={x=y}>//tmp/t"],
             command="cat t",
-            spec={"mapper": {"format": yson.loads("<format=text>yson")}},
+            spec={"mapper": {"format": yson.loads(b"<format=text>yson")}},
         )
 
         assert read_table("//tmp/t_out") == [{"y": 42}]
@@ -957,7 +955,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         create("file", "//tmp/file")
-        write_file("//tmp/file", '{"hello": "world"}')
+        write_file("//tmp/file", b'{"hello": "world"}')
         op = map(
             command="cat file",
             in_="//tmp/t_input",
@@ -1010,7 +1008,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         create("file", "//tmp/file")
-        write_file("//tmp/file", "A" * 10 ** 7)
+        write_file("//tmp/file", b"A" * 10 ** 7)
 
         with raises_yt_error(yt_error_codes.TmpfsOverflow):
             map(
@@ -1047,7 +1045,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         create("file", "//tmp/file", attributes={"replication_factor": 1})
-        write_file("//tmp/file", "A" * 100)
+        write_file("//tmp/file", b"A" * 100)
 
         chunk_id = get_singular_chunk_id("//tmp/file")
         replica = str(get("#{}/@stored_replicas/0".format(chunk_id)))
@@ -1147,9 +1145,9 @@ class TestUserJobIsolation(YTEnvSetup):
         )
 
         job_id = wait_breakpoint()[0]
-        network_project_id, hostname, _ = get_job_stderr(op.id, job_id).split("\n")
-        assert network_project_id == str(0xDEADBEEF)
-        assert hostname.startswith("slot_")
+        network_project_id, hostname, _ = get_job_stderr(op.id, job_id).split(b"\n")
+        assert network_project_id == str(int("0xDEADBEEF", base=16)).encode("ascii")
+        assert hostname.startswith(b"slot_")
         release_breakpoint()
         op.track()
 
@@ -1164,7 +1162,7 @@ class TestUserJobIsolation(YTEnvSetup):
         )
 
         job_id = wait_breakpoint()[0]
-        assert "dead:beef" in get_job_stderr(op.id, job_id)
+        assert b"dead:beef" in get_job_stderr(op.id, job_id)
 
         release_breakpoint()
         op.track()
@@ -1221,7 +1219,7 @@ class TestJobStderr(YTEnvSetup):
         op = map(in_="//tmp/t1", out="//tmp/t2", command=command)
 
         assert read_table("//tmp/t2") == [{"operation": op.id}, {"job_index": 0}]
-        check_all_stderrs(op, "stderr\n", 1)
+        check_all_stderrs(op, b"stderr\n", 1)
 
     @authors("ignat")
     def test_stderr_failed(self):
@@ -1236,7 +1234,7 @@ class TestJobStderr(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        check_all_stderrs(op, "stderr\n", 10)
+        check_all_stderrs(op, b"stderr\n", 10)
 
     @authors("ignat")
     def test_stderr_limit(self):
@@ -1256,7 +1254,7 @@ class TestJobStderr(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        check_all_stderrs(op, "stderr\n", 5)
+        check_all_stderrs(op, b"stderr\n", 5)
 
     @authors("ignat")
     def test_stderr_max_size(self):
@@ -1273,7 +1271,7 @@ class TestJobStderr(YTEnvSetup):
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        stderr = op.read_stderr(job_ids[0]).strip()
+        stderr = op.read_stderr(job_ids[0]).strip().decode("ascii")
 
         # Stderr buffer size is equal to 1000000, we should add it to limit
         assert len(stderr) <= 4000000
@@ -1285,7 +1283,7 @@ class TestJobStderr(YTEnvSetup):
     def test_stderr_chunks_not_created_for_completed_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(100)])
+        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in range(100)])
 
         # One job hangs, so that we can poke into transaction.
         command = """
@@ -1321,7 +1319,7 @@ class TestJobStderr(YTEnvSetup):
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(20)])
+        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in range(20)])
 
         command = with_breakpoint(
             """
@@ -1355,7 +1353,7 @@ class TestJobStderr(YTEnvSetup):
 
         # The default number of stderr is 10. We check that we have 11-st stderr of failed job,
         # that is last one.
-        check_all_stderrs(op, "stderr\n", 11)
+        check_all_stderrs(op, b"stderr\n", 11)
 
 
 class TestJobStderrMulticell(TestJobStderr):
@@ -1391,7 +1389,7 @@ class TestUserFiles(YTEnvSetup):
 
         file = "//tmp/1000"
         create("file", file)
-        write_file(file, "{value=42};\n")
+        write_file(file, b"{value=42};\n")
 
         map(
             in_="//tmp/t_input",
@@ -1414,7 +1412,7 @@ class TestUserFiles(YTEnvSetup):
 
         file = "//tmp/test_file"
         create("file", file)
-        write_file(file, "{value=42};\n")
+        write_file(file, b"{value=42};\n")
 
         map(
             in_="//tmp/t_input",
@@ -1446,7 +1444,7 @@ class TestUserFiles(YTEnvSetup):
 
         file = "//tmp/test_file"
         create("file", file)
-        write_file(file, "{value=42};\n")
+        write_file(file, b"{value=42};\n")
         tx = start_transaction(timeout=30000)
         file_id = get(file + "/@id")
         assert lock(file, mode="snapshot", tx=tx)
@@ -1485,7 +1483,7 @@ class TestUserFiles(YTEnvSetup):
         file3 = "//tmp/file3"
         for f in [file1, file2, file3]:
             create("file", f)
-            write_file(f, '{{name="{}"}};\n'.format(f))
+            write_file(f, b'{name="' + f.encode("ascii") + b'"};\n')
         set(file2 + "/@file_name", "file2_name_in_attribute")
         set(file3 + "/@file_name", "file3_name_in_attribute")
 
@@ -1520,8 +1518,8 @@ class TestUserFiles(YTEnvSetup):
         create("file", file1)
         create("file", file2)
 
-        write_file(file1, "{value=42};\n")
-        write_file(file2, "{a=b};\n")
+        write_file(file1, b"{value=42};\n")
+        write_file(file2, b"{a=b};\n")
         link(file2, file3)
 
         create("table", "//tmp/table_file")
@@ -1603,9 +1601,9 @@ class TestUserFiles(YTEnvSetup):
 
         file1 = "//tmp/regular_file"
         create("file", file1)
-        write_file(file1, "{value=42};\n")
+        write_file(file1, b"{value=42};\n")
         set(file1 + "/@compression_codec", "lz4")
-        write_file("<append=true>" + file1, "{a=b};\n")
+        write_file("<append=true>" + file1, b"{a=b};\n")
 
         table_file = "//tmp/table_file"
         create("table", table_file)
@@ -1638,8 +1636,8 @@ class TestUserFiles(YTEnvSetup):
         create("table", "//tmp/output")
 
         create("file", "//tmp/regular_file", attributes={"erasure_coded": "lrc_12_2_2"})
-        write_file("<append=true>//tmp/regular_file", "{value=42};\n")
-        write_file("<append=true>//tmp/regular_file", "{a=b};\n")
+        write_file("<append=true>//tmp/regular_file", b"{value=42};\n")
+        write_file("<append=true>//tmp/regular_file", b"{a=b};\n")
 
         create(
             "table",
@@ -1958,7 +1956,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         ops = [run_op(2) for _ in range(3)]
 
         @wait_assert  # noqa: F811
-        def no_alerts():
+        def no_alerts():  # noqa: F811
             for op in ops:
                 # Expect no alerts here as limit per agent is 7.
                 assert len(ls(op.get_path() + "/@alerts")) == 0
@@ -1982,7 +1980,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         wait_breakpoint(breakpoint_name=next_op.breakpoint_name, job_count=2)
 
         @wait_assert  # noqa: F811
-        def no_alerts():
+        def no_alerts():  # noqa: F811
             assert len(ls(op.get_path() + "/@alerts")) == 0
             assert len(get_agent_alerts()) == 0
 

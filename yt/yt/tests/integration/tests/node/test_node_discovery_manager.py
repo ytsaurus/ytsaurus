@@ -8,8 +8,9 @@ from yt.common import YtError
 
 from flaky import flaky
 
+import sys
 import time
-from sys import stderr
+
 
 #################################################################
 
@@ -52,7 +53,7 @@ class Base:
                 time.sleep(0.5)
 
                 ok = True
-                for node_id in xrange(len(counters)):
+                for node_id in range(len(counters)):
                     actual = counters[node_id].get_delta() > 0
                     expected = node_id in expected_node_ids
                     if actual != expected:
@@ -159,7 +160,7 @@ class TestMasterCache(Base, YTEnvSetup):
 
     def wait_for_config(self, expected_node_ids):
         expected_nodes = self.select_nodes(expected_node_ids)
-        print >> stderr, "Expecting master caches:", expected_nodes
+        print("Expecting master caches:", expected_nodes, file=sys.stderr)
 
         wait(
             lambda: self.get_discovered_node_list() == expected_nodes,

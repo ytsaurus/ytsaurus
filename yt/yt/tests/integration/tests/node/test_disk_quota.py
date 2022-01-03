@@ -64,7 +64,7 @@ class TestDiskUsagePorto(YTEnvSetup):
         tables = ["//tmp/t1", "//tmp/t2", "//tmp/t3"]
         for table in tables:
             create("table", table)
-        write_table(tables[0], [{"foo": "bar"} for _ in xrange(10)])
+        write_table(tables[0], [{"foo": "bar"} for _ in range(10)])
         return tables
 
     def run_test(self, tables, fatty_options):
@@ -85,7 +85,7 @@ class TestDiskUsagePorto(YTEnvSetup):
             "out": tables[2],
             "command": "true",
             "spec": {
-                "mapper": {"disk_space_limit": 1024 * 1024 / 2},
+                "mapper": {"disk_space_limit": 1024 * 1024 // 2},
                 "max_failed_job_count": 1,
             },
         }
@@ -128,7 +128,7 @@ class TestDiskUsagePorto(YTEnvSetup):
                 ]
             ),
             "spec": {
-                "mapper": {"disk_space_limit": 1024 * 1024 * 2 / 3},
+                "mapper": {"disk_space_limit": 1024 * 1024 * 2 // 3},
                 "max_failed_job_count": 1,
             },
         }
@@ -172,7 +172,7 @@ class TestDiskUsagePorto(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             spec={
-                "mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3},
+                "mapper": {"disk_space_limit": 2 * 1024 * 1024 // 3},
                 "max_failed_job_count": 1,
             },
         )
@@ -185,7 +185,7 @@ class TestDiskUsagePorto(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t3",
             spec={
-                "mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3},
+                "mapper": {"disk_space_limit": 2 * 1024 * 1024 // 3},
                 "max_failed_job_count": 1,
             },
         )
@@ -306,7 +306,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
 
         jobs = op.list_jobs()
         assert len(jobs) == 1
-        assert op.read_stderr(jobs[0]).startswith(self.fake_ssd_disk_path)
+        assert op.read_stderr(jobs[0]).startswith(self.fake_ssd_disk_path.encode("ascii"))
 
     @authors("ignat")
     def test_unfeasible_ssd_request(self):
@@ -876,7 +876,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
         wait(lambda: op.get_running_jobs())
 
         nodes = ls("//sys/cluster_nodes")
-        jobs = op.get_running_jobs().keys()
+        jobs = list(op.get_running_jobs().keys())
         assert len(nodes) == 1
         assert len(jobs) == 1
 
