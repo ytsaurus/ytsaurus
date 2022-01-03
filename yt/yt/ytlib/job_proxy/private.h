@@ -8,7 +8,7 @@ namespace NYT::NJobProxy {
 
 DECLARE_REFCOUNTED_CLASS(TAnyToYsonConverter)
 
-extern NLogging::TLogger JobProxyClientLogger;
+inline const NLogging::TLogger JobProxyClientLogger("JobProxyClient");
 
 TString GetDefaultJobsMetaContainerName();
 

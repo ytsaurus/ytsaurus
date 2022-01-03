@@ -42,7 +42,7 @@ TJobRegistry::TJobRegistry(
     , JobThrottler_(CreateReconfigurableThroughputThrottler(
         New<TThroughputThrottlerConfig>(),
         ChunkServerLogger,
-        ChunkServerProfilerRegistry.WithPrefix("/job_throttler")))
+        ChunkServerProfiler.WithPrefix("/job_throttler")))
 { }
 
 TJobRegistry::~TJobRegistry() = default;

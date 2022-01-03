@@ -12,6 +12,7 @@
 #include <Common/COW.h>
 
 #include <Interpreters/Context_fwd.h>
+
 #include <Parsers/IAST_fwd.h>
 
 namespace NYT::NClickHouseServer {
@@ -19,15 +20,15 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! General-purpose logger for our code.
-extern const NLogging::TLogger ClickHouseYtLogger;
+inline const NLogging::TLogger ClickHouseYtLogger("ClickHouseYT");
 //! Logger which is used by ClickHouse native code.
-extern const NLogging::TLogger ClickHouseNativeLogger;
+inline const NLogging::TLogger ClickHouseNativeLogger("ClickHouseNative");
 //! Root profiler for all metrics.
-extern const NProfiling::TProfiler ClickHouseProfiler;
+inline const NProfiling::TProfiler ClickHouseProfiler("/clickhouse");
 //! Profiler for our own metrics.
-extern const NProfiling::TProfiler ClickHouseYtProfiler;
+inline const NProfiling::TProfiler ClickHouseYtProfiler = ClickHouseProfiler.WithPrefix("/yt");
 //! Profiler exporting raw ClickHouse metrics.
-extern const NProfiling::TProfiler ClickHouseNativeProfiler;
+inline const NProfiling::TProfiler ClickHouseNativeProfiler = ClickHouseProfiler.WithPrefix("/native");
 
 // Set 0 to not see graceful exits in failed jobs.
 constexpr int GracefulInterruptionExitCode = 0;

@@ -2,29 +2,26 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
-#include <yt/yt/core/rpc/public.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger DataNodeLogger;
-extern const NProfiling::TProfiler DataNodeProfiler;
-extern const NProfiling::TProfiler LocationProfiler;
-extern const NLogging::TLogger P2PLogger;
-extern const NProfiling::TProfiler P2PProfiler;
+inline const NLogging::TLogger DataNodeLogger("DataNode");
+inline const NProfiling::TProfiler DataNodeProfiler("/data_node");
+inline const NProfiling::TProfiler LocationProfiler("/location");
 
-extern const TString CellIdFileName;
-extern const TString LocationUuidFileName;
-extern const TString MultiplexedDirectory;
-extern const TString TrashDirectory;
-extern const TString CleanExtension;
-extern const TString SealedFlagExtension;
-extern const TString ArtifactMetaSuffix;
+inline const NLogging::TLogger P2PLogger("P2P");
+inline const NProfiling::TProfiler P2PProfiler = DataNodeProfiler.WithPrefix("/p2p");
+
+inline const TString CellIdFileName("cell_id");
+inline const TString LocationUuidFileName("uuid");
+inline const TString MultiplexedDirectory("multiplexed");
+inline const TString TrashDirectory("trash");
+inline const TString CleanExtension("clean");
+inline const TString SealedFlagExtension("sealed");
+inline const TString ArtifactMetaSuffix(".artifact");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -53,7 +53,9 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NProfiling;
 
-static const NLogging::TLogger Logger("OperationsCleaner");
+////////////////////////////////////////////////////////////////////////////////
+
+static inline const NLogging::TLogger Logger("OperationsCleaner");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,7 +470,7 @@ void DoSendOperationAlerts(
             FromUnversionedValue<ui64>(row[idHiIndex]),
             FromUnversionedValue<ui64>(row[idLoIndex]));
 
-        auto eventsFromArchive = FromUnversionedValue<std::optional<TYsonStringBuf>>(row[alertEventsIndex]);            
+        auto eventsFromArchive = FromUnversionedValue<std::optional<TYsonStringBuf>>(row[alertEventsIndex]);
         if (eventsFromArchive) {
             idToAlertEvents.emplace(
                 operationId,
@@ -1498,7 +1500,7 @@ private:
     void SendOperationAlerts()
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
-        
+
         if (ArchiveVersion_ < 43 || OperationAlertEventQueue_.empty()) {
             Host_->SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, TError());
             return;

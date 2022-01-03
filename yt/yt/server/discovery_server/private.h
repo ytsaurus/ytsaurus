@@ -14,8 +14,8 @@ struct IBootstrap;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger ClusterDiscoveryServerLogger;
-extern const NProfiling::TProfiler ClusterDiscoveryServerProfiler;
+inline const NLogging::TLogger ClusterDiscoveryServerLogger("DiscoveryServer");
+inline const NProfiling::TProfiler ClusterDiscoveryServerProfiler("/discovery_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -48,8 +48,7 @@ static_assert(
     sizeof(THeader) == sizeof(TBlockHeader),
     "Header and block header must be same size for backward compatibility.");
 
-// TODO(sandello): Deprecate global MaxBlockSize.
-static constexpr size_t MaxLzBlockSize = MaxBlockSize;
+static constexpr size_t MaxLzBlockSize = 1_GB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

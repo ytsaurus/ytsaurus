@@ -4,8 +4,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,7 +12,7 @@ DECLARE_REFCOUNTED_CLASS(TCellTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger CellServerLogger;
+inline const NLogging::TLogger CellServerLogger("CellServer");
 
 constexpr int MaxAreaCount = 100;
 

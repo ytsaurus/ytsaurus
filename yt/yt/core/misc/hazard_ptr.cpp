@@ -24,7 +24,7 @@ using namespace NConcurrency;
 
 /////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger LockFreePtrLogger("LockFreeHelpers");
+inline const NLogging::TLogger LockFreePtrLogger("LockFreeHelpers");
 static const auto& Logger = LockFreePtrLogger;
 
 ////////////////////////////////////////////////////////////////////////////

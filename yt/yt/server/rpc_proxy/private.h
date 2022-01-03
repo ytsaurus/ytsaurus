@@ -8,8 +8,8 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger RpcProxyLogger;
-extern const NProfiling::TProfiler RpcProxyProfiler;
+inline const NLogging::TLogger RpcProxyLogger("RpcProxy");
+inline const NProfiling::TProfiler RpcProxyProfiler("/rpc_proxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 

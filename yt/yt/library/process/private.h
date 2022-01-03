@@ -6,8 +6,8 @@ namespace NYT::NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger PipesLogger;
-extern const NLogging::TLogger PtyLogger;
+inline const NLogging::TLogger PipesLogger("Pipes");
+inline const NLogging::TLogger PtyLogger("Pty");
 
 ////////////////////////////////////////////////////////////////////////////////
 

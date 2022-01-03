@@ -10,11 +10,11 @@ namespace NYT::NCellarAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger CellarAgentLogger;
-extern const NProfiling::TProfiler CellarAgentProfiler;
+inline const NLogging::TLogger CellarAgentLogger("CellarAgent");
+inline const NProfiling::TProfiler CellarAgentProfiler("/cellar_agent");
 
-extern const TString TabletCellCypressPrefix;
-extern const TString ChaosCellCypressPrefix;
+inline const TString TabletCellCypressPrefix("//sys/tablet_cells");
+inline const TString ChaosCellCypressPrefix("//sys/chaos_cells");
 
 ////////////////////////////////////////////////////////////////////////////////
 

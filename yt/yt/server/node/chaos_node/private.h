@@ -10,8 +10,8 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger ChaosNodeLogger;
-extern const NProfiling::TRegistry ChaosNodeProfiler;
+inline const NLogging::TLogger ChaosNodeLogger("ChaosNode");
+inline const NProfiling::TRegistry ChaosNodeProfiler("/chaos_node");
 
 ////////////////////////////////////////////////////////////////////////////////
 

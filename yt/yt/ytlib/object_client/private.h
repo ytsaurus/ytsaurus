@@ -1,15 +1,14 @@
 #pragma once
+
 #include "public.h"
 
 #include <yt/yt/core/logging/log.h>
-
-#include <yt/yt/core/profiling/profiler.h>
 
 namespace NYT::NObjectClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger ObjectClientLogger;
+inline const NLogging::TLogger ObjectClientLogger("ObjectClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -10,14 +10,14 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger HttpProxyLogger;
-extern const NProfiling::TProfiler HttpProxyProfiler;
+inline const NLogging::TLogger HttpProxyLogger("HttpProxy");
+inline const NProfiling::TProfiler HttpProxyProfiler("/http_proxy");
 
-extern const NLogging::TLogger HttpStructuredProxyLogger;
+inline const NLogging::TLogger HttpStructuredProxyLogger("HttpStructuredProxy");
 
-DECLARE_REFCOUNTED_CLASS(TFramingAsyncOutputStream);
+DECLARE_REFCOUNTED_CLASS(TFramingAsyncOutputStream)
 
-DECLARE_REFCOUNTED_CLASS(TApiTestingOptions);
+DECLARE_REFCOUNTED_CLASS(TApiTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 

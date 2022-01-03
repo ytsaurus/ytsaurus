@@ -73,7 +73,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLogging::TLogger Logger("MasterConnector");
+static inline const NLogging::TLogger Logger("MasterConnector");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1190,7 +1190,7 @@ private:
             auto user = attributes.Get<TString>("authenticated_user");
 
             YT_VERIFY(attributes.Contains("runtime_parameters"));
-            
+
             TOperationRuntimeParametersPtr runtimeParameters;
             if (auto heavyRuntimeParameters = attributes.Find<IMapNodePtr>("heavy_runtime_parameters")) {
                 auto runtimeParametersNode = attributes.Get<IMapNodePtr>("runtime_parameters");
@@ -1787,7 +1787,7 @@ private:
                     BuildYsonStringFluently()
                         .Value(operation->GetRuntimeParameters(), /* serializeHeavy */ !enableHeavyRuntimeParameters)
                         .ToString());
-                
+
                 if (enableHeavyRuntimeParameters) {
                     auto reqHeavy = multisetReq->add_subrequests();
                     reqHeavy->set_key("heavy_runtime_parameters");

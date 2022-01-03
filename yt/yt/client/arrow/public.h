@@ -1,14 +1,12 @@
 #pragma once
 
-#include <yt/yt/core/misc/public.h>
-
 #include <yt/yt/core/logging/log.h>
 
 namespace NYT::NArrow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger ArrowLogger;
+inline const NLogging::TLogger ArrowLogger("Arrow");
 
 ////////////////////////////////////////////////////////////////////////////////
 

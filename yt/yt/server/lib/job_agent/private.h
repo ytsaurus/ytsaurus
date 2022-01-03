@@ -4,13 +4,11 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger JobAgentServerLogger;
+inline const NLogging::TLogger JobAgentServerLogger("JobAgent");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/yt/core/logging/log.h>
-
 #include <yt/yt/core/misc/public.h>
+
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger OrchidLogger;
+inline const NLogging::TLogger OrchidLogger("Orchid");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -21,10 +21,10 @@ DECLARE_REFCOUNTED_CLASS(TStateHashChecker)
 extern const TString SnapshotExtension;
 extern const TString ChangelogExtension;
 extern const TString ChangelogIndexExtension;
-extern const NProfiling::TProfiler HydraProfiler;
+
+inline const NProfiling::TProfiler HydraProfiler("/hydra");
 
 IInvokerPtr GetHydraIOInvoker();
-void ShutdownHydraIOInvoker();
 
 ////////////////////////////////////////////////////////////////////////////////
 

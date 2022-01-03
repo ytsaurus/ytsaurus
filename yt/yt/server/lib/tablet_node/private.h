@@ -10,8 +10,8 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger TabletNodeLogger;
-extern const NProfiling::TProfiler TabletNodeProfiler;
+inline const NLogging::TLogger TabletNodeLogger("TabletNode");
+inline const NProfiling::TProfiler TabletNodeProfiler("/tablet_node");
 
 ////////////////////////////////////////////////////////////////////////////////
 

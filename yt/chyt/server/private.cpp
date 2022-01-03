@@ -4,18 +4,7 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// See comments around declaration of these objects in private.h.
-
-const NProfiling::TProfiler ClickHouseProfiler("/clickhouse");
-
-const NLogging::TLogger  ClickHouseYtLogger("ClickHouseYT");
-const NProfiling::TProfiler ClickHouseYtProfiler(ClickHouseProfiler.WithPrefix("/yt"));
-
-const NLogging::TLogger ClickHouseNativeLogger("ClickHouseNative");
-const NProfiling::TProfiler ClickHouseNativeProfiler(ClickHouseProfiler.WithPrefix("/native"));
-
 const TString CacheUserName("yt-clickhouse-cache");
-
 const TString InternalRemoteUserName("$remote");
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,16 +9,14 @@ namespace NYT::NMasterCache {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TChaosCache)
-
 DECLARE_REFCOUNTED_CLASS(TMasterCacheConfig)
 
 struct IBootstrap;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger MasterCacheLogger;
-
-extern const NProfiling::TProfiler MasterCacheProfiler;
+inline const NLogging::TLogger MasterCacheLogger("MasterCache");
+inline const NProfiling::TProfiler MasterCacheProfiler("/master_cache");
 
 ////////////////////////////////////////////////////////////////////////////////
 

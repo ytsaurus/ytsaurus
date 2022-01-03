@@ -3,14 +3,15 @@
 #include "http.h"
 
 #include <yt/yt/core/logging/log.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger HttpLogger;
-extern const NProfiling::TProfiler HttpProfiler;
+inline const NLogging::TLogger HttpLogger("Http");
+inline const NProfiling::TProfiler HttpProfiler = NProfiling::TProfiler{"/http"}.WithHot();
 
 ////////////////////////////////////////////////////////////////////////////////
 

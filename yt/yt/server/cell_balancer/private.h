@@ -22,9 +22,8 @@ DECLARE_REFCOUNTED_CLASS(TClusterStateProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger CellBalancerLogger;
-
-extern const NProfiling::TRegistry CellBalancerProfiler;
+inline const NLogging::TLogger CellBalancerLogger("CellBalancer");
+inline const NProfiling::TProfiler CellBalancerProfiler("/cell_balancer");
 
 ////////////////////////////////////////////////////////////////////////////////
 

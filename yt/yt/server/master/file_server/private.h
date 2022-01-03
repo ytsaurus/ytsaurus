@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/yt/core/logging/log.h>
+#include "public.h"
 
-#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger FileServerLogger;
+inline const NLogging::TLogger FileServerLogger("FileServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 

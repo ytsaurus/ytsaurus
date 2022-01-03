@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/yt/core/logging/log.h>
+#include "public.h"
 
-#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -10,8 +10,8 @@ namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger QueryAgentLogger;
-extern const NProfiling::TProfiler QueryAgentProfiler;
+inline const NLogging::TLogger QueryAgentLogger("QueryAgent");
+inline const NProfiling::TProfiler QueryAgentProfiler("/query_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
 

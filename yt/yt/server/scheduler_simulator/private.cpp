@@ -8,10 +8,6 @@ namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger SchedulerSimulatorLogger("Simulator");
-
-////////////////////////////////////////////////////////////////////////////////
-
 NChunkClient::TMediumDirectoryPtr CreateDefaultMediumDirectory()
 {
     // TODO(ignat): support custom medium in simulator.

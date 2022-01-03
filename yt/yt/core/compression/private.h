@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/yt/core/logging/log.h>
+#include "public.h"
 
-#include <library/cpp/yt/assert/assert.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger CompressionLogger;
+inline const NLogging::TLogger CompressionLogger("Compression");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,11 +8,11 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger ChunkClientLogger;
-extern const NLogging::TLogger ReaderMemoryManagerLogger;
+inline const NLogging::TLogger ChunkClientLogger("ChunkClient");
+inline const NLogging::TLogger ReaderMemoryManagerLogger("ReaderMemoryManager");
 
 //! A suffix to distinguish chunk meta files.
-extern const TString ChunkMetaSuffix;
+inline const TString ChunkMetaSuffix(".meta");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,9 +16,9 @@ using namespace NContainers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLogging::TLogger Logger("Process");
+static inline const NLogging::TLogger Logger("Process");
 
-static const pid_t InvalidProcessId = -1;
+static constexpr pid_t InvalidProcessId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +112,7 @@ THashMap<TString, TString> TPortoProcess::DecomposeEnv() const
     THashMap<TString, TString> result;
     for (const auto& env : Env_) {
         TStringBuf name, value;
-        TStringBuf(env).TrySplit('=', name, value); 
+        TStringBuf(env).TrySplit('=', name, value);
         result[name] = value;
     }
     return result;

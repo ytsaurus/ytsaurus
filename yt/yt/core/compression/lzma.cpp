@@ -1,11 +1,20 @@
 #include "lzma.h"
+#include "private.h"
 
 extern "C" {
+
+////////////////////////////////////////////////////////////////////////////////
+
 #include <contrib/libs/lzmasdk/LzmaEnc.h>
 #include <contrib/libs/lzmasdk/LzmaDec.h>
-}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // extern "C"
 
 namespace NYT::NCompression {
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
@@ -106,7 +115,6 @@ void Check(SRes sres)
     YT_LOG_FATAL_IF(sres != SZ_OK, "Lzma failed with errorcode %v", sres);
 }
 
-
 void LzmaCompress(int level, StreamSource* source, TBlob* output)
 {
     YT_VERIFY(0 <= level && level <= 9);
@@ -183,5 +191,7 @@ void LzmaDecompress(StreamSource* source, TBlob* output)
     YT_VERIFY(status == LZMA_STATUS_FINISHED_WITH_MARK);
     LzmaDec_Free(&handle, &Alloc);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCompression

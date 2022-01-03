@@ -35,8 +35,6 @@ DEFINE_ENUM(EErrorCode,
 
 constexpr double ApproximateSizesBoostFactor = 1.3;
 
-extern const NLogging::TLogger ChunkPoolStructuredLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // It's quite easy to mix up input cookies with output cookies,
