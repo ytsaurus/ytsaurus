@@ -56,6 +56,7 @@ b"""
     chunk_manager = {
         chunk_refresh_delay = 300;
         chunk_refresh_period = 200;
+        chunk_seal_backoff_time = 1000;
     };
 
     node_tracker = {
