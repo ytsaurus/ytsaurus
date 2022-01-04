@@ -503,7 +503,7 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
         result.begin(),
         result.end(),
         [&] (TNode* node) {
-            return IsValidWriteTargetCore(node);
+            return node->IsValidWriteTarget();
         }));
 
     auto isNodeForbidden = [&] (TNode* node) {
