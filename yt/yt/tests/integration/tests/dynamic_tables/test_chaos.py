@@ -3,7 +3,7 @@ from test_dynamic_tables import DynamicTablesBase
 from yt_commands import (
     authors, wait, execute_command, get_driver, get, set, ls, create,
     sync_create_cells, sync_mount_table, sync_unmount_table, reshard_table, alter_table,
-    insert_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
+    insert_rows, delete_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
     create_replication_card, get_replication_card, create_replication_card_replica, alter_replication_card_replica)
 
 from yt.environment.helpers import assert_items_equal
@@ -371,21 +371,35 @@ class TestChaos(DynamicTablesBase):
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
-        insert_rows("//tmp/q", [{"key": 0, "value": "0"}])
-
-        def _pull_rows():
+        def _pull_rows(progress_timestamp):
             return pull_rows(
                 "//tmp/q",
-                replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
+                replication_progress={"segments": [{"lower_key": [], "timestamp": progress_timestamp}], "upper_key": ["#<Max>"]},
                 upstream_replica_id=replica_ids[0])
 
-        wait(lambda: len(_pull_rows()) == 1)
+        def _sync_pull_rows(progress_timestamp):
+            wait(lambda: len(_pull_rows(progress_timestamp)) == 1)
+            result = _pull_rows(progress_timestamp)
+            assert len(result) == 1
+            return result[0]
 
-        result = _pull_rows()
-        assert len(result) == 1
-        row = result[0]
+        def _sync_check(progress_timestamp, expected_row):
+            row = _sync_pull_rows(progress_timestamp)
+            assert row["key"] == expected_row["key"]
+            assert str(row["value"][0]) == expected_row["value"]
+            return row.attributes["write_timestamps"][0]
+
+        insert_rows("//tmp/q", [{"key": 0, "value": "0"}])
+        timestamp1 = _sync_check(0, {"key": 0, "value": "0"})
+
+        insert_rows("//tmp/q", [{"key": 1, "value": "1"}])
+        timestamp2 = _sync_check(timestamp1, {"key": 1, "value": "1"})
+
+        delete_rows("//tmp/q", [{"key": 0}])
+        row = _sync_pull_rows(timestamp2)
         assert row["key"] == 0
-        assert str(row["value"][0]) == "0"
+        assert len(row.attributes["write_timestamps"]) == 0
+        assert len(row.attributes["delete_timestamps"]) == 1
 
     @authors("savrus")
     def test_serialized_pull_rows(self):
@@ -420,6 +434,29 @@ class TestChaos(DynamicTablesBase):
 
         for i in range(len(timestamps) - 1):
             assert timestamps[i] < timestamps[i+1], "Write timestamp order mismatch for positions {0} and {1}: {2} > {3}".format(i, i+1, timestamps[i], timestamps[i+1])
+
+    @authors("savrus")
+    def test_delete_rows_replication(self):
+        self._create_chaos_cell_bundle("c")
+        cell_id = self._sync_create_chaos_cell("c")
+
+        replicas = [
+            {"cluster": "primary", "content_type": "data", "mode": "async", "state": "enabled", "table_path": "//tmp/t"},
+            {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+
+        delete_rows("//tmp/t", [{"key": 0}])
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == [])
+
+        rows = lookup_rows("//tmp/t", [{"key": 0}], versioned=True)
+        row = rows[0]
+        assert len(row.attributes["write_timestamps"]) == 1
+        assert len(row.attributes["delete_timestamps"]) == 1
 
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])
