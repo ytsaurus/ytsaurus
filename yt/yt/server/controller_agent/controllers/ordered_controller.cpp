@@ -581,6 +581,9 @@ private:
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             schedulerJobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
+        SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            BuildDataSinkDirectoryFromOutputTables(OutputTables_));
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
     }
 

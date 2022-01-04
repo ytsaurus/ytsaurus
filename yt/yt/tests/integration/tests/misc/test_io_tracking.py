@@ -851,7 +851,8 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert read_table("//tmp/table_out") == table_data
 
     @authors("gepardo")
-    def test_merge(self):
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
+    def test_merge(self, merge_mode):
         first_data = [
             {"id": 1, "name": "cat"},
             {"id": 2, "name": "dog"},
@@ -860,10 +861,18 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             {"id": 1, "name": "python"},
             {"id": 2, "name": "rattlesnake"},
         ]
+        table_attributes = {}
+        if merge_mode == "sorted":
+            table_attributes = {
+                "schema": [
+                    {"name": "id", "type": "int64", "sort_order": "ascending"},
+                    {"name": "name", "type": "string"},
+                ]
+            }
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        create("table", "//tmp/table_in1")
-        create("table", "//tmp/table_in2")
+        create("table", "//tmp/table_in1", attributes=table_attributes)
+        create("table", "//tmp/table_in2", attributes=table_attributes)
         create("table", "//tmp/table_out")
         write_table("//tmp/table_in1", first_data)
         write_table("//tmp/table_in2", second_data)
@@ -873,20 +882,26 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
         op = merge(
-            mode="unordered",
+            mode=merge_mode,
             in_=["//tmp/table_in1", "//tmp/table_in2"],
             out="//tmp/table_out",
             spec={"force_transform": True},
         )
         raw_events, _ = self.wait_for_events(raw_count=3, from_barrier=from_barrier)
 
+        job_type = {
+            "unordered": "UnorderedMerge",
+            "ordered": "OrderedMerge",
+            "sorted": "SortedMerge",
+        }[merge_mode]
+
         for event in raw_events:
             assert event["pool_tree@"] == "default"
             assert event["operation_id"] == op.id
             assert event["operation_type@"] == "Merge"
             assert "job_id" in event
-            assert event["job_type@"] == "UnorderedMerge"
-            assert event["task_name@"] == "UnorderedMerge"
+            assert event["job_type@"] == job_type
+            assert event["task_name@"] == job_type
             assert event["byte_count"] > 0
             assert event["io_count"] > 0
             assert event["user@"] == "job:root"
@@ -906,7 +921,9 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert "object_id" in read_events[1]
         assert read_events[1]["account@"] == "tmp"
 
-        # TODO(gepardo): Add table tags to output tables and check them here.
+        assert write_events[0]["object_path"] == "//tmp/table_out"
+        assert "object_id" in write_events[0]
+        assert write_events[0]["account@"] == "tmp"
 
         assert sorted(read_table("//tmp/table_out")) == sorted(first_data + second_data)
 

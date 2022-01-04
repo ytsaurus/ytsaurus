@@ -4,6 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
@@ -118,6 +119,13 @@ public:
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
+        std::optional<NChunkClient::TDataSink> dataSink = std::nullopt;
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+            auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
+            YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
+            dataSink = dataSinkDirectory->DataSinks()[0];
+        }
+
         WriterFactory_ = [=] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) {
             return CreateSchemalessMultiChunkWriter(
                 writerConfig,
@@ -129,7 +137,7 @@ public:
                 Host_->GetLocalHostName(),
                 CellTagFromId(chunkListId),
                 transactionId,
-                /*dataSink*/ std::nullopt,
+                dataSink,
                 chunkListId,
                 TChunkTimestamps{timestamp, timestamp},
                 Host_->GetTrafficMeter(),
