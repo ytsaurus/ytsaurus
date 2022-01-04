@@ -112,8 +112,6 @@ struct TStreamDescriptor
     std::optional<int> PartitionTag;
 
     void Persist(const TPersistenceContext& context);
-
-    TStreamDescriptor& operator =(const TStreamDescriptor& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

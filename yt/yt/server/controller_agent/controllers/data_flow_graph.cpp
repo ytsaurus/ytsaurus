@@ -62,26 +62,6 @@ void TStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>(context, StreamSchemas);
 }
 
-TStreamDescriptor& TStreamDescriptor::operator =(const TStreamDescriptor& other)
-{
-    DestinationPool = other.DestinationPool;
-    ChunkMapping = other.ChunkMapping;
-    RequiresRecoveryInfo = other.RequiresRecoveryInfo;
-    TableWriterOptions = CloneYsonSerializable(other.TableWriterOptions);
-    TableUploadOptions = other.TableUploadOptions;
-    TableWriterConfig = other.TableWriterConfig;
-    Timestamp = other.Timestamp;
-    CellTags = other.CellTags;
-    ImmediatelyUnstageChunkLists = other.ImmediatelyUnstageChunkLists;
-    IsFinalOutput = other.IsFinalOutput;
-    IsOutputTableDynamic = other.IsOutputTableDynamic;
-    LivePreviewIndex = other.LivePreviewIndex;
-    TargetDescriptor = other.TargetDescriptor;
-    StreamSchemas = other.StreamSchemas;
-
-    return *this;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLivePreview
