@@ -1,4 +1,4 @@
-from .config import get_option, get_config, get_total_request_timeout, get_command_param
+from .config import get_option, get_config, get_command_param
 from .common import YtError, MB
 from .cypress_commands import get
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
@@ -137,7 +137,9 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
     assert isinstance(stream, (RawStream, ItemStream))
 
     path = YPathSupportingAppend(path, client=client)
-    transaction_timeout = get_total_request_timeout(client)
+    transaction_timeout = max(
+        get_config(client)["proxy"]["heavy_request_timeout"],
+        get_config(client)["transaction_timeout"])
 
     created = False
     if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:

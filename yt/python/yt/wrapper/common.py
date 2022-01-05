@@ -46,6 +46,7 @@ except ImportError:
 from itertools import chain, starmap
 from functools import reduce
 from copy import copy, deepcopy
+from datetime import timedelta
 
 EMPTY_GENERATOR = (i for i in [])
 
@@ -239,6 +240,15 @@ def get_stream_size_or_none(stream):
 
 def total_seconds(td):
     return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
+
+
+def time_option_to_milliseconds(td):
+    if isinstance(td, timedelta):
+        return total_seconds(td) * 1000.0
+    elif td is None:
+        return 0
+    else:
+        return td
 
 
 def generate_int64(generator=None):

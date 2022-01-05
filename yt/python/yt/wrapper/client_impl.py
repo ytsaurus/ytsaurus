@@ -18,14 +18,14 @@ class YtClient(ClientState):
         """
         return client_api.LocalFile(path, client=self, file_name=file_name, attributes=attributes)
 
-    def PingTransaction(self, transaction, delay, interrupt_on_failed=True):
+    def PingTransaction(self, transaction, ping_period, ping_timeout, interrupt_on_failed=True):
         """
         Pinger for transaction.
 
         Pings transaction in background thread.
 
         """
-        return client_api.PingTransaction(transaction, delay, client=self, interrupt_on_failed=interrupt_on_failed)
+        return client_api.PingTransaction(transaction, ping_period, ping_timeout, client=self, interrupt_on_failed=interrupt_on_failed)
 
     def TablePath(self, name, append=None, sorted_by=None, columns=None, exact_key=None, lower_key=None, upper_key=None, exact_index=None, start_index=None, end_index=None, ranges=None, schema=None, optimize_for=None, compression_codec=None, erasure_codec=None, foreign=None, rename_columns=None, simplify=None, attributes=None):
         """
@@ -54,7 +54,7 @@ class YtClient(ClientState):
         """
         return client_api.TempTable(*args, client=self, **kwds)
 
-    def Transaction(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None, ping_ancestor_transactions=None, type='master', acquire=None):
+    def Transaction(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None, ping_ancestor_transactions=None, type='master', acquire=None, ping_period=None, ping_timeout=None):
         """
 
         It is designed to be used by with_statement::
@@ -75,7 +75,7 @@ class YtClient(ClientState):
         .. seealso:: `transactions in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions.html>`_
 
         """
-        return client_api.Transaction(client=self, timeout=timeout, deadline=deadline, attributes=attributes, ping=ping, interrupt_on_failed=interrupt_on_failed, transaction_id=transaction_id, ping_ancestor_transactions=ping_ancestor_transactions, type=type, acquire=acquire)
+        return client_api.Transaction(client=self, timeout=timeout, deadline=deadline, attributes=attributes, ping=ping, interrupt_on_failed=interrupt_on_failed, transaction_id=transaction_id, ping_ancestor_transactions=ping_ancestor_transactions, type=type, acquire=acquire, ping_period=ping_period, ping_timeout=ping_timeout)
 
     def abort_job(self, job_id, interrupt_timeout=None):
         """
@@ -785,7 +785,7 @@ class YtClient(ClientState):
         """
         return client_api.move(source_path, destination_path, client=self, recursive=recursive, force=force, preserve_account=preserve_account, preserve_owner=preserve_owner, preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout, preserve_creation_time=preserve_creation_time, preserve_modification_time=preserve_modification_time, pessimistic_quota_check=pessimistic_quota_check)
 
-    def ping_transaction(self, transaction):
+    def ping_transaction(self, transaction, timeout=None, retry_config=None):
         """
         Prolongs transaction lifetime.
 
@@ -794,7 +794,7 @@ class YtClient(ClientState):
         .. seealso:: `ping_tx in the docs <https://yt.yandex-team.ru/docs/api/commands.html#pingtx>`_
 
         """
-        return client_api.ping_transaction(transaction, client=self)
+        return client_api.ping_transaction(transaction, client=self, timeout=timeout, retry_config=retry_config)
 
     def put_file_to_cache(self, path, md5, cache_path=None):
         """

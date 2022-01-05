@@ -1,7 +1,7 @@
-from .config import (get_option, set_option, get_config, get_total_request_timeout, get_transaction_timeout,
-                     get_request_retry_count, get_command_param, set_command_param, del_command_param,
-                     get_backend_type)
-from .common import get_value
+from .config import (get_option, set_option, get_config,
+                     get_command_param, set_command_param, del_command_param, get_backend_type)
+from .common import get_value, time_option_to_milliseconds
+from .default_config import retries_config
 from .errors import YtResponseError, YtError, YtTransactionPingError
 from .transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
@@ -97,11 +97,8 @@ class Transaction(object):
 
     def __init__(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True,
                  transaction_id=None, ping_ancestor_transactions=None, type="master", acquire=None,
+                 ping_period=None, ping_timeout=None,
                  client=None):
-        timeout = get_value(
-            timeout,
-            max(get_total_request_timeout(client), get_transaction_timeout(client))
-        )
         if transaction_id == null_transaction_id:
             ping = False
             acquire = False
@@ -122,6 +119,16 @@ class Transaction(object):
         self._stack.init(get_command_param("transaction_id", self._client),
                          get_command_param("ping_ancestor_transactions", self._client))
         if self.transaction_id is None:
+            timeout = get_value(
+                timeout,
+                max(
+                    # Some legacy logic.
+                    max(
+                        time_option_to_milliseconds(get_config(client)["proxy"]["retries"]["total_timeout"]),
+                        time_option_to_milliseconds(get_config(client)["proxy"]["request_timeout"]),
+                    ),
+                    time_option_to_milliseconds(get_config(client)["transaction_timeout"]))
+            )
             self.transaction_id = start_transaction(timeout=timeout,
                                                     deadline=deadline,
                                                     attributes=attributes,
@@ -137,6 +144,9 @@ class Transaction(object):
                     'transaction_id is not specified'
                     .format(self._acquire)
                 )
+        elif self._ping:
+            from .cypress_commands import get
+            timeout = get("#{}/@timeout".format(self.transaction_id), client=client)
 
         if self._acquire is None:
             self._acquire = False
@@ -156,10 +166,11 @@ class Transaction(object):
             for option in ("_driver", "_requests_session", "_token", "_token_cached",
                            "_api_version", "_commands", "_fqdn"):
                 set_option(option, get_option(option, client=self._client), client=pinger_client)
-            delay = (timeout / 1000.0) / max(2, get_request_retry_count(self._client))
             self._ping_thread = PingTransaction(
                 self.transaction_id,
-                delay,
+                # NB: ping_period + ping_timeout should be separated from total transaction timeout.
+                ping_period=get_value(ping_period, timeout / 3),
+                ping_timeout=get_value(ping_timeout, timeout / 3),
                 interrupt_on_failed=interrupt_on_failed,
                 client=pinger_client)
             self._ping_thread.start()
@@ -300,18 +311,27 @@ class PingTransaction(Thread):
 
     Pings transaction in background thread.
     """
-    def __init__(self, transaction, delay, interrupt_on_failed=True, client=None):
+    def __init__(self, transaction, ping_period, ping_timeout, interrupt_on_failed=True, client=None):
         """
-        :param int delay: delay in seconds.
+        :param int ping_period: ping period in milliseconds.
+        :param int ping_timeout: ping request timeout in milliseconds.
         """
         super(PingTransaction, self).__init__()
         self.transaction = transaction
-        self.delay = delay
+        self.ping_period = time_option_to_milliseconds(ping_period)
+        self.ping_timeout = time_option_to_milliseconds(ping_timeout)
         self.interrupt_on_failed = interrupt_on_failed
         self.failed = False
         self.is_running = True
         self.daemon = True
-        self.step = min(self.delay, get_config(client)["transaction_sleep_period"] / 1000.0)  # in seconds
+        self.sleep_period = min(self.ping_period / 5, get_config(client)["transaction_sleep_period"])
+        self.retry_config = retries_config(
+            enable=True,
+            total_timeout=self.ping_timeout,
+            backoff={
+                "policy": "constant_time",
+                "constant_time": self.ping_period / 5,
+            })
         self._client = client
 
         self.ignore_no_such_transaction_error = False
@@ -341,11 +361,11 @@ class PingTransaction(Thread):
         if not self.is_alive():
             # If the thread has never been started, attempting to join it causes RuntimeError.
             return
-        timeout = get_total_request_timeout(self._client) / 1000.0
         # timeout should be enough to execute ping
-        self.join(timeout + 2 * self.step)
+        timeout = (self.ping_timeout + 2 * self.sleep_period) / 1000.0
+        self.join(timeout)
         if self.is_alive():
-            logger.warning("Ping request could not be completed within %.1lf seconds", timeout)
+            logger.warning("Ping request could not be completed within %.1lf seconds", self.ping_timeout)
 
 
     def _process_failed_ping(self):
@@ -370,7 +390,7 @@ class PingTransaction(Thread):
     def run(self):
         while self.is_running:
             try:
-                ping_transaction(self.transaction, client=self._client)
+                ping_transaction(self.transaction, timeout=self.ping_timeout, client=self._client)
             except YtError as err:
                 if not self.ignore_no_such_transaction_error or not err.is_no_such_transaction():
                     self._process_failed_ping()
@@ -378,8 +398,8 @@ class PingTransaction(Thread):
                 self._process_failed_ping()
 
             start_time = datetime.now()
-            while datetime.now() - start_time < timedelta(seconds=self.delay):
-                sleep(self.step)
+            while datetime.now() - start_time < timedelta(seconds=self.ping_period / 1000.0):
+                sleep(self.sleep_period / 1000.0)
                 if not self.is_running:
                     return
 
