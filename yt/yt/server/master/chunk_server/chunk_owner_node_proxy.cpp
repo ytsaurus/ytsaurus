@@ -590,6 +590,9 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
         .SetWritable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkErasureCodec)
+        .SetWritable(true)
+        .SetPresent(node->GetType() == EObjectType::Table));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SecurityTags)
         .SetWritable(true)
         .SetReplicated(true));
@@ -696,6 +699,10 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             BuildYsonFluently(consumer)
                 .Value(node->GetErasureCodec());
             return true;
+
+        case EInternedAttributeKey::HunkErasureCodec:
+            // NB: Table node will override this.
+            return false;
 
         case EInternedAttributeKey::SecurityTags:
             BuildYsonFluently(consumer)
@@ -883,6 +890,10 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
             return true;
         }
+
+        case EInternedAttributeKey::HunkErasureCodec:
+            // NB: Table node will override this.
+            THROW_ERROR_EXCEPTION("Hunk erasure codec can only be set for tables");
 
         case EInternedAttributeKey::Account: {
             if (!TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value)) {

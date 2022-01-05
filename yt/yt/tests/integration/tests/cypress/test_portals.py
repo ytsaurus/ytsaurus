@@ -1234,6 +1234,9 @@ class TestPortals(YTEnvSetup):
             "enable_dynamic_store_read": True,
             "profiling_mode": "path",
             "profiling_tag": "some_tag",
+            "compression_codec": "lzma_1",
+            "erasure_codec": "reed_solomon_3_3",
+            "hunk_erasure_codec": "reed_solomon_6_3",
             "external_cell_tag": 2  # To be removed below.
         }
         create("table", "//tmp/t", attributes=attributes)

@@ -62,15 +62,13 @@ bool TTableNodeTypeHandlerBase<TImpl>::HasBranchedChangesImpl(
         return true;
     }
 
-    if (branchedNode->IsDynamic()) {
-        YT_VERIFY(originatingNode->IsDynamic());
+    return
+        branchedNode->GetOptimizeFor() != originatingNode->GetOptimizeFor() ||
+        branchedNode->GetHunkErasureCodec() != originatingNode->GetHunkErasureCodec() ||
         // One may consider supporting unlocking unmounted dynamic tables.
         // However, it isn't immediately obvious why that should be useful and
         // allowing to unlock something always requires careful consideration.
-        return true;
-    }
-
-    return false;
+        branchedNode->IsDynamic();
 }
 
 template <class TImpl>
@@ -94,6 +92,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<TString>("tablet_cell_bundle");
     auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+    auto hunkErasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("hunk_erasure_codec", NErasure::ECodec::None);
     auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", cypressManagerConfig->DefaultTableReplicationFactor);
     auto compressionCodec = combinedAttributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::Lz4);
     auto erasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
@@ -189,6 +188,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     try {
         node->SetOptimizeFor(optimizeFor);
+        node->SetHunkErasureCodec(hunkErasureCodec);
 
         if (node->IsReplicated()) {
             // NB: This setting may be not visible in attributes but crucial for replication
@@ -268,6 +268,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
 
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
+    branchedNode->SetHunkErasureCodec(originatingNode->GetHunkErasureCodec());
     branchedNode->SetProfilingMode(originatingNode->GetProfilingMode());
     branchedNode->SetProfilingTag(originatingNode->GetProfilingTag());
 
@@ -289,6 +290,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
 
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
     originatingNode->MergeOptimizeFor(branchedNode);
+    originatingNode->MergeHunkErasureCodec(branchedNode);
     originatingNode->SetProfilingMode(branchedNode->GetProfilingMode());
     originatingNode->SetProfilingTag(branchedNode->GetProfilingTag());
 
@@ -358,6 +360,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
 
     Save(*context, node->GetSchemaMode());
     Save(*context, node->GetOptimizeFor());
+    Save(*context, node->GetHunkErasureCodec());
 
     Save(*context, trunkNode->HasCustomDynamicTableAttributes());
     if (trunkNode->HasCustomDynamicTableAttributes()) {
@@ -391,6 +394,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
 
     node->SetSchemaMode(Load<ETableSchemaMode>(*context));
     node->SetOptimizeFor(Load<EOptimizeFor>(*context));
+    node->SetHunkErasureCodec(Load<NErasure::ECodec>(*context));
 
     if (Load<bool>(*context)) {
         node->InitializeCustomDynamicTableAttributes();
@@ -406,6 +410,7 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
         "commit_ordering",
         "in_memory_mode",
         "optimize_for",
+        "hunk_erasure_codec",
         "tablet_cell_bundle",
         "profiling_mode",
         "profiling_tag"

@@ -191,6 +191,7 @@
     XX(HunkChunkReader, hunk_chunk_reader) \
     XX(HunkChunkWriter, hunk_chunk_writer) \
     XX(HunkCount, hunk_count) \
+    XX(HunkErasureCodec, hunk_erasure_codec) \
     XX(HunkStatistics, hunk_statistics) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \

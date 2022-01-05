@@ -114,12 +114,13 @@ DEFINE_REFCOUNTED_TYPE(TExportArgumentsConfig)
     "tablet_cell_bundle", \
     "in_memory_mode", \
     "optimize_for", \
+    "hunk_erasure_codec",
 
-static const std::vector<TString> preset_keys_small = {
+static const std::vector<TString> PresetKeysSmall = {
     BASIC_KEYS
 };
 
-static const std::vector<TString> preset_keys_large = {
+static const std::vector<TString> PresetKeysLarge = {
     BASIC_KEYS
     "schema",
     "media"
@@ -247,9 +248,9 @@ void ParseAndValidate(
 
     if (config->PresetAttributes.has_value()) {
         if (*config->PresetAttributes == EPresetAttributes::Small) {
-            *searchedKeys = preset_keys_small;
+            *searchedKeys = PresetKeysSmall;
         } else if (*config->PresetAttributes == EPresetAttributes::Large) {
-            *searchedKeys = preset_keys_large;
+            *searchedKeys = PresetKeysLarge;
         }
     } else {
         *searchedKeys = std::move(config->UserAttributes);
@@ -260,7 +261,8 @@ void ParseAndValidate(
         try {
             searchedTypes->insert(ConvertTo<EObjectType>(typeNode));
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Invalid export config: unable to parse type %Qv", typeNode) << TError(ex);
+            THROW_ERROR_EXCEPTION("Invalid export config: unable to parse type %Qv", typeNode)
+                << ex;
         }
     }
 }
