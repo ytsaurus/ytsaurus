@@ -6,7 +6,7 @@ from yt_commands import (
     alter_table, authors, create, get, read_journal, wait, read_table, write_journal, create_account,
     write_table, update_nodes_dynamic_config, get_singular_chunk_id, set_node_banned,
     sync_create_cells, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table,
-    reduce, map_reduce, merge)
+    reduce, map_reduce, merge, erase)
 
 from yt_helpers import read_structured_log, write_log_barrier
 from yt_driver_bindings import Driver
@@ -787,7 +787,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
     }
 
     @authors("gepardo")
-    @pytest.mark.parametrize("op_type", ["map", "reduce"])
+    @pytest.mark.parametrize("op_type", ["map", "ordered_map", "reduce"])
     def test_basic_operations(self, op_type):
         table_data = [
             {"id": 1, "name": "cat"},
@@ -811,26 +811,31 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        run_op = yt_commands.map if op_type == "map" else reduce
+        run_op = yt_commands.map if op_type in ["map", "ordered_map"] else reduce
         op = run_op(
             in_="//tmp/table_in",
             out="//tmp/table_out",
             command="cat",
             reduce_by=["id"],  # ignored for maps
+            ordered=(op_type == "ordered_map"),  # ignored for reduces
         )
         raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
         raw_events.sort(key=lambda event: event["data_node_method@"])
 
-        operation_type = "Map" if op_type == "map" else "Reduce"
-        job_type = "Map" if op_type == "map" else "SortedReduce"
-        task_name = "Map" if op_type == "map" else "SortedReduce"
+        operation_type = "Map" if op_type in ["map", "ordered_map"] else "Reduce"
+        job_type = {
+            "map": "Map",
+            "ordered_map": "OrderedMap",
+            "reduce": "SortedReduce",
+        }[op_type]
+
         for event in raw_events:
             assert event["pool_tree@"] == "default"
             assert event["operation_id"] == op.id
             assert event["operation_type@"] == operation_type
             assert "job_id" in event
             assert event["job_type@"] == job_type
-            assert event["task_name@"] == task_name
+            assert event["task_name@"] == job_type
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
         assert raw_events[0]["user@"] == "job:root"
@@ -926,6 +931,61 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert write_events[0]["account@"] == "tmp"
 
         assert sorted(read_table("//tmp/table_out")) == sorted(first_data + second_data)
+
+    @authors("gepardo")
+    def test_erase(self):
+        table_input_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+        table_output_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table")
+        write_table("//tmp/table", table_input_data)
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+
+        input_chunk_ids = get("//tmp/table/@chunk_ids")
+        assert len(input_chunk_ids) == 1
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = erase("//tmp/table[#1:#3]")
+        raw_events, _ = self.wait_for_events(raw_count=3, from_barrier=from_barrier)
+
+        output_chunk_ids = get("//tmp/table/@chunk_ids")
+        assert len(output_chunk_ids) == 1
+
+        for event in raw_events:
+            assert event["pool_tree@"] == "default"
+            assert event["operation_id"] == op.id
+            assert event["operation_type@"] == "Erase"
+            assert "job_id" in event
+            assert event["job_type@"] == "OrderedMerge"
+            assert event["task_name@"] == "OrderedMerge"
+            assert event["byte_count"] > 0
+            assert event["io_count"] > 0
+            assert event["user@"] == "job:root"
+            assert event["object_path"] == "//tmp/table"
+            assert "object_id" in event
+            assert event["account@"] == "tmp"
+
+        read_events = [event for event in raw_events if event["data_node_method@"] == "GetBlockSet"]
+        write_events = [event for event in raw_events if event["data_node_method@"] == "FinishChunk"]
+
+        assert len(read_events) == 2
+        assert read_events[0]["chunk_id"] == read_events[1]["chunk_id"]
+        assert read_events[0]["chunk_id"] == input_chunk_ids[0]
+
+        assert len(write_events) == 1
+        assert write_events[0]["chunk_id"] == output_chunk_ids[0]
+
+        assert read_table("//tmp/table") == table_output_data
 
     @authors("gepardo")
     def test_map_reduce(self):
