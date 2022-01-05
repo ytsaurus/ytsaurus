@@ -52,8 +52,6 @@ public:
 
     void Initialize();
 
-    const IInvokerPtr& GetChunkInvoker(EChunkThreadQueue queue) const;
-
     NYTree::IYPathServicePtr GetOrchidService();
 
     const TJobRegistryPtr& GetJobRegistry() const;
