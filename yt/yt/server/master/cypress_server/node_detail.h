@@ -603,6 +603,7 @@ protected:
 #define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
     process(CompressionCodec, compression_codec) \
     process(ErasureCodec, erasure_codec) \
+    process(HunkErasureCodec, hunk_erasure_codec) \
     process(ReplicationFactor, replication_factor) \
     process(Vital, vital) \
     process(Atomicity, atomicity) \
@@ -642,6 +643,7 @@ public:
     {
         TVersionedBuiltinAttribute<NCompression::ECodec> CompressionCodec;
         TVersionedBuiltinAttribute<NErasure::ECodec> ErasureCodec;
+        TVersionedBuiltinAttribute<NErasure::ECodec> HunkErasureCodec;
         TVersionedBuiltinAttribute<int> PrimaryMediumIndex;
         TVersionedBuiltinAttribute<NChunkServer::TChunkReplication> Media;
         TVersionedBuiltinAttribute<int> ReplicationFactor;

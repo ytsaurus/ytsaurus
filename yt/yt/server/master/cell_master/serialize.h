@@ -144,6 +144,7 @@ DEFINE_ENUM(EMasterReign,
     ((QueueAgentUser)                                               (1910))  // max42
     ((BanSuperusers)                                                (1911))  // gritukan
     ((EnablePortalAwareStatisticsGossip)                            (1912))  // babenko
+    ((HunkErasureCodec)                                             (1913))  // babenko
 );
 
 constexpr EMasterReign First_21_2_MasterReign = EMasterReign::MasterMergeJobs;

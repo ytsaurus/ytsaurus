@@ -201,6 +201,7 @@ TTableNode::TTableNode(TVersionedNodeId id)
 {
     if (IsTrunk()) {
         SetOptimizeFor(EOptimizeFor::Lookup);
+        SetHunkErasureCodec(NErasure::ECodec::None);
     }
 }
 
@@ -346,6 +347,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     SaveTableSchema(context);
     Save(context, SchemaMode_);
     Save(context, OptimizeFor_);
+    Save(context, HunkErasureCodec_);
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
     Save(context, TabletCellBundle_);
@@ -361,6 +363,10 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     LoadTableSchema(context);
     Load(context, SchemaMode_);
     Load(context, OptimizeFor_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= EMasterReign::HunkErasureCodec) {
+        Load(context, HunkErasureCodec_);
+    }
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
     Load(context, TabletCellBundle_);

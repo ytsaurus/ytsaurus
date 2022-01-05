@@ -665,6 +665,11 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(table->GetOptimizeFor());
             return true;
 
+        case EInternedAttributeKey::HunkErasureCodec:
+            BuildYsonFluently(consumer)
+                .Value(table->GetHunkErasureCodec());
+            return true;
+
         case EInternedAttributeKey::InMemoryMode:
             BuildYsonFluently(consumer)
                 .Value(trunkTable->GetInMemoryMode());
@@ -1205,6 +1210,16 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             const auto& uninternedKey = key.Unintern();
             auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(uninternedKey));
             lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
+
+            return true;
+        }
+
+        case EInternedAttributeKey::HunkErasureCodec: {
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+            const auto& uninternedKey = key.Unintern();
+            auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            lockedTable->SetHunkErasureCodec(ConvertTo<NErasure::ECodec>(value));
 
             return true;
         }

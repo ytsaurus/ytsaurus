@@ -6,7 +6,8 @@ from yt_commands import (
     authors, wait, create, exists, get, set, set_banned_flag, insert_rows, remove, select_rows,
     lookup_rows, delete_rows, remount_table,
     alter_table, read_table, map, sync_reshard_table, sync_create_cells,
-    sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect)
+    sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
+    start_transaction, commit_transaction)
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
@@ -959,3 +960,38 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: get("//tmp/t/@chunk_count") == 1 + 1)
         (store_chunk_id, ) = self._get_store_chunk_ids("//tmp/t")
         assert len(get("#{}/@hunk_chunk_refs".format(store_chunk_id))) == 1
+
+    @authors("babenko")
+    def test_hunk_erasure_codec_cannot_be_set_for_nontable(self):
+        create("file", "//tmp/f")
+        assert not exists("//tmp/f/@hunk_erasure_codec")
+        with pytest.raises(YtError):
+            set("//tmp/f/@hunk_erasure_codec", "isa_lrc_12_2_2")
+
+    @authors("babenko")
+    def test_hunk_erasure_codec_for_table(self):
+        create("table", "//tmp/t")
+
+        assert get("//tmp/t/@hunk_erasure_codec") == "none"
+
+        set("//tmp/t/@hunk_erasure_codec", "isa_lrc_12_2_2")
+        assert get("//tmp/t/@hunk_erasure_codec") == "isa_lrc_12_2_2"
+
+        tx = start_transaction()
+        set("//tmp/t/@hunk_erasure_codec", "reed_solomon_3_3", tx=tx)
+        assert get("//tmp/t/@hunk_erasure_codec") == "isa_lrc_12_2_2"
+        assert get("//tmp/t/@hunk_erasure_codec", tx=tx) == "reed_solomon_3_3"
+
+        commit_transaction(tx)
+        assert get("//tmp/t/@hunk_erasure_codec") == "reed_solomon_3_3"
+
+    @authors("babenko")
+    def test_hunk_erasure_codec_inheritance(self):
+        create("map_node", "//tmp/m")
+        set("//tmp/m/@hunk_erasure_codec", "isa_lrc_12_2_2")
+
+        create("file", "//tmp/m/f")
+        assert not exists("//tmp/m/f/@hunk_erasure_codec")
+
+        create("table", "//tmp/m/t")
+        assert get("//tmp/m/t/@hunk_erasure_codec") == "isa_lrc_12_2_2"

@@ -505,6 +505,9 @@ void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceCon
 
     Persist(context, CompressionCodec);
     Persist(context, ErasureCodec);
+    if (context.GetVersion() >= EMasterReign::HunkErasureCodec) {
+        Persist(context, HunkErasureCodec);
+    }
     Persist(context, ReplicationFactor);
     Persist(context, Vital);
     Persist(context, Atomicity);

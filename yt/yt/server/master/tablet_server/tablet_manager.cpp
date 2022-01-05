@@ -3368,7 +3368,7 @@ private:
         result.HunkWriterOptions->MediumName = primaryMedium->GetName();
         result.HunkWriterOptions->Account = table->GetAccount()->GetName();
         result.HunkWriterOptions->CompressionCodec = table->GetCompressionCodec();
-        result.HunkWriterOptions->ErasureCodec = table->GetErasureCodec();
+        result.HunkWriterOptions->ErasureCodec = table->GetHunkErasureCodec();
         result.HunkWriterOptions->ChunksVital = chunkReplication.GetVital();
 
         // Parse and prepare store writer config.
