@@ -468,8 +468,6 @@ public:
         , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
     {
-        ChunkQueue_ = CreateEnumIndexedFairShareActionQueue<EChunkThreadQueue>("Chunk");
-
         RegisterMethod(BIND(&TImpl::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkRequisition, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRegisterChunkEndorsements, Unretained(this)));
@@ -568,11 +566,6 @@ public:
 
         ChunkMerger_->Initialize();
         ChunkAutotomizer_->Initialize();
-    }
-
-    const IInvokerPtr& GetChunkInvoker(EChunkThreadQueue queue) const
-    {
-        return ChunkQueue_->GetInvoker(queue);
     }
 
     IYPathServicePtr GetOrchidService()
@@ -2098,8 +2091,6 @@ private:
     friend class TMediumTypeHandler;
 
     const TChunkManagerConfigPtr Config_;
-
-    IEnumIndexedFairShareActionQueuePtr<EChunkThreadQueue> ChunkQueue_;
 
     TChunkTreeBalancer ChunkTreeBalancer_;
 
@@ -5002,11 +4993,6 @@ TChunkManager::~TChunkManager() = default;
 void TChunkManager::Initialize()
 {
     Impl_->Initialize();
-}
-
-const IInvokerPtr& TChunkManager::GetChunkInvoker(EChunkThreadQueue queue) const
-{
-    return Impl_->GetChunkInvoker(queue);
 }
 
 TChunk* TChunkManager::GetChunkOrThrow(TChunkId id)
