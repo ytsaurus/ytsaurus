@@ -426,8 +426,8 @@ private:
 
             auto guard = Guard(WriterLock_);
 
-            auto flushedFuture = Writer_->Write(MakeRange(PendingRecords_));
-            PendingRecords_ = {};
+            auto rows = std::exchange(PendingRecords_, {});
+            auto flushedFuture = rows.empty() ? VoidFuture : Writer_->Write(MakeRange(rows));
 
             YT_VERIFY(!WriterOpened_);
             WriterOpened_ = true;
