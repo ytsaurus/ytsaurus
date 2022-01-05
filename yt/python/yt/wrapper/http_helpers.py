@@ -249,7 +249,7 @@ def _raise_for_status(response, request_info):
 class RequestRetrier(Retrier):
     def __init__(self, method, url=None, make_retries=True, response_format=None, error_format=None,
                  params=None, timeout=None, retry_action=None, data_log="", is_ping=False,
-                 proxy_provider=None, client=None, **kwargs):
+                 proxy_provider=None, retry_config=None, client=None, **kwargs):
         self.method = method
         self.url = url
         self.make_retries = make_retries
@@ -270,7 +270,9 @@ class RequestRetrier(Retrier):
         else:
             self.request_url = "'undiscovered'"
 
-        retry_config = get_config(client)["proxy"]["retries"]
+        retry_config = get_value(
+            retry_config,
+            get_config(client)["proxy"]["retries"])
         if timeout is None:
             timeout = get_config(client)["proxy"]["request_timeout"]
         self.requests_timeout = timeout

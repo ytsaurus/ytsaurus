@@ -1,5 +1,5 @@
 from .batch_helpers import batch_apply
-from .config import get_config, get_total_request_timeout
+from .config import get_config
 from .common import MB
 from .cypress_commands import mkdir, concatenate, find_free_subpath, remove
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
@@ -171,7 +171,9 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
         progress_reporter = FakeProgressReporter()
 
     path = YPathSupportingAppend(path, client=client)
-    transaction_timeout = get_total_request_timeout(client)
+    transaction_timeout = max(
+        get_config(client)["proxy"]["heavy_request_timeout"],
+        get_config(client)["transaction_timeout"])
     if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:
         create_object(path, client)
 

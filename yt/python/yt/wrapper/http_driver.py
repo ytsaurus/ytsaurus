@@ -127,8 +127,9 @@ def make_request(command_name,
                  response_format=None,
                  use_heavy_proxy=False,
                  timeout=None,
-                 client=None,
-                 allow_retries=None):
+                 allow_retries=None,
+                 retry_config=None,
+                 client=None):
     """Makes request to yt proxy. Command name is the name of command in YT API."""
 
     if "master_cell_id" in params:
@@ -270,6 +271,7 @@ def make_request(command_name,
         # TODO(ignat): Refactor retrying logic to avoid this hack.
         is_ping=(command_name in ("ping_tx", "ping_transaction")),
         proxy_provider=proxy_provider,
+        retry_config=retry_config,
         client=client)
 
     def process_trailers(response):

@@ -109,7 +109,7 @@ class TestTableCommands(object):
         with set_config_option("read_parallel/max_thread_count", 2), \
                 set_config_option("transaction_timeout", 3000), \
                 set_config_option("proxy/request_timeout", 1000), \
-                set_config_option("proxy/retries/count", 3), \
+                set_config_option("proxy/retries/total_timeout", 3000), \
                 set_config_option("read_buffer_size", 10):
             iterator = yt.read_table(table)
 

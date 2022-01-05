@@ -41,7 +41,7 @@ def get_compression_codec_list(client, return_all):
             name = match.group(1)
             level = int(match.group(2))
             codecs_with_levels.setdefault(name, []).append(level)
-    
+
     for codec in codecs_with_levels:
         levels = sorted(codecs_with_levels[codec])
         min_ = levels[0]
@@ -84,7 +84,7 @@ def get_stats_list(stats):
 
 def check_timeout(operation_info):
     error_message = get_value_by_path(operation_info, "result/error/message")
-    
+
     if "too long" not in error_message:
         raise yt.YtError("Operation finished unsuccessfully: {}".format(error_message))
 
@@ -101,7 +101,7 @@ def run(table, time_limit_sec, max_operations, sample_size, all_codecs, client=N
     sample_rows = compute_row_count(input_table_attributes, sample_size)
     optimize_for = input_table_attributes["optimize_for"]
     compression_codec_list = get_compression_codec_list(client, all_codecs)
-    
+
     tx = client.start_transaction()
     with yt.Transaction(transaction_id=tx, client=client, ping=True):
         yt.mkdir(tmp_dir, recursive=True, client=client)
@@ -166,7 +166,7 @@ def run(table, time_limit_sec, max_operations, sample_size, all_codecs, client=N
                 wait_available_operation(tracker, max_operations)
                 operation = client.run_map(
                     "cat > /dev/null",
-                    source_table=table, 
+                    source_table=table,
                     format=yt.YsonFormat(),
                     job_count=1,
                     spec={"time_limit": 1000 * time_limit_sec},

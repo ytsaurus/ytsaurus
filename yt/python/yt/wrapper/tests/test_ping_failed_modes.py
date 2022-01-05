@@ -21,9 +21,11 @@ def reproduce_transaction_loss(
     wait_time=3.0,
     proxy_request_timeout=0.1,
 ):
-    with set_config_option("proxy/request_timeout", int(proxy_request_timeout * 1000)), \
-        set_config_option("transaction_timeout", int(proxy_request_timeout * 1000)):
-        tx_context_manager = yt.YtClient(token=yt.config["token"], config=yt.config.config).Transaction()
+    with set_config_option("transaction_timeout", int(proxy_request_timeout * 1000)):
+        client = yt.YtClient(token=yt.config["token"], config=yt.config.config)
+        tx_context_manager = client.Transaction(
+            ping_period=0,
+            ping_timeout=proxy_request_timeout * 1000)
         tx = tx_context_manager.__enter__()
         time.sleep(delay_time)
 
@@ -32,7 +34,7 @@ def reproduce_transaction_loss(
         first_exception = None
         first_sleep_duration = wait_time
         aborted = False
-        
+
         while True:
             # Since aborted transaction may cause multiple interruptions,
             # we sleep for wait_time catching all exceptions,

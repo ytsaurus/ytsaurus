@@ -70,7 +70,7 @@ def commit_transaction(transaction, client=None):
     command_name = "commit_transaction" if get_api_version(client) == "v4" else "commit_tx"
     return make_request(command_name, params, client=client)
 
-def ping_transaction(transaction, client=None):
+def ping_transaction(transaction, timeout=None, retry_config=None, client=None):
     """Prolongs transaction lifetime.
 
     :param str transaction: transaction id.
@@ -79,4 +79,4 @@ def ping_transaction(transaction, client=None):
     """
     params = transaction_params(transaction, client=client)
     command_name = "ping_transaction" if get_api_version(client) == "v4" else "ping_tx"
-    return make_request(command_name, params, client=client)
+    return make_request(command_name, params, timeout=timeout, retry_config=retry_config, client=client)

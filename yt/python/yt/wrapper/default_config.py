@@ -11,6 +11,7 @@ from yt.yson import YsonEntity, YsonMap
 import os
 import sys
 from copy import deepcopy
+from datetime import timedelta
 
 # pydoc :: default_config :: begin
 
@@ -56,7 +57,7 @@ def retries_config(**kwargs):
     return config
 
 def get_dynamic_table_retries():
-    return retries_config(count=6, enable=True, total_timeout=None, backoff={
+    return retries_config(enable=True, total_timeout=timedelta(minutes=10), backoff={
         "policy": "exponential",
         "exponential_policy": {
             "start_timeout": 5000,
@@ -87,7 +88,7 @@ default_config = {
         "content_encoding": None,
 
         # Retries configuration for http requests.
-        "retries": retries_config(count=6, enable=True, total_timeout=None, backoff={
+        "retries": retries_config(enable=True, total_timeout=timedelta(minutes=2), backoff={
             "policy": "exponential",
             "exponential_policy": {
                 "start_timeout": 2000,
@@ -517,7 +518,7 @@ default_config = {
 
     # Retries for start operation requests.
     # It may fail due to violation of cluster operation limit.
-    "start_operation_retries": retries_config(count=30, enable=True, total_timeout=None, backoff={
+    "start_operation_retries": retries_config(enable=True, total_timeout=timedelta(hours=5), backoff={
         "policy": "exponential",
         "exponential_policy": {
             "start_timeout": 3000,
@@ -528,7 +529,7 @@ default_config = {
     "start_operation_request_timeout": 60000,
 
     # Retries for concatenate requests.
-    "concatenate_retries": retries_config(count=6, enable=True, total_timeout=None, backoff={
+    "concatenate_retries": retries_config(enable=True, total_timeout=timedelta(minutes=10), backoff={
         "policy": "exponential",
         "exponential_policy": {
             "start_timeout": 20000,
@@ -577,7 +578,7 @@ default_config = {
     },
 
     "max_batch_size": 100,
-    "batch_requests_retries": retries_config(count=6, enable=True, total_timeout=None,
+    "batch_requests_retries": retries_config(enable=True, total_timeout=timedelta(minutes=10),
                                              backoff={"policy": "rounded_up_to_request_timeout"}),
 
     "enable_operations_api": True,

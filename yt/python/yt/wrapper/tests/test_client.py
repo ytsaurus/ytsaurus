@@ -120,7 +120,7 @@ class TestClient(object):
                 assert client.get_current_transaction_id() == tx.transaction_id
 
             tx = client.start_transaction(timeout=5000)
-            with client.PingTransaction(tx, delay=1):
+            with client.PingTransaction(tx, ping_period=1000, ping_timeout=1000):
                 assert client.exists("//sys/transactions/{0}".format(tx))
                 client.COMMAND_PARAMS["transaction_id"] = tx
                 assert client.lock(table) != "0-0-0-0"
