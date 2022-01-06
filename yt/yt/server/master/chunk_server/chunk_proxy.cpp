@@ -3,6 +3,7 @@
 #include "chunk.h"
 #include "chunk_manager.h"
 #include "job.h"
+#include "job_registry.h"
 #include "medium.h"
 #include "helpers.h"
 
@@ -754,7 +755,8 @@ private:
                 for (const auto& job : chunk->GetJobs()) {
                     addJob(job);
                 }
-                if (auto lastFinishedJob = chunkManager->FindLastFinishedJob(chunk->GetId())) {
+                const auto& jobRegistry = chunkManager->GetJobRegistry();
+                if (auto lastFinishedJob = jobRegistry->FindLastFinishedJob(chunk->GetId())) {
                     addJob(lastFinishedJob);
                 }
                 list.EndList();

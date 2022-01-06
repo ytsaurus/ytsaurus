@@ -6,15 +6,11 @@
 #include "chunk_view.h"
 #include "chunk_requisition.h"
 
-#include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h> // XXX: forward declaration
-
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
-#include <yt/yt/server/lib/hydra_common/mutation.h>
 
 #include <yt/yt/server/master/object_server/public.h>
 
@@ -25,14 +21,7 @@
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 #include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/yt/client/object_client/helpers.h>
-
 #include <yt/yt/library/erasure/impl/public.h>
-
-#include <yt/yt/core/actions/signal.h>
-
-#include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/compact_vector.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -282,19 +271,38 @@ public:
     //! This reflects the target chunk placement, not the actual one.
     TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const;
 
-    //! Returns pointer to last finished job or nullptr if not found.
-    TJobPtr FindLastFinishedJob(TChunkId chunkId) const;
-
 private:
-    class TImpl;
-    class TChunkTypeHandler;
-    class TChunkViewTypeHandler;
-    class TDynamicStoreTypeHandler;
-    class TChunkListTypeHandler;
-    class TMediumTypeHandler;
+    friend class TChunkTypeHandler;
+    friend class TChunkListTypeHandler;
+    friend class TChunkViewTypeHandler;
+    friend class TDynamicStoreTypeHandler;
+    friend class TMediumTypeHandler;
 
+    class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 
+    NHydra::TEntityMap<TChunk>& MutableChunks();
+    void DestroyChunk(TChunk* chunk);
+    void ExportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag);
+    void UnexportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag, int importRefCounter);
+
+    NHydra::TEntityMap<TChunkList>& MutableChunkLists();
+    void DestroyChunkList(TChunkList* chunkList);
+
+    NHydra::TEntityMap<TChunkView>& MutableChunkViews();
+    void DestroyChunkView(TChunkView* chunkView);
+
+    NHydra::TEntityMap<TDynamicStore>& MutableDynamicStores();
+    void DestroyDynamicStore(TDynamicStore* dynamicStore);
+
+    NHydra::TEntityMap<TMedium>& MutableMedia();
+    TMedium* CreateMedium(
+        const TString& name,
+        std::optional<bool> transient,
+        std::optional<bool> cache,
+        std::optional<int> priority,
+        NObjectClient::TObjectId hintId);
+    void DestroyMedium(TMedium* medium);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkManager)
