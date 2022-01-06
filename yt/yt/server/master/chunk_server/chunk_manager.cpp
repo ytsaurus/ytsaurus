@@ -710,6 +710,29 @@ public:
             return;
         }
 
+        // NB: Figure out and validate all hunk chunks we are about to reference _before_ confirming
+        // the chunk and storing its meta. Otherwise, in DestroyChunk one may end up having
+        // dangling references to hunk chunks.
+        std::vector<TChunk*> referencedHunkChunks;
+        if (auto hunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkMeta.extensions())) {
+            referencedHunkChunks.reserve(hunkChunkRefsExt->refs_size());
+            for (const auto& protoRef : hunkChunkRefsExt->refs()) {
+                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+                auto* hunkChunk = FindChunk(hunkChunkId);
+                if (!IsObjectAlive(hunkChunk)) {
+                    THROW_ERROR_EXCEPTION("Cannot confirm chunk %v since it references an unknown hunk chunk %v",
+                        id,
+                        hunkChunkId);
+                }
+                referencedHunkChunks.push_back(hunkChunk);
+            }
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (auto* hunkChunk : referencedHunkChunks) {
+            objectManager->RefObject(hunkChunk);
+        }
+
         chunk->Confirm(chunkInfo, chunkMeta);
 
         CancelChunkExpiration(chunk);
@@ -760,26 +783,6 @@ public:
                     chunkWithIndexes,
                     EAddReplicaReason::Confirmation);
                 node->AddUnapprovedReplica(chunkWithIndexes, mutationTimestamp);
-            }
-        }
-
-        std::vector<TChunk*> referencedHunkChunks;
-        if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
-            referencedHunkChunks.reserve(hunkChunkRefsExt->refs_size());
-            for (const auto& protoRef : hunkChunkRefsExt->refs()) {
-                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
-                auto* hunkChunk = FindChunk(hunkChunkId);
-                if (!IsObjectAlive(hunkChunk)) {
-                    THROW_ERROR_EXCEPTION("Cannot confirm chunk %v since it references an unknown hunk chunk %v",
-                        id,
-                        hunkChunkId);
-                }
-                referencedHunkChunks.push_back(hunkChunk);
-            }
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (auto* hunkChunk : referencedHunkChunks) {
-                objectManager->RefObject(hunkChunk);
             }
         }
 
