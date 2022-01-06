@@ -99,10 +99,7 @@ void TCellBase::TPeer::Persist(const NCellMaster::TPersistenceContext& context)
     Persist(context, LastSeenTime);
     Persist(context, LastRevocationReason);
     Persist(context, LastSeenState);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::ChaosCells) {
-        Persist(context, PrerequisiteTransaction);
-    }
+    Persist(context, PrerequisiteTransaction);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,16 +129,9 @@ void TCellBase::Load(TLoadContext& context)
     Load(context, LeadingPeerId_);
     Load(context, Peers_);
     Load(context, ConfigVersion_);
-    // COMPAT(savrus)
-    if (context.GetVersion() < EMasterReign::RemoveTabletCellConfig) {
-        auto tmp = New<TTabletCellConfig>();
-        Load(context, *tmp);
-    }
     Load(context, PrerequisiteTransaction_);
     Load(context, CellBundle_);
-    if (context.GetVersion() >= EMasterReign::Areas) {
-        Load(context, Area_);
-    }
+    Load(context, Area_);
     Load(context, CellLifeStage_);
     Load(context, GossipStatus_);
     Load(context, PeerCount_);

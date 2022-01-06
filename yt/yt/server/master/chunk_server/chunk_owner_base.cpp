@@ -38,8 +38,6 @@ TChunkOwnerBase::TEndUploadContext::TEndUploadContext(TBootstrap* bootstrap)
     : Bootstrap(bootstrap)
 { }
 
-static const auto& Logger = ChunkServerLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkOwnerBase::TChunkOwnerBase(TVersionedNodeId id)
@@ -89,42 +87,9 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, ErasureCodec_);
     Load(context, SnapshotSecurityTags_);
     Load(context, DeltaSecurityTags_);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::MasterMergeJobs && context.GetVersion() < EMasterReign::ChunkMergeModes) {
-        if (Load<bool>(context)) {
-            ChunkMergerMode_ = EChunkMergerMode::Deep;
-        }
-    }
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::ChunkMergeModes) {
-        Load(context, ChunkMergerMode_);
-    }
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() < EMasterReign::BuiltinEnableSkynetSharing) {
-        const auto& enableSkynetSharingAttributeName = EInternedAttributeKey::EnableSkynetSharing.Unintern();
-        if (auto enableSkynetSharing = FindAttribute(enableSkynetSharingAttributeName)) {
-            auto value = std::move(*enableSkynetSharing);
-            YT_VERIFY(Attributes_->Remove(enableSkynetSharingAttributeName));
-            try {
-                SetEnableSkynetSharing(ConvertTo<bool>(value));
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Cannot parse %Qv attribute (Value: %v, NodeId: %v)",
-                    enableSkynetSharingAttributeName,
-                    value,
-                    GetId());
-            }
-        }
-    } else {
-        Load(context, EnableSkynetSharing_);
-    }
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::PersistNodesBeingMerged) {
-        Load(context, UpdatedSinceLastMerge_);
-    }
+    Load(context, ChunkMergerMode_);
+    Load(context, EnableSkynetSharing_);
+    Load(context, UpdatedSinceLastMerge_);
 
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::OneMoreChunkMergerOptimization) {

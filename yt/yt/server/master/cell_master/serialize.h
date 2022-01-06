@@ -33,73 +33,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 
 DEFINE_ENUM(EMasterReign,
     // 21.2 starts here.
-    ((MasterMergeJobs)                                              (1600))  // aleksandra-zh
-    ((ChunkCounterInMasterMergeJobsIsNoMore)                        (1601))  // babenko
-    ((DoNotThrottleRoot)                                            (1602))  // aleksandra-zh
-    ((BuiltinEnableSkynetSharing)                                   (1603))  // aleksandra-zh
-    ((RefactorTError)                                               (1604))  // babenko
-    ((ProperStoreWriterDefaults)                                    (1605))  // babenko
-    ((DetailedMasterMemory)                                         (1606))  // aleksandra-zh
-    ((IgnoreExistingForPortalExit)                                  (1607))  // s-v-m
-    ((ProfilingModePathLetters)                                     (1608))  // prime
-    ((FixChunkMergerPersistence)                                    (1609))  // gritukan
-    ((CellNamesInUserLimits)                                        (1610))  // aleksandra-zh
-    ((WaitUnmountBeforeTabletCellDecommission)                      (1611))  // savrus
-    ((ReplicaLagLimit)                                              (1612))  // gritukan
-    ((InheritEnableChunkMerger)                                     (1613))  // aleksandra-zh
-    ((FlagForDetailedProfiling)                                     (1614))  // akozhikhov
-    ((HunksReshard)                                                 (1615))  // babenko
-    ((HunkCompaction)                                               (1616))  // babenko
-    ((ChaosCells)                                                   (1617))  // savrus
-    ((MakeAbcFolderIdBuiltin)                                       (1618))  // cookiedoth
-    ((NoAggregateForHunkColumns)                                    (1619))  // babenko
-    ((HunksNotInTabletStatic)                                       (1620))  // ifsmirnov
-    ((TrueTableSchemaObjects)                                       (1621))  // shakurov
-    ((ChunkFormat)                                                  (1622))  // gritukan
-    ((HunksAlter)                                                   (1623))  // babenko
-    ((RefBuiltinEmptySchema)                                        (1624))  // shakurov
-    ((DoNotMergeDynamicTables)                                      (1625))  // aleksandra-zh
-    ((AccountResourceUsageLease)                                    (1626))  // ignat
-    ((FixZombieSchemaLoading)                                       (1627))  // shakurov
-    ((UpdateTransactionChunkUsageAfterUnstage)                      (1628))  // cookiedoth
-    ((FixTablesWithNullTabletCellBundle)                            (1629))  // shakurov
-    ((ChangeDynamicTableMedium)                                     (1630))  // ifsmirnov
-    ((MinTabletCountForTabletBalancer)                              (1631))  // ifsmirnov
-    ((SocratesReservedReign1)                                       (1632))  // aleksandra-zh
-    ((SocratesReservedReign2)                                       (1633))  // aleksandra-zh
-    ((AccessLogImprovement)                                         (1634))  // cookiedoth
-    ((SanitizeUnrecognizedOptionsAlert)                             (1635))  // gritukan
-    ((Areas)                                                        (1636))  // savrus
-    ((ChaosCellMaps)                                                (1637))  // savrus
-    ((AllyReplicas)                                                 (1638))  // ifsmirnov
-    ((PersistentCellStatistics)                                     (1639))  // ifsmirnov
-    ((LimitObjectSubtreeSize)                                       (1640))  // cookiedoth
-    ((PeriodicCompactionMode)                                       (1641))  // ifsmirnov
-    ((SpecializedReplicasData)                                      (1642))  // gritukan
-    ((DropProtosFromChunk)                                          (1643))  // gritukan
-    ((CopyDynamicTableAttributes)                                   (1644))  // ifsmirnov
-    ((AutomatonThreadBucketWeights)                                 (1645))  // gritukan
-    ((CellIdsInReshardTabletActions)                                (1646))  // ifsmirnov
-    ((YT_15179)                                                     (1647))  // shakurov
-    ((SchemaIdUponMount)                                            (1648))  // akozhikhov
-    ((MulticellStatisticsForAllyReplicas)                           (1649))  // ifsmirnov
-    ((RecomputeApprovedReplicaCount)                                (1650))  // ifsmirnov
-    ((DropDanglingChunkViews)                                       (1651))  // ifsmirnov
-    ((SyncAlienCells)                                               (1652))  // savrus
-    ((ErasureInMemory)                                              (1653))  // akozhikhov
-    ((FixPreserveOwnerUnderTx)                                      (1654))  // aleksandra-zh
-    ((XdeltaAggregation)                                            (1655))  // leasid
-    ((RefHunkChunks)                                                (1656))  // babenko
-    ((PersistNodesBeingMerged)                                      (1657))  // aleksandra-zh
-    ((RescheduleMergeOnLeaderActive)                                (1658))  // aleksandra-zh
-    ((InitializeAccountChunkHostMasterMemory2)                      (1659))  // aleksandra-zh
-    ((JournalTruncateFixes)                                         (1660))  // aleksandra-zh
-    ((PreloadPendingStoreCountBulkInsert)                           (1661))  // ifsmirnov
-    ((RemoveTabletCellConfig)                                       (1662))  // savrus
-    ((TruncateOverlayedJournals)                                    (1663))  // aleksandra-zh
-    ((ChunkMergeModes)                                              (1664))  // aleksandra-zh
-    ((OptimizeChunkReplacer)                                        (1665))  // aleksandra-zh
-    ((ChunkMergerFixes)                                             (1666))  // aleksandra-zh
     ((TableCollocation)                                             (1667))  // akozhikhov
     ((CollocationTypeAttribute)                                     (1668))  // gritukan
     ((RecomputeUnrecognizedDynamicConfigOptions)                    (1669))  // shakurov
@@ -148,8 +81,6 @@ DEFINE_ENUM(EMasterReign,
     ((HunkErasureCodec)                                             (1913))  // babenko
 );
 
-constexpr EMasterReign First_21_2_MasterReign = EMasterReign::MasterMergeJobs;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSaveContext
@@ -171,13 +102,7 @@ class TLoadContext
     : public NHydra::TLoadContext
 {
 public:
-    // COMPAT(shakurov): remove #LoadedSchemas once 21.1 is deployed.
-    using TLoadedSchemaMap = THashMap<
-        NObjectClient::TVersionedObjectId,
-        NTableServer::TMasterTableSchema*,
-        NObjectClient::TDirectVersionedObjectIdHash>;
     DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
-    DEFINE_BYREF_RW_PROPERTY(TLoadedSchemaMap, LoadedSchemas);
 
 public:
     explicit TLoadContext(TBootstrap* bootstrap);

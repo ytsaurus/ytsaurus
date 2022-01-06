@@ -519,13 +519,7 @@ void TNode::Load(TLoadContext& context)
     Load(context, ClusterNodeStatistics_);
     Load(context, DataNodeStatistics_);
     Load(context, ExecNodeStatistics_);
-
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::ChaosCells) {
-        Load(context, CellarNodeStatistics_);
-    } else {
-        Load(context, CellarNodeStatistics_[ECellarType::Tablet]);
-    }
+    Load(context, CellarNodeStatistics_);
 
     Load(context, Alerts_);
     Load(context, ResourceLimits_);
@@ -556,25 +550,14 @@ void TNode::Load(TLoadContext& context)
     }
 
     Load(context, UnapprovedReplicas_);
-
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::ChaosCells) {
-        Load(context, Cellars_);
-    } else {
-        Load(context, Cellars_[ECellarType::Tablet]);
-    }
-
+    Load(context, Cellars_);
     Load(context, Annotations_);
     Load(context, Version_);
     Load(context, LocationUuids_);
     Load(context, Flavors_);
     // COMPAT(savrus) ENodeHeartbeatType is compatible with ENodeFlavor.
     Load(context, ReportedHeartbeats_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::AllyReplicas) {
-        Load(context, ReplicaEndorsements_);
-    }
+    Load(context, ReplicaEndorsements_);
 
     if (context.GetVersion() >= EMasterReign::Crp) {
         Load(context, ConsistentReplicaPlacementTokenCount_);

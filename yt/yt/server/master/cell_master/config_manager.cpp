@@ -133,14 +133,6 @@ private:
         newConfig->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
         Load(context, *newConfig);
         DoSetConfig(std::move(newConfig));
-
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= First_21_2_MasterReign &&
-            context.GetVersion() < EMasterReign::RecomputeUnrecognizedDynamicConfigOptions)
-        {
-            TError dummy;
-            Load(context, dummy); // Dropping previously persisted UnrecognizedOptionsAlert_.
-        }
     }
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)

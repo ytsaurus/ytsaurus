@@ -564,12 +564,8 @@ private:
         using NYT::Load;
         Load(context, RegisteredMasterMap_);
         Load(context, RegisterState_);
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::PersistentCellStatistics) {
-            Load(context, LocalCellStatistics_);
-            Load(context, ClusterCellStatisics_);
-        }
+        Load(context, LocalCellStatistics_);
+        Load(context, ClusterCellStatisics_);
     }
 
     void SaveValues(TSaveContext& context) const

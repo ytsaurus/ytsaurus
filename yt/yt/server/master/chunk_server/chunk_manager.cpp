@@ -2104,7 +2104,6 @@ private:
 
     // COMPAT(ifsmirnov)
     bool NeedRecomputeApprovedReplicaCount_ = false;
-    bool NeedPokeChunkViewsWithZeroRefCounter_ = false;
 
     // COMPAT(aleksandra-zh)
     bool NeedClearDestroyedReplicaQueues_ = false;
@@ -3656,12 +3655,6 @@ private:
             Load(context, ConsistentReplicaPlacementTokenDistribution_);
         }
 
-        // COMPAT(ifsmirnov)
-        NeedRecomputeApprovedReplicaCount_ = context.GetVersion() < EMasterReign::RecomputeApprovedReplicaCount;
-        NeedPokeChunkViewsWithZeroRefCounter_ =
-            (context.GetVersion() >= First_21_2_MasterReign &&
-            context.GetVersion() < EMasterReign::DropDanglingChunkViews);
-
         // COMPAT(aleksandra-zh)
         NeedClearDestroyedReplicaQueues_ = context.GetVersion() < EMasterReign::FixZombieReplicaRemoval;
     }
@@ -3669,8 +3662,6 @@ private:
     void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        NeedPokeChunkViewsWithZeroRefCounter_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -3760,24 +3751,6 @@ private:
                             chunk->GetApprovedReplicaCount() - 1);
                     }
                 }
-            }
-        }
-
-        if (NeedPokeChunkViewsWithZeroRefCounter_) {
-            auto pokeCount = 0;
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (auto [id, chunkView] : ChunkViewMap_) {
-                if (chunkView->GetObjectRefCounter() == 0) {
-                    ++pokeCount;
-                    objectManager->RefObject(chunkView);
-                    objectManager->UnrefObject(chunkView);
-                }
-            }
-
-            if (pokeCount != 0) {
-                YT_LOG_INFO("Poked chunk views with zero ref counter (Count: %v)",
-                    pokeCount);
             }
         }
 

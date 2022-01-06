@@ -37,11 +37,8 @@ void TChaosCell::Load(TLoadContext& context)
     TCellBase::Load(context);
 
     using NYT::Load;
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::SyncAlienCells) {
-        Load(context, AlienConfigVersions_);
-        Load(context, CumulativeAlienConfigVersion_);
-    }
+    Load(context, AlienConfigVersions_);
+    Load(context, CumulativeAlienConfigVersion_);
 }
 
 TChaosCellBundle* TChaosCell::GetChaosCellBundle() const

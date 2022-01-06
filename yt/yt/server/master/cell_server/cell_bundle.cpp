@@ -73,9 +73,6 @@ void TCellBundle::Load(TLoadContext& context)
     Load(context, *Options_);
     Load(context, *DynamicOptions_);
     Load(context, DynamicConfigVersion_);
-    if (context.GetVersion() < EMasterReign::Areas) {
-        Load(context, NodeTagFilter_);
-    }
     Load(context, *CellBalancerConfig_);
     Load(context, Health_);
 

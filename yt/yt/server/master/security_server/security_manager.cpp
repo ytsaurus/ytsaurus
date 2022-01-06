@@ -2468,9 +2468,6 @@ private:
 
     bool MustRecomputeMembershipClosure_ = false;
 
-    // COMPAT(aleksandra-zh)
-    bool MustInitializeChunkHostMasterMemoryLimits_ = false;
-
     // COMPAT(h0pless)
     bool RecomputeChunkHostCellMasterMemory_ = false;
 
@@ -2793,10 +2790,6 @@ private:
 
         // COMPAT(savrus) COMPAT(shakurov)
         ValidateAccountResourceUsage_ = true;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::YT_15179;
-
-        // COMPAT(aleksandra-zh)
-        MustInitializeChunkHostMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountChunkHostMasterMemory2;
 
         // COMPAT(h0pless)
         RecomputeChunkHostCellMasterMemory_ = context.GetVersion() < EMasterReign::AccountGossipStatisticsOptimization;
@@ -2886,32 +2879,7 @@ private:
 
         InitBuiltins();
 
-        // Leads to overcommit in hierarchical accounts!
-        if (MustInitializeChunkHostMasterMemoryLimits_) {
-            for (auto [accountId, account] : AccountMap_) {
-                if (!IsObjectAlive(account)) {
-                    continue;
-                }
-
-                std::stack<TAccount*> accounts;
-                while (account) {
-                    accounts.push(account);
-                    account = account->GetParent();
-                }
-
-                while (!accounts.empty()) {
-                    account = accounts.top();
-                    auto resourceLimits = account->ClusterResourceLimits();
-                    resourceLimits.MasterMemory().ChunkHost = 100_GB;
-
-                    TrySetResourceLimits(account, resourceLimits);
-                    accounts.pop();
-                }
-            }
-        }
-
         RecomputeAccountResourceUsage();
-
         RecomputeAccountMasterMemoryUsage();
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
 

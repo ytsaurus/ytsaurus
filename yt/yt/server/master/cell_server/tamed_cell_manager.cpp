@@ -1047,8 +1047,6 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    bool CreateDefaultAreas_ = false;
-
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
     {
@@ -1089,10 +1087,7 @@ private:
 
         CellBundleMap_.LoadKeys(context);
         CellMap_.LoadKeys(context);
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EMasterReign::Areas) {
-            AreaMap_.LoadKeys(context);
-        }
+        AreaMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1101,13 +1096,7 @@ private:
 
         CellBundleMap_.LoadValues(context);
         CellMap_.LoadValues(context);
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EMasterReign::Areas) {
-            AreaMap_.LoadValues(context);
-        }
-
-        // COMPAT(savrus)
-        CreateDefaultAreas_ = (context.GetVersion() < EMasterReign::Areas);
+        AreaMap_.LoadValues(context);
     }
 
 
@@ -1135,30 +1124,6 @@ private:
             if (area->GetName() == DefaultAreaName) {
                 YT_VERIFY(area->GetCellBundle()->GetDefaultArea() == nullptr);
                 area->GetCellBundle()->SetDefaultArea(area);
-            }
-        }
-
-        // COMPAT(savrus)
-        if (CreateDefaultAreas_) {
-            for (auto [_, bundle] : CellBundleMap_) {
-                if (!IsObjectAlive(bundle)) {
-                    continue;
-                }
-                if (bundle->Areas().contains(DefaultAreaName)) {
-                    YT_VERIFY(bundle->GetName() == DefaultCellBundleName);
-                    continue;
-                }
-                auto* area = CreateDefaultArea(bundle);
-                area->NodeTagFilter() = bundle->NodeTagFilter();
-                bundle->NodeTagFilter() = TBooleanFormula();
-            }
-            for (auto [_, cell] : CellMap_) {
-                if (!IsObjectAlive(cell)) {
-                    continue;
-                }
-                YT_VERIFY(cell->GetCellBundle()->Areas().size() == 1);
-                auto* area = cell->GetCellBundle()->Areas().begin()->second;
-                cell->SetArea(area);
             }
         }
 
@@ -1217,10 +1182,7 @@ private:
         TransactionToCellMap_.clear();
         CellBundlesPerTypeMap_.clear();
         CellsPerTypeMap_.clear();
-
         BundleNodeTracker_->Clear();
-
-        CreateDefaultAreas_ = false;
     }
 
     void OnCellStatusGossip(bool incremental)
