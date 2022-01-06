@@ -130,6 +130,7 @@ DEFINE_ENUM(EMasterReign,
     ((CrpTokenCountFixes)                                           (1818))  // shakurov
     ((OneMoreChunkMergerOptimization)                               (1819))  // aleksandra-zh
     ((DoubleSnapshotDivergenceFix)                                  (1820))  // shakurov
+    ((DontStoreChunkMetaWithDeadHunkChunks)                         (1821))  // babenko
     // 22.1 starts here.
     ((EnableCellBalancerInConfig)                                   (1900))  // alexkolodezny
     ((RefFromTabletToDynamicStore)                                  (1901))  // ifsmirnov
