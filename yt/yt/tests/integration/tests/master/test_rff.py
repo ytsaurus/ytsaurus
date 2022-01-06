@@ -21,15 +21,17 @@ class TestRff(YTEnvSetup):
         }
     }
 
+    NUM_ITERATIONS = 20
+
     @authors("babenko")
     def test_plain_read_table(self):
         set("//tmp/x", 123)
-        for i in xrange(100):
+        for i in xrange(self.NUM_ITERATIONS):
             assert get("//tmp/x", read_from="follower") == 123
 
     @authors("babenko")
     def test_sync(self):
-        for i in xrange(100):
+        for i in xrange(self.NUM_ITERATIONS):
             set("//tmp/x", i)
             assert get("//tmp/x", read_from="follower") == i
 
@@ -37,9 +39,9 @@ class TestRff(YTEnvSetup):
     def test_access_stat(self):
         time.sleep(1.0)
         c0 = get("//tmp/@access_counter")
-        for i in xrange(100):
+        for i in xrange(self.NUM_ITERATIONS):
             assert ls("//tmp", read_from="follower") == []
-        wait(lambda: get("//tmp/@access_counter") == c0 + 100)
+        wait(lambda: get("//tmp/@access_counter") == c0 + self.NUM_ITERATIONS)
 
     @authors("babenko")
     def test_leader_fallback(self):
