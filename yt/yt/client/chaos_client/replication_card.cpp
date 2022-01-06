@@ -240,7 +240,9 @@ void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicatio
         }
 
         if (cmpResult < 0) {
-            processUpperKey(progressIt->LowerKey);
+            if (updateIt == updateEnd) {
+                processUpperKey(progressIt->LowerKey);
+            }
             progressTimestamp = progressIt->Timestamp;
             append(std::move(progressIt->LowerKey));
             ++progressIt;
@@ -257,6 +259,7 @@ void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicatio
         }
     }
 
+    processUpperKey(progress->UpperKey);
     progress->Segments = std::move(segments);
 }
 
@@ -270,16 +273,30 @@ bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, c
         [] (const auto& lhs, const auto& rhs) {
             return CompareRows(lhs, rhs.LowerKey) < 0;
         });
-    YT_VERIFY(otherIt != other.Segments.begin());
-    --otherIt;
 
     auto progressEnd = progress.Segments.end();
     auto otherEnd = other.Segments.end();
     auto progressTimestamp = MaxTimestamp;
-    auto otherTimestamp = otherIt->Timestamp;
+    auto otherTimestamp = otherIt == other.Segments.begin()
+        ? NullTimestamp
+        : (otherIt - 1)->Timestamp;
 
-    while (progressIt < progressEnd && otherIt < otherEnd) {
-        int cmpResult = CompareRows(progressIt->LowerKey, otherIt->LowerKey);
+    while (progressIt < progressEnd || otherIt < otherEnd) {
+        int cmpResult;
+        if (otherIt == otherEnd) {
+            if (CompareRows(progressIt->LowerKey, other.UpperKey) >= 0) {
+                return true;
+            }
+            cmpResult = -1;
+        } else if (progressIt == progressEnd) {
+            if (CompareRows(progress.UpperKey, otherIt->LowerKey) <= 0) {
+                return true;
+            }
+            cmpResult = 1;
+        } else {
+            cmpResult = CompareRows(progressIt->LowerKey, otherIt->LowerKey);
+        }
+
         if (cmpResult < 0) {
             progressTimestamp = progressIt->Timestamp;
             ++progressIt;
@@ -291,20 +308,6 @@ bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, c
             otherTimestamp = otherIt->Timestamp;
             ++progressIt;
             ++otherIt;
-        }
-
-        if (progressTimestamp < otherTimestamp) {
-            return false;
-        }
-    }
-
-    while (otherIt < otherEnd) {
-        int cmpResult = CompareRows(progress.UpperKey, otherIt->LowerKey);
-        if (cmpResult > 0) {
-            otherTimestamp = otherIt->Timestamp;
-            ++otherIt;
-        } else {
-            break;
         }
 
         if (progressTimestamp < otherTimestamp) {
