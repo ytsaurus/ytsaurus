@@ -158,12 +158,7 @@ void TNonversionedMapObjectBase<TSelf>::Load(NCellMaster::TLoadContext& context)
     Load(context, IsRoot_);
     Load(context, Parent_);
     Load(context, KeyToChild_);
-
-    if (context.GetVersion() >= NCellMaster::EMasterReign::LimitObjectSubtreeSize) {
-        Load(context, SubtreeSize_);
-    } else {
-        SubtreeSize_ = 0;
-    }
+    Load(context, SubtreeSize_);
 
     // Reconstruct ChildToKey_ map.
     for (const auto& [key, child] : KeyToChild_) {

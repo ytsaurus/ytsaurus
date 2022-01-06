@@ -516,18 +516,7 @@ void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceCon
     Persist(context, OptimizeFor);
     Persist(context, ProfilingMode);
     Persist(context, ProfilingTag);
-
-    auto reign = context.GetVersion();
-    if (reign >= EMasterReign::InheritEnableChunkMerger && reign < EMasterReign::ChunkMergeModes) {
-        // Context is Load if we are here.
-        auto optionalEnable = Load<TVersionedBuiltinAttribute<bool>>(context.LoadContext()).ToOptional();
-        if (optionalEnable && *optionalEnable) {
-            ChunkMergerMode.Set(NChunkClient::EChunkMergerMode::Deep);
-        }
-    }
-    if (reign >= EMasterReign::ChunkMergeModes) {
-        Persist(context, ChunkMergerMode);
-    }
+    Persist(context, ChunkMergerMode);
     Persist(context, PrimaryMediumIndex);
     Persist(context, Media);
     Persist(context, TabletCellBundle);

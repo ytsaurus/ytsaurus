@@ -130,12 +130,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= NCellMaster::EMasterReign::AccountGossipStatisticsOptimization) {
         Load(context, ChunkHostCellMasterMemory_);
     }
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() < NCellMaster::EMasterReign::DetailedMasterMemory) {
-        Load<i64>(context);
-    } else {
-        Load(context, DetailedMasterMemory_);
-    }
+    Load(context, DetailedMasterMemory_);
 }
 
 void TClusterResources::Save(NCypressServer::TBeginCopyContext& context) const

@@ -43,11 +43,8 @@ void TTabletCellStatisticsBase::Persist(const NCellMaster::TPersistenceContext& 
     Persist(context, UnmergedRowCount);
     Persist(context, UncompressedDataSize);
     Persist(context, CompressedDataSize);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::HunksNotInTabletStatic) {
-        Persist(context, HunkUncompressedDataSize);
-        Persist(context, HunkCompressedDataSize);
-    }
+    Persist(context, HunkUncompressedDataSize);
+    Persist(context, HunkCompressedDataSize);
     Persist(context, MemorySize);
     Persist(context, DiskSpacePerMedium);
     Persist(context, ChunkCount);

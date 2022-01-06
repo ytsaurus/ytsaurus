@@ -27,10 +27,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SecurityServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TAccountStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -185,44 +181,20 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     Load(context, MulticellStatistics_);
     Load(context, ClusterResourceLimits_);
     Load(context, AllowChildrenLimitOvercommit_);
+    Load(context, MergeJobRateLimit_);
 
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::MasterMergeJobs) {
-        Load(context, MergeJobRateLimit_);
-        MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
+    if (Load<bool>(context)) {
+        AbcConfig_ = New<TAbcConfig>();
+        Load(context, *AbcConfig_);
     }
-
-    // COMPAT(cookiedoth)
-    if (context.GetVersion() < EMasterReign::MakeAbcFolderIdBuiltin) {
-        auto moveUserToBuiltinAttribute = [&] (auto& field, TInternedAttributeKey internedAttributeKey) {
-            const auto& attributeName = internedAttributeKey.Unintern();
-            if (auto attribute = FindAttribute(attributeName)) {
-                auto value = std::move(*attribute);
-                YT_VERIFY(Attributes_->Remove(attributeName));
-                try {
-                    field = ConvertTo<std::decay_t<decltype(field)>>(value);
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Cannot parse %Qv attribute (Value: %v, AccountId: %v)",
-                        attributeName,
-                        value,
-                        GetId());
-                }
-            }
-        };
-        moveUserToBuiltinAttribute(AbcConfig_, EInternedAttributeKey::Abc);
-        moveUserToBuiltinAttribute(FolderId_, EInternedAttributeKey::FolderId);
-    } else {
-        if (Load<bool>(context)) {
-            AbcConfig_ = New<TAbcConfig>();
-            Load(context, *AbcConfig_);
-        }
-        Load(context, FolderId_);
-    }
+    Load(context, FolderId_);
 
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::MoreChunkMergerLimits) {
         Load(context, ChunkMergerNodeTraversalConcurrency_);
     }
+
+    MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
 }
 
 TAccountStatistics& TAccount::LocalStatistics()

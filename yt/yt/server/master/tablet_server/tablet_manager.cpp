@@ -2599,10 +2599,11 @@ private:
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
+
+    // COMPAT(ifsmirnov)
     bool RecomputeAggregateTabletStatistics_ = false;
+    // COMPAT(ifsmirnov)
     bool RecomputeHunkResourceUsage_ = false;
-    // COMPAT(shakurov)
-    bool FixTablesWithNullTabletCellBundle_ = false;
     // COMPAT(ifsmirnov)
     bool RecomputeRefsFromTabletsToDynamicStores_ = true;
 
@@ -4420,15 +4421,6 @@ private:
         TabletActionMap_.LoadValues(context);
 
         // COMPAT(ifsmirnov)
-        RecomputeAggregateTabletStatistics_ = (context.GetVersion() < EMasterReign::ChangeDynamicTableMedium);
-
-        // COMPAT(ifsmirnov)
-        RecomputeHunkResourceUsage_ = (context.GetVersion() < EMasterReign::HunksNotInTabletStatic);
-
-        // COMPAT(shakurov)
-        FixTablesWithNullTabletCellBundle_ = context.GetVersion() < EMasterReign::FixTablesWithNullTabletCellBundle;
-
-        // COMPAT(ifsmirnov)
         RecomputeRefsFromTabletsToDynamicStores_ = context.GetVersion() < EMasterReign::RefFromTabletToDynamicStore;
     }
 
@@ -4483,7 +4475,7 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         RecomputeAggregateTabletStatistics_ = false;
-        FixTablesWithNullTabletCellBundle_ = false;
+        RecomputeHunkResourceUsage_ = false;
         RecomputeRefsFromTabletsToDynamicStores_ = false;
     }
 
@@ -4504,50 +4496,6 @@ private:
         }
 
         InitBuiltins();
-
-        if (FixTablesWithNullTabletCellBundle_) {
-            auto* defaultTabletCellBundle = GetDefaultTabletCellBundle();
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            auto tablesFixed = 0;
-            TTabletResources resourcesAdded;
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (!IsObjectAlive(node)) {
-                    continue;
-                }
-
-                if (!node->IsTrunk()) {
-                    continue;
-                }
-
-                if (!IsTableType(node->GetType())) {
-                    continue;
-                }
-
-                auto* tableNode = node->As<NTableServer::TTableNode>();
-                if (tableNode->GetTabletCellBundle()) {
-                    continue;
-                }
-
-                if (!tableNode->IsExternal() && tableNode->IsDynamic()) {
-                    auto resourceDelta = tableNode->GetTabletResourceUsage();
-                    resourcesAdded += resourceDelta;
-                    if (resourceDelta != TTabletResources()) {
-                        YT_LOG_DEBUG("Fixed null tablet cell bundle for a table with non-zero tablet resources (TableId: %v, ResourceUsage: %v)",
-                            tableNode->GetId(),
-                            resourceDelta);
-                    }
-                }
-
-                SetTabletCellBundle(tableNode, defaultTabletCellBundle);
-                ++tablesFixed;
-            }
-
-            if (tablesFixed > 0) {
-                YT_LOG_ALERT("Fixed tablet cell bundle from null to default (TableCount: %v, ResourcesAdded: %v)",
-                    tablesFixed,
-                    resourcesAdded);
-            }
-        }
 
         if (RecomputeRefsFromTabletsToDynamicStores_) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();

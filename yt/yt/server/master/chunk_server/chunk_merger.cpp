@@ -1702,11 +1702,7 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
 
     Load(context, TransactionId_);
     Load(context, PreviousTransactionId_);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::PersistNodesBeingMerged) {
-        Load(context, NodesBeingMerged_);
-    }
+    Load(context, NodesBeingMerged_);
 
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::OneMoreChunkMergerOptimization) {

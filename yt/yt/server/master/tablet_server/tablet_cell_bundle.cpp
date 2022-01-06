@@ -134,33 +134,11 @@ void TTabletCellBundle::Load(TLoadContext& context)
     Load(context, *TabletBalancerConfig_);
     Load(context, ResourceLimits_);
     Load(context, ResourceUsage_);
-
-    // COMPAT(cookiedoth)
-    if (context.GetVersion() < EMasterReign::MakeAbcFolderIdBuiltin) {
-        auto moveUserToBuiltinAttribute = [&] (auto& field, TInternedAttributeKey internedAttributeKey) {
-            const auto& attributeName = internedAttributeKey.Unintern();
-            if (auto attribute = FindAttribute(attributeName)) {
-                auto value = std::move(*attribute);
-                YT_VERIFY(Attributes_->Remove(attributeName));
-                try {
-                    field = ConvertTo<std::decay_t<decltype(field)>>(value);
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Cannot parse %Qv attribute (Value: %v, TabletCellBundleId: %v)",
-                        attributeName,
-                        value,
-                        GetId());
-                }
-            }
-        };
-        moveUserToBuiltinAttribute(AbcConfig_, EInternedAttributeKey::Abc);
-        moveUserToBuiltinAttribute(FolderId_, EInternedAttributeKey::FolderId);
-    } else {
-        if (Load<bool>(context)) {
-            AbcConfig_ = New<NObjectClient::TAbcConfig>();
-            Load(context, *AbcConfig_);
-        }
-        Load(context, FolderId_);
+    if (Load<bool>(context)) {
+        AbcConfig_ = New<NObjectClient::TAbcConfig>();
+        Load(context, *AbcConfig_);
     }
+    Load(context, FolderId_);
 }
 
 void TTabletCellBundle::OnProfiling(TTabletCellBundleProfilingCounters* counters)

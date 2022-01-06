@@ -442,41 +442,20 @@ public:
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= EMasterReign::TrueTableSchemaObjects) {
-            MasterTableSchemaMap_.LoadKeys(context);
-        }
-        // COMPAT(akozhikhov)
-        if (context.GetVersion() >= EMasterReign::TableCollocation) {
-            TableCollocationMap_.LoadKeys(context);
-        }
+        MasterTableSchemaMap_.LoadKeys(context);
+        TableCollocationMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= EMasterReign::TrueTableSchemaObjects) {
-            MasterTableSchemaMap_.LoadValues(context);
-        }
-
+        MasterTableSchemaMap_.LoadValues(context);
         Load(context, StatisticsUpdateRequests_);
-
-        // COMPAT(akozhikhov)
-        if (context.GetVersion() >= EMasterReign::TableCollocation) {
-            TableCollocationMap_.LoadValues(context);
-        }
-
-        // COMPAT(shakurov)
-        if (context.GetVersion() < EMasterReign::RefBuiltinEmptySchema) {
-            NeedFixEmptyMasterTableSchemaRefCounter_ = true;
-        }
+        TableCollocationMap_.LoadValues(context);
     }
 
     void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        NeedFixEmptyMasterTableSchemaRefCounter_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -489,11 +468,6 @@ public:
         //   - on old snapshots that don't contain schema map (or this automaton
         //     part altogether) this initialization is crucial.
         InitBuiltins();
-
-        // COMPAT(shakurov)
-        if (NeedFixEmptyMasterTableSchemaRefCounter_) {
-            GetEmptyMasterTableSchema()->RefObject();
-        }
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -1033,8 +1007,6 @@ private:
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
 
-    // COMPAT(shakurov)
-    bool NeedFixEmptyMasterTableSchemaRefCounter_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };

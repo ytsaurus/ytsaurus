@@ -36,13 +36,6 @@ static const auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ESchemaSerializationMethod,
-    (Schema)
-    (TableIdWithSameSchema)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TDynamicTableLock::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using ::NYT::Persist;
@@ -106,10 +99,8 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, InMemoryMode);
     Load(context, TabletErrorCount);
     Load(context, ForcedCompactionRevision);
-    if (context.GetVersion() >= EMasterReign::HunkCompaction) {
-        Load(context, ForcedStoreCompactionRevision);
-        Load(context, ForcedHunkCompactionRevision);
-    }
+    Load(context, ForcedStoreCompactionRevision);
+    Load(context, ForcedHunkCompactionRevision);
     Load(context, Dynamic);
     Load(context, MountPath);
     Load(context, ExternalTabletResourceUsage);
@@ -127,10 +118,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, TabletStatistics);
     Load(context, ProfilingMode);
     Load(context, ProfilingTag);
-    // COMPAT(akozhikhov)
-    if (context.GetVersion() >= EMasterReign::FlagForDetailedProfiling) {
-        Load(context, EnableDetailedProfiling);
-    }
+    Load(context, EnableDetailedProfiling);
     // COMPAT(shakurov)
     if (context.GetVersion() >= EMasterReign::EnableCrpBuiltinAttribute) {
         Load(context, EnableConsistentChunkReplicaPlacement);
@@ -370,10 +358,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
     Load(context, TabletCellBundle_);
-    // COMPAT(akozhikhov).
-    if (context.GetVersion() >= EMasterReign::TableCollocation) {
-        Load(context, ReplicationCollocation_);
-    }
+    Load(context, ReplicationCollocation_);
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
 }
 
@@ -381,46 +366,7 @@ void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::TrueTableSchemaObjects) {
-        // NB: using the table manager (which is global by its nature) only works
-        // here for compat-loading a snapshot. Loading this way during EndCopy
-        // would cause trouble. Luckily, there's no need for that.
-        const auto& tableManager = context.GetBootstrap()->GetTableManager();
-        auto* emptyMasterTableSchema = tableManager->GetOrCreateEmptyMasterTableSchema();
-        const auto& emptyTableSchema = *emptyMasterTableSchema->AsTableSchema();
-
-        switch (Load<ESchemaSerializationMethod>(context)) {
-            case ESchemaSerializationMethod::Schema: {
-                auto tableSchema = Load<TTableSchema>(context);
-                if (tableSchema == emptyTableSchema) {
-                    Schema_ = emptyMasterTableSchema;
-                } else {
-                    auto tableSchemaId = ReplaceTypeInId(Id_, EObjectType::MasterTableSchema);
-                    auto versionedIdHash = NObjectClient::TDirectVersionedObjectIdHash()(GetVersionedId());
-                    tableSchemaId.Parts32[0] = static_cast<ui32>(versionedIdHash);
-                    Schema_ = tableManager->CreateMasterTableSchemaUnsafely(tableSchemaId, tableSchema);
-                }
-                YT_VERIFY(context.LoadedSchemas().emplace(GetVersionedId(), Schema_).second);
-
-                break;
-            }
-            case ESchemaSerializationMethod::TableIdWithSameSchema: {
-                auto previousTableId = Load<TVersionedObjectId>(context);
-                auto it = context.LoadedSchemas().find(previousTableId);
-                YT_VERIFY(it != context.LoadedSchemas().end());
-                Schema_ = it->second;
-                break;
-            }
-            default:
-                YT_ABORT();
-        }
-
-        const auto& objectManager = context.GetBootstrap()->GetObjectManager();
-        objectManager->RefObject(Schema_);
-    } else {
-        Load(context, Schema_);
-    }
+    Load(context, Schema_);
 }
 
 void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const

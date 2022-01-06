@@ -385,7 +385,7 @@ private:
         virtual TRange<TNodeId> GetLastSeenReplicas() const = 0;
         virtual TMutableRange<TNodeId> MutableLastSeenReplicas() = 0;
 
-        virtual void Load(NCellMaster::TLoadContext& context, bool isErasure) = 0;
+        virtual void Load(NCellMaster::TLoadContext& context) = 0;
         virtual void Save(NCellMaster::TSaveContext& context) const = 0;
     };
 
@@ -408,7 +408,7 @@ private:
         void AddStoredReplica(TNodePtrWithIndexes replica) override;
         void RemoveStoredReplica(int replicaIndex) override;
 
-        void Load(NCellMaster::TLoadContext& context, bool isErasure) override;
+        void Load(NCellMaster::TLoadContext& context) override;
         void Save(NCellMaster::TSaveContext& context) const override;
     };
 

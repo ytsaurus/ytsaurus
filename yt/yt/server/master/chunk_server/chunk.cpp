@@ -167,12 +167,6 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     TChunkTree::Load(context);
 
     using NYT::Load;
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::DropProtosFromChunk) {
-        TChunkInfo chunkInfo;
-        Load(context, chunkInfo);
-        SetDiskSpace(chunkInfo.disk_space());
-    }
 
     Load(context, ChunkMeta_);
 
@@ -181,16 +175,10 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     SetReadQuorum(Load<i8>(context));
     SetWriteQuorum(Load<i8>(context));
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::ReplicaLagLimit) {
-        LogReplicaLagLimit_ = Load<ui8>(context);
-    } else {
-        SetReplicaLagLimit(MaxReplicaLagLimit);
-    }
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::DropProtosFromChunk) {
-        SetDiskSpace(Load<i64>(context));
-    }
+
+    Load(context, LogReplicaLagLimit_);
+
+    SetDiskSpace(Load<i64>(context));
 
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
@@ -204,8 +192,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     ExpirationTime_ = Load<TInstant>(context);
 
     if (Load<bool>(context)) {
-        auto* data = MutableReplicasData();
-        data->Load(context, IsErasure());
+        MutableReplicasData()->Load(context);
     }
 
     Load(context, ExportCounter_);
@@ -217,10 +204,8 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
             [] (auto data) { return data.RefCounter != 0; }));
     }
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::AllyReplicas) {
-        Load(context, EndorsementRequired_);
-    }
+    Load(context, EndorsementRequired_);
+
     // COMPAT(shakurov)
     if (context.GetVersion() >= EMasterReign::Crp) {
         Load(context, ConsistentReplicaPlacementHash_);
@@ -752,39 +737,15 @@ TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeen
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Load(TLoadContext& context, bool isErasure)
+void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Load(TLoadContext& context)
 {
     using NYT::Load;
 
     Load(context, StoredReplicas);
     Load(context, CachedReplicas);
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::SpecializedReplicasData) {
-        std::array<TNodeId, OldLastSeenReplicaCount> lastSeenReplicas;
-        Load(context, lastSeenReplicas);
-        int currentLastSeenReplicaIndex;
-        Load(context, currentLastSeenReplicaIndex);
-        if (isErasure) {
-            YT_VERIFY(LastSeenReplicaCount == OldLastSeenReplicaCount);
-            for (int index = 0; index < static_cast<int>(LastSeenReplicaCount); ++index) {
-                LastSeenReplicas[index] = lastSeenReplicas[index];
-            }
-        } else {
-            YT_VERIFY(LastSeenReplicaCount <= OldLastSeenReplicaCount);
-            for (int index = 0; index < static_cast<int>(LastSeenReplicaCount); ++index) {
-                currentLastSeenReplicaIndex = (currentLastSeenReplicaIndex + OldLastSeenReplicaCount - 1) % OldLastSeenReplicaCount;
-                LastSeenReplicas[LastSeenReplicaCount - index - 1] = lastSeenReplicas[currentLastSeenReplicaIndex];
-            }
-        }
-        CurrentLastSeenReplicaIndex = 0;
-    } else {
-        Load(context, LastSeenReplicas);
-        Load(context, CurrentLastSeenReplicaIndex);
-    }
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::AllyReplicas) {
-        Load(context, ApprovedReplicaCount);
-    }
+    Load(context, LastSeenReplicas);
+    Load(context, CurrentLastSeenReplicaIndex);
+    Load(context, ApprovedReplicaCount);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
