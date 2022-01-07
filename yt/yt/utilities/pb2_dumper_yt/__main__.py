@@ -28,17 +28,17 @@ if __name__ == "__main__":
     parser.add_argument("--fake-dependency")
     args = parser.parse_args()
 
-    PREFIX = "/py_modules/"
+    PREFIX = "resfs/file/py/"
 
     to_dump = {}
     for key, content in resource.iteritems():
         # Example of resource name:
-        #   /py_modules/yt.core.misc.proto.error_pb2
+        #   /resfs/file/py/yt/core/misc/proto/error_pb2.py
         if not key.startswith(PREFIX):
             continue
-        module_name = key[len(PREFIX):]
-        if any(module_name.startswith(p) for p in ["yt_proto."]):
-            to_dump[module_name] = content
+        module_path = key[len(PREFIX):]
+        if any(module_path.startswith(p) for p in ["yt_proto/"]) and module_path.endswith(".py"):
+            to_dump[module_path] = content
 
     top_level_entries_created_by_us = set()
 
@@ -47,25 +47,22 @@ if __name__ == "__main__":
         if os.path.exists(path):
             rmrf(path)
 
-    for module_name, content in to_dump.iteritems():
-        module_matches_filter = not args.filter or any(re.match(f, module_name) for f in args.filter)
+    for module_path, content in to_dump.items():
+        module_matches_filter = not args.filter or any(re.match(f, module_path.replace("/", ".")) for f in args.filter)
         if not module_matches_filter:
             continue
-        module_path = module_name.split(".")
+        module_parts = module_path.split("/")
         assert module_path
-        if module_path[0] == "yt_proto":
-            pass
-        else:
-            raise RuntimeError("Unexpected module: {0}".format(module_name))
-        module_path[-1] += ".py"
+        if module_parts[0] != "yt_proto":
+            raise RuntimeError("Unexpected module: {0}".format(module_path))
 
         curpath = args.output_directory
-        for e in module_path[:-1]:
+        for e in module_parts[:-1]:
             curpath = os.path.join(curpath, e)
             if not os.path.exists(curpath):
                 os.mkdir(curpath)
                 with open(os.path.join(curpath, "__init__.py"), "w"):
                     pass
 
-        with open(os.path.join(curpath, module_path[-1]), "w") as outf:
+        with open(os.path.join(curpath, module_parts[-1]), "wb") as outf:
             outf.write(content)
