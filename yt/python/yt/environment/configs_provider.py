@@ -1183,6 +1183,9 @@ def get_at(config, path, default_value=None):
     return config
 
 def init_singletons(config, fqdn, name, process_tags={}):
+    set_at(config, "yp_service_discovery", {
+        "enable": False,
+    })
     set_at(config, "address_resolver/localhost_fqdn", fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
 

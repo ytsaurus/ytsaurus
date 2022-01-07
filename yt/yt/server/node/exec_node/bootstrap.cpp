@@ -246,7 +246,9 @@ private:
         JobProxyConfigTemplate_->FiberStackPoolSizes = GetConfig()->FiberStackPoolSizes;
         JobProxyConfigTemplate_->AddressResolver = GetConfig()->AddressResolver;
         JobProxyConfigTemplate_->RpcDispatcher = GetConfig()->RpcDispatcher;
+        JobProxyConfigTemplate_->YPServiceDiscovery = GetConfig()->YPServiceDiscovery;
         JobProxyConfigTemplate_->ChunkClientDispatcher = GetConfig()->ChunkClientDispatcher;
+
         JobProxyConfigTemplate_->JobThrottler = GetConfig()->JobThrottler;
 
         JobProxyConfigTemplate_->ClusterConnection = CloneYsonSerializable(GetConfig()->ClusterConnection);

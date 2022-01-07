@@ -17,6 +17,8 @@ class TServiceDiscoveryConfig
     , public TAsyncExpiringCacheConfig
 {
 public:
+    bool Enable;
+
     //! Provider endpoint.
     TString Fqdn;
     int GrpcPort;
