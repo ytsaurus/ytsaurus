@@ -773,6 +773,7 @@ class YTInstance(object):
             if self._started:
                 logger.warning("{0} (pid: {1}, working directory: {2}) is already terminated with exit code {3}".format(
                                name, proc.pid, os.path.join(self.path, name), proc.returncode))
+                self._process_stderrs(name)
             return
 
         def safe_kill(kill):
