@@ -6,6 +6,9 @@ namespace NYT::NServiceDiscovery::NYP {
 
 TServiceDiscoveryConfig::TServiceDiscoveryConfig()
 {
+    RegisterParameter("enable", Enable)
+        .Default(true);
+
     RegisterParameter("fqdn", Fqdn)
         .Default("sd.yandex.net");
     RegisterParameter("grpc_port", GrpcPort)

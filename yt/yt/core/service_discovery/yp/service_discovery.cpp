@@ -303,6 +303,9 @@ private:
 
 IServiceDiscoveryPtr CreateServiceDiscovery(TServiceDiscoveryConfigPtr config)
 {
+    if (!config->Enable) {
+        return nullptr;
+    }
     return New<TServiceDiscovery>(std::move(config));
 }
 
