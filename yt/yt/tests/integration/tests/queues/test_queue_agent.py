@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (authors, get, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
-                         insert_rows, remove)
+                         insert_rows, delete_rows, remove)
 
 from yt.common import YtError
 
@@ -25,15 +25,30 @@ class TestQueueAgent(YTEnvSetup):
                 "refresh_time": 0,
             },
         },
+        "queue_agent": {
+            "poll_period": 100,
+        }
     }
 
     QUEUE_TABLE_SCHEMA = [
         {"name": "cluster", "type": "string", "sort_order": "ascending"},
         {"name": "path", "type": "string", "sort_order": "ascending"},
+        {"name": "row_revision", "type": "uint64"},
         {"name": "revision", "type": "uint64"},
         {"name": "object_type", "type": "string"},
         {"name": "dynamic", "type": "boolean"},
         {"name": "sorted", "type": "boolean"},
+    ]
+
+    CONSUMER_TABLE_SCHEMA = [
+        {"name": "cluster", "type": "string", "sort_order": "ascending"},
+        {"name": "path", "type": "string", "sort_order": "ascending"},
+        {"name": "row_revision", "type": "uint64"},
+        {"name": "revision", "type": "uint64"},
+        {"name": "target_cluster", "type": "string"},
+        {"name": "target_path", "type": "string"},
+        {"name": "object_type", "type": "string"},
+        {"name": "treat_as_consumer", "type": "boolean"},
     ]
 
     def _queue_agent_orchid_path(self):
@@ -71,85 +86,160 @@ class TestQueueAgent(YTEnvSetup):
             raise self._get_latest_poll_error()
 
     def _get_queues(self):
+        self._wait_fresh_poll()
         return get(self._queue_agent_orchid_path() + "/queue_agent/queues")
+
+    def _get_consumers(self):
+        self._wait_fresh_poll()
+        return get(self._queue_agent_orchid_path() + "/queue_agent/consumers")
+
+    def _get_queue(self, queue_id):
+        queues = self._get_queues()
+        assert queue_id in queues
+        return queues[queue_id]
+
+    def _get_consumer(self, consumer_id):
+        consumers = self._get_consumers()
+        assert consumer_id in consumers
+        return consumers[consumer_id]
+
+    def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
+        sync_create_cells(1)
+        create("table",
+               "//sys/queue_agents/queues",
+               attributes={"dynamic": True, "schema": queue_table_schema},
+               force=True)
+        sync_mount_table("//sys/queue_agents/queues")
+        create("table",
+               "//sys/queue_agents/consumers",
+               attributes={"dynamic": True, "schema": consumer_table_schema},
+               force=True)
+        sync_mount_table("//sys/queue_agents/consumers")
+
+    def _drop_tables(self):
+        remove("//sys/queue_agents/queues", force=True)
+        remove("//sys/queue_agents/consumers", force=True)
 
     @authors("max42")
     def test_polling_loop(self):
-        sync_create_cells(1)
-
-        remove("//sys/queue_agents/queues", force=True)
+        self._drop_tables()
 
         assert_yt_error(self._get_fresh_poll_error(), "has no child with key")
 
         wrong_schema = copy.deepcopy(self.QUEUE_TABLE_SCHEMA)
         wrong_schema[-1]["type"] = "int64"
-        create("table", "//sys/queue_agents/queues", attributes={"dynamic": True, "schema": wrong_schema}, force=True)
-        sync_mount_table("//sys/queue_agents/queues")
+        self._prepare_tables(queue_table_schema=wrong_schema)
 
         assert_yt_error(self._get_fresh_poll_error(), "Row range schema is incompatible with queue table row schema")
 
-        create("table", "//sys/queue_agents/queues", attributes={"dynamic": True, "schema": self.QUEUE_TABLE_SCHEMA},
-               force=True)
-        sync_mount_table("//sys/queue_agents/queues")
+        self._prepare_tables()
 
         self._validate_no_poll_error()
 
     @authors("max42")
-    def test_controllers(self):
-        sync_create_cells(1)
-
-        create("table", "//sys/queue_agents/queues", attributes={"dynamic": True, "schema": self.QUEUE_TABLE_SCHEMA},
-               force=True)
-        sync_mount_table("//sys/queue_agents/queues")
+    def test_queue_state(self):
+        self._prepare_tables()
 
         self._wait_fresh_poll()
         queues = self._get_queues()
         assert len(queues) == 0
 
-        def get_queue(queue_id):
-            self._wait_fresh_poll()
-            queues = self._get_queues()
-            assert queue_id in queues
-            return queues[queue_id]
-
+        # Missing row revision.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q"}])
-        queue = get_queue("primary://tmp/q")
+        queue = self._get_queue("primary://tmp/q")
         assert_yt_error(YtError.from_dict(queue["error"]), "Queue is not in-sync yet")
         assert "type" not in queue
 
+        # Missing object type.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "revision": YsonUint64(1234)}],
+                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(1234)}],
                     update=True)
-        queue = get_queue("primary://tmp/q")
-        assert_yt_error(YtError.from_dict(queue["error"]), "Queue object type is not known yet")
+        queue = self._get_queue("primary://tmp/q")
+        assert_yt_error(YtError.from_dict(queue["error"]), "Queue is not in-sync yet")
         assert "type" not in queue
 
+        # Wrong object type.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "revision": YsonUint64(2345),
+                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(2345),
                       "object_type": "map_node"}],
                     update=True)
-        queue = get_queue("primary://tmp/q")
+        queue = self._get_queue("primary://tmp/q")
         assert_yt_error(YtError.from_dict(queue["error"]), 'Invalid queue object type "map_node"')
+
+        # Sorted dynamic table.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "revision": YsonUint64(3456),
+                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(3456),
                       "object_type": "table", "dynamic": True, "sorted": True}],
                     update=True)
-        queue = get_queue("primary://tmp/q")
+        queue = self._get_queue("primary://tmp/q")
         assert_yt_error(YtError.from_dict(queue["error"]), "Only ordered dynamic tables are supported as queues")
 
+        # Proper ordered dynamic table.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "revision": YsonUint64(4567), "object_type": "table",
+                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
                       "dynamic": True, "sorted": False}],
                     update=True)
-        queue = get_queue("primary://tmp/q")
+        queue = self._get_queue("primary://tmp/q")
         assert "error" not in queue
         assert queue["type"] == "ordered_dynamic_table"
 
+        # Switch back to sorted dynamic table.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "revision": YsonUint64(5678), "object_type": "table",
+                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(5678), "object_type": "table",
                       "dynamic": False, "sorted": False}],
                     update=True)
-        queue = get_queue("primary://tmp/q")
+        queue = self._get_queue("primary://tmp/q")
         assert_yt_error(YtError.from_dict(queue["error"]), "Only ordered dynamic tables are supported as queues")
         assert "type" not in queue
+
+        # Remove row; queue should be unregistered.
+        delete_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
+
+        queues = self._get_queues()
+        assert len(queues) == 0
+
+    @authors("max42")
+    def test_consumer_state(self):
+        self._prepare_tables()
+
+        self._wait_fresh_poll()
+        queues = self._get_queues()
+        consumers = self._get_consumers()
+        assert len(queues) == 0
+        assert len(consumers) == 0
+
+        # Missing row revision.
+        insert_rows("//sys/queue_agents/consumers",
+                    [{"cluster": "primary", "path": "//tmp/c"}])
+        consumer = self._get_consumer("primary://tmp/c")
+        assert_yt_error(YtError.from_dict(consumer["error"]), "Consumer is not in-sync yet")
+        assert "target" not in consumer
+
+        # Missing target.
+        insert_rows("//sys/queue_agents/consumers",
+                    [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(1234)}],
+                    update=True)
+        consumer = self._get_consumer("primary://tmp/c")
+        assert_yt_error(YtError.from_dict(consumer["error"]), "Consumer is missing target")
+        assert "target" not in consumer
+
+        # Unregistered target queue.
+        insert_rows("//sys/queue_agents/consumers",
+                    [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(2345),
+                      "target_cluster": "primary", "target_path": "//tmp/q"}],
+                    update=True)
+        consumer = self._get_consumer("primary://tmp/c")
+        assert_yt_error(YtError.from_dict(consumer["error"]), 'Target queue "primary://tmp/q" is not registered')
+
+        # Register target queue.
+        insert_rows("//sys/queue_agents/queues",
+                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
+                      "dynamic": True, "sorted": False}],
+                    update=True)
+        queue = self._get_queue("primary://tmp/q")
+        assert "error" not in queue
+        assert queue["type"] == "ordered_dynamic_table"
+
+        consumer = self._get_consumer("primary://tmp/c")
+        assert "error" not in consumer

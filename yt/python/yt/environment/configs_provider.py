@@ -397,8 +397,7 @@ def _build_queue_agent_configs(master_connection_configs, clock_connection_confi
         config = default_config.get_queue_agent_config()
         config["logging"] = _init_logging(logs_dir,
                                           "queue-agent-" + str(i),
-                                          yt_config,
-                                          log_errors_to_stderr=True)
+                                          yt_config)
         config["cluster_connection"] = \
             _build_cluster_connection_config(
                 yt_config,

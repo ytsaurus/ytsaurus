@@ -12,19 +12,22 @@ class TQueueControllerBase
 {
 protected:
     TQueueControllerBase(
-        TQueueId queueId,
+        TCrossClusterReference queueRef,
         TQueueTableRow queueRow,
+        THashMap<TCrossClusterReference, TConsumerTableRow> consumerRefToRow,
         IInvokerPtr invoker)
-        : QueueId_(std::move(queueId))
+        : QueueRef_(std::move(queueRef))
         , QueueRow_(std::move(queueRow))
+        , ConsumerRefToRow_(std::move(consumerRefToRow))
         , Invoker_(std::move(invoker))
-        , Logger(QueueAgentLogger.WithTag("QueueId: %Qv", QueueId_))
+        , Logger(QueueAgentLogger.WithTag("Queue: %Qv", QueueRef_))
     {
         YT_LOG_INFO("Queue controller instantiated");
     }
 
-    TQueueId QueueId_;
+    TCrossClusterReference QueueRef_;
     TQueueTableRow QueueRow_;
+    THashMap<TCrossClusterReference, TConsumerTableRow> ConsumerRefToRow_;
     IInvokerPtr Invoker_;
 
     NLogging::TLogger Logger;
@@ -38,14 +41,26 @@ protected:
             .Item("row").Value(QueueRow_);
     }
 
+    void BuildConsumerOrchid(const TCrossClusterReference& consumerRef, TFluentMap fluent) const override
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        fluent
+            .Item("row").Value(GetOrCrash(ConsumerRefToRow_, consumerRef));
+    }
+
     void Start() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_LOG_INFO("Queue controller started");
     }
 
     TFuture<void> Stop() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_LOG_INFO("Queue controller stopped");
 
         return VoidFuture;
     }
@@ -65,12 +80,14 @@ class TOrderedDynamicTableController
 {
 public:
     TOrderedDynamicTableController(
-        TQueueId queueId,
+        TCrossClusterReference queueRef,
         TQueueTableRow queueRow,
+        THashMap<TCrossClusterReference, TConsumerTableRow> consumerRefToRow,
         IInvokerPtr invoker)
         : TQueueControllerBase(
-            std::move(queueId),
+            std::move(queueRef),
             std::move(queueRow),
+            std::move(consumerRefToRow),
             std::move(invoker))
     { }
 
@@ -85,14 +102,19 @@ DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
 ////////////////////////////////////////////////////////////////////////////////
 
 IQueueControllerPtr CreateQueueController(
-    TQueueId queueId,
+    TCrossClusterReference queueRef,
     EQueueType queueType,
     TQueueTableRow queueRow,
+    THashMap<TCrossClusterReference, TConsumerTableRow> consumerRefToRow,
     IInvokerPtr invoker)
 {
     switch (queueType) {
         case EQueueType::OrderedDynamicTable:
-            return New<TOrderedDynamicTableController>(std::move(queueId), std::move(queueRow), std::move(invoker));
+            return New<TOrderedDynamicTableController>(
+                std::move(queueRef),
+                std::move(queueRow),
+                std::move(consumerRefToRow),
+                std::move(invoker));
         default:
             YT_ABORT();
     }

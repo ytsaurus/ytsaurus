@@ -37,19 +37,46 @@ private:
     const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
 
     const TQueueTablePtr QueueTable_;
+    const TConsumerTablePtr ConsumerTable_;
 
     struct TQueue
     {
+        //! Row revision of a queue row corresponding to this object.
+        TRowRevision RowRevision = NullRowRevision;
+
         //! If set, defines the reason why this queue is not functioning properly.
+        //! Invariant: either #Error.IsOK() or #Controller == nullptr.
         TError Error;
-        //! Non-null iff Error.IsOK().
+
+        //! Queue controller that does all background activity.
         IQueueControllerPtr Controller;
-        //! Revision of a queue row, for which the #Controller is created.
-        NHydra::TRevision Revision = NHydra::NullRevision;
+
+        //! If #Error.IsOK(), contains the deduced type of a queue.
+        EQueueType QueueType = EQueueType::Null;
+
+        //! Increments of the consumer rows, for which the controller was created.
+        THashMap<TCrossClusterReference, TRowRevision> ConsumerRowRevisions;
+
+        //! Properly stops #Controller if it is set and resets it.
+        void Reset();
     };
 
-    using TQueueMap = THashMap<TQueueId, TQueue>;
+    using TQueueMap = THashMap<TCrossClusterReference, TQueue>;
     TQueueMap Queues_;
+
+    struct TConsumer
+    {
+        //! Row revision of a consumer row corresponding to this object.
+        TRowRevision RowRevision = NullRowRevision;
+
+        //! If set, defines the reason why this consumer is not functioning properly.
+        TError Error;
+        //! Target cross-cluster reference.
+        std::optional<TCrossClusterReference> Target;
+    };
+
+    using TConsumerMap = THashMap<TCrossClusterReference, TConsumer>;
+    TConsumerMap Consumers_;
 
     //! Latest non-trivial poll iteration error.
     TError LatestPollError_ = TError() << TErrorAttribute("poll_index", -1);
@@ -65,11 +92,6 @@ private:
 
     //! One iteration of state polling and queue/consumer in-memory state updating.
     void Poll();
-
-    //! Called for each polled queue row from state table.
-    void ProcessQueueRow(const TQueueTableRow& row);
-    //! Called for each queue that does not have a corresponding row in the state table.
-    void UnregisterQueue(const TQueueId& queue);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgent)
