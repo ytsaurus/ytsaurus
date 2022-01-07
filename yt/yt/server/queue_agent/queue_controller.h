@@ -36,6 +36,10 @@ public:
      *  \note Thread affinity: controller invoker.
      */
     virtual void BuildOrchid(NYTree::TFluentMap fluent) const = 0;
+    /*!
+     *  \note Thread affinity: controller invoker.
+     */
+    virtual void BuildConsumerOrchid(const TCrossClusterReference& consumerRef, NYTree::TFluentMap fluent) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueueController)
@@ -43,9 +47,10 @@ DEFINE_REFCOUNTED_TYPE(IQueueController)
 ////////////////////////////////////////////////////////////////////////////////
 
 IQueueControllerPtr CreateQueueController(
-    TQueueId queueId,
+    TCrossClusterReference queueRef,
     EQueueType queueType,
-    TQueueTableRow row,
+    TQueueTableRow queueRow,
+    THashMap<TCrossClusterReference, TConsumerTableRow> consumerRefToRow,
     IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
