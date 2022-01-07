@@ -7,7 +7,7 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/misc/proc.h>
-#include <yt/yt/core/misc/mpsc_queue.h>
+#include <yt/yt/core/misc/relaxed_mpsc_queue.h>
 
 #include <yt/yt/core/concurrency/notification_handle.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -249,10 +249,10 @@ private:
         NProfiling::TWallTimer Timer;
         TDelayedExecutorCookie TimeoutCookie;
 
-        TMpscQueueHook QueueHook;
+        TRelaxedMpscQueueHook QueueHook;
     };
 
-    using TNameRequestQueue = TIntrusiveMpscQueue<TNameRequest, &TNameRequest::QueueHook>;
+    using TNameRequestQueue = TRelaxedIntrusiveMpscQueue<TNameRequest, &TNameRequest::QueueHook>;
     TNameRequestQueue Queue_;
 
 #ifdef YT_DNS_RESOLVER_USE_EPOLL

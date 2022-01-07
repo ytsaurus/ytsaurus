@@ -1,15 +1,15 @@
-#include "mpsc_queue.h"
+#include "relaxed_mpsc_queue.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMpscQueueBase::TMpscQueueBase()
+TRelaxedMpscQueueBase::TRelaxedMpscQueueBase()
     : Head_(&Stub_)
     , Tail_(&Stub_)
 { }
 
-TMpscQueueBase::~TMpscQueueBase()
+TRelaxedMpscQueueBase::~TRelaxedMpscQueueBase()
 {
     // Check that queue is empty. Derived classes must ensure that the queue is empty.
     YT_VERIFY(Head_ == Tail_);
@@ -17,14 +17,14 @@ TMpscQueueBase::~TMpscQueueBase()
     YT_VERIFY(!Head_.load()->Next.load());
 }
 
-void TMpscQueueBase::EnqueueImpl(TMpscQueueHook* node) noexcept
+void TRelaxedMpscQueueBase::EnqueueImpl(TRelaxedMpscQueueHook* node) noexcept
 {
     node->Next.store(nullptr, std::memory_order_release);
     auto* prev = Head_.exchange(node, std::memory_order_acq_rel);
     prev->Next.store(node, std::memory_order_release);
 }
 
-TMpscQueueHook* TMpscQueueBase::TryDequeueImpl() noexcept
+TRelaxedMpscQueueHook* TRelaxedMpscQueueBase::TryDequeueImpl() noexcept
 {
     auto* tail = Tail_;
     auto* next = tail->Next.load(std::memory_order_acquire);

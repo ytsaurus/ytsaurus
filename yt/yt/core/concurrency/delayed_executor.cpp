@@ -4,7 +4,7 @@
 #include "thread.h"
 #include "private.h"
 
-#include <yt/yt/core/misc/mpsc_queue.h>
+#include <yt/yt/core/misc/relaxed_mpsc_queue.h>
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/proc.h>
 
@@ -279,8 +279,8 @@ private:
         std::set<TDelayedExecutorEntryPtr, TDelayedExecutorEntry::TComparer> ScheduledEntries_;
 
         //! Enqueued from any thread, dequeued from DelayedPoller thread.
-        TMpscQueue<TDelayedExecutorEntryPtr> SubmitQueue_;
-        TMpscQueue<TDelayedExecutorEntryPtr> CancelQueue_;
+        TRelaxedMpscQueue<TDelayedExecutorEntryPtr> SubmitQueue_;
+        TRelaxedMpscQueue<TDelayedExecutorEntryPtr> CancelQueue_;
 
 #if defined(USE_TIMERFD)
         struct TMutexLocking

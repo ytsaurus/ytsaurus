@@ -9,7 +9,7 @@
 #include "thread.h"
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/mpsc_queue.h>
+#include <yt/yt/core/misc/relaxed_mpsc_queue.h>
 #include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/actions/invoker_util.h>
@@ -395,7 +395,7 @@ private:
         moodycamel::ProducerToken PollerEventQueueToken_;
         moodycamel::ProducerToken PollerRetryQueueToken_;
 
-        TMpscQueue<IPollablePtr> UnregisterQueue_;
+        TRelaxedMpscQueue<IPollablePtr> UnregisterQueue_;
         std::vector<IPollablePtr> UnregisterList_;
 
         std::atomic<bool> RetryScheduled_ = false;
@@ -621,7 +621,7 @@ private:
         moodycamel::ConsumerToken RetryQueueToken_;
         moodycamel::ConsumerToken PollerEventQueueToken_;
 
-        TMpscQueue<IPollablePtr> UnregisterQueue_;
+        TRelaxedMpscQueue<IPollablePtr> UnregisterQueue_;
 
         std::atomic<bool> Dying_ = false;
 

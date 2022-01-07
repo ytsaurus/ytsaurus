@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/mpsc_queue.h>
+#include <yt/yt/core/misc/relaxed_mpsc_queue.h>
 
 #include <thread>
 #include <array>
@@ -12,54 +12,37 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TMpscQueueTest, SingleThreaded1)
+struct TIntNode
 {
-    TMpscQueue<int> queue;
+    int Value;
+    TRelaxedMpscQueueHook Hook;
 
-    queue.Enqueue(1);
-    queue.Enqueue(2);
-    queue.Enqueue(3);
-
-    int value;
-
-    EXPECT_TRUE(queue.TryDequeue(&value));
-    EXPECT_EQ(1, value);
-
-    EXPECT_TRUE(queue.TryDequeue(&value));
-    EXPECT_EQ(2, value);
-
-    EXPECT_TRUE(queue.TryDequeue(&value));
-    EXPECT_EQ(3, value);
-
-    EXPECT_FALSE(queue.TryDequeue(&value));
+    explicit TIntNode(int value)
+        : Value(value)
+    { }
 };
 
-TEST(TMpscQueueTest, SingleThreaded2)
+TEST(TRelaxedMpscQueueTest, SimpleSingleThreaded)
 {
-    TMpscQueue<int> queue;
+    TRelaxedIntrusiveMpscQueue<TIntNode, &TIntNode::Hook> queue;
 
-    queue.Enqueue(1);
-    queue.Enqueue(2);
+    queue.Enqueue(std::make_unique<TIntNode>(1));
+    queue.Enqueue(std::make_unique<TIntNode>(2));
+    queue.Enqueue(std::make_unique<TIntNode>(3));
 
-    int value;
+    auto n1 = queue.TryDequeue();
+    EXPECT_EQ(1, n1->Value);
+    auto n2 = queue.TryDequeue();
+    EXPECT_EQ(2, n2->Value);
+    auto n3 = queue.TryDequeue();
+    EXPECT_EQ(3, n3->Value);
 
-    EXPECT_TRUE(queue.TryDequeue(&value));
-    EXPECT_EQ(1, value);
-
-    queue.Enqueue(3);
-
-    EXPECT_TRUE(queue.TryDequeue(&value));
-    EXPECT_EQ(2, value);
-
-    EXPECT_TRUE(queue.TryDequeue(&value));
-    EXPECT_EQ(3, value);
-
-    EXPECT_FALSE(queue.TryDequeue(&value));
+    EXPECT_FALSE(static_cast<bool>(queue.TryDequeue()));
 };
 
-TEST(TMpscQueueTest, MultiThreaded)
+TEST(TRelaxedMpscQueueTest, SimpleMultiThreaded)
 {
-    TMpscQueue<int> queue;
+    TRelaxedIntrusiveMpscQueue<TIntNode, &TIntNode::Hook> queue;
 
     constexpr int N = 10000;
     constexpr int T = 4;
@@ -69,7 +52,7 @@ TEST(TMpscQueueTest, MultiThreaded)
     auto producer = [&] {
         barrier.ToFuture().Get();
         for (int i = 0; i < N; ++i) {
-            queue.Enqueue(i);
+            queue.Enqueue(std::make_unique<TIntNode>(i));
         }
     };
 
@@ -77,9 +60,12 @@ TEST(TMpscQueueTest, MultiThreaded)
         std::array<int, N> counts{};
         barrier.ToFuture().Get();
         for (int i = 0; i < N * T; ++i) {
-            int item;
-            while (!queue.TryDequeue(&item));
-            counts[item]++;
+            while (true) {
+                if (auto item = queue.TryDequeue()) {
+                    counts[item->Value]++;
+                    break;
+                }
+            }
         }
         for (int i = 0; i < N; ++i) {
             EXPECT_EQ(counts[i], T);

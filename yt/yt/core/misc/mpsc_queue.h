@@ -1,95 +1,49 @@
 #pragma once
 
-#include <yt/yt/core/misc/public.h>
+#include "public.h"
 
-#include <library/cpp/yt/threading/public.h>
+#include <atomic>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-// Multiple-producer single-consumer queue.
-//
-// Based on http://www.1024cores.net/home/lock-free-algorithms/queues/non-intrusive-mpsc-node-based-queue
-//
-////////////////////////////////////////////////////////////////////////////////
 
-struct TMpscQueueHook
-{
-    std::atomic<TMpscQueueHook*> Next = nullptr;
-};
-
-class TMpscQueueBase
-{
-protected:
-    TMpscQueueBase();
-    ~TMpscQueueBase();
-
-    //! Pushes the (detached) node to the queue.
-    //! Node ownership is transferred to the queue.
-    void EnqueueImpl(TMpscQueueHook* node) noexcept;
-
-    //! Pops and detaches a node from the queue. Node ownership is transferred to the caller.
-    //! When null is returned then the queue is either empty or blocked.
-    //! This method does not distinguish between these two cases.
-    TMpscQueueHook* TryDequeueImpl() noexcept;
-
-private:
-    alignas(NThreading::CacheLineSize) TMpscQueueHook Stub_;
-
-    //! Producer-side.
-    alignas(NThreading::CacheLineSize) std::atomic<TMpscQueueHook*> Head_;
-
-    //! Consumer-side.
-    alignas(NThreading::CacheLineSize) TMpscQueueHook* Tail_;
-};
-
-template <class T, TMpscQueueHook T::*Hook>
-class TIntrusiveMpscQueue
-    : public TMpscQueueBase
-{
-public:
-    TIntrusiveMpscQueue() = default;
-    TIntrusiveMpscQueue(const TIntrusiveMpscQueue&) = delete;
-    TIntrusiveMpscQueue(TIntrusiveMpscQueue&&) = delete;
-
-    ~TIntrusiveMpscQueue();
-
-    void Enqueue(std::unique_ptr<T> node);
-    std::unique_ptr<T> TryDequeue();
-
-private:
-    static TMpscQueueHook* HookFromNode(T* node) noexcept;
-    static T* NodeFromHook(TMpscQueueHook* hook) noexcept;
-};
-
+//! Multiple producer single consumer lock-free queue.
+/*!
+ *  Internally implemented by a pair of lock-free stack (head) and
+ *  linked-list of popped-but-not-yet-dequeued items (tail).
+ */
 template <class T>
 class TMpscQueue
 {
 public:
-    TMpscQueue() = default;
     TMpscQueue(const TMpscQueue&) = delete;
-    TMpscQueue(TMpscQueue&&) = delete;
+    void operator=(const TMpscQueue&) = delete;
 
+    TMpscQueue() = default;
+    ~TMpscQueue();
+
+    void Enqueue(const T& value);
     void Enqueue(T&& value);
+
     bool TryDequeue(T* value);
 
+    bool IsEmpty() const;
+
 private:
-    struct TNode
-    {
-        explicit TNode(T&& value);
+    struct TNode;
 
-        T Value;
-        TMpscQueueHook Hook;
-    };
+    std::atomic<TNode*> Head_ = nullptr;
+    TNode* Tail_ = nullptr;
 
-    TIntrusiveMpscQueue<TNode, &TNode::Hook> Impl_;
+    void DoEnqueue(TNode* node);
+    void Destroy(TNode* node);
 };
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
 #define MPSC_QUEUE_INL_H_
 #include "mpsc_queue-inl.h"
 #undef MPSC_QUEUE_INL_H_
-
