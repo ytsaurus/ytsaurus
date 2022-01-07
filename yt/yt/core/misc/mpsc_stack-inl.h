@@ -12,16 +12,14 @@ template <class T>
 struct TMpscStack<T>::TNode
 {
     T Value;
-    TNode* Next;
+    TNode* Next = nullptr;
 
-    TNode(const T& value)
+    explicit TNode(const T& value)
         : Value(value)
-        , Next(nullptr)
     { }
 
-    TNode(T&& value)
+    explicit TNode(T&& value)
         : Value(std::move(value))
-        , Next(nullptr)
     { }
 };
 
