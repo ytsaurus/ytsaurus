@@ -717,7 +717,6 @@ def get_queue_agent_config():
 b"""
 {
     queue_agent = {
-        root = "//sys/queue_agents";
     }
 }
 """)

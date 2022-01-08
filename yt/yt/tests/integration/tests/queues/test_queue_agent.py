@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 
 from yt_commands import (authors, get, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
                          insert_rows, delete_rows, remove)
@@ -10,6 +10,27 @@ import copy
 from yt.yson import YsonUint64
 
 ##################################################################
+
+QUEUE_TABLE_SCHEMA = [
+    {"name": "cluster", "type": "string", "sort_order": "ascending"},
+    {"name": "path", "type": "string", "sort_order": "ascending"},
+    {"name": "row_revision", "type": "uint64"},
+    {"name": "revision", "type": "uint64"},
+    {"name": "object_type", "type": "string"},
+    {"name": "dynamic", "type": "boolean"},
+    {"name": "sorted", "type": "boolean"},
+]
+
+CONSUMER_TABLE_SCHEMA = [
+    {"name": "cluster", "type": "string", "sort_order": "ascending"},
+    {"name": "path", "type": "string", "sort_order": "ascending"},
+    {"name": "row_revision", "type": "uint64"},
+    {"name": "revision", "type": "uint64"},
+    {"name": "target_cluster", "type": "string"},
+    {"name": "target_path", "type": "string"},
+    {"name": "object_type", "type": "string"},
+    {"name": "treat_as_consumer", "type": "boolean"},
+]
 
 
 class TestQueueAgent(YTEnvSetup):
@@ -29,27 +50,6 @@ class TestQueueAgent(YTEnvSetup):
             "poll_period": 100,
         }
     }
-
-    QUEUE_TABLE_SCHEMA = [
-        {"name": "cluster", "type": "string", "sort_order": "ascending"},
-        {"name": "path", "type": "string", "sort_order": "ascending"},
-        {"name": "row_revision", "type": "uint64"},
-        {"name": "revision", "type": "uint64"},
-        {"name": "object_type", "type": "string"},
-        {"name": "dynamic", "type": "boolean"},
-        {"name": "sorted", "type": "boolean"},
-    ]
-
-    CONSUMER_TABLE_SCHEMA = [
-        {"name": "cluster", "type": "string", "sort_order": "ascending"},
-        {"name": "path", "type": "string", "sort_order": "ascending"},
-        {"name": "row_revision", "type": "uint64"},
-        {"name": "revision", "type": "uint64"},
-        {"name": "target_cluster", "type": "string"},
-        {"name": "target_path", "type": "string"},
-        {"name": "object_type", "type": "string"},
-        {"name": "treat_as_consumer", "type": "boolean"},
-    ]
 
     def _queue_agent_orchid_path(self):
         agent_ids = ls("//sys/queue_agents/instances", verbose=False)
@@ -126,7 +126,7 @@ class TestQueueAgent(YTEnvSetup):
 
         assert_yt_error(self._get_fresh_poll_error(), "has no child with key")
 
-        wrong_schema = copy.deepcopy(self.QUEUE_TABLE_SCHEMA)
+        wrong_schema = copy.deepcopy(QUEUE_TABLE_SCHEMA)
         wrong_schema[-1]["type"] = "int64"
         self._prepare_tables(queue_table_schema=wrong_schema)
 
@@ -243,3 +243,82 @@ class TestQueueAgent(YTEnvSetup):
 
         consumer = self._get_consumer("primary://tmp/c")
         assert "error" not in consumer
+
+
+class TestMultipleAgents(YTEnvSetup):
+    NUM_QUEUE_AGENTS = 5
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "cluster_connection": {
+            # Disable cache.
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0,
+            },
+        },
+        "queue_agent": {
+            "poll_period": 100,
+        },
+        "election_manager": {
+            "transaction_timeout": 1000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+        },
+    }
+
+    @authors("max42")
+    def test_leader_election(self):
+        instances = ls("//sys/queue_agents/instances")
+        assert len(instances) == 5
+
+        def collect_leaders(ignore_instances=[]):
+            result = []
+            for instance in instances:
+                if instance in ignore_instances:
+                    continue
+                active = get("//sys/queue_agents/instances/" + instance + "/orchid/queue_agent/active")
+                if active:
+                    result.append(instance)
+            return result
+
+        wait(lambda: len(collect_leaders()) == 1)
+
+        leader = collect_leaders()[0]
+
+        # Check that exactly one queue agent instance is performing polling.
+
+        def validate_leader(leader, ignore_instances=[]):
+            wait(lambda: get("//sys/queue_agents/instances/" + leader + "/orchid/queue_agent/poll_index") > 10)
+
+            for instance in instances:
+                if instance != leader and instance not in ignore_instances:
+                    assert get("//sys/queue_agents/instances/" + instance + "/orchid/queue_agent/poll_index") == 0
+
+        validate_leader(leader)
+
+        # Check that leader host is set in lock transaction attributes.
+
+        locks = get("//sys/queue_agents/leader_lock/@locks")
+        assert len(locks) == 1
+        tx_id = locks[0]["transaction_id"]
+        leader_from_tx_attrs = get("#" + tx_id + "/@host")
+
+        assert leader == leader_from_tx_attrs
+
+        # Test re-election.
+
+        leader_index = get("//sys/queue_agents/instances/" + leader + "/@annotations/yt_env_index")
+
+        with Restarter(self.Env, QUEUE_AGENTS_SERVICE, indexes=[leader_index]):
+            prev_leader = leader
+
+            def reelection():
+                leaders = collect_leaders(ignore_instances=[prev_leader])
+                return len(leaders) == 1 and leaders[0] != prev_leader
+            wait(reelection)
+
+            leader = collect_leaders(ignore_instances=[prev_leader])[0]
+
+            validate_leader(leader, ignore_instances=[prev_leader])

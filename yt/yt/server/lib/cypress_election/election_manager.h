@@ -16,6 +16,8 @@ struct TCypressElectionManagerOptions
     : public TRefCounted
 {
     TString Name;
+    //! Additional attributes for the lock transaction.
+    NYTree::IAttributeDictionaryPtr TransactionAttributes = nullptr;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressElectionManagerOptions)

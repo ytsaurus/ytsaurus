@@ -2,11 +2,7 @@
 
 #include "private.h"
 
-#include "state.h"
-
-#include <yt/yt/ytlib/api/native/public.h>
-
-#include <yt/yt/core/ytree/public.h>
+#include "dynamic_state.h"
 
 namespace NYT::NQueueAgent {
 
@@ -23,21 +19,20 @@ public:
     TQueueAgent(
         TQueueAgentConfigPtr config,
         IInvokerPtr controlInvoker,
-        NApi::NNative::IClientPtr client,
-        TAgentId agentId);
+        TDynamicStatePtr dynamicState);
 
     void Start();
+
+    void Stop();
 
 private:
     const TQueueAgentConfigPtr Config_;
     const IInvokerPtr ControlInvoker_;
+    const TDynamicStatePtr DynamicState_;
     const NConcurrency::TThreadPoolPtr ControllerThreadPool_;
-    const NApi::NNative::IClientPtr Client_;
-    const TAgentId AgentId_;
     const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
 
-    const TQueueTablePtr QueueTable_;
-    const TConsumerTablePtr ConsumerTable_;
+    std::atomic<bool> Active_ = false;
 
     struct TQueue
     {
@@ -54,7 +49,7 @@ private:
         //! If #Error.IsOK(), contains the deduced type of a queue.
         EQueueType QueueType = EQueueType::Null;
 
-        //! Increments of the consumer rows, for which the controller was created.
+        //! Revisions of the consumer rows, for which the controller was created.
         THashMap<TCrossClusterReference, TRowRevision> ConsumerRowRevisions;
 
         //! Properly stops #Controller if it is set and resets it.
@@ -87,11 +82,11 @@ private:
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const;
 
-    //! Creates orchid node at the native cluster.
-    void UpdateOrchidNode();
-
     //! One iteration of state polling and queue/consumer in-memory state updating.
     void Poll();
+
+    //! Stops periodic polling, resets all controllers and erases queue and consumer mappings.
+    void DoStop();
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgent)

@@ -113,6 +113,19 @@ DEFINE_REFCOUNTED_TYPE(TConsumerTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicState
+    : public TRefCounted
+{
+    TQueueTablePtr Queues;
+    TConsumerTablePtr Consumers;
+
+    TDynamicState(NYPath::TYPath root, NApi::IClientPtr client);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicState)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueueAgent
 
 template <>

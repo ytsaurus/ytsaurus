@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/cypress_election/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/monitoring/public.h>
@@ -36,6 +38,8 @@ private:
     const TQueueAgentServerConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
+    TString AgentId_;
+
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     IInvokerPtr ControlInvoker_;
@@ -47,9 +51,16 @@ private:
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeClient_;
 
+    NCypressElection::ICypressElectionManagerPtr ElectionManager_;
+
+    TDynamicStatePtr DynamicState_;
+
     TQueueAgentPtr QueueAgent_;
 
     void DoRun();
+
+    //! Creates instance node with proper annotations and an orchid node at the native cluster.
+    void UpdateCypressNode();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

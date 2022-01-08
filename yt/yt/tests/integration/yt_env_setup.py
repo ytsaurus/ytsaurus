@@ -17,6 +17,7 @@ from yt.environment.helpers import (  # noqa
     CONTROLLER_AGENTS_SERVICE,
     NODES_SERVICE,
     MASTERS_SERVICE,
+    QUEUE_AGENTS_SERVICE,
 )
 
 from yt.test_helpers import wait, WaitFailed

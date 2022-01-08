@@ -30,7 +30,7 @@ constexpr TRowRevision NullRowRevision = 0;
 
 DECLARE_REFCOUNTED_CLASS(TQueueTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerTable)
-DECLARE_REFCOUNTED_CLASS(TStateTracker)
+DECLARE_REFCOUNTED_STRUCT(TDynamicState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
