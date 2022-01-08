@@ -138,9 +138,6 @@ def get_scheduler_config():
 b"""
 {
     cluster_connection = {
-        scheduler = {
-            retry_backoff_time = 100;
-        }
     };
 
     response_keeper = {
@@ -219,7 +216,8 @@ def get_cell_balancer_config():
     return yson.loads(
 b"""
 {
-    cluster_connection = { };
+    cluster_connection = {
+    };
 
     election_manager = {
         lock_path = "//sys/cell_balancers/lock";
@@ -246,14 +244,6 @@ b"""
     };
 
     cluster_connection = {
-        scheduler = {
-            retry_backoff_time = 100;
-        };
-        node_directory_synchronizer = {
-            sync_period = 100;
-            expire_after_successful_update_time = 100;
-            expire_after_failed_update_time = 100;
-        };
     };
 
     controller_agent = {
@@ -356,21 +346,6 @@ b"""
     };
 
     cluster_connection = {
-        transaction_manager = {
-            default_transaction_timeout = 3000;
-        };
-
-        scheduler = {
-            retry_backoff_time = 100;
-        };
-
-        node_directory_synchronizer = {
-            sync_period = 100;
-            expire_after_successful_update_time = 100;
-            expire_after_failed_update_time = 100;
-        };
-
-        enable_udf = %true;
     };
 
     data_node = {
@@ -528,6 +503,10 @@ b"""
             capacity = 1000000;
             shard_count = 1;
         };
+
+        changelogs = {
+            lock_transaction_timeout = 3000;
+        };
     };
 
     query_agent = {
@@ -541,6 +520,7 @@ b"""
     master_connector = {
         heartbeat_period = 100;
         heartbeat_period_splay = 30;
+        lease_transaction_timeout = 3000;
     };
 
     use_new_heartbeats = %true;
@@ -562,18 +542,6 @@ b"""
     };
 
     cluster_connection = {
-        transaction_manager = {
-            default_transaction_timeout = 3000;
-        };
-
-        scheduler = {
-            retry_backoff_time = 100;
-        };
-
-        node_directory_synchronizer = {
-            expire_after_successful_update_time = 100;
-            expire_after_failed_update_time = 100;
-        };
     };
 
     flavors = [
@@ -638,6 +606,11 @@ b"""
             cellars = {
                 chaos = {
                     size = 4;
+                    occupant = {
+                        changelogs = {
+                            lock_transaction_timeout = 3000;
+                        };
+                    };
                 };
             };
         };
@@ -646,6 +619,7 @@ b"""
     master_connector = {
         heartbeat_period = 100;
         heartbeat_period_splay = 30;
+        lease_transaction_timeout = 3000;
     };
 
     use_new_heartbeats = %true;
@@ -657,14 +631,6 @@ def get_master_cache_config():
 b"""
 {
     cluster_connection = {
-        scheduler = {
-            retry_backoff_time = 100;
-        };
-        node_directory_synchronizer = {
-            sync_period = 100;
-            expire_after_successful_update_time = 100;
-            expire_after_failed_update_time = 100;
-        };
     };
 }
 """
@@ -697,8 +663,6 @@ b"""
     };
 
     force_tracing = %true;
-
-    enable_udf = %true;
 
     proxy_discovery_cache = {
         refresh_time = 1000;

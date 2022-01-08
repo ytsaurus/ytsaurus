@@ -512,6 +512,7 @@ private:
     {
         TTransactionStartOptions options;
         options.ParentId = PrerequisiteTransactionId_;
+        options.Timeout = Config_->LockTransactionTimeout;
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Lock for changelog store %v", Path_));
         options.Attributes = std::move(attributes);

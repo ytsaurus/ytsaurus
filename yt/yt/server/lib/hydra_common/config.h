@@ -169,6 +169,7 @@ class TRemoteChangelogStoreConfig
 public:
     NApi::TJournalReaderConfigPtr Reader;
     NApi::TJournalWriterConfigPtr Writer;
+    std::optional<TDuration> LockTransactionTimeout;
 
     TRemoteChangelogStoreConfig()
     {
@@ -176,6 +177,8 @@ public:
             .DefaultNew();
         RegisterParameter("writer", Writer)
             .DefaultNew();
+        RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
+            .Default();
 
         RegisterPreprocessor([&] {
             Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
