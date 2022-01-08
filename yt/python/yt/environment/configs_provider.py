@@ -844,7 +844,9 @@ def _build_native_driver_configs(master_connection_configs,
             tag = secondary_cell_tags[cell_index - 1]
             cell_connection_config = {
                 "primary_master": master_connection_configs[secondary_cell_tags[cell_index - 1]],
-                "master_cell_directory_synchronizer": {"sync_period": None},
+                "master_cell_directory_synchronizer": {
+                    "sync_period": None
+                },
                 "timestamp_provider": {
                     "addresses": _get_timestamp_provider_addresses(
                         yt_config,
@@ -1007,7 +1009,16 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
             "refresh_time": 0
-        }
+        },
+        "scheduler": {
+            "retry_backoff_time": 100
+        },
+        "node_directory_synchronizer": {
+            "sync_period": 100,
+            "expire_after_successful_update_time": 100,
+            "expire_after_failed_update_time": 100,
+        },
+        "upload_transaction_timeout": 5000
     }
 
     update_inplace(cluster_connection["primary_master"], _get_retrying_channel_config())
