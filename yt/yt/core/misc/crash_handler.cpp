@@ -494,8 +494,6 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
     formatter.Reset();
     formatter.AppendString("*** Terminate ***\n");
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-
-    CloseAllDescriptors({});
 }
 #endif
 
