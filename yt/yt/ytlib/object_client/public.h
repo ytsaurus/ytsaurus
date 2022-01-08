@@ -29,6 +29,7 @@ DECLARE_REFCOUNTED_STRUCT(ICachingObjectService)
 
 DEFINE_ENUM(EMasterFeature,
     ((OverlayedJournals)    (0))
+    ((Portals)              (1))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -65,8 +65,10 @@ public:
         , EntryByteRateLimit_(Config_->EntryByteRateLimit)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
-            .SetQueueSizeLimit(10000)
-            .SetConcurrencyLimit(10000));
+            .SetQueueSizeLimit(10'000)
+            .SetConcurrencyLimit(10'000));
+
+        DeclareServerFeature(EMasterFeature::Portals);
     }
 
     void Reconfigure(const TCachingObjectServiceDynamicConfigPtr& config) override
