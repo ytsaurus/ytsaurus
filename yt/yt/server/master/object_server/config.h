@@ -166,7 +166,6 @@ public:
 
     TDuration LocalReadExecutorQuantumDuration;
 
-    //! Sessions processing callback will not be executed more than once in #ProcessSessionsPeriod.
     TDuration ProcessSessionsPeriod;
 
     TDynamicObjectServiceConfig()

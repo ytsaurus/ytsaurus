@@ -76,7 +76,6 @@ b"""
     };
 
     object_service = {
-        process_sessions_period = 1;
         enable_local_read_executor = %true;
     };
 
