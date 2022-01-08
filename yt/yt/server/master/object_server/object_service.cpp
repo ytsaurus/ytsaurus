@@ -163,6 +163,9 @@ public:
             GetNullMemoryUsageTracker(),
             ObjectServerLogger,
             ObjectServerProfiler.WithPrefix("/master_cache")))
+        , ProcessSessionsExecutor_(New<TPeriodicExecutor>(
+            AutomatonInvoker_,
+            BIND(&TObjectService::ProcessSessions, MakeWeak(this))))
         , LocalReadSessionScheduler_(CreateFairScheduler<TExecuteSessionPtr>())
         , AutomatonSessionScheduler_(CreateFairScheduler<TExecuteSessionPtr>())
         , LocalReadCallbackProvider_(New<TLocalReadCallbackProvider>(LocalReadSessionScheduler_))
@@ -197,6 +200,8 @@ public:
         LocalReadExecutor_->Initialize(BIND([epochContext = epochContext] { NObjectServer::SetupEpochContext(epochContext); }));
 
         EnableLocalReadExecutor_ = Config_->EnableLocalReadExecutor;
+
+        ProcessSessionsExecutor_->Start();
     }
 
     TObjectServiceCachePtr GetCache() override
@@ -206,8 +211,10 @@ public:
 
 private:
     const TObjectServiceConfigPtr Config_;
+
     const IInvokerPtr AutomatonInvoker_;
     const TObjectServiceCachePtr Cache_;
+    const TPeriodicExecutorPtr ProcessSessionsExecutor_;
 
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
@@ -248,9 +255,6 @@ private:
     TMpscStack<TExecuteSessionPtr> ReadySessions_;
     TMpscStack<TExecuteSessionInfo> FinishedSessionInfos_;
 
-    std::atomic<bool> ProcessSessionsCallbackEnqueued_ = false;
-    TInstant LastProcessSessionsStart_;
-
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableMutationBoomerangs_ = true;
@@ -268,7 +272,6 @@ private:
     void EnqueueReadySession(TExecuteSessionPtr session);
     void EnqueueFinishedSession(TExecuteSessionInfo sessionInfo);
 ;
-    void EnqueueProcessSessionsCallback();
     void ProcessSessions();
     void FinishSession(const TExecuteSessionInfo& sessionInfo);
 
@@ -2165,6 +2168,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     ScheduleReplyRetryBackoff_ = config->ScheduleReplyRetryBackoff;
 
     LocalReadExecutor_->Reconfigure(config->LocalReadWorkerCount);
+    ProcessSessionsExecutor_->SetPeriod(config->ProcessSessionsPeriod);
 }
 
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
@@ -2172,7 +2176,6 @@ void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
     VERIFY_THREAD_AFFINITY_ANY();
 
     ReadySessions_.Enqueue(std::move(session));
-    EnqueueProcessSessionsCallback();
 }
 
 void TObjectService::EnqueueFinishedSession(TExecuteSessionInfo sessionInfo)
@@ -2181,16 +2184,6 @@ void TObjectService::EnqueueFinishedSession(TExecuteSessionInfo sessionInfo)
 
     if (sessionInfo.EpochCancelableContext) {
         FinishedSessionInfos_.Enqueue(std::move(sessionInfo));
-        EnqueueProcessSessionsCallback();
-    }
-}
-
-void TObjectService::EnqueueProcessSessionsCallback()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (!ProcessSessionsCallbackEnqueued_.exchange(true)) {
-        AutomatonInvoker_->Invoke(BIND(&TObjectService::ProcessSessions, MakeStrong(this)));
     }
 }
 
@@ -2198,18 +2191,8 @@ void TObjectService::ProcessSessions()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto now = TInstant::Now();
-    auto processSessionsPeriod = GetDynamicConfig()->ProcessSessionsPeriod;
-    if (processSessionsPeriod && now < LastProcessSessionsStart_ + processSessionsPeriod) {
-        auto delay = LastProcessSessionsStart_ + processSessionsPeriod - now;
-        TDelayedExecutor::WaitForDuration(delay);
-    }
-
     auto startTime = GetCpuInstant();
     auto deadlineTime = startTime + DurationToCpuDuration(Config_->YieldTimeout);
-
-    ProcessSessionsCallbackEnqueued_.store(false);
-    LastProcessSessionsStart_ = now;
 
     FinishedSessionInfos_.DequeueAll(false, [&] (const TExecuteSessionInfo& sessionInfo) {
         FinishSession(sessionInfo);
@@ -2244,8 +2227,6 @@ void TObjectService::ProcessSessions()
             .Get()
             .ThrowOnError();
     }
-
-    EnqueueProcessSessionsCallback();
 }
 
 void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
