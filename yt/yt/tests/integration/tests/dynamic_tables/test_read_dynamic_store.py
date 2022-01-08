@@ -93,12 +93,6 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
         wait(_wait_func)
 
-    def _get_node_env_id(self, node):
-        for i in range(self.NUM_NODES):
-            if self.Env.get_node_address(i) == node:
-                return i
-        assert False
-
     @authors("ifsmirnov")
     def test_basic_read1(self):
         sync_create_cells(1)
@@ -394,7 +388,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         cell_id = sync_create_cells(1)[0]
         node = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
         set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
-        node_id = self._get_node_env_id(node)
+        node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
 
         self._create_simple_table("//tmp/t", dynamic_store_auto_flush_period=yson.YsonEntity())
         sync_mount_table("//tmp/t")
@@ -421,7 +415,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         sleep(1)
         sync_freeze_table("//tmp/t")
 
-        with Restarter(self.Env, NODES_SERVICE, indexes=[node_id]):
+        with Restarter(self.Env, NODES_SERVICE, indexes=[node_index]):
             op.track()
 
         assert op.get_state() == "completed"
@@ -828,12 +822,6 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
     NUM_SCHEDULERS = 1
     ENABLE_BULK_INSERT = True
 
-    def _get_node_env_id(self, node):
-        for i in range(self.NUM_NODES):
-            if self.Env.get_node_address(i) == node:
-                return i
-        assert False
-
     @pytest.mark.parametrize("sorted", [True, False])
     def test_dynamic_store_id_pool(self, sorted):
         sync_create_cells(1)
@@ -926,7 +914,7 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
         cell_id = sync_create_cells(1)[0]
         node = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
         set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
-        node_id = self._get_node_env_id(node)
+        node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
 
         if sorted:
             self._create_sorted_table("//tmp/t")
@@ -963,7 +951,7 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
         if disturbance_type == "unmount":
             sync_unmount_table("//tmp/t")
 
-        with Restarter(self.Env, NODES_SERVICE, indexes=[node_id]):
+        with Restarter(self.Env, NODES_SERVICE, indexes=[node_index]):
             op.track()
 
         # Stupid testing libs require quadratic time to compare lists

@@ -254,7 +254,7 @@ def _build_master_configs(yt_config,
         for master_index in xrange(yt_config.master_count):
             config = default_config.get_master_config()
 
-            init_singletons(config, yt_config.fqdn, "master", {
+            init_singletons(config, yt_config.fqdn, master_index, "master", {
                 "cell_role": "primary" if cell_index == 0 else "secondary",
                 "master_index": str(master_index),
             })
@@ -330,7 +330,7 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
     for clock_index in xrange(yt_config.clock_count):
         config = default_config.get_clock_config()
 
-        init_singletons(config, yt_config.fqdn, "clock", {"clock_index": str(clock_index)})
+        init_singletons(config, yt_config.fqdn, "clock", clock_index, {"clock_index": str(clock_index)})
 
         config["hydra_manager"] = _get_hydra_manager_config()
 
@@ -424,7 +424,7 @@ def _build_timestamp_provider_configs(yt_config,
     for index in xrange(yt_config.timestamp_provider_count):
         config = default_config.get_timestamp_provider_config()
 
-        init_singletons(config, yt_config.fqdn, "timestamp_provider", {"timestamp_provider_index": str(index)})
+        init_singletons(config, yt_config.fqdn, "timestamp_provider", index, {"timestamp_provider_index": str(index)})
 
         set_at(config, "timestamp_provider/addresses",
                _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_config, None))
@@ -455,7 +455,7 @@ def _build_cell_balancer_configs(yt_config,
     for index in xrange(yt_config.cell_balancer_count):
         config = default_config.get_cell_balancer_config()
 
-        init_singletons(config, yt_config.fqdn, "cell_balancer", {"cell_balancer_index": str(index)})
+        init_singletons(config, yt_config.fqdn, "cell_balancer", index, {"cell_balancer_index": str(index)})
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
@@ -491,7 +491,7 @@ def _build_master_cache_configs(yt_config,
     for index in xrange(yt_config.master_cache_count):
         config = default_config.get_master_cache_config()
 
-        init_singletons(config, yt_config.fqdn, "master_cache", {"master_cache_index": str(index)})
+        init_singletons(config, yt_config.fqdn, "master_cache", index, {"master_cache_index": str(index)})
         config["cluster_connection"] = \
             _build_cluster_connection_config(
                 yt_config,
@@ -527,7 +527,7 @@ def _build_scheduler_configs(scheduler_dirs,
     for index in xrange(yt_config.scheduler_count):
         config = default_config.get_scheduler_config()
 
-        init_singletons(config, yt_config.fqdn, "scheduler", {"scheduler_index": str(index)})
+        init_singletons(config, yt_config.fqdn, "scheduler", index, {"scheduler_index": str(index)})
         config["cluster_connection"] = \
             _build_cluster_connection_config(
                 yt_config,
@@ -562,7 +562,7 @@ def _build_controller_agent_configs(controller_agent_dirs,
     for index in xrange(yt_config.controller_agent_count):
         config = default_config.get_controller_agent_config()
 
-        init_singletons(config, yt_config.fqdn, "controller_agent", {"controller_agent_index": str(index)})
+        init_singletons(config, yt_config.fqdn, "controller_agent", index, {"controller_agent_index": str(index)})
         config["cluster_connection"] = \
             _build_cluster_connection_config(
                 yt_config,
@@ -601,7 +601,7 @@ def _build_node_configs(node_dirs,
     for index in xrange(yt_config.node_count):
         config = default_config.get_node_config()
 
-        init_singletons(config, yt_config.fqdn, "node", {"node_index": str(index)})
+        init_singletons(config, yt_config.fqdn, "node", index, {"node_index": str(index)})
 
         config["addresses"] = [
             ("interconnect", yt_config.fqdn),
@@ -688,7 +688,6 @@ def _build_node_configs(node_dirs,
 
         config["logging"] = _init_logging(logs_dir, "node-{0}".format(index), yt_config, has_structured_logs=True)
 
-        job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
         log_name = "job_proxy-{0}-slot-%slot_index%".format(index)
         set_at(
             config,
@@ -744,7 +743,7 @@ def _build_chaos_node_configs(chaos_node_dirs,
     for index in xrange(yt_config.chaos_node_count):
         config = default_config.get_chaos_node_config()
 
-        init_singletons(config, yt_config.fqdn, "chaos_node", {"chaos_node_index": str(index)})
+        init_singletons(config, yt_config.fqdn, "chaos_node", index, {"chaos_node_index": str(index)})
 
         config["addresses"] = [
             ("interconnect", yt_config.fqdn),
@@ -808,7 +807,7 @@ def _build_http_proxy_config(proxy_dir,
 
         fqdn = "{0}:{1}".format(yt_config.fqdn, proxy_config["port"])
         set_at(proxy_config, "coordinator/public_fqdn", fqdn)
-        init_singletons(proxy_config, yt_config.fqdn, "http_proxy", {"http_proxy_index": str(index)})
+        init_singletons(proxy_config, yt_config.fqdn, "http_proxy", index, {"http_proxy_index": str(index)})
 
         proxy_config["logging"] = _init_logging(logs_dir, "http-proxy-{}".format(index), yt_config,
                                                 has_structured_logs=True)
@@ -1192,12 +1191,13 @@ def get_at(config, path, default_value=None):
         config = config[part]
     return config
 
-def init_singletons(config, fqdn, name, process_tags={}):
+def init_singletons(config, fqdn, name, index, process_tags={}):
     set_at(config, "yp_service_discovery", {
         "enable": False,
     })
     set_at(config, "address_resolver/localhost_fqdn", fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
+    set_at(config, "cypress_annotations/yt_env_index", index)
 
     if "JAEGER_COLLECTOR" in os.environ:
         set_at(config, "jaeger", {
