@@ -134,10 +134,6 @@ using TChunkReplicaIndexList = TCompactVector<int, ChunkReplicaIndexBound>;
 struct TChunkTreeStatistics;
 struct TAggregatedNodeStatistics;
 
-struct TChunkOwnerMergeJobCounterPtrContext;
-template <class T>
-using TChunkOwnerMergeJobCounterPtr = NObjectServer::TObjectPtr<T, TChunkOwnerMergeJobCounterPtrContext>;
-
 DECLARE_REFCOUNTED_CLASS(TJobRegistry)
 DECLARE_REFCOUNTED_CLASS(TJobTracker)
 

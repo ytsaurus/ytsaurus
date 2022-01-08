@@ -174,9 +174,14 @@ public:
         Bootstrap_->GetObjectManager()->UnrefObject(object);
     }
 
+    void FlushObjectUnrefs() override
+    {
+        NObjectServer::FlushObjectUnrefs();
+    }
+
     int GetObjectRefCounter(TObject* object) override
     {
-        return object->GetObjectRefCounter(/*flushUnrefs*/ true);
+        return object->GetObjectRefCounter();
     }
 
     TChunkList* CreateChunkList() override

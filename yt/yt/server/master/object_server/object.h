@@ -61,15 +61,15 @@ public:
     explicit TEpochRefCounter(TObjectId id);
 
     int GetValue() const;
-    int UpdateValue(int delta);
+    int Increment(int delta);
 
     void Persist(const TStreamPersistenceContext& context);
 
 private:
     int ShardIndex_;
 
-    int RefCounter_ = 0;
-    TEpoch RefCounterEpoch_ = 0;
+    int Value_ = 0;
+    TEpoch Epoch_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,7 +168,7 @@ public:
     //! Returns the current strong reference counter.
     /*!
      *  \param flushUnrefs If |false| then the returned value may be inaccurate due to scheduled unrefs;
-     *  |true| makes it exact but induces side effects and can only be used in mutation.
+     *  |true| makes it exact but induces side effects and can only be used deterministically and in mutation.
      */
     int GetObjectRefCounter(bool flushUnrefs = false) const;
 

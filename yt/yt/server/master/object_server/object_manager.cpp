@@ -1356,7 +1356,7 @@ TObject* TObjectManager::TImpl::CreateObject(
     } catch (const std::exception& ex) {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Failed to fill object attributes (ObjectId: %v)",
             object->GetId());
-        // XXX(babenko): think of better way
+        // TODO(babenko): think of better way
         UnrefObject(object);
         throw;
     }

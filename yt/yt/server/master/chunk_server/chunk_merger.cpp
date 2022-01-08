@@ -1590,7 +1590,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     }
 
     auto* newRootChunkList = chunkReplacer.Finish();
-    YT_VERIFY(newRootChunkList->GetObjectRefCounter() == 1);
+    YT_VERIFY(newRootChunkList->GetObjectRefCounter(/*flushUnrefs*/ true) == 1);
 
     // Change chunk list.
     newRootChunkList->AddOwningNode(chunkOwner);

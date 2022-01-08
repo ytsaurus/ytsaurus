@@ -109,29 +109,29 @@ int TEpochRefCounter::GetValue() const
     auto* shard = &NDetail::EpochRefCounterShards_[ShardIndex_];
     auto guard = Guard(shard->Lock);
 
-    return RefCounterEpoch_ == NDetail::EpochContext->CurrentEpoch
-        ? RefCounter_
+    return Epoch_ == NDetail::EpochContext->CurrentEpoch
+        ? Value_
         : 0;
 }
 
-int TEpochRefCounter::UpdateValue(int delta)
+int TEpochRefCounter::Increment(int delta)
 {
     NDetail::AssertPersistentStateRead();
 
     auto* shard = &NDetail::EpochRefCounterShards_[ShardIndex_];
     auto guard = Guard(shard->Lock);
 
-    YT_ASSERT(RefCounter_ >= 0);
+    YT_ASSERT(Value_ >= 0);
 
     auto currentEpoch = GetCurrentEpoch();
     YT_ASSERT(currentEpoch != TEpoch());
 
-    if (currentEpoch != RefCounterEpoch_) {
-        RefCounter_ = 0;
-        RefCounterEpoch_ = currentEpoch;
+    if (currentEpoch != Epoch_) {
+        Value_ = 0;
+        Epoch_ = currentEpoch;
     }
 
-    auto result = (RefCounter_ += delta);
+    auto result = (Value_ += delta);
     YT_ASSERT(result >= 0);
     return result;
 }
@@ -140,8 +140,8 @@ void TEpochRefCounter::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ShardIndex_);
-    Persist(context, RefCounter_);
-    Persist(context, RefCounterEpoch_);
+    Persist(context, Value_);
+    Persist(context, Epoch_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

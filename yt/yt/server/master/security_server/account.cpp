@@ -493,12 +493,12 @@ int TAccount::GetChunkMergerNodeTraversals() const
 
 void TAccount::IncrementChunkMergerNodeTraversals()
 {
-    ChunkMergerNodeTraversals_.UpdateValue(+1);
+    ChunkMergerNodeTraversals_.Increment(+1);
 }
 
 void TAccount::DecrementChunkMergerNodeTraversals()
 {
-    ChunkMergerNodeTraversals_.UpdateValue(-1);
+    ChunkMergerNodeTraversals_.Increment(-1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

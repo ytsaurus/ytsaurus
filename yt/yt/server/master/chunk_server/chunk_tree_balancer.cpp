@@ -153,6 +153,7 @@ void TChunkTreeBalancer::AppendChild(
         if (std::ssize(lastChild->Children()) < Settings_.MinChunkListSize) {
             YT_ASSERT(lastChild->Statistics().Rank <= 1);
             YT_ASSERT(std::ssize(lastChild->Children()) <= Settings_.MaxChunkListSize);
+            Callbacks_->FlushObjectUnrefs();
             if (Callbacks_->GetObjectRefCounter(lastChild) > 0) {
                 // We want to merge to this chunk list but it is shared.
                 // Copy on write.
@@ -170,7 +171,7 @@ void TChunkTreeBalancer::AppendChild(
         if (child->GetType() == EObjectType::ChunkList) {
             auto* chunkList = child->AsChunkList();
             if (std::ssize(chunkList->Children()) <= Settings_.MaxChunkListSize) {
-                // NB: YT_VERIFY, not YT_ASSERT since GetObjectRefCounter has side effects.
+                Callbacks_->FlushObjectUnrefs();
                 YT_VERIFY(Callbacks_->GetObjectRefCounter(chunkList) > 0);
                 children->push_back(child);
                 return;
@@ -193,7 +194,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
     // We are trying to add the child to the last chunk list.
     auto* lastChunkList = children->back()->AsChunkList();
 
-    // NB: YT_VERIFY, not YT_ASSERT since GetObjectRefCounter has side effects.
+    Callbacks_->FlushObjectUnrefs();
     YT_VERIFY(Callbacks_->GetObjectRefCounter(lastChunkList) == 0);
 
     YT_ASSERT(lastChunkList->Statistics().Rank <= 1);
