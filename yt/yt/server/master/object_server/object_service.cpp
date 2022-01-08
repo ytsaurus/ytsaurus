@@ -173,8 +173,8 @@ public:
         , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
-            .SetQueueSizeLimit(100000)
-            .SetConcurrencyLimit(100000)
+            .SetQueueSizeLimit(100'000)
+            .SetConcurrencyLimit(10'0000)
             .SetCancelable(true)
             .SetInvoker(GetRpcInvoker())
             // NB: Execute request is always replied in heavy RPC invoker, so it should not be
@@ -185,6 +185,7 @@ public:
             .SetHeavy(true));
 
         DeclareServerFeature(EMasterFeature::OverlayedJournals);
+        DeclareServerFeature(EMasterFeature::Portals);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->SubscribeUserCharged(BIND(&TObjectService::OnUserCharged, MakeStrong(this)));
