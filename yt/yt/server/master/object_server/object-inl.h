@@ -60,12 +60,12 @@ inline int TObject::UnrefObject(int count)
 inline int TObject::EphemeralRefObject()
 {
     YT_VERIFY(IsAlive());
-    return EphemeralRefCounter_.UpdateValue(+1);
+    return EphemeralRefCounter_.Increment(+1);
 }
 
 inline int TObject::EphemeralUnrefObject()
 {
-    return EphemeralRefCounter_.UpdateValue(-1);
+    return EphemeralRefCounter_.Increment(-1);
 }
 
 inline int TObject::WeakRefObject()

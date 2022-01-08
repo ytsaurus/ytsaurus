@@ -144,7 +144,6 @@ protected:
     virtual void DoDestroyObject(TImpl* object) noexcept
     {
         // Clear ACD, if any.
-        // XXX(babenko): is this needed?
         if (auto* acd = FindAcd(object)) {
             acd->Clear();
         }

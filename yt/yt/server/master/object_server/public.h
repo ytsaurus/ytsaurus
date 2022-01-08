@@ -69,12 +69,6 @@ DECLARE_REFCOUNTED_CLASS(TMutationIdempotizerConfig)
 
 class TObject;
 
-DEFINE_ENUM(EObjectPtrKind,
-    (Strong)
-    (Weak)
-    (Ephemeral)
-);
-
 template <class T, class C>
 class TObjectPtr;
 

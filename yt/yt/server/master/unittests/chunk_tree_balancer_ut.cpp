@@ -74,6 +74,9 @@ public:
         object->UnrefObject();
     }
 
+    void FlushObjectUnrefs() override
+    { }
+
     int GetObjectRefCounter(NObjectServer::TObject* object) override
     {
         return object->GetObjectRefCounter();
