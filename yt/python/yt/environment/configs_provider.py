@@ -1195,6 +1195,9 @@ def init_singletons(config, fqdn, name, index, process_tags={}):
     set_at(config, "yp_service_discovery", {
         "enable": False,
     })
+    set_at(config, "rpc_dispatcher", {
+        "compression_pool_size": 1,
+    })
     set_at(config, "address_resolver/localhost_fqdn", fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
     set_at(config, "cypress_annotations/yt_env_index", index)
