@@ -1,7 +1,7 @@
 #pragma once
 
 #include "private.h"
-#include "state.h"
+#include "dynamic_state.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 

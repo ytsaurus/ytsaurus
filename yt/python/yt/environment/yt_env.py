@@ -634,6 +634,9 @@ class YTInstance(object):
     def kill_master_caches(self, indexes=None):
         self.kill_service("master_cache", indexes=indexes)
 
+    def kill_queue_agents(self, indexes=None):
+        self.kill_service("queue_agent", indexes=indexes)
+
     def kill_service(self, name, indexes=None):
         with self._lock:
             logger.info("Killing %s", name)
@@ -1094,14 +1097,17 @@ class YTInstance(object):
         def queue_agents_ready():
             self._validate_processes_are_running("queue_agent")
 
-            if not client.exists("//sys/queue_agents/instances"):
-                return False
-            instances = client.list("//sys/queue_agents/instances")
-            if len(instances) != self.yt_config.queue_agent_count:
-                return False
-            for instance in instances:
-                if not client.exists("//sys/queue_agents/instances/" + instance + "/orchid/queue_agent"):
+            try:
+                if not client.exists("//sys/queue_agents/instances"):
                     return False
+                instances = client.list("//sys/queue_agents/instances")
+                if len(instances) != self.yt_config.queue_agent_count:
+                    return False
+                for instance in instances:
+                    if not client.exists("//sys/queue_agents/instances/" + instance + "/orchid/queue_agent"):
+                        return False
+            except:
+                return False
 
             return True
 

@@ -4,8 +4,6 @@
 #include "helpers.h"
 #include "queue_controller.h"
 
-#include <yt/yt/ytlib/api/native/client.h>
-
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -20,7 +18,6 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NHydra;
-using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,27 +26,66 @@ static const auto& Logger = QueueAgentLogger;
 TQueueAgent::TQueueAgent(
     TQueueAgentConfigPtr config,
     IInvokerPtr controlInvoker,
-    NApi::NNative::IClientPtr client,
-    TAgentId agentId)
+    TDynamicStatePtr dynamicState)
     : OrchidService_(IYPathService::FromProducer(BIND(&TQueueAgent::BuildOrchid, MakeWeak(this)))->Via(controlInvoker))
     , Config_(std::move(config))
     , ControlInvoker_(std::move(controlInvoker))
+    , DynamicState_(std::move(dynamicState))
     , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
-    , Client_(std::move(client))
-    , AgentId_(std::move(agentId))
     , PollExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TQueueAgent::Poll, MakeWeak(this)),
         Config_->PollPeriod))
-    , QueueTable_(New<TQueueTable>(Config_->Root, Client_))
-    , ConsumerTable_(New<TConsumerTable>(Config_->Root, Client_))
-{
-    UpdateOrchidNode();
-}
+{ }
 
 void TQueueAgent::Start()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YT_LOG_INFO("Starting queue agent");
+
+    Active_ = true;
+
     PollExecutor_->Start();
+}
+
+void TQueueAgent::Stop()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YT_LOG_INFO("Stopping queue agent");
+
+    YT_VERIFY(WaitFor(BIND(&TQueueAgent::DoStop, MakeWeak(this))
+        .AsyncVia(ControlInvoker_)
+        .Run()).IsOK());
+
+    Active_ = false;
+}
+
+void TQueueAgent::DoStop()
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    YT_LOG_INFO("Stopping polling");
+
+    YT_VERIFY(WaitFor(PollExecutor_->Stop()).IsOK());
+
+    YT_LOG_INFO("Resetting all controllers");
+
+    std::vector<TFuture<void>> stopFutures;
+    for (const auto& [_, queue]: Queues_) {
+        if (queue.Controller) {
+            stopFutures.emplace_back(queue.Controller->Stop());
+        }
+    }
+    YT_VERIFY(WaitFor(AllSucceeded(stopFutures)).IsOK());
+
+    YT_LOG_INFO("Clearing state");
+
+    Queues_.clear();
+    Consumers_.clear();
+
+    YT_LOG_INFO("Queue agent stopped");
 }
 
 void TQueueAgent::BuildOrchid(IYsonConsumer* consumer) const
@@ -61,6 +97,7 @@ void TQueueAgent::BuildOrchid(IYsonConsumer* consumer) const
     auto consumersCopy = Consumers_;
 
     BuildYsonFluently(consumer).BeginMap()
+        .Item("active").Value(Active_.load())
         .Item("queues").DoMapFor(queuesCopy, [&] (TFluentMap fluent, auto pair) {
             auto queueRef = pair.first;
             auto queue = pair.second;
@@ -118,28 +155,6 @@ void TQueueAgent::BuildOrchid(IYsonConsumer* consumer) const
     .EndMap();
 }
 
-void TQueueAgent::UpdateOrchidNode()
-{
-    TCreateNodeOptions options;
-    options.Force = true;
-    options.Recursive = true;
-    options.Attributes = ConvertToAttributes(
-        BuildYsonStringFluently().BeginMap()
-            .Item("remote_addresses").BeginMap()
-                .Item("default").Value(AgentId_)
-            .EndMap()
-        .EndMap());
-
-    auto orchidPath = Format("%v/instances/%v/orchid", Config_->Root, ToYPathLiteral(AgentId_));
-
-    YT_LOG_INFO("Updating orchid node (Path: %Qv)", orchidPath);
-
-    WaitFor(Client_->CreateNode(orchidPath, EObjectType::Orchid, options))
-        .ThrowOnError();
-
-    YT_LOG_INFO("Orchid node updated");
-}
-
 void TQueueAgent::Poll()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -153,8 +168,8 @@ void TQueueAgent::Poll()
 
     YT_LOG_INFO("Polling state tables", PollIndex_);
 
-    auto asyncQueueRows = QueueTable_->Select();
-    auto asyncConsumerRows = ConsumerTable_->Select();
+    auto asyncQueueRows = DynamicState_->Queues->Select();
+    auto asyncConsumerRows = DynamicState_->Consumers->Select();
 
     std::vector<TFuture<void>> futures{asyncQueueRows.AsVoid(), asyncConsumerRows.AsVoid()};
 

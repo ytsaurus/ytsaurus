@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/cypress_election/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/client/ypath/public.h>
@@ -18,9 +20,6 @@ class TQueueAgentConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! The path of directory containing queue agent state.
-    NYPath::TYPath Root;
-
     //! State table poll period.
     TDuration PollPeriod;
 
@@ -44,12 +43,17 @@ public:
 
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
-    NYTree::IMapNodePtr CypressAnnotations;
-
     bool AbortOnUnrecognizedOptions;
 
     //! User for native client; defaults to queue-agent.
     TString User;
+
+    //! The path of directory containing queue agent state.
+    NYPath::TYPath Root;
+
+    NYTree::IMapNodePtr CypressAnnotations;
+
+    NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
 
     REGISTER_YSON_STRUCT(TQueueAgentServerConfig)
 

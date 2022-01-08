@@ -1,4 +1,4 @@
-#include "state.h"
+#include "dynamic_state.h"
 
 #include <yt/yt/ytlib/table_client/schema.h>
 
@@ -259,6 +259,13 @@ template class TTableBase<TConsumerTableRow>;
 
 TConsumerTable::TConsumerTable(TYPath root, IClientPtr client)
     : TTableBase<TConsumerTableRow>(root + "/" + TConsumerTableDescriptor::Name, std::move(client))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDynamicState::TDynamicState(TYPath root, IClientPtr client)
+    : Queues(New<TQueueTable>(root, client))
+    , Consumers(New<TConsumerTable>(root, client))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

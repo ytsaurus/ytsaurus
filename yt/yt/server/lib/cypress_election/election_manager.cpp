@@ -114,7 +114,9 @@ private:
 
         try {
             if (!Transaction_) {
-                auto attributes = CreateEphemeralAttributes();
+                auto attributes = Options_->TransactionAttributes
+                    ? Options_->TransactionAttributes->Clone()
+                    : CreateEphemeralAttributes();
                 attributes->Set("title", Format("Lock transaction for %v", Options_->Name));
                 TTransactionStartOptions options {
                     .PingPeriod = Config_->TransactionPingPeriod,

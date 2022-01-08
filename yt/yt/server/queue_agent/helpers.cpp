@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include "state.h"
+#include "dynamic_state.h"
 
 namespace NYT::NQueueAgent {
 

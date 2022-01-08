@@ -395,6 +395,9 @@ def _build_queue_agent_configs(master_connection_configs, clock_connection_confi
     configs = []
     for i in xrange(yt_config.queue_agent_count):
         config = default_config.get_queue_agent_config()
+
+        init_singletons(config, yt_config.fqdn, "queue_agent", i, {"queue_agent_index": str(i)})
+
         config["logging"] = _init_logging(logs_dir,
                                           "queue-agent-" + str(i),
                                           yt_config)

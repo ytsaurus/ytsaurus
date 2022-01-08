@@ -8,8 +8,9 @@
 
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
 
-#include <yt/yt/server/lib/misc/address_helpers.h>
+#include <yt/yt/server/lib/cypress_election/election_manager.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -23,29 +24,21 @@
 
 #include <yt/yt/core/bus/server.h>
 
-#include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/misc/core_dumper.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
-#include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
-#include <yt/yt/core/misc/proc.h>
 
-#include <yt/yt/core/ytalloc/statistics_producer.h>
-
-#include <yt/yt/core/profiling/profile_manager.h>
-
-#include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
-#include <yt/yt/core/rpc/server.h>
+
+#include <yt/yt/core/ypath/token.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_client.h>
@@ -65,10 +58,12 @@ using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NSecurityClient;
 using namespace NYTree;
+using namespace NYPath;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NLogging;
+using namespace NCypressElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,9 +100,9 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    YT_LOG_INFO("Starting queue agent (NativeCluster: %v)", Config_->ClusterConnection->ClusterName);
+    YT_LOG_INFO("Starting queue agent process (NativeCluster: %v)", Config_->ClusterConnection->ClusterName);
 
-    auto agentId = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
+    AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
@@ -128,11 +123,12 @@ void TBootstrap::DoRun()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
+    DynamicState_ = New<TDynamicState>(Config_->Root, NativeClient_);
+
     QueueAgent_ = New<TQueueAgent>(
         Config_->QueueAgent,
         ControlInvoker_,
-        NativeClient_,
-        agentId);
+        DynamicState_);
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
@@ -166,14 +162,81 @@ void TBootstrap::DoRun()
         orchidRoot,
         ControlInvoker_));
 
-    QueueAgent_->Start();
-
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
 
     YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
+
+    UpdateCypressNode();
+
+    {
+        TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
+        options->Name = AgentId_;
+        options->TransactionAttributes = CreateEphemeralAttributes();
+        options->TransactionAttributes->Set("host", AgentId_);
+        ElectionManager_ = CreateCypressElectionManager(NativeClient_, ControlInvoker_, Config_->ElectionManager, std::move(options));
+        ElectionManager_->SubscribeLeadingStarted(BIND(&TQueueAgent::Start, QueueAgent_));
+        ElectionManager_->SubscribeLeadingEnded(BIND(&TQueueAgent::Stop, QueueAgent_));
+    }
+
+    ElectionManager_->Start();
+}
+
+void TBootstrap::UpdateCypressNode()
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    auto instancePath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_));
+
+    {
+        TCreateNodeOptions options;
+        options.Recursive = true;
+        options.Force = true;
+        options.Attributes = ConvertToAttributes(
+            BuildYsonStringFluently().BeginMap()
+                .Item("annotations").Value(Config_->CypressAnnotations)
+            .EndMap());
+
+        YT_LOG_INFO("Creating instance node (Path: %Qv)", instancePath);
+
+        WaitFor(NativeClient_->CreateNode(instancePath, EObjectType::MapNode, options))
+            .ThrowOnError();
+
+        YT_LOG_INFO("Instance node created");
+    }
+    {
+        TCreateNodeOptions options;
+        options.Attributes = ConvertToAttributes(
+            BuildYsonStringFluently().BeginMap()
+                .Item("remote_addresses").BeginMap()
+                    .Item("default").Value(AgentId_)
+                .EndMap()
+            .EndMap());
+
+        auto orchidPath = instancePath + "/orchid";
+
+        YT_LOG_INFO("Creating orchid node (Path: %Qv)", orchidPath);
+
+        WaitFor(NativeClient_->CreateNode(orchidPath, EObjectType::Orchid, options))
+            .ThrowOnError();
+
+        YT_LOG_INFO("Orchid node created");
+    }
+    {
+        TCreateNodeOptions options;
+        options.IgnoreExisting = true;
+
+        auto lockPath = Config_->ElectionManager->LockPath;
+
+        YT_LOG_INFO("Creating lock node (Path: %Qv)", lockPath);
+
+        WaitFor(NativeClient_->CreateNode(lockPath, EObjectType::MapNode, options))
+            .ThrowOnError();
+
+        YT_LOG_INFO("Lock node created");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

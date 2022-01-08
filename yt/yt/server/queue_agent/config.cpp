@@ -16,7 +16,6 @@ using namespace NSecurityClient;
 
 void TQueueAgentConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("root", &TThis::Root);
 
     registrar.Parameter("poll_period", &TThis::PollPeriod)
         .Default(TDuration::Seconds(1));
@@ -32,15 +31,25 @@ void TQueueAgentServerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
+        .Default(false);
+    registrar.Parameter("user", &TThis::User)
+        .Default(QueueAgentUserName);
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(NYTree::BuildYsonNodeFluently()
             .BeginMap()
             .EndMap()
         ->AsMap());
-    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
-        .Default(false);
-    registrar.Parameter("user", &TThis::User)
-        .Default(QueueAgentUserName);
+    registrar.Parameter("root", &TThis::Root)
+        .Default("//sys/queue_agents");
+    registrar.Parameter("election_manager", &TThis::ElectionManager)
+        .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (auto& lockPath = config->ElectionManager->LockPath; lockPath.empty()) {
+            lockPath = config->Root + "/leader_lock";
+        }
+    });
 };
 
 ////////////////////////////////////////////////////////////////////////////////
