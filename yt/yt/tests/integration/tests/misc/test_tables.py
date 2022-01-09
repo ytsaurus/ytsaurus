@@ -22,8 +22,6 @@ import yt.wrapper
 
 import pytest
 
-from flaky import flaky
-
 import math
 import random
 
@@ -2674,8 +2672,9 @@ class TestTables(YTEnvSetup):
             assert len(sample_rows("//tmp/t2", 1)) == 100
             assert len(sample_rows("//tmp/t2", 1, 25, 75)) == 50
 
+    # TODO(akozhikhov): fix
     @authors("akozhikhov")
-    @flaky(max_runs=3)
+    @pytest.mark.skipif(True, reason="Too flaky and slow")
     def test_put_blocks_timeout(self):
         nodes = ls("//sys/cluster_nodes")
         node_count = len(nodes)
