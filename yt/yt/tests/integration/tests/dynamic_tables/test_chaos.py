@@ -25,6 +25,7 @@ class TestChaos(DynamicTablesBase):
     NUM_MASTER_CACHES=1
     NUM_NODES = 5
     NUM_CHAOS_NODES = 1
+    NUM_TEST_PARTITIONS = 2
 
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
