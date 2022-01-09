@@ -28,8 +28,8 @@ struct TMpscQueue<T>::TNode
 template <class T>
 TMpscQueue<T>::~TMpscQueue()
 {
-    Destroy(Head_);
-    Destroy(Tail_);
+    DeleteNodeList(Head_.load());
+    DeleteNodeList(Tail_);
 }
 
 template <class T>
@@ -47,10 +47,10 @@ void TMpscQueue<T>::Enqueue(T&& value)
 template <class T>
 void TMpscQueue<T>::DoEnqueue(TNode* node)
 {
-    auto* expected = Head_.load(std::memory_order_relaxed);
+    auto* expectedHead = Head_.load(std::memory_order_relaxed);
     do {
-        node->Next = expected;
-    } while (!Head_.compare_exchange_weak(expected, node));
+        node->Next = expectedHead;
+    } while (!Head_.compare_exchange_weak(expectedHead, node));
 }
 
 template <class T>
@@ -76,9 +76,7 @@ bool TMpscQueue<T>::TryDequeue(T* value)
     }
 
     *value = std::move(Tail_->Value);
-    auto* next = Tail_->Next;
-    delete Tail_;
-    Tail_ = next;
+    delete std::exchange(Tail_, Tail_->Next);
 
     return true;
 }
@@ -90,12 +88,26 @@ bool TMpscQueue<T>::IsEmpty() const
 }
 
 template <class T>
-void TMpscQueue<T>::Destroy(TNode* node)
+void TMpscQueue<T>::DrainConsumer()
 {
-    while (node) {
-        auto* next = node->Next;
-        delete node;
-        node = next;
+    DeleteNodeList(std::exchange(Tail_, nullptr));
+    DrainProducer();
+}
+
+template <class T>
+void TMpscQueue<T>::DrainProducer()
+{
+    while (auto* head = Head_.exchange(nullptr)) {
+        DeleteNodeList(head);
+    }
+}
+
+template <class T>
+void TMpscQueue<T>::DeleteNodeList(TNode* node)
+{
+    auto* current = node;
+    while (current) {
+        delete std::exchange(current, current->Next);
     }
 }
 

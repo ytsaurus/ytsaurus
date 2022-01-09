@@ -12,6 +12,13 @@ namespace NYT {
 /*!
  *  Internally implemented by a pair of lock-free stack (head) and
  *  linked-list of popped-but-not-yet-dequeued items (tail).
+ *
+ *  Additionally supports draining during shutdown.
+ *
+ *  The proper shutdown sequence is as follows:
+ *  1) #DrainConsumer must be called by the consumer thread.
+ *  2) #DrainProducer must be called by each producer thread
+ *  that has just enqueued some items into the queue.
  */
 template <class T>
 class TMpscQueue
@@ -30,6 +37,9 @@ public:
 
     bool IsEmpty() const;
 
+    void DrainConsumer();
+    void DrainProducer();
+
 private:
     struct TNode;
 
@@ -37,7 +47,7 @@ private:
     TNode* Tail_ = nullptr;
 
     void DoEnqueue(TNode* node);
-    void Destroy(TNode* node);
+    void DeleteNodeList(TNode* node);
 };
 
 /////////////////////////////////////////////////////////////////////////////

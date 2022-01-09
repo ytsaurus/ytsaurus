@@ -35,6 +35,17 @@ Y_FORCE_INLINE bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action, TConsume
     }
 }
 
+void TMpmcQueueImpl::DrainProducer()
+{
+    TEnqueuedAction action;
+    while (Queue_.try_dequeue(action));
+}
+
+void TMpmcQueueImpl::DrainConsumer()
+{
+    DrainProducer();
+}
+
 TMpmcQueueImpl::TConsumerToken TMpmcQueueImpl::MakeConsumerToken()
 {
     return TConsumerToken(Queue_);
@@ -47,9 +58,19 @@ Y_FORCE_INLINE void TMpscQueueImpl::Enqueue(TEnqueuedAction action)
     Queue_.Enqueue(std::move(action));
 }
 
-Y_FORCE_INLINE bool TMpscQueueImpl::TryDequeue(TEnqueuedAction* action, TConsumerToken* /* token */)
+Y_FORCE_INLINE bool TMpscQueueImpl::TryDequeue(TEnqueuedAction* action, TConsumerToken* /*token*/)
 {
-    return Queue_.Dequeue(action);
+    return Queue_.TryDequeue(action);
+}
+
+void TMpscQueueImpl::DrainProducer()
+{
+    Queue_.DrainProducer();
+}
+
+void TMpscQueueImpl::DrainConsumer()
+{
+    Queue_.DrainConsumer();
 }
 
 TMpscQueueImpl::TConsumerToken TMpscQueueImpl::MakeConsumerToken()
@@ -186,7 +207,7 @@ void TInvokerQueue<TQueueImpl>::Invoke(
     QueueImpl_.Enqueue(std::move(action));
 
     if (!Running_.load(std::memory_order_relaxed)) {
-        Drain();
+        DrainConsumer();
         YT_LOG_TRACE(
             "Queue had been shut down, incoming action ignored (Callback: %v)",
             callback.GetHandle());
@@ -217,13 +238,20 @@ void TInvokerQueue<TQueueImpl>::Shutdown()
 }
 
 template <class TQueueImpl>
-void TInvokerQueue<TQueueImpl>::Drain()
+void TInvokerQueue<TQueueImpl>::DrainProducer()
 {
     YT_VERIFY(!Running_.load(std::memory_order_relaxed));
 
-    TEnqueuedAction action;
-    while (QueueImpl_.TryDequeue(&action));
+    QueueImpl_.DrainProducer();
+    Size_.store(0);
+}
 
+template <class TQueueImpl>
+void TInvokerQueue<TQueueImpl>::DrainConsumer()
+{
+    YT_VERIFY(!Running_.load(std::memory_order_relaxed));
+
+    QueueImpl_.DrainConsumer();
     Size_.store(0);
 }
 

@@ -59,7 +59,7 @@ private:
     {
         return BIND([queue = Queue_, callback = TThreadPoolBase::MakeFinalizerCallback()] {
             callback();
-            queue->Drain();
+            queue->DrainConsumer();
         });
     }
 

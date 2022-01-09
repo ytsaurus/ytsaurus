@@ -10,6 +10,9 @@
 namespace NYT {
 namespace {
 
+using ::testing::TProbeState;
+using ::testing::TProbe;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TMpscQueueTest, SingleThreaded1)
@@ -98,7 +101,38 @@ TEST(TMpscQueueTest, MultiThreaded)
     for (auto& thread : threads) {
         thread.join();
     }
-};
+}
+
+TEST(TMpscQueueTest, Drain)
+{
+    TProbeState probeState;
+    TMpscQueue<TProbe> queue;
+
+    queue.Enqueue(TProbe(&probeState));
+    queue.Enqueue(TProbe(&probeState));
+    queue.Enqueue(TProbe(&probeState));
+    {
+        auto probe = TProbe::ExplicitlyCreateInvalidProbe();
+        EXPECT_TRUE(queue.TryDequeue(&probe));
+    }
+    EXPECT_EQ(3, probeState.Constructors);
+    EXPECT_EQ(1, probeState.Destructors);
+    EXPECT_EQ(5, probeState.ShadowDestructors);
+    EXPECT_EQ(3, probeState.MoveConstructors);
+
+    queue.DrainConsumer();
+    EXPECT_EQ(3, probeState.Constructors);
+    EXPECT_EQ(3, probeState.Destructors);
+    EXPECT_EQ(7, probeState.ShadowDestructors);
+    EXPECT_EQ(3, probeState.MoveConstructors);
+
+    queue.Enqueue(TProbe(&probeState));
+    queue.DrainProducer();
+    EXPECT_EQ(4, probeState.Constructors);
+    EXPECT_EQ(4, probeState.Destructors);
+    EXPECT_EQ(9, probeState.ShadowDestructors);
+    EXPECT_EQ(4, probeState.MoveConstructors);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -13,7 +13,7 @@ class TSuspendableActionQueue
     : public ISuspendableActionQueue
 {
 public:
-    TSuspendableActionQueue(const TString& threadName)
+    explicit TSuspendableActionQueue(const TString& threadName)
         : Queue_(New<TMpscInvokerQueue>(
             CallbackEventCount_,
             GetThreadTags(threadName)))
@@ -44,7 +44,7 @@ public:
 
         FinalizerInvoker_->Invoke(BIND([graceful, thread = Thread_, queue = Queue_] {
             thread->Shutdown(graceful);
-            queue->Drain();
+            queue->DrainConsumer();
         }));
         FinalizerInvoker_.Reset();
     }

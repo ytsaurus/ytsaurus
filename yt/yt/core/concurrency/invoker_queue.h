@@ -10,9 +10,9 @@
 
 #include <yt/yt/core/actions/invoker.h>
 
-#include <library/cpp/yt/threading/event_count.h>
+#include <yt/yt/core/misc/mpsc_queue.h>
 
-#include <util/thread/lfqueue.h>
+#include <library/cpp/yt/threading/event_count.h>
 
 #include <atomic>
 
@@ -41,6 +41,9 @@ public:
     void Enqueue(TEnqueuedAction action);
     bool TryDequeue(TEnqueuedAction *action, TConsumerToken* token = nullptr);
 
+    void DrainProducer();
+    void DrainConsumer();
+
     TConsumerToken MakeConsumerToken();
 
 private:
@@ -57,10 +60,13 @@ public:
     void Enqueue(TEnqueuedAction action);
     bool TryDequeue(TEnqueuedAction* action, TConsumerToken* token = nullptr);
 
+    void DrainProducer();
+    void DrainConsumer();
+
     TConsumerToken MakeConsumerToken();
 
 private:
-    TLockFreeQueue<TEnqueuedAction> Queue_;
+    TMpscQueue<TEnqueuedAction> Queue_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +101,8 @@ public:
 
     void Shutdown();
 
-    void Drain();
+    void DrainProducer();
+    void DrainConsumer();
 
     TClosure BeginExecute(TEnqueuedAction* action, typename TQueueImpl::TConsumerToken* token = nullptr);
     void EndExecute(TEnqueuedAction* action);

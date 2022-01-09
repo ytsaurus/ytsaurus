@@ -67,10 +67,11 @@ protected:
     TPromise<void> SuspendedPromise_ = NewPromise<void>();
     TIntrusivePtr<NThreading::TEvent> ResumeEvent_;
 
-    virtual TClosure BeginExecute() override;
-    virtual void EndExecute() override;
+    TClosure BeginExecute() override;
+    void EndExecute() override;
 
-    virtual void OnStart() override;
+    void OnStart() override;
+    void OnStop() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
