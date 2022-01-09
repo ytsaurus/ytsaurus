@@ -273,7 +273,8 @@ void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 validPrefixSize)
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         IndexFile_ = WaitFor(IOEngine_->Open({IndexFileName_, WrOnly | CloseOnExec}))
             .ValueOrThrow();
-        IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
+        bool ok = IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
+        YT_VERIFY(ok);
     }
 }
 
@@ -403,13 +404,13 @@ TFuture<void> TAsyncFileChangelogIndex::FlushData()
     if (!HasDirtyBuckets_) {
         return VoidFuture;
     }
-    std::vector<TFuture<void>> asyncResults;
-    asyncResults.reserve(2);
-    asyncResults.push_back(FlushDirtyBuckets());
+    auto asyncResult = FlushDirtyBuckets();
     if (EnableSync_) {
-        asyncResults.push_back(IOEngine_->FlushFile({IndexFile_, EFlushFileMode::Data}));
+        asyncResult = asyncResult.Apply(BIND([engine = IOEngine_, indexFile = IndexFile_] {
+            return engine->FlushFile({indexFile, EFlushFileMode::Data});
+        }));
     }
-    return AllSucceeded(asyncResults);
+    return asyncResult;
 }
 
 void TAsyncFileChangelogIndex::Close()
