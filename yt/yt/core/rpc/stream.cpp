@@ -164,9 +164,10 @@ void TAttachmentsInputStream::AbortUnlessClosed(const TError& error, bool fireAb
         return;
     }
 
+    static const auto FinishedError = TError("Request finished");
     DoAbort(
         guard,
-        error.IsOK() ? TError("Request is already completed") : error,
+        error.IsOK() ? FinishedError : error,
         fireAborted);
 }
 

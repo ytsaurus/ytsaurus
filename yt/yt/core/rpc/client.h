@@ -243,7 +243,7 @@ private:
     void OnPullRequestAttachmentsStream();
     void OnRequestStreamingPayloadAcked(int sequenceNumber, const TError& error);
     void OnResponseAttachmentsStreamRead();
-    void OnResponseStreamingFeedbackAcked(const TError& error);
+    void OnResponseStreamingFeedbackAcked(const TStreamingFeedback& feedback, const TError& error);
 
     void TraceRequest(const NTracing::TTraceContextPtr& traceContext);
 
