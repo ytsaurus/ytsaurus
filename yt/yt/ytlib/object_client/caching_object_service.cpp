@@ -127,14 +127,13 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         if (!subrequestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
             THROW_ERROR_EXCEPTION("Subrequest is lacking caching header");
         }
+        auto* cachingRequestHeaderExt = subrequestHeader.MutableExtension(TCachingHeaderExt::caching_header_ext);
 
-        const auto& cachingRequestHeaderExt = subrequestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
-
-        auto refreshRevision = cachingRequestHeaderExt.refresh_revision();
+        auto refreshRevision = cachingRequestHeaderExt->refresh_revision();
 
         TObjectServiceCacheKey key(
             CellTagFromId(CellId_),
-            cachingRequestHeaderExt.disable_per_user_cache() ? TString() : context->GetAuthenticationIdentity().User,
+            cachingRequestHeaderExt->disable_per_user_cache() ? TString() : context->GetAuthenticationIdentity().User,
             ypathExt.target_path(),
             subrequestHeader.service(),
             subrequestHeader.method(),
@@ -153,14 +152,14 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             subrequestIndex,
             key);
 
-        auto expireAfterSuccessfulUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt.expire_after_successful_update_time());
-        auto expireAfterFailedUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time());
+        auto expireAfterSuccessfulUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt->expire_after_successful_update_time());
+        auto expireAfterFailedUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt->expire_after_failed_update_time());
 
         auto cacheTtlRatio = CacheTtlRatio_.load();
         auto nodeExpireAfterSuccessfulUpdateTime = expireAfterSuccessfulUpdateTime * cacheTtlRatio;
         auto nodeExpireAfterFailedUpdateTime = expireAfterFailedUpdateTime * cacheTtlRatio;
 
-        bool cachingEnabled = CachingEnabled_.load(std::memory_order_relaxed) && !cachingRequestHeaderExt.disable_second_level_cache();
+        bool cachingEnabled = CachingEnabled_.load(std::memory_order_relaxed) && !cachingRequestHeaderExt->disable_second_level_cache();
         auto cookie = Cache_->BeginLookup(
             requestId,
             key,
@@ -173,11 +172,6 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         if (cookie.IsActive()) {
             TObjectServiceProxy proxy(MasterChannel_);
             auto req = proxy.Execute();
-            req->add_part_counts(subrequestMessage.Size());
-            req->Attachments().insert(
-                req->Attachments().end(),
-                subrequestMessage.Begin(),
-                subrequestMessage.End());
             SetCurrentAuthenticationIdentity(req);
 
             if (cachingEnabled) {
@@ -185,15 +179,17 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                 balancingHeaderExt->set_enable_stickiness(true);
                 balancingHeaderExt->set_sticky_group_size(1);
 
-                auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-                cachingHeaderExt->set_disable_per_user_cache(cachingRequestHeaderExt.disable_per_user_cache());
-                cachingHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(expireAfterSuccessfulUpdateTime - nodeExpireAfterSuccessfulUpdateTime));
-                cachingHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(expireAfterFailedUpdateTime - nodeExpireAfterFailedUpdateTime));
-                cachingHeaderExt->set_refresh_revision(refreshRevision);
-            } else {
-                req->Header().ClearExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-                req->Header().ClearExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+                cachingRequestHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(expireAfterSuccessfulUpdateTime - nodeExpireAfterSuccessfulUpdateTime));
+                cachingRequestHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(expireAfterFailedUpdateTime - nodeExpireAfterFailedUpdateTime));
             }
+
+            subrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
+
+            req->add_part_counts(subrequestMessage.Size());
+            req->Attachments().insert(
+                req->Attachments().end(),
+                subrequestMessage.Begin(),
+                subrequestMessage.End());
 
             req->Invoke().Apply(
                 BIND([this, this_ = MakeStrong(this), cookie = std::move(cookie), requestId] (
