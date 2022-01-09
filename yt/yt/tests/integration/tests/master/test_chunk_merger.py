@@ -10,7 +10,7 @@ from yt_commands import (
     sync_unmount_table, create_dynamic_table, wait_for_sys_config_sync,
     get_singular_chunk_id)
 
-from yt_helpers import get_all_master_counters
+from yt_helpers import get_chunk_owner_master_cell_counters
 
 from yt_type_helpers import make_schema
 
@@ -819,11 +819,12 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", rows3)
         assert read_table("//tmp/t") == rows1 + rows2 + rows3
 
-        fallback_counter = get_all_master_counters("chunk_server/chunk_merger_auto_merge_fallback_count")
+        fallback_counters = get_chunk_owner_master_cell_counters("//tmp/t", "chunk_server/chunk_merger_auto_merge_fallback_count")
+
         self._wait_for_merge("//tmp/t", merge_mode)
 
         if merge_mode == "auto":
-            wait(lambda: sum(counter.get_delta() for counter in fallback_counter) > 0)
+            wait(lambda: sum(counter.get_delta() for counter in fallback_counters) > 0)
 
         chunk_format = "table_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
         chunk_id = get_singular_chunk_id("//tmp/t")

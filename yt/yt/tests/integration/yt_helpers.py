@@ -93,22 +93,22 @@ def filter_tests(name_pred=None):
     return decorate_class
 
 
-def _get_all_master_profilers():
-    profilers = []
-    for i in range(len(ls("//sys/primary_masters"))):
-        profilers.append(profiler_factory().at_primary_master(master_index=i))
-    for cell_tag in ls("//sys/secondary_masters"):
-        for i in range(len(ls("//sys/secondary_masters/{0}".format(cell_tag)))):
-            profilers.append(profiler_factory().at_secondary_master(cell_tag=cell_tag, master_index=i))
-    return profilers
+def _get_chunk_owner_master_cell_profilers(cypress_path):
+    cell_tag = get(cypress_path + "/@external_cell_tag", default=None)
+    if cell_tag is None:
+        return [profiler_factory().at_primary_master(address)
+                for address in ls("//sys/primary_masters")]
+    else:
+        return [profiler_factory().at_secondary_master(cell_tag, address)
+                for address in ls("//sys/secondary_masters/{0}".format(cell_tag))]
 
 
-def get_all_master_counters(path, *args, **kwargs):
-    return [profiler.counter(path, *args, **kwargs) for profiler in _get_all_master_profilers()]
+def get_chunk_owner_master_cell_counters(cypress_path, sensor_path, *args, **kwargs):
+    return [profiler.counter(sensor_path, *args, **kwargs) for profiler in _get_chunk_owner_master_cell_profilers(cypress_path)]
 
 
-def get_all_master_gauges(path, *args, **kwargs):
-    return [profiler.gauge(path, *args, **kwargs) for profiler in _get_all_master_profilers()]
+def get_chunk_owner_master_cell_gauges(cypress_path, sensor_path, *args, **kwargs):
+    return [profiler.gauge(sensor_path, *args, **kwargs) for profiler in _get_chunk_owner_master_cell_profilers(cypress_path)]
 
 
 def skip_if_no_descending(env):
