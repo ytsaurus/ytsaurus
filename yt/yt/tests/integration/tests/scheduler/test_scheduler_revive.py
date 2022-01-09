@@ -779,7 +779,7 @@ class OperationReviveBase(YTEnvSetup):
     def test_completing(self):
         self._prepare_tables()
 
-        op = self._start_op("echo '{foo=bar}'; sleep 10", track=False)
+        op = self._start_op("echo '{foo=bar}'; sleep 15", track=False)
 
         self._wait_for_state(op, "running")
 
