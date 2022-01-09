@@ -1008,7 +1008,7 @@ private:
 
             auto responseHandler = FindResponseHandler(requestId);
             if (!responseHandler) {
-                YT_LOG_ERROR("Received streaming payload for an unknown request; ignored (RequestId: %v)",
+                YT_LOG_DEBUG("Received streaming feedback for an unknown request; ignored (RequestId: %v)",
                     requestId);
                 return;
             }

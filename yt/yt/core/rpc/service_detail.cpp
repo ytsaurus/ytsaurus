@@ -272,7 +272,7 @@ public:
             Reply(TError(NRpc::EErrorCode::Unavailable, "Service is unable to complete your request"));
         }
 
-        Finalize();
+        Finish();
     }
 
     TRequestQueue* GetRequestQueue() const
@@ -553,7 +553,7 @@ private:
     std::atomic<bool> CompletedLatch_ = false;
     std::atomic<bool> TimedOutLatch_ = false;
     std::atomic<bool> RunLatch_ = false;
-    bool FinalizeLatch_ = false;
+    bool FinishLatch_ = false;
     bool RequestStarted_ = false;
     bool ActiveRequestCountIncremented_ = false;
 
@@ -700,14 +700,14 @@ private:
         RequestInfos_.push_back(builder.Flush());
     }
 
-    void Finalize()
+    void Finish()
     {
-        // Finalize is called from DoReply and ~TServiceContext.
+        // Finish is called from DoReply and ~TServiceContext.
         // Clearly there could be no race between these two and thus no atomics are needed.
-        if (FinalizeLatch_) {
+        if (FinishLatch_) {
             return;
         }
-        FinalizeLatch_ = true;
+        FinishLatch_ = true;
 
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
 
@@ -716,8 +716,8 @@ private:
         }
 
         if (RuntimeInfo_->Descriptor.StreamingEnabled) {
-            static const auto FinalizedError = TError("Request finalized");
-            AbortStreamsUnlessClosed(Error_.IsOK() ? Error_ : FinalizedError);
+            static const auto FinishedError = TError("Request finished");
+            AbortStreamsUnlessClosed(Error_.IsOK() ? Error_ : FinishedError);
         }
 
         DoSetComplete();
@@ -866,7 +866,7 @@ private:
             TraceContext_->AddErrorTag();
         }
 
-        Finalize();
+        Finish();
     }
 
     void DoFlush() override

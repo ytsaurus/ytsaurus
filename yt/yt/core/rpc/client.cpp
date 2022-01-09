@@ -405,14 +405,15 @@ void TClientRequest::OnResponseAttachmentsStreamRead()
         feedback.ReadPosition);
 
     control->SendStreamingFeedback(feedback).Subscribe(
-        BIND(&TClientRequest::OnResponseStreamingFeedbackAcked, MakeStrong(this)));
+        BIND(&TClientRequest::OnResponseStreamingFeedbackAcked, MakeStrong(this), feedback));
 }
 
-void TClientRequest::OnResponseStreamingFeedbackAcked(const TError& error)
+void TClientRequest::OnResponseStreamingFeedbackAcked(const TStreamingFeedback& feedback, const TError& error)
 {
     if (error.IsOK()) {
-        YT_LOG_DEBUG("Response streaming feedback delivery acknowledged (RequestId: %v)",
-            GetRequestId());
+        YT_LOG_DEBUG("Response streaming feedback delivery acknowledged (RequestId: %v, ReadPosition: %v)",
+            GetRequestId(),
+            feedback.ReadPosition);
     } else {
         YT_LOG_DEBUG(error, "Response streaming feedback delivery failed (RequestId: %v)",
             GetRequestId());
@@ -547,14 +548,18 @@ void TClientResponse::Finish(const TError& error)
 {
     TraceResponse();
 
-    const auto& requestAttachmentsStream = ClientContext_->GetRequestAttachmentsStream();
-    if (requestAttachmentsStream) {
+    if (const auto& requestAttachmentsStream = ClientContext_->GetRequestAttachmentsStream()) {
+        // Abort the request stream unconditionally since there is no chance
+        // the server will receive any of newly written data.
         requestAttachmentsStream->AbortUnlessClosed(error, false);
     }
 
-    const auto& responseAttachmentsStream = ClientContext_->GetResponseAttachmentsStream();
-    if (responseAttachmentsStream) {
-        responseAttachmentsStream->AbortUnlessClosed(error, false);
+    if (const auto& responseAttachmentsStream = ClientContext_->GetResponseAttachmentsStream()) {
+        // Only abort the response stream in case of an error.
+        // When request finishes successfully the client may still be reading the output stream.
+        if (!error.IsOK()) {
+            responseAttachmentsStream->AbortUnlessClosed(error, false);
+        }
     }
 
     SetPromise(error);
@@ -562,8 +567,7 @@ void TClientResponse::Finish(const TError& error)
 
 void TClientResponse::TraceResponse()
 {
-    const auto& traceContext = ClientContext_->GetTraceContext();
-    if (traceContext) {
+    if (const auto& traceContext = ClientContext_->GetTraceContext()) {
         traceContext->Finish();
     }
 }
