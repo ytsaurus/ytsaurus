@@ -1593,7 +1593,7 @@ private:
                 auto row = TVersionedRow(replicationRow);
 
                 // Check that row fits into requested row range.
-                if (CompareRows(progress.UpperKey.Begin(), progress.UpperKey.End(), row.BeginKeys(), row.EndKeys()) < 0 ||
+                if (CompareRows(progress.UpperKey.Begin(), progress.UpperKey.End(), row.BeginKeys(), row.EndKeys()) <= 0 ||
                     CompareRows(progress.Segments[0].LowerKey.Begin(), progress.Segments[0].LowerKey.End(), row.BeginKeys(), row.EndKeys()) > 0)
                 {
                     continue;

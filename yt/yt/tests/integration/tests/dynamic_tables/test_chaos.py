@@ -681,3 +681,34 @@ class TestChaos(DynamicTablesBase):
         values = values0 + values1 + values2
         wait(lambda: _pull_rows(replica_index=1) == values)
         wait(lambda: _pull_rows(replica_index=0) == values)
+
+    @authors("savrus")
+    @pytest.mark.parametrize("content", ["data", "queue", "both"])
+    def test_resharded_replication(self, content):
+        self._create_chaos_cell_bundle("c")
+        cell_id = self._sync_create_chaos_cell("c")
+
+        replicas = [
+            {"cluster": "primary", "content_type": "data", "mode": "async", "state": "enabled", "table_path": "//tmp/t"},
+            {"cluster": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "table_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
+
+        if content in ["data", "both"]:
+            reshard_table("//tmp/t", [[], [1]])
+        if content in ["queue", "both"]:
+            reshard_table("//tmp/q", [[], [1]], driver=get_driver(cluster="remote_0"))
+
+        for replica in replicas:
+            sync_mount_table(replica["table_path"], driver=get_driver(cluster=replica["cluster"]))
+        self._sync_replication_era(cell_id, card_id, replicas)
+
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        keys = [{"key": row["key"]} for row in rows]
+        insert_rows("//tmp/t", rows)
+        wait(lambda: lookup_rows("//tmp/t", keys) == rows)
+
+        rows = [{"key": i, "value": str(i+2)} for i in range(2)]
+        for i in reversed(range(2)):
+            insert_rows("//tmp/t", [rows[i]])
+        wait(lambda: lookup_rows("//tmp/t", keys) == rows)

@@ -3995,24 +3995,26 @@ private:
                 auto* tablet = tablets[index];
                 const auto& segments = tablet->ReplicationProgress().Segments;
                 if (segments.empty()) {
-                    progress.Segments.push_back(TReplicationProgress::TSegment{tablet->GetPivotKey(), MinTimestamp});
+                    progress.Segments.push_back({tablet->GetPivotKey(), MinTimestamp});
                 } else {
                     progress.Segments.insert(progress.Segments.end(), segments.begin(), segments.end());
                 }
             }
 
             auto lastPivotKey = lastTabletIndex + 1 < std::ssize(tablets)
-                ? tablets[lastTabletIndex + 1]->GetPivotKey().Get()
-                : MaxKey().Get();
+                ? tablets[lastTabletIndex + 1]->GetPivotKey()
+                : MaxKey();
 
             int segmentIndex = 0;
             for (int index = 0; index < std::ssize(newTablets); ++index) {
                 auto& segments = newTablets[index]->ReplicationProgress().Segments;
 
                 auto pivotKey = newTablets[index]->GetPivotKey().Get();
-                auto nextPivotKey = index + 1 < std::ssize(newTablets)
-                    ? newTablets[index + 1]->GetPivotKey().Get()
+                const auto& nextPivotKey = index + 1 < std::ssize(newTablets)
+                    ? newTablets[index + 1]->GetPivotKey()
                     : lastPivotKey;
+
+                newTablets[index]->ReplicationProgress().UpperKey = nextPivotKey;
 
                 auto lowerKey = progress.Segments[segmentIndex].LowerKey;
                 YT_VERIFY(lowerKey <= pivotKey);
@@ -4026,7 +4028,7 @@ private:
                     segments[0].LowerKey = newTablets[index]->GetPivotKey();
                 }
 
-                if (segmentIndex < std::ssize(progress.Segments) && progress.Segments[segmentIndex].LowerKey > nextPivotKey) {
+                if (segmentIndex == std::ssize(progress.Segments) || progress.Segments[segmentIndex].LowerKey > nextPivotKey) {
                     --segmentIndex;
                 }
             }
