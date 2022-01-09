@@ -106,9 +106,9 @@ class TestHttpProxy(HttpProxyTestBase):
         def get_yson(url):
             return yson.loads(requests.get(url).content)
 
-        assert [proxy] == get_yson(self._get_proxy_address() + "/hosts")
-        assert [proxy] == get_yson(self._get_proxy_address() + "/hosts?role=data")
-        assert [] == get_yson(self._get_proxy_address() + "/hosts?role=control")
+        assert get_yson(self._get_proxy_address() + "/hosts") == [proxy]
+        assert get_yson(self._get_proxy_address() + "/hosts?role=data") == [proxy]
+        assert get_yson(self._get_proxy_address() + "/hosts?role=control") == []
 
         def make_failing_request_and_check_counter(counter):
             url = self._get_proxy_address() + "/api/v3/find_meaning_of_life"
@@ -122,10 +122,13 @@ class TestHttpProxy(HttpProxyTestBase):
 
         set("//sys/proxies/" + proxy + "/@role", "control")
 
+        def check_role_updated():
+            return get_yson(self._get_proxy_address() + "/hosts") == [] and \
+                get_yson(self._get_proxy_address() + "/hosts?role=data") == [] and \
+                get_yson(self._get_proxy_address() + "/hosts?role=control") == [proxy]
+
         # Wait until the proxy entry will be updated on the coordinator.
-        wait(lambda: [] == get_yson(self._get_proxy_address() + "/hosts"))
-        assert [] == get_yson(self._get_proxy_address() + "/hosts?role=data")
-        assert [proxy] == get_yson(self._get_proxy_address() + "/hosts?role=control")
+        wait(check_role_updated)
 
         control_http_code_counter = profiler.counter("http_proxy/http_code_count", tags={"proxy_role": "control"})
 
