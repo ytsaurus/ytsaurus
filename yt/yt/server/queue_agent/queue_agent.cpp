@@ -68,7 +68,9 @@ void TQueueAgent::DoStop()
 
     YT_LOG_INFO("Stopping polling");
 
-    YT_VERIFY(WaitFor(PollExecutor_->Stop()).IsOK());
+    // Returning without waiting here is a bit racy in case of a conurrent Start(),
+    // but it does not seem like a big issue.
+    PollExecutor_->Stop();
 
     YT_LOG_INFO("Resetting all controllers");
 
