@@ -8,7 +8,7 @@ from yt_commands import (
     set_node_banned, set_banned_flag, start_transaction,
     get_account_disk_space, get_account_committed_disk_space, get_chunk_owner_disk_space)
 
-from yt_helpers import get_all_master_counters, get_all_master_gauges
+from yt_helpers import get_chunk_owner_master_cell_counters, get_chunk_owner_master_cell_gauges
 
 import yt.yson as yson
 from yt.common import YtError
@@ -978,8 +978,7 @@ class TestChunkAutotomizer(YTEnvSetup):
                 return False
         wait(check)
 
-    def _create_simple_journal(self):
-        create("journal", "//tmp/j")
+    def _write_simple_journal(self):
         write_journal(
             "//tmp/j",
             DATA,
@@ -1029,11 +1028,6 @@ class TestChunkAutotomizer(YTEnvSetup):
 
     @authors("gritukan")
     def test_simple(self):
-        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
-            pytest.skip("Chunk autotomy is available in 21.3+ versions")
-
-        success_counters = get_all_master_counters("chunk_server/chunk_autotomizer/successful_autotomies")
-
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
         set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
 
@@ -1043,6 +1037,8 @@ class TestChunkAutotomizer(YTEnvSetup):
             "read_quorum": 3,
             "write_quorum": 3,
         })
+
+        success_counters = get_chunk_owner_master_cell_counters("//tmp/j", "chunk_server/chunk_autotomizer/successful_autotomies")
 
         rows = DATA
 
@@ -1085,9 +1081,6 @@ class TestChunkAutotomizer(YTEnvSetup):
     @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @authors("gritukan")
     def test_erasure(self, erasure_codec):
-        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
-            pytest.skip("Chunk autotomy is available in 21.3+ versions")
-
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
 
@@ -1111,18 +1104,19 @@ class TestChunkAutotomizer(YTEnvSetup):
 
     @authors("gritukan")
     def test_job_failure(self):
-        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
-            pytest.skip("Chunk autotomy is available in 21.3+ versions")
-
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
 
-        fail_counters = get_all_master_counters("chunk_server/jobs_failed", tags={"job_type": "autotomize_chunk"})
+        create("journal", "//tmp/j")
+
+        fail_counters = get_chunk_owner_master_cell_counters("//tmp/j", "chunk_server/jobs_failed", tags={"job_type": "autotomize_chunk"})
+
         self._set_fail_jobs(True)
-        self._create_simple_journal()
+        self._write_simple_journal()
 
         wait(lambda: sum(counter.get_delta() for counter in fail_counters) > 5)
-        registered_gauges = get_all_master_gauges("chunk_server/chunk_autotomizer/registered_chunks")
+
+        registered_gauges = get_chunk_owner_master_cell_gauges("//tmp/j", "chunk_server/chunk_autotomizer/registered_chunks")
         assert sum(gauge.get() for gauge in registered_gauges) == 1
 
         assert len(get("//tmp/j/@chunk_ids")) == 1
@@ -1133,19 +1127,18 @@ class TestChunkAutotomizer(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.skipif("True", reason="Flaky")
     def test_job_speculation(self):
-        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
-            pytest.skip("Chunk autotomy is available in 21.3+ versions")
-
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
         set("//sys/@config/chunk_manager/chunk_autotomizer/job_timeout", 5000)
 
-        win_counters = get_all_master_counters("chunk_server/chunk_autotomizer/speculative_job_wins")
-        loss_counters = get_all_master_counters("chunk_server/chunk_autotomizer/speculative_job_wins")
+        create("journal", "//tmp/j")
+
+        win_counters = get_chunk_owner_master_cell_counters("//tmp/j", "chunk_server/chunk_autotomizer/speculative_job_wins")
+        loss_counters = get_chunk_owner_master_cell_counters("//tmp/j", "chunk_server/chunk_autotomizer/speculative_job_wins")
         speculative_counters = win_counters + loss_counters
 
         self._set_sleep_in_jobs(True)
-        self._create_simple_journal()
+        self._write_simple_journal()
 
         sleep(5)
         assert len(get("//tmp/j/@chunk_ids")) == 1
@@ -1157,14 +1150,13 @@ class TestChunkAutotomizer(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("build_snapshot", [False, True])
     def test_master_restart(self, build_snapshot):
-        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
-            pytest.skip("Chunk autotomy is available in 21.3+ versions")
-
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
 
+        create("journal", "//tmp/j")
+
         self._set_fail_jobs(True)
-        self._create_simple_journal()
+        self._write_simple_journal()
 
         if build_snapshot:
             build_master_snapshots(set_read_only=True)
@@ -1177,50 +1169,46 @@ class TestChunkAutotomizer(YTEnvSetup):
 
     @authors("gritukan")
     def test_abandon_autotomy(self):
-        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
-            pytest.skip("Chunk autotomy is available in 21.3+ versions")
-
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
 
-        unsuccess_counters = get_all_master_counters("chunk_server/chunk_autotomizer/unsuccessful_autotomies")
+        create("journal", "//tmp/j")
+
+        unsuccess_counters = get_chunk_owner_master_cell_counters("//tmp/j", "chunk_server/chunk_autotomizer/unsuccessful_autotomies")
 
         self._set_fail_jobs(True)
-        self._create_simple_journal()
+        self._write_simple_journal()
 
         sleep(10)
         assert len(get("//tmp/j/@chunk_ids")) == 1
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", False)
 
-        chunk_id = get("//tmp/j/@chunk_ids")[0]
+        chunk_id = get_singular_chunk_id("//tmp/j")
         wait(lambda: get("#{}/@sealed".format(chunk_id)))
         assert read_journal("//tmp/j") == DATA
         wait(lambda: sum(counter.get_delta() for counter in unsuccess_counters) == 1)
 
     @authors("gritukan")
     def test_remove_autotomizable_chunk(self):
-        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
-            pytest.skip("Chunk autotomy is available in 21.3+ versions")
-
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
 
+        create("journal", "//tmp/j")
+
+        registered_gauges = get_chunk_owner_master_cell_gauges("//tmp/j", "chunk_server/chunk_autotomizer/registered_chunks")
+
         self._set_fail_jobs(True)
-        self._create_simple_journal()
+        self._write_simple_journal()
 
         sleep(5)
         assert len(get("//tmp/j/@chunk_ids")) == 1
 
         remove("//tmp/j")
-        registered_gauges = get_all_master_gauges("chunk_server/chunk_autotomizer/registered_chunks")
         wait(lambda: sum(gauge.get() for gauge in registered_gauges) == 0)
 
     @authors("gritukan")
     @pytest.mark.parametrize("action", ["abort", "commit"])
     def test_finish_autotomizer_transactions(self, action):
-        if self.Env.get_component_version("ytserver-master").abi <= (21, 2):
-            pytest.skip("Chunk autotomy is available in 21.3+ versions")
-
         def finish_txs():
             for tx in ls("//sys/transactions", attributes=["title"]):
                 title = tx.attributes.get("title", "")
@@ -1233,8 +1221,10 @@ class TestChunkAutotomizer(YTEnvSetup):
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/testing/force_unreliable_seal", True)
 
+        create("journal", "//tmp/j")
+
         self._set_fail_jobs(True)
-        self._create_simple_journal()
+        self._write_simple_journal()
 
         for _ in range(10):
             finish_txs()
