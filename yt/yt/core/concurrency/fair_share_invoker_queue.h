@@ -40,7 +40,8 @@ public:
 
     void Shutdown();
 
-    void Drain();
+    void DrainProducer();
+    void DrainConsumer();
 
     bool IsRunning() const;
 

@@ -58,10 +58,17 @@ void TFairShareInvokerQueue::Shutdown()
     }
 }
 
-void TFairShareInvokerQueue::Drain()
+void TFairShareInvokerQueue::DrainProducer()
 {
     for (auto& bucket : Buckets_) {
-        bucket.Queue->Drain();
+        bucket.Queue->DrainProducer();
+    }
+}
+
+void TFairShareInvokerQueue::DrainConsumer()
+{
+    for (auto& bucket : Buckets_) {
+        bucket.Queue->DrainConsumer();
     }
 }
 

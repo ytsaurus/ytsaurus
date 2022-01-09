@@ -120,9 +120,7 @@ TClosure TSuspendableSingleQueueSchedulerThread<TQueueImpl>::BeginExecute()
         resumeEvent->Wait();
     }
 
-    auto closure = Queue_->BeginExecute(&CurrentAction_, &Token_);
-
-    return closure;
+    return Queue_->BeginExecute(&CurrentAction_, &Token_);
 }
 
 template <class TQueueImpl>
@@ -135,6 +133,12 @@ template <class TQueueImpl>
 void TSuspendableSingleQueueSchedulerThread<TQueueImpl>::OnStart()
 {
     Queue_->SetThreadId(GetThreadId());
+}
+
+template <class TQueueImpl>
+void TSuspendableSingleQueueSchedulerThread<TQueueImpl>::OnStop()
+{
+    Queue_->DrainConsumer();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

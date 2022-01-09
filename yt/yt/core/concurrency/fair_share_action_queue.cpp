@@ -101,7 +101,7 @@ public:
 
         FinalizerInvoker_->Invoke(BIND([thread = Thread_, queue = Queue_] {
             thread->Stop();
-            queue->Drain();
+            queue->DrainConsumer();
         }));
         FinalizerInvoker_.Reset();
     }

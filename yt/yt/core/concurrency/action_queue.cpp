@@ -59,7 +59,7 @@ public:
 
         FinalizerInvoker_->Invoke(BIND([graceful, thread = Thread_, queue = Queue_] {
             thread->Stop(graceful);
-            queue->Drain();
+            queue->DrainConsumer();
         }));
         FinalizerInvoker_.Reset();
     }
