@@ -1998,7 +1998,7 @@ void TServiceBase::RegisterDiscoverRequest(const TCtxDiscoverPtr& context)
     TDelayedExecutor::Submit(
         BIND(&TServiceBase::OnDiscoverRequestReplyDelayReached, MakeStrong(this), context),
         replyDelay,
-        DefaultInvoker_);
+        TDispatcher::Get()->GetHeavyInvoker());
 }
 
 void TServiceBase::ReplyDiscoverRequest(const TCtxDiscoverPtr& context, bool isUp)
@@ -2277,9 +2277,11 @@ std::vector<TString> TServiceBase::SuggestAddresses()
 
 DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
 {
-    context->SetRequestInfo();
-
     auto replyDelay = FromProto<TDuration>(request->reply_delay());
+
+    context->SetRequestInfo("ReplyDelay: %v",
+        replyDelay);
+
     auto isUp = IsUp(context);
 
     // Fast path.
