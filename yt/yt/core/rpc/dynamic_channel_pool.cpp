@@ -525,7 +525,7 @@ private:
             owner.Reset();
 
             req->Invoke()
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError) {
+                .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError) {
                     auto owner = Owner_.Lock();
                     if (!owner) {
                         return;
@@ -550,7 +550,7 @@ private:
                     }
 
                     DoPollPeer(peerPollingPeriod);
-                }));
+                }).Via(TDispatcher::Get()->GetLightInvoker()));
         }
     };
 
