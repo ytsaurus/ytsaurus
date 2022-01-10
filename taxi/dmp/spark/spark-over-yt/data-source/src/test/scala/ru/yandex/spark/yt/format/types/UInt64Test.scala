@@ -109,6 +109,12 @@ class UInt64Test extends FlatSpec with Matchers with LocalSpark with TmpDir with
     )
   }
 
+  it should "support fallback to sort for ObjectHashAggregation and compile without error" in {
+    val dataset = (0 until 1000 map (i => (UInt64Long(i), 0 to i map(UInt64Long(_))))).toDF("id", "nums")
+    val q = dataset.groupBy("id").agg(collect_list("nums"))
+    q.collect()
+  }
+
   it should "sort by uint64 column" in {
     val data = Seq(UInt64Long("9223372036854775813"),
       UInt64Long(0L), UInt64Long(1L), UInt64Long("9223372036854775816"))
