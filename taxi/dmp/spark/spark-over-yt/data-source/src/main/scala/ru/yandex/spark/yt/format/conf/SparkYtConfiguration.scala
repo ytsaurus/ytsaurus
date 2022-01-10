@@ -16,6 +16,7 @@ object SparkYtConfiguration {
 
     case object Timeout extends DurationSecondsConfigEntry(s"$prefix.timeout", Some(60 seconds))
 
+    case object TypeV3Format extends BooleanConfigEntry(s"$prefix.typeV3Format.enabled", Some(false))
   }
 
   object Read {

@@ -15,9 +15,12 @@ case class YtTableSparkSettings(configuration: Configuration) extends YtTableSet
 
   private def writeSchemaHints: Map[String, YtLogicalType] = configuration.ytConf(WriteSchemaHint)
 
+  private def typeV3Format: Boolean = configuration.ytConf(WriteTypeV3)
+
   private def schema: StructType = configuration.ytConf(Schema)
 
-  override def ytSchema: YTreeNode = SchemaConverter.ytLogicalSchema(schema, sortColumns, writeSchemaHints)
+  override def ytSchema: YTreeNode = SchemaConverter.ytLogicalSchema(
+    schema, sortColumns, writeSchemaHints, typeV3Format)
 
   override def optionsAny: Map[String, Any] = {
     val optionsKeys = configuration.ytConf(Options)
@@ -48,6 +51,8 @@ object YtTableSparkSettings {
 
   case object Schema extends StructTypeConfigEntry("schema")
 
+  case object WriteTypeV3 extends BooleanConfigEntry("write_type_v3", Some(false))
+
   case object OptimizeFor extends StringConfigEntry("optimize_for")
 
   case object Path extends StringListConfigEntry("path")
@@ -63,7 +68,7 @@ object YtTableSparkSettings {
       }.getOrElse(str)
     }
 
-    val excludeOptions: Set[String] = Set(SortColumns, Schema, Path).map(_.name)
+    val excludeOptions: Set[String] = Set(SortColumns, Schema, WriteTypeV3, Path).map(_.name)
   }
 
   def isTable(configuration: Configuration): Boolean = {

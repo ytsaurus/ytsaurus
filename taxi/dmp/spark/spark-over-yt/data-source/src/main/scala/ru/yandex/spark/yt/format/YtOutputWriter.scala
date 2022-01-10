@@ -35,6 +35,7 @@ class YtOutputWriter(path: String,
   private val log = LoggerFactory.getLogger(getClass)
 
   private val schemaHint = options.ytConf(WriteSchemaHint)
+  private val typeV3Format = options.ytConf(WriteTypeV3)
 
   private val client = createYtClient()
 
@@ -150,7 +151,7 @@ class YtOutputWriter(path: String,
 
   protected def initializeWriter(): TableWriter[InternalRow] = {
     log.debugLazy(s"Initialize new write: ${appendPath()}, transaction: $transactionGuid")
-    val request = new WriteTable[InternalRow](appendPath(), new InternalRowSerializer(schema, schemaHint))
+    val request = new WriteTable[InternalRow](appendPath(), new InternalRowSerializer(schema, schemaHint, typeV3Format))
       .setTransactionalOptions(new TransactionalOptions(GUID.valueOf(transactionGuid)))
     client.writeTable(request).join()
   }

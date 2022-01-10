@@ -99,7 +99,7 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
       path,
       schema,
       YtClientConfiguration.default("local"),
-      SparkYtWriteConfiguration(1, batchSize, 5 minutes),
+      SparkYtWriteConfiguration(1, batchSize, 5 minutes, typeV3Format = false),
       transaction.getId.toString,
       Map("sort_columns" -> SortColumns.set(sortColumns))
     ) {

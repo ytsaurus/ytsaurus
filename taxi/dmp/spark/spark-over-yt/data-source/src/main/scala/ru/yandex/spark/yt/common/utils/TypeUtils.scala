@@ -15,6 +15,12 @@ object TypeUtils {
     structFieldNames == expectedTupleFieldNames
   }
 
+  def isVariantOverTuple(struct: StructType): Boolean = {
+    val structFieldNames = struct.fieldNames.toSeq
+    val expectedTupleFieldNames = (1 to struct.length).map(n => s"_v_$n")
+    structFieldNames == expectedTupleFieldNames
+  }
+
   def isVariant(struct: StructType): Boolean = {
     struct.fields.forall(f => f.name.startsWith("_v"))
   }
