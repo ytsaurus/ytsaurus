@@ -1151,7 +1151,7 @@ private:
                 auto rootService = Bootstrap_->GetObjectManager()->GetRootService();
                 SyncExecuteVerb(rootService, req);
             }
-            node->SetLocalState(ENodeState::Offline);
+            node->SetLocalState(ENodeState::Offline, Bootstrap_);
             node->ReportedHeartbeats().clear();
 
             THROW_ERROR_EXCEPTION("Node %Qv (#%v) created and provisionally banned",
@@ -1166,7 +1166,7 @@ private:
             flavors,
             leaseTransactionId);
 
-        node->SetLocalState(ENodeState::Registered);
+        node->SetLocalState(ENodeState::Registered, Bootstrap_);
         node->ReportedHeartbeats().clear();
 
         UpdateNodeCounters(node, +1);
@@ -1435,7 +1435,7 @@ private:
 
             auto newDescriptor = FromProto<TCellNodeDescriptor>(entry.node_descriptor());
             UpdateNodeCounters(node, -1);
-            node->SetCellDescriptor(cellTag, newDescriptor);
+            node->SetCellDescriptor(cellTag, newDescriptor, Bootstrap_);
             UpdateNodeCounters(node, +1);
         }
     }
@@ -1839,7 +1839,7 @@ private:
         auto expectedHeartbeats = GetExpectedHeartbeatsForFlavors(node->Flavors(), multicellManager->IsPrimaryMaster());
         if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == expectedHeartbeats) {
             UpdateNodeCounters(node, -1);
-            node->SetLocalState(ENodeState::Online);
+            node->SetLocalState(ENodeState::Online, Bootstrap_);
             UpdateNodeCounters(node, +1);
 
             NodeOnline_.Fire(node);
@@ -1853,7 +1853,7 @@ private:
     void InitializeNodeStates(TNode* node)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        node->InitializeStates(multicellManager->GetCellTag(), multicellManager->GetSecondaryCellTags());
+        node->InitializeStates(multicellManager->GetCellTag(), multicellManager->GetSecondaryCellTags(), Bootstrap_);
     }
 
     void InitializeNodeIOWeights(TNode* node)
@@ -1953,7 +1953,7 @@ private:
             }
 
             UpdateNodeCounters(node, -1);
-            node->SetLocalState(ENodeState::Unregistered);
+            node->SetLocalState(ENodeState::Unregistered, Bootstrap_);
             node->ReportedHeartbeats().clear();
 
             for (const auto& locationUuid : node->LocationUuids()) {
@@ -1982,7 +1982,7 @@ private:
     void DisposeNode(TNode* node)
     {
         YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
-            node->SetLocalState(ENodeState::Offline);
+            node->SetLocalState(ENodeState::Offline, Bootstrap_);
             node->ReportedHeartbeats().clear();
             NodeDisposed_.Fire(node);
 

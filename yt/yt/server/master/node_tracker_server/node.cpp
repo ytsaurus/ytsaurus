@@ -3,6 +3,7 @@
 #include "config.h"
 #include "data_center.h"
 #include "host.h"
+#include "node_tracker_log.h"
 #include "rack.h"
 #include "private.h"
 #include "rack.h"
@@ -143,7 +144,7 @@ int TNode::GetConsistentReplicaPlacementTokenCount(int mediumIndex) const
     return it == ConsistentReplicaPlacementTokenCount_.end() ? 0 : it->second;
 }
 
-void TNode::ComputeAggregatedState()
+void TNode::ComputeAggregatedState(TBootstrap* bootstrap)
 {
     std::optional<ENodeState> result;
     for (const auto& [cellTag, descriptor] : MulticellDescriptors_) {
@@ -156,7 +157,10 @@ void TNode::ComputeAggregatedState()
             result = descriptor.State;
         }
     }
-    AggregatedState_ = *result;
+    if (AggregatedState_ != *result) {
+        LogNodeState(bootstrap, this, *result);
+        AggregatedState_ = *result;
+    }
 }
 
 void TNode::ComputeDefaultAddress()
@@ -327,7 +331,7 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 }
 
 
-void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCellTags)
+void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCellTags, TBootstrap* bootstrap)
 {
     auto addCell = [&] (TCellTag someTag) {
         if (MulticellDescriptors_.find(someTag) == MulticellDescriptors_.end()) {
@@ -342,7 +346,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
 
     LocalStatePtr_ = &MulticellDescriptors_[cellTag].State;
 
-    ComputeAggregatedState();
+    ComputeAggregatedState(bootstrap);
 }
 
 void TNode::RecomputeIOWeights(const NChunkServer::TChunkManagerPtr& chunkManager)
@@ -363,11 +367,11 @@ ENodeState TNode::GetLocalState() const
     return *LocalStatePtr_;
 }
 
-void TNode::SetLocalState(ENodeState state)
+void TNode::SetLocalState(ENodeState state, TBootstrap* bootstrap)
 {
     if (*LocalStatePtr_ != state) {
         *LocalStatePtr_ = state;
-        ComputeAggregatedState();
+        ComputeAggregatedState(bootstrap);
 
         if (state == ENodeState::Unregistered) {
             ClearCellStatistics();
@@ -375,13 +379,13 @@ void TNode::SetLocalState(ENodeState state)
     }
 }
 
-void TNode::SetCellDescriptor(TCellTag cellTag, const TCellNodeDescriptor& descriptor)
+void TNode::SetCellDescriptor(TCellTag cellTag, const TCellNodeDescriptor& descriptor, TBootstrap* bootstrap)
 {
     auto& oldDescriptor = GetOrCrash(MulticellDescriptors_, cellTag);
     auto mustRecomputeState = (oldDescriptor.State != descriptor.State);
     oldDescriptor = descriptor;
     if (mustRecomputeState) {
-        ComputeAggregatedState();
+        ComputeAggregatedState(bootstrap);
     }
 }
 
