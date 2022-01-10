@@ -3,6 +3,7 @@ package spyt
 import sbt.Keys._
 import sbt.PluginTrigger.NoTrigger
 import sbt._
+import sbtrelease.Versions
 import spyt.ReleaseUtils.{runProcess, updatePythonVersion}
 import spyt.SparkPackagePlugin.autoImport._
 import spyt.SpytRelease._
@@ -23,6 +24,10 @@ object SpytPlugin extends AutoPlugin {
 
     val spytSparkVersion = settingKey[String]("yandex-spark version")
     val spytSparkPythonVersion = settingKey[String]("yandex-spark version")
+
+    val clientVersions = settingKey[Versions]("")
+    val clusterVersions = settingKey[Versions]("")
+    val sparkVersions = settingKey[Versions]("")
 
     val pypiRegistry = settingKey[String]("PyPi registry to use")
 
