@@ -44,6 +44,8 @@ struct TTabletReaderPoolTag { };
 
 static const auto& Logger = TabletNodeLogger;
 
+static constexpr TDuration DefaultMaxOverdraftDuration = TDuration::Minutes(1);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStoreRangeFormatter
@@ -76,15 +78,23 @@ void ThrowUponDistributedThrottlerOverdraft(
 }
 
 void ThrowUponNodeThrottlerOverdraft(
+    std::optional<TInstant> requestStartTime,
+    std::optional<TDuration> requestTimeout,
     const TClientChunkReadOptions& chunkReadOptions,
     IBootstrap* bootstrap)
 {
+    TDuration maxOverdraftDuration = DefaultMaxOverdraftDuration;
+    if (requestStartTime && requestTimeout) {
+        maxOverdraftDuration = *requestStartTime + *requestTimeout - NProfiling::GetInstant();
+    }
+
     const auto& nodeThrottler = bootstrap->GetInThrottler(chunkReadOptions.WorkloadDescriptor.Category);
-    if (nodeThrottler->IsOverdraft()) {
+    if (nodeThrottler->GetEstimatedOverdraftDuration() > maxOverdraftDuration) {
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
             "Read request is throttled due to node throttler overdraft")
             << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
-            << TErrorAttribute("queue_total_count", nodeThrottler->GetQueueTotalCount());
+            << TErrorAttribute("queue_total_count", nodeThrottler->GetQueueTotalCount())
+            << TErrorAttribute("max_overdraft_duration", maxOverdraftDuration);
     }
 }
 

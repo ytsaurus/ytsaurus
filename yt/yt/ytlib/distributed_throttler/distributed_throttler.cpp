@@ -162,6 +162,11 @@ public:
         Underlying_->SetLimit(limit);
     }
 
+    TDuration GetEstimatedOverdraftDuration() const override
+    {
+        return Underlying_->GetEstimatedOverdraftDuration();
+    }
+
     void SetLeaderChannel(IChannelPtr leaderChannel)
     {
         LeaderChannel_.Store(leaderChannel);

@@ -66,6 +66,12 @@ struct IThroughputThrottler
      *  \note Thread affinity: any
      */
     virtual i64 GetQueueTotalCount() const = 0;
+
+    //! Returns estimated duration to drain current request queue.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TDuration GetEstimatedOverdraftDuration() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IThroughputThrottler)

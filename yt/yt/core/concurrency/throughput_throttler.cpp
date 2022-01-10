@@ -221,6 +221,19 @@ public:
         return QueueTotalCount_;
     }
 
+    TDuration GetEstimatedOverdraftDuration() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto queueTotalCount = QueueTotalCount_.load();
+        auto limit = Limit_.load();
+        if (queueTotalCount == 0 || limit <= 0) {
+            return TDuration::Zero();
+        }
+
+        return queueTotalCount / limit * TDuration::Seconds(1);
+    }
+
 private:
     const NLogging::TLogger Logger;
 
@@ -458,6 +471,12 @@ public:
         return 0;
     }
 
+    TDuration GetEstimatedOverdraftDuration() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return TDuration::Zero();
+    }
+
 private:
     NProfiling::TCounter ValueCounter_;
 };
@@ -548,10 +567,19 @@ public:
         return SelfQueueSize_;
     }
 
+    TDuration GetEstimatedOverdraftDuration() const override
+    {
+        TDuration result = TDuration::Zero();
+        for (const auto& throttler : Throttlers_) {
+            result = std::max(result, throttler->GetEstimatedOverdraftDuration());
+        }
+        return result;
+    }
+
 private:
     const std::vector<IThroughputThrottlerPtr> Throttlers_;
 
-    std::atomic<i64> SelfQueueSize_ = {0};
+    std::atomic<i64> SelfQueueSize_ = 0;
 };
 
 IThroughputThrottlerPtr CreateCombinedThrottler(
@@ -616,6 +644,11 @@ public:
     i64 GetQueueTotalCount() const override
     {
         return Stealer_->GetQueueTotalCount();
+    }
+
+    TDuration GetEstimatedOverdraftDuration() const override
+    {
+        return Stealer_->GetEstimatedOverdraftDuration();
     }
 
 private:

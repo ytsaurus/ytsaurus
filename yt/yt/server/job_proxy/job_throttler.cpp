@@ -151,6 +151,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    TDuration GetEstimatedOverdraftDuration() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     const TJobThrottlerConfigPtr Config_;
     const IChannelPtr Channel_;

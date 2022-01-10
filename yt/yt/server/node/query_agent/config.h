@@ -26,6 +26,8 @@ public:
 
     TAsyncExpiringCacheConfigPtr PoolWeightCache;
 
+    bool RejectUponThrottlerOverdraft;
+
     TQueryAgentConfig()
     {
         RegisterParameter("query_thread_pool_size", QueryThreadPoolSize)
@@ -57,6 +59,9 @@ public:
         RegisterParameter("pool_weight_cache", PoolWeightCache)
             .DefaultNew();
 
+        RegisterParameter("reject_upon_throttler_overdraft", RejectUponThrottlerOverdraft)
+            .Default(true);
+
         RegisterPreprocessor([&] () {
             FunctionImplCache->Capacity = 100;
         });
@@ -75,6 +80,8 @@ public:
     std::optional<int> LookupThreadPoolSize;
     std::optional<int> FetchThreadPoolSize;
 
+    std::optional<bool> RejectUponThrottlerOverdraft;
+
     TQueryAgentDynamicConfig()
     {
         RegisterParameter("query_thread_pool_size", QueryThreadPoolSize)
@@ -86,6 +93,8 @@ public:
             .Optional();
         RegisterParameter("fetch_thread_pool_size", FetchThreadPoolSize)
             .GreaterThan(0)
+            .Optional();
+        RegisterParameter("reject_upon_throttler_overdraft", RejectUponThrottlerOverdraft)
             .Optional();
     }
 };
