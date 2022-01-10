@@ -36,9 +36,9 @@ class SparkDiscovery(object):
         self.spark_id = spark_id
 
     @staticmethod
-    def get(path, client=None):
+    def getAll(path, client=None):
         try:
-            return yt_list(path, client=client)[0]
+            return yt_list(path, client=client)
         except YtHttpResponseError as e:
             logging.warning("Failed to get path {}, message: {}".format(path, e.message))
             for inner in e.inner_errors:
@@ -46,11 +46,26 @@ class SparkDiscovery(object):
             raise e
 
     @staticmethod
+    def get(path, client=None):
+        all = SparkDiscovery.getAll(path, client)
+        if not all:
+            return None
+        else:
+            return all[0]
+
+    @staticmethod
     def getOption(path, client=None):
         try:
             return SparkDiscovery.get(path, client)
         except YtHttpResponseError as _:
             return None
+
+    @staticmethod
+    def getOptions(path, client=None):
+        try:
+            return SparkDiscovery.getAll(path, client)
+        except YtHttpResponseError as _:
+            return []
 
     def create(self, client):
         create("map_node", self.discovery(), recursive=True, ignore_existing=True, client=client)
@@ -64,6 +79,9 @@ class SparkDiscovery(object):
 
     def operation(self):
         return self.discovery().join("operation")
+
+    def children_operations(self):
+        return self.discovery().join("children_operations")
 
     def logs(self):
         return self.base_discovery_path.join("logs")

@@ -10,16 +10,24 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 
+case class OperationSet(master: String, children: Set[String] = Set()) {
+  def allOperations: Set[String] = children + master
+}
+
 trait DiscoveryService {
-  def register(operationId: String,
-               address: Address,
-               clusterVersion: String,
-               masterWrapperEndpoint: HostAndPort,
-               clusterConf: SparkConfYsonable): Unit
+  def registerMaster(operationId: String,
+                     address: Address,
+                     clusterVersion: String,
+                     masterWrapperEndpoint: HostAndPort,
+                     clusterConf: SparkConfYsonable): Unit
 
   def registerSHS(address: HostAndPort): Unit
 
+  def registerWorker(operationId: String): Unit
+
   def discoverAddress(): Option[Address]
+
+  def operations(): Option[OperationSet]
 
   def masterWrapperEndpoint(): Option[HostAndPort]
 
