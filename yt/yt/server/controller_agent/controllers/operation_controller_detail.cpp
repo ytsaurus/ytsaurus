@@ -2899,7 +2899,10 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         return;
     }
 
-    YT_LOG_DEBUG("Job completed (JobId: %v)", jobId);
+    YT_LOG_DEBUG("Job completed (JobId: %v, StatisticsSize: %v, ResultSize: %v)",
+        jobId,
+        jobSummary->StatisticsYson ? jobSummary->StatisticsYson.AsStringBuf().size() : 0,
+        jobSummary->Result.ByteSizeLong());
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         ExtractInterruptDescriptor(*jobSummary, joblet);
