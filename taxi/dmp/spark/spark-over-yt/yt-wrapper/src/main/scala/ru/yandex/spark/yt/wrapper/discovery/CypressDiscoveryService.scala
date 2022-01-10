@@ -20,6 +20,8 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
 
   private def operationPath: String = s"$discoveryPath/operation"
 
+  private def childrenOperationsPath: String = s"$discoveryPath/children_operations"
+
   private def shsPath: String = s"$discoveryPath/shs"
 
   private def clusterVersionPath: String = s"$discoveryPath/version"
@@ -28,11 +30,11 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
 
   private def masterWrapperPath: String = s"$discoveryPath/master_wrapper"
 
-  override def register(operationId: String,
-                        address: Address,
-                        clusterVersion: String,
-                        masterWrapperEndpoint: HostAndPort,
-                        clusterConf: SparkConfYsonable): Unit = {
+  override def registerMaster(operationId: String,
+                              address: Address,
+                              clusterVersion: String,
+                              masterWrapperEndpoint: HostAndPort,
+                              clusterConf: SparkConfYsonable): Unit = {
     val clearDir = discoverAddress() match {
       case Some(address) if DiscoveryService.isAlive(address.hostAndPort, 3) && operation.exists(_ != operationId) =>
         throw new IllegalStateException(s"Spark instance with path $discoveryPath already exists")
@@ -66,6 +68,18 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
     }
     transaction.commit().join()
   }
+
+  override def registerWorker(operationId: String): Unit = {
+    log.info(s"Registering worker operation $operationId")
+    if (!operation.contains(operationId) && operationId != null && !operationId.isBlank) {
+      log.info(s"Registering worker operation $operationId: started")
+      val tr = YtWrapper.createTransaction(None, 1 minute)
+      YtWrapper.createDir(s"$childrenOperationsPath/$operationId", Some(tr.getId.toString), ignoreExisting = true)
+      tr.commit().join()
+      log.info(s"Registering worker operation $operationId: completed")
+    }
+  }
+
 
   override def registerSHS(address: HostAndPort): Unit = {
     val transaction = YtWrapper.createTransaction(None, 1 minute)
@@ -104,6 +118,17 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
   }
 
   private def operation: Option[String] = getPath(operationPath)
+
+  override def operations(): Option[OperationSet] = {
+    operation.map(masterId => {
+      val children = if (YtWrapper.exists(childrenOperationsPath)) {
+        YtWrapper.listDir(childrenOperationsPath).toSet
+      } else {
+        Set[String]()
+      }
+      OperationSet(masterId, children)
+    })
+  }
 
   override def waitAddress(timeout: Duration): Option[Address] = {
     DiscoveryService.waitFor(

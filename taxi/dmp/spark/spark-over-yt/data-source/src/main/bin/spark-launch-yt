@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import logging
 import sys
 import os
 import subprocess
@@ -23,49 +23,71 @@ def main():
     parser.add_argument("--tmpfs-limit", required=False, default="150G")
     parser.add_argument("--ssd-limit", required=False, default=None)
     parser.add_argument("--master-memory-limit", required=False, default="4G")
-    parser.add_argument("--history-server-memory-limit", required=False, default="16G")
-    parser.add_argument("--history-server-memory-overhead", required=False, default="4G")
-    parser.add_argument("--history-server-cpu-limit", required=False, default=8, type=int)
+    parser.add_argument("--history-server-memory-limit",
+                        required=False, default="16G")
+    parser.add_argument("--history-server-memory-overhead",
+                        required=False, default="4G")
+    parser.add_argument("--history-server-cpu-limit",
+                        required=False, default=8, type=int)
     parser.add_argument("--operation-alias", required=False)
     parser.add_argument("--network-project", required=False)
     parser.add_argument("--params", required=False, action=ParseStructuredArgument, dest="params",
                         default=SparkDefaultArguments.get_params())
-    parser.add_argument('--abort-existing', required=False, action='store_true', default=False)
+    parser.add_argument('--abort-existing', required=False,
+                        action='store_true', default=False)
     parser.add_argument("--spark-cluster-version", required=False)
-    parser.add_argument("--worker-log-update-interval", required=False, default="10m")
+    parser.add_argument("--worker-log-update-interval",
+                        required=False, default="10m")
     parser.add_argument("--worker-log-table-ttl", required=False, default="7d")
     parser.add_argument("--shs-location", required=False)
     parser.add_argument("--preemption_mode", required=False, default="normal")
 
+    parser.add_argument('--enable-multi-operation-mode',
+                        dest='enable_multi_operation_mode', action='store_true')
+    parser.add_argument('--disable-multi-operation-mode',
+                        dest='enable_multi_operation_mode', action='store_false')
+    parser.set_defaults(enable_multi_operation_mode=False)
+
     default_enablers = SpytEnablers()
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-byop', dest='enable_byop', action='store_true')
-    group.add_argument('--disable-byop', dest='enable_byop', action='store_false')
+    group.add_argument('--enable-byop', dest='enable_byop',
+                       action='store_true')
+    group.add_argument('--disable-byop', dest='enable_byop',
+                       action='store_false')
     parser.set_defaults(enable_byop=default_enablers.enable_byop)
 
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-profiling', dest='enable_profiling', action='store_true')
-    group.add_argument('--disable-profiling', dest='enable_profiling', action='store_false')
+    group.add_argument('--enable-profiling',
+                       dest='enable_profiling', action='store_true')
+    group.add_argument('--disable-profiling',
+                       dest='enable_profiling', action='store_false')
     parser.set_defaults(enable_profiling=default_enablers.enable_profiling)
 
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--enable-mtn', dest='enable_mtn', action='store_true')
-    group.add_argument('--disable-mtn', dest='enable_mtn', action='store_false')
+    group.add_argument('--disable-mtn', dest='enable_mtn',
+                       action='store_false')
     parser.set_defaults(enable_mtn=default_enablers.enable_mtn)
 
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-advanced-event-log', dest='advanced_event_log', action='store_true')
-    group.add_argument('--disable-advanced-event-log', dest='advanced_event_log', action='store_false')
+    group.add_argument('--enable-advanced-event-log',
+                       dest='advanced_event_log', action='store_true')
+    group.add_argument('--disable-advanced-event-log',
+                       dest='advanced_event_log', action='store_false')
     parser.set_defaults(advanced_event_log=False)
 
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-worker-log-transfer', dest='worker_log_transfer', action='store_true')
-    group.add_argument('--disable-worker-log-transfer', dest='worker_log_transfer', action='store_false')
+    group.add_argument('--enable-worker-log-transfer',
+                       dest='worker_log_transfer', action='store_true')
+    group.add_argument('--disable-worker-log-transfer',
+                       dest='worker_log_transfer', action='store_false')
     parser.set_defaults(worker_log_transfer=False)
 
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-worker-log-json-mode', dest='worker_log_json_mode', action='store_true')
-    group.add_argument('--disable-worker-log-json-mode', dest='worker_log_json_mode', action='store_false')
+    group.add_argument('--enable-worker-log-json-mode',
+                       dest='worker_log_json_mode', action='store_true')
+    group.add_argument('--disable-worker-log-json-mode',
+                       dest='worker_log_json_mode', action='store_false')
     parser.set_defaults(worker_log_json_mode=False)
 
     args, unknown_args = spark_utils.parse_args(parser)
@@ -104,7 +126,8 @@ def main():
                             enable_mtn=args.enable_mtn
                         ),
                         client=yt_client,
-                        preemption_mode=args.preemption_mode)
+                        preemption_mode=args.preemption_mode,
+                        enable_multi_operation_mode=args.enable_multi_operation_mode)
 
 
 if __name__ == '__main__':
