@@ -3,6 +3,8 @@
 #include "public.h"
 #include "private.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/query_agent/config.h>
@@ -396,25 +398,30 @@ public:
             Bootstrap_
                 ->GetMemoryUsageTracker()
                 ->WithCategory(NNodeTrackerClient::EMemoryCategory::Query))
+        , RejectUponThrottlerOverdraft_(Config_->RejectUponThrottlerOverdraft)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true)
             .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this))));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
-            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker())
+            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
             .SetRequestQueueProvider(BIND(&TQueryService::GetMultireadRequestQueue, Unretained(this))));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
             .SetCancelable(true)
-            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
+            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
-            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
+            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadDynamicStore)
             .SetCancelable(true)
             .SetStreamingEnabled(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchTabletStores)
-            .SetInvoker(bootstrap->GetTabletFetchPoolInvoker()));
+            .SetInvoker(Bootstrap_->GetTabletFetchPoolInvoker()));
+
+        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
+            &TQueryService::OnDynamicConfigChanged,
+            MakeWeak(this)));
     }
 
 private:
@@ -428,6 +435,8 @@ private:
     const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
 
     TRequestQueue InMemoryMultireadRequestQueue_{"in_memory"};
+
+    std::atomic<bool> RejectUponThrottlerOverdraft_;
 
 
     IInvokerPtr GetExecuteInvoker(const NRpc::NProto::TRequestHeader& requestHeader)
@@ -516,9 +525,13 @@ private:
             .ReadSessionId = queryOptions.ReadSessionId
         };
 
-        ThrowUponNodeThrottlerOverdraft(
-            chunkReadOptions,
-            Bootstrap_);
+        if (RejectUponThrottlerOverdraft_.load()) {
+            ThrowUponNodeThrottlerOverdraft(
+                context->GetStartTime(),
+                context->GetTimeout(),
+                chunkReadOptions,
+                Bootstrap_);
+        }
 
         // Grab the invoker provided by GetExecuteInvoker.
         auto invoker = GetCurrentInvoker();
@@ -657,9 +670,13 @@ private:
             auto attachment = request->Attachments()[index];
             auto& subrequest = session->Subrequests[index];
 
-            ThrowUponNodeThrottlerOverdraft(
-                chunkReadOptions,
-                Bootstrap_);
+            if (RejectUponThrottlerOverdraft_.load()) {
+                ThrowUponNodeThrottlerOverdraft(
+                    context->GetStartTime(),
+                    context->GetTimeout(),
+                    chunkReadOptions,
+                    Bootstrap_);
+            }
 
             subrequest.TabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, mountRevision);
             if (subrequest.TabletSnapshot) {
@@ -1644,6 +1661,14 @@ private:
 
             *totalRowCount += readerRows.size();
         }
+    }
+
+    void OnDynamicConfigChanged(
+        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& newConfig)
+    {
+        RejectUponThrottlerOverdraft_.store(
+            newConfig->QueryAgent->RejectUponThrottlerOverdraft.value_or(Config_->RejectUponThrottlerOverdraft));
     }
 };
 

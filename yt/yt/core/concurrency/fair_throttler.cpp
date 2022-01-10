@@ -13,7 +13,8 @@ TFairThrottlerConfig::TFairThrottlerConfig()
     RegisterParameter("total_limit", TotalLimit);
 
     RegisterParameter("distribution_period", DistributionPeriod)
-        .Default(TDuration::MilliSeconds(100));
+        .Default(TDuration::MilliSeconds(100))
+        .GreaterThan(TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,9 +78,10 @@ class TBucketThrottler
     : public IThroughputThrottler
 {
 public:
-    TBucketThrottler(const NProfiling::TProfiler& profiler)
+    TBucketThrottler(const NProfiling::TProfiler& profiler, TDuration distributionPeriod)
         : Value_(profiler.Counter("/value"))
         , WaitTime_(profiler.Timer("/wait_time"))
+        , DistributionPeriod_(distributionPeriod)
     {
         profiler.AddFuncGauge("/queue_size", MakeStrong(this), [this] {
             return GetQueueTotalCount();
@@ -166,9 +168,25 @@ public:
         return Max(-Quota_.load(), 0l) + QueueSize_.load();
     }
 
+    TDuration GetEstimatedOverdraftDuration() const override
+    {
+        auto queueTotalCount = GetQueueTotalCount();
+        if (queueTotalCount == 0) {
+            return TDuration::Zero();
+        }
+
+        auto limit = LastLimit_.load();
+        auto distributionPeriod = DistributionPeriod_.load();
+        if (limit == 0) {
+            return distributionPeriod;
+        }
+
+        return queueTotalCount / limit * distributionPeriod;
+    }
+
     struct TBucketState
     {
-        i64 Limit; // Limit on current interation.
+        i64 Limit; // Limit on current iteration.
         i64 Remaining; // Remaining quota on current iteration.
         i64 Overdraft; // Unpaid overdraft from previous iterations.
         i64 QueueSize; // Total size of all queued requests.
@@ -182,7 +200,7 @@ public:
         }
 
         return TBucketState{
-            .Limit = LastLimit_,
+            .Limit = LastLimit_.load(),
             .Remaining = Max(quota, 0l),
             .Overdraft = Max(-quota, 0l),
             .QueueSize = QueueSize_.load(),
@@ -241,16 +259,24 @@ public:
         }
     }
 
+    void SetDistributionPeriod(TDuration distributionPeriod)
+    {
+        DistributionPeriod_.store(distributionPeriod);
+    }
+
 private:
     NProfiling::TCounter Value_;
     NProfiling::TEventTimer WaitTime_;
 
-    i64 LastLimit_ = 0;
+    std::atomic<i64> LastLimit_ = 0;
     std::atomic<i64> Quota_ = {};
     std::atomic<i64> QueueSize_ = {};
 
+    std::atomic<TDuration> DistributionPeriod_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     std::deque<TBucketThrottleRequestPtr> Queue_;
+
 
     void OnRequestComplete(i64 count, const TError& /*error*/)
     {
@@ -285,10 +311,11 @@ IThroughputThrottlerPtr TFairThrottler::CreateBucketThrottler(
 
     if (auto it = Buckets_.find(name); it != Buckets_.end()) {
         it->second.Config = std::move(config);
+        it->second.Throttler->SetDistributionPeriod(Config_->DistributionPeriod);
         return it->second.Throttler;
     }
 
-    auto throttler = New<TBucketThrottler>(Profiler_.WithTag("bucket", name));
+    auto throttler = New<TBucketThrottler>(Profiler_.WithTag("bucket", name), Config_->DistributionPeriod);
     Buckets_[name] = TBucket{
         .Config = std::move(config),
         .Throttler = throttler,

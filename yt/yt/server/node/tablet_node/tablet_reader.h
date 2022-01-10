@@ -25,6 +25,8 @@ void ThrowUponDistributedThrottlerOverdraft(
 
 //! Throws if corresponding node throttler is in overdraft.
 void ThrowUponNodeThrottlerOverdraft(
+    std::optional<TInstant> requestStartTime,
+    std::optional<TDuration> requestTimeout,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     IBootstrap* bootstrap);
 
