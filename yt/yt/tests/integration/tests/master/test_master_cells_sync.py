@@ -250,6 +250,10 @@ class TestMasterCellsSync(YTEnvSetup):
         set("//sys/@config", {})
         self._check_true_for_secondary(lambda driver: check(driver, False))
 
+    # NB: Think twice before ignoring flap of this test!
+    # This test relies on a fact that master dynamic config
+    # does not have unrecognized config options, so it is
+    # usually broken after adding such options.
     @authors("gritukan")
     def test_master_alerts_sync(self):
         def check(alert_count):
