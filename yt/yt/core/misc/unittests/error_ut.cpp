@@ -63,6 +63,29 @@ TEST(TErrorTest, FormatCtor)
     EXPECT_EQ("Some error hello", TError("Some error %v", "hello").GetMessage());
 }
 
+TEST(TErrorTest, TruncateSimple)
+{
+    auto error = TError("Some error");
+    auto truncatedError = error.Truncate();
+    EXPECT_EQ(error.GetCode(), truncatedError.GetCode());
+    EXPECT_EQ(error.GetMessage(), truncatedError.GetMessage());
+    EXPECT_EQ(error.GetPid(), truncatedError.GetPid());
+    EXPECT_EQ(error.GetTid(), truncatedError.GetTid());
+    EXPECT_EQ(error.GetSpanId(), truncatedError.GetSpanId());
+    EXPECT_EQ(error.GetDatetime(), truncatedError.GetDatetime());
+}
+
+TEST(TErrorTest, TruncateLarge)
+{
+    auto error = TError("Some long long error");
+    error.MutableAttributes()->Set("my_attr", "Some long long attr");
+    
+    auto truncatedError = error.Truncate(/*maxInnerErrorCount*/ 2, /*stringLimit*/ 10);
+    EXPECT_EQ(error.GetCode(), truncatedError.GetCode());
+    EXPECT_EQ("Some long ...<message truncated>", truncatedError.GetMessage());
+    EXPECT_EQ("...<attribute truncated>...", truncatedError.Attributes().Get<TString>("my_attr"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 }

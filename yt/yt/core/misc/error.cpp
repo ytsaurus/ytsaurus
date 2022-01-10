@@ -209,6 +209,18 @@ public:
         return Code_ == NYT::EErrorCode::OK;
     }
 
+    void CopyBuiltinAttributesFrom(const TError::TImpl& other)
+    {
+        Host_ = other.Host_;
+        HostHolder_ = other.HostHolder_;
+        Datetime_ = other.Datetime_;
+        Pid_ = other.Pid_;
+        Tid_ = other.Tid_;
+        Fid_ = other.Fid_;
+        TraceId_ = other.TraceId_;
+        SpanId_ = other.SpanId_;
+    }
+
 private:
     TErrorCode Code_;
     TString Message_;
@@ -220,8 +232,8 @@ private:
     TProcessId Pid_ = 0;
     NConcurrency::TThreadId Tid_ = NConcurrency::InvalidThreadId;
     NConcurrency::TFiberId Fid_ = NConcurrency::InvalidFiberId;
-    NTracing::TTraceId TraceId_;
-    NTracing::TSpanId SpanId_;
+    NTracing::TTraceId TraceId_ = NTracing::InvalidTraceId;
+    NTracing::TSpanId SpanId_ = NTracing::InvalidSpanId;
     NYTree::IAttributeDictionaryPtr Attributes_;
     std::vector<TError> InnerErrors_;
 
@@ -586,8 +598,9 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit) const
     auto result = std::make_unique<TImpl>();
     result->SetCode(GetCode());
     result->SetMessage(truncateString(GetMessage()));
+    result->CopyBuiltinAttributesFrom(*Impl_);
     if (Impl_->HasAttributes()) {
-        result->SetAttributes(truncateAttributes(Attributes()));
+        result->SetAttributes(truncateAttributes(Impl_->Attributes()));
     }
 
     if (std::ssize(InnerErrors()) <= maxInnerErrorCount) {
