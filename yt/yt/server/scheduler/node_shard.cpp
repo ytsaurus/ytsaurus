@@ -161,6 +161,8 @@ TNodeShard::TNodeShard(
         .Counter("/node_heartbeat/job_count");
     HeartbeatStatisticBytes_ = SchedulerProfiler
         .Counter("/node_heartbeat/statistic_bytes");
+    HeartbeatJobResultBytes_ = SchedulerProfiler
+        .Counter("/node_heartbeat/job_result_bytes");
     HeartbeatProtoMessageBytes_ = SchedulerProfiler
         .Counter("/node_heartbeat/proto_message_bytes");
     HeartbeatCount_ = SchedulerProfiler
@@ -1811,7 +1813,8 @@ void TNodeShard::ProcessHeartbeatJobs(
     // Used for debug logging.
     TJobStateToJobList ongoingJobsByJobState;
     std::vector<TJobId> recentlyFinishedJobIdsToLog;
-    size_t totalJobStatisticsSize{};
+    i64 totalJobStatisticsSize = 0;
+    i64 totalJobResultSize = 0;
     for (auto& jobStatus : *request->mutable_jobs()) {
         YT_VERIFY(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
@@ -1821,6 +1824,9 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
         if (jobStatus.has_statistics()) {
             totalJobStatisticsSize += std::size(jobStatus.statistics());
+        }
+        if (jobStatus.has_result()) {
+            totalJobResultSize += jobStatus.result().ByteSizeLong();
         }
 
         auto job = ProcessJobHeartbeat(
@@ -1859,6 +1865,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     HeartbeatProtoMessageBytes_.Increment(request->ByteSizeLong());
     HeartbeatJobCount_.Increment(request->jobs_size());
     HeartbeatStatisticBytes_.Increment(totalJobStatisticsSize);
+    HeartbeatJobResultBytes_.Increment(totalJobResultSize);
     HeartbeatCount_.Increment();
 
     if (shouldUpdateRunningJobStatistics) {
