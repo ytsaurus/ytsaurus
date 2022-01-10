@@ -1,7 +1,6 @@
 package spyt
 
 import sbt.{IO, SettingKey, State, StateTransform, ThisBuild}
-import sbtrelease.ReleasePlugin.autoImport.ReleaseKeys._
 import sbtrelease.ReleasePlugin.autoImport._
 import sbtrelease.ReleaseStateTransformations.reapply
 import sbtrelease.Utilities._
@@ -102,9 +101,11 @@ object ReleaseUtils {
   }
 
 
-  def setVersion(spytVersions: Seq[(SettingKey[String], Versions => String)],
+  def setVersion(versions: SettingKey[Versions],
+                 spytVersions: Seq[(SettingKey[String], Versions => String)],
                  fileSetting: SettingKey[File]): ReleaseStep = { st: State =>
-    val vs = st.get(versions).getOrElse(sys.error("No versions are set! Was this release part executed before inquireVersions?"))
+    val vs = st.get(versions.key)
+      .getOrElse(sys.error("No versions are set! Was this release part executed before inquireVersions?"))
     val selected = spytVersions.map(v => v._1 -> v._2.apply(vs))
 
     st.log.info(s"Setting ${selected.map { case (k, v) => s"${k.key} to $v" }.mkString(", ")}")
@@ -115,12 +116,13 @@ object ReleaseUtils {
     reapply(selected.map { case (k, v) => ThisBuild / k := v }, st)
   }
 
-  def maybeSetVersion(spytVersions: Seq[(SettingKey[String], Versions => String)],
+  def maybeSetVersion(versions: SettingKey[Versions],
+                      spytVersions: Seq[(SettingKey[String], Versions => String)],
                       fileSetting: SettingKey[File]): ReleaseStep = {
     if (isTeamCity) {
       identity[State](_)
     } else {
-      setVersion(spytVersions, fileSetting)
+      setVersion(versions, spytVersions, fileSetting)
     }
   }
 

@@ -1,7 +1,6 @@
 package spyt
 
 import sbt._
-import sbtrelease.ReleasePlugin.autoImport.ReleaseKeys.versions
 import sbtrelease.ReleasePlugin.autoImport.{ReleaseStep, releaseStepTask}
 import sbtrelease.Utilities.stateW
 import sbtrelease.Versions
@@ -130,17 +129,21 @@ object SpytSnapshot {
     }
   }
 
-  private lazy val clientSnapshotVersions: ReleaseStep = { st: State => snapshotVersions(st, spytClientVersion, "yandex-spyt") }
+  private lazy val clientSnapshotVersions: ReleaseStep = { st: State =>
+    snapshotVersions(clientVersions, st, spytClientVersion, "yandex-spyt")
+  }
   private lazy val setSnapshotClientVersion: ReleaseStep = {
-    setVersion(Seq(
+    setVersion(clientVersions, Seq(
       spytClientVersion -> { v: Versions => v._1 },
       spytClientPythonVersion -> { v: Versions => v._2 }
     ), spytClientVersionFile)
   }
 
-  private lazy val sparkForkSnapshotVersions: ReleaseStep = { st: State => snapshotVersions(st, spytSparkVersion, "yandex-pyspark") }
+  private lazy val sparkForkSnapshotVersions: ReleaseStep = { st: State =>
+    snapshotVersions(sparkVersions, st, spytSparkVersion, "yandex-pyspark")
+  }
   private lazy val setSparkForkSnapshotVersion: ReleaseStep = {
-    setVersion(Seq(
+    setVersion(sparkVersions, Seq(
       spytSparkVersion -> { v: Versions => v._1 },
       spytSparkPythonVersion -> { v: Versions => v._2 }
     ), spytSparkVersionFile)
@@ -156,14 +159,17 @@ object SpytSnapshot {
     Option(System.getProperty("installSpark")).forall(_.toBoolean)
   }
 
-  private lazy val clusterSnapshotVersions: ReleaseStep = { st: State => snapshotVersion(st, spytClusterVersion) }
+  private lazy val clusterSnapshotVersions: ReleaseStep = { st: State =>
+    snapshotVersion(clusterVersions, st, spytClusterVersion)
+  }
   private lazy val setClusterSnapshotVersion: ReleaseStep = {
-    setVersion(Seq(
+    setVersion(clusterVersions, Seq(
       spytClusterVersion -> { v: Versions => v._1 }
     ), spytClusterVersionFile)
   }
 
-  private def snapshotVersions(st: State,
+  private def snapshotVersions(versions: SettingKey[Versions],
+                               st: State,
                                versionSetting: SettingKey[String],
                                pythonPackage: String): State = {
     val curVer = SnapshotVersion.parse(st.extract.get(versionSetting))
@@ -173,15 +179,17 @@ object SpytSnapshot {
     st.log.info(s"New scala version: ${newVer.toScalaString}")
     st.log.info(s"New python version: ${newVer.toPythonString}")
 
-    st.put(versions, (newVer.toScalaString, newVer.toPythonString))
+    st.put(versions.key, (newVer.toScalaString, newVer.toPythonString))
   }
 
-  private def snapshotVersion(st: State, versionSetting: SettingKey[String]): State = {
+  private def snapshotVersion(versions: SettingKey[Versions],
+                              st: State,
+                              versionSetting: SettingKey[String]): State = {
     val curVer = SnapshotVersion.parse(st.extract.get(versionSetting))
     val newVer = curVer.inc
     st.log.info(s"Current version: ${curVer.toScalaString}")
     st.log.info(s"New scala version: ${newVer.toScalaString}")
 
-    st.put(versions, (newVer.toScalaString, ""))
+    st.put(versions.key, (newVer.toScalaString, ""))
   }
 }
