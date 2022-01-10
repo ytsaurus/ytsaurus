@@ -352,7 +352,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
           YTree.builder()
             .beginMap()
             .key("name").value("a")
-            .key("type").value(YtLogicalType.Int32.name)
+            .key("type").value(TiType.int32().getTypeName.getWireName)
             .key("required").value(false)
             .buildMap
         ).asJava)

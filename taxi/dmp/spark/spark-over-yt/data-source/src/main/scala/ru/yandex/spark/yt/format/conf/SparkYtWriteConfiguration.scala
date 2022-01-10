@@ -8,7 +8,8 @@ import scala.concurrent.duration.Duration
 
 case class SparkYtWriteConfiguration(miniBatchSize: Int,
                                      batchSize: Int,
-                                     timeout: Duration)
+                                     timeout: Duration,
+                                     typeV3Format: Boolean)
 
 object SparkYtWriteConfiguration {
 
@@ -17,12 +18,14 @@ object SparkYtWriteConfiguration {
   def apply(sqlc: SQLContext): SparkYtWriteConfiguration = SparkYtWriteConfiguration(
     sqlc.ytConf(Write.MiniBatchSize),
     sqlc.ytConf(Write.BatchSize),
-    sqlc.ytConf(Write.Timeout)
+    sqlc.ytConf(Write.Timeout),
+    sqlc.ytConf(Write.TypeV3Format)
   )
 
   def apply(sqlc: SQLConf): SparkYtWriteConfiguration = SparkYtWriteConfiguration(
     sqlc.ytConf(Write.MiniBatchSize),
     sqlc.ytConf(Write.BatchSize),
-    sqlc.ytConf(Write.Timeout)
+    sqlc.ytConf(Write.Timeout),
+    sqlc.ytConf(Write.TypeV3Format)
   )
 }

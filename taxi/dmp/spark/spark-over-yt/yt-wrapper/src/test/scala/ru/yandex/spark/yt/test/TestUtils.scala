@@ -2,7 +2,7 @@ package ru.yandex.spark.yt.test
 
 import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils
-import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeSerializer
+import ru.yandex.inside.yt.kosher.impl.ytree.`object`.{YTreeRowSerializer, YTreeSerializer}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
@@ -89,7 +89,7 @@ trait TestUtils {
                         (implicit yt: CompoundClient): Unit = {
     import scala.collection.JavaConverters._
 
-    val serializer = new YTreeSerializer[String] {
+    val serializer = new YTreeRowSerializer[String] {
       override def serialize(obj: String, consumer: YsonConsumer): Unit = {
         val node = YTreeTextSerializer.deserialize(new ByteArrayInputStream(obj.getBytes(StandardCharsets.UTF_8)))
         YTreeNodeUtils.walk(node, consumer, false)
@@ -100,6 +100,10 @@ trait TestUtils {
       override def deserialize(node: YTreeNode): String = ???
 
       override def getColumnValueType: ColumnValueType = ColumnValueType.STRING
+
+      override def serializeRow(obj: String, consumer: YsonConsumer, keyFieldsOnly: Boolean, compareWith: String): Unit = {
+        serialize(obj, consumer)
+      }
     }
     YtWrapper.createTable(path, options ++ Map("schema" -> schema, "optimize_for" -> optimizeFor.node), None)
     val writer = yt.writeTable(new WriteTable[String](path, serializer)).join()

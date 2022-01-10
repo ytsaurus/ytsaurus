@@ -105,6 +105,13 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     }
   }
 
+  private def addWriteOptions(options: Map[String, String],
+                              writeConfiguration: SparkYtWriteConfiguration): Map[String, String] = {
+    import YtTableSparkSettings.WriteTypeV3
+    if (options.contains(WriteTypeV3.name)) options
+    else options + (WriteTypeV3.name -> writeConfiguration.typeV3Format.toString)
+  }
+
   override def prepareWrite(sparkSession: SparkSession,
                             job: Job,
                             options: Map[String, String],
@@ -113,14 +120,15 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
 
     val ytClientConf = ytClientConfiguration(sparkSession)
     val writeConfiguration = SparkYtWriteConfiguration(sparkSession.sqlContext)
-    YtTableSparkSettings.serialize(options, dataSchema, job.getConfiguration)
+    val updatedOptions = addWriteOptions(options, writeConfiguration)
+    YtTableSparkSettings.serialize(updatedOptions, dataSchema, job.getConfiguration)
 
     new OutputWriterFactory {
       override def getFileExtension(context: TaskAttemptContext): String = ""
 
       override def newInstance(path: String, dataSchema: StructType, context: TaskAttemptContext): OutputWriter = {
         val transaction = YtOutputCommitter.getWriteTransaction(context.getConfiguration)
-        new YtOutputWriter(path, dataSchema, ytClientConf, writeConfiguration, transaction, options)
+        new YtOutputWriter(path, dataSchema, ytClientConf, writeConfiguration, transaction, updatedOptions)
       }
     }
   }

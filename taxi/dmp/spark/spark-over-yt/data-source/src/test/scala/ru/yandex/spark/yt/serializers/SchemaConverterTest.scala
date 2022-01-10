@@ -1,11 +1,15 @@
 package ru.yandex.spark.yt.serializers
 
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.v2.YtUtils
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
+import ru.yandex.spark.yt.serializers.SchemaConverter.ytLogicalSchema
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.{SchemaTestUtils, YtReader}
 import ru.yandex.type_info.StructType.Member
@@ -66,6 +70,28 @@ class SchemaConverterTest extends FlatSpec with Matchers
     .addValue("variantOverTuple", TiType.variantOverTuple(TiType.floatType(), TiType.interval()))
     .build()
 
+  private val sparkSchema = StructType(Seq(
+    structField("Null", NullType, nullable = false),
+    structField("Long", LongType, nullable = false),
+    structField("UInt64", UInt64Type, nullable = false),
+    structField("Float", FloatType, nullable = false),
+    structField("Double", DoubleType, nullable = false),
+    structField("Boolean", BooleanType, nullable = false),
+    structField("String", StringType, nullable = false),
+    structField("Yson", YsonType, nullable = false),
+    structField("Byte", ByteType, nullable = false),
+    structField("Short", ShortType, nullable = false),
+    structField("Integer", IntegerType, nullable = false),
+    structField("Date", DateType, nullable = false),
+    structField("Timestamp", TimestampType, nullable = false),
+    structField("Array", ArrayType(BooleanType, containsNull = false), nullable = false),
+    structField("Map", MapType(DoubleType, StringType, valueContainsNull = false), nullable = false),
+    structField("Struct", StructType(Seq(StructField("a", StringType, nullable = false), StructField("b", YsonType, nullable = false))), nullable = false),
+    structField("Tuple", StructType(Seq(StructField("_1", BooleanType, nullable = false), StructField("_2", DateType, nullable = false))), nullable = false),
+    structField("VariantOverStruct", StructType(Seq(StructField("_vc", IntegerType, nullable = false), StructField("_vd", LongType, nullable = false))), nullable = false),
+    structField("VariantOverTuple", StructType(Seq(StructField("_v_1", FloatType, nullable = false), StructField("_v_2", LongType, nullable = false))), nullable = false)
+  ))
+
   it should "read schema without parsing type v3" in {
     // in sparkSchema.toYTree no type_v1 type names
     spark.conf.set(s"spark.yt.${ParsingTypeV3.name}", value = false)
@@ -73,7 +99,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
     val res = spark.read.yt(tmpPath).schema
 
     spark.conf.set(s"spark.yt.${ParsingTypeV3.name}", value = true)
-    val res2 = spark.read.option("parsingtypev3", "false").yt(tmpPath).schema
+    val res2 = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, "false").yt(tmpPath).schema
 
     res shouldBe res2
     res shouldBe StructType(Seq(
@@ -161,5 +187,66 @@ class SchemaConverterTest extends FlatSpec with Matchers
       structField("a", UInt64Type, keyId = 0, nullable = false),
       structField("b", LongType, nullable = true)
     ))
+  }
+
+  it should "convert spark schema to yt one with parsing type v3" in {
+    val res = TableSchema.fromYTree(ytLogicalSchema(sparkSchema, Seq.empty, Map.empty, typeV3Format = true))
+    res shouldBe new TableSchema.Builder().setUniqueKeys(false)
+      .addValue("Null", TiType.nullType())
+      .addValue("Long", TiType.int64())
+      .addValue("UInt64", TiType.uint64())
+      .addValue("Float", TiType.floatType())
+      .addValue("Double", TiType.doubleType())
+      .addValue("Boolean", TiType.bool())
+      .addValue("String", TiType.string())
+      .addValue("Yson", TiType.yson())
+      .addValue("Byte", TiType.int8())
+      .addValue("Short", TiType.int16())
+      .addValue("Integer", TiType.int32())
+      .addValue("Date", TiType.date())
+      .addValue("Timestamp", TiType.datetime())
+      .addValue("Array", TiType.list(TiType.bool()))
+      .addValue("Map", TiType.dict(TiType.doubleType(), TiType.string()))
+      .addValue("Struct", TiType.struct(new Member("a", TiType.string()), new Member("b", TiType.yson())))
+      .addValue("Tuple", TiType.tuple(TiType.bool(), TiType.date()))
+      .addValue("VariantOverStruct",
+        TiType.variantOverStruct(java.util.List.of[Member](new Member("c", TiType.int32()), new Member("d", TiType.int64()))))
+      .addValue("VariantOverTuple", TiType.variantOverTuple(TiType.floatType(), TiType.int64()))
+      .build()
+  }
+
+  it should "convert spark schema to yt one" in {
+    import scala.collection.JavaConverters._
+    def getColumn(name: String, t: String): YTreeMapNode = {
+      YTree.builder.beginMap.key("name").value(name).key("type").value(t).buildMap
+    }
+    val res = ytLogicalSchema(sparkSchema, Seq.empty, Map.empty, typeV3Format = false)
+    res shouldBe YTree.builder
+      .beginAttributes
+      .key("strict").value(true)
+      .key("unique_keys").value(false)
+      .endAttributes
+      .value(Seq(
+        getColumn("Null", "null"),
+        getColumn("Long", "int64"),
+        getColumn("UInt64", "uint64"),
+        getColumn("Float", "float"),
+        getColumn("Double", "double"),
+        getColumn("Boolean", "boolean"),
+        getColumn("String", "string"),
+        getColumn("Yson", "any"),
+        getColumn("Byte", "int8"),
+        getColumn("Short", "int16"),
+        getColumn("Integer", "int32"),
+        getColumn("Date", "date"),
+        getColumn("Timestamp", "datetime"),
+        getColumn("Array", "any"),
+        getColumn("Map", "any"),
+        getColumn("Struct", "any"),
+        getColumn("Tuple", "any"),
+        getColumn("VariantOverStruct", "any"),
+        getColumn("VariantOverTuple", "any")
+      ).asJava)
+      .build
   }
 }

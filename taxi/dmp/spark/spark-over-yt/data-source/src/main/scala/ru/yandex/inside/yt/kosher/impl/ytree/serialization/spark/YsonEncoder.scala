@@ -1,10 +1,14 @@
 package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 
+import java.io.ByteArrayOutputStream
+import java.nio.charset.StandardCharsets
 import com.google.protobuf.CodedOutputStream
 import org.apache.spark.sql.types.DataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonTags
 import ru.yandex.misc.ExceptionUtils
-import ru.yandex.spark.yt.serializers.YsonRowConverter
+import ru.yandex.misc.lang.number.UnsignedLong
+import ru.yandex.spark.yt.serializers.{YsonEncoderConfig, YsonRowConverter, YtTypeHolder}
+import ru.yandex.type_info.TiType
 import ru.yandex.yson.YsonConsumer
 
 import java.io.ByteArrayOutputStream
@@ -102,15 +106,18 @@ class YsonEncoder(stream: ByteArrayOutputStream) extends YsonConsumer {
 
 
 object YsonEncoder {
-  def encode(value: Any, dataType: DataType, skipNulls: Boolean): Array[Byte] = {
+  def encode(value: Any, dataType: DataType, skipNulls: Boolean,
+             typeV3Format: Boolean = false, ytType: Option[TiType] = None): Array[Byte] = {
     val output = new ByteArrayOutputStream(200)
     val writer = new YsonEncoder(output)
-    write(value, dataType, skipNulls, writer)
+    write(value, dataType, skipNulls, writer, typeV3Format, ytType)
     writer.close()
     output.toByteArray
   }
 
-  private def write(value: Any, dataType: DataType, skipNulls: Boolean, writer: YsonEncoder): Unit = {
-    YsonRowConverter.serializeValue(value, dataType, skipNulls, writer)
+  private def write(value: Any, dataType: DataType, skipNulls: Boolean, writer: YsonEncoder,
+                    typeV3Format: Boolean, ytType: Option[TiType]): Unit = {
+    YsonRowConverter.serializeValue(value, dataType,
+      YsonEncoderConfig(skipNulls, typeV3Format), writer, YtTypeHolder(ytType))
   }
 }

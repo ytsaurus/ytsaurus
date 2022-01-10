@@ -6,10 +6,14 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtTable
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
-import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode, YTreeStringNode}
-import ru.yandex.spark.yt.common.utils.TypeUtils.{isTuple, isVariant}
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.spark.yt.common.utils.TypeUtils.{isTuple, isVariant, isVariantOverTuple}
+import ru.yandex.spark.yt.serializers.YtLogicalType.getStructField
+import ru.yandex.spark.yt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
+import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
 
 object SchemaConverter {
@@ -19,11 +23,9 @@ object SchemaConverter {
     val TAG = "tag"
   }
 
-  import scala.collection.JavaConverters._
-
   private def getAvailableType(fieldMap: java.util.Map[String, YTreeNode], parsingTypeV3: Boolean): YtLogicalType = {
     if (fieldMap.containsKey("type_v3") && parsingTypeV3) {
-      sparkTypeV3(fieldMap.get("type_v3"))
+      deserializeTypeV3(fieldMap.get("type_v3"))
     } else if (fieldMap.containsKey("type")) {
       sparkTypeV1(fieldMap.get("type").stringValue())
     } else {
@@ -50,7 +52,7 @@ object SchemaConverter {
   def structField(fieldName: String,
                   ytType: YtLogicalType,
                   metadata: Metadata): StructField = {
-    StructField(fieldName, ytType.sparkType, metadata = metadata, nullable = ytType.nullable)
+    getStructField(fieldName, ytType, metadata)
   }
 
   def structField(fieldName: String,
@@ -91,7 +93,7 @@ object SchemaConverter {
   def schemaHint(options: Map[String, String]): Option[StructType] = {
     val fields = options.collect { case (key, value) if key.contains("_hint") =>
       val name = key.dropRight("_hint".length)
-      StructField(name, sparkType(value))
+      StructField(name, stringToSparkType(value))
     }
 
     if (fields.nonEmpty) {
@@ -103,11 +105,32 @@ object SchemaConverter {
 
   def serializeSchemaHint(schema: StructType): Map[String, String] = {
     schema.foldLeft(Seq.empty[(String, String)]) { case (result, f) =>
-      (s"${f.name}_hint", stringType(f.dataType)) +: result
+      (s"${f.name}_hint", sparkTypeToString(f.dataType)) +: result
     }.toMap
   }
 
-  def ytLogicalType(sparkType: DataType): YtLogicalType = sparkType match {
+  private def wrapNullable(inner: YtLogicalType, flag: Boolean): YtLogicalType = {
+    if (flag) {
+      YtLogicalType.Optional(inner)
+    } else {
+      inner
+    }
+  }
+
+  def ytLogicalTypeV3Variant(struct: StructType): YtLogicalType = {
+    if (isVariantOverTuple(struct)) {
+      YtLogicalType.VariantOverTuple {
+        struct.fields.map(tF => wrapNullable(ytLogicalTypeV3(tF.dataType), tF.nullable))
+      }
+    } else {
+      YtLogicalType.VariantOverStruct {
+        struct.fields.map(sf => (sf.name.drop(2), wrapNullable(ytLogicalTypeV3(sf.dataType), sf.nullable)))
+      }
+    }
+  }
+
+  def ytLogicalTypeV3(sparkType: DataType): YtLogicalType = sparkType match {
+    case NullType => YtLogicalType.Null
     case ByteType => YtLogicalType.Int8
     case ShortType => YtLogicalType.Int16
     case IntegerType => YtLogicalType.Int32
@@ -116,128 +139,84 @@ object SchemaConverter {
     case FloatType => YtLogicalType.Float
     case DoubleType => YtLogicalType.Double
     case BooleanType => YtLogicalType.Boolean
-    case _: ArrayType => YtLogicalType.Any
-    case _: StructType => YtLogicalType.Any
-    case _: MapType => YtLogicalType.Any
+    case aT: ArrayType =>
+      YtLogicalType.Array(wrapNullable(ytLogicalTypeV3(aT.elementType), aT.containsNull))
+    case sT: StructType if isTuple(sT) =>
+      YtLogicalType.Tuple {
+        sT.fields.map(tF => wrapNullable(ytLogicalTypeV3(tF.dataType), tF.nullable))
+      }
+    case sT: StructType if isVariant(sT) => ytLogicalTypeV3Variant(sT)
+    case sT: StructType =>
+      YtLogicalType.Struct {
+        sT.fields.map(sf => (sf.name, wrapNullable(ytLogicalTypeV3(sf.dataType), sf.nullable)))
+      }
+    case mT: MapType =>
+      YtLogicalType.Dict(
+        ytLogicalTypeV3(mT.keyType),
+        wrapNullable(ytLogicalTypeV3(mT.valueType), mT.valueContainsNull))
     case YsonType => YtLogicalType.Any
-    case BinaryType => YtLogicalType.String
+    case BinaryType => YtLogicalType.Binary
+    case DateType => YtLogicalType.Date
+    case TimestampType => YtLogicalType.Datetime
     case UInt64Type => YtLogicalType.Uint64
   }
 
-  def ytLogicalSchema(sparkSchema: StructType, sortColumns: Seq[String], hint: Map[String, YtLogicalType]): YTreeNode = {
+  private def ytLogicalSchemaImpl(sparkSchema: StructType, sortColumns: Seq[String], hint: Map[String, YtLogicalType],
+                                  typeV3Format: Boolean = false, isTableSchema: Boolean = false): YTreeNode = {
     import scala.collection.JavaConverters._
 
-    def logicalType(field: StructField): YtLogicalType = {
-      hint.getOrElse(field.name, ytLogicalType(field.dataType))
+    def serializeColumn(field: StructField, sort: Boolean): YTreeNode = {
+      val builder = YTree.builder
+        .beginMap
+        .key("name").value(field.name)
+      val fieldType = hint.getOrElse(field.name, ytLogicalTypeV3(field.dataType))
+      if (typeV3Format) {
+        builder.key("type_v3")
+          .value(serializeTypeV3(wrapNullable(fieldType, field.nullable)))
+      } else {
+        builder.key("type").value(serializeType(fieldType, isTableSchema))
+      }
+      if (sort) builder.key("sort_order").value(ColumnSortOrder.ASCENDING.getName)
+      builder.buildMap
     }
 
-    val columns = sortColumns.map { name =>
-      val sparkField = sparkSchema(name)
-      YTree.builder
-        .beginMap
-        .key("name").value(name)
-        .key("type").value(logicalType(sparkField).alias.name)
-        .key("required").value(!sparkField.nullable)
-        .key("sort_order").value(ColumnSortOrder.ASCENDING.getName)
-        .buildMap
-    } ++ sparkSchema.flatMap {
-      case field if !sortColumns.contains(field.name) =>
-        Some(
-          YTree.builder
-            .beginMap
-            .key("name").value(field.name)
-            .key("type").value(logicalType(field).alias.name)
-            .key("required").value(!field.nullable)
-            .buildMap
-        )
-      case _ => None
-    }
+    val sortedFields =
+      sortColumns
+        .map(sparkSchema.apply)
+        .map(f => serializeColumn(f, sort = true)
+        ) ++ sparkSchema
+        .filter(f => !sortColumns.contains(f.name))
+        .map(f => serializeColumn(f, sort = false))
 
     YTree.builder
       .beginAttributes
       .key("strict").value(true)
       .key("unique_keys").value(false)
       .endAttributes
-      .value(columns.asJava)
+      .value(sortedFields.asJava)
       .build
   }
 
-  def ytSchema(sparkSchema: StructType, sortColumns: Seq[String], hint: Map[String, YtLogicalType]): YTreeNode = {
-    tableSchema(sparkSchema, sortColumns, hint).toYTree
+  def ytLogicalSchema(sparkSchema: StructType, sortColumns: Seq[String],
+                      hint: Map[String, YtLogicalType], typeV3Format: Boolean = false): YTreeNode = {
+    ytLogicalSchemaImpl(sparkSchema, sortColumns, hint, typeV3Format)
   }
 
-  def tableSchema(sparkSchema: StructType, sortColumns: Seq[String], hint: Map[String, YtLogicalType]): TableSchema = {
-    val builder = new TableSchema.Builder()
-      .setStrict(true)
-      .setUniqueKeys(false)
-
-    def columnType(field: StructField): ColumnValueType = {
-      hint.getOrElse(field.name, ytLogicalType(field.dataType)).columnValueType
-    }
-
-    sortColumns.foreach { name =>
-      val sparkField = sparkSchema(name)
-      builder.add(new ColumnSchema(name, columnType(sparkField), ColumnSortOrder.ASCENDING))
-    }
-    sparkSchema.foreach { field =>
-      if (!sortColumns.contains(field.name)) {
-        builder.add(new ColumnSchema(field.name, columnType(field)))
-      }
-    }
-
-    builder.build()
+  def tableSchema(sparkSchema: StructType, sortColumns: Seq[String],
+                  hint: Map[String, YtLogicalType], typeV3Format: Boolean = false): TableSchema = {
+    TableSchema.fromYTree(ytLogicalSchemaImpl(sparkSchema, sortColumns, hint, typeV3Format, isTableSchema = true))
   }
 
   def sparkTypeV1(sType: String): YtLogicalType = {
-    sType match {
-      case name if name.startsWith("a#") =>
-        YtLogicalType.Array(sparkTypeV1(name.drop(2)))
-      case name if name.startsWith("s#") =>
-        val strFields = decode[Seq[(String, String)]](name.drop(2)) match {
-          case Right(value) => value
-          case Left(error) => throw new IllegalArgumentException(s"Unsupported type: $sType", error)
-        }
-        YtLogicalType.Struct(strFields.map { case (name, dt) => (name, sparkTypeV1(dt)) })
-      case name if name.startsWith("m#") =>
-        val (keyType, valueType) = decode[(String, String)](name.drop(2)) match {
-          case Right(value) => value
-          case Left(error) => throw new IllegalArgumentException(s"Unsupported type: $sType", error)
-        }
-        YtLogicalType.Dict(sparkTypeV1(keyType), sparkTypeV1(valueType))
-      case _ => YtLogicalType.fromName(sType)
-    }
+    YtLogicalType.fromName(sType)
   }
 
-  def sparkType(sType: String): DataType = {
-    sType match {
-      case name if name.startsWith("a#") =>
-        ArrayType(sparkType(name.drop(2)))
-      case name if name.startsWith("s#") =>
-        val strFields = decode[Seq[(String, String)]](name.drop(2)) match {
-          case Right(value) => value
-          case Left(error) => throw new IllegalArgumentException(s"Unsupported type: $sType", error)
-        }
-        StructType(strFields.map { case (name, dt) => StructField(name, sparkType(dt)) })
-      case name if name.startsWith("m#") =>
-        val (keyType, valueType) = decode[(String, String)](name.drop(2)) match {
-          case Right(value) => value
-          case Left(error) => throw new IllegalArgumentException(s"Unsupported type: $sType", error)
-        }
-        MapType(sparkType(keyType), sparkType(valueType))
-      case "binary" => BinaryType
-      case "yson" => YsonType
-      case _ => YtLogicalType.fromName(sType).sparkType
-    }
+  def stringToSparkType(sType: String): DataType = {
+    deserializeTypeV3(YTreeTextSerializer.deserialize(sType)).sparkType
   }
 
-  def stringType(sparkType: DataType): String = {
-    sparkType match {
-      case BinaryType => "binary"
-      case ArrayType(elementType, _) => "a#" + stringType(elementType)
-      case StructType(fields) => "s#" + fields.map(f => f.name -> stringType(f.dataType)).asJson.noSpaces
-      case MapType(keyType, valueType, _) => "m#" + Seq(keyType, valueType).map(stringType).asJson.noSpaces
-      case _ => ytLogicalType(sparkType).alias.name
-    }
+  def sparkTypeToString(sparkType: DataType): String = {
+    YTreeTextSerializer.serialize(serializeTypeV3(ytLogicalTypeV3(sparkType), innerForm = true))
   }
 
   def checkSchema(schema: StructType): Unit = {
@@ -246,54 +225,6 @@ object SchemaConverter {
         throw new IllegalArgumentException(
           s"YT data source does not support ${field.dataType.simpleString} data type.")
       }
-    }
-  }
-
-  private def sparkTypeV3(node: YTreeNode): YtLogicalType = {
-    def parseMembers(m: YTreeMapNode): Seq[(String, YtLogicalType)] = {
-      m.getOrThrow("members").asList().asScala
-        .map(member => (
-          member.mapNode().getOrThrow("name").stringValue(),
-          sparkTypeV3(member.mapNode().getOrThrow("type")))
-        )
-    }
-    def parseElements(m: YTreeMapNode): Seq[YtLogicalType] = {
-      m.getOrThrow("elements").asList().asScala.map {
-        element => sparkTypeV3(element.mapNode().getOrThrow("type"))
-      }
-    }
-    node match {
-      case m: YTreeMapNode =>
-        val alias = YtLogicalType.fromCompositeName(m.getOrThrow("type_name").stringValue())
-        alias match {
-          case YtLogicalType.Optional =>
-            YtLogicalType.Optional(
-              sparkTypeV3(m.getOrThrow("item")))
-          case YtLogicalType.Dict =>
-            YtLogicalType.Dict(
-              sparkTypeV3(m.getOrThrow("key")),
-              sparkTypeV3(m.getOrThrow("value")))
-          case YtLogicalType.Array =>
-            YtLogicalType.Array(sparkTypeV3(m.getOrThrow("item")))
-          case YtLogicalType.Struct =>
-            YtLogicalType.Struct(parseMembers(m))
-          case YtLogicalType.Tuple =>
-            YtLogicalType.Tuple(parseElements(m))
-          case YtLogicalType.Tagged =>
-            YtLogicalType.Tagged(
-              sparkTypeV3(m.getOrThrow("item")), m.getOrThrow("tag").stringValue()
-            )
-          case YtLogicalType.Variant =>
-            if (m.containsKey("members")) {
-              YtLogicalType.VariantOverStruct(parseMembers(m))
-            } else if (m.containsKey("elements")) {
-              YtLogicalType.VariantOverTuple(parseElements(m))
-            } else {
-              throw new NoSuchElementException("Incorrect variant format")
-            }
-        }
-      case s: YTreeStringNode =>
-        YtLogicalType.fromName(s.stringValue())
     }
   }
 }

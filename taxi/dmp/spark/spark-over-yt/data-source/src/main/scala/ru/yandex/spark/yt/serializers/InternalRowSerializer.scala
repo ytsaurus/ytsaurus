@@ -9,9 +9,10 @@ import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt.wrapper.LogLazy
+import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.`object`.{WireProtocolWriteable, WireRowSerializer}
 import ru.yandex.yt.ytclient.proxy.TableWriter
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnValueType, TableSchema}
 
 import java.util.concurrent.{Executors, TimeUnit}
 import scala.annotation.tailrec
@@ -19,12 +20,12 @@ import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future}
 
-class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogicalType])
-  extends WireRowSerializer[InternalRow] with LogLazy {
+class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogicalType],
+                            typeV3Format: Boolean = false) extends WireRowSerializer[InternalRow] with LogLazy {
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  private val tableSchema = SchemaConverter.tableSchema(schema, Nil, schemaHint)
+  private val tableSchema = SchemaConverter.tableSchema(schema, Nil, schemaHint, typeV3Format)
 
   override def getSchema: TableSchema = tableSchema
 
@@ -34,9 +35,31 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
     } else id
   }
 
+  private def getColumnType(i: Int): ColumnValueType = {
+    def isComposite(t: TiType): Boolean = t.isList || t.isDict || t.isStruct || t.isTuple || t.isVariant
+    if (typeV3Format) {
+      val column = tableSchema.getColumnSchema(i)
+      val t = column.getTypeV3
+      if (t.isOptional) {
+        val inner = t.asOptional().getItem
+        if (inner.isOptional || isComposite(inner)) {
+          ColumnValueType.COMPOSITE
+        } else {
+          column.getType
+        }
+      } else if (isComposite(t)) {
+        ColumnValueType.COMPOSITE
+      } else {
+        column.getType
+      }
+    } else {
+      tableSchema.getColumnType(i)
+    }
+  }
+
   private def writeHeader(writeable: WireProtocolWriteable, idMapping: Array[Int], aggregate: Boolean,
                           i: Int, length: Int): Unit = {
-    writeable.writeValueHeader(valueId(i, idMapping), tableSchema.getColumnType(i), aggregate, length)
+    writeable.writeValueHeader(valueId(i, idMapping), getColumnType(i), aggregate, length)
   }
 
   private def writeBytes(writeable: WireProtocolWriteable, idMapping: Array[Int], aggregate: Boolean,
@@ -57,12 +80,15 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
       if (row.isNullAt(i)) {
         writeable.writeValueHeader(valueId(i, idMapping), ColumnValueType.NULL, aggregate, 0)
       } else {
-        schema(i).dataType match {
+        val sparkField = schema(i)
+        val ytFieldHint = if (typeV3Format) Some(tableSchema.getColumnSchema(i).getTypeV3) else None
+        sparkField.dataType match {
           case BinaryType | YsonType => writeBytes(writeable, idMapping, aggregate, i, row.getBinary(i))
           case StringType => writeBytes(writeable, idMapping, aggregate, i, row.getUTF8String(i).getBytes)
           case t@(ArrayType(_, _) | StructType(_) | MapType(_, _, _)) =>
-            val skipNulls = schema(i).metadata.contains("skipNulls") && schema(i).metadata.getBoolean("skipNulls")
-            writeBytes(writeable, idMapping, aggregate, i, YsonEncoder.encode(row.get(i, schema(i).dataType), t, skipNulls))
+            val skipNulls = sparkField.metadata.contains("skipNulls") && sparkField.metadata.getBoolean("skipNulls")
+            writeBytes(writeable, idMapping, aggregate, i,
+              YsonEncoder.encode(row.get(i, sparkField.dataType), t, skipNulls, typeV3Format, ytFieldHint))
           case atomic =>
             writeHeader(writeable, idMapping, aggregate, i, 0)
             atomic match {

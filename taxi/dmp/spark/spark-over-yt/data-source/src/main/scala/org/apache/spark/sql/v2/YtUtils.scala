@@ -16,13 +16,18 @@ import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 object YtUtils {
+  object Options {
+    val MERGE_SCHEMA = "mergeschema"
+    val PARSING_TYPE_V3 = "parsing_type_v3"
+  }
+
   private val log = LoggerFactory.getLogger(getClass)
 
   def inferSchema(sparkSession: SparkSession,
                   parameters: Map[String, String],
                   files: Seq[FileStatus])
                  (implicit client: CompoundClient = getClient(sparkSession)): Option[StructType] = {
-    val enableMerge = parameters.get("mergeschema")
+    val enableMerge = parameters.get(Options.MERGE_SCHEMA)
       .orElse(sparkSession.conf.getOption("spark.sql.yt.mergeSchema")).exists(_.toBoolean)
     val allSchemas = getFilesSchemas(sparkSession, parameters, files)
     mergeFileSchemas(allSchemas, enableMerge)
@@ -55,7 +60,7 @@ object YtUtils {
   private def getSchema(sparkSession: SparkSession, path: YPathEnriched, parameters: Map[String, String])
                        (implicit client: CompoundClient): StructType = {
     val config = SchemaConverterConfig(sparkSession)
-    val parsingTypeV3 = parameters.get("parsingtypev3").map(_.toBoolean).getOrElse(config.parsingTypeV3)
+    val parsingTypeV3 = parameters.get(Options.PARSING_TYPE_V3).map(_.toBoolean).getOrElse(config.parsingTypeV3)
     val schemaHint = SchemaConverter.schemaHint(parameters)
     val schemaTree = YtWrapper.attribute(path.toYPath, "schema", path.transaction)
     val sparkSchema = SchemaConverter.sparkSchema(schemaTree, schemaHint, parsingTypeV3)
@@ -88,7 +93,8 @@ object YtUtils {
         s"""Schema merging is turned off but given tables have different schemas:
            |${format(expected)}
            |${format(actual)}
-           |Merging can be enabled by `mergeschema` option or `spark.sql.yt.mergeSchema` spark setting""".stripMargin
+           |Merging can be enabled by `${Options.MERGE_SCHEMA}` option
+           |or `spark.sql.yt.mergeSchema` spark setting""".stripMargin
       )
     }
   }
