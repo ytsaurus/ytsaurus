@@ -67,14 +67,17 @@ private:
                 BIND(
                     [&Logger{Logger}, controller, jobSummaries{std::move(jobSummaries)}] () mutable {
                         for (auto& jobSummary : jobSummaries) {
+                            const auto jobState = jobSummary->State;
+                            const auto jobId = jobSummary->Id;
+
                             try {
                                 controller->OnJobInfoReceivedFromNode(std::move(jobSummary));
                             } catch (const std::exception& ex) {
                                 YT_LOG_WARNING(
                                     ex,
-                                    "Fail process job info from node (JobId: %v, JobState: %v)",
-                                    jobSummary->Id,
-                                    jobSummary->State);
+                                    "Failed to process job info from node (JobId: %v, JobState: %v)",
+                                    jobId,
+                                    jobState);
                             }
                         }
                     }));
