@@ -2007,7 +2007,7 @@ private:
             if (subrequest.CacheCookie) {
                 auto& cookie = *subrequest.CacheCookie;
                 if (cookie.IsActive()) {
-                    cookie.Cancel(TError(NYT::EErrorCode::Canceled, "Cache request canceled"));
+                    cookie.Cancel(TError(NRpc::EErrorCode::Unavailable, "Cache request canceled"));
                 }
             }
         }
