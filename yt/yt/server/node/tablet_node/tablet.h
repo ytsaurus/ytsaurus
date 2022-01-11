@@ -460,6 +460,20 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
     DEFINE_BYREF_RO_PROPERTY(TChaosTabletDataPtr, ChaosData, New<TChaosTabletData>());
 
+    // If non-null then there is a backup task in progress. All store flushes
+    // and compactions should ensure that the most recent version before this
+    // timestamp is preserved (that is, consistent read is possible).
+    // Persistent.
+    DECLARE_BYVAL_RW_PROPERTY(TTimestamp, BackupCheckpointTimestamp);
+
+    // Represent the stage of checkpoint confirmation process.
+    // NB: Stage transitions may happen at different moments with respect to
+    // checkpoint timestamp. E.g. sometimes it is safe to transition to
+    // FeasibilityConfirmed state after checkpoint timestamp has already happened.
+    // It is safer to check BackupCheckpointTimestamp against NullTimestamp
+    // to see if backup is in progress.
+    DEFINE_BYVAL_RW_PROPERTY(EBackupStage, BackupStage, EBackupStage::None);
+
 public:
     TTablet(
         TTabletId tabletId,
@@ -615,6 +629,8 @@ public:
 
     void RecomputeReplicaStatuses();
 
+    void CheckedSetBackupStage(EBackupStage previous, EBackupStage next);
+
 private:
     ITabletContext* const Context_;
 
@@ -647,6 +663,8 @@ private:
     TRowCachePtr RowCache_;
 
     i64 TabletLockCount_ = 0;
+
+    TTimestamp BackupCheckpointTimestamp_ = NullTimestamp;
 
     IPerTabletStructuredLoggerPtr StructuredLogger_;
 

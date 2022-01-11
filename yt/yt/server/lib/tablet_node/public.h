@@ -232,6 +232,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TReplicatorHintConfig)
 DECLARE_REFCOUNTED_CLASS(THintManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletHunkWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TBackupManagerDynamicConfig)
 
 using TTabletStoreWriterConfig = NTableClient::TTableWriterConfig;
 using TTabletStoreWriterConfigPtr = NTableClient::TTableWriterConfigPtr;

@@ -1483,8 +1483,8 @@ bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
     DISPATCH_YPATH_SERVICE_METHOD(Alter);
     DISPATCH_YPATH_SERVICE_METHOD(LockDynamicTable);
     DISPATCH_YPATH_SERVICE_METHOD(CheckDynamicTableLock);
-    DISPATCH_YPATH_SERVICE_METHOD(SetBackupBarrier);
-    DISPATCH_YPATH_SERVICE_METHOD(CheckBackupBarrier);
+    DISPATCH_YPATH_SERVICE_METHOD(SetBackupCheckpoint);
+    DISPATCH_YPATH_SERVICE_METHOD(CheckBackupCheckpoint);
     DISPATCH_YPATH_SERVICE_METHOD(FinishBackup);
     DISPATCH_YPATH_SERVICE_METHOD(FinishRestore);
     return TBase::DoInvoke(context);
@@ -1779,7 +1779,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckDynamicTableLock)
     context->Reply();
 }
 
-DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetBackupBarrier)
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetBackupCheckpoint)
 {
     DeclareMutating();
     ValidateTransaction();
@@ -1790,7 +1790,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetBackupBarrier)
         timestamp);
 
     const auto& backupManager = Bootstrap_->GetBackupManager();
-    backupManager->SetBackupBarrier(
+    backupManager->SetBackupCheckpoint(
         GetThisImpl()->GetTrunkNode(),
         timestamp,
         GetTransaction());
@@ -1798,14 +1798,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetBackupBarrier)
     context->Reply();
 }
 
-DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckBackupBarrier)
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckBackupCheckpoint)
 {
     ValidateTransaction();
 
     context->SetRequestInfo();
 
     const auto& backupManager = Bootstrap_->GetBackupManager();
-    backupManager->CheckBackupBarrier(
+    backupManager->CheckBackupCheckpoint(
         GetThisImpl()->GetTrunkNode(),
         response);
 

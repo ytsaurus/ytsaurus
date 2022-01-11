@@ -739,11 +739,18 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         const auto& rowCache = tabletSnapshot->RowCache;
 
+        bool mergeRowsOnFlush = mountConfig->MergeRowsOnFlush &&
+            sortedDynamicStore->IsMergeRowsOnFlushAllowed();
+
+        if (mountConfig->MergeRowsOnFlush && !sortedDynamicStore->IsMergeRowsOnFlushAllowed()) {
+            YT_LOG_DEBUG("Merge rows on flush is disabled cinse backup is in progress");
+        }
+
         YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, "
             "MergeDeletionsOnFlush: %v, RetentionConfig: %v, HaveRowCache: %v, "
             "CurrentRetainedTimestamp: %llx, NewRetainedTimestamp: %llx, StoreFlushIndex: %v)",
             store->GetId(),
-            mountConfig->MergeRowsOnFlush,
+            mergeRowsOnFlush,
             mountConfig->MergeDeletionsOnFlush,
             ConvertTo<TRetentionConfigPtr>(mountConfig),
             static_cast<bool>(rowCache),
@@ -772,7 +779,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             auto range = batch->MaterializeRows();
             std::vector<TVersionedRow> rows(range.begin(), range.end());
 
-            if (mountConfig->MergeRowsOnFlush) {
+            if (mergeRowsOnFlush) {
                 auto outputIt = rows.begin();
                 for (auto row : rows) {
                     onFlushRowMerger.AddPartialRow(row);

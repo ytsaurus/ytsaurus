@@ -634,6 +634,8 @@ void TTablet::Save(TSaveContext& context) const
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Load());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes);
+    Save(context, BackupCheckpointTimestamp_);
+    Save(context, BackupStage_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -755,6 +757,12 @@ void TTablet::Load(TLoadContext& context)
         RuntimeData_->ReplicationProgress.Store(std::move(replicationProgress));
         Load(context, ChaosData_->ReplicationRound);
         Load(context, ChaosData_->CurrentReplicationRowIndexes);
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::BackupsSorted) {
+        Load(context, BackupCheckpointTimestamp_);
+        Load(context, BackupStage_);
     }
 
     UpdateOverlappingStoreCount();
@@ -1851,6 +1859,19 @@ TConsistentReplicaPlacementHash TTablet::GetConsistentChunkReplicaPlacementHash(
     return hash;
 }
 
+void TTablet::SetBackupCheckpointTimestamp(TTimestamp timestamp)
+{
+    BackupCheckpointTimestamp_ = timestamp;
+    if (const auto& activeStore = GetActiveStore()) {
+        activeStore->SetBackupCheckpointTimestamp(timestamp);
+    }
+}
+
+TTimestamp TTablet::GetBackupCheckpointTimestamp() const
+{
+    return BackupCheckpointTimestamp_;
+}
+
 void TTablet::ThrottleTabletStoresUpdate(
     const ITabletSlotPtr& slot,
     const NLogging::TLogger& Logger) const
@@ -1912,6 +1933,12 @@ void TTablet::RecomputeReplicaStatuses()
     for (auto& [replicaId, replicaInfo] : Replicas()) {
         replicaInfo.RecomputeReplicaStatus();
     }
+}
+
+void TTablet::CheckedSetBackupStage(EBackupStage previous, EBackupStage next)
+{
+    YT_VERIFY(GetBackupStage() == previous);
+    SetBackupStage(next);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

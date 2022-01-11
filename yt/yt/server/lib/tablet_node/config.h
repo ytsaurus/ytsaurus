@@ -977,6 +977,26 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBackupManagerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration CheckpointFeasibilityCheckBatchPeriod;
+    TDuration CheckpointFeasibilityCheckBackoff;
+
+    TBackupManagerDynamicConfig()
+    {
+        RegisterParameter("checkpoint_feasibility_check_batch_period", CheckpointFeasibilityCheckBatchPeriod)
+            .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("checkpoint_feasibility_check_backoff", CheckpointFeasibilityCheckBackoff)
+            .Default(TDuration::Seconds(1));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBackupManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeDynamicConfig
     : public NYTree::TYsonSerializable
 {
@@ -1006,6 +1026,7 @@ public:
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TSecurityManagerDynamicConfigPtr SecurityManager;
+    TBackupManagerDynamicConfigPtr BackupManager;
 
     TTabletNodeDynamicConfig()
     {
@@ -1046,6 +1067,9 @@ public:
             .DefaultNew();
 
         RegisterParameter("security_manager", SecurityManager)
+            .DefaultNew();
+
+        RegisterParameter("backup_manager", BackupManager)
             .DefaultNew();
     }
 };

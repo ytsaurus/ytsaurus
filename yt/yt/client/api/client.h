@@ -1408,7 +1408,11 @@ DEFINE_REFCOUNTED_TYPE(TBackupManifest)
 
 struct TCreateTableBackupOptions
     : public TTimeoutOptions
-{ };
+{
+    TDuration CheckpointTimestampDelay;
+    TDuration CheckpointCheckPeriod;
+    TDuration CheckpointCheckTimeout;
+};
 
 struct TRestoreTableBackupOptions
     : public TTimeoutOptions

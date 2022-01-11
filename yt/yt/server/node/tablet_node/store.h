@@ -130,6 +130,8 @@ struct IDynamicStore
 
     virtual TInstant GetLastFlushAttemptTimestamp() const = 0;
     virtual void UpdateFlushAttemptTimestamp() = 0;
+
+    virtual void SetBackupCheckpointTimestamp(TTimestamp timestamp) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDynamicStore)

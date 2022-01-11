@@ -41,6 +41,7 @@
 #include <yt/yt/ytlib/tablet_client/backup.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
@@ -59,6 +60,8 @@
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
+#include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -1671,18 +1674,24 @@ TYsonString TClient::DoGetTablePivotKeys(
         });
 }
 
+using TCreateOrRestoreTableBackupOptions = std::variant<TCreateTableBackupOptions, TRestoreTableBackupOptions>;
+
 class TClusterBackupSession
 {
 public:
     TClusterBackupSession(
         TString clusterName,
         TClientPtr client,
+        TCreateOrRestoreTableBackupOptions options,
+        TTimestamp timestamp,
         NLogging::TLogger logger)
         : ClusterName_(std::move(clusterName))
         , Client_(std::move(client))
+        , Options_(options)
+        , Timestamp_(timestamp)
         , Logger(logger
-            .WithTag("SessionId", TGuid::Create())
-            .WithTag("Cluster", ClusterName_))
+            .WithTag("SessionId: %v", TGuid::Create())
+            .WithTag("Cluster: %v", ClusterName_))
     { }
 
     ~TClusterBackupSession()
@@ -1778,23 +1787,77 @@ public:
         }
     }
 
-    void SetBarrier()
+    void SetCheckpoint()
     {
         auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
             const auto& table = Tables_[tableIndex];
-            auto req = TTableYPathProxy::SetBackupBarrier(FromObjectId(table.SourceTableId));
-            req->set_timestamp(0);
+            auto req = TTableYPathProxy::SetBackupCheckpoint(FromObjectId(table.SourceTableId));
+            req->set_timestamp(Timestamp_);
             SetTransactionId(req, Transaction_->GetId());
             batchReq->AddRequest(req);
         };
 
         auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int /*tableIndex*/) {
-            const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspSetBackupBarrier>(
+            const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspSetBackupCheckpoint>(
                 subresponseIndex);
             rsp.ThrowOnError();
         };
 
         ExecuteForAllTables(buildRequest, onResponse, /*write*/ true);
+    }
+
+    void WaitForCheckpoint()
+    {
+        THashSet<int> unconfirmedTableIndexes;
+        for (int index = 0; index < ssize(Tables_); ++index) {
+            unconfirmedTableIndexes.insert(index);
+        }
+
+        auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
+            // TODO(ifsmirnov): skip certain tables in ExecuteForAllTables.
+            const auto& table = Tables_[tableIndex];
+            auto req = TTableYPathProxy::CheckBackupCheckpoint(FromObjectId(table.SourceTableId));
+            SetTransactionId(req, Transaction_->GetId());
+            batchReq->AddRequest(req);
+        };
+
+        auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int tableIndex) {
+            const auto& rspOrError = batchRsp->template GetResponse<TTableYPathProxy::TRspCheckBackupCheckpoint>(
+                subresponseIndex);
+            const auto& rsp = rspOrError.ValueOrThrow();
+            auto confirmedTabletCount = rsp->confirmed_tablet_count();
+            auto pendingTabletCount = rsp->pending_tablet_count();
+
+            YT_LOG_DEBUG("Backup checkpoint checked (TablePath: %v, ConfirmedTabletCount: %v, "
+                "PendingTabletCount: %v)",
+                Tables_[tableIndex].SourcePath,
+                confirmedTabletCount,
+                pendingTabletCount);
+
+            if (pendingTabletCount == 0) {
+                unconfirmedTableIndexes.erase(tableIndex);
+            }
+        };
+
+        const auto& options = GetCreateOptions();
+        auto deadline = TInstant::Now() + options.CheckpointCheckTimeout;
+
+        while (TInstant::Now() < deadline) {
+            YT_LOG_DEBUG("Waiting for backup checkpoint (RemainingTableCount: %v)",
+                ssize(unconfirmedTableIndexes));
+            ExecuteForAllTables(buildRequest, onResponse, /*write*/ false);
+            if (unconfirmedTableIndexes.empty()) {
+                break;
+            }
+            TDelayedExecutor::WaitForDuration(options.CheckpointCheckPeriod);
+        }
+
+        if (!unconfirmedTableIndexes.empty()) {
+            THROW_ERROR_EXCEPTION("Some tables did not confirm backup checkpoint passing within timeout")
+                << TErrorAttribute("remaining_table_count", ssize(unconfirmedTableIndexes))
+                << TErrorAttribute("sample_table_path", Tables_[*unconfirmedTableIndexes.begin()].SourcePath)
+                << TErrorAttribute("cluster", ClusterName_);
+        }
     }
 
     void CloneTables(ENodeCloneMode nodeCloneMode)
@@ -1924,6 +1987,8 @@ private:
 
     const TString ClusterName_;
     const TClientPtr Client_;
+    const TCreateOrRestoreTableBackupOptions Options_;
+    const TTimestamp Timestamp_;
     const NLogging::TLogger Logger;
 
     NApi::NNative::ITransactionPtr Transaction_;
@@ -1941,6 +2006,16 @@ private:
         void(const TObjectServiceProxy::TRspExecuteBatchPtr& rsp,
             int subresponseIndex,
             int tableIndex)>;
+
+    const TCreateTableBackupOptions& GetCreateOptions() const
+    {
+        return std::get<TCreateTableBackupOptions>(Options_);
+    }
+
+    const TRestoreTableBackupOptions& GetRestoreOptions() const
+    {
+        return std::get<TRestoreTableBackupOptions>(Options_);
+    }
 
     void ExecuteForAllTables(
         TBuildRequest buildRequest,
@@ -1963,6 +2038,11 @@ private:
             for (int tableIndex : tableIndexes) {
                 buildRequest(batchReq, tableIndex);
             }
+
+            TPrerequisiteOptions prerequisiteOptions;
+            prerequisiteOptions.PrerequisiteTransactionIds.push_back(Transaction_->GetId());
+            SetPrerequisites(batchReq, prerequisiteOptions);
+
             asyncRsps.push_back(batchReq->Invoke());
         }
 
@@ -1988,19 +2068,35 @@ public:
     TBackupSession(
         TBackupManifestPtr manifest,
         TClientPtr client,
+        TCreateOrRestoreTableBackupOptions options,
         NLogging::TLogger logger)
         : Manifest_(std::move(manifest))
         , Client_(std::move(client))
+        , Options_(options)
         , Logger(std::move(logger))
     { }
 
     void RunCreate()
     {
+        const auto& options = std::get<TCreateTableBackupOptions>(Options_);
+        YT_LOG_DEBUG("Generating checkpoint timestamp (Now: %v, Delay: %v)",
+            TInstant::Now(),
+            options.CheckpointTimestampDelay);
+        Timestamp_ = InstantToTimestamp(TInstant::Now() + options.CheckpointTimestampDelay).second;
+
+        YT_LOG_DEBUG("Generated checkpoint timestamp for backup (Timestamp: %llx)",
+            Timestamp_);
+
         InitializeAndLockTables("Create backup");
 
-        YT_LOG_DEBUG("Setting backup barriers");
+        YT_LOG_DEBUG("Setting backup checkpoints");
         for (const auto& [name, session] : ClusterSessions_) {
-            session->SetBarrier();
+            session->SetCheckpoint();
+        }
+
+        YT_LOG_DEBUG("Waiting for backup checkpoints");
+        for (const auto& [name, session] : ClusterSessions_) {
+            session->WaitForCheckpoint();
         }
 
         YT_LOG_DEBUG("Cloning tables in backup mode");
@@ -2046,7 +2142,10 @@ public:
 private:
     const TBackupManifestPtr Manifest_;
     const TClientPtr Client_;
+    const TCreateOrRestoreTableBackupOptions Options_;
     const NLogging::TLogger Logger;
+
+    TTimestamp Timestamp_ = NullTimestamp;
 
     THashMap<TString, std::unique_ptr<TClusterBackupSession>> ClusterSessions_;
 
@@ -2064,6 +2163,8 @@ private:
         auto holder = std::make_unique<TClusterBackupSession>(
             clusterName,
             std::move(remoteClient),
+            Options_,
+            Timestamp_,
             Logger);
         auto* clusterSession = holder.get();
         ClusterSessions_[clusterName] = std::move(holder);
@@ -2101,17 +2202,17 @@ private:
 
 void TClient::DoCreateTableBackup(
     const TBackupManifestPtr& manifest,
-    const TCreateTableBackupOptions& /*options*/)
+    const TCreateTableBackupOptions& options)
 {
-    TBackupSession session(manifest, MakeStrong(this), Logger);
+    TBackupSession session(manifest, MakeStrong(this), options, Logger);
     session.RunCreate();
 }
 
 void TClient::DoRestoreTableBackup(
     const TBackupManifestPtr& manifest,
-    const TRestoreTableBackupOptions& /*options*/)
+    const TRestoreTableBackupOptions& options)
 {
-    TBackupSession session(manifest, MakeStrong(this), Logger);
+    TBackupSession session(manifest, MakeStrong(this), options, Logger);
     session.RunRestore();
 }
 

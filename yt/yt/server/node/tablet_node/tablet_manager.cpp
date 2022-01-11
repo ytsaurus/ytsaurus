@@ -25,6 +25,7 @@
 #include "tablet_profiling.h"
 #include "tablet_snapshot_store.h"
 #include "table_puller.h"
+#include "backup_manager.h"
 
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
@@ -160,6 +161,9 @@ public:
             BIND(&TImpl::OnCheckTabletCellDecommission, MakeWeak(this)),
             Config_->TabletCellDecommissionCheckPeriod))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
+        , BackupManager_(CreateBackupManager(
+            Slot_,
+            Bootstrap_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -225,6 +229,8 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
+
+        BackupManager_->Initialize();
     }
 
     void Finalize()
@@ -411,7 +417,7 @@ public:
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         request.set_reason(static_cast<int>(reason));
-        CommitTabletMutation(request);
+        Slot_->CommitTabletMutation(request);
     }
 
     void ReleaseBackingStore(const IChunkStorePtr& store)
@@ -662,6 +668,8 @@ private:
     const TPeriodicExecutorPtr DecommissionCheckExecutor_;
 
     const IYPathServicePtr OrchidService_;
+
+    IBackupManagerPtr BackupManager_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -943,7 +951,7 @@ private:
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
             response.set_frozen(freeze);
-            PostMasterMutation(tabletId, response);
+            PostMasterMessage(tabletId, response);
         }
 
         tablet->GetStructuredLogger()->OnFullHeartbeat();
@@ -1096,7 +1104,7 @@ private:
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
-        PostMasterMutation(tabletId, response);
+        PostMasterMessage(tabletId, response);
     }
 
     void HydraLockTablet(TReqLockTablet* request)
@@ -1140,7 +1148,7 @@ private:
         TRspLockTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
         ToProto(response.mutable_transaction_ids(), transactionIds);
-        PostMasterMutation(tabletId, response);
+        PostMasterMessage(tabletId, response);
     }
 
     void HydraUnlockTablet(TReqUnlockTablet* request)
@@ -1283,7 +1291,7 @@ private:
 
                 TabletMap_.Remove(tabletId);
 
-                PostMasterMutation(tabletId, response);
+                PostMasterMessage(tabletId, response);
                 break;
             }
 
@@ -1312,7 +1320,7 @@ private:
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
                 *response.mutable_mount_hint() = tablet->GetMountHint();
-                PostMasterMutation(tabletId, response);
+                PostMasterMessage(tabletId, response);
                 break;
             }
 
@@ -2318,7 +2326,7 @@ private:
         ToProto(req.mutable_tablet_id(), tablet->GetId());
         req.set_mount_revision(tablet->GetMountRevision());
         tablet->SetDynamicStoreIdRequested(true);
-        PostMasterMutation(tablet->GetId(), req);
+        PostMasterMessage(tablet->GetId(), req);
     }
 
     void HydraOnDynamicStoreAllocated(TRspAllocateDynamicStore* request)
@@ -2445,7 +2453,7 @@ private:
         if (lockManager->HasUnconfirmedTransactions()) {
             TReqReportTabletLocked request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
-            CommitTabletMutation(request);
+            Slot_->CommitTabletMutation(request);
         }
 
         auto state = tablet->GetState();
@@ -2478,7 +2486,7 @@ private:
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             request.set_mount_revision(tablet->GetMountRevision());
             request.set_state(static_cast<int>(newPersistentState));
-            CommitTabletMutation(request);
+            Slot_->CommitTabletMutation(request);
         }
     }
 
@@ -2521,18 +2529,10 @@ private:
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         request.set_state(static_cast<int>(newPersistentState));
-        CommitTabletMutation(request);
+        Slot_->CommitTabletMutation(request);
     }
 
-    void CommitTabletMutation(const ::google::protobuf::MessageLite& message)
-    {
-        auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
-        Slot_->GetEpochAutomatonInvoker()->Invoke(BIND([=, this_ = MakeStrong(this), mutation = std::move(mutation)] {
-            mutation->CommitAndLog(Logger);
-        }));
-    }
-
-    void PostMasterMutation(TTabletId tabletId, const ::google::protobuf::MessageLite& message)
+    void PostMasterMessage(TTabletId tabletId, const ::google::protobuf::MessageLite& message)
     {
         // Used in tests only. NB: synchronous sleep is required since we don't expect
         // context switches here.
@@ -2540,14 +2540,8 @@ private:
             Sleep(*sleepDuration);
         }
 
-        const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetOrCreateMailbox(Bootstrap_->GetCellId(CellTagFromId(tabletId)));
-        if (!mailbox) {
-            mailbox = Slot_->GetMasterMailbox();
-        }
-        hiveManager->PostMessage(mailbox, message);
+        Slot_->PostMasterMessage(tabletId, message);
     }
-
 
     void StartTabletEpoch(TTablet* tablet)
     {
@@ -2750,6 +2744,8 @@ private:
                                         .Item().Value(dynamicStoreId);
                                 });
                 })
+                .Item("backup_stage").Value(tablet->GetBackupStage())
+                .Item("backup_checkpoint_timestamp").Value(tablet->GetBackupCheckpointTimestamp())
             .EndMap();
     }
 
@@ -3185,7 +3181,7 @@ private:
             ToProto(response.mutable_tablet_id(), tablet->GetId());
             ToProto(response.mutable_replica_id(), replicaInfo->GetId());
             response.set_mount_revision(tablet->GetMountRevision());
-            PostMasterMutation(tablet->GetId(), response);
+            PostMasterMessage(tablet->GetId(), response);
         }
     }
 
@@ -3212,7 +3208,7 @@ private:
             ToProto(response.mutable_tablet_id(), tablet->GetId());
             ToProto(response.mutable_replica_id(), replicaInfo->GetId());
             response.set_mount_revision(tablet->GetMountRevision());
-            PostMasterMutation(tablet->GetId(), response);
+            PostMasterMessage(tablet->GetId(), response);
         }
     }
 
@@ -3223,7 +3219,7 @@ private:
         ToProto(request.mutable_replica_id(), replicaInfo.GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         replicaInfo.PopulateStatistics(request.mutable_statistics());
-        PostMasterMutation(tablet->GetId(), request);
+        PostMasterMessage(tablet->GetId(), request);
     }
 
 
@@ -3258,7 +3254,7 @@ private:
             ToProto(masterRequest.mutable_tablet_id(), tablet->GetId());
             masterRequest.set_mount_revision(tablet->GetMountRevision());
             masterRequest.set_trimmed_row_count(trimmedRowCount);
-            PostMasterMutation(tablet->GetId(), masterRequest);
+            PostMasterMessage(tablet->GetId(), masterRequest);
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Rows trimmed (TabletId: %v, TrimmedRowCount: %v -> %v)",

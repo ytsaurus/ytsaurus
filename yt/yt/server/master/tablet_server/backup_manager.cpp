@@ -3,8 +3,6 @@
 #include "private.h"
 #include "tablet_manager.h"
 
-#include <yt/yt/server/master/tablet_server/proto/backup_manager.pb.h>
-
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -15,6 +13,12 @@
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
+
+#include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
+#include <yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h>
 
 #include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
 
@@ -27,6 +31,7 @@ using namespace NObjectServer;
 using namespace NTableServer;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
+using namespace NTabletNode::NProto;
 
 using NTransactionServer::TTransaction;
 
@@ -54,6 +59,7 @@ public:
 
         RegisterMethod(BIND(&TBackupManager::HydraFinishBackup, Unretained(this)));
         RegisterMethod(BIND(&TBackupManager::HydraFinishRestore, Unretained(this)));
+        RegisterMethod(BIND(&TBackupManager::HydraOnBackupCheckpointPassed, Unretained(this)));
     }
 
     void Initialize() override
@@ -63,52 +69,88 @@ public:
             BIND(&TBackupManager::OnTransactionAborted, MakeWeak(this)));
     }
 
-    void SetBackupBarrier(
+    void SetBackupCheckpoint(
         TTableNode* table,
-        TTimestamp /*timestamp*/,
+        TTimestamp timestamp,
         TTransaction* transaction) override
     {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Setting backup barrier (TableId: %v, TransactionId: %v)",
+            "Setting backup checkpoint (TableId: %v, TransactionId: %v, CheckpointTimestamp: %llx)",
             table->GetId(),
-            transaction->GetId());
+            transaction->GetId(),
+            timestamp);
+
+        if (timestamp == NullTimestamp) {
+            THROW_ERROR_EXCEPTION("Checkpoint timestamp cannot be null");
+        }
+
+        if (!table->GetMountedWithEnabledDynamicStoreRead()) {
+            THROW_ERROR_EXCEPTION("Dynamic store read must be enabled in order to backup the table")
+                << TErrorAttribute("table_id", table->GetId());
+        }
 
         for (auto* tablet : table->GetTrunkNode()->Tablets()) {
             if (tablet->GetBackupState() != ETabletBackupState::None) {
-                THROW_ERROR_EXCEPTION("Cannot set backup barrier since tablet %v "
+                THROW_ERROR_EXCEPTION("Cannot set backup checkpoint since tablet %v "
                     "is in invalid backup state: expected %Qlv, got %Qlv",
                     tablet->GetId(),
                     ETabletBackupState::None,
                     tablet->GetBackupState());
             }
+
+            switch (tablet->GetState()) {
+                case ETabletState::Unmounted:
+                case ETabletState::Mounted:
+                case ETabletState::Frozen:
+                    break;
+
+                default:
+                    THROW_ERROR_EXCEPTION("Cannot set backup checkpoint since tablet %v "
+                        "is in unstable state: expected one of %Qlv, %Qlv, %Qlv, got %Qlv",
+                        tablet->GetId(),
+                        ETabletState::Unmounted,
+                        ETabletState::Mounted,
+                        ETabletState::Frozen,
+                        tablet->GetState());
+            }
         }
 
         for (auto* tablet : table->GetTrunkNode()->Tablets()) {
-            tablet->CheckedSetBackupState(
-                ETabletBackupState::None,
-                ETabletBackupState::BarrierRequested);
+            if (auto* cell = tablet->GetCell()) {
+                tablet->CheckedSetBackupState(
+                    ETabletBackupState::None,
+                    ETabletBackupState::CheckpointRequested);
 
-            // FIXME(ifsmirnov): send messages to tablet cells and wait
-            // for confirmation.
-            tablet->CheckedSetBackupState(
-                ETabletBackupState::BarrierRequested,
-                ETabletBackupState::BarrierConfirmed);
+                TReqSetBackupCheckpoint req;
+                ToProto(req.mutable_tablet_id(), tablet->GetId());
+                req.set_mount_revision(tablet->GetMountRevision());
+                req.set_timestamp(timestamp);
+
+                const auto& hiveManager = Bootstrap_->GetHiveManager();
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                hiveManager->PostMessage(mailbox, req);
+            } else {
+                tablet->CheckedSetBackupState(
+                    ETabletBackupState::None,
+                    ETabletBackupState::CheckpointConfirmed);
+            }
         }
 
-        YT_VERIFY(transaction->TablesWithBackupBarriers().insert(table).second);
+        YT_VERIFY(transaction->TablesWithBackupCheckpoints().insert(table).second);
         UpdateAggregatedBackupState(table);
     }
 
-    void ReleaseBackupBarrier(
+    void ReleaseBackupCheckpoint(
         NTableServer::TTableNode* table,
         NTransactionServer::TTransaction* transaction) override
     {
         for (auto* tablet : table->GetTrunkNode()->Tablets()) {
-            if (tablet->GetBackupState() != ETabletBackupState::BarrierRequested &&
-                tablet->GetBackupState() != ETabletBackupState::BarrierConfirmed)
+            if (tablet->GetBackupState() != ETabletBackupState::CheckpointRequested &&
+                tablet->GetBackupState() != ETabletBackupState::CheckpointConfirmed &&
+                tablet->GetBackupState() != ETabletBackupState::CheckpointRejected)
             {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                    "Attempted to release backup barrier from a tablet "
+                    "Attempted to release backup checkpoint from a tablet "
                     "in wrong backup state (TableId: %v, TabletId: %v, TransactionId: %v, "
                     "BackupState: %v)",
                     table->GetId(),
@@ -118,18 +160,51 @@ public:
                 continue;
             }
 
+            YT_LOG_DEBUG("Releasing backup checkpoint (TabletId: %v, BackupState: %v, "
+                "TransactionId: %v)",
+                tablet->GetId(),
+                tablet->GetBackupState(),
+                transaction->GetId());
+
+            if (auto* cell = tablet->GetCell()) {
+                TReqReleaseBackupCheckpoint req;
+                ToProto(req.mutable_tablet_id(), tablet->GetId());
+                req.set_mount_revision(tablet->GetMountRevision());
+
+                const auto& hiveManager = Bootstrap_->GetHiveManager();
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                hiveManager->PostMessage(mailbox, req);
+            }
+
             tablet->SetBackupState(ETabletBackupState::None);
-            // FIXME(ifsmirnov): send messages to tablet cells.
-            EraseOrCrash(transaction->TablesWithBackupBarriers(), table);
+            EraseOrCrash(transaction->TablesWithBackupCheckpoints(), table);
         }
         UpdateAggregatedBackupState(table);
     }
 
-    void CheckBackupBarrier(
-        TTableNode* /*table*/,
-        NTableClient::NProto::TRspCheckBackupBarrier* response) override
+    void CheckBackupCheckpoint(
+        TTableNode* table,
+        NTableClient::NProto::TRspCheckBackupCheckpoint* response) override
     {
-        response->set_confirmed(true);
+        const auto& tabletCountByState = table->TabletCountByBackupState();
+        int pendingCount = tabletCountByState[ETabletBackupState::CheckpointRequested];
+        int confirmedCount = tabletCountByState[ETabletBackupState::CheckpointConfirmed];
+        int rejectedCount = tabletCountByState[ETabletBackupState::CheckpointRejected];
+
+        YT_LOG_DEBUG("Backup checkpoint checked (TableId: %v, "
+            "PendingCount: %v, ConfirmedCount: %v, RejectedCount: %v)",
+            table->GetId(),
+            pendingCount,
+            confirmedCount,
+            rejectedCount);
+
+        if (rejectedCount > 0) {
+            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BackupCheckpointRejected,
+                "Backup checkpoint rejected");
+        }
+
+        response->set_pending_tablet_count(pendingCount);
+        response->set_confirmed_tablet_count(confirmedCount);
     }
 
     TFuture<void> FinishBackup(TTableNode* table) override
@@ -148,7 +223,7 @@ public:
         ENodeCloneMode mode) override
     {
         if (mode == ENodeCloneMode::Backup) {
-            if (sourceTablet->GetBackupState() == ETabletBackupState::BarrierConfirmed) {
+            if (sourceTablet->GetBackupState() == ETabletBackupState::CheckpointConfirmed) {
                 clonedTablet->SetBackupState(ETabletBackupState::BackupStarted);
             } else {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
@@ -160,7 +235,7 @@ public:
                     clonedTablet->GetId(),
                     sourceTablet->GetTable()->GetId(),
                     clonedTablet->GetTable()->GetId(),
-                    ETabletBackupState::BarrierConfirmed,
+                    ETabletBackupState::CheckpointConfirmed,
                     sourceTablet->GetBackupState());
                 clonedTablet->SetBackupState(ETabletBackupState::BackupFailed);
             }
@@ -185,8 +260,9 @@ public:
             switch (sourceTablet->GetBackupState()) {
                 // If source table was the backup source, cloned tablets are clean.
                 case ETabletBackupState::None:
-                case ETabletBackupState::BarrierRequested:
-                case ETabletBackupState::BarrierConfirmed:
+                case ETabletBackupState::CheckpointRequested:
+                case ETabletBackupState::CheckpointConfirmed:
+                case ETabletBackupState::CheckpointRejected:
                     clonedTablet->SetBackupState(ETabletBackupState::None);
                     break;
 
@@ -304,7 +380,9 @@ private:
 
             tabletManager->WrapWithBackupChunkViews(tablet);
 
-            tablet->CheckedSetBackupState(ETabletBackupState::BackupStarted, ETabletBackupState::BackupCompleted);
+            tablet->CheckedSetBackupState(
+                ETabletBackupState::BackupStarted,
+                ETabletBackupState::BackupCompleted);
         }
 
         if (table) {
@@ -361,14 +439,63 @@ private:
             auto error = tabletManager->PromoteFlushedDynamicStores(tablet);
 
             if (error.IsOK()) {
-                tablet->CheckedSetBackupState(ETabletBackupState::RestoreStarted, ETabletBackupState::None);
+                tablet->CheckedSetBackupState(
+                    ETabletBackupState::RestoreStarted,
+                    ETabletBackupState::None);
             } else {
                 // TODO(ifsmirnov): store error somewhere.
-                tablet->CheckedSetBackupState(ETabletBackupState::RestoreStarted, ETabletBackupState::RestoreFailed);
+                tablet->CheckedSetBackupState(
+                    ETabletBackupState::RestoreStarted,
+                    ETabletBackupState::RestoreFailed);
             }
         }
 
         UpdateAggregatedBackupState(table);
+    }
+
+    void HydraOnBackupCheckpointPassed(NProto::TReqReportBackupCheckpointPassed* response)
+    {
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        auto* tablet = tabletManager->FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        if (tablet->GetMountRevision() != response->mount_revision()) {
+            return;
+        }
+
+        if (tablet->GetBackupState() != ETabletBackupState::CheckpointRequested) {
+            YT_LOG_DEBUG("Backup checkpoint passage reported to a tablet in "
+                "wrong backup state, ignored (TabletId: %v, BackupState: %v)",
+                tablet->GetId(),
+                tablet->GetBackupState());
+            return;
+        }
+
+        if (!response->confirmed()) {
+            // TODO(ifsmirnov): store error somewhere.
+            auto error = FromProto<TError>(response->error());
+            YT_LOG_DEBUG(error, "Backup checkpoint rejected by the tablet cell "
+                "(TableId: %v, TabletId: %v)",
+                tablet->GetTable()->GetId(),
+                tablet->GetId());
+            tablet->CheckedSetBackupState(
+                ETabletBackupState::CheckpointRequested,
+                ETabletBackupState::CheckpointRejected);
+        } else {
+            YT_LOG_DEBUG("Backup checkpoint confirmed by the tablet cell "
+                "(TableId: %v, TabletId: %v)",
+                tablet->GetTable()->GetId(),
+                tablet->GetId());
+            tablet->CheckedSetBackupState(
+                ETabletBackupState::CheckpointRequested,
+                ETabletBackupState::CheckpointConfirmed);
+        }
+
+        UpdateAggregatedBackupState(tablet->GetTable());
     }
 
     void OnAfterSnapshotLoaded() override
@@ -430,18 +557,18 @@ private:
 
     void OnTransactionAborted(TTransaction* transaction)
     {
-        // NB: ReleaseBackupBarrier modifies transaction->TablesWithBackupBarriers.
-        for (auto* table : GetValuesSortedByKey(transaction->TablesWithBackupBarriers())) {
+        // NB: ReleaseBackupCheckpoint modifies transaction->TablesWithBackupCheckpoints.
+        for (auto* table : GetValuesSortedByKey(transaction->TablesWithBackupCheckpoints())) {
             if (!IsObjectAlive(table)) {
                 continue;
             }
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                "Releasing backup barrier on transaction abort (TableId: %v, "
+                "Releasing backup checkpoint on transaction abort (TableId: %v, "
                 "TransactionId: %v)",
                 table->GetId(),
                 transaction->GetId());
-            ReleaseBackupBarrier(table, transaction);
+            ReleaseBackupCheckpoint(table, transaction);
         }
     }
 

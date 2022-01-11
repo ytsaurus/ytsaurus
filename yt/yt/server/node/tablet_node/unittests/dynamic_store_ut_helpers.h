@@ -14,6 +14,7 @@
 #include <yt/yt/server/node/tablet_node/transaction.h>
 #include <yt/yt/server/node/tablet_node/automaton.h>
 #include <yt/yt/server/node/tablet_node/structured_logger.h>
+#include <yt/yt/server/node/tablet_node/serialize.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -313,6 +314,7 @@ public:
 
         TStringOutput output(buffer);
         TSaveContext saveContext;
+        saveContext.SetVersion(GetCurrentReign());
         saveContext.SetOutput(&output);
         store->Save(saveContext);
 
@@ -326,11 +328,13 @@ public:
 
         TStringOutput output(buffer);
         TSaveContext saveContext;
+        saveContext.SetVersion(GetCurrentReign());
         saveContext.SetOutput(&output);
         snapshot.second.Run(saveContext);
 
         TStringInput input(buffer);
         TLoadContext loadContext;
+        loadContext.SetVersion(GetCurrentReign());
         loadContext.SetInput(&input);
 
         CreateDynamicStore();

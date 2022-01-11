@@ -27,6 +27,13 @@ DEFINE_ENUM(ETabletWriteMode,
     (Pull)
 )
 
+DEFINE_ENUM(EBackupStage,
+    (None)
+    (TimestampReceived)
+    (FeasibilityConfirmed)
+    (RespondedToMaster)
+)
+
 using TTabletDistributedThrottlersVector = TEnumIndexedVector<
     ETabletDistributedThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr>;
@@ -52,6 +59,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletManager)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 DECLARE_REFCOUNTED_STRUCT(ITabletWriteManager)
 DECLARE_REFCOUNTED_STRUCT(ITabletWriteManagerHost)
+DECLARE_REFCOUNTED_STRUCT(IBackupManager)
 
 class TPartition;
 class TTableReplicaInfo;

@@ -35,6 +35,7 @@ DEFINE_ENUM(ETabletReign,
     // 22.1 starts here.
     ((NewLockMasks)                       (100400)) // gritukan
     ((Chaos)                              (100401)) // savrus
+    ((BackupsSorted)                      (100402)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

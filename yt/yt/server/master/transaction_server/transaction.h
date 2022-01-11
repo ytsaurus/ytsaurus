@@ -70,7 +70,7 @@ public:
     using TStagedNodeList = std::vector<NCypressServer::TCypressNode*>;
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
     DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNode*>, LockedDynamicTables);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNode*>, TablesWithBackupBarriers);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNode*>, TablesWithBackupCheckpoints);
 
     // Security Manager stuff
     using TAccountResourcesMap = THashMap<NSecurityServer::TAccount*, NSecurityServer::TClusterResources>;

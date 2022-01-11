@@ -15,7 +15,7 @@
 
 namespace NYT::NTableClient::NProto {
 
-class TRspCheckBackupBarrier;
+class TRspCheckBackupCheckpoint;
 
 } // namespace NYT::NTableClient::NProto
 

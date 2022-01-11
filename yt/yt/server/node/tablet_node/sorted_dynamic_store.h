@@ -150,9 +150,13 @@ public:
 
     TSortedDynamicStorePtr AsSortedDynamic() override;
 
+    void SetBackupCheckpointTimestamp(TTimestamp timestamp) override;
+
     // Passive dynamic stores loaded from snapshot can be flushed in arbitrary order.
     // Their flush index is null.
     DEFINE_BYVAL_RW_PROPERTY(ui32, FlushIndex, 0);
+
+    bool IsMergeRowsOnFlushAllowed() const;
 
 private:
     class TReaderBase;
@@ -178,6 +182,8 @@ private:
 
     i64 MaxDataWeight_ = 0;
     TSortedDynamicRow MaxDataWeightWitness_;
+
+    bool MergeRowsOnFlushAllowed_ = true;
 
     void OnSetPassive() override;
 

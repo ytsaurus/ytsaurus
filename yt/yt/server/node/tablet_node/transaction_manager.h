@@ -60,6 +60,9 @@ public:
     //! Raised when a transaction is aborted.
     DECLARE_SIGNAL(void(TTransaction*), TransactionAborted);
 
+    //! Raised when transaction barrier is promoted.
+    DECLARE_SIGNAL(void(TTimestamp), TransactionBarrierHandled);
+
     //! Raised on epoch finish for each transaction (both persistent and transient)
     //! to help all dependent subsystems to reset their transient transaction-related
     //! state.

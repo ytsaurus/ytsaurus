@@ -79,6 +79,7 @@ public:
     DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
     DEFINE_SIGNAL(void(TTransaction*), TransactionSerialized);
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
+    DEFINE_SIGNAL(void(TTimestamp), TransactionBarrierHandled);
     DEFINE_SIGNAL(void(TTransaction*), TransactionTransientReset);
 
 public:
@@ -901,6 +902,8 @@ private:
         if (const auto& runtimeData = Host_->GetRuntimeData()) {
             runtimeData->BarrierTimestamp.store(barrierTimestamp);
         }
+
+        TransactionBarrierHandled_.Fire(barrierTimestamp);
     }
 
     TDuration ComputeTransactionSerializationLag() const
@@ -1179,6 +1182,7 @@ DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*, bool), TransactionPrepa
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionSerialized, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTimestamp), TransactionBarrierHandled, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionTransientReset, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -79,6 +79,7 @@ DEFINE_ENUM(EMasterReign,
     ((BanSuperusers)                                                (1911))  // gritukan
     ((EnablePortalAwareStatisticsGossip)                            (1912))  // babenko
     ((HunkErasureCodec)                                             (1913))  // babenko
+    ((BackupCheckpoints)                                            (1914))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

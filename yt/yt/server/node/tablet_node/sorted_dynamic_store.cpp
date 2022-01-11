@@ -49,6 +49,7 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NHydra;
 
 using NChunkClient::TDataSliceDescriptor;
 using NYT::TRange;
@@ -1929,6 +1930,7 @@ void TSortedDynamicStore::Save(TSaveContext& context) const
     using NYT::Save;
     Save(context, MinTimestamp_);
     Save(context, MaxTimestamp_);
+    Save(context, MergeRowsOnFlushAllowed_);
 }
 
 void TSortedDynamicStore::Load(TLoadContext& context)
@@ -1938,6 +1940,11 @@ void TSortedDynamicStore::Load(TLoadContext& context)
     using NYT::Load;
     Load(context, MinTimestamp_);
     Load(context, MaxTimestamp_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::BackupsSorted) {
+        Load(context, MergeRowsOnFlushAllowed_);
+    }
 }
 
 TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
@@ -2096,6 +2103,16 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 TSortedDynamicStorePtr TSortedDynamicStore::AsSortedDynamic()
 {
     return this;
+}
+
+void TSortedDynamicStore::SetBackupCheckpointTimestamp(TTimestamp /*timestamp*/)
+{
+    MergeRowsOnFlushAllowed_ = false;
+}
+
+bool TSortedDynamicStore::IsMergeRowsOnFlushAllowed() const
+{
+    return MergeRowsOnFlushAllowed_;
 }
 
 ui32 TSortedDynamicStore::GetLatestRevision() const

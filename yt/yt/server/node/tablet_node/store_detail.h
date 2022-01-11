@@ -140,6 +140,8 @@ public:
     bool IsDynamic() const override;
     IDynamicStorePtr AsDynamic() override;
 
+    void SetBackupCheckpointTimestamp(TTimestamp timestamp) override;
+
 protected:
     //! Some sanity checks may need the tablet's atomicity mode but the tablet may die.
     //! So we capture a copy of this mode upon store's construction.

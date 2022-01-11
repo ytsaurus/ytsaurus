@@ -363,6 +363,9 @@ void TDynamicStoreBase::UpdateTimestampRange(TTimestamp commitTimestamp)
     }
 }
 
+void TDynamicStoreBase::SetBackupCheckpointTimestamp(TTimestamp /*timestamp*/)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPreloadedBlockCache
