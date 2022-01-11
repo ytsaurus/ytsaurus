@@ -370,6 +370,10 @@ public abstract class TiType {
         return typeName;
     }
 
+    public boolean isNullable() {
+        return isNull() || isVoid() || isOptional();
+    }
+
     public abstract String toString();
     public abstract boolean equals(@Nullable Object other);
     public abstract int hashCode();
