@@ -7,24 +7,24 @@ from yt.python.yt.cpp_wrapper import CppJob
 
 
 if __name__ == "__main__":
-    yt.wrapper.config.set_proxy("freud")
+    client = yt.wrapper.YtClient(proxy="freud")
 
-    sorted_staff_table = "//tmp/" + getpass.getuser() + "-pytutorial-staff-sorted"
-    sorted_is_robot_table = "//tmp/" + getpass.getuser() + "-pytutorial-is_robot-sorted"
-    human_table = "//tmp/" + getpass.getuser() + "-pytutorial-humans"
-    robot_table = "//tmp/" + getpass.getuser() + "-pytutorial-robots"
+    sorted_staff_table = "//tmp/{}-pytutorial-staff-sorted".format(getpass.getuser())
+    sorted_is_robot_table = "//tmp/{}-pytutorial-is_robot-sorted".format(getpass.getuser())
+    human_table = "//tmp/{}-pytutorial-humans".format(getpass.getuser())
+    robot_table = "//tmp/{}-pytutorial-robots".format(getpass.getuser())
 
-    yt.wrapper.run_sort(
+    client.run_sort(
         source_table="//home/dev/tutorial/staff_unsorted", destination_table=sorted_staff_table, sort_by=["uid"]
     )
 
-    yt.wrapper.run_sort(
+    client.run_sort(
         source_table="//home/dev/tutorial/is_robot_unsorted",
         destination_table=sorted_is_robot_table,
         sort_by=["uid"],
     )
 
-    yt.wrapper.run_reduce(
+    client.run_reduce(
         CppJob("TSplitHumanRobotsReduce"),
         source_table=[sorted_staff_table, sorted_is_robot_table],
         destination_table=[robot_table, human_table],

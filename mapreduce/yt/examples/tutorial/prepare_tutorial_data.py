@@ -62,13 +62,13 @@ def main():
     def tutorial_table(table_name):
         return tutorial_dir + "/" + table_name
 
-    yt.wrapper.config.set_proxy("freud")
+    client = yt.wrapper.YtClient(proxy="freud")
     with yt.wrapper.Transaction():
-        if yt.wrapper.exists(tutorial_dir):
-            if yt.wrapper.exists(bak_dir):
-                yt.wrapper.remove(bak_dir, recursive=True)
-            yt.wrapper.move(tutorial_dir, bak_dir)
-        yt.wrapper.create("map_node", tutorial_dir)
+        if client.exists(tutorial_dir):
+            if client.exists(bak_dir):
+                client.remove(bak_dir, recursive=True)
+            client.move(tutorial_dir, bak_dir)
+        client.create("map_node", tutorial_dir)
 
         def staff_unsorted():
             for p in Staff().iter_staff():
@@ -107,15 +107,15 @@ def main():
                     "video_regexp": h.video_regexp,
                 }
 
-        yt.wrapper.write_table(yt.wrapper.TablePath(tutorial_table("host_video_regexp"), sorted_by=["host"]),
+        client.write_table(yt.wrapper.TablePath(tutorial_table("host_video_regexp"), sorted_by=["host"]),
                                sorted(host_table(), key=lambda x:(x["host"],)))
-        yt.wrapper.write_table(yt.wrapper.TablePath(tutorial_table("doc_title"), sorted_by=["host", "path"]),
+        client.write_table(yt.wrapper.TablePath(tutorial_table("doc_title"), sorted_by=["host", "path"]),
                                sorted(doc_title_table(), key=lambda x:(x["host"], x["path"])))
-        yt.wrapper.write_table(yt.wrapper.TablePath(tutorial_table("doc_keywords"), sorted_by=["host", "path"]),
+        client.write_table(yt.wrapper.TablePath(tutorial_table("doc_keywords"), sorted_by=["host", "path"]),
                                               sorted(doc_keywords_table(), key=lambda x:(x["host"], x["path"])))
 
-        yt.wrapper.write_table(tutorial_table("staff_unsorted"), staff_unsorted())
-        yt.wrapper.write_table(tutorial_table("is_robot_unsorted"), is_robot_unsorted())
+        client.write_table(tutorial_table("staff_unsorted"), staff_unsorted())
+        client.write_table(tutorial_table("is_robot_unsorted"), is_robot_unsorted())
 
     print "https://yt.yandex-team.ru/freud/#page=navigation&path={path}".format(path=tutorial_dir)
 

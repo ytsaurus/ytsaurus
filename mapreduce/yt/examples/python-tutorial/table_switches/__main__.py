@@ -49,48 +49,48 @@ def reducer(key, rows, context):
 
 
 def main():
-    yt.wrapper.config["proxy"]["url"] = "freud"
+    client = yt.wrapper.YtClient(proxy="freud")
 
-    path = "//tmp/" + getpass.getuser() + "-table_switches"
-    yt.wrapper.create("map_node", path, ignore_existing=True)
+    path = "//tmp/{}-table_switches".format(getpass.getuser())
+    client.create("map_node", path, ignore_existing=True)
 
     input1, input2, input3 = inputs = ["{}/input{}".format(path, i) for i in range(1, 4)]
-    yt.wrapper.write_table(input1, [{"value": 7}])
-    yt.wrapper.write_table(input2, [{"value": 3}])
-    yt.wrapper.write_table(input3, [{"value": 4}])
+    client.write_table(input1, [{"value": 7}])
+    client.write_table(input2, [{"value": 3}])
+    client.write_table(input3, [{"value": 4}])
 
     output1, output2 = outputs = ["{}/output{}".format(path, i) for i in range(1, 3)]
 
     # Пример запуска маппера, который будет использовать функцию yt.wrapper.create_table_switch
     # для переключения выходных таблиц.
-    yt.wrapper.run_map(
+    client.run_map(
         mapper_with_iterator,
         inputs,
         outputs,
         format=yt.wrapper.YsonFormat(control_attributes_mode="iterator"),
     )
     # В первую таблицу попадают чётные суммы.
-    assert list(yt.wrapper.read_table(output1)) == [{"sum": 4}, {"sum": 0}]
+    assert list(client.read_table(output1)) == [{"sum": 4}, {"sum": 0}]
     # Во вторую таблицу попадают нечётные суммы.
-    assert list(yt.wrapper.read_table(output2)) == [{"sum": 7}]
+    assert list(client.read_table(output2)) == [{"sum": 7}]
 
     # Пример запуска маппера, который будет использовать поле @table_index для переключения выходных таблиц.
-    yt.wrapper.run_map(
+    client.run_map(
         mapper_with_row_fields,
         inputs,
         outputs,
         format=yt.wrapper.YsonFormat(control_attributes_mode="row_fields"),
     )
     # В первую таблицу попадают чётные суммы.
-    assert list(yt.wrapper.read_table(output1)) == [{"sum": 4}, {"sum": 0}]
+    assert list(client.read_table(output1)) == [{"sum": 4}, {"sum": 0}]
     # Во вторую таблицу попадают нечётные суммы.
-    assert list(yt.wrapper.read_table(output2)) == [{"sum": 7}]
+    assert list(client.read_table(output2)) == [{"sum": 7}]
 
-    yt.wrapper.remove(input1)
-    yt.wrapper.write_table("<sorted_by=[x]>" + input1, [{"x": 1}, {"x": 3}, {"x": 4}])
+    client.remove(input1)
+    client.write_table("<sorted_by=[x]>" + input1, [{"x": 1}, {"x": 3}, {"x": 4}])
 
     # Пример запуска редьюсера, который получает индексы строк из контекста.
-    yt.wrapper.run_reduce(
+    client.run_reduce(
         reducer,
         input1,
         output1,
@@ -98,7 +98,7 @@ def main():
         format=yt.wrapper.YsonFormat(),
         spec={"job_io": {"control_attributes": {"enable_row_index": True}}},
     )
-    assert list(yt.wrapper.read_table(output1)) == [{"row_index": 0}, {"row_index": 1}, {"row_index": 2}]
+    assert list(client.read_table(output1)) == [{"row_index": 0}, {"row_index": 1}, {"row_index": 2}]
 
 
 if __name__ == "__main__":
