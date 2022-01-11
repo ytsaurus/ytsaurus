@@ -115,8 +115,13 @@ class TestControllerMemoryUsage(YTEnvSetup):
             if statistics["operation_id"] == yson.YsonEntity():
                 return False
             assert statistics["operation_id"] == operation.id
-            assert statistics["usage"] > usage_lower_bound
-            assert statistics["usage"] < usage_upper_bound
+
+            if statistics["usage"] < usage_lower_bound:
+                return False
+
+            if statistics["usage"] > usage_upper_bound:
+                return False
+
             return True
 
         for entry in get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False):
@@ -142,11 +147,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         small_usage_path = op_small.get_path() + "/controller_orchid/memory_usage"
         wait(lambda: exists(small_usage_path))
-        usage = get(small_usage_path)
-
-        print_debug("small_usage =", usage)
-        assert usage < 640 * 1024
-
+        wait(lambda: get(small_usage_path) < 640 * 1024)
         wait(lambda: check("1", op_small, 0, 640 * 1024))
 
         op_small.abort()
@@ -158,17 +159,14 @@ class TestControllerMemoryUsage(YTEnvSetup):
             command="sleep 3600",
             spec={
                 "testing": {
-                    "allocation_size": 20 * 1024 * 1024,
+                    "allocation_size": 200 * 1024 * 1024,
                 }
             },
         )
 
         large_usage_path = op_large.get_path() + "/controller_orchid/memory_usage"
         wait(lambda: exists(large_usage_path))
-        usage = get(large_usage_path)
-
-        print_debug("large_usage =", usage)
-        assert usage > 10 * 10 ** 6
+        wait(lambda: get(large_usage_path) > 100 * 1024 * 1024)
 
         # No nonlocal keyword in 2.x :(
         nonlocal = {"peak_memory_usage": None}
@@ -185,9 +183,9 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
             return info["memory_usage"] > usage_lower_bound and current_peak_memory_usage > usage_lower_bound
 
-        wait(lambda: check_operation_attributes(10 * 10 ** 6))
+        wait(lambda: check_operation_attributes(100 * 1024 * 1024))
 
-        wait(lambda: check("2", op_large, 10 * 10 ** 6, 30 * 10 ** 6))
+        wait(lambda: check("2", op_large, 100 * 1024 * 1024, 300 * 1024 * 1024))
 
         op_large.abort()
 
@@ -579,7 +577,11 @@ class TestMemoryOverconsumptionThreshold(YTEnvSetup):
 
     @authors("alexkolodezny")
     def test_memory_overconsumption_threshold(self):
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1, spec={
+            "testing": {
+                "allocation_size": 100 * 1024 * 1024,
+            },
+        })
 
         wait(lambda: "memory_overconsumption" in op.get_alerts())
 
@@ -613,7 +615,11 @@ class TestTotalControllerMemoryLimit(YTEnvSetup):
 
     @authors("alexkolodezny")
     def test_total_controller_memory_limit(self):
-        op = run_test_vanilla("sleep 1", track=False)
+        op = run_test_vanilla("sleep 1", track=False, spec={
+            "testing": {
+                "allocation_size": 100 * 1024 * 1024,
+            },
+        })
 
         with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
             op.track()
