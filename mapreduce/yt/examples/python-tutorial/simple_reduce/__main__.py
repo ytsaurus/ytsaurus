@@ -23,16 +23,16 @@ def count_names_reducer(key, input_row_iterator):
 
 
 if __name__ == "__main__":
-    yt.wrapper.config.set_proxy("freud")
+    client = yt.wrapper.YtClient(proxy="freud")
 
-    sorted_tmp_table = "//tmp/" + getpass.getuser() + "-pytutorial-tmp"
-    output_table = "//tmp/" + getpass.getuser() + "-pytutorial-name-stat"
+    sorted_tmp_table = "//tmp/{}-pytutorial-tmp".format(getpass.getuser())
+    output_table = "//tmp/{}-pytutorial-name-stat".format(getpass.getuser())
 
-    yt.wrapper.run_sort(
+    client.run_sort(
         source_table="//home/dev/tutorial/staff_unsorted", destination_table=sorted_tmp_table, sort_by=["name"]
     )
 
-    yt.wrapper.run_reduce(
+    client.run_reduce(
         count_names_reducer, source_table=sorted_tmp_table, destination_table=output_table, reduce_by=["name"]
     )
 

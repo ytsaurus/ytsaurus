@@ -14,8 +14,6 @@ def get(proxy, path):
 def main():
     monkey.patch_all()
 
-    yt.wrapper.config["proxy"]["url"] = "freud"
-
     gl = gevent.spawn(get, "hume", "//@type")
     gl.join()
     assert gl.value == "map_node"

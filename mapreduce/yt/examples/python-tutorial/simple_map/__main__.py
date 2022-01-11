@@ -21,12 +21,12 @@ def compute_emails_mapper(input_row):
 if __name__ == "__main__":
 
     # Говорим библиотеке что мы будем работать с кластером freud.
-    yt.wrapper.config.set_proxy("freud")
+    client = yt.wrapper.YtClient(proxy="freud")
 
     # Выходная таблица у нас будет лежать в tmp и содержать имя текущего пользователя.
-    output_table = "//tmp/" + getpass.getuser() + "-pytutorial-emails"
+    output_table = "//tmp/{}-pytutorial-emails".format(getpass.getuser())
 
-    yt.wrapper.run_map(
+    client.run_map(
         compute_emails_mapper, source_table="//home/dev/tutorial/staff_unsorted", destination_table=output_table
     )
 

@@ -18,7 +18,7 @@ if __name__ == "__main__":
     doc_title_exists_result = batch_client.exists("//home/dev/tutorial/doc_title")
     unexisting_table_exists_result = batch_client.exists("//home/dev/tutorial/unexisting_table")
 
-    output_table_name = "//tmp/" + getpass.getuser() + "-pytutorial-batch-client"
+    output_table_name = "//tmp/{}-pytutorial-batch-client".format(getpass.getuser())
     create_result = batch_client.create("table", output_table_name)
 
     # Выполняем накопленную пачку запросов.

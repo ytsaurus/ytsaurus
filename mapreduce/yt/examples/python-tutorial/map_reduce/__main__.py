@@ -27,14 +27,14 @@ def count_names_reducer(key, input_row_iterator):
 
 
 if __name__ == "__main__":
-    yt.wrapper.config.set_proxy("freud")
+    client = yt.wrapper.YtClient(proxy="freud")
 
-    output_table = "//tmp/" + getpass.getuser() + "-pytutorial-name-stat"
+    output_table = "//tmp/{}-pytutorial-name-stat".format(getpass.getuser())
 
     # Запуск операции MapReduce несильно отличается от запуска других операций.
     # Нам надо указать список ключей, по которым мы будем редьюсить,
     # а так же маппер и редьюсер.
-    yt.wrapper.run_map_reduce(
+    client.run_map_reduce(
         normalize_name_mapper,
         count_names_reducer,
         source_table="//home/dev/tutorial/staff_unsorted",

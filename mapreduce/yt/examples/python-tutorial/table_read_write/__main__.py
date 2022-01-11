@@ -5,12 +5,12 @@ import getpass
 import yt.wrapper
 
 if __name__ == "__main__":
-    yt.wrapper.config.set_proxy("freud")
+    client = yt.wrapper.YtClient(proxy="freud")
 
-    table = "//tmp/" + getpass.getuser() + "-read-write"
+    table = "//tmp/{}-read-write".format(getpass.getuser())
 
     # Просто пишем данные в таблицу, если таблица существует, её перезапишут.
-    yt.wrapper.write_table(
+    client.write_table(
         table,
         [
             {"english": "one", "russian": "один"},
@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     # Дописываем данные в конец таблицы, придётся поступить хитрее.
     # Используем класс TablePath и его опцию append.
-    yt.wrapper.write_table(
+    client.write_table(
         yt.wrapper.TablePath(table, append=True),
         [
             {"english": "three", "russian": "три"},
@@ -29,14 +29,14 @@ if __name__ == "__main__":
 
     # Читаем всю таблицу.
     print "*** ALL TABLE ***"
-    for row in yt.wrapper.read_table(table):
+    for row in client.read_table(table):
         print "english:", row["english"], "; russian:", row["russian"]
     print "*****************"
     print ""
 
     # Читаем первые 2 строки таблицы.
     print "*** FIRST TWO ROWS ***"
-    for row in yt.wrapper.read_table(
+    for row in client.read_table(
         yt.wrapper.TablePath(table, start_index=0, end_index=2)  # читаем с 0й по 2ю строки, 2я строка невключительно
     ):
         print "english:", row["english"], "; russian:", row["russian"]
@@ -44,11 +44,11 @@ if __name__ == "__main__":
     print ""
 
     #  Если мы отсортируем таблицу, то можно будет читать записи по ключам.
-    yt.wrapper.run_sort(table, sort_by=["english"])
+    client.run_sort(table, sort_by=["english"])
 
     # И читаем запись по одному ключу.
     print "*** EXACT KEY ***"
-    for row in yt.wrapper.read_table(
+    for row in client.read_table(
         yt.wrapper.TablePath(
             table,
             exact_key=["three"]  # В качестве ключа передаём список значений ключевых колонок

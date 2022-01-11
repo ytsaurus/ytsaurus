@@ -14,7 +14,7 @@ if __name__ == "__main__":
         {"name": "y", "type": "int64"},
         {"name": "z", "type": "int64"},
     ]
-    table = "//tmp/" + getpass.getuser() + "-pytutorial-dynamic-tables-rpc"
+    table = "//tmp/{}-pytutorial-dynamic-tables-rpc".format(getpass.getuser())
     client.create("table", table, force=True, attributes={"schema": schema, "dynamic": True})
 
     # Монтируем свежесозданную динамическую таблицу и добавляем в неё строку.
