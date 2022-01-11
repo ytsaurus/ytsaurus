@@ -510,10 +510,11 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
         totalPenalty);
 
     for (const auto& [nodeWithPenalty, newSegment] : movedNodes) {
-        YT_LOG_DEBUG("Moving node to a new scheduling segment (Address: %v, Segment: %v, Penalty: %v)",
+        YT_LOG_DEBUG("Moving node to a new scheduling segment (Address: %v, OldSegment: %v, NewSegment: %v, Penalty: %v)",
             nodeWithPenalty.Descriptor->Address,
-            nodeWithPenalty.MovePenalty,
-            newSegment);
+            nodeWithPenalty.Descriptor->SchedulingSegment,
+            newSegment,
+            nodeWithPenalty.MovePenalty);
     }
 }
 
