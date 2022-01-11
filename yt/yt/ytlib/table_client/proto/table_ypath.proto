@@ -190,22 +190,23 @@ message TRspFinishRestore
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqSetBackupBarrier
+message TReqSetBackupCheckpoint
 {
     required uint64 timestamp = 1;
 }
 
-message TRspSetBackupBarrier
+message TRspSetBackupCheckpoint
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCheckBackupBarrier
+message TReqCheckBackupCheckpoint
 { }
 
-message TRspCheckBackupBarrier
+message TRspCheckBackupCheckpoint
 {
-    required bool confirmed = 1;
+    required int32 pending_tablet_count = 1;
+    required int32 confirmed_tablet_count = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

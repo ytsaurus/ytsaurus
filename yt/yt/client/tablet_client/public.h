@@ -70,6 +70,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidBackupState)                     (1730))
     ((WriteRetryIsImpossible)                 (1731))
     ((SyncReplicaNotInSync)                   (1732))
+    ((BackupCheckpointRejected)               (1733))
 );
 
 DEFINE_ENUM(EInMemoryMode,

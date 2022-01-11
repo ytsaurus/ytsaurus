@@ -1980,7 +1980,7 @@ public:
         trunkClonedTable->RecomputeTabletMasterMemoryUsage();
 
         if (mode == ENodeCloneMode::Backup) {
-            backupManager->ReleaseBackupBarrier(
+            backupManager->ReleaseBackupCheckpoint(
                 trunkSourceTable,
                 sourceTable->GetTransaction());
         }

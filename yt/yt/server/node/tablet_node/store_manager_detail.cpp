@@ -527,6 +527,9 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason)
 
     if (createNewStore) {
         CreateActiveStore();
+        if (auto timestamp = Tablet_->GetBackupCheckpointTimestamp()) {
+            GetActiveStore()->SetBackupCheckpointTimestamp(timestamp);
+        }
     } else {
         ResetActiveStore();
         Tablet_->SetActiveStore(nullptr);

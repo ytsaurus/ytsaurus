@@ -957,12 +957,16 @@ def _parse_backup_manifest(*args):
         }
 
 
-def create_table_backup(*args):
-    return execute_command("create_table_backup", {"manifest": _parse_backup_manifest(*args)})
+def create_table_backup(*args, **kwargs):
+    if "manifest" not in kwargs:
+        kwargs.update({"manifest": _parse_backup_manifest(*args)})
+    return execute_command("create_table_backup", kwargs)
 
 
-def restore_table_backup(*args):
-    return execute_command("restore_table_backup", {"manifest": _parse_backup_manifest(*args)})
+def restore_table_backup(*args, **kwargs):
+    if "manifest" not in kwargs:
+        kwargs.update({"manifest": _parse_backup_manifest(*args)})
+    return execute_command("restore_table_backup", kwargs)
 
 
 def write_file(path, data, **kwargs):

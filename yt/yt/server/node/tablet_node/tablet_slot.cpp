@@ -223,6 +223,26 @@ public:
         return Occupant_->GetMasterMailbox();
     }
 
+    void CommitTabletMutation(const ::google::protobuf::MessageLite& message) override
+    {
+        auto mutation = CreateMutation(GetHydraManager(), message);
+        GetEpochAutomatonInvoker()->Invoke(BIND([=, this_ = MakeStrong(this), mutation = std::move(mutation)] {
+            mutation->CommitAndLog(Logger);
+        }));
+    }
+
+    void PostMasterMessage(TTabletId tabletId, const ::google::protobuf::MessageLite& message) override
+    {
+        YT_VERIFY(HasMutationContext());
+
+        const auto& hiveManager = GetHiveManager();
+        auto* mailbox = hiveManager->GetOrCreateMailbox(Bootstrap_->GetCellId(CellTagFromId(tabletId)));
+        if (!mailbox) {
+            mailbox = GetMasterMailbox();
+        }
+        hiveManager->PostMessage(mailbox, message);
+    }
+
     const TTransactionManagerPtr& GetTransactionManager() override
     {
         return TransactionManager_;

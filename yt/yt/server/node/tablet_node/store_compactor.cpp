@@ -1749,7 +1749,15 @@ private:
             const auto& mountConfig = tablet->GetSettings().MountConfig;
             auto retainedTimestamp = CalculateRetainedTimestamp(currentTimestamp, mountConfig->MinDataTtl);
 
-            auto majorTimestamp = std::min(ComputeMajorTimestamp(partition, stores), retainedTimestamp);
+            TTimestamp majorTimestamp;
+            if (tablet->GetBackupCheckpointTimestamp()) {
+                majorTimestamp = MinTimestamp;
+                YT_LOG_DEBUG("Compaction will not delete old versions due to backup in progress "
+                    "(BackupCheckpointTimestamp: %v)",
+                    tablet->GetBackupCheckpointTimestamp());
+            } else {
+                majorTimestamp = std::min(ComputeMajorTimestamp(partition, stores), retainedTimestamp);
+            }
 
             structuredLogger->LogEvent("start_compaction")
                 .Item("partition_id").Value(partition->GetId())

@@ -1186,6 +1186,12 @@ void TGetTablePivotKeysCommand::DoExecute(ICommandContextPtr context)
 TCreateTableBackupCommand::TCreateTableBackupCommand()
 {
     RegisterParameter("manifest", Manifest);
+    RegisterParameter("checkpoint_timestamp_delay", Options.CheckpointTimestampDelay)
+        .Default(TDuration::Seconds(5));
+    RegisterParameter("checkpoint_check_period", Options.CheckpointCheckPeriod)
+        .Default(TDuration::Seconds(1));
+    RegisterParameter("checkpoint_check_timeout", Options.CheckpointCheckTimeout)
+        .Default(TDuration::Seconds(10));
 }
 
 void TCreateTableBackupCommand::DoExecute(ICommandContextPtr context)

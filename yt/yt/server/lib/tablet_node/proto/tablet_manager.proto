@@ -1,6 +1,7 @@
 package NYT.NTabletNode.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
@@ -157,6 +158,37 @@ message TReqUnlockTablet
 
     // For overwrite mode.
     repeated NYT.NProto.TGuid dynamic_store_ids = 7;
+}
+
+message TReqSetBackupCheckpoint
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+    required uint64 timestamp = 3;
+}
+
+message TReqReleaseBackupCheckpoint
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+}
+
+message TReqConfirmBackupCheckpointFeasibility
+{
+    message TConfirmedTabletInfo
+    {
+        required NYT.NProto.TGuid tablet_id = 1;
+        required uint64 timestamp = 2;
+    }
+
+    message TRejectedTabletInfo
+    {
+        required NYT.NProto.TGuid tablet_id = 1;
+        required NYT.NProto.TError error = 2;
+    }
+
+    repeated TConfirmedTabletInfo confirmed_tablets = 1;
+    repeated TRejectedTabletInfo rejected_tablets = 2;
 }
 
 message TReqSetTabletState

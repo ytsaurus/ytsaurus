@@ -31,28 +31,30 @@ DEFINE_ENUM(ETabletBackupState,
     ((None)                        (0))
 
     // Source states.
-    //! Barrier timestamp was sent to tablet cell, pending confirmation.
-    ((BarrierRequested)            (1))
-    //! Tablet cell confirmed barrier timestamp.
-    ((BarrierConfirmed)            (2))
+    //! Checkpoint timestamp was sent to tablet cell, pending confirmation.
+    ((CheckpointRequested)         (1))
+    //! Tablet cell confirmed checkpoint timestamp.
+    ((CheckpointConfirmed)         (2))
+    //! Tablet cell rejected checkpoint timestamp.
+    ((CheckpointRejected)          (3))
 
     // Destination states.
     //! Table was cloned but backup is not yet finished.
-    ((BackupStarted)               (3))
+    ((BackupStarted)               (4))
     //! Backup is created but is invalid.
-    ((BackupFailed)                (4))
+    ((BackupFailed)                (5))
     //! Backup is completed.
-    ((BackupCompleted)             (5))
+    ((BackupCompleted)             (6))
 
     // Restore states.
     //! Table was cloned but restore is not yet finished.
-    ((RestoreStarted)              (6))
+    ((RestoreStarted)              (7))
     //! Table is restored but the result is invalid.
-    ((RestoreFailed)               (7))
+    ((RestoreFailed)               (8))
     // NB: When restore is completed the table transitions to |None| state.
 
     // Only applied to aggregate state.
-    ((Mixed)                       (8))
+    ((Mixed)                       (9))
 )
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -17,18 +17,18 @@ struct IBackupManager
 {
     virtual void Initialize() = 0;
 
-    virtual void SetBackupBarrier(
+    virtual void SetBackupCheckpoint(
         NTableServer::TTableNode* table,
         NTransactionClient::TTimestamp timestamp,
         NTransactionServer::TTransaction* transaction) = 0;
 
-    virtual void ReleaseBackupBarrier(
+    virtual void ReleaseBackupCheckpoint(
         NTableServer::TTableNode* table,
         NTransactionServer::TTransaction* transaction) = 0;
 
-    virtual void CheckBackupBarrier(
+    virtual void CheckBackupCheckpoint(
         NTableServer::TTableNode* table,
-        NTableClient::NProto::TRspCheckBackupBarrier* response) = 0;
+        NTableClient::NProto::TRspCheckBackupCheckpoint* response) = 0;
 
     virtual TFuture<void> FinishBackup(NTableServer::TTableNode* table) = 0;
 
