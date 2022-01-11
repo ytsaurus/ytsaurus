@@ -42,4 +42,4 @@ if __name__ == "__main__":
         reduce_by=["name"],
     )
 
-    print("Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path={0}".format(output_table))
+    print(("Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path={0}".format(output_table)))

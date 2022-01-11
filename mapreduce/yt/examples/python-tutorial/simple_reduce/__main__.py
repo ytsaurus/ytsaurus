@@ -36,4 +36,4 @@ if __name__ == "__main__":
         count_names_reducer, source_table=sorted_tmp_table, destination_table=output_table, reduce_by=["name"]
     )
 
-    print("Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path={0}".format(output_table))
+    print(("Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path={0}".format(output_table)))

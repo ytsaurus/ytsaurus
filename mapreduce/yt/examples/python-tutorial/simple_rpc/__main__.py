@@ -5,4 +5,4 @@ if __name__ == "__main__":
     client = yt.YtClient("freud", config={"backend": "rpc"})
 
     # Работаем как с обычным клиентом.
-    print client.list("/")
+    print(client.list("/"))

@@ -31,4 +31,4 @@ if __name__ == "__main__":
             client.insert_rows(table, rows)
 
     # Выбираем все строки из таблицы и печатаем их.
-    print list(client.select_rows("* from [{}]".format(table)))
+    print(list(client.select_rows("* from [{}]".format(table))))
