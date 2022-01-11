@@ -16,7 +16,7 @@ def main():
         destination_table=output_table,
     )
 
-    print("Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path={0}".format(output_table))
+    print(("Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path={0}".format(output_table)))
 
 
 if __name__ == "__main__":

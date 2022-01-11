@@ -29,14 +29,14 @@ if __name__ == "__main__":
     #  - get_result() -- возвращает результат, если запрос был выполнен успешно (для неуспешно выполненых возвращает None)
     #  - get_error() -- возвращает ошибку для неудачно выполненых запросов
 
-    print doc_title_exists_result.get_result()
-    print unexisting_table_exists_result.get_result()
+    print(doc_title_exists_result.get_result())
+    print(unexisting_table_exists_result.get_result())
 
     if create_result.is_ok():
-        print "Table was created successfuly."
+        print("Table was created successfuly.")
     else:
         # Если запустить этот скрипт два раза подряд, то во второй раз создание таблицы завершится с ошибкой,
         # что таблица уже существует.
-        print "Cannot create table {table} error: {error}.".format(
+        print("Cannot create table {table} error: {error}.".format(
             table=output_table_name, error=create_result.get_error()
-        )
+        ))
