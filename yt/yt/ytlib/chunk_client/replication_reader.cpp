@@ -549,7 +549,9 @@ protected:
 
     bool SyncThrottle(const IThroughputThrottlerPtr& throttler, i64 count)
     {
-        auto throttleResult = WaitFor(throttler->Throttle(count));
+        auto throttlerFuture = throttler->Throttle(count);
+        SetSessionFuture(throttlerFuture);
+        auto throttleResult = WaitFor(throttlerFuture);
         if (!throttleResult.IsOK()) {
             auto error = TError(
                 NChunkClient::EErrorCode::ReaderThrottlingFailed,
@@ -563,7 +565,9 @@ protected:
 
     void AsyncThrottle(const IThroughputThrottlerPtr& throttler, i64 count, TClosure onSuccess)
     {
-        throttler->Throttle(count)
+        auto throttlerFuture = throttler->Throttle(count);
+        SetSessionFuture(throttlerFuture);
+        throttlerFuture
             .Subscribe(BIND([=, this_ = MakeStrong(this), onSuccess = std::move(onSuccess)] (const TError& throttleResult) {
                 if (!throttleResult.IsOK()) {
                     auto error = TError(
@@ -1014,7 +1018,6 @@ protected:
         return error << InnerErrors_;
     }
 
-    virtual bool IsCanceled() const = 0;
     virtual void NextPass() = 0;
     virtual void OnSessionFailed(bool fatal) = 0;
     virtual void OnSessionFailed(bool fatal, const TError& error) = 0;
@@ -1065,11 +1068,47 @@ protected:
             ReaderConfig_->EnableLocalThrottling;
     }
 
+    bool IsCanceled() const
+    {
+        auto guard = Guard(CancelationSpinLock_);
+        return CancelationError_.has_value();
+    }
+
+    virtual void OnCanceled(const TError& error)
+    {
+        auto guard = Guard(CancelationSpinLock_);
+
+        if (CancelationError_) {
+            return;
+        }
+
+        CancelationError_ = error;
+        SessionFuture_.Cancel(error);
+    }
+
+    void SetSessionFuture(TFuture<void> sessionFuture)
+    {
+        auto guard = Guard(CancelationSpinLock_);
+
+        if (CancelationError_) {
+            sessionFuture.Cancel(*CancelationError_);
+            return;
+        }
+
+        SessionFuture_ = std::move(sessionFuture);
+    }
+
 private:
     //! Errors collected by the session.
     std::vector<TError> InnerErrors_;
 
     TFuture<TAllyReplicasInfo> SeedsFuture_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+    //! Sets the value upon cancelation.
+    std::optional<TError> CancelationError_;
+    //! Future of the previous cancellable action within session (e.g. Throttle, GetBlockSet).
+    TFuture<void> SessionFuture_ = VoidFuture;
 
 
     int ComparePeerLocality(const TPeer& lhs, const TPeer& rhs) const
@@ -1511,6 +1550,7 @@ public:
         if (BlockIndexes_.empty()) {
             return MakeFuture(std::vector<TBlock>());
         }
+        Promise_.OnCanceled(BIND(&TReadBlockSetSession::OnCanceled, MakeWeak(this)));
         StartTime_ = TInstant::Now();
         NextRetry();
         return Promise_;
@@ -1546,10 +1586,6 @@ private:
         { }
     };
 
-    bool IsCanceled() const override
-    {
-        return Promise_.IsCanceled();
-    }
 
     void NextPass() override
     {
@@ -1822,7 +1858,9 @@ private:
         FillP2PBarriers(req->mutable_wait_barriers(), peers, blockIndexes);
 
         NProfiling::TWallTimer dataWaitTimer;
-        auto rspOrError = WaitFor(req->Invoke());
+        auto rspFuture = req->Invoke();
+        SetSessionFuture(rspFuture.As<void>());
+        auto rspOrError = WaitFor(rspFuture);
         SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
 
         bool backup = IsBackup(rspOrError);
@@ -2044,6 +2082,14 @@ private:
     {
         return ReaderConfig_->BlockRpcHedgingDelay ? 2 : 1;
     }
+
+    void OnCanceled(const TError& error) override
+    {
+        auto wrappedError = TError(NYT::EErrorCode::Canceled, "ReadBlockSet session canceled")
+            << error;
+        TSessionBase::OnCanceled(wrappedError);
+        Promise_.TrySet(wrappedError);
+    }
 };
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
@@ -2100,6 +2146,7 @@ public:
         if (BlockCount_ == 0) {
             return MakeFuture(std::vector<TBlock>());
         }
+        Promise_.OnCanceled(BIND(&TReadBlockRangeSession::OnCanceled, MakeWeak(this)));
         StartTime_ = TInstant::Now();
         NextRetry();
         return Promise_;
@@ -2122,10 +2169,6 @@ private:
 
     i64 BytesThrottled_ = 0;
 
-    bool IsCanceled() const override
-    {
-        return Promise_.IsCanceled();
-    }
 
     void NextPass() override
     {
@@ -2198,7 +2241,9 @@ private:
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
 
         NProfiling::TWallTimer dataWaitTimer;
-        auto rspOrError = WaitFor(req->Invoke());
+        auto rspFuture = req->Invoke();
+        SetSessionFuture(rspFuture.As<void>());
+        auto rspOrError = WaitFor(rspFuture);
         SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
 
         if (!rspOrError.IsOK()) {
@@ -2312,6 +2357,14 @@ private:
 
         Promise_.TrySet(error);
     }
+
+    void OnCanceled(const TError& error) override
+    {
+        auto wrappedError = TError(NYT::EErrorCode::Canceled, "ReadBlockRange session canceled")
+            << error;
+        TSessionBase::OnCanceled(wrappedError);
+        Promise_.TrySet(wrappedError);
+    }
 };
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
@@ -2366,6 +2419,7 @@ public:
     TFuture<TRefCountedChunkMetaPtr> Run()
     {
         StartTime_ = TInstant::Now();
+        Promise_.OnCanceled(BIND(&TGetMetaSession::OnCanceled, MakeWeak(this)));
         NextRetry();
         return Promise_;
     }
@@ -2377,10 +2431,6 @@ private:
     //! Promise representing the session.
     const TPromise<TRefCountedChunkMetaPtr> Promise_ = NewPromise<TRefCountedChunkMetaPtr>();
 
-    bool IsCanceled() const override
-    {
-        return Promise_.IsCanceled();
-    }
 
     void NextPass() override
     {
@@ -2441,7 +2491,9 @@ private:
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
         NProfiling::TWallTimer dataWaitTimer;
-        auto rspOrError = WaitFor(req->Invoke());
+        auto rspFuture = req->Invoke();
+        SetSessionFuture(rspFuture.As<void>());
+        auto rspOrError = WaitFor(rspFuture);
         SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
 
         bool backup = IsBackup(rspOrError);
@@ -2502,6 +2554,14 @@ private:
         }
 
         Promise_.TrySet(error);
+    }
+
+    void OnCanceled(const TError& error) override
+    {
+        auto wrappedError = TError(NYT::EErrorCode::Canceled, "GetMeta session canceled")
+            << error;
+        TSessionBase::OnCanceled(wrappedError);
+        Promise_.TrySet(wrappedError);
     }
 };
 
@@ -2600,6 +2660,7 @@ public:
         YT_VERIFY(!LookupKeys_.Empty());
 
         StartTime_ = NProfiling::GetInstant();
+        Promise_.OnCanceled(BIND(&TLookupRowsSession::OnCanceled, MakeWeak(this)));
         NextRetry();
         return Promise_;
     }
@@ -2637,10 +2698,6 @@ private:
     TPeerList SinglePassCandidates_;
     THashMap<TAddressWithNetwork, double> ThrottlingRateByPeer_;
 
-    bool IsCanceled() const override
-    {
-        return Promise_.IsCanceled();
-    }
 
     void NextPass() override
     {
@@ -3029,6 +3086,14 @@ private:
         }
 
         return false;
+    }
+
+    void OnCanceled(const TError& error) override
+    {
+        auto wrappedError = TError(NYT::EErrorCode::Canceled, "LookupRows session canceled")
+            << error;
+        TSessionBase::OnCanceled(wrappedError);
+        Promise_.TrySet(wrappedError);
     }
 };
 
