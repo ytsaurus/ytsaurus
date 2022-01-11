@@ -146,7 +146,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
     YtWrapper.runWithRetry(transaction => {
       getFileDetailsImpl(tablePathStr, fullTableName, Some(transaction)).exists(details => {
         YtWrapper.deleteRow(meta_path, metaSchema, java.util.Map.of(FILENAME, fullTableName), Some(transaction))
-        deleteAllRowsWithId(tablePathStr, fullTableName, details.meta.blocksCnt, Some(transaction))
+        deleteAllRowsWithId(tablePathStr, details.id, details.meta.blocksCnt, Some(transaction))
         true
       })
     })
