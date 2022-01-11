@@ -1026,6 +1026,95 @@ TEST_F(TFutureTest, AllCombinerDontPropagateCancelation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TFutureTest, AllSetWithTimeoutWorks)
+{
+    auto p1 = NewPromise<void>();
+    auto p2 = NewPromise<void>();
+    auto p3 = NewPromise<void>();
+    std::vector<TFuture<void>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
+    };
+    auto f = AllSetWithTimeout(futures, TDuration::MilliSeconds(100));
+
+    p1.Set();
+    EXPECT_FALSE(f.IsSet());
+
+    Sleep(TDuration::MilliSeconds(20));
+    p3.Set(TError("oops"));
+    EXPECT_FALSE(f.IsSet());
+
+    Sleep(TDuration::MilliSeconds(300));
+    EXPECT_TRUE(f.IsSet());
+    const auto& resultOrError = f.Get();
+
+    EXPECT_TRUE(p1.IsSet());
+    EXPECT_TRUE(resultOrError.Value()[0].IsOK());
+
+    EXPECT_TRUE(p2.IsSet());
+    EXPECT_EQ(resultOrError.Value()[1].GetCode(), EErrorCode::Timeout);
+
+    EXPECT_TRUE(p3.IsSet());
+    EXPECT_FALSE(resultOrError.Value()[2].IsOK());
+}
+
+TEST_F(TFutureTest, AllSetWithTimeoutFuturesAreReleased)
+{
+    TWeakPtr<TRefCounted> wip1;
+    TWeakPtr<TRefCounted> wip2;
+    {
+        auto p1 = NewPromise<TRefCountedPtr>();
+        auto p2 = NewPromise<TRefCountedPtr>();
+        std::vector<TFuture<TRefCountedPtr>> futures{
+            p1.ToFuture(),
+            p2.ToFuture()
+        };
+        auto f = AllSetWithTimeout(futures, TDuration::MilliSeconds(100));
+
+        auto ip1 = New<TRefCounted>();
+        wip1 = MakeWeak(ip1);
+        p1.Set(std::move(ip1));
+        EXPECT_FALSE(f.IsSet());
+
+        auto ip2 = New<TRefCounted>();
+        wip2 = MakeWeak(ip2);
+        p2.Set(std::move(ip2));
+        EXPECT_TRUE(f.IsSet());
+    }
+
+    // The WaitFor below ensures that the internal delayed executor cookie in AllSetWithTimeout is actually cancelled.
+    WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Zero()))
+        .ThrowOnError();
+    EXPECT_TRUE(wip1.IsExpired());
+    EXPECT_TRUE(wip2.IsExpired());
+}
+
+TEST_F(TFutureTest, AllSetWithTimeoutCancellation)
+{
+    auto p1 = NewPromise<void>();
+    auto p2 = NewPromise<void>();
+    auto p3 = NewPromise<void>();
+    std::vector<TFuture<void>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
+    };
+    auto f = AllSetWithTimeout(futures, TDuration::MilliSeconds(100));
+
+    Sleep(TDuration::MilliSeconds(20));
+    p3.Set();
+
+    Sleep(TDuration::MilliSeconds(20));
+    f.Cancel(TError("oops"));
+
+    EXPECT_TRUE(p1.IsCanceled());
+    EXPECT_TRUE(p2.IsCanceled());
+    EXPECT_TRUE(p3.IsSet());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TFutureTest, AnyNCombinerEmpty)
 {
     auto p1 = NewPromise<int>();

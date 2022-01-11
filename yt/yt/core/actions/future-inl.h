@@ -2227,6 +2227,50 @@ TFuture<std::vector<TErrorOr<T>>> AllSet(
 }
 
 template <class T>
+TFuture<std::vector<TErrorOr<T>>> AllSetWithTimeout(
+    std::vector<TFuture<T>> futures,
+    TDuration timeout,
+    TFutureCombinerOptions options,
+    IInvokerPtr invoker)
+{
+    std::vector<TPromise<T>> promises(futures.size());
+    for (int index = 0; index < static_cast<int>(futures.size()); ++index) {
+        auto promise = NewPromise<T>();
+        futures[index].Subscribe(BIND([promise] (const TErrorOr<T>& value) {
+            promise.TrySet(value);
+        }));
+        promise.OnCanceled(BIND([future = futures[index]] (const TError& error) {
+            future.Cancel(error);
+        }));
+        promises[index] = promise;
+    }
+
+    std::vector<TFuture<T>> wrappedFutures(promises.size());
+    std::transform(promises.begin(), promises.end(), wrappedFutures.begin(), [] (const TPromise<T>& promise) {
+        return promise.ToFuture();
+    });
+
+    auto combinedFuture = AllSet(wrappedFutures, options);
+
+    auto cookie = NConcurrency::TDelayedExecutor::Submit(
+        BIND([promises, futures] {
+            for (int index = 0; index < static_cast<int>(futures.size()); ++index) {
+                auto error = TError(NYT::EErrorCode::Timeout, "Operation timed out");
+                promises[index].TrySet(error);
+                futures[index].Cancel(error);
+            }
+        }),
+        timeout,
+        std::move(invoker));
+
+    combinedFuture.AsVoid().Subscribe(BIND([cookie] (const TError& /*error*/) {
+        NConcurrency::TDelayedExecutor::Cancel(cookie);
+    }));
+
+    return combinedFuture;
+}
+
+template <class T>
 TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AnyNSucceeded(
     std::vector<TFuture<T>> futures,
     int n,
