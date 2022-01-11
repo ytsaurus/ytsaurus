@@ -643,7 +643,7 @@ class TestTypedApi(object):
         )
 
         expected_rows = [
-            ROWS[0],
+            ROW_DICTS[0],
         ]
         assert list(yt.read_table(output_table)) == expected_rows
 
@@ -941,10 +941,8 @@ class TestTypedApi(object):
         assert string_utf8 == run_read_or_write(bytes, ti.String, string_utf8, for_reading=True)
         assert string == run_read_or_write(bytes, ti.String, string_utf8, for_reading=False)
 
-        with pytest.raises(yt.YtError, match='not compatible with type "Utf8" from table schema'):
-            run_read_or_write(bytes, ti.Utf8, string, for_reading=True)
-        with pytest.raises(yt.YtError, match='not compatible with type "Utf8" from table schema'):
-            run_read_or_write(bytes, ti.Utf8, string_utf8, for_reading=False)
+        assert string_utf8 == run_read_or_write(bytes, ti.Utf8, string_utf8, for_reading=True)
+        assert string == run_read_or_write(bytes, ti.Utf8, string_utf8, for_reading=False)
 
     @authors("levysotsky")
     def test_prepare_operation(self):
