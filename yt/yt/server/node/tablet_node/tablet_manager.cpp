@@ -3009,7 +3009,7 @@ private:
             case EStoreType::SortedChunk: {
                 NChunkClient::TLegacyReadRange readRange;
                 TChunkId chunkId;
-                auto chunkTimestamp = NullTimestamp;
+                auto overrideTimestamp = NullTimestamp;
 
                 if (descriptor) {
                     if (descriptor->has_chunk_view_descriptor()) {
@@ -3018,7 +3018,7 @@ private:
                             readRange = FromProto<NChunkClient::TLegacyReadRange>(chunkViewDescriptor.read_range());
                         }
                         if (chunkViewDescriptor.has_timestamp()) {
-                            chunkTimestamp = static_cast<TTimestamp>(chunkViewDescriptor.timestamp());
+                            overrideTimestamp = static_cast<TTimestamp>(chunkViewDescriptor.timestamp());
                         }
                         chunkId = FromProto<TChunkId>(chunkViewDescriptor.underlying_chunk_id());
                     } else {
@@ -3034,7 +3034,7 @@ private:
                     storeId,
                     chunkId,
                     readRange,
-                    chunkTimestamp,
+                    overrideTimestamp,
                     tablet,
                     descriptor,
                     Bootstrap_->GetBlockCache(),

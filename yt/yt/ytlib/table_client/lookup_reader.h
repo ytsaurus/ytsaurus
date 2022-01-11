@@ -31,7 +31,7 @@ struct ILookupReader
         NTableClient::TTimestamp timestamp,
         NCompression::ECodec codecId,
         bool produceAllVersions,
-        TTimestamp chunkTimestamp,
+        TTimestamp overrideTimestamp,
         bool enablePeerProbing,
         bool enableRejectsIfThrottling) = 0;
 };
@@ -48,7 +48,7 @@ IVersionedReaderPtr CreateRowLookupReader(
     TColumnFilter columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    TTimestamp chunkTimestamp,
+    TTimestamp overrideTimestamp,
     bool enablePeerProbing,
     bool enableRejectsIfThrottling);
 

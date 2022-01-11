@@ -1350,7 +1350,7 @@ private:
         auto columnFilter = FromProto<NTableClient::TColumnFilter>(request->column_filter());
         auto codecId = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
         auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
-        auto chunkTimestamp = request->has_chunk_timestamp() ? request->chunk_timestamp() : NullTimestamp;
+        auto overrideTimestamp = request->has_override_timestamp() ? request->override_timestamp() : NullTimestamp;
 
         auto lookupSession = New<TLookupSession>(
             Bootstrap_,
@@ -1363,7 +1363,7 @@ private:
             std::move(tableSchema),
             request->Attachments(),
             codecId,
-            chunkTimestamp,
+            overrideTimestamp,
             populateCache);
 
         context->ReplyFrom(lookupSession->Run()

@@ -10,7 +10,7 @@ TChunkState::TChunkState(
     NChunkClient::IBlockCachePtr blockCache,
     NChunkClient::NProto::TChunkSpec chunkSpec,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    NTransactionClient::TTimestamp chunkTimestamp,
+    NTransactionClient::TTimestamp overrideTimestamp,
     IChunkLookupHashTablePtr lookupHashTable,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TKeyComparer keyComparer,
@@ -20,7 +20,7 @@ TChunkState::TChunkState(
     : BlockCache(std::move(blockCache))
     , ChunkSpec(std::move(chunkSpec))
     , ChunkMeta(std::move(chunkMeta))
-    , ChunkTimestamp(chunkTimestamp)
+    , OverrideTimestamp(overrideTimestamp)
     , LookupHashTable(std::move(lookupHashTable))
     , PerformanceCounters(performanceCounters
         ? std::move(performanceCounters)

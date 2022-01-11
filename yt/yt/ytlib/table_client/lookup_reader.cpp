@@ -43,7 +43,7 @@ public:
         TColumnFilter columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions,
-        TTimestamp chunkTimestamp,
+        TTimestamp overrideTimestamp,
         bool enablePeerProbing,
         bool enableRejectsIfThrottling)
         : UnderlyingReader_(std::move(underlyingReader))
@@ -53,7 +53,7 @@ public:
         , ColumnFilter_(std::move(columnFilter))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
-        , ChunkTimestamp_(chunkTimestamp)
+        , OverrideTimestamp_(overrideTimestamp)
         , EnablePeerProbing_(enablePeerProbing)
         , EnableRejectsIfThrottling_(enableRejectsIfThrottling)
     {
@@ -136,7 +136,7 @@ private:
     const TColumnFilter ColumnFilter_;
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
-    const TTimestamp ChunkTimestamp_;
+    const TTimestamp OverrideTimestamp_;
     NCompression::ICodec* const Codec_ = NCompression::GetCodec(CompressionCodecId);
     const bool EnablePeerProbing_;
     const bool EnableRejectsIfThrottling_;
@@ -170,7 +170,7 @@ private:
             Timestamp_,
             CompressionCodecId,
             ProduceAllVersions_,
-            ChunkTimestamp_,
+            OverrideTimestamp_,
             EnablePeerProbing_,
             EnableRejectsIfThrottling_)
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& fetchedRowset) {
@@ -241,7 +241,7 @@ IVersionedReaderPtr CreateRowLookupReader(
     TColumnFilter columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    TTimestamp chunkTimestamp,
+    TTimestamp overrideTimestamp,
     bool enablePeerProbing,
     bool enableRejectsIfThrottling)
 {
@@ -253,7 +253,7 @@ IVersionedReaderPtr CreateRowLookupReader(
         std::move(columnFilter),
         timestamp,
         produceAllVersions,
-        chunkTimestamp,
+        overrideTimestamp,
         enablePeerProbing,
         enableRejectsIfThrottling);
 }

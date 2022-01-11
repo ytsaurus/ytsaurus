@@ -27,7 +27,7 @@ public:
         TStoreId id,
         NChunkClient::TChunkId chunkId,
         const NChunkClient::TLegacyReadRange& readRange,
-        TTimestamp chunkTimestamp,
+        TTimestamp overrideTimestamp,
         TTablet* tablet,
         const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
         NChunkClient::IBlockCachePtr blockCache,

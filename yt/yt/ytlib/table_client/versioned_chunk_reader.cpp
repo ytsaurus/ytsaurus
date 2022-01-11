@@ -1690,7 +1690,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         return MakeSharedRange(std::move(cappedBounds), ranges.GetHolder(), singletonClippingRange.GetHolder());
     };
 
-    if (chunkState->ChunkTimestamp && timestamp < chunkState->ChunkTimestamp) {
+    if (chunkState->OverrideTimestamp && timestamp < chunkState->OverrideTimestamp) {
         return CreateEmptyVersionedReader();
     }
 
@@ -1765,10 +1765,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
             }
 
-            auto chunkTimestamp = chunkState->ChunkTimestamp
-                ? chunkState->ChunkTimestamp
+            auto overrideTimestamp = chunkState->OverrideTimestamp
+                ? chunkState->OverrideTimestamp
                 : static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
-            if (timestamp < chunkTimestamp) {
+            if (timestamp < overrideTimestamp) {
                 return CreateEmptyVersionedReader();
             }
 
@@ -1809,7 +1809,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 schemafulReaderFactory,
                 chunkState->TableSchema,
                 columnFilter,
-                chunkTimestamp);
+                overrideTimestamp);
 
             return New<TFilteringReader>(unwrappedReader, ranges);
         }
@@ -1817,10 +1817,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             YT_ABORT();
     }
 
-    if (chunkState->ChunkTimestamp) {
+    if (chunkState->OverrideTimestamp) {
         return CreateTimestampResettingAdapter(
             std::move(reader),
-            chunkState->ChunkTimestamp);
+            chunkState->OverrideTimestamp);
     } else {
         return reader;
     }
@@ -1871,7 +1871,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const auto& performanceCounters = chunkState->PerformanceCounters;
     const auto& keyComparer = chunkState->KeyComparer;
 
-    if (chunkState->ChunkTimestamp && timestamp < chunkState->ChunkTimestamp) {
+    if (chunkState->OverrideTimestamp && timestamp < chunkState->OverrideTimestamp) {
         return CreateEmptyVersionedReader(keys.Size());
     }
 
@@ -1944,10 +1944,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 THROW_ERROR_EXCEPTION("Reading all value versions is not supported with non-universal column filter");
             }
 
-            auto chunkTimestamp = chunkState->ChunkTimestamp
-                ? chunkState->ChunkTimestamp
+            auto overrideTimestamp = chunkState->OverrideTimestamp
+                ? chunkState->OverrideTimestamp
                 : static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
-            if (timestamp < chunkTimestamp) {
+            if (timestamp < overrideTimestamp) {
                 return CreateEmptyVersionedReader(keys.Size());
             }
 
@@ -1979,17 +1979,17 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 std::move(schemafulReaderFactory),
                 chunkState->TableSchema,
                 columnFilter,
-                chunkTimestamp);
+                overrideTimestamp);
         }
 
         default:
             YT_ABORT();
     }
 
-    if (chunkState->ChunkTimestamp) {
+    if (chunkState->OverrideTimestamp) {
         return CreateTimestampResettingAdapter(
             std::move(reader),
-            chunkState->ChunkTimestamp);
+            chunkState->OverrideTimestamp);
     } else {
         return reader;
     }
