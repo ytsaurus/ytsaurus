@@ -5,6 +5,8 @@
 #endif
 #undef EVENT_COUNT_INL_H_
 
+#include <library/cpp/yt/assert/assert.h>
+
 #include "futex.h"
 
 #include <errno.h>
