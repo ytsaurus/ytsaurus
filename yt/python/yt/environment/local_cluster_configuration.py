@@ -50,11 +50,16 @@ MASTER_CONFIG_PATCHES = [
     }
 ]
 
-SCHEDULER_CONFIG_PATCH = {
-    "cluster_connection": {
-        "transaction_manager": None
-    },
+CLUSTER_CONNECTION_CONFIG_PATCH = {
     "transaction_manager": None,
+    # Reverting transaction manager config above also increases ping period to default 5 sec.
+    # Thus we have to revert upload timeout as well.
+    "upload_transaction_timeout": 15000,
+    "scheduler": None
+}
+
+SCHEDULER_CONFIG_PATCH = {
+    "cluster_connection":  CLUSTER_CONNECTION_CONFIG_PATCH,
     "scheduler": {
         "operations_update_period": None,
         "watchers_update_period": 300,
@@ -87,10 +92,7 @@ CONTROLLER_AGENT_CONFIG_PATCH = {
 
 NODE_CONFIG_PATCHES = [
     {
-        "cluster_connection": {
-            "transaction_manager": None,
-            "scheduler": None
-        },
+        "cluster_connection":  CLUSTER_CONNECTION_CONFIG_PATCH,
         "master_connector": {
             "heartbeat_period": 300,
             "heartbeat_period_splay": 50,
@@ -181,9 +183,7 @@ NODE_STORE_LOCATION_PATCHES = [
     }
 ]
 
-DRIVER_CONFIG_PATCH = {
-    "transaction_manager": None
-}
+DRIVER_CONFIG_PATCH = CLUSTER_CONNECTION_CONFIG_PATCH
 
 def _remove_none_fields(node):
     def process(key, value, keys_to_remove):
