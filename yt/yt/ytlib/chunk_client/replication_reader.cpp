@@ -242,7 +242,7 @@ public:
         TTimestamp timestamp,
         NCompression::ECodec codecId,
         bool produceAllVersions,
-        TTimestamp chunkTimestamp,
+        TTimestamp overrideTimestamp,
         bool enablePeerProbing,
         bool enableRejectsIfThrottling) override;
 
@@ -2615,7 +2615,7 @@ public:
         TTimestamp timestamp,
         NCompression::ECodec codecId,
         bool produceAllVersions,
-        TTimestamp chunkTimestamp,
+        TTimestamp overrideTimestamp,
         bool enablePeerProbing,
         bool enableRejectsIfThrottling,
         IThroughputThrottlerPtr bandwidthThrottler,
@@ -2634,7 +2634,7 @@ public:
         , Timestamp_(timestamp)
         , CodecId_(codecId)
         , ProduceAllVersions_(produceAllVersions)
-        , ChunkTimestamp_(chunkTimestamp)
+        , OverrideTimestamp_(overrideTimestamp)
         , EnablePeerProbing_(enablePeerProbing)
         , EnableRejectsIfThrottling_(enableRejectsIfThrottling)
     {
@@ -2677,7 +2677,7 @@ private:
     TTimestamp Timestamp_;
     const NCompression::ECodec CodecId_;
     const bool ProduceAllVersions_;
-    const TTimestamp ChunkTimestamp_;
+    const TTimestamp OverrideTimestamp_;
     const bool EnablePeerProbing_;
     const bool EnableRejectsIfThrottling_;
 
@@ -2895,7 +2895,7 @@ private:
         req->set_compression_codec(static_cast<int>(CodecId_));
         ToProto(req->mutable_column_filter(), ColumnFilter_);
         req->set_produce_all_versions(ProduceAllVersions_);
-        req->set_chunk_timestamp(ChunkTimestamp_);
+        req->set_override_timestamp(OverrideTimestamp_);
         req->set_populate_cache(true);
 
         // NB: By default if peer is throttling it will immediately fail,
@@ -3108,7 +3108,7 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     TTimestamp timestamp,
     NCompression::ECodec codecId,
     bool produceAllVersions,
-    TTimestamp chunkTimestamp,
+    TTimestamp overrideTimestamp,
     bool enablePeerProbing,
     bool enableRejectsIfThrottling)
 {
@@ -3126,7 +3126,7 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         timestamp,
         codecId,
         produceAllVersions,
-        chunkTimestamp,
+        overrideTimestamp,
         enablePeerProbing,
         enableRejectsIfThrottling,
         BandwidthThrottler_,
@@ -3218,7 +3218,7 @@ public:
         TTimestamp timestamp,
         NCompression::ECodec codecId,
         bool produceAllVersions,
-        TTimestamp chunkTimestamp,
+        TTimestamp overrideTimestamp,
         bool enablePeerProbing,
         bool enableRejectsIfThrottling) override
     {
@@ -3236,7 +3236,7 @@ public:
             timestamp,
             codecId,
             produceAllVersions,
-            chunkTimestamp,
+            overrideTimestamp,
             enablePeerProbing,
             enableRejectsIfThrottling,
             BandwidthThrottler_,

@@ -175,7 +175,7 @@ TSortedChunkStore::TSortedChunkStore(
     TStoreId id,
     NChunkClient::TChunkId chunkId,
     const NChunkClient::TLegacyReadRange& readRange,
-    TTimestamp chunkTimestamp,
+    TTimestamp overrideTimestamp,
     TTablet* tablet,
     const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
@@ -189,7 +189,7 @@ TSortedChunkStore::TSortedChunkStore(
         config,
         id,
         chunkId,
-        chunkTimestamp,
+        overrideTimestamp,
         tablet,
         addStoreDescriptor,
         blockCache,
@@ -286,7 +286,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // Fast lane:
     // - ranges do not intersect with chunk view;
     // - chunk timestamp is greater than requested timestamp.
-    if (ranges.Empty() || (ChunkTimestamp_ && ChunkTimestamp_ > timestamp))
+    if (ranges.Empty() || (OverrideTimestamp_ && OverrideTimestamp_ > timestamp))
     {
         return CreateEmptyVersionedReader();
     }
@@ -306,7 +306,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // Another fast lane: check for backing store.
     if (auto backingStore = GetSortedBackingStore()) {
         YT_VERIFY(!HasNontrivialReadRange());
-        YT_VERIFY(!ChunkTimestamp_);
+        YT_VERIFY(!OverrideTimestamp_);
         return backingStore->CreateReader(
             tabletSnapshot,
             ranges,
@@ -401,7 +401,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (ChunkTimestamp_ && ChunkTimestamp_ > timestamp) {
+    if (OverrideTimestamp_ && OverrideTimestamp_ > timestamp) {
         return CreateEmptyVersionedReader(keys.Size());
     }
 
@@ -444,7 +444,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // Another fast lane: check for backing store.
     if (auto backingStore = GetSortedBackingStore()) {
         YT_VERIFY(!HasNontrivialReadRange());
-        YT_VERIFY(!ChunkTimestamp_);
+        YT_VERIFY(!OverrideTimestamp_);
         return backingStore->CreateReader(
             std::move(tabletSnapshot),
             filteredKeys,
@@ -467,7 +467,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             columnFilter,
             timestamp,
             produceAllVersions,
-            ChunkTimestamp_,
+            OverrideTimestamp_,
             mountConfig->EnablePeerProbingInDataNodeLookup,
             mountConfig->EnableRejectsInDataNodeLookupIfThrottling);
         return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
@@ -597,10 +597,10 @@ void TSortedChunkStore::Load(TLoadContext& context)
 IVersionedReaderPtr TSortedChunkStore::MaybeWrapWithTimestampResettingAdapter(
     IVersionedReaderPtr underlyingReader) const
 {
-    if (ChunkTimestamp_) {
+    if (OverrideTimestamp_) {
         return CreateTimestampResettingAdapter(
             std::move(underlyingReader),
-            ChunkTimestamp_);
+            OverrideTimestamp_);
     } else {
         return underlyingReader;
     }
@@ -644,7 +644,7 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
         BlockCache_,
         std::move(chunkSpec),
         chunkMeta,
-        ChunkTimestamp_,
+        OverrideTimestamp_,
         /*lookupHashTable*/ nullptr,
         PerformanceCounters_,
         GetKeyComparer(),

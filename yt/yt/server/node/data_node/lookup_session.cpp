@@ -55,7 +55,7 @@ TLookupSession::TLookupSession(
     TTableSchemaPtr tableSchema,
     const std::vector<TSharedRef>& serializedKeys,
     NCompression::ECodec codecId,
-    TTimestamp chunkTimestamp,
+    TTimestamp overrideTimestamp,
     bool populateCache)
     : Bootstrap_(bootstrap)
     , Chunk_(std::move(chunk))
@@ -66,7 +66,7 @@ TLookupSession::TLookupSession(
     , ProduceAllVersions_(produceAllVersions)
     , TableSchema_(std::move(tableSchema))
     , Codec_(NCompression::GetCodec(codecId))
-    , ChunkTimestamp_(chunkTimestamp)
+    , OverrideTimestamp_(overrideTimestamp)
 {
     Options_.ChunkReaderStatistics = ChunkReaderStatistics_;
     Options_.ReadSessionId = ReadSessionId_;
@@ -226,7 +226,7 @@ TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
         Bootstrap_->GetBlockCache(),
         std::move(chunkSpec),
         std::move(chunkMeta),
-        ChunkTimestamp_,
+        OverrideTimestamp_,
         /*lookupHashTable*/ nullptr,
         New<TChunkReaderPerformanceCounters>(),
         Bootstrap_->GetRowComparerProvider()->Get(TableSchema_->GetKeyColumnTypes()),

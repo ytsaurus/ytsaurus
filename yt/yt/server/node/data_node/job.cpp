@@ -1421,7 +1421,7 @@ private:
                 Bootstrap_->GetBlockCache(),
                 GetChunkSpec(JobSpecExt_.input_chunks()[i]),
                 /*chunkMeta*/ nullptr,
-                /*chunkTimestamp*/ NullTimestamp,
+                /*overrideTimestamp*/ NullTimestamp,
                 /*lookupHashTable*/ nullptr,
                 /*performanceCounters*/ nullptr,
                 /*keyComparer*/ nullptr,

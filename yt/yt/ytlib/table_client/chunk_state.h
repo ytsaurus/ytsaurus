@@ -17,7 +17,7 @@ struct TChunkState
         NChunkClient::IBlockCachePtr blockCache = nullptr,
         NChunkClient::NProto::TChunkSpec chunkSpec = {},
         TCachedVersionedChunkMetaPtr chunkMeta = nullptr,
-        NTransactionClient::TTimestamp chunkTimestamp = NTransactionClient::NullTimestamp,
+        NTransactionClient::TTimestamp overrideTimestamp = NTransactionClient::NullTimestamp,
         IChunkLookupHashTablePtr lookupHashTable = nullptr,
         TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
         TKeyComparer keyComparer = {},
@@ -28,7 +28,7 @@ struct TChunkState
     NChunkClient::IBlockCachePtr BlockCache;
     NChunkClient::NProto::TChunkSpec ChunkSpec;
     TCachedVersionedChunkMetaPtr ChunkMeta;
-    NTransactionClient::TTimestamp ChunkTimestamp;
+    NTransactionClient::TTimestamp OverrideTimestamp;
     IChunkLookupHashTablePtr LookupHashTable;
     TChunkReaderPerformanceCountersPtr PerformanceCounters;
     TKeyComparer KeyComparer;

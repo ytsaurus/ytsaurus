@@ -31,7 +31,7 @@ public:
         NTableClient::TTableSchemaPtr tableSchema,
         const std::vector<TSharedRef>& serializedKeys,
         NCompression::ECodec codecId,
-        NTransactionClient::TTimestamp chunkTimestamp,
+        NTransactionClient::TTimestamp overrideTimestamp,
         bool populateCache);
 
     TFuture<TSharedRef> Run();
@@ -57,7 +57,7 @@ private:
     const bool ProduceAllVersions_;
     const NTableClient::TTableSchemaPtr TableSchema_;
     NCompression::ICodec* const Codec_;
-    const NTransactionClient::TTimestamp ChunkTimestamp_;
+    const NTransactionClient::TTimestamp OverrideTimestamp_;
 
     TChunkReadOptions Options_;
     NChunkClient::IChunkReaderPtr UnderlyingChunkReader_;

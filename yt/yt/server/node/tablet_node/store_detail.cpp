@@ -437,7 +437,7 @@ TChunkStoreBase::TChunkStoreBase(
     TTabletManagerConfigPtr config,
     TStoreId id,
     TChunkId chunkId,
-    TTimestamp chunkTimestamp,
+    TTimestamp overrideTimestamp,
     TTablet* tablet,
     const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
@@ -456,7 +456,7 @@ TChunkStoreBase::TChunkStoreBase(
     , LocalDescriptor_(localDescriptor)
     , ChunkMeta_(New<TRefCountedChunkMeta>())
     , ChunkId_(chunkId)
-    , ChunkTimestamp_(chunkTimestamp)
+    , OverrideTimestamp_(overrideTimestamp)
     , ReaderConfig_(Tablet_->GetSettings().StoreReaderConfig)
 {
     /* If store is over chunk, chunkId == storeId.
@@ -524,25 +524,25 @@ i64 TChunkStoreBase::GetRowCount() const
 
 TTimestamp TChunkStoreBase::GetMinTimestamp() const
 {
-    return ChunkTimestamp_ != NullTimestamp ? ChunkTimestamp_ : MiscExt_.min_timestamp();
+    return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : MiscExt_.min_timestamp();
 }
 
 TTimestamp TChunkStoreBase::GetMaxTimestamp() const
 {
-    return ChunkTimestamp_ != NullTimestamp ? ChunkTimestamp_ : MiscExt_.max_timestamp();
+    return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : MiscExt_.max_timestamp();
 }
 
 void TChunkStoreBase::Save(TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, ChunkTimestamp_);
+    Save(context, OverrideTimestamp_);
 }
 
 void TChunkStoreBase::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, ChunkTimestamp_);
+    Load(context, OverrideTimestamp_);
 }
 
 TCallback<void(TSaveContext&)> TChunkStoreBase::AsyncSave()
@@ -972,7 +972,7 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         PreloadedBlockCache_,
         TChunkSpec(),
         chunkData->ChunkMeta,
-        ChunkTimestamp_,
+        OverrideTimestamp_,
         chunkData->LookupHashTable,
         PerformanceCounters_,
         GetKeyComparer(),
@@ -990,7 +990,7 @@ TChunkId TChunkStoreBase::GetChunkId() const
 
 TTimestamp TChunkStoreBase::GetOverrideTimestamp() const
 {
-    return ChunkTimestamp_;
+    return OverrideTimestamp_;
 }
 
 TChunkReplicaList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId) const

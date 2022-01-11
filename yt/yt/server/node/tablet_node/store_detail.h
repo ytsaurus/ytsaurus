@@ -174,7 +174,7 @@ public:
         TTabletManagerConfigPtr config,
         TStoreId id,
         NChunkClient::TChunkId chunkId,
-        TTimestamp chunkTimestamp,
+        TTimestamp overrideTimestamp,
         TTablet* tablet,
         const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
         NChunkClient::IBlockCachePtr blockCache,
@@ -276,7 +276,7 @@ protected:
 
     NChunkClient::TChunkId ChunkId_;
 
-    TTimestamp ChunkTimestamp_;
+    TTimestamp OverrideTimestamp_;
 
     void OnLocalReaderFailed();
 
