@@ -629,7 +629,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     context->SetResponseInfo(
         "NodeId: %v, NodeAddress: %v, IsThrottling: %v, "
-        "SchedulingSegment: %v, RunningJobStatistics: %v, ",
+        "SchedulingSegment: %v, RunningJobStatistics: %v",
         nodeId,
         descriptor.GetDefaultAddress(),
         isThrottlingActive,
