@@ -47,6 +47,8 @@ type UserScript struct {
 	MemoryReserveFactor float64 `yson:"memory_reserve_factor,omitempty"`
 	GPULimit            int     `yson:"gpu_limit,omitempty"`
 
+	NetworkProject string `yson:"network_project,omitempty"`
+
 	EnablePorto            string `yson:"enable_porto,omitempty"`
 	UsePortoMemoryTracking *bool  `yson:"use_porto_memory_tracking,omitempty"`
 
