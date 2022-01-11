@@ -41,5 +41,5 @@ class TestAdminCommands(object):
         wait(lambda: get_core_dumper_count() == 0, iter=200, sleep_backoff=5)
 
         assert os.path.exists(core_path)
-        assert os.path.getsize(core_path) >= 5 * 10**8
+        assert os.path.getsize(core_path) >= 5 * 10**6
         os.remove(core_path)

@@ -8,7 +8,13 @@
 
 #include <tcmalloc/malloc_extension.h>
 
+#include <library/cpp/yt/memory/leaky_singleton.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NYTProf {
+
+using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,11 +132,40 @@ THashMap<TMemoryTag, ui64> GetEstimatedMemoryUsage()
 
 static thread_local TMemoryTag MemoryTag = 0;
 
+TMemoryTag GetMemoryTag()
+{
+    return MemoryTag;
+}
+
 TMemoryTag SetMemoryTag(TMemoryTag newTag)
 {
     auto oldTag = MemoryTag;
     MemoryTag = newTag;
     return oldTag;
+}
+
+struct TMemoryUsageSnapshot
+{
+    TSpinLock Lock;
+    THashMap<TMemoryTag, ui64> Snapshot;
+};
+
+void UpdateMemoryUsageSnapshot(THashMap<TMemoryTag, ui64> usageSnapshot)
+{
+    auto snapshot = LeakySingleton<TMemoryUsageSnapshot>();
+    auto guard = Guard(snapshot->Lock);
+    snapshot->Snapshot = std::move(usageSnapshot);
+}
+
+i64 GetEstimatedMemoryUsage(TMemoryTag tag)
+{
+    auto snapshot = LeakySingleton<TMemoryUsageSnapshot>();
+    auto guard = Guard(snapshot->Lock);
+    auto it = snapshot->Snapshot.find(tag);
+    if (it != snapshot->Snapshot.end()) {
+        return it->second;
+    }
+    return 0;
 }
 
 int AbslStackUnwinder(void** frames, int*,

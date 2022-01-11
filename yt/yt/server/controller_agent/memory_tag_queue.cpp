@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
+#include <yt/yt/library/ytprof/heap_profiler.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,6 +130,8 @@ void TMemoryTagQueue::UpdateStatistics()
     }
 
     YT_LOG_INFO("Started building tagged memory statistics (EntryCount: %v)", tags.size());
+    auto heapUsage = NYTProf::GetEstimatedMemoryUsage();
+    NYTProf::UpdateMemoryUsageSnapshot(heapUsage);
     GetMemoryUsageForTags(tags.data(), tags.size(), usages.data());
     YT_LOG_INFO("Finished building tagged memory statistics (EntryCount: %v)", tags.size());
 
@@ -136,7 +140,7 @@ void TMemoryTagQueue::UpdateStatistics()
         CachedTotalUsage_ = 0;
         for (int index = 0; index < std::ssize(tags); ++index) {
             auto tag = tags[index];
-            auto usage = usages[index];
+            auto usage = usages[index] + heapUsage[tag];
             auto operationId = TagToLastOperationId_[tag] ? std::make_optional(TagToLastOperationId_[tag]) : std::nullopt;
             auto alive = operationId && UsedTags_.contains(tag);
             fluent

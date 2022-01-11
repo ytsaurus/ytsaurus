@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, is_asan_build, Restarter, CONTROLLER_AGENTS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
     authors, clean_operations, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     remove, abort_job, ls, set,
@@ -103,8 +103,6 @@ class TestControllerFeatures(YTEnvSetup):
             features = ControllerFeatures(op.id)
             assert features.task["map"]["wall_time"] > 1000
             assert features.operation["wall_time"] > 1000
-            if not is_asan_build():
-                assert features.operation["peak_controller_memory_usage"] > 0
 
         check_features(op)
 
