@@ -662,6 +662,16 @@ TFuture<std::vector<TErrorOr<T>>> AllSet(
     std::vector<TFuture<T>> futures,
     TFutureCombinerOptions options = {});
 
+//! Same as above, but with an additional timeout parameter: a timeout error is returned for futures
+//! that don't complete within the given duration.
+//! The timeout event is handled in #invoker (DelayedExecutor is null).
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> AllSetWithTimeout(
+    std::vector<TFuture<T>> futures,
+    TDuration timeout,
+    TFutureCombinerOptions options = {},
+    IInvokerPtr invoker = nullptr);
+
 //! Returns the future that gets set when #n of #futures are set.
 //! The values of #futures are collected and returned in the
 //! value of the combined future (in the order of their fulfillment,
