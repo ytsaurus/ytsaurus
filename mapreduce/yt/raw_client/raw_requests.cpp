@@ -373,16 +373,23 @@ TOperationAttributes ParseOperationAttributes(const TNode& node)
         }
     }
     if (auto progressNode = mapNode.FindPtr("progress")) {
-        auto buildTimeNode = (*progressNode)["build_time"];
-        if (buildTimeNode.IsUndefined()) {
-            buildTimeNode = "<unknown>";
+        const auto& progressMap = progressNode->AsMap();
+        TMaybe<TInstant> buildTime;
+        if (auto buildTimeNode = progressMap.FindPtr("build_time")) {
+            buildTime = TInstant::ParseIso8601(buildTimeNode->AsString());
         }
-        LOG_DEBUG("Received operation progress (OperationId: %s, BuildTime: %s)",
-            GetGuidAsString(result.Id.GetOrElse(TOperationId())).c_str(),
-            buildTimeNode.AsString().c_str());
+        TJobStatistics jobStatistics;
+        if (auto jobStatisticsNode = progressMap.FindPtr("job_statistics")) {
+            jobStatistics = TJobStatistics(*jobStatisticsNode);
+        }
+        TJobCounters jobCounters;
+        if (auto jobCountersNode = progressMap.FindPtr("total_job_counter")) {
+            jobCounters = TJobCounters(*jobCountersNode);
+        }
         result.Progress = TOperationProgress{
-            TJobStatistics((*progressNode)["job_statistics"]), 
-            TJobCounters((*progressNode)["total_job_counter"])
+            .JobStatistics = std::move(jobStatistics),
+            .JobCounters = std::move(jobCounters),
+            .BuildTime = buildTime,
         };
     }
     if (auto eventsNode = mapNode.FindPtr("events")) {
