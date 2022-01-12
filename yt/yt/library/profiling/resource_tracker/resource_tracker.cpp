@@ -118,9 +118,16 @@ void TDiskTracker::InitDiskNames()
 
 void TDiskTracker::CollectSensors(ISensorWriter* writer)
 {
+    // https://www.kernel.org/doc/html/latest/block/stat.html
+    // read sectors, write sectors, discard_sectors
+    // These values count the number of sectors read from, written to, or discarded from this block device.
+    // The “sectors” in question are the standard UNIX 512-byte sectors, not any device- or filesystem-specific block size.
+    static const i64 UnixSectorSize = 512;
+
     try {
         InitDiskNames();
         auto stats = GetDiskStats();
+
         for (const auto& diskName : Disks_) {
 
             auto it = stats.find(diskName);
@@ -132,13 +139,13 @@ void TDiskTracker::CollectSensors(ISensorWriter* writer)
             const auto& diskStat = it->second;
 
             writer->AddCounter(
-                "/disk/sectors_read",
-                diskStat.SectorsRead
+                "/disk/bytes_read",
+                diskStat.SectorsRead * UnixSectorSize
             );
 
             writer->AddCounter(
-                "/disk/sectors_written",
-                diskStat.SectorsWritten
+                "/disk/bytes_written",
+                diskStat.SectorsWritten * UnixSectorSize
             );
 
             writer->AddGauge(
