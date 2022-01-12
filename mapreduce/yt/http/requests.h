@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fwd.h"
 #include "http.h"
 
 #include <mapreduce/yt/interface/common.h>
