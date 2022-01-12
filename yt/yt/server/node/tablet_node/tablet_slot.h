@@ -66,7 +66,7 @@ struct ITabletSlot
     virtual const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
 
     virtual const TTabletManagerPtr& GetTabletManager() = 0;
-    virtual const ITabletWriteManagerPtr& GetTabletWriteManager() = 0;
+    virtual const ITabletCellWriteManagerPtr& GetTabletCellWriteManager() = 0;
 
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
 

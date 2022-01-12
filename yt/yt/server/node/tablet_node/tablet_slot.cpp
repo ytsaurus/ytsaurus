@@ -9,7 +9,7 @@
 #include "slot_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
-#include "tablet_write_manager.h"
+#include "tablet_cell_write_manager.h"
 #include "tablet_service.h"
 #include "transaction_manager.h"
 #include "tablet_snapshot_store.h"
@@ -263,9 +263,9 @@ public:
         return TabletManager_;
     }
 
-    const ITabletWriteManagerPtr& GetTabletWriteManager() override
+    const ITabletCellWriteManagerPtr& GetTabletCellWriteManager() override
     {
-        return TabletWriteManager_;
+        return TabletCellWriteManager_;
     }
 
     TObjectId GenerateId(EObjectType type) override
@@ -347,8 +347,8 @@ public:
 
         Logger = GetLogger();
 
-        TabletWriteManager_ = CreateTabletWriteManager(
-            TabletManager_->GetTabletWriteManagerHost(),
+        TabletCellWriteManager_ = CreateTabletCellWriteManager(
+            TabletManager_->GetTabletCellWriteManagerHost(),
             hydraManager,
             GetAutomaton(),
             TMemoryUsageTrackerGuard::Acquire(
@@ -367,7 +367,7 @@ public:
             Bootstrap_);
 
         TabletManager_->Initialize();
-        TabletWriteManager_->Initialize();
+        TabletCellWriteManager_->Initialize();
     }
 
     void RegisterRpcServices() override
@@ -395,7 +395,7 @@ public:
         TabletManager_.Reset();
 
         TransactionManager_.Reset();
-        TabletWriteManager_.Reset();
+        TabletCellWriteManager_.Reset();
 
         if (TabletService_) {
             const auto& rpcServer = Bootstrap_->GetRpcServer();
@@ -477,7 +477,7 @@ private:
 
     TTabletManagerPtr TabletManager_;
 
-    ITabletWriteManagerPtr TabletWriteManager_;
+    ITabletCellWriteManagerPtr TabletCellWriteManager_;
 
     TTransactionManagerPtr TransactionManager_;
 

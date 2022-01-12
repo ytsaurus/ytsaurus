@@ -18,7 +18,7 @@
 #include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_slot.h"
-#include "tablet_write_manager.h"
+#include "tablet_cell_write_manager.h"
 #include "transaction.h"
 #include "transaction_manager.h"
 #include "table_replicator.h"
@@ -137,7 +137,7 @@ using NYT::ToProto;
 
 class TTabletManager::TImpl
     : public TTabletAutomatonPart
-    , public ITabletWriteManagerHost
+    , public ITabletCellWriteManagerHost
 {
 public:
     explicit TImpl(
@@ -3415,7 +3415,7 @@ ETabletCellLifeStage TTabletManager::GetTabletCellLifeStage() const
     return Impl_->GetTabletCellLifeStage();
 }
 
-ITabletWriteManagerHostPtr TTabletManager::GetTabletWriteManagerHost()
+ITabletCellWriteManagerHostPtr TTabletManager::GetTabletCellWriteManagerHost()
 {
     return Impl_;
 }

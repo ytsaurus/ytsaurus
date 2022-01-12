@@ -15,7 +15,7 @@ namespace NYT::NTabletNode {
 //! Tablet write manager is closely linked to the tablet manager which acts as a host
 //! for tablet write manager. The following interface specifies methods of tablet manager
 //! required by the tablet write manager and provides means for unit-testing of tablet write manager.
-struct ITabletWriteManagerHost
+struct ITabletCellWriteManagerHost
     : public virtual TRefCounted
 {
     virtual TCellId GetCellId() const = 0;
@@ -41,13 +41,13 @@ struct ITabletWriteManagerHost
     virtual void AdvanceReplicatedTrimmedRowCount(TTablet* tablet, TTransaction* transaction) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ITabletWriteManagerHost);
+DEFINE_REFCOUNTED_TYPE(ITabletCellWriteManagerHost);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A component containing tablet write logic: dynamic store writing,
 //! row prelocking/locking, 1pc/2pc details.
-struct ITabletWriteManager
+struct ITabletCellWriteManager
     : public virtual TRefCounted
 {
     virtual void Initialize() = 0;
@@ -69,12 +69,12 @@ struct ITabletWriteManager
     virtual void Clear() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ITabletWriteManager);
+DEFINE_REFCOUNTED_TYPE(ITabletCellWriteManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITabletWriteManagerPtr CreateTabletWriteManager(
-    ITabletWriteManagerHostPtr host,
+ITabletCellWriteManagerPtr CreateTabletCellWriteManager(
+    ITabletCellWriteManagerHostPtr host,
     NHydra::ISimpleHydraManagerPtr hydraManager,
     NHydra::TCompositeAutomatonPtr automaton,
     TMemoryUsageTrackerGuard&& writeLogsMemoryTrackerGuard,

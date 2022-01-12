@@ -6,7 +6,7 @@
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
-#include "tablet_write_manager.h"
+#include "tablet_cell_write_manager.h"
 #include "tablet_slot.h"
 #include "transaction.h"
 #include "transaction_manager.h"
@@ -219,7 +219,7 @@ private:
         struct TWriteBufferTag { };
         TWireProtocolReader reader(requestData, New<TRowBuffer>(TWriteBufferTag()));
 
-        const auto& tabletWriteManager = Slot_->GetTabletWriteManager();
+        const auto& tabletWriteManager = Slot_->GetTabletCellWriteManager();
 
         TFuture<void> commitResult;
         try {
