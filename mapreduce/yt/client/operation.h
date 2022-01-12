@@ -1,6 +1,10 @@
 #pragma once
 
+#include "fwd.h"
 #include "structured_table_formats.h"
+#include "operation_preparer.h"
+
+#include <mapreduce/yt/http/fwd.h>
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/operation.h>
@@ -9,15 +13,7 @@
 #include <util/generic/ptr.h>
 #include <util/generic/vector.h>
 
-namespace NYT {
-
-class TPingableTransaction;
-struct TAuth;
-
-namespace NDetail {
-
-class TClient;
-using TClientPtr = ::TIntrusivePtr<TClient>;
+namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,38 +48,6 @@ private:
 };
 
 using TOperationPtr = ::TIntrusivePtr<TOperation>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TOperationPreparer
-{
-public:
-    TOperationPreparer(TClientPtr client, TTransactionId transactionId);
-
-    const TAuth& GetAuth() const;
-    TTransactionId GetTransactionId() const;
-
-    const TString& GetPreparationId() const;
-
-    void LockFiles(TVector<TRichYPath>* paths);
-
-    TOperationId StartOperation(
-        const TString& operationType,
-        const TNode& spec,
-        bool useStartOperationRequest = false);
-
-    const IClientRetryPolicyPtr& GetClientRetryPolicy() const;
-
-private:
-    TClientPtr Client_;
-    TTransactionId TransactionId_;
-    THolder<TPingableTransaction> FileTransaction_;
-    IClientRetryPolicyPtr ClientRetryPolicy_;
-    const TString PreparationId_;
-
-private:
-    void CheckValidity() const;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,5 +167,4 @@ TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail
