@@ -481,7 +481,7 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("template_pool_tree_config_map", &TThis::TemplatePoolTreeConfigMap)
         .Default();
-
+    
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));

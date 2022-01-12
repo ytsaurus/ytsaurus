@@ -1380,6 +1380,25 @@ std::vector<TSchedulerOperationElement*> TSchedulerCompositeElement::GetChildOpe
     return result;
 }
 
+int TSchedulerCompositeElement::GetChildOperationCount() const noexcept
+{
+    int count = 0;
+
+    for (const auto& child : EnabledChildren_) {
+        if (child->IsOperation()) {
+            ++count;
+        }
+    }
+    for (const auto& child : DisabledChildren_) {
+        if (child->IsOperation()) {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+
 ESchedulingMode TSchedulerCompositeElement::GetMode() const
 {
     return Mode_;

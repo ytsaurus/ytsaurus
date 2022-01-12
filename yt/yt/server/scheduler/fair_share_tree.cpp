@@ -862,6 +862,50 @@ public:
 
         dynamicOrchidService->AddChild("operations_by_pool", New<TOperationsByPoolOrchidService>(MakeStrong(this))
             ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
+        
+        dynamicOrchidService->AddChild("operations", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+            const auto buildOperationInfo = [&] (TFluentMap fluent, const TSchedulerOperationElement* const operation) {
+                fluent
+                    .Item(operation->GetId()).BeginMap()
+                        .Do(BIND(
+                            &TFairShareTree::DoBuildOperationProgress,
+                            Unretained(operation),
+                            StrategyHost_))
+                    .EndMap();
+            };
+
+            BuildYsonFluently(consumer).BeginMap()
+                    .Do([&] (TFluentMap fluent) {
+                        for (const auto& [operationId, operation] : treeSnapshotImpl->EnabledOperationMap()) {
+                            buildOperationInfo(fluent, operation);
+                        }
+
+                        for (const auto& [operationId, operation] : treeSnapshotImpl->DisabledOperationMap()) {
+                            buildOperationInfo(fluent, operation);
+                        }
+                    })
+                .EndMap();
+        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+
+        dynamicOrchidService->AddChild("config", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+            BuildYsonFluently(consumer).Value(treeSnapshotImpl->TreeConfig());
+        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+
+        dynamicOrchidService->AddChild("resource_usage", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+            BuildYsonFluently(consumer).Value(treeSnapshotImpl->ResourceUsage());
+        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+
+        dynamicOrchidService->AddChild("resource_limits", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+            BuildYsonFluently(consumer).Value(treeSnapshotImpl->ResourceLimits());
+        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
         dynamicOrchidService->AddChild("pool_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -1016,7 +1060,6 @@ private:
             }
 
             const auto& [_, element] = *poolIterator;
-
             const auto operations = element->GetChildOperations();
 
             auto operationsYson = BuildYsonStringFluently().BeginMap()
@@ -1032,7 +1075,7 @@ private:
                         }
                     })
                 .EndMap();
-
+            
             auto producer = TYsonProducer(BIND([yson = std::move(operationsYson)] (IYsonConsumer* consumer) {
                 consumer->OnRaw(yson);
             }));
@@ -1054,12 +1097,10 @@ private:
             TFairShareTreePtr tree,
             TFairShareTreeSnapshotImplPtr treeSnapshotImpl,
             TSchedulingTagFilter nodesFilter,
-            const TJobResources& totalResourceLimits,
             const NLogging::TLogger& logger)
             : Tree_(std::move(tree))
             , TreeSnapshotImpl_(std::move(treeSnapshotImpl))
             , NodesFilter_(std::move(nodesFilter))
-            , TotalResourceLimits_(totalResourceLimits)
             , Logger(logger)
         { }
 
@@ -1185,7 +1226,7 @@ private:
 
         TJobResources GetTotalResourceLimits() const override
         {
-            return TotalResourceLimits_;
+            return TreeSnapshotImpl_->ResourceLimits();
         }
 
         std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override
@@ -1403,6 +1444,10 @@ private:
         rootElement->MarkImmutable();
 
         auto treeSnapshotId = TTreeSnapshotId::Create();
+
+        const auto resourceUsage = StrategyHost_->GetResourceUsage(GetNodesFilter());
+        const auto resourceLimits = StrategyHost_->GetResourceLimits(GetNodesFilter());
+
         auto treeSnapshotImpl = New<TFairShareTreeSnapshotImpl>(
             treeSnapshotId,
             std::move(rootElement),
@@ -1412,13 +1457,14 @@ private:
             fairSharePostUpdateContext.CachedJobPreemptionStatuses,
             Config_,
             ControllerConfig_,
-            std::move(manageSegmentsContext.SchedulingSegmentsState));
+            std::move(manageSegmentsContext.SchedulingSegmentsState),
+            resourceUsage,
+            resourceLimits);
 
         auto treeSnapshot = New<TFairShareTreeSnapshot>(
             this,
             treeSnapshotImpl,
             GetNodesFilter(),
-            StrategyHost_->GetResourceLimits(GetNodesFilter()),
             Logger);
 
         if (Config_->EnableResourceUsageSnapshot) {
@@ -2847,6 +2893,7 @@ private:
             const auto& attributes = element->Attributes();
             fluent
                 .Item("running_operation_count").Value(element->RunningOperationCount())
+                .Item("pool_operation_count").Value(element->GetChildOperationCount())
                 .Item("operation_count").Value(element->OperationCount())
                 .Item("max_running_operation_count").Value(element->GetMaxRunningOperationCount())
                 .Item("max_operation_count").Value(element->GetMaxOperationCount())

@@ -26,6 +26,8 @@ class TFairShareTreeSnapshotImpl
     DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyOperationControllerConfigPtr, ControllerConfig)
     DEFINE_BYREF_RO_PROPERTY(TTreeSchedulingSegmentsState, SchedulingSegmentsState)
     DEFINE_BYREF_RO_PROPERTY(TCachedJobPreemptionStatuses, CachedJobPreemptionStatuses)
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage)
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits)
 
 public:
     TFairShareTreeSnapshotImpl(
@@ -37,7 +39,9 @@ public:
         const TCachedJobPreemptionStatuses& cachedJobPreemptionStatuses,
         TFairShareStrategyTreeConfigPtr treeConfig,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-        TTreeSchedulingSegmentsState schedulingSegmentsState);
+        TTreeSchedulingSegmentsState schedulingSegmentsState,
+        const TJobResources& resourceUsage,
+        const TJobResources& resourceLimits);
 
     TSchedulerPoolElement* FindPool(const TString& poolName) const;
     TSchedulerOperationElement* FindEnabledOperationElement(TOperationId operationId) const;

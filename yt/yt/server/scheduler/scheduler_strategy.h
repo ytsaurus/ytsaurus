@@ -300,7 +300,7 @@ struct ISchedulerStrategy
     //! Builds a YSON structure reflecting the state of the scheduler to be displayed in Orchid.
     virtual void BuildOrchid(NYTree::TFluentMap fluent) = 0;
 
-    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) = 0;
 
