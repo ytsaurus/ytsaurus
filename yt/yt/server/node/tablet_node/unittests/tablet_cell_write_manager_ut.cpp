@@ -1,4 +1,4 @@
-#include "tablet_write_manager_ut_helpers.h"
+#include "tablet_cell_write_manager_ut_helpers.h"
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
@@ -21,8 +21,8 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestSortedTabletWriteManager
-    : public TTabletWriteManagerTestBase
+class TTestSortedTabletCellWriteManager
+    : public TTabletCellWriteManagerTestBase
 {
 protected:
     TTabletOptions GetOptions() const override
@@ -61,7 +61,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestSortedTabletWriteBasic = TTestSortedTabletWriteManager;
+using TTestSortedTabletWriteBasic = TTestSortedTabletCellWriteManager;
 
 TEST_F(TTestSortedTabletWriteBasic, TestSimple)
 {
@@ -169,7 +169,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByFollower)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestSortedTabletWriteBarrier = TTestSortedTabletWriteManager;
+using TTestSortedTabletWriteBarrier = TTestSortedTabletCellWriteManager;
 
 TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
 {
@@ -260,7 +260,7 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedInFlight)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestSortedTabletWriteSignature = TTestSortedTabletWriteManager;
+using TTestSortedTabletWriteSignature = TTestSortedTabletCellWriteManager;
 
 TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
 {
@@ -321,7 +321,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesFailure)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestSortedTabletWriteGenerationSimple
-    : public TTestSortedTabletWriteManager
+    : public TTestSortedTabletCellWriteManager
     , public testing::WithParamInterface<TStringBuf>
 { };
 
@@ -514,8 +514,8 @@ INSTANTIATE_TEST_SUITE_P(Executions, TTestSortedTabletWriteGenerationTwoBatch, t
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestOrderedTabletWriteManager
-    : public TTabletWriteManagerTestBase
+class TTestOrderedTabletCellWriteManager
+    : public TTabletCellWriteManagerTestBase
 {
 protected:
     TTabletOptions GetOptions() const override
@@ -564,7 +564,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestOrderedTabletWriteBasic = TTestOrderedTabletWriteManager;
+using TTestOrderedTabletWriteBasic = TTestOrderedTabletCellWriteManager;
 
 TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
 {

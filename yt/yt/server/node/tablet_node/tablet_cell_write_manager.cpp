@@ -1,4 +1,4 @@
-#include "tablet_write_manager.h"
+#include "tablet_cell_write_manager.h"
 
 #include "automaton.h"
 #include "tablet.h"
@@ -38,13 +38,13 @@ using namespace NTabletNode::NProto;
 using namespace NCompression;
 using namespace NHydra;
 
-class TTabletWriteManager
-    : public ITabletWriteManager
+class TTabletCellWriteManager
+    : public ITabletCellWriteManager
     , public TTabletAutomatonPart
 {
 public:
-    TTabletWriteManager(
-        ITabletWriteManagerHostPtr host,
+    TTabletCellWriteManager(
+        ITabletCellWriteManagerHostPtr host,
         ISimpleHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
         TMemoryUsageTrackerGuard&& writeLogsMemoryTrackerGuard,
@@ -58,19 +58,19 @@ public:
         , ChangelogCodec_(GetCodec(Host_->GetConfig()->ChangelogCodec))
         , WriteLogsMemoryTrackerGuard_(std::move(writeLogsMemoryTrackerGuard))
     {
-        RegisterMethod(BIND(&TTabletWriteManager::HydraFollowerWriteRows, Unretained(this)));
+        RegisterMethod(BIND(&TTabletCellWriteManager::HydraFollowerWriteRows, Unretained(this)));
     }
 
-    // ITabletWriteManager overrides.
+    // ITabletCellWriteManager overrides.
 
     void Initialize() override
     {
         const auto& transactionManager = Host_->GetTransactionManager();
-        transactionManager->SubscribeTransactionPrepared(BIND(&TTabletWriteManager::OnTransactionPrepared, MakeWeak(this)));
-        transactionManager->SubscribeTransactionCommitted(BIND(&TTabletWriteManager::OnTransactionCommitted, MakeWeak(this)));
-        transactionManager->SubscribeTransactionSerialized(BIND(&TTabletWriteManager::OnTransactionSerialized, MakeWeak(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(&TTabletWriteManager::OnTransactionAborted, MakeWeak(this)));
-        transactionManager->SubscribeTransactionTransientReset(BIND(&TTabletWriteManager::OnTransactionTransientReset, MakeWeak(this)));
+        transactionManager->SubscribeTransactionPrepared(BIND(&TTabletCellWriteManager::OnTransactionPrepared, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCommitted(BIND(&TTabletCellWriteManager::OnTransactionCommitted, MakeWeak(this)));
+        transactionManager->SubscribeTransactionSerialized(BIND(&TTabletCellWriteManager::OnTransactionSerialized, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND(&TTabletCellWriteManager::OnTransactionAborted, MakeWeak(this)));
+        transactionManager->SubscribeTransactionTransientReset(BIND(&TTabletCellWriteManager::OnTransactionTransientReset, MakeWeak(this)));
     }
 
     void Write(
@@ -254,7 +254,7 @@ public:
 
                 auto mutation = CreateMutation(HydraManager_, hydraRequest);
                 mutation->SetHandler(BIND_DONT_CAPTURE_TRACE_CONTEXT(
-                    &TTabletWriteManager::HydraLeaderWriteRows,
+                    &TTabletCellWriteManager::HydraLeaderWriteRows,
                     MakeStrong(this),
                     transactionId,
                     tablet->GetMountRevision(),
@@ -384,7 +384,7 @@ public:
     }
 
 private:
-    const ITabletWriteManagerHostPtr Host_;
+    const ITabletCellWriteManagerHostPtr Host_;
     ICodec* const ChangelogCodec_;
 
     TRingQueue<TTablet*> PrelockedTablets_;
@@ -1504,14 +1504,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITabletWriteManagerPtr CreateTabletWriteManager(
-    ITabletWriteManagerHostPtr host,
+ITabletCellWriteManagerPtr CreateTabletCellWriteManager(
+    ITabletCellWriteManagerHostPtr host,
     ISimpleHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     TMemoryUsageTrackerGuard&& writeLogsMemoryTrackerGuard,
     IInvokerPtr automatonInvoker)
 {
-    return New<TTabletWriteManager>(
+    return New<TTabletCellWriteManager>(
         std::move(host),
         std::move(hydraManager),
         std::move(automaton),

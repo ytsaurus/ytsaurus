@@ -62,7 +62,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     TTablet* GetTabletOrThrow(TTabletId id);
 
-    ITabletWriteManagerHostPtr GetTabletWriteManagerHost();
+    ITabletCellWriteManagerHostPtr GetTabletCellWriteManagerHost();
 
     std::vector<TTabletMemoryStats> GetMemoryStats();
 

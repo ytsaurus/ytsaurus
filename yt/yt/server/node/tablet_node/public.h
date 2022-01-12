@@ -57,8 +57,8 @@ using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext
 
 DECLARE_REFCOUNTED_CLASS(TTabletManager)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
-DECLARE_REFCOUNTED_STRUCT(ITabletWriteManager)
-DECLARE_REFCOUNTED_STRUCT(ITabletWriteManagerHost)
+DECLARE_REFCOUNTED_STRUCT(ITabletCellWriteManager)
+DECLARE_REFCOUNTED_STRUCT(ITabletCellWriteManagerHost)
 DECLARE_REFCOUNTED_STRUCT(IBackupManager)
 
 class TPartition;

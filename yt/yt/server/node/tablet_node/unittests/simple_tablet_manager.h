@@ -3,7 +3,7 @@
 #include "tablet_context_mock.h"
 
 #include <yt/yt/server/node/tablet_node/automaton.h>
-#include <yt/yt/server/node/tablet_node/tablet_write_manager.h>
+#include <yt/yt/server/node/tablet_node/tablet_cell_write_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -27,7 +27,7 @@ struct TTabletOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleTabletManager
-    : public ITabletWriteManagerHost
+    : public ITabletCellWriteManagerHost
     , public TTabletAutomatonPart
 {
 public:
@@ -39,7 +39,7 @@ public:
     void InitializeTablet(TTabletOptions options);
     void InitializeStoreManager(bool sorted);
 
-    // ITabletWriteManagerHost
+    // ITabletCellWriteManagerHost
 
     void OnTabletUnlocked(TTablet* tablet) override;
     void OnTabletRowUnlocked(TTablet* tablet) override;

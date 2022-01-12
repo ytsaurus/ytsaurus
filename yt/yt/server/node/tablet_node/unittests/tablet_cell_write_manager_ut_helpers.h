@@ -68,10 +68,10 @@ public:
         TransactionManager_ = New<TTransactionManager>(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, CreateNullTransactionLeaseTracker());
         TransactionSupervisor_ = New<TSimpleTransactionSupervisor>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
         TabletManager_ = New<TSimpleTabletManager>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
-        TabletWriteManager_ = CreateTabletWriteManager(TabletManager_, HydraManager_, Automaton_, TMemoryUsageTrackerGuard(), AutomatonInvoker_);
+        TabletCellWriteManager_ = CreateTabletCellWriteManager(TabletManager_, HydraManager_, Automaton_, TMemoryUsageTrackerGuard(), AutomatonInvoker_);
 
         TabletManager_->InitializeTablet(options);
-        TabletWriteManager_->Initialize();
+        TabletCellWriteManager_->Initialize();
     }
 
     NHydra::ISimpleHydraManagerPtr GetSimpleHydraManager() override
@@ -110,7 +110,7 @@ public:
         TransactionManager_.Reset();
         TransactionSupervisor_.Reset();
         TabletManager_.Reset();
-        TabletWriteManager_.Reset();
+        TabletCellWriteManager_.Reset();
     }
 
     const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() override
@@ -150,9 +150,9 @@ public:
         return TabletManager_;
     }
 
-    const ITabletWriteManagerPtr& TabletWriteManager()
+    const ITabletCellWriteManagerPtr& TabletCellWriteManager()
     {
-        return TabletWriteManager_;
+        return TabletCellWriteManager_;
     }
 
     const TSimpleHydraManagerMockPtr& HydraManager()
@@ -178,7 +178,7 @@ private:
     TTransactionManagerPtr TransactionManager_;
     TSimpleTransactionSupervisorPtr TransactionSupervisor_;
     TSimpleTabletManagerPtr TabletManager_;
-    ITabletWriteManagerPtr TabletWriteManager_;
+    ITabletCellWriteManagerPtr TabletCellWriteManager_;
 
     TTimestamp LatestTimestamp_ = 4242;
 };
@@ -188,7 +188,7 @@ DEFINE_REFCOUNTED_TYPE(TSimpleTabletSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletWriteManagerTestBase
+class TTabletCellWriteManagerTestBase
     : public testing::Test
 {
 protected:
@@ -206,9 +206,9 @@ protected:
         TabletSlot_->Shutdown();
     }
 
-    const ITabletWriteManagerPtr& TabletWriteManager()
+    const ITabletCellWriteManagerPtr& TabletCellWriteManager()
     {
-        return TabletSlot_->TabletWriteManager();
+        return TabletSlot_->TabletCellWriteManager();
     }
 
     IInvokerPtr AutomatonInvoker()
@@ -251,7 +251,7 @@ protected:
             rows = std::move(rows),
             signature,
             generation,
-            tabletWriteManager = TabletWriteManager(),
+            tabletWriteManager = TabletCellWriteManager(),
             tabletSnapshot
         ] {
             TWireProtocolWriter writer;
@@ -299,7 +299,7 @@ protected:
     {
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
-        auto asyncResult = BIND([transactionId, rows = std::move(rows), signature, tabletWriteManager = TabletWriteManager(), tabletSnapshot] {
+        auto asyncResult = BIND([transactionId, rows = std::move(rows), signature, tabletWriteManager = TabletCellWriteManager(), tabletSnapshot] {
             TWireProtocolWriter writer;
             i64 dataWeight = 0;
             for (const auto& row : rows) {
