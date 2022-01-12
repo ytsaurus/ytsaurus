@@ -31,14 +31,7 @@ struct TShardConfig
 
     std::optional<TDuration> GridStep;
 
-    TShardConfig()
-    {
-        RegisterParameter("filter", Filter)
-            .Default();
-
-        RegisterParameter("grid_step", GridStep)
-            .Default();
-    }
+    TShardConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TShardConfig)
@@ -83,88 +76,7 @@ struct TSolomonExporterConfig
 
     THashMap<TString, TShardConfigPtr> Shards;
 
-    TSolomonExporterConfig()
-    {
-        RegisterParameter("grid_step", GridStep)
-            .Default(TDuration::Seconds(5));
-
-        RegisterParameter("linger_timeout", LingerTimeout)
-            .Default(TDuration::Minutes(5));
-
-        RegisterParameter("window_size", WindowSize)
-            .Default(12);
-
-        RegisterParameter("thread_pool_size", ThreadPoolSize)
-            .Default();
-
-        RegisterParameter("convert_counters_to_rate", ConvertCountersToRate)
-            .Default(true);
-        RegisterParameter("rename_converted_counters", RenameConvertedCounters)
-            .Default(true);
-
-        RegisterParameter("export_summary", ExportSummary)
-            .Default(false);
-        RegisterParameter("export_summary_as_max", ExportSummaryAsMax)
-            .Default(true);
-        RegisterParameter("export_summary_as_avg", ExportSummaryAsAvg)
-            .Default(false);
-
-        RegisterParameter("mark_aggregates", MarkAggregates)
-            .Default(true);
-
-        RegisterParameter("enable_core_profiling_compatibility", EnableCoreProfilingCompatibility)
-            .Default(false);
-
-        RegisterParameter("enable_self_profiling", EnableSelfProfiling)
-            .Default(true);
-
-        RegisterParameter("report_build_info", ReportBuildInfo)
-            .Default(true);
-
-        RegisterParameter("report_restart", ReportRestart)
-            .Default(true);
-
-        RegisterParameter("read_delay", ReadDelay)
-            .Default(TDuration::Seconds(5));
-
-        RegisterParameter("host", Host)
-            .Default();
-
-        RegisterParameter("instance_tags", InstanceTags)
-            .Default();
-
-        RegisterParameter("shards", Shards)
-            .Default();
-
-        RegisterParameter("response_cache_ttl", ResponseCacheTtl)
-            .Default(TDuration::Minutes(2));
-
-        RegisterPostprocessor([this] {
-            if (LingerTimeout.GetValue() % GridStep.GetValue() != 0) {
-                THROW_ERROR_EXCEPTION("\"linger_timeout\" must be multiple of \"grid_step\"");
-            }
-        });
-
-        RegisterPostprocessor([this] {
-            for (const auto& [name, shard] : Shards) {
-                if (!shard->GridStep) {
-                    continue;
-                }
-
-                if (shard->GridStep < GridStep) {
-                    THROW_ERROR_EXCEPTION("shard \"grid_step\" must be greater than global \"grid_step\"");
-                }
-
-                if (shard->GridStep->GetValue() % GridStep.GetValue() != 0) {
-                    THROW_ERROR_EXCEPTION("shard \"grid_step\" must be multiple of global \"grid_step\"");
-                }
-
-                if (LingerTimeout.GetValue() % shard->GridStep->GetValue() != 0) {
-                    THROW_ERROR_EXCEPTION("\"linger_timeout\" must be multiple shard \"grid_step\"");
-                }
-            }
-        });
-    }
+    TSolomonExporterConfig();
 
     TShardConfigPtr MatchShard(const TString& sensorName);
 };
