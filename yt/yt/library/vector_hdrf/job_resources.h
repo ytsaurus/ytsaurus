@@ -38,6 +38,7 @@ public:
     }
 
     TJobResources() = default;
+    TJobResources(const TJobResources&) = default;
 
     static TJobResources Infinite();
 };

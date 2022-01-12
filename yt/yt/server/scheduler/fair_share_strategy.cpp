@@ -632,7 +632,7 @@ public:
         }
     }
 
-    IYPathServicePtr GetOrchidService() const override
+    IYPathServicePtr GetOrchidService() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         
@@ -1843,7 +1843,7 @@ private:
         : public TVirtualMapBase
     {
     public:
-        explicit TPoolTreeService(TIntrusivePtr<const TFairShareStrategy> strategy)
+        explicit TPoolTreeService(TIntrusivePtr<TFairShareStrategy> strategy)
             : Strategy_{std::move(strategy)}
         { }
 
@@ -1888,7 +1888,7 @@ private:
             return tree->GetOrchidService();
         }
 
-        const TIntrusivePtr<const TFairShareStrategy> Strategy_;
+        const TIntrusivePtr<TFairShareStrategy> Strategy_;
     };
 };
 
