@@ -2211,6 +2211,10 @@ struct TOperationProgress
     ///
     /// @brief Job counter for various job states with hierarchy.
     TJobCounters JobCounters;
+
+    ///
+    /// @brief Time when this progress was built on scheduler or CA.
+    TMaybe<TInstant> BuildTime;
 };
 
 ///

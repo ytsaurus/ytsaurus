@@ -8,8 +8,10 @@ using namespace NYT;
 using namespace NYT::NDetail;
 using namespace NYT::NDetail::NRawClient;
 
-Y_UNIT_TEST_SUITE(OperationsApiParsing) {
-    Y_UNIT_TEST(ParseOperationAttributes) {
+Y_UNIT_TEST_SUITE(OperationsApiParsing)
+{
+    Y_UNIT_TEST(ParseOperationAttributes)
+    {
         auto response = TStringBuf(R"""({
             "id" = "1-2-3-4";
             "authenticated_user" = "some-user";
@@ -61,6 +63,7 @@ Y_UNIT_TEST_SUITE(OperationsApiParsing) {
             "type" = "map";
             "pool" = "some-pool";
             "progress" = {
+                "build_time" = "2018-01-01T00:00:00.000000Z";
                 "job_statistics" = {
                     "data" = {
                         "input" = {
@@ -162,9 +165,30 @@ Y_UNIT_TEST_SUITE(OperationsApiParsing) {
         UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobCounters.GetAborted().GetTotal(), 7);
         UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobCounters.GetFailed().GetTotal(), 7);
         UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobCounters.GetTotal(), 66);
+        UNIT_ASSERT_VALUES_EQUAL(*attrs.Progress->BuildTime, TInstant::ParseIso8601("2018-01-01T00:00:00.000000Z"));
 
         UNIT_ASSERT(attrs.Events);
         UNIT_ASSERT_VALUES_EQUAL((*attrs.Events)[1].State, "materializing");
         UNIT_ASSERT_VALUES_EQUAL((*attrs.Events)[1].Time, TInstant::ParseIso8601("2018-01-02T00:00:00.000000Z"));
+    }
+
+    Y_UNIT_TEST(EmptyProgress)
+    {
+        auto response = TStringBuf(R"""({
+            "id" = "1-2-3-4";
+            "brief_progress" = {};
+            "progress" = {};
+        })""");
+        auto attrs = ParseOperationAttributes(NodeFromYsonString(response));
+
+        UNIT_ASSERT(attrs.Id);
+        UNIT_ASSERT_VALUES_EQUAL(GetGuidAsString(*attrs.Id), "1-2-3-4");
+
+        UNIT_ASSERT(!attrs.BriefProgress);
+
+        UNIT_ASSERT(attrs.Progress);
+        UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobStatistics.JobState({}).GetStatisticsNames(), TVector<TString>{});
+        UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobCounters.GetTotal(), 0);
+        UNIT_ASSERT(!attrs.Progress->BuildTime);
     }
 }
