@@ -486,12 +486,6 @@ class UserJobSpecBuilder(object):
                 output_tables,
                 client,
             )
-            if "input_table_paths" in spec_patch:
-                # If a job has proto input, we can get table paths with column filters here.
-                new_input_tables = []
-                for table in spec_patch["input_table_paths"]:
-                    new_input_tables.append(TablePath(str(table), attributes=table.attributes, client=client))
-                input_tables = new_input_tables
 
             if "input_format" in spec_patch:
                 spec["input_format"] = spec_patch["input_format"]

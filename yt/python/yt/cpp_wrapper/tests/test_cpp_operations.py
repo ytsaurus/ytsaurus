@@ -23,6 +23,11 @@ STAFF_UNSORTED_CONTENT = [
     {"name": "R2 D2", "login": "r2d2", "uid": 0},
     {"name": "Arkady", "login": "ar_kady", "uid": 1},
 ]
+STAFF_EXPECTED_RESULT = [
+    {"name": "Ivan", "email": "ivannn@yandex-team.ru"},
+    {"name": "R2 D2", "email": "r2d2@yandex-team.ru"},
+    {"name": "Arkady", "email": "ar_kady@yandex-team.ru"},
+]
 IS_ROBOT_CONTENT = [
     {"is_robot": False, "uid": 1},
     {"is_robot": False, "uid": 2},
@@ -53,12 +58,8 @@ def _prepare_logins_table():
     yt.write_table(IS_ROBOT_PATH, IS_ROBOT_CONTENT)
 
 
-def _check_emails_table(path):
-    assert list(yt.read_table(path)) == [
-        {"name": "Ivan", "email": "ivannn@yandex-team.ru"},
-        {"name": "R2 D2", "email": "r2d2@yandex-team.ru"},
-        {"name": "Arkady", "email": "ar_kady@yandex-team.ru"},
-    ]
+def _check_emails_table(path, from_=0, to=len(STAFF_EXPECTED_RESULT)):
+    assert list(yt.read_table(path)) == STAFF_EXPECTED_RESULT[from_:to]
 
 
 def _get_random_path():
@@ -151,7 +152,7 @@ class TestCppOperations(object):
         yt.run_sort(
             source_table=STAFF_UNSORTED_PATH,
             destination_table=sorted_staff_table,
-            sort_by=["uid"]
+            sort_by=["uid"],
         )
         sorted_is_robot_table = _get_random_path()
         yt.run_sort(
@@ -227,3 +228,41 @@ class TestCppOperations(object):
                 destination_table=_get_random_path(),
                 output_format="yson",
             )
+
+    @authors("egor-gutrov")
+    def test_start_end_index(self):
+        from_ = 1
+        to = 2
+        paths = [
+            yt.TablePath(STAFF_UNSORTED_PATH, start_index=from_, end_index=to),
+            yt.TablePath(
+                "<\"ranges\"=[{\"lower_limit\"={\"row_index\"=1;};\"upper_limit\"={\"row_index\"=2;};}];>"\
+                "//tmp/cpp_wrapper_tests/staff_unsorted"
+            ),
+            yt.TablePath("//tmp/cpp_wrapper_tests/staff_unsorted[#{0}:#{1}]".format(from_, to)),
+            "//tmp/cpp_wrapper_tests/staff_unsorted[#{0}:#{1}]".format(from_, to),
+        ]
+        for path in paths:
+            output_table = _get_random_path()
+            yt.run_map(
+                CppJob("TComputeEmailsProtoMapper"),
+                source_table=path,
+                destination_table=output_table,
+            )
+            _check_emails_table(output_table, from_, to)
+
+    @authors("egor-gutrov")
+    def test_lower_upper_key(self):
+        sorted_staff_table = _get_random_path()
+        yt.run_sort(
+            source_table=STAFF_UNSORTED_PATH,
+            destination_table=sorted_staff_table,
+            sort_by=["uid"]
+        )
+        output_table = _get_random_path()
+        yt.run_map(
+            CppJob("TComputeEmailsProtoMapper"),
+            source_table=yt.TablePath(sorted_staff_table, lower_key=1, upper_key=2),
+            destination_table=output_table,
+        )
+        assert list(yt.read_table(output_table)) == [{"name": "Arkady", "email": "ar_kady@yandex-team.ru"}]
