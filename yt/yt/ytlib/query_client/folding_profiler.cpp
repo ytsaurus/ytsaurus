@@ -410,7 +410,7 @@ size_t TExpressionProfiler::Profile(
     bool isIsolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(literalExpr->Type));
+    id.AddInteger(static_cast<ui16>(literalExpr->GetWireType()));
 
     id.AddInteger(static_cast<int>(EFoldingObjectType::LiteralExpr));
 
@@ -435,8 +435,8 @@ size_t TExpressionProfiler::Profile(
 
     fragments->DebugInfos.emplace_back(literalExpr, std::vector<size_t>());
     fragments->Items.emplace_back(
-        MakeCodegenLiteralExpr(index, nullable, literalExpr->Type),
-        literalExpr->Type,
+        MakeCodegenLiteralExpr(index, nullable, literalExpr->GetWireType()),
+        literalExpr->GetWireType(),
         nullable,
         true);
     return result;
@@ -449,7 +449,7 @@ size_t TExpressionProfiler::Profile(
     bool isIsolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(referenceExpr->Type));
+    id.AddInteger(static_cast<ui16>(referenceExpr->GetWireType()));
 
     id.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
     auto indexInSchema = schema->GetColumnIndexOrThrow(referenceExpr->ColumnName);
@@ -468,9 +468,9 @@ size_t TExpressionProfiler::Profile(
     fragments->Items.emplace_back(
         MakeCodegenReferenceExpr(
             indexInSchema,
-            referenceExpr->Type,
+            referenceExpr->GetWireType(),
             referenceExpr->ColumnName),
-        referenceExpr->Type,
+        referenceExpr->GetWireType(),
         true,
         true);
     return result;
@@ -483,7 +483,7 @@ size_t TExpressionProfiler::Profile(
     bool isIsolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(functionExpr->Type));
+    id.AddInteger(static_cast<ui16>(functionExpr->GetWireType()));
 
     id.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
     id.AddString(functionExpr->FunctionName.c_str());
@@ -495,7 +495,7 @@ size_t TExpressionProfiler::Profile(
     for (const auto& argument : functionExpr->Arguments) {
         argIds.push_back(Profile(argument, schema, fragments, isIsolated));
         id.AddInteger(argIds.back());
-        argumentTypes.push_back(argument->Type);
+        argumentTypes.push_back(argument->GetWireType());
         literalArgs[index++] = argument->As<TLiteralExpression>() != nullptr;
     }
 
@@ -523,10 +523,10 @@ size_t TExpressionProfiler::Profile(
             std::move(argIds),
             std::move(literalArgs),
             std::move(argumentTypes),
-            functionExpr->Type,
+            functionExpr->GetWireType(),
             "{" + InferName(functionExpr, true) + "}",
             Id_),
-        functionExpr->Type,
+        functionExpr->GetWireType(),
         function->IsNullable(nullableArgs));
     return result;
 }
@@ -538,7 +538,7 @@ size_t TExpressionProfiler::Profile(
     bool isIsolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(unaryOp->Type));
+    id.AddInteger(static_cast<ui16>(unaryOp->GetWireType()));
 
     id.AddInteger(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
     id.AddInteger(static_cast<int>(unaryOp->Opcode));
@@ -560,9 +560,9 @@ size_t TExpressionProfiler::Profile(
     fragments->Items.emplace_back(MakeCodegenUnaryOpExpr(
         unaryOp->Opcode,
         operand,
-        unaryOp->Type,
+        unaryOp->GetWireType(),
         "{" + InferName(unaryOp, true) + "}"),
-        unaryOp->Type,
+        unaryOp->GetWireType(),
         fragments->Items[operand].Nullable);
     return result;
 }
@@ -574,7 +574,7 @@ size_t TExpressionProfiler::Profile(
     bool isIsolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(binaryOp->Type));
+    id.AddInteger(static_cast<ui16>(binaryOp->GetWireType()));
 
     id.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
     id.AddInteger(static_cast<int>(binaryOp->Opcode));
@@ -603,9 +603,9 @@ size_t TExpressionProfiler::Profile(
         binaryOp->Opcode,
         lhsOperand,
         rhsOperand,
-        binaryOp->Type,
+        binaryOp->GetWireType(),
         "{" + InferName(binaryOp, true) + "}"),
-        binaryOp->Type,
+        binaryOp->GetWireType(),
         nullable);
     return result;
 }
@@ -617,7 +617,7 @@ size_t TExpressionProfiler::Profile(
     bool isIsolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(inExpr->Type));
+    id.AddInteger(static_cast<ui16>(inExpr->GetWireType()));
 
     id.AddInteger(static_cast<int>(EFoldingObjectType::InExpr));
 
@@ -650,7 +650,7 @@ size_t TExpressionProfiler::Profile(
     fragments->DebugInfos.emplace_back(inExpr, argIds);
     fragments->Items.emplace_back(
         MakeCodegenInExpr(argIds, index, hashtableIndex, ComparerManager_),
-        inExpr->Type,
+        inExpr->GetWireType(),
         false);
     return result;
 }
@@ -662,7 +662,7 @@ size_t TExpressionProfiler::Profile(
     bool isIsolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(betweenExpr->Type));
+    id.AddInteger(static_cast<ui16>(betweenExpr->GetWireType()));
 
     id.AddInteger(static_cast<int>(EFoldingObjectType::BetweenExpr));
 
@@ -695,7 +695,7 @@ size_t TExpressionProfiler::Profile(
     fragments->DebugInfos.emplace_back(betweenExpr, argIds);
     fragments->Items.emplace_back(
         MakeCodegenBetweenExpr(argIds, index, ComparerManager_),
-        betweenExpr->Type,
+        betweenExpr->GetWireType(),
         false);
     return result;
 }
@@ -707,7 +707,7 @@ size_t TExpressionProfiler::Profile(
     bool isIsolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(transformExpr->Type));
+    id.AddInteger(static_cast<ui16>(transformExpr->GetWireType()));
 
     id.AddInteger(static_cast<int>(EFoldingObjectType::TransformExpr));
 
@@ -759,8 +759,8 @@ size_t TExpressionProfiler::Profile(
 
     fragments->DebugInfos.emplace_back(transformExpr, argIds, defaultExprId);
     fragments->Items.emplace_back(
-        MakeCodegenTransformExpr(argIds, defaultExprId, index, hashtableIndex, transformExpr->Type, ComparerManager_),
-        transformExpr->Type,
+        MakeCodegenTransformExpr(argIds, defaultExprId, index, hashtableIndex, transformExpr->GetWireType(), ComparerManager_),
+        transformExpr->GetWireType(),
         nullable);
     return result;
 }
@@ -872,7 +872,7 @@ void TQueryProfiler::Profile(
         TExpressionFragments groupFragments;
         for (const auto& groupItem : groupClause->GroupItems) {
             groupExprIds.push_back(Profile(groupItem, schema, &expressionFragments));
-            keyTypes.push_back(groupItem.Expression->Type);
+            keyTypes.push_back(groupItem.Expression->GetWireType());
         }
 
         bool allAggregatesFirst = true;
@@ -891,7 +891,7 @@ void TQueryProfiler::Profile(
                 aggregateExprIds.push_back(Profile(aggregateItem, schema, &expressionFragments));
             }
             codegenAggregates.push_back(aggregate->Profile(
-                aggregateItem.Expression->Type,
+                aggregateItem.Expression->GetWireType(),
                 aggregateItem.StateType,
                 aggregateItem.ResultType,
                 aggregateItem.Name,
@@ -1076,7 +1076,7 @@ void TQueryProfiler::Profile(
             orderExprIds.push_back(TExpressionProfiler::Profile(item.first, schema, &orderExprFragments));
             Fold(item.second);
             isDesc.push_back(item.second);
-            orderColumnTypes.push_back(item.first->Type);
+            orderColumnTypes.push_back(item.first->GetWireType());
         }
 
         auto orderFragmentsInfos = orderExprFragments.ToFragmentInfos("orderExpression");
@@ -1244,7 +1244,7 @@ void TQueryProfiler::Profile(
                         &equationFragments,
                         isEvaluated),
                     isEvaluated);
-                lookupKeyTypes.push_back(expression->Type);
+                lookupKeyTypes.push_back(expression->GetWireType());
             }
 
             TSingleJoinCGParameters codegenParameters{
@@ -1298,7 +1298,7 @@ void TQueryProfiler::Profile(
 
                         projectClause->AddProjection(
                             New<TReferenceExpression>(
-                                joinRenamedTableColumns[index].GetWireType(),
+                                joinRenamedTableColumns[index].LogicalType(),
                                 joinRenamedTableColumns[index].Name()),
                             joinRenamedTableColumns[index].Name());
                     }

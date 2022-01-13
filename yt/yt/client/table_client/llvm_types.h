@@ -26,6 +26,7 @@ public:
     typedef TTypeBuilder<double> TDouble;
     typedef TTypeBuilder<const char*> TStringType;
     typedef TTypeBuilder<const char*> TAny;
+    typedef TTypeBuilder<const char*> TComposite;
 
     static Type* Get(LLVMContext& context)
     {
@@ -48,8 +49,9 @@ public:
                 return TStringType::Get(context);
             case EValueType::Any:
                 return TAny::Get(context);
-
             case EValueType::Composite:
+                return TComposite::Get(context);
+
             case EValueType::Null:
 
             case EValueType::Min:
@@ -121,4 +123,3 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCodegen
-

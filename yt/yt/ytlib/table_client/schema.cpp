@@ -247,12 +247,12 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             }
             THashSet<TString> references;
             auto expr = PrepareExpression(*columnSchema.Expression(), schema, BuiltinTypeInferrersMap, &references);
-            if (!columnSchema.IsOfV1Type(GetLogicalType(expr->Type))) {
+            if (*columnSchema.LogicalType() != *expr->LogicalType) {
                 THROW_ERROR_EXCEPTION(
                     "Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
                     columnSchema.Name(),
                     *columnSchema.LogicalType(),
-                    expr->Type);
+                    *expr->LogicalType);
             }
 
             for (const auto& ref : references) {

@@ -3,6 +3,7 @@
 #include "public.h"
 #include "query_common.h"
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 
@@ -16,6 +17,13 @@ namespace NYT::NQueryClient {
 
 //! Computes key index for a given column name.
 int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& columnName);
+
+//! Derives type of reference expression based on table column type.
+//!
+//! For historical reasons reference expressions used to have `wire type` of column i.e.
+//! if column had `Int16` type its reference would have `Int64` type.
+//! `DeriveReferenceType` keeps this behaviour for V1 types, but for V3 types actual type is returned.
+NTableClient::TLogicalTypePtr ToQLType(const NTableClient::TLogicalTypePtr& columnType);
 
 struct TColumnDescriptor
 {
@@ -43,11 +51,22 @@ DEFINE_ENUM(EExpressionKind,
 struct TExpression
     : public TRefCounted
 {
-    explicit TExpression(EValueType type)
-        : Type(type)
+public:
+    NTableClient::TLogicalTypePtr LogicalType;
+
+public:
+    explicit TExpression(NTableClient::TLogicalTypePtr type)
+        : LogicalType(std::move(type))
     { }
 
-    EValueType Type;
+    explicit TExpression(EValueType type)
+        : LogicalType(MakeLogicalType(GetLogicalType(type), false))
+    { }
+
+    EValueType GetWireType() const
+    {
+        return NTableClient::GetWireType(LogicalType);
+    }
 
     template <class TDerived>
     const TDerived* As() const
@@ -82,12 +101,12 @@ struct TLiteralExpression
 struct TReferenceExpression
     : public TExpression
 {
-    explicit TReferenceExpression(EValueType type)
-        : TExpression(type)
+    explicit TReferenceExpression(const NTableClient::TLogicalTypePtr& type)
+        : TExpression(ToQLType(type))
     { }
 
-    TReferenceExpression(EValueType type, TStringBuf columnName)
-        : TExpression(type)
+    TReferenceExpression(const NTableClient::TLogicalTypePtr& type, TStringBuf columnName)
+        : TExpression(ToQLType(type))
         , ColumnName(columnName)
     { }
 
@@ -397,7 +416,7 @@ struct TGroupClause
         TSchemaColumns result;
 
         for (const auto& item : GroupItems) {
-            result.emplace_back(item.Name, item.Expression->Type);
+            result.emplace_back(item.Name, item.Expression->LogicalType);
         }
 
         for (const auto& item : AggregateItems) {
@@ -440,7 +459,7 @@ struct TProjectClause
         TSchemaColumns result;
 
         for (const auto& item : Projections) {
-            result.emplace_back(item.Name, item.Expression->Type);
+            result.emplace_back(item.Name, item.Expression->LogicalType);
         }
 
         return New<TTableSchema>(std::move(result));
@@ -738,7 +757,7 @@ struct TRewriter
         }
 
         return New<TUnaryOpExpression>(
-            unaryExpr->Type,
+            unaryExpr->GetWireType(),
             unaryExpr->Opcode,
             newOperand);
     }
@@ -753,7 +772,7 @@ struct TRewriter
         }
 
         return New<TBinaryOpExpression>(
-            binaryExpr->Type,
+            binaryExpr->GetWireType(),
             binaryExpr->Opcode,
             newLhs,
             newRhs);
@@ -774,7 +793,7 @@ struct TRewriter
         }
 
         return New<TFunctionExpression>(
-            functionExpr->Type,
+            functionExpr->GetWireType(),
             functionExpr->FunctionName,
             std::move(newArguments));
     }
@@ -838,7 +857,7 @@ struct TRewriter
         }
 
         return New<TTransformExpression>(
-            transformExpr->Type,
+            transformExpr->GetWireType(),
             std::move(newArguments),
             transformExpr->Values,
             newDefaultExpression);

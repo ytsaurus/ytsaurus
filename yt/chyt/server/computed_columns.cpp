@@ -179,7 +179,7 @@ struct TComputedColumnPopulationMatcher
             "Deducing computed column value (ComputedColumn: %v, OriginalStatement: %v, Type: %v)",
             entry.ComputedColumn,
             statement,
-            entry.Expression->Type);
+            *entry.Expression->LogicalType);
 
         auto rowBuffer = New<TRowBuffer>();
 

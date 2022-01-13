@@ -48,7 +48,7 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         auto& finalGroupItems = topGroupClause->GroupItems;
         for (const auto& groupItem : groupClause->GroupItems) {
             auto referenceExpr = New<TReferenceExpression>(
-                groupItem.Expression->Type,
+                groupItem.Expression->LogicalType,
                 groupItem.Name);
             finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
         }
@@ -56,7 +56,7 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         auto& finalAggregateItems = topGroupClause->AggregateItems;
         for (const auto& aggregateItem : groupClause->AggregateItems) {
             auto referenceExpr = New<TReferenceExpression>(
-                aggregateItem.Expression->Type,
+                aggregateItem.Expression->LogicalType,
                 aggregateItem.Name);
             finalAggregateItems.emplace_back(
                 std::move(referenceExpr),
@@ -236,4 +236,3 @@ TQueryStatistics CoordinateAndExecute(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
-
