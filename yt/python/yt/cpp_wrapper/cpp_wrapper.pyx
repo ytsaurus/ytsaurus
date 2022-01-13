@@ -7,6 +7,8 @@ from util.generic.string cimport TString
 
 from yt.wrapper.config import get_config
 from yt.wrapper.transaction import get_current_transaction_id
+from yt.wrapper.common import YtError
+from yt.wrapper.ypath import TablePath
 
 from yt import yson
 
@@ -78,7 +80,28 @@ class CppJob:
             yson.dumps(output_tables),
             yson.dumps(needed_columns),
         )
-        return state, yson.loads(patch)
+        spec_patch = yson.loads(patch)
+        if "input_table_paths" in spec_patch:
+            # If a job has proto input, we can get table paths with column filters here.
+            input_table_paths = spec_patch["input_table_paths"]
+            if len(input_table_paths) != len(input_tables):
+                raise YtError(
+                    "Length of input_table_paths provided from Python ({0}) differs from C++ patch ({1})."\
+                    " It's a bug. Contact yt@".format(
+                        len(input_tables),
+                        len(input_table_paths),
+                    )
+                )
+            for index, table in enumerate(input_table_paths):
+                new_table_path = TablePath(table, client=client)
+                old_table_path = TablePath(input_tables[index], client=client)
+
+                new_table_path.attributes.update(old_table_path.attributes)
+                input_tables[index] = new_table_path
+
+            del spec_patch["input_table_paths"]
+
+        return state, spec_patch
 
 
 def exec_cpp_job(args):
