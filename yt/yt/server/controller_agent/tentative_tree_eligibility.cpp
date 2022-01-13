@@ -93,20 +93,20 @@ void TTentativeTreeEligibility::OnJobStarted(const TString& treeId, bool tentati
     }
 }
 
-TJobFinishedResult TTentativeTreeEligibility::OnJobFinished(const TJobSummary& jobSummary, const TString& treeId, bool tentative)
+void TTentativeTreeEligibility::OnJobFinished(
+    const TJobSummary& jobSummary,
+    const TString& treeId,
+    bool tentative,
+    std::vector<TString>* newlyBannedTrees)
 {
     if (tentative) {
         ++FinishedJobsPerStatePerPoolTree_[treeId][jobSummary.State];
     }
 
-    TJobFinishedResult result;
-
     if (jobSummary.State == EJobState::Completed) {
         UpdateDurations(jobSummary, treeId, tentative);
-        result.NewlyBannedTrees = FindAndBanSlowTentativeTrees();
+        *newlyBannedTrees = FindAndBanSlowTentativeTrees();
     }
-
-    return result;
 }
 
 std::vector<TString> TTentativeTreeEligibility::FindAndBanSlowTentativeTrees()

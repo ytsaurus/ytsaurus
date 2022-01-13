@@ -873,15 +873,17 @@ protected:
             Controller_->CheckMergeStartThreshold();
 
             if (shuffleChunkPool->GetTotalDataSliceCount() > Controller_->Spec->MaxShuffleDataSliceCount) {
-                Controller_->OnOperationFailed(TError("Too many data slices in shuffle pool, try to decrease size of intermediate data or split operation into several smaller ones")
+                result.OperationFailedError = TError("Too many data slices in shuffle pool, try to decrease size of intermediate data or split operation into several smaller ones")
                     << TErrorAttribute("shuffle_data_slice_count", shuffleChunkPool->GetTotalDataSliceCount())
-                    << TErrorAttribute("max_shuffle_data_slice_count", Controller_->Spec->MaxShuffleDataSliceCount));
+                    << TErrorAttribute("max_shuffle_data_slice_count", Controller_->Spec->MaxShuffleDataSliceCount);
+                return result;
             }
 
             if (shuffleChunkPool->GetTotalJobCount() > Controller_->Spec->MaxShuffleJobCount) {
-                Controller_->OnOperationFailed(TError("Too many shuffle jobs, try to decrease size of intermediate data or split operation into several smaller ones")
+                result.OperationFailedError = TError("Too many shuffle jobs, try to decrease size of intermediate data or split operation into several smaller ones")
                     << TErrorAttribute("shuffle_job_count", shuffleChunkPool->GetTotalJobCount())
-                    << TErrorAttribute("max_shuffle_job_count", Controller_->Spec->MaxShuffleJobCount));
+                    << TErrorAttribute("max_shuffle_job_count", Controller_->Spec->MaxShuffleJobCount);
+                return result;
             }
 
             return result;
@@ -1415,7 +1417,11 @@ protected:
                 auto partitionIndex = *joblet->InputStripeList->PartitionTag;
                 const auto& partition = Controller_->GetFinalPartition(partitionIndex);
                 if (partition->ChunkPoolOutput->IsCompleted()) {
-                    Controller_->SortedMergeTask->OnIntermediateSortCompleted(partitionIndex);
+                    auto error = Controller_->SortedMergeTask->OnIntermediateSortCompleted(partitionIndex);
+                    if (!error.IsOK()) {
+                        result.OperationFailedError = error;
+                        return result;
+                    }
                 }
             }
 
@@ -1678,7 +1684,7 @@ protected:
             Controller_->UpdateTask(this);
         }
 
-        void OnIntermediateSortCompleted(int partitionIndex)
+        TError OnIntermediateSortCompleted(int partitionIndex)
         {
             YT_LOG_DEBUG(
                 "Intermediate sorting completed, finishing sorted merge chunk pool (PartitionIndex: %v)",
@@ -1693,11 +1699,12 @@ protected:
                     ex,
                     "Error while finishing input for sorted chunk pool (PartitionIndex: %v)",
                     partitionIndex);
-                Controller_->OnOperationFailed(
-                    TError("Error while finishing input for sorted chunk pool")
+                return TError("Error while finishing input for sorted chunk pool")
                         << ex
-                        << TErrorAttribute("partition_index", partitionIndex));
+                        << TErrorAttribute("partition_index", partitionIndex);
             }
+
+            return TError();
         }
 
         void Finalize()

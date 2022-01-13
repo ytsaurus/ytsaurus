@@ -6,7 +6,7 @@ from yt_commands import (
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context)
 
-from yt_helpers import skip_if_no_descending, profiler_factory
+from yt_helpers import skip_if_no_descending, profiler_factory, read_structured_log, write_log_barrier
 from yt.yson import to_yson_type
 from yt.common import YtError
 
@@ -522,6 +522,56 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
             op.track()
+
+    @authors("ignat")
+    def test_event_log_with_failed_on_job_restart(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": " ; ".join(
+                            [
+                                events_on_fs().notify_event_cmd("job_started_a"),
+                                events_on_fs().wait_event_cmd("finish_a"),
+                            ]
+                        ),
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": " ; ".join(
+                            [
+                                events_on_fs().notify_event_cmd("job_started_b"),
+                                events_on_fs().wait_event_cmd("finish_b"),
+                            ]
+                        ),
+                    },
+                },
+                "fail_on_job_restart": True,
+            },
+        )
+        events_on_fs().wait_event("job_started_a")
+        events_on_fs().wait_event("job_started_b")
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 2
+        job_id, other_job_id = jobs
+        abort_job(job_id)
+        events_on_fs().notify_event("finish_a")
+        events_on_fs().notify_event("finish_b")
+
+        wait(lambda: op.get_state() == "failed")
+
+        controller_agent_log_file = self.path_to_run + "/logs/controller-agent-0.json.log"
+        controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        controller_agent_barrier = write_log_barrier(controller_agent_address)
+
+        events = read_structured_log(controller_agent_log_file, to_barrier=controller_agent_barrier,
+                                     row_filter=lambda e: "event_type" in e)
+        aborted_job_events = {event["job_id"]: event for event in events if event["event_type"] == "job_aborted"}
+        assert len(aborted_job_events) == 2
+        assert aborted_job_events[job_id]["reason"] == "user_request"
+        assert aborted_job_events[other_job_id]["reason"] == "operation_failed"
 
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):

@@ -848,7 +848,9 @@ bool TTask::IsSimpleTask() const
 
 TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
-    auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
+    TJobFinishedResult result;
+
+    TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
 
     CompetitiveJobManager_.OnJobCompleted(joblet);
 
@@ -952,7 +954,9 @@ void TTask::ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot)
 
 TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 {
-    auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
+    TJobFinishedResult result;
+
+    TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
 
     TaskHost_->RegisterStderr(joblet, jobSummary);
     TaskHost_->RegisterCores(joblet, jobSummary);
@@ -973,7 +977,9 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
 
 TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
 {
-    auto result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
+    TJobFinishedResult result;
+
+    TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
 
     // NB: when job is aborted, you can never be sure that this is forever. Like in marriage. In future life (after
     // revival) it may become completed, and you will bite your elbows if you unstage its chunk lists too early (e.g.

@@ -132,7 +132,6 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert op.get_state() == "failed"
 
         job_counters = get(op.get_path() + "/@progress/jobs")
-        assert job_counters["pending"] == 0
         assert job_counters["failed"] == 1
         assert job_counters["total"] == 1
 
