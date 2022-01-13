@@ -292,7 +292,11 @@ TVolumeManagerConfig::TVolumeManagerConfig()
     RegisterParameter("test_disk_quota", TestDiskQuota)
         .Default(false);
 
-    RegisterParameter("tmpfs_layer_cache", TmpfsLayerCache)
+    RegisterParameter("regular_tmpfs_layer_cache", RegularTmpfsLayerCache)
+        .Alias("tmpfs_layer_cache")
+        .DefaultNew();
+
+    RegisterParameter("nirvana_tmpfs_layer_cache", NirvanaTmpfsLayerCache)
         .DefaultNew();
 }
 

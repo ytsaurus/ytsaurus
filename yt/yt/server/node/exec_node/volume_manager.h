@@ -38,7 +38,9 @@ struct IVolumeManager
 
 DEFINE_REFCOUNTED_TYPE(IVolumeManager)
 
-IVolumeManagerPtr CreatePortoVolumeManager(
+//! Porto volume manager initialization invokes a number of async operations
+//! including population of on-disk and tmpfs layer cache.
+TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
     NDataNode::TVolumeManagerConfigPtr config,
     IBootstrap* bootstrap);
 
