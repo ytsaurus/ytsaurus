@@ -424,7 +424,7 @@ TFuture<ITransactionPtr> StartAlienTransaction(
 
 bool TCheckClusterLivenessOptions::IsCheckTrivial() const
 {
-    return !CheckCypressRoot;
+    return !CheckCypressRoot && !CheckSecondaryMasterCells;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

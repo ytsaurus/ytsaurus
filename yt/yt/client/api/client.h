@@ -1313,7 +1313,10 @@ struct TPutFileToCacheResult
 struct TCheckClusterLivenessOptions
     : public TTimeoutOptions
 {
+    //! Checks cypress root availability.
     bool CheckCypressRoot = false;
+    //! Checks secondary master cells generic availability.
+    bool CheckSecondaryMasterCells = false;
 
     bool IsCheckTrivial() const;
 };

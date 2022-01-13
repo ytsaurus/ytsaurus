@@ -196,8 +196,10 @@ protected:
 private:
     TFuture<void> CheckClusterLiveness(const TClusterStateKey& key) const
     {
-        TCheckClusterLivenessOptions options;
-        options.CheckCypressRoot = true;
+        TCheckClusterLivenessOptions options{
+            .CheckCypressRoot = true,
+            .CheckSecondaryMasterCells = true,
+        };
         return key.Client->CheckClusterLiveness(options)
             .Apply(BIND([clusterName = key.ClusterName] (const TError& result) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking cluster %Qlv liveness",

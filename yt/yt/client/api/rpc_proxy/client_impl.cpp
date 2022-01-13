@@ -1251,6 +1251,7 @@ TFuture<void> TClient::CheckClusterLiveness(
     SetTimeoutOptions(*req, options);
 
     req->set_check_cypress_root(options.CheckCypressRoot);
+    req->set_check_secondary_master_cells(options.CheckSecondaryMasterCells);
 
     return req->Invoke().As<void>();
 }

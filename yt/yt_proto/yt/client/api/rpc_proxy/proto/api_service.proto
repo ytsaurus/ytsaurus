@@ -2044,6 +2044,7 @@ message TRspTransferPoolResources
 message TReqCheckClusterLiveness
 {
     required bool check_cypress_root = 1;
+    optional bool check_secondary_master_cells = 2;
 }
 
 message TRspCheckClusterLiveness
