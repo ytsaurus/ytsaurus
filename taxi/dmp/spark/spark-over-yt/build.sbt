@@ -132,7 +132,10 @@ lazy val `data-source` = (project in file("data-source"))
     },
     assembly / assemblyShadeRules ++= clientShadeRules,
     assembly / test := {},
-    pythonDeps := Seq("jars" -> (`spark-submit` / assembly).value)
+    pythonDeps := {
+      val binBasePath = sourceDirectory.value / "main" / "bin"
+      ("jars" -> (`spark-submit` / assembly).value) +: binBasePath.listFiles().map(f => "bin" -> f)
+    }
   )
 
 lazy val `file-system` = (project in file("file-system"))

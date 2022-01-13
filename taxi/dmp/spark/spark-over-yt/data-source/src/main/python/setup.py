@@ -6,7 +6,7 @@ ver_path = convert_path('spyt/version.py')
 with open(ver_path) as ver_file:
     exec(ver_file.read())
 
-SCRIPTS_PATH = convert_path('../bin')
+SCRIPTS_PATH = convert_path('deps/bin')
 scripts = [os.path.join(SCRIPTS_PATH, x) for x in os.listdir(SCRIPTS_PATH)
            if os.path.isfile(os.path.join(SCRIPTS_PATH, x))]
 
