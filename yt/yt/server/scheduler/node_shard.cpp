@@ -2376,8 +2376,11 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
 
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
-        const auto& controller = operationState->Controller;
-        controller->OnJobRunning(job, status, shouldLogJob);
+        // COMPAT(pogorelov)
+        if (Config_->SendRunningJobEvents || status->has_statistics()) {
+            const auto& controller = operationState->Controller;
+            controller->OnJobRunning(job, status, shouldLogJob);
+        }
 
         auto it = JobsToSubmitToStrategy_.find(job->GetId());
         if (it == JobsToSubmitToStrategy_.end() || it->second.Status != EJobUpdateStatus::Finished) {

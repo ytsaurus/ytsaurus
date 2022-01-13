@@ -169,6 +169,7 @@ b"""
         operations_cleaner = {
             parse_operation_attributes_batch_size = 2;
         };
+        send_running_job_events = %false;
     };
 }
 """)
