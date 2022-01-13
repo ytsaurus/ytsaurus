@@ -460,7 +460,8 @@ public:
         return NChunkClient::CreateChunkFragmentReader(
             tablet->GetSettings().HunkReaderConfig,
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetHintManager());
+            Bootstrap_->GetHintManager(),
+            TabletNodeProfiler.WithPrefix("/chunk_fragment_reader"));
     }
 
 private:

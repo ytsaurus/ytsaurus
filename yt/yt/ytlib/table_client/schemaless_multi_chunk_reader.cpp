@@ -155,7 +155,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     auto chunkFragmentReader = CreateChunkFragmentReader(
         std::move(chunkFragmentReaderConfig),
         client,
-        std::move(nodeStatusDirectory));
+        std::move(nodeStatusDirectory),
+        /*profiler*/ {});
 
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
