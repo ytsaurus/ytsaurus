@@ -321,7 +321,8 @@ public:
 
     bool TestDiskQuota;
 
-    TTmpfsLayerCacheConfigPtr TmpfsLayerCache;
+    TTmpfsLayerCacheConfigPtr RegularTmpfsLayerCache;
+    TTmpfsLayerCacheConfigPtr NirvanaTmpfsLayerCache;
 
     TVolumeManagerConfig();
 };

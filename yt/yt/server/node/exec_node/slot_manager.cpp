@@ -455,9 +455,15 @@ void TSlotManager::AsyncInitialize()
     // during root volume manager initialization.
     auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-        RootVolumeManager_ = CreatePortoVolumeManager(
+        auto volumeManagerOrError = WaitFor(CreatePortoVolumeManager(
             Bootstrap_->GetConfig()->DataNode->VolumeManager,
-            Bootstrap_);
+            Bootstrap_));
+        if (volumeManagerOrError.IsOK()) {
+            RootVolumeManager_ = volumeManagerOrError.Value();
+        } else {
+            auto error =  TError("Failed to initialize volume manager") << volumeManagerOrError;
+            Disable(error);
+        }
     }
 
     UpdateAliveLocations();

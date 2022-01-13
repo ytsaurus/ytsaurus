@@ -1,11 +1,14 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, remove, link,
-    write_file, write_table,
+    authors, wait, create, ls, get, set, remove, link, exists,
+    write_file, write_table, get_job,
     map, wait_for_nodes)
 
 from yt.common import YtError
+import yt.yson as yson
+
+from yt_helpers import profiler_factory
 
 import pytest
 
@@ -186,9 +189,12 @@ class TestTmpfsLayerCache(YTEnvSetup):
         },
         "data_node": {
             "volume_manager": {
-                "tmpfs_layer_cache": {
+                "regular_tmpfs_layer_cache": {
                     "capacity": 10 * 1024 * 1024,
-                    "layers_directory_path": "//tmp/cached_layers",
+                    "layers_update_period": 100,
+                },
+                "nirvana_tmpfs_layer_cache": {
+                    "capacity": 10 * 1024 * 1024,
                     "layers_update_period": 100,
                 }
             }
@@ -214,13 +220,31 @@ class TestTmpfsLayerCache(YTEnvSetup):
         orchid_path = "orchid/job_controller/slot_manager/root_volume_manager"
 
         for node in ls("//sys/cluster_nodes"):
-            assert get("//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(node, orchid_path)) == 0
+            assert get("//sys/cluster_nodes/{0}/{1}/regular_tmpfs_cache/layer_count".format(node, orchid_path)) == 0
+            assert get("//sys/cluster_nodes/{0}/{1}/nirvana_tmpfs_cache/layer_count".format(node, orchid_path)) == 0
 
         create("map_node", "//tmp/cached_layers")
         link("//tmp/layer1", "//tmp/cached_layers/layer1")
 
+        with Restarter(self.Env, NODES_SERVICE):
+            # First we create cypress map node for cached layers,
+            # and then add it to node config with node restart.
+            # Otherwise environment starter will consider node as dead, since
+            # it will not be able to initialize tmpfs layer cache and will
+            # report zero user job slots.
+            for i, config in enumerate(self.Env.configs["node"]):
+                config["data_node"]["volume_manager"]["regular_tmpfs_layer_cache"]["layers_directory_path"] = "//tmp/cached_layers"
+                config["data_node"]["volume_manager"]["nirvana_tmpfs_layer_cache"]["layers_directory_path"] = "//tmp/cached_layers"
+                config_path = self.Env.config_paths["node"][i]
+                with open(config_path, "wb") as fout:
+                    yson.dump(config, fout)
+
+        wait_for_nodes()
         for node in ls("//sys/cluster_nodes"):
-            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(node, orchid_path)) == 1)
+            # After node restart we must wait for async root volume manager initialization.
+            wait(lambda: exists("//sys/cluster_nodes/{0}/{1}".format(node, orchid_path)))
+            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/regular_tmpfs_cache/layer_count".format(node, orchid_path)) == 1)
+            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/nirvana_tmpfs_cache/layer_count".format(node, orchid_path)) == 1)
 
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
@@ -241,12 +265,19 @@ class TestTmpfsLayerCache(YTEnvSetup):
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
-        for job_id in job_ids:
-            assert b"static-bin" in op.read_stderr(job_id)
+        job_id = job_ids[0]
+        assert b"static-bin" in op.read_stderr(job_id)
+
+        job = get_job(op.id, job_id)
+        regular_cache_hits = profiler_factory().at_node(job["address"]).get("exec_node/layer_cache/tmpfs_cache_hits", {"cache_name": "regular"})
+        nirvana_cache_hits = profiler_factory().at_node(job["address"]).get("exec_node/layer_cache/tmpfs_cache_hits", {"cache_name": "nirvana"})
+
+        assert regular_cache_hits > 0 or nirvana_cache_hits > 0
 
         remove("//tmp/cached_layers/layer1")
         for node in ls("//sys/cluster_nodes"):
-            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(node, orchid_path)) == 0)
+            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/regular_tmpfs_cache/layer_count".format(node, orchid_path)) == 0)
+            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/nirvana_tmpfs_cache/layer_count".format(node, orchid_path)) == 0)
 
 
 @authors("mrkastep")
