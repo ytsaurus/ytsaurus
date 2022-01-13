@@ -50,7 +50,8 @@ DEFINE_REFCOUNTED_TYPE(IChunkFragmentReader)
 IChunkFragmentReaderPtr CreateChunkFragmentReader(
     TChunkFragmentReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
-    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory);
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
+    const NProfiling::TProfiler& profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

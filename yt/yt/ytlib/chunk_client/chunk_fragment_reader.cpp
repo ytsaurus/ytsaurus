@@ -83,7 +83,8 @@ public:
     TChunkFragmentReader(
         TChunkFragmentReaderConfigPtr config,
         IClientPtr client,
-        INodeStatusDirectoryPtr nodeStatusDirectory)
+        INodeStatusDirectoryPtr nodeStatusDirectory,
+        const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
         , Client_(std::move(client))
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
@@ -118,6 +119,7 @@ public:
             }),
             Config_->PeerInfoExpirationTimeout,
             ReaderInvoker_))
+        , BackgroundProbingRequestCounter_(profiler.Counter("/background_probing_request_count"))
     {
         SchedulePeriodicUpdate();
     }
@@ -153,6 +155,8 @@ private:
 
     const TChunkReplicaLocatorCachePtr ChunkReplicaLocatorCache_;
     const TPeerInfoCachePtr PeerInfoCache_;
+
+    NProfiling::TCounter BackgroundProbingRequestCounter_;
 
     // TODO(akozhikhov): Implement lock sharding.
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ChunkIdToPeerAccessInfoLock_);
@@ -1379,6 +1383,7 @@ private:
         std::vector<int> chunkBestNodeIndex(ChunkIds_.size(), -1);
         std::vector<double> chunkLowestProbingPenalty(ChunkIds_.size());
 
+        int successfulProbingRequestCount = 0;
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             const auto& probingInfo = probingInfos[nodeIndex];
             const auto& peerInfoOrError = probingInfo.PeerInfoOrError;
@@ -1413,6 +1418,7 @@ private:
 
                 // TODO(akozhikhov): Don't invalidate upon specific errors like RequestQueueSizeLimitExceeded.
                 Reader_->PeerInfoCache_->Invalidate(probingInfo.NodeId);
+
                 continue;
             } else if (suspicionMarkTime) {
                 YT_LOG_DEBUG("Node is not suspicious anymore (NodeId: %v, Address: %v)",
@@ -1425,6 +1431,7 @@ private:
                     suspicionMarkTime);
             }
 
+            ++successfulProbingRequestCount;
             const auto& probingResult = probingResultOrError.Value();
             YT_VERIFY(std::ssize(probingInfo.ChunkIndexes) == probingResult->subresponses_size());
 
@@ -1455,6 +1462,8 @@ private:
                 }
             }
         }
+
+        Reader_->BackgroundProbingRequestCounter_.Increment(successfulProbingRequestCount);
 
         {
             auto readerGuard = ReaderGuard(Reader_->ChunkIdToPeerAccessInfoLock_);
@@ -1566,12 +1575,14 @@ void TChunkFragmentReader::RunPeriodicUpdate()
 IChunkFragmentReaderPtr CreateChunkFragmentReader(
     TChunkFragmentReaderConfigPtr config,
     IClientPtr client,
-    INodeStatusDirectoryPtr nodeStatusDirectory)
+    INodeStatusDirectoryPtr nodeStatusDirectory,
+    const NProfiling::TProfiler& profiler)
 {
     return New<TChunkFragmentReader>(
         std::move(config),
         std::move(client),
-        std::move(nodeStatusDirectory));
+        std::move(nodeStatusDirectory),
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
