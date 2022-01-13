@@ -42,6 +42,14 @@ using TVertexDescriptorList = TCompactVector<TDataFlowGraph::TVertexDescriptor, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobFinishedResult
+{
+    std::vector<TString> NewlyBannedTrees;
+    TError OperationFailedError;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTask
     : public TRefCounted
     , public IPersistent

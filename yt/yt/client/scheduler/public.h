@@ -99,6 +99,8 @@ DEFINE_ENUM(EAbortReason,
     ((ShallowMergeFailed)              ( 22))
     ((InconsistentJobState)            ( 23))
     ((JobStatisticsWaitTimeout)        ( 24))
+    ((OperationFailed)                 ( 25))
+    ((JobRevivalDisabled)              ( 26))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))

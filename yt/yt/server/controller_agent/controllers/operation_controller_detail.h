@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "task_host.h"
+#include "task.h"
 #include "helpers.h"
 #include "extended_job_resources.h"
 #include "aggregated_job_statistics.h"
@@ -995,7 +996,7 @@ protected:
 
     void FinishTaskInput(const TTaskPtr& task);
 
-    void AbortAllJoblets();
+    void AbortAllJoblets(EAbortReason abortReason);
 
     void InitInputStreamDirectory();
     const NChunkPools::TInputStreamDirectory& GetInputStreamDirectory() const;
@@ -1322,7 +1323,9 @@ private:
 
     void BuildTestingState(NYTree::TFluentAny fluent) const;
 
-    void ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
+    void OnJobFinished(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
+
+    void ProcessJobFinishedResult(const TJobFinishedResult& result);
 
     void BuildJobAttributes(
         const TJobInfoPtr& job,

@@ -15,13 +15,6 @@ namespace NYT::NControllerAgent {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TJobFinishedResult
-{
-    std::vector<TString> NewlyBannedTrees;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! This class encapsulates everything a task needs to know in order to decide
 //! whether it's allowed to launch jobs in a tentative tree.
 /*!
@@ -46,10 +39,11 @@ public:
     //! No jobs in tentative trees can start after call to this method.
     void Disable();
 
-    TJobFinishedResult OnJobFinished(
+    void OnJobFinished(
         const TJobSummary& jobSummary,
         const TString& treeId,
-        bool tentative);
+        bool tentative,
+        std::vector<TString>* newlyBannedTrees);
 
     std::vector<TString> FindAndBanSlowTentativeTrees();
 

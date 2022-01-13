@@ -1216,7 +1216,14 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     ReinstallLivePreview();
 
     if (!Config->EnableJobRevival) {
-        AbortAllJoblets();
+        if (Spec_->FailOnJobRestart && !JobletMap.empty()) {
+            OnOperationFailed(TError(
+                NScheduler::EErrorCode::OperationFailedOnJobRestart,
+                "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" spec option is set"));
+            return result;
+        }
+
+        AbortAllJoblets(EAbortReason::JobRevivalDisabled);
     }
 
     CheckTimeLimitExecutor->Start();
@@ -1252,16 +1259,16 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     return result;
 }
 
-void TOperationControllerBase::AbortAllJoblets()
+void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
 {
-    if (Spec_->FailOnJobRestart && !JobletMap.empty()) {
-        OnOperationFailed(TError(
-            NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" spec option is set"));
-    }
-
     for (const auto& [jobId, joblet] : JobletMap) {
-        auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
+        auto jobSummary = TAbortedJobSummary(jobId, abortReason);
+        {
+            ParseStatistics(&jobSummary, joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
+            auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet, jobSummary)
+                .Item("reason").Value(abortReason);
+            UpdateJobStatistics(joblet, jobSummary);
+        }
         joblet->Task->OnJobAborted(joblet, jobSummary);
     }
     JobletMap.clear();
@@ -2818,12 +2825,28 @@ void TOperationControllerBase::InitializeSecurityTags()
     }
 }
 
+void TOperationControllerBase::ProcessJobFinishedResult(const TJobFinishedResult& result)
+{
+    if (!result.OperationFailedError.IsOK()) {
+        OnOperationFailed(result.OperationFailedError);
+    }
+        
+    for (const auto& treeId : result.NewlyBannedTrees) {
+        MaybeBanInTentativeTree(treeId);
+    }
+}
+
 void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
     const auto jobId = jobSummary->Id;
     const auto abandoned = jobSummary->Abandoned;
+
+    if (State != EControllerState::Running && State != EControllerState::Failing) {
+        YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
+        return;
+    }
 
     if (ExpectsJobInfoSeparately(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
         ProcessJobSummaryFromScheduler(std::move(jobSummary));
@@ -2888,63 +2911,63 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         return;
     }
 
-    // NB: We should not explicitly tell node to remove abandoned job because it may be still
-    // running at the node.
-    if (!abandoned) {
-        CompletedJobIdsReleaseQueue_.Push(jobId);
-    }
-
-    if (State != EControllerState::Running) {
-        YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
-        return;
-    }
-
-    YT_LOG_DEBUG("Job completed (JobId: %v, StatisticsSize: %v, ResultSize: %v)",
-        jobId,
-        jobSummary->StatisticsYson ? jobSummary->StatisticsYson.AsStringBuf().size() : 0,
-        jobSummary->Result.ByteSizeLong());
-
-    if (jobSummary->InterruptReason != EInterruptReason::None) {
-        ExtractInterruptDescriptor(*jobSummary, joblet);
-    }
-
-    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
-
-    const auto& statistics = *jobSummary->Statistics;
-
-    joblet->Task->UpdateMemoryDigests(joblet, statistics, /*resourceOverdraft*/ false);
-    UpdateActualHistogram(statistics);
-
-    FinalizeJoblet(joblet, jobSummary.get());
-    LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
-
-    UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
-    UpdateJobStatistics(joblet, *jobSummary);
-
-    auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
-    for (const auto& treeId : taskResult.NewlyBannedTrees) {
-        MaybeBanInTentativeTree(treeId);
-    }
-
-    if (!abandoned) {
-        if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation ||
-            jobSummary->TimeStatistics.ExecDuration.value_or(TDuration()) > Config->MinJobDurationToArchiveJobSpec) &&
-           JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
-        {
-            ++JobSpecCompletedArchiveCount_;
-            jobSummary->ReleaseFlags.ArchiveJobSpec = true;
-        }
-    }
-
-    // We want to know row count before moving jobSummary to ProcessFinishedJobResult.
+    TJobFinishedResult taskResult;
     std::optional<i64> optionalRowCount;
-    if (RowCountLimitTableIndex) {
-        optionalRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
+
+    {
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        // NB: We should not explicitly tell node to remove abandoned job because it may be still
+        // running at the node.
+        if (!abandoned) {
+            CompletedJobIdsReleaseQueue_.Push(jobId);
+        }
+
+        YT_LOG_DEBUG("Job completed (JobId: %v, StatisticsSize: %v, ResultSize: %v)",
+            jobId,
+            jobSummary->StatisticsYson ? jobSummary->StatisticsYson.AsStringBuf().size() : 0,
+            jobSummary->Result.ByteSizeLong());
+
+        if (jobSummary->InterruptReason != EInterruptReason::None) {
+            ExtractInterruptDescriptor(*jobSummary, joblet);
+        }
+
+        ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
+
+        const auto& statistics = *jobSummary->Statistics;
+
+        joblet->Task->UpdateMemoryDigests(joblet, statistics, /*resourceOverdraft*/ false);
+        UpdateActualHistogram(statistics);
+
+        FinalizeJoblet(joblet, jobSummary.get());
+        LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
+
+        UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
+        UpdateJobStatistics(joblet, *jobSummary);
+
+        taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
+
+        if (!abandoned) {
+            if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation ||
+                jobSummary->TimeStatistics.ExecDuration.value_or(TDuration()) > Config->MinJobDurationToArchiveJobSpec) &&
+               JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
+            {
+                ++JobSpecCompletedArchiveCount_;
+                jobSummary->ReleaseFlags.ArchiveJobSpec = true;
+            }
+        }
+
+        // We want to know row count before moving jobSummary to OnJobFinished.
+        if (RowCountLimitTableIndex) {
+            optionalRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
+        }
+
+        OnJobFinished(std::move(jobSummary), /*retainJob*/ false);
+
+        UnregisterJoblet(joblet);
     }
 
-    ProcessFinishedJobResult(std::move(jobSummary), /*retainJob*/ false);
-
-    UnregisterJoblet(joblet);
+    ProcessJobFinishedResult(taskResult);
 
     UpdateTask(joblet->Task);
 
@@ -2983,6 +3006,11 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     const auto jobId = jobSummary->Id;
 
+    if (State != EControllerState::Running && State != EControllerState::Failing) {
+        YT_LOG_DEBUG("Stale job failed, ignored (JobId: %v)", jobId);
+        return;
+    }
+
     if (ExpectsJobInfoSeparately(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
         ProcessJobSummaryFromScheduler(std::move(jobSummary));
         if (HasFullFinishedJobInfo(jobId)) {
@@ -2996,8 +3024,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         RemoveFinishedJobInfo(jobId);
     });
 
-    const auto& result = jobSummary->Result;
-
     auto joblet = GetJoblet(jobId);
     if (Spec_->IgnoreJobFailuresAtBannedNodes && BannedNodeIds_.find(joblet->NodeDescriptor.Id) != BannedNodeIds_.end()) {
         YT_LOG_DEBUG("Job is considered aborted since it has failed at a banned node "
@@ -3009,29 +3035,37 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         return;
     }
 
-    ++FailedJobCount_;
+    const auto& result = jobSummary->Result;
 
-    auto error = FromProto<TError>(result.error());
+    TJobFinishedResult taskResult;
+    TError error;
 
-    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
+    {
+        TForbidContextSwitchGuard contextSwitchGuard;
 
-    FinalizeJoblet(joblet, jobSummary.get());
-    LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
-        .Item("error").Value(error);
+        ++FailedJobCount_;
 
-    UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
-    UpdateJobStatistics(joblet, *jobSummary);
+        error = FromProto<TError>(result.error());
 
-    auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
-    for (const auto& treeId : taskResult.NewlyBannedTrees) {
-        MaybeBanInTentativeTree(treeId);
+        ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
+
+        FinalizeJoblet(joblet, jobSummary.get());
+        LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
+            .Item("error").Value(error);
+
+        UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
+        UpdateJobStatistics(joblet, *jobSummary);
+
+        taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
+
+        jobSummary->ReleaseFlags.ArchiveJobSpec = true;
+
+        OnJobFinished(std::move(jobSummary), /*retainJob*/ true);
+
+        UnregisterJoblet(joblet);
     }
 
-    jobSummary->ReleaseFlags.ArchiveJobSpec = true;
-
-    ProcessFinishedJobResult(std::move(jobSummary), /*retainJob*/ true);
-
-    UnregisterJoblet(joblet);
+    ProcessJobFinishedResult(taskResult);
 
     auto finally = Finally(
         [&] () {
@@ -3095,6 +3129,11 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     const auto jobId = jobSummary->Id;
 
+    if (State != EControllerState::Running && State != EControllerState::Failing) {
+        YT_LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
+        return;
+    }
+
     if (ExpectsJobInfoSeparately(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
         ProcessJobSummaryFromScheduler(std::move(jobSummary));
         if (HasFullFinishedJobInfo(jobId)) {
@@ -3110,52 +3149,52 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     auto abortReason = jobSummary->AbortReason;
 
-    if (State != EControllerState::Running) {
-        YT_LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
-        return;
-    }
-
     YT_LOG_DEBUG("Job aborted (JobId: %v)", jobId);
 
     auto joblet = GetJoblet(jobId);
 
-    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
-    const auto& statistics = *jobSummary->Statistics;
+    TJobFinishedResult taskResult;
 
-    if (abortReason == EAbortReason::ResourceOverdraft) {
-        joblet->Task->UpdateMemoryDigests(joblet, statistics, /*resourceOverdraft*/ true);
-    }
+    {
+        TForbidContextSwitchGuard contextSwitchGuard;
 
-    if (jobSummary->LogAndProfile) {
-        FinalizeJoblet(joblet, jobSummary.get());
-        auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
-            .Item("reason").Value(abortReason);
-        if (jobSummary->PreemptedFor) {
-            fluent
-                .Item("preempted_for").Value(jobSummary->PreemptedFor);
+        ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
+        const auto& statistics = *jobSummary->Statistics;
+
+        if (abortReason == EAbortReason::ResourceOverdraft) {
+            joblet->Task->UpdateMemoryDigests(joblet, statistics, /*resourceOverdraft*/ true);
         }
-        UpdateJobStatistics(joblet, *jobSummary);
-    }
 
-    UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
-
-    if (abortReason == EAbortReason::FailedChunks) {
-        const auto& result = jobSummary->Result;
-        const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-        for (auto chunkId : schedulerResultExt.failed_chunk_ids()) {
-            OnChunkFailed(FromProto<TChunkId>(chunkId));
+        if (jobSummary->LogAndProfile) {
+            FinalizeJoblet(joblet, jobSummary.get());
+            auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
+                .Item("reason").Value(abortReason);
+            if (jobSummary->PreemptedFor) {
+                fluent
+                    .Item("preempted_for").Value(jobSummary->PreemptedFor);
+            }
+            UpdateJobStatistics(joblet, *jobSummary);
         }
+
+        UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
+
+        if (abortReason == EAbortReason::FailedChunks) {
+            const auto& result = jobSummary->Result;
+            const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            for (auto chunkId : schedulerResultExt.failed_chunk_ids()) {
+                OnChunkFailed(FromProto<TChunkId>(chunkId));
+            }
+        }
+
+        taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
+
+        bool retainJob = (abortReason == EAbortReason::UserRequest);
+        OnJobFinished(std::move(jobSummary), retainJob);
+
+        UnregisterJoblet(joblet);
     }
 
-    auto taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
-    for (const auto& treeId : taskResult.NewlyBannedTrees) {
-        MaybeBanInTentativeTree(treeId);
-    }
-
-    bool retainJob = (abortReason == EAbortReason::UserRequest);
-    ProcessFinishedJobResult(std::move(jobSummary), retainJob);
-
-    UnregisterJoblet(joblet);
+    ProcessJobFinishedResult(taskResult);
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart && !IsJobAbsenceGuaranteed(abortReason))
@@ -4992,6 +5031,8 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
         }
         State = EControllerState::Failed;
 
+        AbortAllJoblets(EAbortReason::OperationFailed);
+
         for (const auto& task : Tasks) {
             task->StopTiming();
         }
@@ -5157,7 +5198,7 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
     OnOperationFailed(error);
 }
 
-void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool retainJob)
+void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summary, bool retainJob)
 {
     auto jobId = summary->Id;
 
