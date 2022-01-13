@@ -872,7 +872,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
 
     // An arbitrary replica that violates consistent placement requirements - per medium.
-    TMediumMap<TNode*> inconsistentlyPlacedReplica;
+    TMediumMap<TNodePtrWithIndexes> inconsistentlyPlacedReplica;
 
     TMediumIntMap replicaCount;
     TMediumIntMap decommissionedReplicaCount;
@@ -921,7 +921,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
                 mediumConsistentPlacementNodes.end(),
                 node) == mediumConsistentPlacementNodes.end())
             {
-                inconsistentlyPlacedReplica[mediumIndex] = node;
+                inconsistentlyPlacedReplica[mediumIndex] = TNodePtrWithIndexes(node, GenericChunkReplicaIndex, mediumIndex);
             }
         }
     }
@@ -1019,7 +1019,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
     bool hasSealedReplica,
     bool totallySealed,
     bool hasUnsafelyPlacedReplica,
-    TNode* inconsistentlyPlacedReplica)
+    TNodePtrWithIndexes inconsistentlyPlacedReplica)
 {
     auto replicationFactor = replicationPolicy.GetReplicationFactor();
 
@@ -1041,25 +1041,22 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
 
         if (totallySealed) {
             if (decommissionedReplicaCount > 0 && replicaCount + decommissionedReplicaCount > replicationFactor) {
-                // A replica may be "decommissioned" either because its node is
-                // decommissioned or that node holds another part of the chunk (and that's
-                // not allowed by the configuration).
-                // TODO(shakurov): this is unintuitive. Express clashes explicitly.
-
-                // NB: for consistently placed chunks, replica clashes should be
-                // handled with care: it matters which replica gets removed.
-                for (auto replica : decommissionedReplicas) {
-                    if (IsReplicaDecommissioned(replica) ||
-                        !inconsistentlyPlacedReplica ||
-                        inconsistentlyPlacedReplica == replica.GetPtr())
-                    {
-                        result.Status |= EChunkStatus::Overreplicated;
-                        result.DecommissionedRemovalReplicas.push_back(replica);
-                    }
+                result.Status |= EChunkStatus::Overreplicated;
+                if (inconsistentlyPlacedReplica) {
+                    result.DecommissionedRemovalReplicas.push_back(inconsistentlyPlacedReplica);
+                } else {
+                    result.DecommissionedRemovalReplicas.insert(
+                        result.DecommissionedRemovalReplicas.end(),
+                        decommissionedReplicas.begin(),
+                        decommissionedReplicas.end());
                 }
             } else if (replicaCount > replicationFactor) {
                 result.Status |= EChunkStatus::Overreplicated;
-                result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
+                if (inconsistentlyPlacedReplica) {
+                    result.DecommissionedRemovalReplicas.push_back(inconsistentlyPlacedReplica);
+                } else {
+                    result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
+                }
             }
         }
     }
@@ -1591,7 +1588,7 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
 
                     if (chunksBeingRemoved.contains(chunkIdWithIndexes)) {
                         YT_LOG_ALERT(
-                            "Trying to schedule a removal job for a chunk, that is already being removed (ChunkId: %v)",
+                            "Trying to schedule a removal job for a chunk that is already being removed (ChunkId: %v)",
                             chunkIdWithIndexes);
                         mediumIndexSet.reset(mediumIndex);
                         continue;

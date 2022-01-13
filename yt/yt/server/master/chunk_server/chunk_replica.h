@@ -58,6 +58,8 @@ public:
         int mediumIndex,
         EChunkReplicaState state = EChunkReplicaState::Generic);
 
+    explicit operator bool() const;
+
     T* GetPtr() const;
     int GetReplicaIndex() const;
     int GetMediumIndex() const;

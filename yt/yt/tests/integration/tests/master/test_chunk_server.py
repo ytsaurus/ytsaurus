@@ -525,6 +525,8 @@ class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
 
 
 class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBase):
+    NUM_TEST_PARTITIONS = 3
+
     @authors("shakurov")
     def test_token_count_attribute(self):
         set("//sys/@config/chunk_manager/consistent_replica_placement", {
@@ -596,6 +598,8 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
     @pytest.mark.parametrize("trouble_mode", ["banned", "decommissioned", "disable_write_sessions"])
     # TODO(shakurov): @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_3_3"])
     def test_node_trouble(self, trouble_mode):
+        self._disable_token_redistribution()
+
         self._create_table_with_two_consistently_placed_chunks("//tmp/t5", {"erasure_codec": "none"})
         chunk_ids = get("//tmp/t5/@chunk_ids")
 
@@ -621,11 +625,13 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
             return self._are_chunk_replicas_collocated(chunk0_replicas, chunk1_replicas)
 
         # Decommissioning may take some time.
-        wait(are_chunks_collocated, iter=120, sleep_backoff=1.0)
+        wait(are_chunks_collocated, iter=30, sleep_backoff=1.0)
 
     @authors("shakurov")
     @pytest.mark.parametrize("trouble_mode", ["banned", "decommissioned", "disable_write_sessions"])
     def test_troubled_node_restart(self, trouble_mode):
+        self._disable_token_redistribution()
+
         self._create_table_with_two_consistently_placed_chunks("//tmp/t5")
         chunk_ids = get("//tmp/t5/@chunk_ids")
 
@@ -730,6 +736,7 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
 
     @authors("shakurov")
     def test_replica_count_change(self):
+        self._disable_token_redistribution()
 
         self._create_table_with_two_consistently_placed_chunks("//tmp/t10")
         regular_chunk_ids = get("//tmp/t10/@chunk_ids")
