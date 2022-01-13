@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, create, ls, get, set, exists,
     create_medium, write_file,
     read_table, write_table, write_journal, wait_until_sealed,
-    get_singular_chunk_id,
+    get_singular_chunk_id, raises_yt_error,
     set_account_disk_space_limit, get_account_disk_space_limit, get_media)
 
 from yt.common import YtError
@@ -691,15 +691,23 @@ class TestDynamicMedia(YTEnvSetup):
             location1,
         ]
 
+    def _get_locations(self, node):
+        return {
+            location["location_uuid"]: location
+            for location in get(node + "/@statistics/locations")
+        }
+
+    def _get_non_existent_location(self, node):
+        locations = self._get_locations(node)
+        for i in range(2**10):
+            location_uuid = "1-1-1-{}".format(hex(i)[2:])
+            if location_uuid not in locations:
+                return location_uuid
+        assert False, "BINGO!!!"
+
     @authors("kvk1920")
     def test_medium_change_simple(self):
         node = "//sys/data_nodes/" + ls("//sys/data_nodes")[0]
-
-        def get_locations():
-            return {
-                location["location_uuid"]: location
-                for location in get(node + "/@statistics/locations")
-            }
 
         medium_name = "testmedium"
         if not exists("//sys/media/" + medium_name):
@@ -709,37 +717,71 @@ class TestDynamicMedia(YTEnvSetup):
         create("table", table, attributes={"replication_factor": 1})
         write_table(table, {"foo": "bar"}, table_writer={"upload_replication_factor": 1})
 
-        location1, location2 = get_locations().keys()
+        location1, location2 = self._get_locations(node).keys()
 
-        wait(lambda: sum(map(lambda location: location["chunk_count"], get_locations().values())) == 1)
+        wait(lambda: sum(map(lambda location: location["chunk_count"], self._get_locations(node).values())) == 1)
 
         set(node + "/@medium_overrides", {location1: medium_name})
 
-        wait(lambda: get_locations()[location1]["medium_name"] == medium_name)
-        assert get_locations()[location2]["medium_name"] == "default"
+        wait(lambda: self._get_locations(node)[location1]["medium_name"] == medium_name)
+        assert self._get_locations(node)[location2]["medium_name"] == "default"
 
-        wait(lambda: get_locations()[location1]["chunk_count"] == 0)
-        assert get_locations()[location2]["chunk_count"] == 1
+        wait(lambda: self._get_locations(node)[location1]["chunk_count"] == 0)
+        assert self._get_locations(node)[location2]["chunk_count"] == 1
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
-        assert get_locations()[location1]["medium_name"] == medium_name
-        assert get_locations()[location2]["medium_name"] == "default"
+        assert self._get_locations(node)[location1]["medium_name"] == medium_name
+        assert self._get_locations(node)[location2]["medium_name"] == "default"
 
         set(node + "/@medium_overrides", {location2: medium_name})
 
-        wait(lambda: get_locations()[location1]["medium_name"] == "default")
-        assert get_locations()[location2]["medium_name"] == medium_name
+        wait(lambda: self._get_locations(node)[location1]["medium_name"] == "default")
+        assert self._get_locations(node)[location2]["medium_name"] == medium_name
 
-        wait(lambda: get_locations()[location2]["chunk_count"] == 0)
-        assert get_locations()[location1]["chunk_count"] == 1
+        wait(lambda: self._get_locations(node)[location2]["chunk_count"] == 0)
+        assert self._get_locations(node)[location1]["chunk_count"] == 1
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
-        assert get_locations()[location1]["medium_name"] == "default"
-        assert get_locations()[location2]["medium_name"] == medium_name
+        assert self._get_locations(node)[location1]["medium_name"] == "default"
+        assert self._get_locations(node)[location2]["medium_name"] == medium_name
+
+    @authors("kvk1920")
+    def test_invalid_cases(self):
+        node = "//sys/data_nodes/" + ls("//sys/data_nodes")[0]
+
+        medium_name = "testmedium"
+        if not exists("//sys/media/" + medium_name):
+            create_medium(medium_name)
+
+        table = "//tmp/t"
+        create("table", table, attributes={"replication_factor": 1})
+        write_table(table, {"foo": "bar"}, table_writer={"upload_replication_factor": 1})
+
+        location1, location2 = self._get_locations(node).keys()
+
+        wait(lambda: sum(map(lambda location: location["chunk_count"], self._get_locations(node).values())) == 1)
+
+        with raises_yt_error("Invalid location uuid"):
+            set(node + "/@medium_overrides", {"0-0-0-0": medium_name})
+
+        with raises_yt_error("Invalid location uuid"):
+            set(node + "/@medium_overrides", {"ffffffff-ffffffff-ffffffff-ffffffff": medium_name})
+
+        with raises_yt_error("No such medium"):
+            set(node + "/@medium_overrides", {location1: medium_name + "_invalid_medium"})
+
+        # NB: If locations doesn't exist, it should not crash everything.
+        set(node + "/@medium_overrides", {location1: medium_name, self._get_non_existent_location(node): medium_name})
+
+        wait(lambda: self._get_locations(node)[location1]["medium_name"] == medium_name)
+        assert self._get_locations(node)[location2]["medium_name"] == "default"
+
+        wait(lambda: self._get_locations(node)[location1]["chunk_count"] == 0)
+        assert self._get_locations(node)[location2]["chunk_count"] == 1
 
 
 ################################################################################

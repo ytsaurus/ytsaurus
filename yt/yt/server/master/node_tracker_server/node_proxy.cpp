@@ -637,6 +637,12 @@ private:
                 TNode::TMediumOverrideMap uuidToMediumIndex;
                 for (const auto& [locationUuid, mediumName] : uuidToMediumName) {
                     auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+                    if (locationUuid == EmptyLocationUuid || locationUuid == InvalidLocationUuid) {
+                        THROW_ERROR_EXCEPTION("Invalid location uuid (Node: %v, LocationUuid: %v, MediumName: %v)",
+                            node->GetDefaultAddress(),
+                            locationUuid,
+                            mediumName);
+                    }
                     EmplaceOrCrash(uuidToMediumIndex, locationUuid, medium->GetIndex());
                 }
 
