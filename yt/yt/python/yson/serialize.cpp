@@ -247,12 +247,19 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
 
 bool HasAttributes(const Py::Object& obj)
 {
-    const char* attributesStr = "attributes";
     const char* hasAttributesStr = "has_attributes";
-    if (obj.hasAttr(hasAttributesStr)) {
-        return Py::Boolean(Py::Callable(GetAttr(obj, hasAttributesStr)).apply(Py::Tuple(), Py::Dict()));
+    auto hasAttributesPyStr = Py::String(hasAttributesStr);
+    auto attributesPyStr = Py::String("attributes");
+    if (PyObject_HasAttr(obj.ptr(), hasAttributesPyStr.ptr())) {
+        return Py::Boolean(obj.callMemberFunction(hasAttributesStr));
     }
-    return obj.hasAttr(attributesStr);
+    return PyObject_HasAttr(obj.ptr(), attributesPyStr.ptr());
+}
+
+bool HasCallableToYsonType(const Py::Object& obj)
+{
+    auto toYsonTypePyStr = Py::String("to_yson_type");
+    return PyObject_HasAttr(obj.ptr(), toYsonTypePyStr.ptr()) && obj.getAttr("to_yson_type").isCallable();
 }
 
 void Serialize(
@@ -274,14 +281,13 @@ void Serialize(
         context = contextHolder.get();
     }
 
-    if (obj.hasAttr("to_yson_type") && obj.getAttr("to_yson_type").isCallable()) {
-        auto repr = obj.callMemberFunction("to_yson_type");
-        Serialize(repr, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
-        return;
-    }
-
     const char* attributesStr = "attributes";
     if ((!ignoreInnerAttributes || depth == 0) && HasAttributes(obj)) {
+        if (HasCallableToYsonType(obj)) {
+            auto repr = obj.callMemberFunction("to_yson_type");
+            Serialize(repr, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
+            return;
+        }
         auto attributeObject = obj.getAttr(attributesStr);
         if ((!attributeObject.isMapping() && !attributeObject.isNone()) || attributeObject.isSequence())  {
             throw CreateYsonError("Invalid field 'attributes', it is neither mapping nor None", context);
@@ -337,6 +343,9 @@ void Serialize(
         consumer->OnDoubleScalar(Py::Float(obj));
     } else if (obj.isNone() || Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject*>(YsonEntityClass)) {
         consumer->OnEntity();
+    } else if (HasCallableToYsonType(obj)) {
+        auto repr = obj.callMemberFunction("to_yson_type");
+        Serialize(repr, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
     } else {
         throw CreateYsonError(
             Format(
