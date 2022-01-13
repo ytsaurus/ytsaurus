@@ -137,6 +137,12 @@ Y_FORCE_INLINE TPtrWithIndexes<T>::TPtrWithIndexes()
 { }
 
 template <class T>
+Y_FORCE_INLINE TPtrWithIndexes<T>::operator bool() const
+{
+    return Value_ != 0;
+}
+
+template <class T>
 Y_FORCE_INLINE TPtrWithIndexes<T>::TPtrWithIndexes(T* ptr, int replicaIndex, int mediumIndex, EChunkReplicaState state)
     : Value_(
         reinterpret_cast<uintptr_t>(ptr) |

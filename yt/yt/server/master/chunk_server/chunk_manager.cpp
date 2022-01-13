@@ -1670,7 +1670,7 @@ public:
 
     void ScheduleConsistentlyPlacedChunkRefresh(std::vector<TChunk*> chunks)
     {
-        if (IsChunkRequisitionUpdateEnabled()) {
+        if (IsChunkRefreshEnabled()) {
             for (auto* chunk : chunks) {
                 ScheduleChunkRefresh(chunk);
             }

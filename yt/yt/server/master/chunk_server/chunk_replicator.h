@@ -242,7 +242,7 @@ private:
         bool hasSealedReplica,
         bool totallySealed,
         bool hasUnsafelyPlacedReplica,
-        TNode* inconsistentlyPlacedReplica);
+        TNodePtrWithIndexes inconsistentlyPlacedReplica);
     void ComputeRegularChunkStatisticsCrossMedia(
         TChunkStatistics& result,
         const TChunk* chunk,
