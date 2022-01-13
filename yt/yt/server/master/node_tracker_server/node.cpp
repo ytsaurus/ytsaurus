@@ -480,7 +480,14 @@ void TNode::TransformLegacyMediumOverrides(TBootstrap* bootstrap)
     for (const auto& [locationUuid, mediumName] : LegacyMediumOverrides_) {
         auto* medium = chunkManager->FindMediumByName(mediumName);
         if (!IsObjectAlive(medium)) {
-            YT_LOG_ALERT("Invalid medium override for location; dropped (Node: %v, LocationId: %v, MediumName: %v)",
+            YT_LOG_ALERT("Invalid medium override for location; dropped (Node: %v, LocationUuid: %v, MediumName: %v)",
+                GetDefaultAddress(),
+                locationUuid,
+                mediumName);
+            continue;
+        }
+        if (locationUuid == EmptyLocationUuid || locationUuid == InvalidLocationUuid) {
+            YT_LOG_ALERT("Invalid location uuid in medium overrides; dropped (Node: %v, LocationUuid: %v, MediumName: %v)",
                 GetDefaultAddress(),
                 locationUuid,
                 mediumName);
@@ -589,7 +596,7 @@ void TNode::Load(TLoadContext& context)
                 auto mediumOverrides = parsedConfig->GetChildOrThrow("medium_overrides");
                 LegacyMediumOverrides_ = ConvertTo<TNode::TLegacyMediumOverrideMap>(mediumOverrides);
             } catch (const std::exception& ex) {
-                LegacyMediumOverrides_.shrink_and_clear();
+                LegacyMediumOverrides_.clear();
                 YT_LOG_ALERT(ex, "Failed to parse //sys/cluster_nodes/%v/@config/medium_overrides (Config: %v)",
                     GetDefaultAddress(),
                     config);

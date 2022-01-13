@@ -42,7 +42,11 @@ def check_medium_overrides():
     for medium in media:
         if not exists("//sys/media/" + medium):
             create_medium(medium)
-    set(node + "/@config", {"medium_overrides": {location_uuid: media[0]}})
+    set(node + "/@config", {"medium_overrides": {
+        location_uuid: media[0],
+        "0-0-0-0": media[0],
+        "ffffffff-ffffffff-ffffffff-ffffffff": media[0],
+    }})
 
     wait(lambda: get(node + "/@statistics/locations/0/medium_name") == media[0])
 
@@ -59,6 +63,12 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 5
     USE_DYNAMIC_TABLES = True
+
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
 
     DELTA_NODE_CONFIG = {
         "data_node": {

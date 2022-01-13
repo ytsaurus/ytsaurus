@@ -85,8 +85,7 @@ public:
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
     // COMPAT(kvk1920)
-    using TLegacyMediumOverrideMap =
-    SmallDenseMap<NChunkServer::TLocationUuid, TString, NChunkServer::TypicalNodeLocationCount, NChunkServer::TLocationUuidDenseMapInfo>;
+    using TLegacyMediumOverrideMap = THashMap<NChunkServer::TLocationUuid, TString>;
 
     using TMediumOverrideMap =
     SmallDenseMap<NChunkServer::TLocationUuid, int, NChunkServer::TypicalNodeLocationCount, NChunkServer::TLocationUuidDenseMapInfo>;
