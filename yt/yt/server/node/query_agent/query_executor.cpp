@@ -459,7 +459,7 @@ private:
                         bool isRanges = false;
                         bool isKeys = false;
 
-                        std::vector<EValueType> schema;
+                        std::vector<TLogicalTypePtr> schema;
                         for (const auto& split : dataSplits) {
                             for (int index = 0; index < std::ssize(split.Ranges); ++index) {
                                 isRanges = true;
@@ -694,9 +694,9 @@ private:
 
         auto keySize = Query_->Schema.Original->GetKeyColumnCount();
 
-        std::vector<EValueType> keySchema;
+        std::vector<TLogicalTypePtr> keySchema;
         for (ssize_t index = 0; index < keySize; ++index) {
-            keySchema.push_back(Query_->Schema.Original->Columns()[index].GetWireType());
+            keySchema.push_back(Query_->Schema.Original->Columns()[index].LogicalType());
         }
 
         bool hasRanges = false;

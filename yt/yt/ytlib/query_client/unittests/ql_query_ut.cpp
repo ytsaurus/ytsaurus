@@ -1036,11 +1036,18 @@ std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<TString>& col
 
 typedef std::function<void(TRange<TRow>, const TTableSchema&)> TResultMatcher;
 
-TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult)
+TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchemaPtr expectedSchema = nullptr)
 {
     return [
-            expectedResult = std::move(expectedResult)
-        ] (TRange<TRow> result, const TTableSchema& /*tableSchema*/) {
+            expectedResult = std::move(expectedResult),
+            expectedSchema = std::move(expectedSchema)
+        ] (TRange<TRow> result, const TTableSchema& tableSchema) {
+            if (expectedSchema) {
+                EXPECT_EQ(*expectedSchema, tableSchema);
+                if (*expectedSchema != tableSchema) {
+                    return;
+                }
+            }
             EXPECT_EQ(expectedResult.size(), result.Size());
             if (expectedResult.size() != result.Size()) {
                 return;
@@ -1060,7 +1067,7 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult)
                     if (expectedValue.Type != value.Type) {
                         continue;
                     }
-                    if (expectedValue.Type == EValueType::Any) {
+                    if (expectedValue.Type == EValueType::Any || expectedValue.Type == EValueType::Composite) {
                         // Slow path.
                         auto expectedYson = TYsonString(expectedValue.AsString());
                         auto expectedStableYson = ConvertToYsonStringStable(ConvertToNode(expectedYson));
@@ -1389,7 +1396,7 @@ protected:
 
 };
 
-std::vector<TOwningRow> YsonToRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
+std::vector<TOwningRow> YsonToRows(TRange<TString> rowsData, const TDataSplit& split)
 {
     std::vector<TOwningRow> result;
 
@@ -5978,6 +5985,70 @@ TEST_F(TQueryEvaluateTest, MakeMapFailure)
 
     EvaluateExpectingError("make_map(\"a\") as x FROM [//t]", split, source);
     EvaluateExpectingError("make_map(1, 1) as x FROM [//t]", split, source);
+}
+
+TEST_F(TQueryEvaluateTest, DecimalExpr)
+{
+    auto split = MakeSplit({
+        {"a", DecimalLogicalType(5, 2)}
+    });
+    std::vector<TString> source = {
+        "a=\"\\x80\\x00\\x2a\\x3a\""
+    };
+
+    auto result = YsonToRows(source, split);
+
+    Evaluate("a FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
+        {"a", DecimalLogicalType(5, 2)}
+    })));
+}
+
+TEST_F(TQueryEvaluateTest, TypeV1Propagation)
+{
+    auto split = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)}
+    });
+    std::vector<TString> source = {
+        "a=5"
+    };
+
+    auto result = YsonToRows(source, split);
+
+    Evaluate("a FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
+        {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
+    })));
+}
+
+TEST_F(TQueryEvaluateTest, ListExpr)
+{
+    auto split = MakeSplit({
+        {"a", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))}
+    });
+    std::vector<TString> source = {
+        "a=[1;2;3]"
+    };
+
+    auto result = YsonToRows(source, split);
+
+    Evaluate("a FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
+        {"a", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))}
+    })));
+}
+
+TEST_F(TQueryEvaluateTest, ListExprToAny)
+{
+    auto split = MakeSplit({
+        {"a", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))}
+    });
+    std::vector<TString> source = {
+        "a=[1;2;3]"
+    };
+
+    auto result = YsonToRows(source, split);
+
+    Evaluate("to_any(a) as b FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
+        {"b", ESimpleLogicalValueType::Any}
+    })));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

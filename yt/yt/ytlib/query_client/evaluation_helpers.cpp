@@ -211,7 +211,7 @@ std::pair<TQueryPtr, TDataSource> GetForeignQuery(
         }
 
         for (size_t index = 0; index < foreignKeyPrefix; ++index) {
-            dataSource.Schema.push_back(foreignEquations[index]->Type);
+            dataSource.Schema.push_back(foreignEquations[index]->LogicalType);
         }
 
         newQuery->InferRanges = false;

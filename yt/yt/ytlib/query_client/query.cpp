@@ -7,12 +7,14 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
-
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/core/ytree/serialize.h>
 #include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/core/misc/cast.h>
 
 #include <limits>
 
@@ -35,6 +37,16 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& colum
         }
     }
     return -1;
+}
+
+TLogicalTypePtr ToQLType(const NTableClient::TLogicalTypePtr& columnType)
+{
+    if (IsV1Type(columnType)) {
+        const auto wireType = GetWireType(columnType);
+        return MakeLogicalType(GetLogicalType(wireType), false);
+    } else {
+        return columnType;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,7 +171,8 @@ bool Compare(
         return false; \
     }
 
-    CHECK(lhs->Type == rhs->Type)
+    CHECK(*lhs->LogicalType == *rhs->LogicalType)
+
     if (auto literalLhs = lhs->As<TLiteralExpression>()) {
         auto literalRhs = rhs->As<TLiteralExpression>();
         CHECK(literalRhs)
@@ -306,7 +319,12 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         return;
     }
 
-    serialized->set_type(static_cast<int>(original->Type));
+    const auto wireType = original->GetWireType();
+    serialized->set_type(static_cast<int>(wireType));
+
+    if (*original->LogicalType != *MakeLogicalType(GetLogicalType(wireType), false)) {
+        ToProto(serialized->mutable_logical_type(), original->LogicalType);
+    }
 
     if (auto literalExpr = original->As<TLiteralExpression>()) {
         serialized->set_kind(static_cast<int>(EExpressionKind::Literal));
@@ -403,8 +421,15 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
 
 void FromProto(TConstExpressionPtr* original, const NProto::TExpression& serialized)
 {
-    auto type = EValueType(serialized.type());
-    auto kind = EExpressionKind(serialized.kind());
+    TLogicalTypePtr type;
+    if (serialized.has_logical_type()) {
+        FromProto(&type, serialized.logical_type());
+    } else {
+        auto wireType = CheckedEnumCast<EValueType>(serialized.type());
+        type = MakeLogicalType(GetLogicalType(wireType), false);
+    }
+
+    auto kind = CheckedEnumCast<EExpressionKind>(serialized.kind());
     switch (kind) {
         case EExpressionKind::None: {
             *original = nullptr;
@@ -412,7 +437,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         case EExpressionKind::Literal: {
-            auto result = New<TLiteralExpression>(type);
+            auto result = New<TLiteralExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
 
             if (ext.has_int64_value()) {
@@ -442,7 +467,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         case EExpressionKind::Function: {
-            auto result = New<TFunctionExpression>(type);
+            auto result = New<TFunctionExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TFunctionExpression::function_expression);
             result->FunctionName = ext.function_name();
             FromProto(&result->Arguments, ext.arguments());
@@ -451,7 +476,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         case EExpressionKind::UnaryOp: {
-            auto result = New<TUnaryOpExpression>(type);
+            auto result = New<TUnaryOpExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TUnaryOpExpression::unary_op_expression);
             result->Opcode = EUnaryOp(ext.opcode());
             FromProto(&result->Operand, ext.operand());
@@ -460,7 +485,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         case EExpressionKind::BinaryOp: {
-            auto result = New<TBinaryOpExpression>(type);
+            auto result = New<TBinaryOpExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TBinaryOpExpression::binary_op_expression);
             result->Opcode = EBinaryOp(ext.opcode());
             FromProto(&result->Lhs, ext.lhs());
@@ -470,7 +495,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         case EExpressionKind::In: {
-            auto result = New<TInExpression>(type);
+            auto result = New<TInExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TInExpression::in_expression);
             FromProto(&result->Arguments, ext.arguments());
             NTableClient::TWireProtocolReader reader(
@@ -482,7 +507,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         case EExpressionKind::Between: {
-            auto result = New<TBetweenExpression>(type);
+            auto result = New<TBetweenExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TBetweenExpression::between_expression);
             FromProto(&result->Arguments, ext.arguments());
 
@@ -502,7 +527,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         case EExpressionKind::Transform: {
-            auto result = New<TTransformExpression>(type);
+            auto result = New<TTransformExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TTransformExpression::transform_expression);
             FromProto(&result->Arguments, ext.arguments());
             NTableClient::TWireProtocolReader reader(
@@ -515,10 +540,8 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             *original = result;
             return;
         }
-
-        default:
-            YT_ABORT();
     }
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

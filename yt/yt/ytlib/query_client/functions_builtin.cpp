@@ -1064,7 +1064,8 @@ void RegisterBuiltinFunctions(
                 EValueType::Int64,
                 EValueType::Double,
                 EValueType::Boolean,
-                EValueType::Any}},
+                EValueType::Any,
+                EValueType::Composite}},
         EValueType::Any,
         UDF_BC(to_any),
         ECallingConvention::UnversionedValue);

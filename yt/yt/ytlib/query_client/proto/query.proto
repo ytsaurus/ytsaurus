@@ -16,6 +16,7 @@ message TExpression
 {
     required int32 kind = 1;
     optional uint32 type = 2;
+    optional NTableClient.NProto.TLogicalType logical_type = 5;
 
     // required int32 location_begin = 3; (deprecated)
     // required int32 location_end = 4; (deprecated)
@@ -235,4 +236,3 @@ message TDataSource
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-

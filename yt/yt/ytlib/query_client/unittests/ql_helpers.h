@@ -47,9 +47,15 @@ TValue MakeNull();
 template <class TTypedExpression, class... TArgs>
 TConstExpressionPtr Make(TArgs&&... args)
 {
-    return New<TTypedExpression>(
-        EValueType::TheBottom,
-        std::forward<TArgs>(args)...);
+    if constexpr (std::is_same_v<TTypedExpression, TReferenceExpression>) {
+        return New<TTypedExpression>(
+            SimpleLogicalType(ESimpleLogicalValueType::Null),
+            std::forward<TArgs>(args)...);
+    } else {
+        return New<TTypedExpression>(
+            EValueType::Null,
+            std::forward<TArgs>(args)...);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

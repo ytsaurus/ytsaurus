@@ -970,7 +970,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     {
         auto expr = PrepareExpression("int64(null)", *schema);
 
-        EXPECT_EQ(expr->Type, EValueType::Int64);
+        EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
         TUnversionedValue result;
         TCGVariables variables;
@@ -996,7 +996,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
     {
         auto expr = PrepareExpression("if(null, 1, 2)", *schema);
-        EXPECT_EQ(expr->Type, EValueType::Int64);
+        EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
         TUnversionedValue result;
         TCGVariables variables;
@@ -1009,7 +1009,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
     {
         auto expr = PrepareExpression("if(false, 1, null)", *schema);
-        EXPECT_EQ(expr->Type, EValueType::Int64);
+        EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
         TUnversionedValue result;
         TCGVariables variables;

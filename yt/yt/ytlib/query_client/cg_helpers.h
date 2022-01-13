@@ -93,13 +93,14 @@ private:
             StaticType_ == EValueType::Double ||
             StaticType_ == EValueType::Boolean ||
             StaticType_ == EValueType::String ||
-            StaticType_ == EValueType::Any);
+            StaticType_ == EValueType::Any ||
+            StaticType_ == EValueType::Composite);
     }
 
 public:
     TCGValue(const TCGValue& other) = default;
 
-    TCGValue(TCGValue&& other)
+    TCGValue(TCGValue&& other) noexcept
         : IsNull_(other.IsNull_)
         , IsAggregate_(other.IsAggregate_)
         , Length_(other.Length_)

@@ -12,7 +12,6 @@
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -280,7 +279,6 @@ TValue GetValue(const NAst::TLiteralValue& literalValue)
             YT_ABORT();
     }
 }
-
 
 void BuildRow(
     TUnversionedRowBuilder* rowBuilder,
@@ -682,11 +680,11 @@ struct TNotExpressionPropagator
                         EValueType::Boolean,
                         EBinaryOp::Or,
                         New<TUnaryOpExpression>(
-                            operandBinaryOp->Lhs->Type,
+                            operandBinaryOp->Lhs->GetWireType(),
                             EUnaryOp::Not,
                             operandBinaryOp->Lhs),
                         New<TUnaryOpExpression>(
-                            operandBinaryOp->Rhs->Type,
+                            operandBinaryOp->Rhs->GetWireType(),
                             EUnaryOp::Not,
                             operandBinaryOp->Rhs)));
                 } else if (operandBinaryOp->Opcode == EBinaryOp::Or) {
@@ -694,16 +692,16 @@ struct TNotExpressionPropagator
                         EValueType::Boolean,
                         EBinaryOp::And,
                         New<TUnaryOpExpression>(
-                            operandBinaryOp->Lhs->Type,
+                            operandBinaryOp->Lhs->GetWireType(),
                             EUnaryOp::Not,
                             operandBinaryOp->Lhs),
                         New<TUnaryOpExpression>(
-                            operandBinaryOp->Rhs->Type,
+                            operandBinaryOp->Rhs->GetWireType(),
                             EUnaryOp::Not,
                             operandBinaryOp->Rhs)));
                 } else if (IsRelationalBinaryOp(operandBinaryOp->Opcode)) {
                     return Visit(New<TBinaryOpExpression>(
-                        operandBinaryOp->Type,
+                        operandBinaryOp->GetWireType(),
                         GetInversedBinaryOpcode(operandBinaryOp->Opcode),
                         operandBinaryOp->Lhs,
                         operandBinaryOp->Rhs));
@@ -712,7 +710,7 @@ struct TNotExpressionPropagator
                 TUnversionedValue value = literal->Value;
                 value.Data.Boolean = !value.Data.Boolean;
                 return New<TLiteralExpression>(
-                    literal->Type,
+                    literal->GetWireType(),
                     value);
             }
         }
@@ -731,7 +729,7 @@ struct TCastEliminator
         if (IsUserCastFunction(functionExpr->FunctionName)) {
             YT_VERIFY(functionExpr->Arguments.size() == 1);
 
-            if (functionExpr->Type == functionExpr->Arguments[0]->Type) {
+            if (*functionExpr->LogicalType == *functionExpr->Arguments[0]->LogicalType) {
                 return Visit(functionExpr->Arguments[0]);
             }
         }
@@ -754,7 +752,7 @@ struct TExpressionSimplifier
                     auto reference0 = functionCondition->Arguments[0]->As<TReferenceExpression>();
                     if (reference0 && reference1->ColumnName == reference0->ColumnName) {
                         return New<TFunctionExpression>(
-                            functionExpr->Type,
+                            functionExpr->GetWireType(),
                             "if_null",
                             std::vector<TConstExpressionPtr>{
                                 functionCondition->Arguments[0],
@@ -1150,13 +1148,13 @@ EValueType RefineUnaryExprTypes(
 
 struct TBaseColumn
 {
-    TBaseColumn(const TString& name, EValueType type)
+    TBaseColumn(const TString& name, TLogicalTypePtr type)
         : Name(name)
-        , Type(type)
+        , LogicalType(type)
     { }
 
     TString Name;
-    EValueType Type;
+    TLogicalTypePtr LogicalType;
 };
 
 
@@ -1255,10 +1253,10 @@ public:
         }
     }
 
-    std::pair<const TTable*, EValueType> ResolveColumn(const NAst::TReference& reference) const
+    std::pair<const TTable*, TLogicalTypePtr> ResolveColumn(const NAst::TReference& reference) const
     {
         const TTable* result = nullptr;
-        EValueType type;
+        TLogicalTypePtr type;
 
         size_t index = 0;
         for (; index < Tables.size(); ++index) {
@@ -1279,7 +1277,7 @@ public:
                     });
                 }
                 result = &Tables[index];
-                type = column->GetWireType();
+                type = column->LogicalType();
                 ++index;
                 break;
             }
@@ -1287,14 +1285,14 @@ public:
 
         CheckNoOtherColumn(reference, index);
 
-        return std::make_pair(result, type);
+        return {result, type};
     }
 
     static const std::optional<TBaseColumn> FindColumn(const TNamedItemList& schema, const TString& name)
     {
         for (size_t index = 0; index < schema.size(); ++index) {
             if (schema[index].Name == name) {
-                return TBaseColumn(name, schema[index].Expression->Type);
+                return TBaseColumn(name, schema[index].Expression->LogicalType);
             }
         }
         return std::nullopt;
@@ -1381,7 +1379,6 @@ public:
         , AliasMap(aliasMap)
     { }
 
-
     // TODO: Move ProvideAggregateColumn and GetAggregateColumnPtr to TBuilderCtxBase and provide callback
     //  OnExpression.
     // Or split into two functions. GetAggregate and SetAggregete.
@@ -1450,7 +1447,7 @@ public:
                 effectiveStateType,
                 type);
 
-            return TBaseColumn(subexprName, type);
+            return TBaseColumn(subexprName, MakeLogicalType(GetLogicalType(type), false));
         });
     }
 
@@ -1474,11 +1471,11 @@ public:
             auto found = AggregateLookup.find(std::make_pair(subexprName, type));
             if (found != AggregateLookup.end()) {
                 TBaseColumn columnInfo = found->second;
-                return New<TReferenceExpression>(columnInfo.Type, columnInfo.Name);
+                return New<TReferenceExpression>(columnInfo.LogicalType, columnInfo.Name);
             } else {
                 TBaseColumn columnInfo = typer.second(type);
                 YT_VERIFY(AggregateLookup.emplace(std::make_pair(subexprName, type), columnInfo).second);
-                return New<TReferenceExpression>(columnInfo.Type, columnInfo.Name);
+                return New<TReferenceExpression>(columnInfo.LogicalType, columnInfo.Name);
             }
         };
 
@@ -1537,7 +1534,8 @@ public:
             EValueType::Double,
             EValueType::Boolean,
             EValueType::String,
-            EValueType::Any}))
+            EValueType::Any,
+            EValueType::Composite}))
     {
         auto expressionTyper = OnExpression(expr);
         YT_VERIFY(!expressionTyper.FeasibleTypes.IsEmpty());
@@ -1611,9 +1609,9 @@ TUntypedExpression TBuilderCtx::OnReference(const NAst::TReference& reference)
 {
     if (AfterGroupBy) {
         if (auto column = GetColumnPtr(reference)) {
-            TTypeSet resultTypes({column->Type});
-            TExpressionGenerator generator = [name = column->Name] (EValueType type) {
-                return New<TReferenceExpression>(type, name);
+            TTypeSet resultTypes({GetWireType(column->LogicalType)});
+            TExpressionGenerator generator = [column = *column] (EValueType) {
+                return New<TReferenceExpression>(column.LogicalType, column.Name);
             };
             return TUntypedExpression{resultTypes, std::move(generator), false};
         }
@@ -1636,9 +1634,9 @@ TUntypedExpression TBuilderCtx::OnReference(const NAst::TReference& reference)
 
     if (!AfterGroupBy) {
         if (auto column = GetColumnPtr(reference)) {
-            TTypeSet resultTypes({column->Type});
-            TExpressionGenerator generator = [name = column->Name] (EValueType type) {
-                return New<TReferenceExpression>(type, name);
+            TTypeSet resultTypes({GetWireType(column->LogicalType)});
+            TExpressionGenerator generator = [column = *column] (EValueType) {
+                return New<TReferenceExpression>(column.LogicalType, column.Name);
             };
             return TUntypedExpression{resultTypes, std::move(generator), false};
         }
@@ -2141,7 +2139,7 @@ TConstExpressionPtr BuildPredicate(
 
     auto typedPredicate = builder.BuildTypedExpression(expressionAst.front());
 
-    auto actualType = typedPredicate->Type;
+    auto actualType = typedPredicate->GetWireType();
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION("%v is not a boolean expression", name)
@@ -2505,15 +2503,15 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                     NAst::InferColumnName(referenceExpr->Reference));
             }
 
-            if (selfColumn->Type != foreignColumn->Type) {
+            if (*selfColumn->LogicalType != *foreignColumn->LogicalType) {
                 THROW_ERROR_EXCEPTION("Column %Qv type mismatch in join",
                     NAst::InferColumnName(referenceExpr->Reference))
-                    << TErrorAttribute("self_type", selfColumn->Type)
-                    << TErrorAttribute("foreign_type", foreignColumn->Type);
+                    << TErrorAttribute("self_type", selfColumn->LogicalType)
+                    << TErrorAttribute("foreign_type", foreignColumn->LogicalType);
             }
 
-            selfEquations.emplace_back(New<TReferenceExpression>(selfColumn->Type, selfColumn->Name), false);
-            foreignEquations.push_back(New<TReferenceExpression>(foreignColumn->Type, foreignColumn->Name));
+            selfEquations.emplace_back(New<TReferenceExpression>(selfColumn->LogicalType, selfColumn->Name), false);
+            foreignEquations.push_back(New<TReferenceExpression>(foreignColumn->LogicalType, foreignColumn->Name));
         }
 
         for (const auto& argument : join.Lhs) {
@@ -2536,12 +2534,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         }
 
         for (size_t index = 0; index < selfEquations.size(); ++index) {
-            if (selfEquations[index].first->Type != foreignEquations[index]->Type) {
+            if (*selfEquations[index].first->LogicalType != *foreignEquations[index]->LogicalType) {
                 THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
                     InferName(selfEquations[index].first),
                     InferName(foreignEquations[index]))
-                    << TErrorAttribute("self_type", selfEquations[index].first->Type)
-                    << TErrorAttribute("foreign_type", foreignEquations[index]->Type);
+                    << TErrorAttribute("self_type", selfEquations[index].first->LogicalType)
+                    << TErrorAttribute("foreign_type", foreignEquations[index]->LogicalType);
             }
         }
 
@@ -2618,7 +2616,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             auto foreignColumn = foreignBuilder.GetColumnPtr(reference);
 
             keyForeignEquations[keyPrefix] = New<TReferenceExpression>(
-                foreignColumn->Type,
+                foreignColumn->LogicalType,
                 foreignColumn->Name);
         }
 
