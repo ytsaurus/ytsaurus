@@ -527,11 +527,32 @@ void TClient::DoCheckClusterLiveness(
         THROW_ERROR_EXCEPTION("No liveness check methods specified");
     }
 
+    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> futures;
+    auto makeRequest = [&] (auto proxy) {
+        auto batchReq = proxy->ExecuteBatch();
+
+        auto req = TYPathProxy::List("/");
+        req->set_limit(1);
+        batchReq->AddRequest(req);
+
+        futures.push_back(batchReq->Invoke());
+    };
+
+    TMasterReadOptions masterReadOptions;
     if (options.CheckCypressRoot) {
-        TListNodeOptions listNodeOptions;
-        listNodeOptions.Timeout = Connection_->GetConfig()->ClusterLivenessCheckTimeout;
-        listNodeOptions.MaxSize = 1;
-        WaitFor(ListNode("/", listNodeOptions))
+        makeRequest(CreateReadProxy<TObjectServiceProxy>(masterReadOptions));
+    }
+    if (options.CheckSecondaryMasterCells) {
+        for (auto secondaryCellTag : Connection_->GetSecondaryMasterCellTags()) {
+            makeRequest(CreateReadProxy<TObjectServiceProxy>(masterReadOptions, secondaryCellTag));
+        }
+    }
+
+    auto batchResponses = WaitFor(AllSucceeded(std::move(futures))
+        .WithTimeout(Connection_->GetConfig()->ClusterLivenessCheckTimeout))
+        .ValueOrThrow();
+    for (const auto& batchResponse : batchResponses) {
+        batchResponse->GetResponse<TYPathProxy::TRspList>(0)
             .ThrowOnError();
     }
 }

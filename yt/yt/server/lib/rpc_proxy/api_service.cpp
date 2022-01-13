@@ -4267,9 +4267,11 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         options.CheckCypressRoot = request->check_cypress_root();
+        options.CheckSecondaryMasterCells = request->check_secondary_master_cells();
 
-        context->SetRequestInfo("CheckCypressRoot: %v",
-            options.CheckCypressRoot);
+        context->SetRequestInfo("CheckCypressRoot: %v, CheckSecondaryMasterCells: %v",
+            options.CheckCypressRoot,
+            options.CheckSecondaryMasterCells);
 
         ExecuteCall(
             context,
