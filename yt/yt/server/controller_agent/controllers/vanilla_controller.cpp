@@ -377,6 +377,7 @@ public:
                 "Cannot revive operation when \"fail_on_job_restart\" spec option is set and not "
                 "all jobs have already been started according to the operation snapshot"
                 " (i.e. not all jobs are running or completed)")
+                << TErrorAttribute("reason", EFailOnJobRestartReason::JobCountMismatchAfterRevival)
                 << TErrorAttribute("operation_type", OperationType)
                 << TErrorAttribute("expected_job_count", expectedJobCount)
                 << TErrorAttribute("started_job_count", startedJobCount);

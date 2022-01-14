@@ -18,6 +18,15 @@ DEFINE_ENUM(EOperationControllerQueue,
     (JobEvents)
 );
 
+DEFINE_ENUM(EFailOnJobRestartReason,
+    (JobAborted)
+    (JobFailed)
+    (JobCountMismatchAfterRevival)
+    (RevivalIsForbidden)
+    (RevivalWithCleanStart)
+    (JobRevivalDisabled)
+);
+
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerSchedulerHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerSnapshotBuilderHost)
 
