@@ -263,6 +263,7 @@ message TReqGetChunkFragmentSet
 {
     required NYT.NProto.TGuid read_session_id = 1;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
+    optional bool use_direct_io = 4;
 
     message TSubrequest
     {

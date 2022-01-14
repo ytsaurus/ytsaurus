@@ -45,7 +45,8 @@ public:
         const TChunkReadOptions& options) override;
 
     TFuture<void> PrepareToReadChunkFragments(
-        const NChunkClient::TClientChunkReadOptions& options) override;
+        const NChunkClient::TClientChunkReadOptions& options,
+        bool useDirectIO) override;
 
     NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;

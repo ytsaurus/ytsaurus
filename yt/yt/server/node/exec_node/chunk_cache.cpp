@@ -622,7 +622,8 @@ private:
             auto chunkReader = New<TChunkFileReader>(
                 location->GetIOEngine(),
                 chunkId,
-                dataFileName);
+                dataFileName,
+                location->UseDirectIOForReads());
 
             TClientChunkReadOptions chunkReadOptions{
                 .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Validate chunk length"}),

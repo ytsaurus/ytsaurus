@@ -20,26 +20,25 @@ public:
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize) override
+        std::optional<i64> /*estimatedSize*/) override
     {
-        return Underlying_->ReadBlocks(options, blockIndexes, estimatedSize);
+        return Underlying_->ReadBlocks(options, blockIndexes);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        std::optional<i64> estimatedSize) override
+        std::optional<i64> /*estimatedSize*/) override
     {
-        return Underlying_->ReadBlocks(options, firstBlockIndex, blockCount, estimatedSize);
+        return Underlying_->ReadBlocks(options, firstBlockIndex, blockCount);
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
-        const std::optional<std::vector<int>>& extensionTags) override
+        const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
-        Y_UNUSED(extensionTags);
         return Underlying_->GetMeta(options, partitionTag);
     }
 

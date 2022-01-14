@@ -18,18 +18,18 @@ void CheckRead(i64 readRequestSize, i64 desiredSize, i64 minimalSize, const TBuf
     auto request = IIOEngine::TReadRequest{
         .Handle = New<TIOEngineHandle>(),
         .Offset = 4096,
-        .Size = readRequestSize 
+        .Size = readRequestSize
     };
     auto slices = TIORequestSlicer(desiredSize, minimalSize).Slice(request, buffer);
 
     EXPECT_EQ(expectedSizes.size(), slices.size());
-    
+
     i64 offset = request.Offset;
     auto outputIterator = buffer.begin();
-    
+
     for (int i = 0; i < std::ssize(expectedSizes); ++i) {
         const auto& slice = slices[i];
-        
+
         EXPECT_EQ(slice.Request.Handle.Get(), request.Handle.Get());
         EXPECT_EQ(slice.Request.Offset, offset);
         EXPECT_EQ(slice.Request.Size, expectedSizes[i]);
@@ -77,7 +77,7 @@ void CheckWrite(
     for (int i = 0; i < std::ssize(expectedSizes); ++i) {
         const auto& slice = slices[i];
         const auto& expected = expectedSizes[i];
-        
+
         EXPECT_EQ(slice.Handle.Get(), request.Handle.Get());
         EXPECT_EQ(slice.Flush, request.Flush);
         EXPECT_EQ(slice.Offset, offset);
@@ -102,14 +102,14 @@ void CheckFlushFileRange(
     auto slices = TIORequestSlicer(desiredSize, minimalSize).Slice(request);
     EXPECT_EQ(expectedSizes.size(), slices.size());
     i64 offset = request.Offset;
-    
+
     for (int i = 0; i < std::ssize(expectedSizes); ++i) {
         const auto& slice = slices[i];
 
         EXPECT_EQ(slice.Handle.Get(), request.Handle.Get());
         EXPECT_EQ(slice.Offset, offset);
         EXPECT_EQ(slice.Size, expectedSizes[i]);
-        
+
         offset += expectedSizes[i];
     }
 }
@@ -161,26 +161,26 @@ TEST(TRequestSlicerTest, WriteRequest)
     };
 
     const std::vector<TTestCase> TEST_CASES = {
-        { 
+        {
             .RequestSizes = {1_KB, 1_MB, 3_KB},
             .DesiredSize = 256_KB,
             .MinimalSize = 64_KB,
-            .ExpectedSlices = {{1_KB, 255_KB}, {256_KB}, {256_KB}, {257_KB, 3_KB}} 
+            .ExpectedSlices = {{1_KB, 255_KB}, {256_KB}, {256_KB}, {257_KB, 3_KB}}
         },
-        { 
+        {
             .RequestSizes = {1_MB},
             .DesiredSize = 256_KB,
             .MinimalSize = 64_KB,
-            .ExpectedSlices = {{256_KB}, {256_KB}, {256_KB}, {256_KB}} 
+            .ExpectedSlices = {{256_KB}, {256_KB}, {256_KB}, {256_KB}}
         },
-        { 
+        {
             .RequestSizes = {1_MB},
             .DesiredSize = 4_GB,
             .MinimalSize = 4_GB,
             .ExpectedSlices = {{1_MB}}
         },
     };
-    
+
     for (const auto& test : TEST_CASES) {
         CheckWrite(test.RequestSizes, test.DesiredSize, test.MinimalSize, test.ExpectedSlices);
     }
@@ -200,7 +200,7 @@ TEST(TRequestSlicerTest, FlushFileRangeRequest)
         {
             .RequestSize = 1_MB,
             .DesiredSize = 256_KB,
-            .MinimalSize = 64_KB, 
+            .MinimalSize = 64_KB,
             .ExpectedSizes = {256_KB, 256_KB, 256_KB, 256_KB}
         },
         {
@@ -216,7 +216,7 @@ TEST(TRequestSlicerTest, FlushFileRangeRequest)
             .ExpectedSizes = {1_MB}
         },
     };
-    
+
     for (const auto& test : TEST_CASES) {
         CheckFlushFileRange(test.RequestSize, test.DesiredSize, test.MinimalSize, test.ExpectedSizes);
     }

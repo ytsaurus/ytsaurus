@@ -364,6 +364,9 @@ public:
     //! if node was suspicious for at least the period (unless null).
     std::optional<TDuration> SuspiciousNodeGracePeriod;
 
+    //! Will open and read with DirectIO (unless already opened w/o DirectIO or disabled via location config).
+    bool UseDirectIO;
+
     TChunkFragmentReaderConfig()
     {
         RegisterParameter("chunk_replica_locator_expiration_timeout", ChunkReplicaLocatorExpirationTimeout)
@@ -403,6 +406,10 @@ public:
 
         RegisterParameter("suspicious_node_grace_period", SuspiciousNodeGracePeriod)
             .Default(TDuration::Minutes(5));
+
+        RegisterParameter("use_direct_io", UseDirectIO)
+            .Default(false)
+            .DontSerializeDefault();
     }
 };
 

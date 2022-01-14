@@ -30,7 +30,6 @@ struct TSessionOptions
 {
     TWorkloadDescriptor WorkloadDescriptor;
     bool SyncOnClose = false;
-    bool EnableWriteDirectIO = false;
     bool EnableMultiplexing = false;
     NChunkClient::TPlacementId PlacementId;
 };

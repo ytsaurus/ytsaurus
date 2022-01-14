@@ -98,9 +98,14 @@ public:
     //! Controls outcoming location bandwidth used by tablet recovery.
     NConcurrency::TThroughputThrottlerConfigPtr TabletRecoveryOutThrottler;
 
+    //! IO Engine type.
     NIO::EIOEngineType IOEngineType;
+
+    //! IO Engine config.
     NYTree::INodePtr IOConfig;
-    bool EnableDirectIO;
+
+    //! Direct IO policy for read requests.
+    NIO::EDirectIOPolicy UseDirectIOForReads;
 
     TDuration ThrottleDuration;
 
@@ -608,9 +613,6 @@ public:
 
     //! Enables block checksums validation.
     bool ValidateBlockChecksums;
-
-    //! Use DIRECT_IO flag when writing chunks data to disk.
-    EDirectIOPolicy UseDirectIO;
 
     //! The time after which any registered placement info expires.
     TDuration PlacementExpirationTime;

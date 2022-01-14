@@ -227,11 +227,11 @@ const TString& TLocation::GetDiskFamily() const
     return Config_->DiskFamily;
 }
 
-bool TLocation::IsDirectIOEnabled() const
+NIO::EDirectIOPolicy TLocation::UseDirectIOForReads() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Config_->EnableDirectIO;
+    return Config_->UseDirectIOForReads;
 }
 
 TString TLocation::GetMediumName() const

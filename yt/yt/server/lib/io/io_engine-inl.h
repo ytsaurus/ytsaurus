@@ -13,6 +13,11 @@ inline bool TIOEngineHandle::IsOpenForDirectIO() const
      return OpenForDirectIO_;
 }
 
+inline void TIOEngineHandle::MarkOpenForDirectIO(EOpenMode* oMode)
+{
+    *oMode |= DirectAligned;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTag>
