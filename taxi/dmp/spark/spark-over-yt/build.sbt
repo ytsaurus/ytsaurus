@@ -184,7 +184,9 @@ lazy val `e2e-test` = (project in file("e2e-test"))
             proxy = Some("hume"), isSnapshot = false, Some("job.py"))
         }
       checker +: pythonScripts
-    }
+    },
+    buildInfoKeys := Seq[BuildInfoKey](ThisBuild / spytClientVersion),
+    buildInfoPackage := "ru.yandex.spark.yt.e2e"
   )
 
 // benchmark and test ----
