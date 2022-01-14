@@ -162,8 +162,8 @@ TFuture<TIOCounters> TJournalSession::DoFlushBlocks(int blockIndex)
             YT_VERIFY(lastDataSize <= dataSize);
             if (dataSize > lastDataSize) {
                 TIOCounters result{
-                    .ByteCount = dataSize - lastDataSize,
-                    .IOCount = 1
+                    .Bytes = dataSize - lastDataSize,
+                    .IORequests = 1
                 };
                 lastDataSize = dataSize;
                 return result;

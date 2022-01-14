@@ -27,8 +27,8 @@ using namespace NYson;
 
 void TIOCounters::MergeFrom(TIOCounters other)
 {
-    ByteCount += other.ByteCount;
-    IOCount += other.IOCount;
+    Bytes += other.Bytes;
+    IORequests += other.IORequests;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,8 +177,8 @@ protected:
         LogStructuredEventFluently(StructuredIORawLogger, ELogLevel::Info)
             .DoFor(event.AggregatingTags.Tags, addTag)
             .DoFor(event.NonAggregatingTags.Tags, addTag)
-            .Item("byte_count").Value(event.Counters.ByteCount)
-            .Item("io_count").Value(event.Counters.IOCount);
+            .Item("bytes").Value(event.Counters.Bytes)
+            .Item("io_requests").Value(event.Counters.IORequests);
 
         if (!OnRawEventLogged_.Empty()) {
             TIOTagList tags = event.AggregatingTags.Tags;
@@ -289,8 +289,8 @@ private:
 
             LogStructuredEventFluently(StructuredIOAggregateLogger, ELogLevel::Info)
                 .DoFor(tags.Tags, addTag)
-                .Item("byte_count").Value(counters.ByteCount)
-                .Item("io_count").Value(counters.IOCount);
+                .Item("bytes").Value(counters.Bytes)
+                .Item("io_requests").Value(counters.IORequests);
 
             OnAggregateEventLogged_.Fire(counters, tags.Tags);
         }

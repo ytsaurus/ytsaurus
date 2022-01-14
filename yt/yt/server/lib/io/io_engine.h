@@ -55,8 +55,8 @@ struct IIOEngine
     {
         std::vector<TSharedRef> OutputBuffers;
         // NB: This contains page size padding.
-        i64 PaddedByteCount = 0;
-        i64 IOCount = 0;
+        i64 PaddedBytes = 0;
+        i64 IORequests = 0;
     };
 
     struct TWriteRequest

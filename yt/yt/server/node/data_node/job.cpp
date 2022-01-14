@@ -757,8 +757,8 @@ private:
 
                 Bootstrap_->GetIOTracker()->Enqueue(
                     TIOCounters{
-                        .ByteCount = totalBlockSize,
-                        .IOCount = 1
+                        .Bytes = totalBlockSize,
+                        .IORequests = 1
                     },
                     /*tags*/ {
                         {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
@@ -1167,8 +1167,8 @@ private:
                 if (totalRecordsSize > 0 && Bootstrap_->GetIOTracker()->IsEnabled()) {
                     Bootstrap_->GetIOTracker()->Enqueue(
                         TIOCounters{
-                            .ByteCount = totalRecordsSize,
-                            .IOCount = 1
+                            .Bytes = totalRecordsSize,
+                            .IORequests = 1
                         },
                         /*tags*/ {
                             {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},

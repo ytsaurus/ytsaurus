@@ -13,7 +13,7 @@ using namespace NTableClient;
 void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const TChunkReaderStatisticsPtr& chunkReaderStatistics)
 {
     protoChunkReaderStatistics->set_data_bytes_read_from_disk(chunkReaderStatistics->DataBytesReadFromDisk);
-    protoChunkReaderStatistics->set_data_io_count(chunkReaderStatistics->DataIOCount);
+    protoChunkReaderStatistics->set_data_io_requests(chunkReaderStatistics->DataIORequests);
     protoChunkReaderStatistics->set_data_bytes_transmitted(chunkReaderStatistics->DataBytesTransmitted);
     protoChunkReaderStatistics->set_data_bytes_read_from_cache(chunkReaderStatistics->DataBytesReadFromCache);
     protoChunkReaderStatistics->set_meta_bytes_read_from_disk(chunkReaderStatistics->MetaBytesReadFromDisk);
@@ -29,7 +29,7 @@ void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto
     auto& chunkReaderStatistics = *chunkReaderStatisticsPtr;
     chunkReaderStatistics = New<TChunkReaderStatistics>();
     chunkReaderStatistics->DataBytesReadFromDisk = protoChunkReaderStatistics.data_bytes_read_from_disk();
-    chunkReaderStatistics->DataIOCount = protoChunkReaderStatistics.data_io_count();
+    chunkReaderStatistics->DataIORequests = protoChunkReaderStatistics.data_io_requests();
     chunkReaderStatistics->DataBytesTransmitted = protoChunkReaderStatistics.data_bytes_transmitted();
     chunkReaderStatistics->DataBytesReadFromCache = protoChunkReaderStatistics.data_bytes_read_from_cache();
     chunkReaderStatistics->MetaBytesReadFromDisk = protoChunkReaderStatistics.meta_bytes_read_from_disk();
@@ -44,7 +44,7 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
 {
     const auto& chunkReaderStatistics = *chunkReaderStatisticsPtr;
     chunkReaderStatistics->DataBytesReadFromDisk += protoChunkReaderStatistics.data_bytes_read_from_disk();
-    chunkReaderStatistics->DataIOCount += protoChunkReaderStatistics.data_io_count();
+    chunkReaderStatistics->DataIORequests += protoChunkReaderStatistics.data_io_requests();
     chunkReaderStatistics->DataBytesTransmitted += protoChunkReaderStatistics.data_bytes_transmitted();
     chunkReaderStatistics->DataBytesReadFromCache += protoChunkReaderStatistics.data_bytes_read_from_cache();
     chunkReaderStatistics->MetaBytesReadFromDisk += protoChunkReaderStatistics.meta_bytes_read_from_disk();
@@ -80,7 +80,7 @@ void DumpTimingStatistics(
 
 TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(const NProfiling::TProfiler& profiler)
     : DataBytesReadFromDisk_(profiler.Counter("/data_bytes_read_from_disk"))
-    , DataIOCount_(profiler.Counter("/data_io_count"))
+    , DataIORequests_(profiler.Counter("/data_io_requests"))
     , DataBytesTransmitted_(profiler.Counter("/data_bytes_transmitted"))
     , DataBytesReadFromCache_(profiler.Counter("/data_bytes_read_from_cache"))
     , WastedDataBytesReadFromDisk_(profiler.Counter("/wasted_data_bytes_read_from_disk"))
@@ -99,10 +99,7 @@ void TChunkReaderStatisticsCounters::Increment(
     bool failed)
 {
     DataBytesReadFromDisk_.Increment(chunkReaderStatistics->DataBytesReadFromDisk);
-    if (chunkReaderStatistics->DataIOCount > 0) {
-        // NB: Supported only for hunk chunks now.
-        DataIOCount_.Increment(chunkReaderStatistics->DataIOCount);
-    }
+    DataIORequests_.Increment(chunkReaderStatistics->DataIORequests);
     DataBytesTransmitted_.Increment(chunkReaderStatistics->DataBytesTransmitted);
     DataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache);
     if (failed) {

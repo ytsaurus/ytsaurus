@@ -121,7 +121,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
         assert raw_events[0]["direction@"] == "write"
         assert raw_events[0]["chunk_id"] == chunk_id
-        for counter in ["byte_count", "io_count"]:
+        for counter in ["bytes", "io_requests"]:
             assert raw_events[0][counter] > 0 and raw_events[0][counter] == aggregate_events[0][counter]
 
     @authors("gepardo")
@@ -139,7 +139,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         assert raw_events[1]["data_node_method@"] == "FinishChunk"
         assert raw_events[1]["direction@"] == "write"
         assert raw_events[1]["chunk_id"] in chunk_ids
-        for counter in ["byte_count", "io_count"]:
+        for counter in ["bytes", "io_requests"]:
             assert raw_events[0][counter] > 0
             assert raw_events[1][counter] > 0
             assert raw_events[0][counter] + raw_events[1][counter] == aggregate_events[0][counter]
@@ -160,7 +160,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         assert raw_events[1]["data_node_method@"] == "GetBlockSet"
         assert raw_events[1]["direction@"] == "read"
         assert raw_events[1]["chunk_id"] == chunk_id
-        for counter in ["byte_count", "io_count"]:
+        for counter in ["bytes", "io_requests"]:
             assert raw_events[0][counter] > 0
             assert raw_events[1][counter] > 0
 
@@ -182,8 +182,8 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
             assert aggregate_events[0]["data_node_method@"] == "FinishChunk"
             assert aggregate_events[0]["direction@"] == "write"
-            assert min_data_bound <= aggregate_events[0]["byte_count"] <= max_data_bound
-            assert aggregate_events[0]["io_count"] > 0
+            assert min_data_bound <= aggregate_events[0]["bytes"] <= max_data_bound
+            assert aggregate_events[0]["io_requests"] > 0
 
             from_barrier = write_log_barrier(self.get_node_address())
             assert read_table("//tmp/table[#{}:]".format(i * len(large_data))) == large_data
@@ -191,8 +191,8 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
             assert aggregate_events[0]["data_node_method@"] == "GetBlockSet"
             assert aggregate_events[0]["direction@"] == "read"
-            assert min_data_bound <= aggregate_events[0]["byte_count"] <= max_data_bound
-            assert aggregate_events[0]["io_count"] > 0
+            assert min_data_bound <= aggregate_events[0]["bytes"] <= max_data_bound
+            assert aggregate_events[0]["io_requests"] > 0
 
     @authors("gepardo")
     def test_journal(self):
@@ -207,8 +207,8 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["data_node_method@"] == "FlushBlocks"
         assert raw_events[0]["direction@"] == "write"
         assert raw_events[0]["chunk_id"] == chunk_id
-        assert raw_events[0]["byte_count"] > 0
-        assert raw_events[0]["io_count"] > 0
+        assert raw_events[0]["bytes"] > 0
+        assert raw_events[0]["io_requests"] > 0
 
         from_barrier = write_log_barrier(self.get_node_address())
         assert read_journal("//tmp/journal") == data
@@ -217,8 +217,8 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["data_node_method@"] == "GetBlockRange"
         assert raw_events[0]["direction@"] == "read"
         assert raw_events[0]["chunk_id"] == chunk_id
-        assert raw_events[0]["byte_count"] > 0
-        assert raw_events[0]["io_count"] > 0
+        assert raw_events[0]["bytes"] > 0
+        assert raw_events[0]["io_requests"] > 0
 
     @authors("gepardo")
     def test_large_journal(self):
@@ -235,8 +235,8 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
             assert raw_events[0]["data_node_method@"] == "FlushBlocks"
             assert raw_events[0]["direction@"] == "write"
-            assert min_data_bound <= raw_events[0]["byte_count"] <= max_data_bound
-            assert raw_events[0]["io_count"] > 0
+            assert min_data_bound <= raw_events[0]["bytes"] <= max_data_bound
+            assert raw_events[0]["io_requests"] > 0
 
             from_barrier = write_log_barrier(self.get_node_address())
             read_result = read_journal("//tmp/journal[#{}:#{}]".format(i * len(large_journal), (i + 1) * len(large_journal)))
@@ -245,8 +245,8 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
             assert raw_events[0]["data_node_method@"] == "GetBlockRange"
             assert raw_events[0]["direction@"] == "read"
-            assert min_data_bound <= raw_events[0]["byte_count"] <= max_data_bound
-            assert raw_events[0]["io_count"] > 0
+            assert min_data_bound <= raw_events[0]["bytes"] <= max_data_bound
+            assert raw_events[0]["io_requests"] > 0
 
 ##################################################################
 
@@ -264,8 +264,8 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
                 continue
             assert len(raw_events) == 1
             assert raw_events[0]["data_node_method@"] == method
-            assert raw_events[0]["byte_count"] > 0
-            assert raw_events[0]["io_count"] > 0
+            assert raw_events[0]["bytes"] > 0
+            assert raw_events[0]["io_requests"] > 0
             was_data_read = True
         assert was_data_read
 
@@ -283,8 +283,8 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
 
             assert raw_events[0]["data_node_method@"] == "FinishChunk"
             assert raw_events[0]["chunk_id"] == chunk_id
-            assert raw_events[0]["byte_count"] > 0
-            assert raw_events[0]["io_count"] > 0
+            assert raw_events[0]["bytes"] > 0
+            assert raw_events[0]["io_requests"] > 0
 
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         assert read_table("//tmp/table") == data
@@ -310,8 +310,8 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
 
             assert raw_events[0]["data_node_method@"] == "FlushBlocks"
             assert raw_events[0]["chunk_id"] == chunk_id
-            assert raw_events[0]["byte_count"] > 0
-            assert raw_events[0]["io_count"] > 0
+            assert raw_events[0]["bytes"] > 0
+            assert raw_events[0]["io_requests"] > 0
 
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         assert read_journal("//tmp/journal") == data
@@ -364,8 +364,8 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
             assert "medium@" in raw_events[0]
             assert "location_id@" in raw_events[0]
             assert "disk_family@" in raw_events[0]
-            assert raw_events[0]["byte_count"] > 0
-            assert raw_events[0]["io_count"] > 0
+            assert raw_events[0]["bytes"] > 0
+            assert raw_events[0]["io_requests"] > 0
             direction = raw_events[0]["direction@"]
             assert direction in ["read", "write"]
             if direction == "read":
@@ -424,7 +424,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
         for event in events:
             assert event["job_type@"] == "ReplicateChunk"
             assert "job_id" in event
-            assert min_data_bound <= event["byte_count"] <= max_data_bound
+            assert min_data_bound <= event["bytes"] <= max_data_bound
 
     @authors("gepardo")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
@@ -442,8 +442,8 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
         _, aggregate_events = self.wait_for_events(
             aggregate_count=1, from_barrier=from_barrier, node_id=0,
             filter=lambda event: event.get("job_type@") == "MergeChunks" and event.get("data_node_method@") == "FinishChunk")
-        assert aggregate_events[0]["byte_count"] > 0
-        assert aggregate_events[0]["io_count"] > 0
+        assert aggregate_events[0]["bytes"] > 0
+        assert aggregate_events[0]["io_requests"] > 0
 
     @authors("gepardo")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
@@ -466,8 +466,8 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
         _, aggregate_events = self.wait_for_events(
             aggregate_count=1, from_barrier=from_barrier, node_id=0,
             filter=lambda event: event.get("job_type@") == "MergeChunks" and event.get("data_node_method@") == "FinishChunk")
-        assert min_data_bound <= aggregate_events[0]["byte_count"] <= max_data_bound
-        assert aggregate_events[0]["io_count"] > 0
+        assert min_data_bound <= aggregate_events[0]["bytes"] <= max_data_bound
+        assert aggregate_events[0]["io_requests"] > 0
 
 
 class TestRepairMasterJobIOTracking(TestNodeIOTrackingBase):
@@ -510,8 +510,8 @@ class TestRepairMasterJobIOTracking(TestNodeIOTrackingBase):
                     filter=lambda event: "job_type@" in event)
                 assert len(raw_events) == 1
                 assert "job_id" in raw_events[0]
-                assert raw_events[0]["byte_count"] > 0
-                assert raw_events[0]["io_count"] > 0
+                assert raw_events[0]["bytes"] > 0
+                assert raw_events[0]["io_requests"] > 0
 
         assert has_repaired_replica
 
@@ -567,16 +567,16 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         max_data_bound = 1.05 * disk_space
         assert min_data_bound < max_data_bound
 
-        assert min_data_bound <= event1["byte_count"] <= max_data_bound
-        assert event1["io_count"] > 0
+        assert min_data_bound <= event1["bytes"] <= max_data_bound
+        assert event1["io_requests"] > 0
         assert event1["account@"] == "gepardo"
         assert event1["object_path"] == "//tmp/table1"
         assert event1["api_method@"] == "write_table"
         assert event1["proxy_kind@"] == self._get_proxy_kind()
         assert "object_id" in event1
 
-        assert min_data_bound <= event2["byte_count"] <= max_data_bound
-        assert event2["io_count"] > 0
+        assert min_data_bound <= event2["bytes"] <= max_data_bound
+        assert event2["io_requests"] > 0
         assert event2["account@"] == "some_other_account"
         assert event2["object_path"] == "//tmp/table2"
         assert event2["api_method@"] == "write_table"
@@ -613,16 +613,16 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         max_data_bound = 1.05 * disk_space
         assert min_data_bound < max_data_bound
 
-        assert min_data_bound <= event1["byte_count"] <= max_data_bound
-        assert event1["io_count"] > 0
+        assert min_data_bound <= event1["bytes"] <= max_data_bound
+        assert event1["io_requests"] > 0
         assert event1["account@"] == "gepardo"
         assert event1["object_path"] == "//tmp/table1"
         assert event1["api_method@"] == "read_table"
         assert event1["proxy_kind@"] == self._get_proxy_kind()
         assert "object_id" in event1
 
-        assert min_data_bound <= event2["byte_count"] <= max_data_bound
-        assert event2["io_count"] > 0
+        assert min_data_bound <= event2["bytes"] <= max_data_bound
+        assert event2["io_requests"] > 0
         assert event2["account@"] == "some_other_account"
         assert event2["object_path"] == "//tmp/table2"
         assert event2["api_method@"] == "read_table"
@@ -649,8 +649,8 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
                                              filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
 
         event = raw_events[0]
-        assert event["byte_count"] > 0
-        assert event["io_count"] > 0
+        assert event["bytes"] > 0
+        assert event["io_requests"] > 0
         assert event["account@"] == "gepardo"
         assert event["object_path"] == "//tmp/table"
         assert event["api_method@"] == "read_table"
@@ -690,8 +690,8 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
                                              filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
 
         for event in raw_events:
-            assert event["byte_count"] > 0
-            assert event["io_count"] > 0
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
             assert event["object_path"] == "//tmp/my_dyntable"
             assert event["api_method@"] == "read_table"
             assert event["proxy_kind@"] == self._get_proxy_kind()
@@ -732,8 +732,8 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
                                              filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
 
         for event in raw_events:
-            assert event["byte_count"] > 0
-            assert event["io_count"] > 0
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
             assert event["object_path"] == "//tmp/table"
             assert event["api_method@"] == "read_table"
             assert event["proxy_kind@"] == self._get_proxy_kind()
@@ -839,8 +839,8 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
         assert raw_events[0]["user@"] == "job:root"
-        assert raw_events[0]["byte_count"] > 0
-        assert raw_events[0]["io_count"] > 0
+        assert raw_events[0]["bytes"] > 0
+        assert raw_events[0]["io_requests"] > 0
         assert raw_events[0]["account@"] == "tmp"
         assert "object_id" in raw_events[0]
         assert raw_events[0]["object_path"] == "//tmp/table_out"
@@ -850,8 +850,8 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert "object_id" in raw_events[1]
         assert raw_events[1]["account@"] == "tmp"
         assert raw_events[1]["user@"] == "job:root"
-        assert raw_events[1]["byte_count"] > 0
-        assert raw_events[1]["io_count"] > 0
+        assert raw_events[1]["bytes"] > 0
+        assert raw_events[1]["io_requests"] > 0
 
         assert read_table("//tmp/table_out") == table_data
 
@@ -907,8 +907,8 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             assert "job_id" in event
             assert event["job_type@"] == job_type
             assert event["task_name@"] == job_type
-            assert event["byte_count"] > 0
-            assert event["io_count"] > 0
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
             assert event["user@"] == "job:root"
 
         read_events = [event for event in raw_events if event["data_node_method@"] == "GetBlockSet"]
@@ -968,8 +968,8 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             assert "job_id" in event
             assert event["job_type@"] == "OrderedMerge"
             assert event["task_name@"] == "OrderedMerge"
-            assert event["byte_count"] > 0
-            assert event["io_count"] > 0
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
             assert event["user@"] == "job:root"
             assert event["object_path"] == "//tmp/table"
             assert "object_id" in event
@@ -1018,8 +1018,8 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             assert event["operation_id"] == op.id
             assert event["operation_type@"] == "MapReduce"
             assert "job_id" in event
-            assert event["byte_count"] > 0
-            assert event["io_count"] > 0
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
             assert event["user@"] == "job:root"
         assert {event["job_type@"] for event in raw_events} == {"PartitionMap", "PartitionReduce"}
         assert {event["task_name@"] for event in raw_events} == {"Partition(0)", "PartitionReduce"}
