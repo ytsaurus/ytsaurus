@@ -321,6 +321,7 @@ TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
     for (auto& job : Jobs_) {
         auto controller = job->WeakController.Lock();
         if (!job->Suspended || !controller || !controller->IsRunning()) {
+            job->Reader.Reset();
             continue;
         }
         const auto& cancelableContext = controller->GetCancelableContext();
