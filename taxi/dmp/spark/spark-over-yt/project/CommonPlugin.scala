@@ -46,9 +46,6 @@ object CommonPlugin extends AutoPlugin {
 
     val clientShadeRules: Seq[ShadeRule] = commonShadeRules ++ Seq(ShadeRule.rename(
       "ru.yandex.spark.yt.format.GlobalTransactionSparkListener" -> "ru.yandex.spark.yt.format.GlobalTransactionSparkListener",
-      "ru.yandex.spark.yt.wrapper.**" -> "shadeddatasource.ru.yandex.spark.yt.wrapper.@1",
-      "ru.yandex.yt.**" -> "shadeddatasource.ru.yandex.yt.@1",
-      "ru.yandex.inside.**" -> "shadeddatasource.ru.yandex.inside.@1",
       "org.objenesis.**" -> "shadeddatasource.org.objenesis.@1",
       "com.google.protobuf.**" -> "shadeddatasource.com.google.protobuf.@1",
       "NYT.**" -> "shadeddatasource.NYT.@1"
