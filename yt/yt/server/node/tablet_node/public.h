@@ -22,6 +22,13 @@ DEFINE_ENUM(ETabletDistributedThrottlerKind,
     (Write)
 )
 
+DEFINE_ENUM(EHunkCompactionReason,
+    (None)
+    (ForcedCompaction)
+    (GarbageRatioTooHigh)
+    (HunkChunkTooSmall)
+);
+
 DEFINE_ENUM(ETabletWriteMode,
     (Direct)
     (Pull)

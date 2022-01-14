@@ -111,15 +111,6 @@ static const size_t FinishedQueueSize = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EHunkCompactionReason,
-    (None)
-    (ForcedCompaction)
-    (GarbageRatioTooHigh)
-    (HunkChunkTooSmall)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TStoreCompactionSessionBase
     : public TRefCounted
 {
@@ -727,6 +718,8 @@ private:
         TPartitionId PartitionId;
         std::vector<TStoreId> StoreIds;
         NLsm::EStoreCompactionReason Reason;
+
+        TEnumIndexedVector<EHunkCompactionReason, i64> HunkChunkCountByReason;
 
         // True if the all chunks should be discarded. The task does not
         // require reading and writing chunks.
@@ -1415,6 +1408,7 @@ private:
                 ConvertTo<TRetentionConfigPtr>(mountConfig));
 
             reader = CreateReader(
+                task,
                 tablet,
                 tabletSnapshot,
                 stores,
@@ -1544,6 +1538,7 @@ private:
         if (!failed) {
             tabletSnapshot->TableProfiler->GetLsmCounters()->ProfilePartitioning(
                 task->Reason,
+                task->HunkChunkCountByReason,
                 reader->GetDataStatistics(),
                 writerDataStatistics,
                 chunkReadOptions.HunkChunkReaderStatistics,
@@ -1783,6 +1778,7 @@ private:
                 ConvertTo<TRetentionConfigPtr>(mountConfig));
 
             reader = CreateReader(
+                task,
                 tablet,
                 tabletSnapshot,
                 stores,
@@ -1890,6 +1886,7 @@ private:
         if (!failed) {
             tabletSnapshot->TableProfiler->GetLsmCounters()->ProfileCompaction(
                 task->Reason,
+                task->HunkChunkCountByReason,
                 partition->IsEden(),
                 reader->GetDataStatistics(),
                 compactionResult.StoreWriter->GetDataStatistics(),
@@ -1952,6 +1949,7 @@ private:
     }
 
     THashSet<TChunkId> PickCompactableHunkChunkIds(
+        TTask* task,
         const TTablet* tablet,
         const std::vector<TSortedChunkStorePtr>& stores,
         const NLogging::TLogger& logger)
@@ -1976,6 +1974,8 @@ private:
                     candidates.insert(hunkChunk);
                 } else {
                     if (finalistIds.insert(hunkChunk->GetId()).second) {
+                        // NB: GetHunkCompactionReason will produce same result for each hunk chunk occurence.
+                        ++task->HunkChunkCountByReason[compactionReason];
                         YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                             "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
                             hunkChunk->GetId(),
@@ -2028,6 +2028,7 @@ private:
                         "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
                         candidate->GetId(),
                         EHunkCompactionReason::HunkChunkTooSmall);
+                    ++task->HunkChunkCountByReason[EHunkCompactionReason::HunkChunkTooSmall];
                     InsertOrCrash(finalistIds, candidate->GetId());
                     ++i;
                 }
@@ -2039,6 +2040,7 @@ private:
     }
 
     IVersionedReaderPtr CreateReader(
+        TTask* task,
         TTablet* tablet,
         const TTabletSnapshotPtr& tabletSnapshot,
         const std::vector<TSortedChunkStorePtr>& stores,
@@ -2065,6 +2067,7 @@ private:
             tablet->GetChunkFragmentReader(),
             tablet->GetPhysicalSchema(),
             PickCompactableHunkChunkIds(
+                task,
                 tablet,
                 stores,
                 logger),
