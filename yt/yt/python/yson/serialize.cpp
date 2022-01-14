@@ -146,7 +146,7 @@ void SerializeMapFragment(
         context->Pop();
     };
 
-    const char itemsKeyword[] = "items";
+    const char* itemsKeyword = "items";
     auto items = Py::Object(
         PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyObject_CallMethod(*map, const_cast<char*>(itemsKeyword), nullptr),
         true);
@@ -182,11 +182,11 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
 
     // TODO(asaitgalin): Make singleton with all global variables and
     // free all objects there before interpreter exit.
-    thread_local PyObject* SignedInt64Min = PyLong_FromLongLong(std::numeric_limits<i64>::min());
+    static auto* SignedInt64Min = PyLong_FromLongLong(std::numeric_limits<i64>::min());
     NSan::MarkAsIntentionallyLeaked(SignedInt64Min);
-    thread_local PyObject* SignedInt64Max = PyLong_FromLongLong(std::numeric_limits<i64>::max());
+    static auto* SignedInt64Max = PyLong_FromLongLong(std::numeric_limits<i64>::max());
     NSan::MarkAsIntentionallyLeaked(SignedInt64Max);
-    thread_local PyObject* UnsignedInt64Max = PyLong_FromUnsignedLongLong(std::numeric_limits<ui64>::max());
+    static auto* UnsignedInt64Max = PyLong_FromUnsignedLongLong(std::numeric_limits<ui64>::max());
     NSan::MarkAsIntentionallyLeaked(UnsignedInt64Max);
 
     if (PyObject_RichCompareBool(UnsignedInt64Max, obj.ptr(), Py_LT) == 1 ||
@@ -245,21 +245,30 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
     }
 }
 
+PyObject* PyStringFromString(const char* str)
+{
+#if PY_MAJOR_VERSION < 3
+    return PyString_FromString(str);
+#else
+    return PyUnicode_FromString(str);
+#endif
+}
+
 bool HasAttributes(const Py::Object& obj)
 {
     const char* hasAttributesStr = "has_attributes";
-    auto hasAttributesPyStr = Py::String(hasAttributesStr);
-    auto attributesPyStr = Py::String("attributes");
-    if (PyObject_HasAttr(obj.ptr(), hasAttributesPyStr.ptr())) {
+    static auto* hasAttributesPyStr = PyStringFromString(hasAttributesStr);
+    static auto* attributesPyStr = PyStringFromString("attributes");
+    if (PyObject_HasAttr(obj.ptr(), hasAttributesPyStr)) {
         return Py::Boolean(obj.callMemberFunction(hasAttributesStr));
     }
-    return PyObject_HasAttr(obj.ptr(), attributesPyStr.ptr());
+    return PyObject_HasAttr(obj.ptr(), attributesPyStr);
 }
 
 bool HasCallableToYsonType(const Py::Object& obj)
 {
-    auto toYsonTypePyStr = Py::String("to_yson_type");
-    return PyObject_HasAttr(obj.ptr(), toYsonTypePyStr.ptr()) && obj.getAttr("to_yson_type").isCallable();
+    static auto* toYsonTypePyStr = PyStringFromString("to_yson_type");
+    return PyObject_HasAttr(obj.ptr(), toYsonTypePyStr) && obj.getAttr("to_yson_type").isCallable();
 }
 
 void Serialize(
