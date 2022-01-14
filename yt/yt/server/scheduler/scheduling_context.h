@@ -31,7 +31,7 @@ struct TScheduleJobsStatistics
     int TotalConditionallyPreemptableJobCount = 0;
     int MaxConditionallyPreemptableJobCountInPool = 0;
     bool ScheduleWithPreemption = false;
-    bool HasAggressivelyStarvingElements = false;
+    TEnumIndexedVector<EOperationPreemptionPriority, int> OperationCountByPreemptionPriority;
     TJobResources ResourceLimits;
     TJobResources ResourceUsage;
     TJobResources UnconditionalResourceUsageDiscount;
@@ -42,6 +42,7 @@ void Serialize(const TScheduleJobsStatistics& statistics, NYson::IYsonConsumer* 
 
 TString FormatPreemptableInfoCompact(const TScheduleJobsStatistics& statistics);
 TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics);
+TString FormatOperationCountByPreemptionPriorityCompact(const TScheduleJobsStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

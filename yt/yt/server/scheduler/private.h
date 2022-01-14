@@ -74,6 +74,19 @@ DEFINE_ENUM(EResourceTreeElementKind,
     (Root)
 );
 
+DEFINE_ENUM(EOperationPreemptionPriority,
+    (None)
+    (Regular)
+    (Aggressive)
+);
+
+// NB(eshcherbin): Currently this enum is identical to |EJobPreemptionStatus|, however, it's going to change soon.
+DEFINE_ENUM(EJobPreemptionLevel,
+    (NonPreemptable)
+    (AggressivelyPreemptable)
+    (Preemptable)
+);
+
 DEFINE_ENUM(EJobPreemptionStatus,
     (NonPreemptable)
     (AggressivelyPreemptable)
