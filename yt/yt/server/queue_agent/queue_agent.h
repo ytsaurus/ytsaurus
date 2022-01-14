@@ -4,6 +4,8 @@
 
 #include "dynamic_state.h"
 
+#include <yt/yt/ytlib/hive/public.h>
+
 namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +20,7 @@ public:
 public:
     TQueueAgent(
         TQueueAgentConfigPtr config,
+        NHiveClient::TClusterDirectoryPtr clusterDirectory,
         IInvokerPtr controlInvoker,
         TDynamicStatePtr dynamicState);
 
@@ -27,6 +30,7 @@ public:
 
 private:
     const TQueueAgentConfigPtr Config_;
+    const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
     const NConcurrency::TThreadPoolPtr ControllerThreadPool_;

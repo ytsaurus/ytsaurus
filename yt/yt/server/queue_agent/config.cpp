@@ -4,8 +4,6 @@
 
 #include <yt/yt/client/security_client/public.h>
 
-#include <yt/yt/core/ytree/ephemeral_node_factory.h>
-
 #include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NQueueAgent {
@@ -14,13 +12,22 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueueControllerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("loop_period", &TThis::LoopPeriod)
+        .Default(TDuration::Seconds(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueueAgentConfig::Register(TRegistrar registrar)
 {
-
     registrar.Parameter("poll_period", &TThis::PollPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("controller_thread_count", &TThis::ControllerThreadCount)
         .Default(4);
+    registrar.Parameter("controller", &TThis::Controller)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

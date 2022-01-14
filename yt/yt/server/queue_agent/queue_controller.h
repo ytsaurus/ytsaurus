@@ -3,6 +3,8 @@
 #include "private.h"
 #include "dynamic_state.h"
 
+#include <yt/yt/ytlib/hive/public.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NQueueAgent {
@@ -47,10 +49,12 @@ DEFINE_REFCOUNTED_TYPE(IQueueController)
 ////////////////////////////////////////////////////////////////////////////////
 
 IQueueControllerPtr CreateQueueController(
+    TQueueControllerConfigPtr config,
+    NHiveClient::TClusterDirectoryPtr clusterDirectory,
     TCrossClusterReference queueRef,
     EQueueType queueType,
     TQueueTableRow queueRow,
-    THashMap<TCrossClusterReference, TConsumerTableRow> consumerRefToRow,
+    TConsumerRowMap consumerRefToRow,
     IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
