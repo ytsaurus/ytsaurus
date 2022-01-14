@@ -13,6 +13,7 @@ inline const NProfiling::TProfiler QueueAgentProfiler("/queue_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TQueueControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueAgent)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentServerConfig)
@@ -47,8 +48,11 @@ DEFINE_ENUM(EQueueType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCrossClusterReference;
 struct TQueueTableRow;
 struct TConsumerTableRow;
+
+using TConsumerRowMap = THashMap<TCrossClusterReference, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -18,6 +18,8 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NHydra;
+using namespace NTracing;
+using namespace NHiveClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,10 +27,12 @@ static const auto& Logger = QueueAgentLogger;
 
 TQueueAgent::TQueueAgent(
     TQueueAgentConfigPtr config,
+    TClusterDirectoryPtr clusterDirectory,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState)
     : OrchidService_(IYPathService::FromProducer(BIND(&TQueueAgent::BuildOrchid, MakeWeak(this)))->Via(controlInvoker))
     , Config_(std::move(config))
+    , ClusterDirectory_(std::move(clusterDirectory))
     , ControlInvoker_(std::move(controlInvoker))
     , DynamicState_(std::move(dynamicState))
     , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
@@ -164,11 +168,16 @@ void TQueueAgent::Poll()
     PollInstant_ = TInstant::Now();
     ++PollIndex_;
 
-    auto Logger = QueueAgentLogger.WithTag("PollIndex: %v", PollIndex_);
+    auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgent"));
+
+    const auto& Logger = QueueAgentLogger;
 
     // Collect queue and consumer rows.
 
-    YT_LOG_INFO("Polling state tables", PollIndex_);
+    YT_LOG_INFO("State poll started (PollIndex: %v)", PollIndex_);
+    auto logFinally = Finally([&] {
+        YT_LOG_INFO("State poll finished (PollIndex: %v)", PollIndex_);
+    });
 
     auto asyncQueueRows = DynamicState_->Queues->Select();
     auto asyncConsumerRows = DynamicState_->Consumers->Select();
@@ -326,16 +335,18 @@ void TQueueAgent::Poll()
 
     for (auto& [queueRef, queue] : Queues_) {
         if (queue.Error.IsOK() && !queue.Controller) {
-            THashMap<TCrossClusterReference, TConsumerTableRow> queueConsumerRefToRow;
+            TConsumerRowMap consumerRowMap;
             for (const auto& consumerRef : GetKeys(queue.ConsumerRowRevisions)) {
-                queueConsumerRefToRow[consumerRef] = GetOrCrash(consumerRefToRow, consumerRef);
+                consumerRowMap[consumerRef] = GetOrCrash(consumerRefToRow, consumerRef);
             }
 
             queue.Controller = CreateQueueController(
+                Config_->Controller,
+                ClusterDirectory_,
                 queueRef,
                 queue.QueueType,
                 GetOrCrash(queueRefToRow, queueRef),
-                std::move(queueConsumerRefToRow),
+                std::move(consumerRowMap),
                 CreateSerializedInvoker(ControllerThreadPool_->GetInvoker()));
             queue.Controller->Start();
         }

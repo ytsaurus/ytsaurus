@@ -9,6 +9,8 @@ import copy
 
 from yt.yson import YsonUint64
 
+import yt_error_codes
+
 ##################################################################
 
 QUEUE_TABLE_SCHEMA = [
@@ -181,7 +183,8 @@ class TestQueueAgent(YTEnvSetup):
                       "dynamic": True, "sorted": False}],
                     update=True)
         queue = self._get_queue("primary://tmp/q")
-        assert "error" not in queue
+        # This error means that controller is intantiated and works properly.
+        assert_yt_error(YtError.from_dict(queue["error"]), code=yt_error_codes.ResolveErrorCode)
         assert queue["type"] == "ordered_dynamic_table"
 
         # Switch back to sorted dynamic table.
@@ -238,11 +241,12 @@ class TestQueueAgent(YTEnvSetup):
                       "dynamic": True, "sorted": False}],
                     update=True)
         queue = self._get_queue("primary://tmp/q")
-        assert "error" not in queue
+        assert_yt_error(YtError.from_dict(queue["error"]), code=yt_error_codes.ResolveErrorCode)
         assert queue["type"] == "ordered_dynamic_table"
 
         consumer = self._get_consumer("primary://tmp/c")
-        assert "error" not in consumer
+        # TODO(max42): uncomment this in future.
+        # assert_yt_error(YtError.from_dict(consumer["error"]), code=yt_error_codes.ResolveErrorCode)
 
 
 class TestMultipleAgents(YTEnvSetup):

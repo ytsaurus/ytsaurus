@@ -14,6 +14,8 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/monitoring/http_integration.h>
 #include <yt/yt/ytlib/monitoring/monitoring_manager.h>
 
@@ -110,6 +112,8 @@ void TBootstrap::DoRun()
         Config_->ClusterConnection,
         std::move(connectionOptions));
 
+    NativeConnection_->GetClusterDirectorySynchronizer()->Start();
+
     auto clientOptions = TClientOptions::FromUser(Config_->User);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
@@ -127,6 +131,7 @@ void TBootstrap::DoRun()
 
     QueueAgent_ = New<TQueueAgent>(
         Config_->QueueAgent,
+        NativeConnection_->GetClusterDirectory(),
         ControlInvoker_,
         DynamicState_);
 

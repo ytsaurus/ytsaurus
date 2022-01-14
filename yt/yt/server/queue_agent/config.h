@@ -16,6 +16,28 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQueueControllerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Loop period. Defines the period of monitoring information exporting, automatic
+    //! trimming and the maximum age of cached Orchid state.
+    //!
+    //! Null stands for "no internal update loop"; in this mode no information is
+    //! exported to monitoring and automatic trimming does not work. Orchid read requests
+    //! are still handled synchronously as opposite to being served from cache when
+    //! #LoopPeriod is non-null.
+    std::optional<TDuration> LoopPeriod;
+
+    REGISTER_YSON_STRUCT(TQueueControllerConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueControllerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueueAgentConfig
     : public NYTree::TYsonStruct
 {
@@ -25,6 +47,9 @@ public:
 
     //! Controller thread pool thread count.
     int ControllerThreadCount;
+
+    //! Configuration of queue controllers.
+    TQueueControllerConfigPtr Controller;
 
     REGISTER_YSON_STRUCT(TQueueAgentConfig)
 
