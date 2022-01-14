@@ -1,4 +1,5 @@
 #include "chunk_file_reader.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -74,8 +75,8 @@ TChunkFileReader::TChunkFileReader(
     IIOEnginePtr ioEngine,
     TChunkId chunkId,
     TString fileName,
+    EDirectIOPolicy useDirectIO,
     bool validateBlocksChecksums,
-    bool useDirectIO,
     IBlocksExtCache* blocksExtCache)
     : IOEngine_(std::move(ioEngine))
     , ChunkId_(chunkId)
@@ -87,8 +88,7 @@ TChunkFileReader::TChunkFileReader(
 
 TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
     const TClientChunkReadOptions& options,
-    const std::vector<int>& blockIndexes,
-    std::optional<i64> /* estimatedSize */)
+    const std::vector<int>& blockIndexes)
 {
     std::vector<TFuture<std::vector<TBlock>>> futures;
     auto count = std::ssize(blockIndexes);
@@ -137,8 +137,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
 TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
     const TClientChunkReadOptions& options,
     int firstBlockIndex,
-    int blockCount,
-    std::optional<i64> /* estimatedSize */)
+    int blockCount)
 {
     YT_VERIFY(firstBlockIndex >= 0);
 
@@ -165,7 +164,9 @@ TChunkId TChunkFileReader::GetChunkId() const
     return ChunkId_;
 }
 
-TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(const TClientChunkReadOptions& options)
+TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
+    const TClientChunkReadOptions& options,
+    bool useDirectIO)
 {
     // Fast path.
     if (ChunkFragmentReadsPrepared_.load()) {
@@ -175,8 +176,8 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(const TClientChunkRe
     // Slow path.
     auto guard = Guard(ChunkFragmentReadsLock_);
     if (!ChunkFragmentReadsPreparedFuture_) {
-        ChunkFragmentReadsPreparedFuture_ = OpenDataFile()
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& /*ioEngine*/) {
+        ChunkFragmentReadsPreparedFuture_ = OpenDataFile(ShouldUseDirectIO(UseDirectIO_, useDirectIO))
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& /*handle*/) {
                 if (BlocksExtCache_) {
                     BlocksExt_ = BlocksExtCache_->Find();
                 }
@@ -303,7 +304,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     }
 
     if (!dataFile) {
-        auto asyncDataFile = OpenDataFile();
+        auto asyncDataFile = OpenDataFile(ShouldUseDirectIO(UseDirectIO_, /*userRequestedDirectIO*/ false));
         auto optionalDataFileOrError = asyncDataFile.TryGet();
         if (!optionalDataFileOrError || !optionalDataFileOrError->IsOK()) {
             return asyncDataFile
@@ -426,7 +427,7 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     return New<TRefCountedChunkMeta>(std::move(meta));
 }
 
-TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile()
+TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(bool useDirectIO)
 {
     auto guard = Guard(DataFileLock_);
     if (!DataFileFuture_) {
@@ -434,8 +435,8 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile()
             FileName_);
 
         EOpenMode mode = OpenExisting | RdOnly | CloseOnExec;
-        if (UseDirectIO_) {
-            mode |= DirectAligned;
+        if (useDirectIO) {
+            TIOEngineHandle::MarkOpenForDirectIO(&mode);
         }
         DataFileFuture_ = IOEngine_->Open({FileName_, mode})
             .ToUncancelable()

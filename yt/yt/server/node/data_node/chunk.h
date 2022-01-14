@@ -87,12 +87,14 @@ struct IChunk
      *
      *  If null future is returned then the underlying reader is already open and prepared (this is the fast path).
      *  Otherwise the caller must wait for the returned future to become set to access the underlying reader.
+     *  If file has not been opened yet, will consider #useDirectIO as a hint to use DirectIO.
      *
      *  \note
      *  Thread affinity: any
      */
     virtual TFuture<void> PrepareToReadChunkFragments(
-        const NChunkClient::TClientChunkReadOptions& options) = 0;
+        const NChunkClient::TClientChunkReadOptions& options,
+        bool useDirectIO) = 0;
 
     //! Prepares a block fragment read request to be passed to IIOEngine.
     /*!
@@ -199,7 +201,6 @@ public:
     static TChunkReadGuard TryAcquire(IChunkPtr chunk);
 
     const IChunkPtr& GetChunk() const;
-    TFuture<void> PrepareToReadChunkFragments(const NChunkClient::TClientChunkReadOptions& options) const;
 
 private:
     explicit TChunkReadGuard(IChunkPtr chunk);

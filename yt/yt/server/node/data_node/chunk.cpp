@@ -52,11 +52,6 @@ const IChunkPtr& TChunkReadGuard::GetChunk() const
     return Chunk_;
 }
 
-TFuture<void> TChunkReadGuard::PrepareToReadChunkFragments(const TClientChunkReadOptions& options) const
-{
-    return Chunk_->PrepareToReadChunkFragments(options);
-}
-
 TChunkReadGuard TChunkReadGuard::Acquire(IChunkPtr chunk)
 {
     chunk->AcquireReadLock();

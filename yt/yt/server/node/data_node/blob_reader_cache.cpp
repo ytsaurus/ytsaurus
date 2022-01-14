@@ -56,8 +56,8 @@ public:
             chunk->GetLocation()->GetIOEngine(),
             chunk->GetId(),
             fileName,
+            chunk->GetLocation()->UseDirectIOForReads(),
             validateBlockChecksums,
-            chunk->GetLocation()->IsDirectIOEnabled(),
             this)
         , ChunkMetaManager_(chunkMetaManager)
         , Chunk_(chunk)

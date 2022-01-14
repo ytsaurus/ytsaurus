@@ -133,8 +133,8 @@ public:
     //! Returns the IO Engine.
     const NIO::IIOEnginePtr& GetIOEngine() const;
 
-    //! Returns whether direct IO is enabled for all chunks.
-    bool IsDirectIOEnabled() const;
+    //! Returns direct IO policy for read requests.
+    NIO::EDirectIOPolicy UseDirectIOForReads() const;
 
     //! Returns the medium name.
     TString GetMediumName() const;

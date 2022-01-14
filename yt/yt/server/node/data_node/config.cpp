@@ -99,8 +99,8 @@ TStoreLocationConfigBase::TStoreLocationConfigBase()
         .Default(NIO::EIOEngineType::ThreadPool);
     RegisterParameter("io_config", IOConfig)
         .Optional();
-    RegisterParameter("enable_direct_io", EnableDirectIO)
-        .Default(false);
+    RegisterParameter("use_direct_io_for_reads", UseDirectIOForReads)
+        .Default(NIO::EDirectIOPolicy::Never);
     RegisterParameter("throttle_counter_interval", ThrottleDuration)
         .Default(TDuration::Seconds(30));
     RegisterParameter("coalesced_read_max_gap_size", CoalescedReadMaxGapSize)
@@ -497,9 +497,6 @@ TDataNodeConfig::TDataNodeConfig()
 
     RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
         .Default(true);
-
-    RegisterParameter("use_direct_io", UseDirectIO)
-        .Default(EDirectIOPolicy::Never);
 
     RegisterParameter("placement_expiration_time", PlacementExpirationTime)
         .Default(TDuration::Hours(1));

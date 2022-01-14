@@ -95,7 +95,8 @@ int TChunkBase::IncrementVersion()
 }
 
 TFuture<void> TChunkBase::PrepareToReadChunkFragments(
-    const TClientChunkReadOptions& /*options*/)
+    const TClientChunkReadOptions& /*options*/,
+    bool /*useDirectIO*/)
 {
     THROW_ERROR_EXCEPTION("Chunk %v does not support reading fragments",
         Id_);

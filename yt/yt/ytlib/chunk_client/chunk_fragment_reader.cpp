@@ -930,6 +930,7 @@ private:
             req->SetMultiplexingParallelism(Config_->GetChunkFragmentSetMultiplexingParallelism);
             ToProto(req->mutable_read_session_id(), Options_.ReadSessionId);
             ToProto(req->mutable_workload_descriptor(), Options_.WorkloadDescriptor);
+            req->set_use_direct_io(Config_->UseDirectIO);
 
             for (const auto& chunkFragmentSetInfos : requestInfo.ChunkFragmentSetInfos) {
                 chunkIds.push_back(chunkFragmentSetInfos.ChunkId);

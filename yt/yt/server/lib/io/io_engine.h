@@ -26,6 +26,7 @@ public:
     TIOEngineHandle(const TString& fName, EOpenMode oMode) noexcept;
 
     bool IsOpenForDirectIO() const;
+    static void MarkOpenForDirectIO(EOpenMode* oMode);
 
 private:
     const bool OpenForDirectIO_ = false;

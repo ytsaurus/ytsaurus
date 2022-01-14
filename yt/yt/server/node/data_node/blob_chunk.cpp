@@ -495,8 +495,7 @@ void TBlobChunkBase::DoReadBlockSet(
         auto asyncBlocks = reader->ReadBlocks(
             session->Options,
             firstBlockIndex,
-            blocksToRead,
-            std::nullopt);
+            blocksToRead);
         asyncBlocks.Subscribe(
             BIND(
                 &TBlobChunkBase::OnBlocksRead,
@@ -755,7 +754,9 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(
     return ReadBlockSet(blockIndexes, options);
 }
 
-TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(const TClientChunkReadOptions& options)
+TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
+    const TClientChunkReadOptions& options,
+    bool useDirectIO)
 {
     auto guard = ReaderGuard(LifetimeLock_);
 
@@ -766,7 +767,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(const TClientChunkRead
     }
 
     auto reader = CachedWeakReader_.Lock();
-    if (reader && !reader->PrepareToReadChunkFragments(options)) {
+    if (reader && !reader->PrepareToReadChunkFragments(options, useDirectIO)) {
         PreparedReader_ = std::move(reader);
         return {};
     }
@@ -777,7 +778,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(const TClientChunkRead
         reader = Host_->BlobReaderCache->GetReader(this);
     }
 
-    auto prepareFuture = reader->PrepareToReadChunkFragments(options);
+    auto prepareFuture = reader->PrepareToReadChunkFragments(options, useDirectIO);
 
     auto writerGuard = WriterGuard(LifetimeLock_);
 
@@ -804,6 +805,8 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(const TClientChunkRead
             }
 
             PreparedReader_ = reader;
+
+            writerGuard.Release();
 
             YT_LOG_DEBUG("Chunk reader prepared to read fragments (ChunkId: %v, LocationId: %v)",
                 Id_,

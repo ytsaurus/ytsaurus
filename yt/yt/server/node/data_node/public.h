@@ -110,12 +110,6 @@ DEFINE_ENUM(EErrorCode,
     ((LayerUnpackingFailed)      (1301))
 );
 
-DEFINE_ENUM(EDirectIOPolicy,
-    (Always)
-    (Never)
-    (ForSyncOnCloseChunks)
-);
-
 DEFINE_ENUM(EDataNodeThrottlerKind,
     //! Controls the total incoming bandwidth.
     (TotalIn)

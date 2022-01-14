@@ -54,20 +54,18 @@ public:
         IIOEnginePtr ioEngine,
         NChunkClient::TChunkId chunkId,
         TString fileName,
+        EDirectIOPolicy useDirectIO,
         bool validateBlocksChecksums = true,
-        bool useDirectIO = false,
         IBlocksExtCache* blocksExtCache = nullptr);
 
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
         const NChunkClient::TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize);
+        const std::vector<int>& blockIndexes);
 
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
         const NChunkClient::TClientChunkReadOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> estimatedSize);
+        int blockCount);
 
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetMeta(
         const NChunkClient::TClientChunkReadOptions& options,
@@ -77,10 +75,12 @@ public:
     //! open and the relevant meta is read.
     /*!
      *  Returns null if already prepared.
-     *  Blocks extensions is permanently cached in the reader after this call.
+     *  Blocks extensions are permanently cached in the reader after this call.
+     *  If file has not been opened yet, will consider #useDirectIO as a hint to use DirectIO.
      */
     TFuture<void> PrepareToReadChunkFragments(
-        const NChunkClient::TClientChunkReadOptions& options);
+        const NChunkClient::TClientChunkReadOptions& options,
+        bool useDirectIO);
 
     //! Reader must be prepared (see #PrepareToReadChunkFragments) prior to this call.
     IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
@@ -93,7 +93,7 @@ private:
     const NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool ValidateBlockChecksums_;
-    const bool UseDirectIO_;
+    const EDirectIOPolicy UseDirectIO_;
     IBlocksExtCache* const BlocksExtCache_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataFileLock_);
@@ -102,9 +102,9 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ChunkFragmentReadsLock_);
     TFuture<void> ChunkFragmentReadsPreparedFuture_;
+    std::atomic<bool> ChunkFragmentReadsPrepared_ = false;
     // Permanently caches blocks extension for readers with PrepareToReadChunkFragments invoked.
     NChunkClient::TRefCountedBlocksExtPtr BlocksExt_;
-    std::atomic<bool> ChunkFragmentReadsPrepared_ = false;
 
     TFuture<std::vector<NChunkClient::TBlock>> DoReadBlocks(
         const NChunkClient::TClientChunkReadOptions& options,
@@ -126,7 +126,7 @@ private:
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
         const TSharedRef& data);
 
-    TFuture<TIOEngineHandlePtr> OpenDataFile();
+    TFuture<TIOEngineHandlePtr> OpenDataFile(bool useDirectIO);
     TIOEngineHandlePtr OnDataFileOpened(const TIOEngineHandlePtr& file);
 
     void DumpBrokenBlock(

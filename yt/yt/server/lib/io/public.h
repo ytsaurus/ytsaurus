@@ -12,6 +12,12 @@ DEFINE_ENUM(EIOEngineType,
     (FairShareThreadPool)
 );
 
+DEFINE_ENUM(EDirectIOPolicy,
+    (Always)
+    (Never)
+    (OnDemand)
+);
+
 DECLARE_REFCOUNTED_STRUCT(IIOEngine)
 
 DECLARE_REFCOUNTED_CLASS(TChunkFileReader)

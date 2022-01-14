@@ -235,7 +235,6 @@ private:
         options.SyncOnClose = request->sync_on_close();
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
-        options.EnableWriteDirectIO = ShouldUseDirectIO(Config_->UseDirectIO, request->enable_direct_io());
 
         context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
             "PlacementId: %v",
@@ -1034,6 +1033,7 @@ private:
     {
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto useDirectIO = request->use_direct_io();
 
         int totalFragmentCount = 0;
         i64 totalFragmentSize = 0;
@@ -1104,7 +1104,7 @@ private:
                             .WorkloadDescriptor = workloadDescriptor,
                             .ReadSessionId = readSessionId
                         };
-                        if (auto future = guard.PrepareToReadChunkFragments(options)) {
+                        if (auto future = guard.GetChunk()->PrepareToReadChunkFragments(options, useDirectIO)) {
                             YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
                                 guard.GetChunk()->GetId());
                             prepareReaderFutures.push_back(std::move(future));
@@ -2014,20 +2014,6 @@ private:
                 NChunkClient::EErrorCode::MasterNotConnected,
                 "Master is not connected");
         }
-    }
-
-
-    static bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO)
-    {
-        if (policy == EDirectIOPolicy::Never) {
-            return false;
-        }
-
-        if (policy == EDirectIOPolicy::Always) {
-            return true;
-        }
-
-        return writerRequestedDirectIO;
     }
 
     static i64 GetDiskReadQueueSize(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)

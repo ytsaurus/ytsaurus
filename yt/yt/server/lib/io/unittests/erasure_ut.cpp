@@ -65,24 +65,24 @@ public:
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize) override
+        std::optional<i64> /*estimatedSize*/) override
     {
         if (TryFail()) {
             return MakeFuture(MakeError());
         }
-        return Underlying_->ReadBlocks(options, blockIndexes, estimatedSize);
+        return Underlying_->ReadBlocks(options, blockIndexes);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        std::optional<i64> estimatedSize) override
+        std::optional<i64> /*estimatedSize*/) override
     {
         if (TryFail()) {
             return MakeFuture(MakeError());
         }
-        return Underlying_->ReadBlocks(options, firstBlockIndex, blockCount, estimatedSize);
+        return Underlying_->ReadBlocks(options, firstBlockIndex, blockCount);
     }
 
     TInstant GetLastFailureTime() const override
@@ -296,7 +296,11 @@ public:
                 repairWriters->push_back(New<TChunkFileWriter>(ioEngine, NullChunkId, filename));
             }
             if (repairReaders && repairIndicesSet.find(i) != repairIndicesSet.end()) {
-                auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(ioEngine, NullChunkId, filename));
+                auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
+                    ioEngine,
+                    NullChunkId,
+                    filename,
+                    EDirectIOPolicy::Never));
                 repairReaders->push_back(reader);
             }
 
@@ -304,7 +308,11 @@ public:
                 erasedIndicesSet.find(i) == erasedIndicesSet.end() &&
                 (i < codec->GetDataPartCount() || repairIndicesSet.find(i) != repairIndicesSet.end()))
             {
-                auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(ioEngine, NullChunkId, filename));
+                auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
+                    ioEngine,
+                    NullChunkId,
+                    filename,
+                    EDirectIOPolicy::Never));
                 allReaders->push_back(reader);
             }
         }
@@ -317,7 +325,11 @@ public:
         readers.reserve(partCount);
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
-            auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(ioEngine, NullChunkId, filename));
+            auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
+                ioEngine,
+                NullChunkId,
+                filename,
+                EDirectIOPolicy::Never));
             readers.push_back(reader);
         }
         return readers;
@@ -436,9 +448,18 @@ public:
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
             if (failingTimes[i] == 0) {
-                readers.push_back(CreateChunkFileReaderAdapter(New<TChunkFileReader>(ioEngine, NullChunkId, filename)));
+                readers.push_back(CreateChunkFileReaderAdapter(New<TChunkFileReader>(
+                    ioEngine,
+                    NullChunkId,
+                    filename,
+                    EDirectIOPolicy::Never)));
             } else {
-                readers.push_back(New<TFailingChunkFileReaderAdapter>(New<TChunkFileReader>(ioEngine, NullChunkId, filename), failingTimes[i]));
+                readers.push_back(New<TFailingChunkFileReaderAdapter>(New<TChunkFileReader>(
+                    ioEngine,
+                    NullChunkId,
+                    filename,
+                    EDirectIOPolicy::Never),
+                    failingTimes[i]));
             }
         }
         return readers;
