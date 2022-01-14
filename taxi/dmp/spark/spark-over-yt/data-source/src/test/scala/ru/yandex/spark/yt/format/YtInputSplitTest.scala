@@ -5,6 +5,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types.{LongType, Metadata, MetadataBuilder, StructField, StructType}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
@@ -14,6 +15,7 @@ import ru.yandex.spark.yt.common.utils.{MInfinity, PInfinity, RealValue, Segment
 import ru.yandex.spark.yt.format.YtInputSplit.{getKeyFilterSegments, getYPathImpl}
 import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, SparkYtConfiguration}
 import ru.yandex.spark.yt.fs.YPathEnriched.ypath
+import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
@@ -224,10 +226,49 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
         data
           .filter { case (a, b, c) => b >= 6.0 && c < 5.0 }
           .map(makeRow)
+      ),
+      (
+        res("c") < 5.0,
+        data
+          .filter { case (a, b, c) => c < 5.0 }
+          .map(makeRow)
       )
     )
     test.foreach {
       case (input, output) =>
+        res.filter(input).count() shouldBe output.size
+        res.filter(input).collect() should contain theSameElementsAs output
+    }
+  }
+
+  it should "push string filters" in {
+    val data = (10L to 98L)
+      .map(x => ((x + 1).toString, x.toString, x))
+    // [0..10]
+    val df = data
+      .toDF("a", "b", "c")
+      .coalesce(3)
+
+    df.write.sortedBy("a", "b").yt(tmpPath)
+
+    val res = spark.read.disableArrow.yt(tmpPath)
+    val test = Seq(
+      (
+        res("b") <= "20",
+        data
+          .filter { case (_, _, c) => c <= 20 }
+          .map(makeRow)
+      ),
+      (
+        res("a") > "10" && res("b") <= "20",
+        data
+          .filter { case (_, _, c) => c <= 20 && c >= 10 }
+          .map(makeRow)
+      )
+    )
+    test.foreach {
+      case (input, output) =>
+        res.filter(input).count() shouldBe output.size
         res.filter(input).collect() should contain theSameElementsAs output
     }
   }
@@ -245,26 +286,65 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
     ("b", List(segment10To30)),
     ("c", List(segment10To30))))
 
+  it should "get keys from schema" in {
+    def createMetadata(name: String, keyId: Long): Metadata = {
+      new MetadataBuilder()
+        .putLong(MetadataFields.KEY_ID, keyId)
+        .putString(MetadataFields.ORIGINAL_NAME, name)
+        .build()
+    }
+
+    val schema1 = StructType(Seq())
+    YtInputSplit.keys(schema1) shouldBe Seq()
+
+    val schema2 = StructType(Seq(
+      StructField("a", LongType, metadata = createMetadata("a", 0))
+    ))
+    YtInputSplit.keys(schema2) shouldBe Seq(Some("a"))
+
+    val schema3 = StructType(Seq(
+      StructField("b", LongType, metadata = createMetadata("b", 1)),
+      StructField("c", LongType, metadata = createMetadata("c", 2))
+    ))
+    YtInputSplit.keys(schema3) shouldBe Seq(None, Some("b"), Some("c"))
+
+    val schema4 = StructType(Seq(
+      StructField("c", LongType, metadata = createMetadata("c", 2)),
+      StructField("a", LongType, metadata = createMetadata("a", 0))
+    ))
+    YtInputSplit.keys(schema4) shouldBe Seq(Some("a"), None, Some("c"))
+  }
+
   it should "get key filter segments" in {
-    val res1 = getKeyFilterSegments(exampleSet1, List("a", "b"), 5)
+    val res1 = getKeyFilterSegments(exampleSet1, List("a", "b").map(Some(_)), 5)
     res1 should contain theSameElementsAs Seq(
-      Seq(("a", segmentMInfTo5), ("b", segment2To20)),
-      Seq(("a", segment15ToPInf), ("b", segment2To20))
+      Seq(segmentMInfTo5, segment2To20),
+      Seq(segment15ToPInf, segment2To20)
     )
 
-    val res2 = getKeyFilterSegments(exampleSet2, List("c", "a"), 5)
+    val res2 = getKeyFilterSegments(exampleSet2, List("c", "a").map(Some(_)), 5)
     res2 should contain theSameElementsAs Seq(
-      Seq(("c", segment10To30), ("a", segment2To20))
+      Seq(segment10To30, segment2To20)
     )
 
-    val res3 = getKeyFilterSegments(exampleSet2, List("z"), 5)
+    val res3 = getKeyFilterSegments(exampleSet2, List("z").map(Some(_)), 5)
     res3 should contain theSameElementsAs Seq(
-      Seq(("z", Segment(MInfinity(), PInfinity())))
+      Seq(Segment.full)
     )
 
-    val res4 = getKeyFilterSegments(exampleSet1, List("b", "a"), 1)
+    val res4 = getKeyFilterSegments(exampleSet1, List("b", "a").map(Some(_)), 1)
     res4 should contain theSameElementsAs Seq(
-      Seq(("b", segment2To20))
+      Seq(segment2To20)
+    )
+
+    val res5 = getKeyFilterSegments(exampleSet2, List(None, Some("b")), 5)
+    res5 should contain theSameElementsAs Seq(
+      Seq(Segment.full, segment10To30)
+    )
+
+    val res6 = getKeyFilterSegments(exampleSet2, List(Some("c"), None, Some("a")), 1)
+    res6 should contain theSameElementsAs Seq(
+      Seq(segment10To30, Segment.full, segment2To20)
     )
   }
 
@@ -274,7 +354,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
       5, 10, false, keyColumns, 0)
     val baseYPath =  ypath(new Path(file.path)).toYPath.withColumns(keyColumns: _*)
     val config = FilterPushdownConfig(enabled = true, unionEnabled = true, ytPathCountLimit = 5)
-    getYPathImpl(single = false, exampleSet1, keyColumns, config, baseYPath, file).toString shouldBe
+    getYPathImpl(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
       """<"ranges"=
         |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min">#;2]};
         |"upper_limit"={"row_index"=5;"key"=[5;20;<"type"="max">#]}};
@@ -282,7 +362,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
         |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#;20;<"type"="max">#]}}];
         |"columns"=["a";"b"]>//dir/path""".stripMargin.replaceAll("\n", "")
 
-    getYPathImpl(single = true, exampleSet1, keyColumns, config, baseYPath, file).toString shouldBe
+    getYPathImpl(single = true, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
       """<"ranges"=
         |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min">#;2]};
         |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#;20;<"type"="max">#]}}];

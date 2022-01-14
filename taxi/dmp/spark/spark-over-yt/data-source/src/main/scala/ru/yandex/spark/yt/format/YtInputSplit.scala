@@ -25,9 +25,6 @@ case class YtInputSplit(file: YtPartitionedFile, schema: StructType,
 
   private val originalFieldNames = schema.fields.map(x => x.metadata.getString(MetadataFields.ORIGINAL_NAME))
   private val basePath: YPath = ypath(new Path(file.path)).toYPath.withColumns(originalFieldNames: _*)
-  private val keys = schema.fields
-    .map(x => (x.metadata.getLong(MetadataFields.KEY_ID), x.metadata.getString(MetadataFields.ORIGINAL_NAME)))
-    .filter { case (key_id, _) => key_id >= 0 }.sorted.map { case (_, name) => name }
 
   lazy val ytPath: YPath = calculateYtPath(pushing = false)
   lazy val ytPathWithFiltersDetailed: YPath = calculateYtPath(pushing = true, union = false)
@@ -46,12 +43,21 @@ case class YtInputSplit(file: YtPartitionedFile, schema: StructType,
   }
 
   private def getYPath(single: Boolean): YPath = {
-    getYPathImpl(single, pushedFilters, keys, filterPushdownConfig, basePath, file)
+    getYPathImpl(single, pushedFilters, keys(schema), filterPushdownConfig, basePath, file)
   }
 }
 
 object YtInputSplit {
-  private[format] def getYPathImpl(single: Boolean, pushedFilters: SegmentSet, keys: Seq[String],
+  private[format] def keys(schema: StructType): Seq[Option[String]] = {
+    val keyMap = schema
+      .fields
+      .map(x => (x.metadata.getLong(MetadataFields.KEY_ID), x.metadata.getString(MetadataFields.ORIGINAL_NAME)))
+      .toMap
+    val max = if (keyMap.nonEmpty) keyMap.keys.max else -1
+    (0L to max).map(keyMap.get)
+  }
+
+  private[format] def getYPathImpl(single: Boolean, pushedFilters: SegmentSet, keys: Seq[Option[String]],
                    filterPushdownConfig: FilterPushdownConfig,
                    basePath: YPath, file: YtPartitionedFile): YPath = {
     val rawYPathFilterSegments = getKeyFilterSegments(
@@ -71,28 +77,33 @@ object YtInputSplit {
   }
 
   private[format] def getKeyFilterSegments(filterSegments: SegmentSet,
-                           keys: List[String],
+                           keys: List[Option[String]],
                            pathCountLimit: Int,
-                        ): List[List[(String, Segment)]] = {
+                        ): List[List[Segment]] = {
     recursiveGetFilterSegmentsImpl(filterSegments, keys, pathCountLimit)
   }
 
   @tailrec
   private def recursiveGetFilterSegmentsImpl(filterSegments: SegmentSet,
-                                             keys: List[String], pathCountLimit: Int,
-                                             result: List[List[(String, Segment)]] = List(Nil)
-                              ): List[List[(String, Segment)]] = {
+                                             keys: List[Option[String]], pathCountLimit: Int,
+                                             result: List[List[Segment]] = List(Nil)
+                              ): List[List[Segment]] = {
     keys match {
-      case headKey :: tailKeys =>
-        val segments = filterSegments.map.get(headKey) match {
-          case None => List(Segment(MInfinity(), PInfinity()))
-          case Some(segments) => segments
-        }
-        if (segments.size * result.size > pathCountLimit) {
-          result.map(_.reverse)
-        } else {
-          recursiveGetFilterSegmentsImpl(filterSegments, tailKeys, pathCountLimit,
-            result.flatMap(res => segments.map((headKey, _) +: res)))
+      case None :: tailKeys =>
+        recursiveGetFilterSegmentsImpl(filterSegments, tailKeys, pathCountLimit,
+          result.map(res => Segment.full +: res))
+      case Some(headKey) :: tailKeys =>
+        filterSegments.map.get(headKey) match {
+          case None =>
+            recursiveGetFilterSegmentsImpl(filterSegments, tailKeys, pathCountLimit,
+              result.map(res => Segment.full +: res))
+          case Some(segments) =>
+            if (segments.size * result.size > pathCountLimit) {
+              result.map(_.reverse)
+            } else {
+              recursiveGetFilterSegmentsImpl(filterSegments, tailKeys, pathCountLimit,
+                result.flatMap(res => segments.map(_ +: res)))
+            }
         }
       case Nil =>
         result.map(_.reverse)
@@ -124,11 +135,11 @@ object YtInputSplit {
     }
   }
 
-  private def getLeftPoints(array: Seq[(String, Segment)]): Seq[Point] = {
-    array.map { case (_, Segment(left, _)) => left }
+  private def getLeftPoints(array: Seq[Segment]): Seq[Point] = {
+    array.map { case Segment(left, _) => left }
   }
 
-  private def getRightPoints(array: Seq[(String, Segment)]): Seq[Point] = {
-    array.map { case (_, Segment(_, right)) => right }
+  private def getRightPoints(array: Seq[Segment]): Seq[Point] = {
+    array.map { case Segment(_, right) => right }
   }
 }

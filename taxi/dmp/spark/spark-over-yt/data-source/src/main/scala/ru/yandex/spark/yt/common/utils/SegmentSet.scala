@@ -36,6 +36,8 @@ case class PInfinity() extends Point {
 case class Segment(left: Point, right: Point)
 
 object Segment {
+  val full: Segment = Segment(MInfinity(), PInfinity())
+
   def apply(point: Point): Segment = Segment(point, point)
 
   def toFilters(varName: String, segmentsAndPoints: Seq[Segment]): List[Filter] = {
