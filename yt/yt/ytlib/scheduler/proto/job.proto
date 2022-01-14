@@ -565,7 +565,7 @@ message TRemoteCopyJobSpecExt
         optional TRemoteCopyJobSpecExt remote_copy_job_spec_ext = 106;
     }
 
-    required string connection_config = 1;
+    required bytes connection_config = 1;
 
     required int32 concurrency = 2;
 
