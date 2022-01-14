@@ -190,9 +190,11 @@ trait YtDynTableUtils {
   }
 
   def selectRows(path: String, condition: Option[String] = None,
-                 transaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Seq[YTreeMapNode] = {
+                 transaction: Option[ApiServiceTransaction] = None,
+                 columns: Seq[String] = Nil)(implicit yt: CompoundClient): Seq[YTreeMapNode] = {
+    println(s"""${ if (columns.nonEmpty) columns.mkString(", ") else "*" } from [${formatPath(path)}] ${condition.map("where " + _).mkString}""")
     selectRowsRequest(
-      s"""* from [${formatPath(path)}] ${condition.map("where " + _).mkString}""",
+      s"""${ if (columns.nonEmpty) columns.mkString(", ") else "*" } from [${formatPath(path)}] ${condition.map("where " + _).mkString}""",
       path, transaction)
   }
 

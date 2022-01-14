@@ -161,6 +161,32 @@ lazy val `file-system` = (project in file("file-system"))
     assembly / test := {}
   )
 
+lazy val `e2e-checker` = (project in file("e2e-checker"))
+  .dependsOn(`data-source` % Provided)
+  .settings(
+    libraryDependencies ++= commonDependencies.value.map(d => if (d.configurations.isEmpty) d % Provided else d),
+    libraryDependencies ++= scaldingArgs
+  )
+
+lazy val `e2e-test` = (project in file("e2e-test"))
+  .enablePlugins(E2ETestPlugin, YtPublishPlugin, BuildInfoPlugin)
+  .dependsOn(`yt-wrapper`, `file-system`, `data-source`, `spark-submit`, `e2e-checker`,
+    `yt-wrapper` % "test->test", `file-system` % "test->test")
+  .settings(
+    libraryDependencies ++= commonDependencies.value,
+    publishYtArtifacts ++= {
+      val checker = YtPublishFile((`e2e-checker` / assembly).value, sparkYtE2ETestPath,
+        proxy = Some("hume"), isSnapshot = false, Some("check.jar"))
+      val pythonScripts: Seq[YtPublishArtifact] = (sourceDirectory.value / "test" / "python")
+        .listFiles()
+        .map { script =>
+          YtPublishFile(script, s"$sparkYtE2ETestPath/${script.getName.dropRight(3)}",
+            proxy = Some("hume"), isSnapshot = false, Some("job.py"))
+        }
+      checker +: pythonScripts
+    }
+  )
+
 // benchmark and test ----
 
 //lazy val benchmark = (project in file("benchmark"))

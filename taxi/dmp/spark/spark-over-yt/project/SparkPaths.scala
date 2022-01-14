@@ -22,6 +22,8 @@ object SparkPaths {
 
   val defaultYtServerProxyPath = "//sys/bin/ytserver-proxy/ytserver-proxy"
 
+  val sparkYtE2ETestPath = s"$sparkYtBasePath/e2e"
+
   def isSnapshotVersion(version: String): Boolean = version.contains("SNAPSHOT")
 
   def versionBasePath(basePath: String, version: String): String = {
