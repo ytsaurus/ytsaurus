@@ -745,7 +745,7 @@ public:
 
         auto invoker = ThreadPool_.GetReadInvoker(category, sessionId);
 
-        i64 paddedByteCount = 0;
+        i64 paddedBytes = 0;
         TSharedRefArray result;
         std::vector<TMutableRef> buffers;
         buffers.reserve(requests.size());
@@ -753,7 +753,7 @@ public:
             i64 totalSize = 0;
             for (const auto& request : requests) {
                 totalSize += request.Size;
-                paddedByteCount += GetPaddedSize(request.Offset, request.Size, DefaultPageSize);
+                paddedBytes += GetPaddedSize(request.Offset, request.Size, DefaultPageSize);
             }
 
             TSharedRefArrayBuilder resultBuilder(requests.size(), totalSize, tagCookie);
@@ -778,8 +778,8 @@ public:
 
         TReadResponse response{
             .OutputBuffers = result.ToVector(),
-            .PaddedByteCount = paddedByteCount,
-            .IOCount = std::ssize(futures)
+            .PaddedBytes = paddedBytes,
+            .IORequests = std::ssize(futures)
         };
 
         return AllSucceeded(std::move(futures))
@@ -1315,16 +1315,16 @@ struct TReadUringRequest
     TCompactVector<int, TypicalSubrequestCount> PendingReadSubrequestIndexes;
     TReadRequestCombiner ReadRequestCombiner;
 
-    i64 PaddedByteCount = 0;
+    i64 PaddedBytes = 0;
     int FinishedSubrequestCount = 0;
 
 
     void TrySetReadSucceeded()
     {
         IIOEngine::TReadResponse response{
-            .PaddedByteCount = PaddedByteCount,
+            .PaddedBytes = PaddedBytes,
             .OutputBuffers = std::move(ReadRequestCombiner.ReleaseOutputBuffers()),
-            .IOCount = FinishedSubrequestCount
+            .IORequests = FinishedSubrequestCount
         };
         if (Promise.TrySet(std::move(response))) {
             YT_LOG_TRACE("Request succeeded (Request: %p)",
@@ -2085,7 +2085,7 @@ public:
 
         for (int index = 0; index < std::ssize(ioRequests); ++index) {
             const auto& ioRequest = ioRequests[index];
-            uringRequest->PaddedByteCount += GetPaddedSize(
+            uringRequest->PaddedBytes += GetPaddedSize(
                 ioRequest.Offset,
                 ioRequest.Size,
                 handles[index]->IsOpenForDirectIO() ? Config_->DirectIOPageSize : DefaultPageSize);

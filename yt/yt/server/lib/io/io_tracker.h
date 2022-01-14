@@ -12,8 +12,8 @@ namespace NYT::NIO {
 
 struct TIOCounters
 {
-    i64 ByteCount = 0;
-    i64 IOCount = 0;
+    i64 Bytes = 0;
+    i64 IORequests = 0;
 
     void MergeFrom(TIOCounters other);
 };

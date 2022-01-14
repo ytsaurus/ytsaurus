@@ -18,7 +18,7 @@ struct TChunkReaderStatistics
     : public TRefCounted
 {
     std::atomic<i64> DataBytesReadFromDisk = 0;
-    std::atomic<i64> DataIOCount = 0;
+    std::atomic<i64> DataIORequests = 0;
     std::atomic<i64> DataBytesTransmitted = 0;
     std::atomic<i64> DataBytesReadFromCache = 0;
     std::atomic<i64> MetaBytesReadFromDisk = 0;
@@ -69,7 +69,7 @@ public:
 
 private:
     NProfiling::TCounter DataBytesReadFromDisk_;
-    NProfiling::TCounter DataIOCount_;
+    NProfiling::TCounter DataIORequests_;
     NProfiling::TCounter DataBytesTransmitted_;
     NProfiling::TCounter DataBytesReadFromCache_;
     NProfiling::TCounter WastedDataBytesReadFromDisk_;

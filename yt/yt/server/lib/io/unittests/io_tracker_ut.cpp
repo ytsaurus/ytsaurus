@@ -17,16 +17,16 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TIOEvent CreateEvent(
-    i64 byteCount,
-    i64 ioCount,
+    i64 bytes,
+    i64 ioRequests,
     TString firstTagName = "",
     TString firstTagValue = "",
     TString secondTagName = "",
     TString secondTagValue = "")
 {
     TIOEvent ioEvent;
-    ioEvent.Counters.ByteCount = byteCount;
-    ioEvent.Counters.IOCount = ioCount;
+    ioEvent.Counters.Bytes = bytes;
+    ioEvent.Counters.IORequests = ioRequests;
     if (!firstTagName.empty()) {
         EmplaceOrCrash(ioEvent.LocalTags, std::move(firstTagName), std::move(firstTagValue));
     }
@@ -45,16 +45,16 @@ TEST(TIOTrackerTest, Simple)
     config->EnableRaw = true;
     auto ioTracker = CreateIOTracker(std::move(config));
 
-    std::atomic<int> eventCount = 0;
-    std::atomic<int> totalByteCount = 0;
-    std::atomic<int> totalIOCount = 0;
-    std::atomic<int> totalTagCount = 0;
+    std::atomic<int> events = 0;
+    std::atomic<int> totalBytes = 0;
+    std::atomic<int> totalIORequests = 0;
+    std::atomic<int> totalTags = 0;
 
     ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters& counters, const TIOTagList& tags) {
-        eventCount += 1;
-        totalByteCount += counters.ByteCount;
-        totalIOCount += counters.IOCount;
-        totalTagCount += ssize(tags);
+        events += 1;
+        totalBytes += counters.Bytes;
+        totalIORequests += counters.IORequests;
+        totalTags += ssize(tags);
     }));
 
     ioTracker->Enqueue(CreateEvent(3, 5, "key@", "value", "key2@", "value2"));
@@ -66,10 +66,10 @@ TEST(TIOTrackerTest, Simple)
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(200));
 
-    EXPECT_EQ(6, eventCount);
-    EXPECT_EQ(67, totalByteCount);
-    EXPECT_EQ(177, totalIOCount);
-    EXPECT_EQ(9, totalTagCount);
+    EXPECT_EQ(6, events);
+    EXPECT_EQ(67, totalBytes);
+    EXPECT_EQ(177, totalIORequests);
+    EXPECT_EQ(9, totalTags);
 }
 
 TEST(TIOTrackerTest, QueueOverflow)
@@ -83,7 +83,7 @@ TEST(TIOTrackerTest, QueueOverflow)
     std::atomic<int> eventCount = 0;
     std::atomic<int> goodEventCount = 0;
 
-    ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters&, const TIOTagList& tags) {
+    ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters& /*counters*/, const TIOTagList& tags) {
         eventCount += 1;
         if (tags[0].second == "true") {
             goodEventCount += 1;
@@ -109,16 +109,16 @@ TEST(TIOTrackerTest, Aggregate)
     config->AggregationPeriod = TDuration::MilliSeconds(500);
     auto ioTracker = CreateIOTracker(std::move(config));
 
-    std::atomic<int> eventCount = 0;
-    std::atomic<int> totalByteCount = 0;
-    std::atomic<int> totalIOCount = 0;
-    std::atomic<int> totalTagCount = 0;
+    std::atomic<int> events = 0;
+    std::atomic<int> totalBytes = 0;
+    std::atomic<int> totalIORequests = 0;
+    std::atomic<int> totalTags = 0;
 
     ioTracker->SubscribeOnAggregateEventLogged(BIND([&] (const TIOCounters& counters, const TIOTagList& tags) {
-        eventCount += 1;
-        totalByteCount += counters.ByteCount;
-        totalIOCount += counters.IOCount;
-        totalTagCount += ssize(tags);
+        events += 1;
+        totalBytes += counters.Bytes;
+        totalIORequests += counters.IORequests;
+        totalTags += ssize(tags);
     }));
 
     ioTracker->Enqueue(CreateEvent(3, 5, "key@", "value", "key2@", "value2"));
@@ -130,10 +130,10 @@ TEST(TIOTrackerTest, Aggregate)
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(750));
 
-    EXPECT_EQ(3, eventCount);
-    EXPECT_EQ(67, totalByteCount);
-    EXPECT_EQ(177, totalIOCount);
-    EXPECT_EQ(3, totalTagCount);
+    EXPECT_EQ(3, events);
+    EXPECT_EQ(67, totalBytes);
+    EXPECT_EQ(177, totalIORequests);
+    EXPECT_EQ(3, totalTags);
 }
 
 TEST(TIOTrackerTest, Concurrent)
@@ -148,7 +148,7 @@ TEST(TIOTrackerTest, Concurrent)
     const int enqueuePerThreadCount = 200;
     std::vector<std::atomic<int>> eventsByIter(threadCount);
 
-    ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters&, const TIOTagList& tags) {
+    ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters& /*counters*/, const TIOTagList& tags) {
         eventsByIter[FromString(tags[0].second)] += 1;
     }));
 
@@ -191,10 +191,10 @@ TEST(TIOTrackerTest, Disable)
     std::atomic<int> rawEventCount = 0;
     std::atomic<int> aggregateEventCount = 0;
 
-    ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters&, const TIOTagList&) {
+    ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters& /*counters*/, const TIOTagList&) {
         rawEventCount += 1;
     }));
-    ioTracker->SubscribeOnAggregateEventLogged(BIND([&] (const TIOCounters&, const TIOTagList&) {
+    ioTracker->SubscribeOnAggregateEventLogged(BIND([&] (const TIOCounters& /*counters*/, const TIOTagList&) {
         aggregateEventCount += 1;
     }));
 
@@ -246,17 +246,17 @@ TEST(TIOTrackerTest, Baggage)
     TAtomicObject<TIOTagList> rawTagList;
     TAtomicObject<TIOTagList> aggregateTagList;
 
-    ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters&, const TIOTagList& list) {
+    ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters& /*counters*/, const TIOTagList& list) {
         rawTagList.Store(std::move(list));
     }));
-    ioTracker->SubscribeOnAggregateEventLogged(BIND([&] (const TIOCounters&, const TIOTagList& list) {
+    ioTracker->SubscribeOnAggregateEventLogged(BIND([&] (const TIOCounters& /*counters*/, const TIOTagList& list) {
         aggregateTagList.Store(std::move(list));
     }));
 
     TIOEvent event;
     event.Counters = TIOCounters{
-        .ByteCount = 1,
-        .IOCount = 1
+        .Bytes = 1,
+        .IORequests = 1
     };
     auto attributes = NYTree::CreateEphemeralAttributes();
     attributes->Set("firstKey", "firstValue");

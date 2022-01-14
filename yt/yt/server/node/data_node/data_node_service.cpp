@@ -282,7 +282,7 @@ private:
                 bool isBlobChunk = IsBlobChunkId(DecodeChunkId(session->GetChunkId()).Id);
                 if (isBlobChunk && chunkInfo.disk_space() > 0 && ioTracker->IsEnabled()) {
                     ioTracker->Enqueue(
-                        TIOCounters{.ByteCount = chunkInfo.disk_space(), .IOCount = 1},
+                        TIOCounters{.Bytes = chunkInfo.disk_space(), .IORequests = 1},
                         MakeWriteIOTags("FinishChunk", session, context));
                 }
 
@@ -375,7 +375,7 @@ private:
                         const auto& ioTracker = Bootstrap_->GetIOTracker();
                         const auto& counters = result.ValueOrThrow();
                         bool isJournalChunk = IsJournalChunkId(DecodeChunkId(session->GetChunkId()).Id);
-                        if (isJournalChunk && counters.ByteCount > 0 && ioTracker->IsEnabled()) {
+                        if (isJournalChunk && counters.Bytes > 0 && ioTracker->IsEnabled()) {
                             ioTracker->Enqueue(
                                 counters,
                                 MakeWriteIOTags("FlushBlocks", session, context));
@@ -454,7 +454,7 @@ private:
                 // the data to disk in FinishChunk(), not in FlushBlocks().
                 const auto& ioTracker = Bootstrap_->GetIOTracker();
                 const auto& counters = result.Value();
-                if (IsJournalChunkId(session->GetChunkId()) && counters.ByteCount > 0 && ioTracker->IsEnabled()) {
+                if (IsJournalChunkId(session->GetChunkId()) && counters.Bytes > 0 && ioTracker->IsEnabled()) {
                     ioTracker->Enqueue(
                         counters,
                         MakeWriteIOTags("FlushBlocks", session, context));
@@ -855,7 +855,7 @@ private:
         const auto& ioTracker = Bootstrap_->GetIOTracker();
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
             ioTracker->Enqueue(
-                TIOCounters{.ByteCount = bytesReadFromDisk, .IOCount = 1},
+                TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = 1},
                 MakeReadIOTags("GetBlockSet", chunk->GetLocation(), context, chunkId));
         }
 
@@ -994,7 +994,7 @@ private:
         const auto& ioTracker = Bootstrap_->GetIOTracker();
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
             ioTracker->Enqueue(
-                TIOCounters{.ByteCount = bytesReadFromDisk, .IOCount = 1},
+                TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = 1},
                 MakeReadIOTags("GetBlockRange", chunk->GetLocation(), context, chunkId));
         }
 
@@ -1209,7 +1209,7 @@ private:
                             YT_VERIFY(results.size() == locationFragmentIndices.size());
 
                             i64 dataBytesReadFromDisk = 0;
-                            i64 dataIOCount = 0;
+                            i64 dataIORequests = 0;
                             for (int resultIndex = 0; resultIndex < std::ssize(results); ++resultIndex) {
                                 auto& result = results[resultIndex];
                                 const auto& fragmentIndices = locationFragmentIndices[resultIndex];
@@ -1219,11 +1219,11 @@ private:
                                 }
 
                                 const auto& ioTracker = Bootstrap_->GetIOTracker();
-                                if (result.PaddedByteCount > 0 && ioTracker->IsEnabled()) {
+                                if (result.PaddedBytes > 0 && ioTracker->IsEnabled()) {
                                     ioTracker->Enqueue(
                                         TIOCounters{
-                                            .ByteCount = result.PaddedByteCount,
-                                            .IOCount = result.IOCount
+                                            .Bytes = result.PaddedBytes,
+                                            .IORequests = result.IORequests
                                         },
                                         // NB: Now we do not track chunk id for this method.
                                         MakeReadIOTags(
@@ -1234,12 +1234,12 @@ private:
                                             readSessionId));
                                 }
 
-                                dataBytesReadFromDisk += result.PaddedByteCount;
-                                dataIOCount += result.IOCount;
+                                dataBytesReadFromDisk += result.PaddedBytes;
+                                dataIORequests += result.IORequests;
                             }
 
                             response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);
-                            response->mutable_chunk_reader_statistics()->set_data_io_count(dataIOCount);
+                            response->mutable_chunk_reader_statistics()->set_data_io_requests(dataIORequests);
 
                             if (netThrottler->IsOverdraft()) {
                                 context->SetComplete();
