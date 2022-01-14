@@ -45,7 +45,7 @@ object SubmitTest {
   private val basePath = "//home/spark/e2e"
 
   private val submitClient = new SubmissionClient("hume", s"$basePath/cluster",
-    "1.25.1--2-70a04273-SNAPSHOT", DefaultRpcCredentials.user, DefaultRpcCredentials.token)
+    BuildInfo.spytClientVersion, DefaultRpcCredentials.user, DefaultRpcCredentials.token)
 
   def runJob(testCase: E2ETestCase): Unit = {
     val launcher = testCase.conf
