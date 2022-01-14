@@ -663,13 +663,13 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         context->SetIncrementalResponseInfo(
             "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
             "PreemptableInfo: %v, ScheduleJobAttempts: %v, "
-            "HasAggressivelyStarvingElements: %v",
+            "OperationCountByPreemptionPriority: %v",
             schedulingContext->StartedJobs().size(),
             statistics.ScheduledDuringPreemption,
             schedulingContext->PreemptedJobs().size(),
             FormatPreemptableInfoCompact(statistics),
             FormatScheduleJobAttemptsCompact(statistics),
-            statistics.HasAggressivelyStarvingElements);
+            FormatOperationCountByPreemptionPriorityCompact(statistics));
     } else {
         ProcessScheduledAndPreemptedJobs(
             schedulingContext,

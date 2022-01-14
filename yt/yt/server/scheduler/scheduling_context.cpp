@@ -44,7 +44,7 @@ void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consume
         .Item("controller_schedule_job_count").Value(statistics.ControllerScheduleJobCount)
         .Item("controller_schedule_job_timed_out_count").Value(statistics.ControllerScheduleJobTimedOutCount)
         .Item("schedule_job_attempt_count_per_stage").Value(statistics.ScheduleJobAttemptCountPerStage)
-        .Item("has_aggressively_starving_elements").Value(statistics.HasAggressivelyStarvingElements)
+        .Item("operation_count_by_preemption_priority").Value(statistics.OperationCountByPreemptionPriority)
         .Item("unconditional_resource_usage_discount").Value(statistics.UnconditionalResourceUsageDiscount)
         .Item("resource_usage").Value(statistics.ResourceUsage)
         .Item("resource_limits").Value(statistics.ResourceLimits)
@@ -70,6 +70,13 @@ TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statisti
         statistics.ControllerScheduleJobCount,
         statistics.ControllerScheduleJobTimedOutCount,
         statistics.MaxNonPreemptiveSchedulingIndex);
+}
+
+TString FormatOperationCountByPreemptionPriorityCompact(const TScheduleJobsStatistics& statistics)
+{
+    return Format("{R: %v, A: %v}",
+        statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::Regular],
+        statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::Aggressive]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

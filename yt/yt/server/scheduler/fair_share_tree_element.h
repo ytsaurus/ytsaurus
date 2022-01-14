@@ -53,14 +53,6 @@ TString FormatProfilingRangeIndex(int rangeIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EPrescheduleJobOperationCriterion,
-    (All)
-    (EligibleForAggressivelyPreemptiveSchedulingOnly)
-    (EligibleForPreemptiveSchedulingOnly)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(EStarvationStatus,
     (NonStarving)
     (Starving)
@@ -277,7 +269,8 @@ private:
 
     DEFINE_BYREF_RO_PROPERTY(ISchedulingContextPtr, SchedulingContext);
 
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<bool>, HasAggressivelyStarvingElements);
+    using TOperationCountByPreemptionPriority = TEnumIndexedVector<EOperationPreemptionPriority, int>;
+    DEFINE_BYREF_RW_PROPERTY(TOperationCountByPreemptionPriority, OperationCountByPreemptionPriority);
 
     DEFINE_BYREF_RW_PROPERTY(TScheduleJobsStatistics, SchedulingStatistics);
 
@@ -294,15 +287,20 @@ public:
         bool enableSchedulingInfoLogging,
         const NLogging::TLogger& logger);
 
+    EOperationPreemptionPriority GetOperationPreemptionPriority(const TSchedulerOperationElement* operationElement) const;
+    void CountOperationsByPreemptionPriority(const TSchedulerRootElementPtr& rootElement);
+
+    EJobPreemptionLevel GetJobPreemptionLevel(const TSchedulerOperationElement* operationElement, TJobId jobId) const;
+
     void PrepareForScheduling(const TSchedulerRootElementPtr& rootElement);
     void PrescheduleJob(
         const TSchedulerRootElementPtr& rootElement,
-        EPrescheduleJobOperationCriterion operationCriterion);
+        EOperationPreemptionPriority targetOperationPreemptionPriority = EOperationPreemptionPriority::None);
 
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
 
-    void PrepareConditionalUsageDiscounts(const TSchedulerRootElementPtr& rootElement, bool isAggressive);
+    void PrepareConditionalUsageDiscounts(const TSchedulerRootElementPtr& rootElement, EOperationPreemptionPriority operationPreemptionPriority);
     const TNonOwningJobSet& GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const;
     TJobResources GetLocalUnconditionalUsageDiscountFor(const TSchedulerElement* element) const;
 
@@ -478,9 +476,7 @@ public:
     virtual void MarkImmutable();
 
     //! Schedule jobs interface.
-    virtual void PrescheduleJob(
-        TScheduleJobsContext* context,
-        EPrescheduleJobOperationCriterion operationCriterion) = 0;
+    virtual void PrescheduleJob(TScheduleJobsContext* context, EOperationPreemptionPriority targetOperationPreemptionPriority) = 0;
 
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
@@ -492,7 +488,6 @@ public:
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
     virtual std::optional<bool> IsAggressivePreemptionAllowed() const = 0;
     virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const = 0;
-    bool IsEligibleForPreemptiveScheduling(bool isAggressive) const;
 
     virtual const TJobResources& FillResourceUsageInDynamicAttributes(
         TDynamicAttributesList* attributesList,
@@ -506,7 +501,7 @@ public:
     bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
     bool AreResourceLimitsViolated() const;
 
-    virtual void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const = 0;
+    virtual void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, EOperationPreemptionPriority operationPreemptionPriority) const = 0;
 
     //! Other methods based on tree snapshot.
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const;
@@ -593,6 +588,8 @@ protected:
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
 
     virtual void DisableNonAliveElements() = 0;
+
+    virtual void CountOperationsByPreemptionPriority(TScheduleJobsContext* context) const = 0;
 
 private:
     // Update methods.
@@ -696,9 +693,7 @@ public:
     void MarkImmutable() override;
 
     //! Schedule jobs related methods.
-    void PrescheduleJob(
-        TScheduleJobsContext* context,
-        EPrescheduleJobOperationCriterion operationCriterion) final;
+    void PrescheduleJob(TScheduleJobsContext* context, EOperationPreemptionPriority targetOperationPreemptionPriority) final;
 
     void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
@@ -713,7 +708,9 @@ public:
 
     bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const override;
 
-    void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const override;
+    void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, EOperationPreemptionPriority operationPreemptionPriority) const override;
+
+    void CountOperationsByPreemptionPriority(TScheduleJobsContext* context) const override;
 
     //! Other methods.
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
@@ -1004,8 +1001,6 @@ public:
 
     bool IsJobKnown(TJobId jobId) const;
 
-    bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
-
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
@@ -1013,7 +1008,8 @@ public:
     bool AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force);
     std::optional<TJobResources> RemoveJob(TJobId jobId);
 
-    TJobPreemptionStatusMap GetJobPreemptionStatuses() const;
+    EJobPreemptionStatus GetJobPreemptionStatus(TJobId jobId) const;
+    TJobPreemptionStatusMap GetJobPreemptionStatusMap() const;
 
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
@@ -1192,7 +1188,8 @@ public:
     bool IsJobKnown(TJobId jobId) const;
     bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
 
-    TJobPreemptionStatusMap GetJobPreemptionStatuses() const;
+    EJobPreemptionStatus GetJobPreemptionStatus(TJobId jobId) const;
+    TJobPreemptionStatusMap GetJobPreemptionStatusMap() const;
 
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
@@ -1223,9 +1220,7 @@ public:
     std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
 
     //! Schedule job methods.
-    void PrescheduleJob(
-        TScheduleJobsContext* context,
-        EPrescheduleJobOperationCriterion operationCriterion) final;
+    void PrescheduleJob(TScheduleJobsContext* context, EOperationPreemptionPriority targetOperationPreemptionPriority) final;
 
     void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
@@ -1238,7 +1233,7 @@ public:
         TDynamicAttributesList* attributesList,
         const TResourceUsageSnapshotPtr& resourceUsageSnapshot) final;
 
-    void CheckForDeactivation(TScheduleJobsContext* context, EPrescheduleJobOperationCriterion operationCriterion);
+    void CheckForDeactivation(TScheduleJobsContext* context, EOperationPreemptionPriority operationPreemptionPriority);
 
     void UpdateCurrentResourceUsage(TScheduleJobsContext* context);
     bool IsUsageOutdated(TScheduleJobsContext* context) const;
@@ -1253,7 +1248,7 @@ public:
     bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const override;
 
     const TSchedulerElement* FindPreemptionBlockingAncestor(
-        bool isAggressivePreemption,
+        EOperationPreemptionPriority operationPreemptionPriority,
         const TDynamicAttributesList& dynamicAttributesList,
         const TFairShareStrategyTreeConfigPtr& config) const;
 
@@ -1261,7 +1256,9 @@ public:
 
     bool IsSchedulingSegmentCompatibleWithNode(ESchedulingSegment nodeSegment, const TSchedulingSegmentModule& nodeModule) const;
 
-    void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const override;
+    void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, EOperationPreemptionPriority operationPreemptionPriority) const override;
+
+    void CountOperationsByPreemptionPriority(TScheduleJobsContext* context) const override;
 
     //! Other methods.
     std::optional<TString> GetCustomProfilingTag() const;

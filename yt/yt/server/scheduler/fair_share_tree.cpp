@@ -1549,6 +1549,8 @@ private:
 
         context.SchedulingStatistics().ScheduleWithPreemption = scheduleJobsWithPreemption;
         if (scheduleJobsWithPreemption) {
+            context.CountOperationsByPreemptionPriority(treeSnapshotImpl->RootElement());
+
             // First try to schedule a job with aggressive preemption for aggressively starving operations only.
             {
                 context.StartStage(&SchedulingStages_[EJobSchedulingStage::AggressivelyPreemptive]);
@@ -1687,7 +1689,7 @@ private:
                 if (!context->StageState()->PrescheduleExecuted) {
 
                     context->PrepareForScheduling(rootElement);
-                    context->PrescheduleJob(rootElement, EPrescheduleJobOperationCriterion::All);
+                    context->PrescheduleJob(rootElement);
                 }
                 ++context->StageState()->ScheduleJobAttemptCount;
                 auto scheduleJobResult = rootElement->ScheduleJob(context, ignorePacking);
@@ -1714,7 +1716,9 @@ private:
             treeSnapshotImpl,
             context,
             startTime,
-            /* isAggressive */ true);
+            /*targetOperationPreemptionPriority*/ EOperationPreemptionPriority::Aggressive,
+            /*minJobPreemptionLevel*/ EJobPreemptionLevel::AggressivelyPreemptable,
+            /*forceStage*/ false);
     }
 
     void DoScheduleJobsWithPreemption(
@@ -1726,15 +1730,26 @@ private:
             treeSnapshotImpl,
             context,
             startTime,
-            /* isAggressive */ false);
+            /*targetOperationPreemptionPriority*/ EOperationPreemptionPriority::Regular,
+            /*minJobPreemptionLevel*/ EJobPreemptionLevel::Preemptable,
+            /*forceStage*/ true);
     }
 
+    // TODO(eshcherbin): Maybe receive a set of preemptable job levels instead of max level.
     void DoScheduleJobsWithPreemptionImpl(
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
         TScheduleJobsContext* context,
         TCpuInstant startTime,
-        bool isAggressive)
+        EOperationPreemptionPriority targetOperationPreemptionPriority,
+        EJobPreemptionLevel minJobPreemptionLevel,
+        bool forceStage)
     {
+        YT_VERIFY(targetOperationPreemptionPriority != EOperationPreemptionPriority::None);
+
+        if (!forceStage && context->OperationCountByPreemptionPriority()[targetOperationPreemptionPriority] == 0) {
+            return;
+        }
+
         auto& rootElement = treeSnapshotImpl->RootElement();
         const auto& treeConfig = treeSnapshotImpl->TreeConfig();
         const auto& controllerConfig = treeSnapshotImpl->ControllerConfig();
@@ -1744,24 +1759,18 @@ private:
         // 2. Initialize dynamic attributes and calculate local resource usages if scheduling without preemption was skipped.
         context->PrepareForScheduling(treeSnapshotImpl->RootElement());
 
-        // TODO(ignat): move this logic inside TScheduleJobsContext.
-        if (!context->GetHasAggressivelyStarvingElements()) {
-            context->SetHasAggressivelyStarvingElements(rootElement->HasAggressivelyStarvingElements(context));
-        }
-
-        bool hasAggressivelyStarvingElements = *context->GetHasAggressivelyStarvingElements();
-
-        context->SchedulingStatistics().HasAggressivelyStarvingElements = hasAggressivelyStarvingElements;
-        if (isAggressive && !hasAggressivelyStarvingElements) {
-            return;
-        }
-
-        auto preemptionReason = isAggressive
-            ? EJobPreemptionReason::AggressivePreemption
-            : EJobPreemptionReason::Preemption;
+        auto preemptionReason = [&] {
+            switch (targetOperationPreemptionPriority) {
+                case EOperationPreemptionPriority::Aggressive:
+                    return EJobPreemptionReason::AggressivePreemption;
+                case EOperationPreemptionPriority::Regular:
+                    return EJobPreemptionReason::Preemption;
+                default:
+                    YT_ABORT();
+            }
+        }();
         // Compute discount to node usage.
-        YT_LOG_TRACE("Looking for %v jobs",
-            isAggressive ? "aggressively preemptable" : "preemptable");
+        YT_LOG_TRACE("Looking for preemptable jobs (MinJobPreemptionLevel: %v)", minJobPreemptionLevel);
         std::vector<TJobPtr> unconditionallyPreemptableJobs;
         TNonOwningJobSet forcefullyPreemptableJobs;
         int totalConditionallyPreemptableJobCount = 0;
@@ -1798,16 +1807,14 @@ private:
                     forcefullyPreemptableJobs.insert(job.Get());
                 }
 
-                bool isAggressivePreemptionEnabled = isAggressive &&
-                    operationElement->GetEffectiveAggressivePreemptionAllowed();
                 bool isJobPreemptable = isJobForcefullyPreemptable ||
-                    operationElement->IsJobPreemptable(job->GetId(), isAggressivePreemptionEnabled);
+                    (context->GetJobPreemptionLevel(operationElement, job->GetId()) >= minJobPreemptionLevel);
                 if (!isJobPreemptable) {
                     continue;
                 }
 
                 auto preemptionBlockingAncestor = operationElement->FindPreemptionBlockingAncestor(
-                    isAggressive,
+                    targetOperationPreemptionPriority,
                     context->DynamicAttributesList(),
                     treeConfig);
                 bool isUnconditionalPreemptionAllowed = isJobForcefullyPreemptable ||
@@ -1830,7 +1837,7 @@ private:
                 }
             }
 
-            context->PrepareConditionalUsageDiscounts(treeSnapshotImpl->RootElement(), isAggressive);
+            context->PrepareConditionalUsageDiscounts(treeSnapshotImpl->RootElement(), targetOperationPreemptionPriority);
             for (const auto& [_, jobSet] : context->ConditionallyPreemptableJobSetMap()) {
                 maxConditionallyPreemptableJobCountInPool = std::max(
                     maxConditionallyPreemptableJobCountInPool,
@@ -1852,21 +1859,18 @@ private:
         TJobPtr jobStartedUsingPreemption;
         {
             YT_LOG_TRACE(
-                "Scheduling new jobs with preemption (UnconditionallyPreemptableJobs: %v, UnconditionalResourceUsageDiscount: %v, IsAggressive: %v)",
+                "Scheduling new jobs with preemption "
+                "(UnconditionallyPreemptableJobs: %v, UnconditionalResourceUsageDiscount: %v, TargetOperationPreemptionPriority: %v)",
                 unconditionallyPreemptableJobs.size(),
                 FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount()),
-                isAggressive);
+                targetOperationPreemptionPriority);
 
             TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
 
             while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
             {
                 if (!context->StageState()->PrescheduleExecuted) {
-                    context->PrescheduleJob(
-                        rootElement,
-                        isAggressive
-                            ? EPrescheduleJobOperationCriterion::EligibleForAggressivelyPreemptiveSchedulingOnly
-                            : EPrescheduleJobOperationCriterion::EligibleForPreemptiveSchedulingOnly);
+                    context->PrescheduleJob(rootElement, targetOperationPreemptionPriority);
                 }
 
                 ++context->StageState()->ScheduleJobAttemptCount;
@@ -1966,11 +1970,11 @@ private:
             if (jobStartedUsingPreemption) {
                 // TODO(eshcherbin): Rethink preemption reason format to allow more variable attributes easily.
                 job->SetPreemptionReason(Format(
-                    "Preempted to start job %v of operation %v during %v preemptive stage, "
+                    "Preempted to start job %v of operation %v during preemptive stage with priority %Qlv, "
                     "job was %v and %v preemptable",
                     jobStartedUsingPreemption->GetId(),
                     jobStartedUsingPreemption->GetOperationId(),
-                    isAggressive ? "aggressively" : "normal",
+                    targetOperationPreemptionPriority,
                     forcefullyPreemptableJobs.contains(job.Get()) ? "forcefully" : "nonforcefully",
                     conditionallyPreemptableJobs.contains(job.Get()) ? "conditionally" : "unconditionally"));
 
@@ -3001,12 +3005,10 @@ private:
             .Item("effective_aggressive_starvation_enabled").Value(element->GetEffectiveAggressiveStarvationEnabled())
             .Item("aggressive_preemption_allowed").Value(element->IsAggressivePreemptionAllowed())
             .Item("effective_aggressive_preemption_allowed").Value(element->GetEffectiveAggressivePreemptionAllowed())
-            .DoIf(element->IsEligibleForPreemptiveScheduling(/*isAggressive*/ true), [&] (TFluentMap fluent) {
-                YT_VERIFY(element->GetLowestAggressivelyStarvingAncestor());
+            .DoIf(element->GetLowestAggressivelyStarvingAncestor(), [&] (TFluentMap fluent) {
                 fluent.Item("lowest_aggressively_starving_ancestor").Value(element->GetLowestAggressivelyStarvingAncestor()->GetId());
             })
-            .DoIf(element->IsEligibleForPreemptiveScheduling(/*isAggressive*/ false), [&] (TFluentMap fluent) {
-                YT_VERIFY(element->GetLowestStarvingAncestor());
+            .DoIf(element->GetLowestStarvingAncestor(), [&] (TFluentMap fluent) {
                 fluent.Item("lowest_starving_ancestor").Value(element->GetLowestStarvingAncestor()->GetId());
             })
             .Item("weight").Value(element->GetWeight())

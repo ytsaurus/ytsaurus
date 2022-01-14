@@ -128,6 +128,41 @@ TScheduleJobsContext::TScheduleJobsContext(
     , Logger(logger)
 { }
 
+EOperationPreemptionPriority TScheduleJobsContext::GetOperationPreemptionPriority(const TSchedulerOperationElement* operationElement) const
+{
+    if (operationElement->GetLowestAggressivelyStarvingAncestor()) {
+        return EOperationPreemptionPriority::Aggressive;
+    }
+    if (operationElement->GetLowestStarvingAncestor()) {
+        return EOperationPreemptionPriority::Regular;
+    }
+    return EOperationPreemptionPriority::None;
+}
+
+void TScheduleJobsContext::CountOperationsByPreemptionPriority(const TSchedulerRootElementPtr& rootElement)
+{
+    rootElement->CountOperationsByPreemptionPriority(this);
+    SchedulingStatistics_.OperationCountByPreemptionPriority = OperationCountByPreemptionPriority_;
+}
+
+EJobPreemptionLevel TScheduleJobsContext::GetJobPreemptionLevel(const TSchedulerOperationElement* operationElement, TJobId jobId) const
+{
+    auto aggressivePreemptionAllowed = operationElement->GetEffectiveAggressivePreemptionAllowed();
+    auto jobPreemptionStatus = operationElement->GetJobPreemptionStatus(jobId);
+    switch (jobPreemptionStatus) {
+        case EJobPreemptionStatus::NonPreemptable:
+            return EJobPreemptionLevel::NonPreemptable;
+        case EJobPreemptionStatus::AggressivelyPreemptable:
+            return aggressivePreemptionAllowed
+                ? EJobPreemptionLevel::AggressivelyPreemptable
+                : EJobPreemptionLevel::NonPreemptable;
+        case EJobPreemptionStatus::Preemptable:
+            return EJobPreemptionLevel::Preemptable;
+        default:
+            YT_ABORT();
+    }
+}
+
 void TScheduleJobsContext::PrepareForScheduling(const TSchedulerRootElementPtr& rootElement)
 {
     YT_VERIFY(StageState_);
@@ -155,21 +190,21 @@ void TScheduleJobsContext::PrepareForScheduling(const TSchedulerRootElementPtr& 
     }
 }
 
-void TScheduleJobsContext::PrescheduleJob(const TSchedulerRootElementPtr& rootElement, EPrescheduleJobOperationCriterion operationCriterion)
+void TScheduleJobsContext::PrescheduleJob(const TSchedulerRootElementPtr& rootElement, EOperationPreemptionPriority targetOperationPreemptionPriority)
 {
     TWallTimer prescheduleTimer;
 
-    rootElement->PrescheduleJob(this, operationCriterion);
+    rootElement->PrescheduleJob(this, targetOperationPreemptionPriority);
 
     StageState_->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
     StageState_->PrescheduleExecuted = true;
 }
 
-void TScheduleJobsContext::PrepareConditionalUsageDiscounts(const TSchedulerRootElementPtr& rootElement, bool isAggressive)
+void TScheduleJobsContext::PrepareConditionalUsageDiscounts(const TSchedulerRootElementPtr& rootElement, EOperationPreemptionPriority targetOperationPreemptionPriority)
 {
     CurrentConditionalDiscount_ = {};
 
-    rootElement->PrepareConditionalUsageDiscounts(this, isAggressive);
+    rootElement->PrepareConditionalUsageDiscounts(this, targetOperationPreemptionPriority);
 }
 
 const TNonOwningJobSet& TScheduleJobsContext::GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const
@@ -882,13 +917,6 @@ bool TSchedulerElement::AreDetailedLogsEnabled() const
     return false;
 }
 
-bool TSchedulerElement::IsEligibleForPreemptiveScheduling(bool isAggressive) const
-{
-    return isAggressive
-        ? LowestAggressivelyStarvingAncestor_ != nullptr
-        : LowestStarvingAncestor_ != nullptr;
-}
-
 void TSchedulerElement::UpdateStarvationAttributes(TInstant now, bool enablePoolStarvation)
 {
     YT_VERIFY(Mutable_);
@@ -1164,9 +1192,7 @@ const TJobResources& TSchedulerCompositeElement::FillResourceUsageInDynamicAttri
     return attributes.ResourceUsage;
 }
 
-void TSchedulerCompositeElement::PrescheduleJob(
-    TScheduleJobsContext* context,
-    EPrescheduleJobOperationCriterion operationCriterion)
+void TSchedulerCompositeElement::PrescheduleJob(TScheduleJobsContext* context, EOperationPreemptionPriority targetOperationPreemptionPriority)
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
@@ -1186,7 +1212,7 @@ void TSchedulerCompositeElement::PrescheduleJob(
     }
 
     for (const auto& child : SchedulableChildren_) {
-        child->PrescheduleJob(context, operationCriterion);
+        child->PrescheduleJob(context, targetOperationPreemptionPriority);
     }
 
     UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap(), /*checkLiveness*/ true);
@@ -1218,7 +1244,9 @@ bool TSchedulerCompositeElement::HasAggressivelyStarvingElements(TScheduleJobsCo
     return false;
 }
 
-void TSchedulerCompositeElement::PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const
+void TSchedulerCompositeElement::PrepareConditionalUsageDiscounts(
+    TScheduleJobsContext* context,
+    EOperationPreemptionPriority targetOperationPreemptionPriority) const
 {
     TJobResources deltaConditionalDiscount;
     for (auto* job : context->GetConditionallyPreemptableJobsInPool(this)) {
@@ -1228,10 +1256,17 @@ void TSchedulerCompositeElement::PrepareConditionalUsageDiscounts(TScheduleJobsC
     context->CurrentConditionalDiscount() += deltaConditionalDiscount;
 
     for (const auto& child : SchedulableChildren_) {
-        child->PrepareConditionalUsageDiscounts(context, isAggressive);
+        child->PrepareConditionalUsageDiscounts(context, targetOperationPreemptionPriority);
     }
 
     context->CurrentConditionalDiscount() -= deltaConditionalDiscount;
+}
+
+void TSchedulerCompositeElement::CountOperationsByPreemptionPriority(TScheduleJobsContext* context) const
+{
+    for (const auto& child : SchedulableChildren_) {
+        child->CountOperationsByPreemptionPriority(context);
+    }
 }
 
 TFairShareScheduleJobResult TSchedulerCompositeElement::ScheduleJob(TScheduleJobsContext* context, bool ignorePacking)
@@ -2251,18 +2286,15 @@ bool TSchedulerOperationElementSharedState::IsJobKnown(TJobId jobId) const
     return JobPropertiesMap_.find(jobId) != JobPropertiesMap_.end();
 }
 
-bool TSchedulerOperationElementSharedState::IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const
+EJobPreemptionStatus TSchedulerOperationElementSharedState::GetJobPreemptionStatus(TJobId jobId) const
 {
     auto guard = ReaderGuard(JobPropertiesMapLock_);
 
     if (!Enabled_) {
-        return false;
+        return EJobPreemptionStatus::NonPreemptable;
     }
 
-    const auto status = GetJobProperties(jobId)->PreemptionStatus;
-    return aggressivePreemptionEnabled
-        ? status != EJobPreemptionStatus::NonPreemptable
-        : status == EJobPreemptionStatus::Preemptable;
+    return GetJobProperties(jobId)->PreemptionStatus;
 }
 
 int TSchedulerOperationElementSharedState::GetRunningJobCount() const
@@ -2325,7 +2357,7 @@ TPreemptionStatusStatisticsVector TSchedulerOperationElementSharedState::GetPree
     return PreemptionStatusStatistics_;
 }
 
-TJobPreemptionStatusMap TSchedulerOperationElementSharedState::GetJobPreemptionStatuses() const
+TJobPreemptionStatusMap TSchedulerOperationElementSharedState::GetJobPreemptionStatusMap() const
 {
     TJobPreemptionStatusMap jobPreemptionStatuses;
 
@@ -2859,13 +2891,11 @@ bool TSchedulerOperationElement::IsUsageOutdated(TScheduleJobsContext* context) 
     return updateTime + DurationToCpuDuration(TreeConfig_->AllowedResourceUsageStaleness) < now;
 }
 
-void TSchedulerOperationElement::PrescheduleJob(
-    TScheduleJobsContext* context,
-    EPrescheduleJobOperationCriterion operationCriterion)
+void TSchedulerOperationElement::PrescheduleJob(TScheduleJobsContext* context, EOperationPreemptionPriority targetOperationPreemptionPriority)
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
-    CheckForDeactivation(context, operationCriterion);
+    CheckForDeactivation(context, targetOperationPreemptionPriority);
     if (!attributes.Active) {
         return;
     }
@@ -2878,7 +2908,7 @@ void TSchedulerOperationElement::PrescheduleJob(
 
 void TSchedulerOperationElement::CheckForDeactivation(
     TScheduleJobsContext* context,
-    EPrescheduleJobOperationCriterion operationCriterion)
+    EOperationPreemptionPriority targetOperationPreemptionPriority)
 {
     auto onOperationDeactivated = [&] (EDeactivationReason reason) {
         OnOperationDeactivated(context, reason);
@@ -2923,17 +2953,22 @@ void TSchedulerOperationElement::CheckForDeactivation(
         return;
     }
 
-    if (operationCriterion == EPrescheduleJobOperationCriterion::EligibleForAggressivelyPreemptiveSchedulingOnly &&
-        !IsEligibleForPreemptiveScheduling(/*isAggressive*/ true))
+    if (targetOperationPreemptionPriority != EOperationPreemptionPriority::None &&
+        targetOperationPreemptionPriority != context->GetOperationPreemptionPriority(this))
     {
-        onOperationDeactivated(EDeactivationReason::IsNotEligibleForAggressivelyPreemptiveScheduling);
-        return;
-    }
+        auto deactivationReason = [&] {
+            YT_VERIFY(targetOperationPreemptionPriority != EOperationPreemptionPriority::None);
 
-    if (operationCriterion == EPrescheduleJobOperationCriterion::EligibleForPreemptiveSchedulingOnly &&
-        !IsEligibleForPreemptiveScheduling(/*isAggressive*/ false))
-    {
-        onOperationDeactivated(EDeactivationReason::IsNotEligibleForPreemptiveScheduling);
+            switch (targetOperationPreemptionPriority) {
+                case EOperationPreemptionPriority::Regular:
+                    return EDeactivationReason::IsNotEligibleForPreemptiveScheduling;
+                case EOperationPreemptionPriority::Aggressive:
+                    return EDeactivationReason::IsNotEligibleForAggressivelyPreemptiveScheduling;
+                default:
+                    YT_ABORT();
+            }
+        }();
+        onOperationDeactivated(deactivationReason);
         return;
     }
 
@@ -3315,7 +3350,7 @@ void TSchedulerOperationElement::CheckForStarvation(TInstant now)
 }
 
 const TSchedulerElement* TSchedulerOperationElement::FindPreemptionBlockingAncestor(
-    bool isAggressivePreemption,
+    EOperationPreemptionPriority targetOperationPreemptionPriority,
     const TDynamicAttributesList& dynamicAttributesList,
     const TFairShareStrategyTreeConfigPtr& config) const
 {
@@ -3345,10 +3380,9 @@ const TSchedulerElement* TSchedulerOperationElement::FindPreemptionBlockingAnces
             return element;
         }
 
-        bool aggressivePreemptionAllowed =
-            isAggressivePreemption &&
-            element->GetEffectiveAggressivePreemptionAllowed();
-        auto threshold = aggressivePreemptionAllowed
+        bool useAggressiveThreshold = element->GetEffectiveAggressivePreemptionAllowed() &&
+            targetOperationPreemptionPriority >= EOperationPreemptionPriority::Aggressive;
+        auto threshold = useAggressiveThreshold
             ? config->AggressivePreemptionSatisfactionThreshold
             : config->PreemptionSatisfactionThreshold;
 
@@ -3383,12 +3417,15 @@ bool TSchedulerOperationElement::IsJobKnown(TJobId jobId) const
 
 bool TSchedulerOperationElement::IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const
 {
-    return OperationElementSharedState_->IsJobPreemptable(jobId, aggressivePreemptionEnabled);
+    auto jobPreemptionStatus = GetJobPreemptionStatus(jobId);
+    return aggressivePreemptionEnabled
+        ? jobPreemptionStatus != EJobPreemptionStatus::NonPreemptable
+        : jobPreemptionStatus == EJobPreemptionStatus::Preemptable;
 }
 
-TJobPreemptionStatusMap TSchedulerOperationElement::GetJobPreemptionStatuses() const
+TJobPreemptionStatusMap TSchedulerOperationElement::GetJobPreemptionStatusMap() const
 {
-    return OperationElementSharedState_->GetJobPreemptionStatuses();
+    return OperationElementSharedState_->GetJobPreemptionStatusMap();
 }
 
 int TSchedulerOperationElement::GetRunningJobCount() const
@@ -3404,6 +3441,11 @@ int TSchedulerOperationElement::GetPreemptableJobCount() const
 int TSchedulerOperationElement::GetAggressivelyPreemptableJobCount() const
 {
     return OperationElementSharedState_->GetAggressivelyPreemptableJobCount();
+}
+
+EJobPreemptionStatus TSchedulerOperationElement::GetJobPreemptionStatus(TJobId jobId) const
+{
+    return OperationElementSharedState_->GetJobPreemptionStatus(jobId);
 }
 
 TPreemptionStatusStatisticsVector TSchedulerOperationElement::GetPreemptionStatusStatistics() const
@@ -3813,13 +3855,22 @@ bool TSchedulerOperationElement::IsSchedulingSegmentCompatibleWithNode(
     return *SchedulingSegment() == nodeSegment;
 }
 
-void TSchedulerOperationElement::PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, bool isAggressive) const
+void TSchedulerOperationElement::PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, EOperationPreemptionPriority targetOperationPreemptionPriority) const
 {
-    if (!IsEligibleForPreemptiveScheduling(isAggressive)) {
+    if (context->GetOperationPreemptionPriority(this) != targetOperationPreemptionPriority) {
         return;
     }
 
     context->SchedulingContext()->SetConditionalDiscountForOperation(OperationId_, context->CurrentConditionalDiscount());
+}
+
+void TSchedulerOperationElement::CountOperationsByPreemptionPriority(TScheduleJobsContext* context) const
+{
+    if (GetStarvationStatus() == EStarvationStatus::NonStarving) {
+        return;
+    }
+
+    ++context->OperationCountByPreemptionPriority()[context->GetOperationPreemptionPriority(this)];
 }
 
 void TSchedulerOperationElement::CollectOperationSchedulingSegmentContexts(
@@ -4169,7 +4220,7 @@ void TSchedulerRootElement::UpdateCachedJobPreemptionStatusesIfNecessary(TFairSh
     auto jobPreemptionStatuses = New<TRefCountedJobPreemptionStatusMapPerOperation>();
     auto collectJobPreemptionStatuses = [&] (const auto& operationMap) {
         for (auto [operationId, operationElement] : operationMap) {
-            YT_VERIFY(jobPreemptionStatuses->emplace(operationId, operationElement->GetJobPreemptionStatuses()).second);
+            YT_VERIFY(jobPreemptionStatuses->emplace(operationId, operationElement->GetJobPreemptionStatusMap()).second);
         }
     };
 

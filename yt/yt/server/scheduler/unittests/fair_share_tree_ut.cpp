@@ -642,7 +642,7 @@ protected:
 
         context.PrepareForScheduling(rootElement);
         rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
-        rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
+        rootElement->PrescheduleJob(&context, /*operationPreemptionPriority*/ {});
 
         operationElement->ScheduleJob(&context, /* ignorePacking */ true);
 
@@ -1911,10 +1911,6 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
         EXPECT_EQ(nullptr, blockingOperationElement->GetLowestAggressivelyStarvingAncestor());
         EXPECT_EQ(nullptr, donorOperationElement->GetLowestAggressivelyStarvingAncestor());
         EXPECT_EQ(nullptr, starvingOperationElement->GetLowestAggressivelyStarvingAncestor());
-
-        EXPECT_FALSE(blockingOperationElement->IsEligibleForPreemptiveScheduling(/*isAggressive*/ false));
-        EXPECT_TRUE(donorOperationElement->IsEligibleForPreemptiveScheduling(/*isAggressive*/ false));
-        EXPECT_TRUE(starvingOperationElement->IsEligibleForPreemptiveScheduling(/*isAggressive*/ false));
     }
 
     auto schedulingContext = CreateSchedulingContext(
@@ -1936,8 +1932,9 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
         EXPECT_FALSE(donorOperationElement->IsJobPreemptable(donorJobs[jobIndex]->GetId(), /*aggressivePreemptionEnabled*/ false));
     }
 
+    auto operationPreemptionPriority = EOperationPreemptionPriority::Regular;
     EXPECT_EQ(guaranteedPool.Get(), donorOperationElement->FindPreemptionBlockingAncestor(
-        /*isAggressive*/ false,
+        operationPreemptionPriority,
         context.DynamicAttributesList(),
         TreeConfig_));
     for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
@@ -1946,7 +1943,7 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
         context.ConditionallyPreemptableJobSetMap()[guaranteedPool->GetTreeIndex()].insert(job.Get());
     }
 
-    context.PrepareConditionalUsageDiscounts(rootElement.Get(), /*isAggressive*/ false);
+    context.PrepareConditionalUsageDiscounts(rootElement.Get(), operationPreemptionPriority);
 
     auto jobs = context.GetConditionallyPreemptableJobsInPool(guaranteedPool.Get());
     EXPECT_EQ(5, std::ssize(jobs));
@@ -2817,7 +2814,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     context.StartStage(&NonPreemptiveSchedulingStage_);
     context.PrepareForScheduling(rootElement);
     rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
-    rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
+    rootElement->PrescheduleJob(&context, /*operationPreemptionPriority*/ {});
 
     for (auto operationElement : operationElements) {
         const auto& dynamicAttributes = context.DynamicAttributesFor(rootElement.Get());
@@ -2848,7 +2845,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     context.StartStage(&NonPreemptiveSchedulingStage_);
     context.PrepareForScheduling(rootElement);
     rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
-    rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
+    rootElement->PrescheduleJob(&context, /*operationPreemptionPriority*/ {});
 
     for (auto operationElement : operationElements) {
         const auto& childHeapMap = context.ChildHeapMap();
