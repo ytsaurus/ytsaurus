@@ -530,7 +530,10 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
 
     if (CleanStart) {
         if (Spec_->FailOnJobRestart) {
-            THROW_ERROR_EXCEPTION("Cannot use clean restart when spec option fail_on_job_restart is set");
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::OperationFailedOnJobRestart,
+                "Cannot use clean restart when spec option \"fail_on_job_restart\" is set")
+                << TErrorAttribute("reason", EFailOnJobRestartReason::RevivalWithCleanStart);
         }
 
         YT_LOG_INFO("Using clean start instead of revive");
@@ -1219,7 +1222,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         if (Spec_->FailOnJobRestart && !JobletMap.empty()) {
             OnOperationFailed(TError(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
-                "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" spec option is set"));
+                "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" spec option is set")
+                << TErrorAttribute("reason", EFailOnJobRestartReason::JobRevivalDisabled));
             return result;
         }
 
@@ -3080,6 +3084,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
             << TErrorAttribute("job_id", joblet->JobId)
+            << TErrorAttribute("reason", EFailOnJobRestartReason::JobFailed)
             << error);
         return;
     }
@@ -3203,7 +3208,8 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Job aborted; failing operation since \"fail_on_job_restart\" spec option is set")
             << TErrorAttribute("job_id", joblet->JobId)
-            << TErrorAttribute("abort_reason", abortReason));
+            << TErrorAttribute("reason", EFailOnJobRestartReason::JobAborted)
+            << TErrorAttribute("job_abort_reason", abortReason));
     }
 
     if (abortReason == EAbortReason::AccountLimitExceeded) {
@@ -9690,8 +9696,9 @@ void TOperationControllerBase::ValidateRevivalAllowed() const
     if (Spec_->FailOnJobRestart) {
         THROW_ERROR_EXCEPTION(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Cannot revive operation when spec option fail_on_job_restart is set")
-                << TErrorAttribute("operation_type", OperationType);
+            "Cannot revive operation when spec option \"fail_on_job_restart\" is set")
+                << TErrorAttribute("operation_type", OperationType)
+                << TErrorAttribute("reason", EFailOnJobRestartReason::RevivalIsForbidden);
     }
 }
 
