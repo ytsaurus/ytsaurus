@@ -787,6 +787,8 @@ class OperationReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "completing")
 
+        wait(lambda: exists(op.get_path() + "/@committed"))
+
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             assert op.get_state() == "completing"
 
