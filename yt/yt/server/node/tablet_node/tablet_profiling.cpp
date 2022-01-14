@@ -208,7 +208,13 @@ TStoreCompactionCounterGroup::TStoreCompactionCounterGroup(const TProfiler& prof
 TStoreCompactionCounters::TStoreCompactionCounters(const TProfiler& profiler)
     : StoreChunks(profiler)
     , HunkChunks(profiler.WithPrefix("/hunks"))
-{ }
+{
+    for (auto hunkCompactionReason : TEnumTraits<EHunkCompactionReason>::GetDomainValues()) {
+        InHunkChunkCountByReason[hunkCompactionReason] = profiler
+            .WithTag("hunk_compaction_reason", FormatEnum(hunkCompactionReason))
+            .Counter("/hunks/in_hunk_chunk_count");
+    }
+}
 
 TPartitionBalancingCounters::TPartitionBalancingCounters(const TProfiler& profiler)
     : PartitionSplits(profiler.Counter("/partition_splits"))
@@ -267,6 +273,7 @@ void TLsmCounters::ProfileRotation(EStoreRotationReason reason, i64 rowCount, i6
 
 void TLsmCounters::ProfileCompaction(
     EStoreCompactionReason reason,
+    TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason,
     bool isEden,
     const NChunkClient::NProto::TDataStatistics& readerStatistics,
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
@@ -280,11 +287,13 @@ void TLsmCounters::ProfileCompaction(
         readerStatistics,
         writerStatistics,
         hunkChunkReaderStatistics,
-        hunkChunkWriterStatistics);
+        hunkChunkWriterStatistics,
+        hunkChunkCountByReason);
 }
 
 void TLsmCounters::ProfilePartitioning(
     EStoreCompactionReason reason,
+    TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason,
     const NChunkClient::NProto::TDataStatistics& readerStatistics,
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
     const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
@@ -297,7 +306,8 @@ void TLsmCounters::ProfilePartitioning(
         readerStatistics,
         writerStatistics,
         hunkChunkReaderStatistics,
-        hunkChunkWriterStatistics);
+        hunkChunkWriterStatistics,
+        hunkChunkCountByReason);
 }
 
 void TLsmCounters::ProfilePartitionSplit()
@@ -315,7 +325,8 @@ void TLsmCounters::DoProfileCompaction(
     const NChunkClient::NProto::TDataStatistics& readerStatistics,
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
     const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
-    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics)
+    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+    TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason)
 {
     counters->StoreChunks.InDataWeight.Increment(readerStatistics.data_weight());
     counters->StoreChunks.InStoreCount.Increment(readerStatistics.chunk_count());
@@ -325,8 +336,12 @@ void TLsmCounters::DoProfileCompaction(
     if (hunkChunkReaderStatistics) {
         counters->HunkChunks.InDataWeight.Increment(hunkChunkReaderStatistics->DataWeight());
         counters->HunkChunks.InStoreCount.Increment(hunkChunkReaderStatistics->ChunkCount());
-        counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.data_weight());
-        counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
+    }
+    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.data_weight());
+    counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
+    for (auto hunkCompactionReason : TEnumTraits<EHunkCompactionReason>::GetDomainValues()) {
+        counters->InHunkChunkCountByReason[hunkCompactionReason].Increment(
+            hunkChunkCountByReason[hunkCompactionReason]);
     }
 }
 

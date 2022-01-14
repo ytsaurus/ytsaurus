@@ -274,7 +274,9 @@ struct TStoreCompactionCounters
     explicit TStoreCompactionCounters(const NProfiling::TProfiler& profiler);
 
     TStoreCompactionCounterGroup StoreChunks;
+
     TStoreCompactionCounterGroup HunkChunks;
+    TEnumIndexedVector<EHunkCompactionReason, NProfiling::TCounter> InHunkChunkCountByReason;
 };
 
 struct TPartitionBalancingCounters
@@ -298,6 +300,7 @@ public:
 
     void ProfileCompaction(
         NLsm::EStoreCompactionReason reason,
+        TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason,
         bool isEden,
         const NChunkClient::NProto::TDataStatistics& readerStatistics,
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
@@ -306,6 +309,7 @@ public:
 
     void ProfilePartitioning(
         NLsm::EStoreCompactionReason reason,
+        TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason,
         const NChunkClient::NProto::TDataStatistics& readerStatistics,
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
         const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
@@ -334,7 +338,8 @@ private:
         const NChunkClient::NProto::TDataStatistics& readerStatistics,
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
         const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
-        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics);
+        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+        TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
