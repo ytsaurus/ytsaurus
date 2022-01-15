@@ -2,17 +2,10 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
-
-import javax.annotation.Nonnull;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.EDurability;
 import ru.yandex.yt.rpcproxy.ETransactionType;
@@ -34,9 +27,6 @@ public class ApiServiceTransactionOptions {
     private EDurability durability;
     private List<GUID> prerequisiteTransactionIds;
     private Duration pingPeriod = Duration.ofSeconds(5);
-    private Duration failedPingRetryPeriod;
-    private final Map<String, YTreeNode> attributes = new HashMap<>();
-    private Consumer<Exception> onPingFailed;
 
     public ApiServiceTransactionOptions(ETransactionType type) {
         this.type = Objects.requireNonNull(type);
@@ -92,10 +82,6 @@ public class ApiServiceTransactionOptions {
 
     public Duration getPingPeriod() {
         return pingPeriod;
-    }
-
-    public Duration getFailedPingRetryPeriod() {
-        return failedPingRetryPeriod;
     }
 
     public ApiServiceTransactionOptions setTimeout(Duration timeout) {
@@ -158,26 +144,6 @@ public class ApiServiceTransactionOptions {
         return this;
     }
 
-    public ApiServiceTransactionOptions setFailedPingRetryPeriod(Duration failedPingRetryPeriod) {
-        this.failedPingRetryPeriod = failedPingRetryPeriod;
-        return this;
-    }
-
-    public ApiServiceTransactionOptions setOnPingFailed(Consumer<Exception> onPingFailed) {
-        this.onPingFailed = onPingFailed;
-        return this;
-    }
-
-    public ApiServiceTransactionOptions setAttributes(@Nonnull Map<String, YTreeNode> attributes) {
-        this.attributes.clear();
-        this.attributes.putAll(attributes);
-        return this;
-    }
-
-    public Map<String, YTreeNode> getAttributes() {
-        return Collections.unmodifiableMap(attributes);
-    }
-
     public StartTransaction toStartTransaction() {
         StartTransaction startTransaction;
         switch (getType()) {
@@ -215,9 +181,6 @@ public class ApiServiceTransactionOptions {
         if (pingPeriod != null) {
             startTransaction.setPingPeriod(pingPeriod);
         }
-        if (failedPingRetryPeriod != null) {
-            startTransaction.setFailedPingRetryPeriod(failedPingRetryPeriod);
-        }
         if (atomicity != null) {
             switch (atomicity) {
                 case A_FULL:
@@ -241,12 +204,6 @@ public class ApiServiceTransactionOptions {
                 default:
                     break;
             }
-        }
-        if (!attributes.isEmpty()) {
-            startTransaction.setAttributes(getAttributes());
-        }
-        if (onPingFailed != null) {
-            startTransaction.setOnPingFailed(onPingFailed);
         }
         if (prerequisiteTransactionIds != null) {
             throw new RuntimeException("prerequisite_transaction_ids is not supported in RPC proxy API yet");
