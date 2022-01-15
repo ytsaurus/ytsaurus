@@ -249,7 +249,7 @@ class YTEnvSetup(object):
     NUM_REMOTE_CLUSTERS = 0
     NUM_TEST_PARTITIONS = 1
     NODE_IO_ENGINE_TYPE = None  # use "thread_pool" or "uring"
-    NODE_ENABLE_DIRECT_IO = False
+    NODE_USE_DIRECT_IO_FOR_READS = "never"
 
     # COMPAT(ignat)
     UPLOAD_DEBUG_ARTIFACT_CHUNKS = False
@@ -366,7 +366,7 @@ class YTEnvSetup(object):
             log_compression_method="zstd",
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             node_io_engine_type=cls.get_param("NODE_IO_ENGINE_TYPE", index),
-            node_enable_direct_io=cls.get_param("NODE_ENABLE_DIRECT_IO", index),
+            node_use_direct_io_for_reads=cls.get_param("NODE_USE_DIRECT_IO_FOR_READS", index),
         )
 
         instance = YTInstance(

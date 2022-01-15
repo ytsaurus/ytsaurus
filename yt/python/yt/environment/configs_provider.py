@@ -662,7 +662,7 @@ def _build_node_configs(node_dirs,
             "io_config": {
                 "enable_sync": False,
             },
-            "enable_direct_io" : yt_config.node_enable_direct_io,
+            "use_direct_io_for_reads" : yt_config.node_use_direct_io_for_reads,
             "multiplexed_changelog": changelog_config,
             "high_latency_split_changelog": changelog_config,
             "low_latency_split_changelog": changelog_config,
