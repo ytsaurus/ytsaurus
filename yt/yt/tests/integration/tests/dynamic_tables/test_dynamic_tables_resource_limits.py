@@ -12,6 +12,8 @@ import yt_error_codes
 
 from yt.common import YtError
 
+from yt.test_helpers import assert_items_equal
+
 import pytest
 
 import time
@@ -512,21 +514,25 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         create_tablet_cell_bundle("custom", attributes={"options": {
             "changelog_account": "test_account",
             "snapshot_account": "test_account"
-            }})
+        }})
 
-        id = sync_create_cells(1, tablet_cell_bundle="custom")[0]
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
-
+        cell_id = sync_create_cells(1, tablet_cell_bundle="custom")[0]
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="custom")
         sync_mount_table("//tmp/t")
 
-        changelogs = ls("//sys/tablet_cells/{0}/changelogs".format(id))
+        changelogs = ls("//sys/tablet_cells/{0}/changelogs".format(cell_id))
+        assert len(changelogs) > 0
+
+        for changelog in changelogs:
+            assert get("//sys/tablet_cells/{0}/changelogs/{1}/@account".format(cell_id, changelog)) == "test_account"
+
+        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
 
         with pytest.raises(YtError):
-            build_snapshot(cell_id=id)
+            build_snapshot(cell_id=cell_id)
 
-        time.sleep(10)
-        assert sorted(changelogs) == sorted(ls("//sys/tablet_cells/{0}/changelogs".format(id)))
+        time.sleep(3.0)
+        assert_items_equal(changelogs, ls("//sys/tablet_cells/{0}/changelogs".format(cell_id)))
 
     @authors("akozhikhov")
     def test_bundle_account_violation_attribute(self):
