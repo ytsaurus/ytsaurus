@@ -1075,6 +1075,9 @@ def _build_cluster_connection_config(yt_config,
             "refresh_time": 0
         }
 
+    if yt_config.delta_global_cluster_connection_config:
+        cluster_connection = update(cluster_connection, yt_config.delta_global_cluster_connection_config)
+
     return cluster_connection
 
 
