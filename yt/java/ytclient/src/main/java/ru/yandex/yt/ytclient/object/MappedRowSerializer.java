@@ -18,7 +18,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionSeria
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionalSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
-import ru.yandex.type_info.TiType;
 import ru.yandex.yson.ClosableYsonConsumer;
 import ru.yandex.yson.YsonConsumer;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
@@ -91,7 +90,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
     }
 
-    static TiType asType(YTreeSerializer<?> serializer) {
+    static ColumnValueType asType(YTreeSerializer<?> serializer) {
         return serializer.getColumnValueType();
     }
 
@@ -106,12 +105,9 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
             } else {
                 hasKeys |= isKeyField;
 
-                ColumnSchema.Builder columnSchemaBuilder = ColumnSchema.builder(field.key, asType(serializer))
-                        .setAggregate(field.aggregate);
-                if (field.sortOrder != null) {
-                    columnSchemaBuilder.setSortOrder(field.sortOrder);
-                }
-                builder.add(columnSchemaBuilder.build());
+                builder.add(new ColumnSchema(field.key, asType(serializer),
+                        isKeyField ? field.sortOrder : null, null, null,
+                        field.aggregate, null, isKeyField));
             }
         }
 
