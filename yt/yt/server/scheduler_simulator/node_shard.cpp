@@ -384,7 +384,7 @@ NEventLog::TFluentLogEvent TSimulatorNodeShard::LogFinishedJobFluently(ELogEvent
 {
     YT_VERIFY(job->GetFinishTime());
     YT_LOG_INFO("Logging job event");
-    return LogEventFluently(eventType, *job->GetFinishTime())
+    return LogEventFluently(StrategyHost_->GetEventLogger(), eventType, *job->GetFinishTime())
         .Item("job_id").Value(job->GetId())
         .Item("operation_id").Value(job->GetOperationId())
         .Item("start_time").Value(job->GetStartTime())

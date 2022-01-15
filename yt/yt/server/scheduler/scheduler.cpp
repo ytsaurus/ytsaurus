@@ -274,7 +274,7 @@ public:
         ControlEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
         FairShareEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
 
-        LogEventFluently(ELogEventType::SchedulerStarted)
+        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
 
         ClusterInfoLoggingExecutor_ = New<TPeriodicExecutor>(
@@ -979,7 +979,7 @@ public:
                     TError("Job was in banned tentative pool tree")));
         }
 
-        LogEventFluently(ELogEventType::OperationBannedInTree)
+        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationBannedInTree)
             .Item("operation_id").Value(operation->GetId())
             .Item(EventLogPoolTreeKey).Value(treeId);
 
@@ -1084,7 +1084,7 @@ public:
                 .ThrowOnError();
         }
 
-        LogEventFluently(ELogEventType::RuntimeParametersInfo)
+        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::RuntimeParametersInfo)
             .Item("runtime_params").Value(newParams);
 
         YT_LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
@@ -1391,7 +1391,7 @@ public:
                 /* setAlert */ false);
         }
 
-        LogEventFluently(ELogEventType::OperationMaterialized)
+        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationMaterialized)
             .Item("operation_id").Value(operation->GetId());
     }
 
@@ -1469,6 +1469,13 @@ public:
     {
         // By default, the control thread's consumer is used.
         return GetControlEventLogConsumer();
+    }
+
+    // NB(eshcherbin): This version of the method is deprecated in scheduler.
+    // You should pass the logger explicitly. See: YT-15900.
+    TFluentLogEvent LogEventFluently(ELogEventType /*eventType*/) override
+    {
+        YT_ABORT();
     }
 
     const NLogging::TLogger* GetEventLogger() override
@@ -1558,9 +1565,9 @@ public:
         VERIFY_INVOKER_AFFINITY(GetFairShareLoggingInvoker());
 
         return LogEventFluently(
-            ELogEventType::FairShareInfo,
+            &SchedulerEventLogger,
             GetFairShareEventLogConsumer(),
-            GetEventLogger(),
+            ELogEventType::FairShareInfo,
             now);
     }
 
@@ -2121,7 +2128,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (IsConnected()) {
-            LogEventFluently(ELogEventType::ClusterInfo)
+            LogEventFluently(&SchedulerEventLogger, ELogEventType::ClusterInfo)
                 .Item("exec_node_count").Value(GetExecNodeCount())
                 .Item("total_node_count").Value(GetTotalNodeCount())
                 .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
@@ -2151,7 +2158,7 @@ private:
 
         auto nodeLists = WaitFor(AllSucceeded(nodeListFutures)).ValueOrThrow();
 
-        LogEventFluently(ELogEventType::NodesInfo)
+        LogEventFluently(&SchedulerEventLogger, ELogEventType::NodesInfo)
             .Item("nodes")
                 .DoMapFor(nodeLists, [] (TFluentMap fluent, const auto& nodeList) {
                     fluent.Items(nodeList);
@@ -2284,7 +2291,7 @@ private:
             return GetTotalNodeCount();
         });
 
-        LogEventFluently(ELogEventType::MasterConnected)
+        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
     }
 
@@ -2348,7 +2355,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LogEventFluently(ELogEventType::MasterDisconnected)
+        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::MasterDisconnected)
             .Item("address").Value(ServiceAddress_);
 
         if (Config_->TestingOptions->MasterDisconnectDelay) {
@@ -2383,7 +2390,7 @@ private:
         TYsonString progress,
         TYsonString alerts)
     {
-        LogEventFluently(logEventType)
+        LogEventFluently(&SchedulerStructuredLogger, logEventType)
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
@@ -3021,7 +3028,7 @@ private:
 
         ValidateOperationState(operation, EOperationState::Initializing);
 
-        LogEventFluently(ELogEventType::OperationStarted)
+        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationStarted)
             .Do(std::bind(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation, _1))
             .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1));
 
@@ -3054,7 +3061,7 @@ private:
         YT_LOG_INFO("Operation prepared (OperationId: %v)",
             operationId);
 
-        LogEventFluently(ELogEventType::OperationPrepared)
+        LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId)
             .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializeAttributes->UnrecognizedSpec);
 

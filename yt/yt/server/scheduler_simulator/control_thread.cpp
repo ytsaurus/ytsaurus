@@ -245,7 +245,7 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
     std::vector<TString> unknownTreeIds;
     SchedulerStrategy_->RegisterOperation(operation.Get(), &unknownTreeIds);
     YT_VERIFY(unknownTreeIds.empty());
-    StrategyHost_.LogEventFluently(ELogEventType::OperationStarted)
+    StrategyHost_.LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationStarted)
         .Item("operation_id").Value(operation->GetId())
         .Item("operation_type").Value(operation->GetType())
         .Item("spec").Value(operation->GetSpecString())
@@ -296,7 +296,7 @@ void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
     auto nodeLists = WaitFor(AllSucceeded(nodeListFutures))
         .ValueOrThrow();
 
-    StrategyHost_.LogEventFluently(ELogEventType::NodesInfo, event.Time)
+    StrategyHost_.LogEventFluently(StrategyHost_.GetEventLogger(), ELogEventType::NodesInfo, event.Time)
         .Item("nodes")
         .DoMapFor(nodeLists, [](TFluentMap fluent, const auto& nodeList) {
             fluent.Items(nodeList);

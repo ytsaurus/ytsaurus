@@ -37,7 +37,8 @@ struct IEventLogHost
     virtual ~IEventLogHost() = default;
 
     virtual NEventLog::TFluentLogEvent LogEventFluently(ELogEventType eventType) = 0;
-    virtual NEventLog::TFluentLogEvent LogEventFluently(ELogEventType eventType, TInstant now) = 0;
+    virtual NEventLog::TFluentLogEvent LogEventFluently(const NLogging::TLogger* eventLogger, ELogEventType eventType) = 0;
+    virtual NEventLog::TFluentLogEvent LogEventFluently(const NLogging::TLogger* eventLogger, ELogEventType eventType, TInstant now) = 0;
 };
 
 class TEventLogHostBase
@@ -45,17 +46,18 @@ class TEventLogHostBase
 {
 public:
     NEventLog::TFluentLogEvent LogEventFluently(ELogEventType eventType) override;
-    NEventLog::TFluentLogEvent LogEventFluently(ELogEventType eventType, TInstant now) override;
+    NEventLog::TFluentLogEvent LogEventFluently(const NLogging::TLogger* eventLogger, ELogEventType eventType) override;
+    NEventLog::TFluentLogEvent LogEventFluently(const NLogging::TLogger* eventLogger, ELogEventType eventType, TInstant now) override;
 
 protected:
     NEventLog::TFluentLogEvent LogEventFluently(
-        ELogEventType eventType,
-        NYson::IYsonConsumer* eventLogConsumer,
         const NLogging::TLogger* eventLogger,
+        NYson::IYsonConsumer* eventLogConsumer,
+        ELogEventType eventType,
         TInstant now);
 
-    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
     virtual const NLogging::TLogger* GetEventLogger() = 0;
+    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
