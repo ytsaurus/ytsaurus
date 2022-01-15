@@ -27,9 +27,7 @@ class TVirtualTabletMap
     : public TVirtualMulticellMapBase
 {
 public:
-    TVirtualTabletMap(TBootstrap* bootstrap, INodePtr owningProxy)
-        : TVirtualMulticellMapBase(bootstrap, owningProxy)
-    { }
+    using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
     std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
@@ -80,9 +78,7 @@ class TVirtualTabletActionMap
     : public TVirtualMulticellMapBase
 {
 public:
-    TVirtualTabletActionMap(TBootstrap* bootstrap, INodePtr owningProxy)
-        : TVirtualMulticellMapBase(bootstrap, owningProxy)
-    { }
+    using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
     std::vector<TObjectId> GetKeys(i64 sizeLimit) const override

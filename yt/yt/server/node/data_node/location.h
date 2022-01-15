@@ -103,7 +103,7 @@ DEFINE_REFCOUNTED_TYPE(TLocationPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocation
+class TChunkLocation
     : public TDiskLocation
 {
 public:
@@ -112,20 +112,20 @@ public:
     DEFINE_SIGNAL(void(), Disabled);
 
 public:
-    TLocation(
+    TChunkLocation(
         ELocationType type,
         const TString& id,
         TStoreLocationConfigBasePtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
-        TChunkHostPtr chunkHost,
+        TChunkContextPtr chunkContext,
         IChunkStoreHostPtr chunkStoreHost);
 
     //! Returns the type.
     ELocationType GetType() const;
 
     //! Returns the universally unique id.
-    TLocationUuid GetUuid() const;
+    TChunkLocationUuid GetUuid() const;
 
     //! Returns the disk family
     const TString& GetDiskFamily() const;
@@ -140,18 +140,17 @@ public:
     TString GetMediumName() const;
 
     //! Sets medium name and reconfigures medium descriptors using given medium directory.
-    //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.
     //! Returns |true| if location medium was changed.
     bool UpdateMediumName(
         const TString& newMediumName,
         const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
-        bool onInitialize = false);
+        bool onInitialize);
 
     //! Sets medium descriptor.
     //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.
     void UpdateMediumDescriptor(
         const NChunkClient::TMediumDescriptor& mediumDescriptor,
-        bool onInitialize = false);
+        bool onInitialize);
 
     //! Returns the medium descriptor.
     NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
@@ -275,7 +274,7 @@ public:
 protected:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const TChunkStorePtr ChunkStore_;
-    const TChunkHostPtr ChunkHost_;
+    const TChunkContextPtr ChunkContext_;
     const IChunkStoreHostPtr ChunkStoreHost_;
 
     NProfiling::TProfiler Profiler_;
@@ -296,7 +295,7 @@ private:
     const ELocationType Type_;
     const TStoreLocationConfigBasePtr Config_;
 
-    TLocationUuid Uuid_;
+    TChunkLocationUuid Uuid_;
 
     TAtomicObject<TError> LocationDisabledAlert_;
     TAtomicObject<TError> MediumAlert_;
@@ -345,12 +344,12 @@ private:
     virtual std::vector<TString> GetChunkPartNames(TChunkId chunkId) const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TLocation)
+DEFINE_REFCOUNTED_TYPE(TChunkLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreLocation
-    : public TLocation
+    : public TChunkLocation
 {
 public:
     TStoreLocation(
@@ -358,7 +357,7 @@ public:
         TStoreLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
-        TChunkHostPtr chunkHost,
+        TChunkContextPtr chunkContext,
         IChunkStoreHostPtr chunkStoreHost);
 
     //! Returns the location's config.
@@ -437,14 +436,14 @@ DEFINE_REFCOUNTED_TYPE(TStoreLocation)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCacheLocation
-    : public TLocation
+    : public TChunkLocation
 {
 public:
     TCacheLocation(
         const TString& id,
         TCacheLocationConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-        TChunkHostPtr chunkHost,
+        TChunkContextPtr chunkContext,
         IChunkStoreHostPtr chunkStoreHost);
 
     const NConcurrency::IThroughputThrottlerPtr& GetInThrottler() const;
@@ -479,19 +478,18 @@ public:
     i64 GetSize() const;
 
 private:
-    friend class TLocation;
+    friend class TChunkLocation;
 
     TPendingIOGuard(
         EIODirection direction,
         EIOCategory category,
         i64 size,
-        TLocationPtr owner);
+        TChunkLocationPtr owner);
 
     EIODirection Direction_;
     EIOCategory Category_;
     i64 Size_ = 0;
-    TLocationPtr Owner_;
-
+    TChunkLocationPtr Owner_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

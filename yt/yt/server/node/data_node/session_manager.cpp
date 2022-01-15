@@ -254,7 +254,7 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);
 }
 
-void TSessionManager::OnLocationDisabled(const TLocationPtr& location)
+void TSessionManager::OnLocationDisabled(const TChunkLocationPtr& location)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

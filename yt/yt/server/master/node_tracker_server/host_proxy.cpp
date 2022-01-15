@@ -24,12 +24,7 @@ class THostProxy
     : public TNonversionedObjectProxyBase<THost>
 {
 public:
-    THostProxy(
-        TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        THost* host)
-        : TBase(bootstrap, metadata, host)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<THost>;

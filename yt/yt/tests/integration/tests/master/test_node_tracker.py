@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 from yt_commands import (
     authors, wait, execute_command, get_driver, build_snapshot,
     exists, ls, get, set, create, remove,
-    read_table, write_table,
+    write_table,
     create_rack, create_data_center, vanilla,
     set_node_banned)
 
@@ -288,53 +288,6 @@ class TestRemoveClusterNodes(YTEnvSetup):
 
             with Restarter(self.Env, MASTERS_SERVICE):
                 pass
-
-
-################################################################################
-
-
-class TestNodesCreatedBanned(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    DEFER_NODE_START = True
-
-    @authors("shakurov")
-    def test_new_nodes_created_banned(self):
-        assert get("//sys/cluster_nodes/@count") == 0
-        assert get("//sys/cluster_nodes/@online_node_count") == 0
-
-        assert not get("//sys/@config/node_tracker/ban_new_nodes")
-        set("//sys/@config/node_tracker/ban_new_nodes", True)
-
-        self.Env.start_nodes(sync=False)
-
-        wait(lambda: get("//sys/cluster_nodes/@count") == 3)
-        wait(lambda: get("//sys/cluster_nodes/@online_node_count") == 0)
-
-        nodes = ls("//sys/cluster_nodes")
-        assert len(nodes) == 3
-
-        for node in nodes:
-            assert get("//sys/cluster_nodes/{0}/@banned".format(node))
-            ban_message = get("//sys/cluster_nodes/{0}/@ban_message".format(node))
-            assert "banned" in ban_message and "provisionally" in ban_message
-            assert get("//sys/cluster_nodes/{0}/@state".format(node)) == "offline"
-
-        for node in nodes:
-            set("//sys/cluster_nodes/{0}/@banned".format(node), False)
-
-        self.Env.synchronize()
-
-        wait(lambda: get("//sys/cluster_nodes/@online_node_count") == 3)
-
-        create("table", "//tmp/t")
-
-        write_table("//tmp/t", {"a": "b"})
-        read_table("//tmp/t")
-
-
-class TestNodesCreatedBannedMulticell(TestNodesCreatedBanned):
-    NUM_SECONDARY_MASTER_CELLS = 2
 
 
 ################################################################################

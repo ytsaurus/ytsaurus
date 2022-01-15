@@ -55,11 +55,11 @@ void UpdateMax(std::atomic<i64>& value, i64 candidate)
 ////////////////////////////////////////////////////////////////////////////////
 
 TJournalChunk::TJournalChunk(
-    TChunkHostPtr host,
+    TChunkContextPtr context,
     TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
     : TChunkBase(
-        host,
+        context,
         location,
         descriptor.Id)
     , StoreLocation_(location)
@@ -184,7 +184,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
         MakeStrong(this),
         session);
 
-    Host_->StorageHeavyInvoker->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
+    Context_->StorageHeavyInvoker->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
 
     return session->Promise;
 }
@@ -192,7 +192,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
 void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 {
     try {
-        auto changelog = WaitFor(Host_->JournalDispatcher->OpenChangelog(StoreLocation_, Id_))
+        auto changelog = WaitFor(Context_->JournalDispatcher->OpenChangelog(StoreLocation_, Id_))
             .ValueOrThrow();
 
         int firstBlockIndex = session->FirstBlockIndex;
@@ -209,8 +209,8 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         auto asyncBlocks = changelog->Read(
             firstBlockIndex,
-            std::min(blockCount, Host_->DataNodeConfig->MaxBlocksPerRead),
-            Host_->DataNodeConfig->MaxBytesPerRead);
+            std::min(blockCount, Context_->DataNodeConfig->MaxBlocksPerRead),
+            Context_->DataNodeConfig->MaxBytesPerRead);
         auto blocksOrError = WaitFor(asyncBlocks);
         if (!blocksOrError.IsOK()) {
             auto error = TError(
@@ -262,7 +262,7 @@ TFuture<void> TJournalChunk::AsyncRemove()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Host_->JournalDispatcher->RemoveChangelog(this, true);
+    return Context_->JournalDispatcher->RemoveChangelog(this, true);
 }
 
 i64 TJournalChunk::GetFlushedRowCount() const
@@ -304,7 +304,7 @@ TFuture<void> TJournalChunk::Seal()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Host_->JournalDispatcher->SealChangelog(this).Apply(
+    return Context_->JournalDispatcher->SealChangelog(this).Apply(
         BIND([this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG("Chunk is marked as sealed (ChunkId: %v)",
                 Id_);

@@ -449,6 +449,11 @@ private:
                 EObjectType::LockMap);
 
             ScheduleCreateNode(
+                "//sys/chunk_locations",
+                transactionId,
+                EObjectType::ChunkLocationMap);
+
+            ScheduleCreateNode(
                 "//sys/chunks",
                 transactionId,
                 EObjectType::ChunkMap);

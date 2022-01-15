@@ -427,7 +427,7 @@ private:
             WaitFor(nativeConnection->GetMediumDirectorySynchronizer()->RecentSync())
                 .ThrowOnError();
             auto mediumDirectory = nativeConnection->GetMediumDirectory();
-            
+
             const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
 
             const auto& cacheLocations = execNodeBootstrap->GetChunkCache()->Locations();
@@ -502,14 +502,14 @@ private:
         req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
         req->set_build_version(GetVersion());
 
-        if (Bootstrap_->IsDataNode()) {
+        if (Bootstrap_->IsDataNode() || Bootstrap_->IsExecNode()) {
             const auto& storeLocations = Bootstrap_
                 ->GetDataNodeBootstrap()
                 ->GetChunkStore()
                 ->Locations();
             for (const auto& location : storeLocations) {
                 if (location->IsEnabled()) {
-                    ToProto(req->add_location_uuids(), location->GetUuid());
+                    ToProto(req->add_chunk_location_uuids(), location->GetUuid());
                 }
             }
         }
@@ -529,25 +529,20 @@ private:
             }
         }
 
-        if (Bootstrap_->IsDataNode()) {
-            const auto& dataNodeInfoExtTag = TDataNodeInfoExt::data_node_info_ext;
+        if (Bootstrap_->IsDataNode() || Bootstrap_->IsExecNode()) {
             const auto& dataNodeBootstrap = Bootstrap_->GetDataNodeBootstrap();
             const auto& mediumUpdater = dataNodeBootstrap->GetMediumUpdater();
+            if (rsp->HasExtension(TDataNodeInfoExt::data_node_info_ext)) {
+                const auto& dataNodeInfoExt = rsp->GetExtension(TDataNodeInfoExt::data_node_info_ext);
 
-            bool hasDataNodeInfoExt = rsp->HasExtension(dataNodeInfoExtTag);
-
-            mediumUpdater->EnableLegacyMode(!hasDataNodeInfoExt);
-
-            if (hasDataNodeInfoExt) {
-                const auto& dataNodeInfoExt = rsp->GetExtension(dataNodeInfoExtTag);
-
-                YT_VERIFY(dataNodeInfoExt.has_medium_directory() && dataNodeInfoExt.has_medium_overrides());
-
+                YT_VERIFY(dataNodeInfoExt.has_medium_directory());
                 const auto& mediumDirectoryManager = dataNodeBootstrap->GetMediumDirectoryManager();
                 mediumDirectoryManager->UpdateMediumDirectory(dataNodeInfoExt.medium_directory());
+
+                YT_VERIFY(dataNodeInfoExt.has_medium_overrides());
                 mediumUpdater->UpdateLocationMedia(dataNodeInfoExt.medium_overrides(), /*onInitialize*/ true);
             } else {
-                mediumUpdater->LegacyInitializeLocationMedia();
+                mediumUpdater->UpdateLocationMedia({}, /*onInitialize*/ true);
             }
         }
 

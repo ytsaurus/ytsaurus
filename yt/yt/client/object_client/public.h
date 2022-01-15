@@ -154,6 +154,8 @@ DEFINE_ENUM(EObjectType,
     ((ErasureJournalChunkPart_13)    (138))
     ((ErasureJournalChunkPart_14)    (139))
     ((ErasureJournalChunkPart_15)    (140))
+    ((ChunkLocation)                 (141))
+    ((ChunkLocationMap)              (142))
 
     // The following represent versioned objects (AKA Cypress nodes).
     // These must be created by calling TCypressYPathProxy::Create.

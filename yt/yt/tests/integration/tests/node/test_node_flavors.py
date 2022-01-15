@@ -60,12 +60,16 @@ class TestNodeFlavors(YTEnvSetup):
         data_nodes = get_data_nodes()
         assert len(data_nodes) == 4
 
+        exec_nodes = get_exec_nodes()
+        assert len(exec_nodes) == 3
+
         create("table", "//tmp/t")
         for i in range(5):
             write_table("//tmp/t", [{"x": i}])
         for chunk_id in get("//tmp/t/@chunk_ids"):
             for replica in get("#{}/@stored_replicas".format(chunk_id)):
-                assert str(replica) in data_nodes
+                replica_address = str(replica)
+                assert replica_address in data_nodes or replica_address in exec_nodes
 
     @authors("gritukan")
     def test_exec_nodes(self):

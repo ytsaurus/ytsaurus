@@ -588,7 +588,7 @@ private:
     {
         TString Address;
         TMiscExt MiscExt;
-        TLocationUuid LocationUuid;
+        TChunkLocationUuid LocationUuid;
     };
     std::vector<TChunkMetaResult> ChunkMetaResults_;
 
@@ -671,7 +671,7 @@ private:
         const auto& rsp = rspOrError.Value();
         const auto& address = replica.NodeDescriptor.GetDefaultAddress();
         auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
-        auto locationUuid = FromProto<TLocationUuid>(rsp->location_uuid());
+        auto locationUuid = FromProto<TChunkLocationUuid>(rsp->location_uuid());
 
         ChunkMetaResults_.push_back({
             address,
@@ -730,7 +730,7 @@ private:
 
     void OnComplete(const TError& /*error*/)
     {
-        THashMap<TLocationUuid, TString> locationUuidToAddress;
+        THashMap<TChunkLocationUuid, TString> locationUuidToAddress;
         for (const auto& result : ChunkMetaResults_) {
             if (!result.LocationUuid) {
                 continue;

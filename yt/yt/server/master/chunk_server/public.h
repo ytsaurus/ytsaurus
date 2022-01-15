@@ -7,7 +7,6 @@
 #include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/ytlib/chunk_client/block_id.h>
-#include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
@@ -19,11 +18,9 @@
 
 #include <yt/yt/library/erasure/impl/public.h>
 
-#include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/compact_vector.h>
 
 #include <map>
-#include <array>
 
 namespace NYT::NChunkServer {
 
@@ -47,7 +44,7 @@ using NChunkClient::DefaultStoreMediumIndex;
 using NChunkClient::DefaultCacheMediumIndex;
 using NChunkClient::MaxMediumPriority;
 using NChunkClient::TDataCenterName;
-using NChunkClient::TLocationUuid;
+using NChunkClient::TChunkLocationUuid;
 using NChunkClient::TMediumMap;
 using NChunkClient::TMediumIntMap;
 using NChunkClient::TConsistentReplicaPlacementHash;
@@ -68,45 +65,26 @@ using NObjectClient::NullTransactionId;
 using NNodeTrackerServer::TNode;
 using NNodeTrackerServer::TNodeList;
 
-using TDynamicStoreId = NObjectClient::TObjectId;
 using NTabletClient::TDynamicStoreId;
+
+using TChunkLocationId = NObjectClient::TObjectId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENTITY_TYPE(TChunkLocation, TChunkLocationId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunk, TChunkId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunkView, TChunkViewId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TDynamicStore, TDynamicStoreId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunkList, TChunkListId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
 
+DECLARE_MASTER_OBJECT_TYPE(TChunkLocation)
 DECLARE_MASTER_OBJECT_TYPE(TChunk)
 DECLARE_MASTER_OBJECT_TYPE(TChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
+DECLARE_MASTER_OBJECT_TYPE(TMedium)
 
-struct TLocationUuidDenseMapInfo
-{
-    static inline TLocationUuid getEmptyKey()
-    {
-        return NChunkClient::EmptyLocationUuid;
-    }
-
-    static inline TLocationUuid getTombstoneKey()
-    {
-        return NChunkClient::InvalidLocationUuid;
-    }
-
-    static unsigned getHashValue(TLocationUuid value)
-    {
-        return static_cast<unsigned>(THash<TLocationUuid>()(value));
-    }
-
-    static bool isEqual(TLocationUuid lhs, TLocationUuid rhs)
-    {
-        return lhs == rhs;
-    }
-};
-
-constexpr int TypicalNodeLocationCount = 8;
+class TChunkLocation;
 
 class TChunkTree;
 class TChunkOwnerBase;
@@ -119,7 +97,6 @@ class TChunkRequisitionRegistry;
 
 template <class T>
 class TPtrWithIndex;
-
 template <class T>
 class TPtrWithIndexes;
 
@@ -228,6 +205,15 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,
     ((Active)                (1))
     ((Unsealed)              (2))
     ((Sealed)                (3))
+);
+
+DEFINE_ENUM(EChunkLocationState,
+    // Belongs to a node that is not online.
+    ((Offline) (0))
+    // Belongs to a node that is online and reports presence of this location.
+    ((Online)  (1))
+    // Belongs to a node that is online but does not report presence of this location.
+    ((Dangling)(2))
 );
 
 using TChunkRepairQueue = std::list<TChunkPtrWithIndexes> ;

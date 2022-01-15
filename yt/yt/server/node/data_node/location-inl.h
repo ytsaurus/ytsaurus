@@ -9,7 +9,7 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TCallback<T()> TLocation::DisableOnError(const TCallback<T()> callback)
+TCallback<T()> TChunkLocation::DisableOnError(const TCallback<T()> callback)
 {
     return BIND([=, this_ = MakeStrong(this)] {
         try {

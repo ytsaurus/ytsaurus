@@ -23,11 +23,11 @@ using namespace NYTree;
 class TMasterTableSchemaProxy
     : public TNonversionedObjectProxyBase<TMasterTableSchema>
 {
+public:
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
+
 private:
     using TBase = TNonversionedObjectProxyBase<TMasterTableSchema>;
-
-public:
-    using TBase::TBase;
 
     void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {

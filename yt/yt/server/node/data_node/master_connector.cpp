@@ -246,7 +246,7 @@ public:
 
         auto* delta = GetChunksDelta(cellTag);
         YT_VERIFY(delta->State == EMasterConnectorState::Registered);
-        
+
         delta->State = EMasterConnectorState::Online;
         YT_VERIFY(delta->AddedSinceLastSuccess.empty());
         YT_VERIFY(delta->RemovedSinceLastSuccess.empty());
@@ -781,9 +781,10 @@ private:
             totalUsedSpace += location->GetUsedSpace();
             totalStoredChunkCount += location->GetChunkCount();
 
-            auto* locationStatistics = statistics->add_storage_locations();
-
             auto mediumIndex = location->GetMediumDescriptor().Index;
+            YT_VERIFY(mediumIndex != GenericMediumIndex);
+
+            auto* locationStatistics = statistics->add_chunk_locations();
             locationStatistics->set_medium_index(mediumIndex);
             locationStatistics->set_available_space(location->GetAvailableSpace());
             locationStatistics->set_used_space(location->GetUsedSpace());
@@ -964,17 +965,15 @@ private:
             return;
         }
 
-        YT_VERIFY(response.has_medium_directory() == response.has_medium_overrides());
+        if (!response.has_medium_directory() || !response.has_medium_overrides()) {
+            return;
+        }
 
         const auto& mediumDirectoryManager = Bootstrap_->GetMediumDirectoryManager();
+        mediumDirectoryManager->UpdateMediumDirectory(response.medium_directory());
+
         const auto& mediumUpdater = Bootstrap_->GetMediumUpdater();
-
-        mediumUpdater->EnableLegacyMode(!response.has_medium_overrides());
-
-        if (response.has_medium_directory()) {
-            mediumDirectoryManager->UpdateMediumDirectory(response.medium_directory());
-            mediumUpdater->UpdateLocationMedia(response.medium_overrides());
-        }
+        mediumUpdater->UpdateLocationMedia(response.medium_overrides());
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

@@ -20,9 +20,7 @@ class TVirtualShardMap
     : public TVirtualMulticellMapBase
 {
 public:
-    TVirtualShardMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMulticellMapBase(bootstrap, owningNode)
-    { }
+    using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
     std::vector<TObjectId> GetKeys(i64 sizeLimit) const override

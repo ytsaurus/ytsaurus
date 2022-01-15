@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace NYT {
-namespace {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,10 +13,9 @@ std::vector<TString> ToNames(const std::vector<T>& objects);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
 } // namespace NYT
 
-#define OBJECT_HELPERS_INL_H_
-#include "object_helpers-inl.h"
-#undef OBJECT_HELPERS_INL_H_
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_
 

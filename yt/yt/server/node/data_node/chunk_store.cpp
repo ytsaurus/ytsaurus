@@ -93,12 +93,12 @@ TChunkStore::TChunkStore(
     TDataNodeConfigPtr config,
     NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     IInvokerPtr controlInvoker,
-    TChunkHostPtr chunkHost,
+    TChunkContextPtr chunkHost,
     IChunkStoreHostPtr chunkStoreHost)
     : Config_(std::move(config))
     , DynamicConfigManager_(dynamicConfigManager)
     , ControlInvoker_(controlInvoker)
-    , ChunkHost_(chunkHost)
+    , ChunkContext_(chunkHost)
     , ChunkStoreHost_(chunkStoreHost)
     , ProfilingExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
@@ -121,7 +121,7 @@ void TChunkStore::Initialize()
             locationConfig,
             DynamicConfigManager_,
             MakeStrong(this),
-            ChunkHost_,
+            ChunkContext_,
             ChunkStoreHost_);
 
         futures.push_back(
@@ -386,7 +386,8 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
     }
 }
 
-void TChunkStore::ChangeLocationMedium(const TLocationPtr& location, int oldMediumIndex) {
+void TChunkStore::ChangeLocationMedium(const TChunkLocationPtr& location, int oldMediumIndex)
+{
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(ChunkMapLock_);
@@ -662,14 +663,14 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
             return New<TStoredBlobChunk>(
-                ChunkHost_,
+                ChunkContext_,
                 location,
                 descriptor);
 
         case EObjectType::JournalChunk:
         case EObjectType::ErasureJournalChunk:
             return New<TJournalChunk>(
-                ChunkHost_,
+                ChunkContext_,
                 location,
                 descriptor);
 

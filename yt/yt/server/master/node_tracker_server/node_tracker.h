@@ -76,6 +76,9 @@ public:
     //! Fired when a node gets disposed (after being unregistered).
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeDisposed);
 
+    //! Fired when a node gets zombified.
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeZombified);
+
     //! Fired when node "banned" flag changes.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeBanChanged);
 
@@ -165,6 +168,9 @@ public:
 
     //! Returns a host with a given name (|nullptr| if none).
     virtual THost* FindHostByName(const TString& name) = 0;
+
+    //! Returns a host with a given name (fails if none).
+    virtual THost* GetHostByName(const TString& hostName) = 0;
 
     //! Sets the rack and notifies the subscribers.
     virtual void SetHostRack(THost* host, TRack* rack) = 0;

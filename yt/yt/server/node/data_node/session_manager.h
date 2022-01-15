@@ -66,7 +66,7 @@ private:
     void RegisterSession(const ISessionPtr& session);
     void UnregisterSession(const ISessionPtr& session);
 
-    void OnLocationDisabled(const TLocationPtr& location);
+    void OnLocationDisabled(const TChunkLocationPtr& location);
 
     void OnMasterDisconnected();
 

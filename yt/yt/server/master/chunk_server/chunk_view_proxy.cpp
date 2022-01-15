@@ -23,12 +23,7 @@ class TChunkViewProxy
     : public TNonversionedObjectProxyBase<TChunkView>
 {
 public:
-    TChunkViewProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TChunkView* chunkView)
-        : TBase(bootstrap, metadata, chunkView)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TChunkView>;

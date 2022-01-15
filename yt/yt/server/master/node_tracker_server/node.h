@@ -84,12 +84,6 @@ public:
     using TMediumMap = NChunkClient::TMediumMap<T>;
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
-    // COMPAT(kvk1920)
-    using TLegacyMediumOverrideMap = THashMap<NChunkServer::TLocationUuid, TString>;
-
-    using TMediumOverrideMap =
-    SmallDenseMap<NChunkServer::TLocationUuid, int, NChunkServer::TypicalNodeLocationCount, NChunkServer::TLocationUuidDenseMapInfo>;
-
     DEFINE_BYREF_RO_PROPERTY(TMediumMap<double>, IOWeights);
     DEFINE_BYREF_RO_PROPERTY(TMediumMap<i64>, TotalSpace);
     DEFINE_BYREF_RW_PROPERTY(TMediumMap<int>, ConsistentReplicaPlacementTokenCount);
@@ -114,13 +108,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, NodeTags);
     //! User tags plus node tags.
     DEFINE_BYREF_RO_PROPERTY(THashSet<TString>, Tags);
-
-    // COMPAT(kvk1920)
-    DEFINE_BYREF_RW_PROPERTY(TLegacyMediumOverrideMap, LegacyMediumOverrides);
-    DEFINE_BYREF_RW_PROPERTY(TMediumOverrideMap, MediumOverrides);
-
-    // COMPAT(kvk1920)
-    void TransformLegacyMediumOverrides(NCellMaster::TBootstrap* bootstrap);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
@@ -158,7 +145,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NChunkClient::TLocationUuid>, LocationUuids);
+    // COMPAT(babenko)
+    DEFINE_BYREF_RO_PROPERTY(std::vector<NChunkServer::TChunkLocationId>, CompatChunkLocationUuids);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NChunkServer::TChunkLocation*>, ChunkLocations);
 
     // COMPAT(gritukan): This is used for host creation only.
     DEFINE_BYVAL_RO_PROPERTY(TRack*, LegacyRack);

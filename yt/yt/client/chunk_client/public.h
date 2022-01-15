@@ -85,10 +85,9 @@ extern const TChunkListId NullChunkListId;
 using TChunkTreeId = NObjectClient::TObjectId;
 extern const TChunkTreeId NullChunkTreeId;
 
-using TLocationUuid = TGuid;
-
-constexpr auto EmptyLocationUuid = TLocationUuid(0, 0);
-constexpr auto InvalidLocationUuid = TLocationUuid(-1, -1);
+using TChunkLocationUuid = TGuid;
+constexpr auto EmptyChunkLocationUuid = TChunkLocationUuid(0, 0);
+constexpr auto InvalidChunkLocationUuid = TChunkLocationUuid(-1, -1);
 
 constexpr int MinReplicationFactor = 1;
 constexpr int MaxReplicationFactor = 20;

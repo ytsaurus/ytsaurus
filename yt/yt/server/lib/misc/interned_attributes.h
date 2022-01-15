@@ -67,6 +67,7 @@
     XX(ChunkId, chunk_id) \
     XX(ChunkIds, chunk_ids) \
     XX(ChunkListId, chunk_list_id) \
+    XX(ChunkLocations, chunk_locations) \
     XX(ChunkMergerMode, chunk_merger_mode) \
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
     XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
@@ -245,7 +246,7 @@
     XX(MaxTimestamp, max_timestamp) \
     XX(MD5, md5) \
     XX(Media, media) \
-    XX(MediumOverrides, medium_overrides) \
+    XX(MediumOverride, medium_override) \
     XX(MemberCount, member_count) \
     XX(MemberOf, member_of) \
     XX(MemberOfClosure, member_of_closure) \
@@ -274,6 +275,7 @@
     XX(NativeCellTag, native_cell_tag) \
     XX(NativeContentRevision, native_content_revision) \
     XX(NestedTransactionIds, nested_transaction_ids) \
+    XX(NodeAddress, node_address) \
     XX(NodeId, node_id) \
     XX(Nodes, nodes) \
     XX(NodeTagFilter, node_tag_filter) \
@@ -435,6 +437,7 @@
     XX(UpdateMode, update_mode) \
     XX(UpperLimit, upper_limit) \
     XX(UpstreamReplicaId, upstream_replica_id) \
+    XX(Uuid, uuid) \
     XX(ReplicationCardToken, replication_card_token) \
     XX(UsableAccounts, usable_accounts) \
     XX(UsableNetworkProjects, usable_network_projects) \

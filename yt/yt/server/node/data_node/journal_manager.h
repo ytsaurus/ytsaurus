@@ -22,7 +22,7 @@ public:
     TJournalManager(
         TDataNodeConfigPtr config,
         TStoreLocation* location,
-        TChunkHostPtr chunkHost);
+        TChunkContextPtr chunkContext);
     ~TJournalManager();
 
     void Initialize();

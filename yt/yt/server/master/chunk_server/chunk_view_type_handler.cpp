@@ -43,11 +43,6 @@ private:
 
         TObjectTypeHandlerWithMapBase::DoDestroyObject(chunkView);
     }
-
-    void DoUnstageObject(TChunkView* /*chunkView*/, bool /*recursive*/) override
-    {
-        YT_ABORT();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

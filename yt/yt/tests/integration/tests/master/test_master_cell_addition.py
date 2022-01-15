@@ -18,6 +18,8 @@ from yt_commands import (
     assert_true_for_secondary_cells,
     build_snapshot, get_driver)
 
+from yt.test_helpers import assert_items_equal
+
 import pytest
 
 from copy import deepcopy
@@ -299,6 +301,40 @@ class TestMasterCellAddition(YTEnvSetup):
 
         assert_true_for_all_cells(self.Env, lambda driver: check_everything(driver))
 
+    def check_chunk_locations(self):
+        node_to_location_uuids = {}
+
+        nodes = ls("//sys/cluster_nodes", attributes=["chunk_locations"])
+        for node in nodes:
+            node_address = str(node)
+            location_uuids = node.attributes["chunk_locations"].keys()
+            node_to_location_uuids[node_address] = location_uuids
+
+        create_medium("nvme_override")
+        overridden_node_address = str(nodes[0])
+        overridden_location_uuids = node_to_location_uuids[overridden_node_address]
+        for location_uuid in overridden_location_uuids:
+            set("//sys/chunk_locations/{}/@medium_override".format(location_uuid), "nvme_override")
+
+        def check_everything(driver=None):
+            for node_address, location_uuids in node_to_location_uuids.iteritems():
+                assert exists("//sys/cluster_nodes/{}".format(node_address), driver=driver)
+                found_location_uuids = get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address), driver=driver).keys()
+                assert_items_equal(location_uuids, found_location_uuids)
+
+            assert exists("//sys/media/nvme_override", driver=driver)
+
+            for location_uuid in overridden_location_uuids:
+                assert get("//sys/chunk_locations/{}/@medium_override".format(location_uuid), driver=driver) == "nvme_override"
+
+            return True
+
+        check_everything()
+
+        yield
+
+        assert_true_for_all_cells(self.Env, lambda driver: check_everything(driver))
+
     @authors("shakurov")
     def test_add_new_cell(self):
         CHECKER_LIST = [
@@ -306,6 +342,7 @@ class TestMasterCellAddition(YTEnvSetup):
             self.check_accounts,
             self.check_sys_masters_node,
             self.check_cluster_node_hierarchy,
+            self.check_chunk_locations,
             self.check_transactions,
             self.check_areas,
             self.check_builtin_object_attributes,

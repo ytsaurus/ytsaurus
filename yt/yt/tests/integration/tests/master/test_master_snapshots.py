@@ -9,7 +9,7 @@ from yt_commands import (
     lookup_rows, alter_table, write_table, wait_for_cells,
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
     get_account_disk_space, create_dynamic_table, build_snapshot,
-    build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move)
+    build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_medium)
 
 from yt.common import YtError
 from yt_type_helpers import make_schema, normalize_schema
@@ -392,6 +392,39 @@ def check_account_resource_usage_lease():
     assert get_account_disk_space("a42") == 0
 
 
+def check_chunk_locations():
+    node_to_location_uuids = {}
+
+    nodes = ls("//sys/cluster_nodes", attributes=["chunk_locations"])
+    for node in nodes:
+        node_address = str(node)
+        location_uuids = node.attributes["chunk_locations"].keys()
+        node_to_location_uuids[node_address] = location_uuids
+
+    create_medium("nvme_override")
+    overridden_node_address = str(nodes[0])
+    overridden_location_uuids = node_to_location_uuids[overridden_node_address]
+    for location_uuid in overridden_location_uuids:
+        set("//sys/chunk_locations/{}/@medium_override".format(location_uuid), "nvme_override")
+
+    def check_everything():
+        for node_address, location_uuids in node_to_location_uuids.iteritems():
+            assert exists("//sys/cluster_nodes/{}".format(node_address))
+            found_location_uuids = get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys()
+            assert_items_equal(location_uuids, found_location_uuids)
+
+        assert exists("//sys/media/nvme_override")
+
+        for location_uuid in overridden_location_uuids:
+            assert get("//sys/chunk_locations/{}/@medium_override".format(location_uuid)) == "nvme_override"
+
+    check_everything()
+
+    yield
+
+    check_everything()
+
+
 MASTER_SNAPSHOT_CHECKER_LIST = [
     check_simple_node,
     check_schema,
@@ -406,6 +439,8 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_error_attribute,
     check_account_subtree_size_recalculation,
     check_scheduler_pool_subtree_size_recalculation,
+    check_chunk_locations,
+    check_account_resource_usage_lease,
     check_removed_account,  # keep this item last as it's sensitive to timings
 ]
 
@@ -414,9 +449,8 @@ MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST = deepcopy(MASTER_SNAPSHOT_CHECKER_LI
 # Master memory is a volatile currency, so we do not run compat tests for it.
 MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_master_memory)
 
-MASTER_SNAPSHOT_21_2_CHECKER_LIST = [
-    check_account_resource_usage_lease,
-]
+# Chunk locations API has been changed, no way compat tests could work.
+MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_chunk_locations)
 
 
 class TestMasterSnapshots(YTEnvSetup):
@@ -426,10 +460,7 @@ class TestMasterSnapshots(YTEnvSetup):
 
     @authors("ermolovd")
     def test(self):
-        checker_list = MASTER_SNAPSHOT_CHECKER_LIST[:-1] + \
-            MASTER_SNAPSHOT_21_2_CHECKER_LIST + \
-            MASTER_SNAPSHOT_CHECKER_LIST[-1:]
-        checker_state_list = [iter(c()) for c in checker_list]
+        checker_state_list = [iter(c()) for c in MASTER_SNAPSHOT_CHECKER_LIST]
         for s in checker_state_list:
             next(s)
 

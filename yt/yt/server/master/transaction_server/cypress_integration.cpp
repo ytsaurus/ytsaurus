@@ -30,11 +30,7 @@ class TVirtualTransactionMapBase
     : public TVirtualMulticellMapBase
 {
 public:
-    TVirtualTransactionMapBase(
-        TBootstrap* bootstrap,
-        INodePtr owningNode)
-        : TVirtualMulticellMapBase(bootstrap, owningNode)
-    { }
+    using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
     const THashSet<TTransaction*>& Transactions() const

@@ -27,12 +27,7 @@ class TAccountResourceUsageLeaseProxy
     : public TNonversionedObjectProxyBase<TAccountResourceUsageLease>
 {
 public:
-    TAccountResourceUsageLeaseProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TAccountResourceUsageLease* accountResourceUsageLease)
-        : TBase(bootstrap, metadata, accountResourceUsageLease)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TAccountResourceUsageLease>;

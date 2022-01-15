@@ -1,11 +1,11 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, exists,
+    authors, wait, create, ls, get, set, exists, remove,
     create_medium, write_file,
     read_table, write_table, write_journal, wait_until_sealed,
-    get_singular_chunk_id, raises_yt_error,
-    set_account_disk_space_limit, get_account_disk_space_limit, get_media)
+    get_singular_chunk_id, set_account_disk_space_limit, get_account_disk_space_limit,
+    get_media)
 
 from yt.common import YtError
 
@@ -668,7 +668,7 @@ class TestDynamicMedia(YTEnvSetup):
         },
         "cluster_connection": {
             "medium_directory_synchronizer": {
-                "sync_period": 1
+                "sync_period": 10
             }
         }
     }
@@ -721,7 +721,7 @@ class TestDynamicMedia(YTEnvSetup):
 
         wait(lambda: sum(map(lambda location: location["chunk_count"], self._get_locations(node).values())) == 1)
 
-        set(node + "/@medium_overrides", {location1: medium_name})
+        set("//sys/chunk_locations/{}/@medium_override".format(location1), medium_name)
 
         wait(lambda: self._get_locations(node)[location1]["medium_name"] == medium_name)
         assert self._get_locations(node)[location2]["medium_name"] == "default"
@@ -735,7 +735,8 @@ class TestDynamicMedia(YTEnvSetup):
         assert self._get_locations(node)[location1]["medium_name"] == medium_name
         assert self._get_locations(node)[location2]["medium_name"] == "default"
 
-        set(node + "/@medium_overrides", {location2: medium_name})
+        remove("//sys/chunk_locations/{}/@medium_override".format(location1))
+        set("//sys/chunk_locations/{}/@medium_override".format(location2), medium_name)
 
         wait(lambda: self._get_locations(node)[location1]["medium_name"] == "default")
         assert self._get_locations(node)[location2]["medium_name"] == medium_name
@@ -749,40 +750,6 @@ class TestDynamicMedia(YTEnvSetup):
         assert self._get_locations(node)[location1]["medium_name"] == "default"
         assert self._get_locations(node)[location2]["medium_name"] == medium_name
 
-    @authors("kvk1920")
-    def test_invalid_cases(self):
-        node = "//sys/data_nodes/" + ls("//sys/data_nodes")[0]
-
-        medium_name = "testmedium"
-        if not exists("//sys/media/" + medium_name):
-            create_medium(medium_name)
-
-        table = "//tmp/t"
-        create("table", table, attributes={"replication_factor": 1})
-        write_table(table, {"foo": "bar"}, table_writer={"upload_replication_factor": 1})
-
-        location1, location2 = self._get_locations(node).keys()
-
-        wait(lambda: sum(map(lambda location: location["chunk_count"], self._get_locations(node).values())) == 1)
-
-        with raises_yt_error("Invalid location uuid"):
-            set(node + "/@medium_overrides", {"0-0-0-0": medium_name})
-
-        with raises_yt_error("Invalid location uuid"):
-            set(node + "/@medium_overrides", {"ffffffff-ffffffff-ffffffff-ffffffff": medium_name})
-
-        with raises_yt_error("No such medium"):
-            set(node + "/@medium_overrides", {location1: medium_name + "_invalid_medium"})
-
-        # NB: If locations doesn't exist, it should not crash everything.
-        set(node + "/@medium_overrides", {location1: medium_name, self._get_non_existent_location(node): medium_name})
-
-        wait(lambda: self._get_locations(node)[location1]["medium_name"] == medium_name)
-        assert self._get_locations(node)[location2]["medium_name"] == "default"
-
-        wait(lambda: self._get_locations(node)[location1]["chunk_count"] == 0)
-        assert self._get_locations(node)[location2]["chunk_count"] == 1
-
 
 ################################################################################
 
@@ -795,7 +762,7 @@ class TestDynamicMediaWithOldHeartbeats(TestDynamicMedia):
         "use_new_heartbeats": False,
         "cluster_connection": {
             "medium_directory_synchronizer": {
-                "sync_period": 1
+                "sync_period": 10
             }
         }
     }

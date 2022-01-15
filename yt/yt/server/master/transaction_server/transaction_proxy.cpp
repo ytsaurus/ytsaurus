@@ -37,12 +37,7 @@ class TTransactionProxy
     : public TNonversionedObjectProxyBase<TTransaction>
 {
 public:
-    TTransactionProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTransaction* transaction)
-        : TBase(bootstrap, metadata, transaction)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TTransaction>;

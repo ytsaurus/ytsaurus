@@ -3,6 +3,7 @@
 #include "data_center.h"
 #include "host.h"
 #include "rack.h"
+#include "node_statistics_helpers.h"
 #include "node_tracker.h"
 #include "private.h"
 
@@ -13,6 +14,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk_location.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
@@ -44,6 +46,8 @@ using namespace NObjectServer;
 using namespace NOrchid;
 using namespace NYTree;
 using namespace NYson;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,14 +138,12 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimitsOverrides)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MediumOverrides)
-            .SetWritable(true)
-            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkReplicaCount)
             .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DestroyedChunkReplicaCount)
             .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
         descriptors->push_back(EInternedAttributeKey::ConsistentReplicaPlacementTokenCount);
+        descriptors->push_back(EInternedAttributeKey::ChunkLocations);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -276,28 +278,13 @@ private:
                 const auto& dataNodeStatistics = node->DataNodeStatistics();
                 const auto& execNodeStatistics = node->ExecNodeStatistics();
 
-                auto serializeStorageLocationStatistics = [&] (TFluentList fluent, const TStorageLocationStatistics& storageLocationStatistics) {
-                    auto mediumIndex = storageLocationStatistics.medium_index();
-                    auto locationUuid = NYT::FromProto<TLocationUuid>(storageLocationStatistics.location_uuid());
-                    const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                    if (!IsObjectAlive(medium)) {
-                        return;
-                    }
+                auto serializeChunkLocationStatistics = [&] (TFluentList fluent, const TChunkLocationStatistics& statistics) {
                     fluent
                         .Item().BeginMap()
-                            .Item("location_uuid").Value(locationUuid)
-                            .Item("medium_name").Value(medium->GetName())
-                            .Item("available_space").Value(storageLocationStatistics.available_space())
-                            .Item("used_space").Value(storageLocationStatistics.used_space())
-                            .Item("low_watermark_space").Value(storageLocationStatistics.low_watermark_space())
-                            .Item("chunk_count").Value(storageLocationStatistics.chunk_count())
-                            .Item("session_count").Value(storageLocationStatistics.session_count())
-                            .Item("full").Value(storageLocationStatistics.full())
-                            .Item("enabled").Value(storageLocationStatistics.enabled())
-                            .Item("throttling_reads").Value(storageLocationStatistics.throttling_reads())
-                            .Item("throttling_writes").Value(storageLocationStatistics.throttling_writes())
-                            .Item("sick").Value(storageLocationStatistics.sick())
-                            .Item("disk_family").Value(storageLocationStatistics.disk_family())
+                            .Item("location_uuid").Value(FromProto<TChunkLocationUuid>(statistics.location_uuid()))
+                            .Do([&] (auto fluent) {
+                                Serialize(statistics, fluent, chunkManager);
+                            })
                         .EndMap();
                 };
 
@@ -309,31 +296,14 @@ private:
                         .Item("total_cached_chunk_count").Value(dataNodeStatistics.total_cached_chunk_count())
                         .Item("total_session_count").Value(node->GetTotalSessionCount())
                         .Item("full").Value(dataNodeStatistics.full())
-                        // TODO(gritukan): Drop it in favour of `storage_locations'.
-                        .Item("locations").DoListFor(dataNodeStatistics.storage_locations(), serializeStorageLocationStatistics)
-                        .Item("storage_locations").DoListFor(dataNodeStatistics.storage_locations(), serializeStorageLocationStatistics)
-                        .Item("slot_locations").DoListFor(execNodeStatistics.slot_locations(), [&] (TFluentList fluent, const TSlotLocationStatistics& slotLocationStatistics) {
-                            auto mediumIndex = slotLocationStatistics.medium_index();
-                            const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                            if (!IsObjectAlive(medium)) {
-                                return;
-                            }
-
+                        // COMPAT(gritukan): Drop it in favour of `chunk_locations'.
+                        .Item("locations").DoListFor(dataNodeStatistics.chunk_locations(), serializeChunkLocationStatistics)
+                        .Item("chunk_locations").DoListFor(dataNodeStatistics.chunk_locations(), serializeChunkLocationStatistics)
+                        .Item("slot_locations").DoListFor(execNodeStatistics.slot_locations(), [&] (TFluentList fluent, const TSlotLocationStatistics& statistics) {
                             fluent
                                 .Item().BeginMap()
-                                    .Item("medium_name").Value(medium->GetName())
-                                    .Item("available_space").Value(slotLocationStatistics.available_space())
-                                    .Item("used_space").Value(slotLocationStatistics.used_space())
-                                    .Item("slot_space_usages")
-                                        .BeginAttributes()
-                                            .Item("opaque").Value("true")
-                                        .EndAttributes()
-                                        .Value(slotLocationStatistics.slot_space_usages())
-                                    .DoIf(slotLocationStatistics.has_error(), [&] (TFluentMap fluent) {
-                                        TError error;
-                                        FromProto(&error, slotLocationStatistics.error());
-                                        fluent
-                                            .Item("error").Value(error);
+                                    .Do([&] (auto fluent) {
+                                        Serialize(statistics, fluent, chunkManager);
                                     })
                                 .EndMap();
                         })
@@ -479,20 +449,6 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceLimitsOverrides());
                 return true;
-            
-            case EInternedAttributeKey::MediumOverrides: {
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                BuildYsonFluently(consumer).DoMapFor(
-                    node->MediumOverrides(), 
-                    [&] (TFluentMap map, const auto& pair) {
-                        const auto& [locationUuid, mediumIndex] = pair;
-                        auto medium = chunkManager->FindMediumByIndex(mediumIndex);
-                        if (IsObjectAlive(medium)) {
-                            map.Item(ToString(locationUuid)).Value(medium->GetName());
-                        }
-                    });
-                return true;
-            }
 
             case EInternedAttributeKey::ChunkReplicaCount: {
                 if (!isGood) {
@@ -556,6 +512,22 @@ private:
                         if (IsObjectAlive(medium)) {
                             fluent.Item(medium->GetName()).Value(pair.second);
                         }
+                    });
+                return true;
+            }
+
+            case EInternedAttributeKey::ChunkLocations: {
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+                BuildYsonFluently(consumer)
+                    .DoMapFor(node->ChunkLocations(), [&] (TFluentMap fluent, const auto* location) {
+                        fluent
+                            .Item(ToString(location->GetUuid()))
+                            .BeginMap()
+                                .Do([&] (auto fluent) {
+                                    Serialize(location->Statistics(), fluent, chunkManager);
+                                })
+                            .EndMap();
                     });
                 return true;
             }
@@ -628,27 +600,6 @@ private:
             case EInternedAttributeKey::UserTags:
                 nodeTracker->SetNodeUserTags(node, ConvertTo<std::vector<TString>>(value));
                 return true;
-            
-            case EInternedAttributeKey::MediumOverrides: {
-                auto uuidToMediumName = ConvertTo<THashMap<TLocationUuid, TString>>(value);
-                
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-
-                TNode::TMediumOverrideMap uuidToMediumIndex;
-                for (const auto& [locationUuid, mediumName] : uuidToMediumName) {
-                    auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-                    if (locationUuid == EmptyLocationUuid || locationUuid == InvalidLocationUuid) {
-                        THROW_ERROR_EXCEPTION("Invalid location uuid (Node: %v, LocationUuid: %v, MediumName: %v)",
-                            node->GetDefaultAddress(),
-                            locationUuid,
-                            mediumName);
-                    }
-                    EmplaceOrCrash(uuidToMediumIndex, locationUuid, medium->GetIndex());
-                }
-
-                node->MediumOverrides() = std::move(uuidToMediumIndex);
-                return true;
-            }
 
             default:
                 break;
@@ -682,6 +633,11 @@ private:
         const auto* node = GetThisImpl();
         if (node->GetLocalState() != ENodeState::Offline) {
             THROW_ERROR_EXCEPTION("Cannot remove node since it is not offline");
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (auto* location : node->ChunkLocations()) {
+            objectManager->ValidateObjectLifeStage(location);
         }
     }
 

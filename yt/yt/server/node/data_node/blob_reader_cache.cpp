@@ -21,7 +21,7 @@ using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TBlobReaderCacheKey = std::pair<TLocationPtr, TChunkId>;
+using TBlobReaderCacheKey = std::pair<TChunkLocationPtr, TChunkId>;
 
 namespace {
 

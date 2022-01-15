@@ -1,11 +1,10 @@
-#ifndef OBJECT_HELPERS_INL_H_
-#error "Direct inclusion of this file is not allowed, include object_helpers.h"
+#ifndef HELPERS_INL_H_
+#error "Direct inclusion of this file is not allowed, include helpers.h"
 // For the sake of sane code completion.
-#include "object_helpers.h"
+#include "helpers.h"
 #endif
 
-namespace NYT {
-namespace {
+namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +21,4 @@ std::vector<TString> ToNames(const std::vector<T>& objects)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
-} // namespace NYT
-
+} // namespace NYT::NObjectServer

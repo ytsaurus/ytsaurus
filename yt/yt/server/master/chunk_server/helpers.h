@@ -143,8 +143,7 @@ void SerializeMediumDirectory(
 
 void SerializeMediumOverrides(
     TNode* node,
-    NDataNodeTrackerClient::NProto::TMediumOverrides* protoMediumOverrides,
-    const TChunkManagerPtr& chunkManager);
+    NDataNodeTrackerClient::NProto::TMediumOverrides* protoMediumOverrides);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -80,6 +80,7 @@ DEFINE_ENUM(EMasterReign,
     ((EnablePortalAwareStatisticsGossip)                            (1912))  // babenko
     ((HunkErasureCodec)                                             (1913))  // babenko
     ((BackupCheckpoints)                                            (1914))  // ifsmirnov
+    ((ChunkLocation)                                                (1915))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -47,22 +47,22 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlobChunkBase::TBlobChunkBase(
-    TChunkHostPtr host,
-    TLocationPtr location,
+    TChunkContextPtr context,
+    TChunkLocationPtr location,
     const TChunkDescriptor& descriptor,
     TRefCountedChunkMetaPtr meta)
     : TChunkBase(
-        std::move(host),
-        location,
+        std::move(context),
+        std::move(location),
         descriptor.Id)
 {
     Info_.set_disk_space(descriptor.DiskSpace);
 
     if (meta) {
-        Host_->ChunkMetaManager->PutCachedMeta(Id_, meta);
+        Context_->ChunkMetaManager->PutCachedMeta(Id_, meta);
 
         auto blocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(meta->extensions()));
-        Host_->ChunkMetaManager->PutCachedBlocksExt(Id_, blocksExt);
+        Context_->ChunkMetaManager->PutCachedBlocksExt(Id_, blocksExt);
 
         WeakBlocksExt_ = blocksExt;
     }
@@ -100,7 +100,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
 
-    auto cookie = Host_->ChunkMetaManager->BeginInsertCachedMeta(Id_);
+    auto cookie = Context_->ChunkMetaManager->BeginInsertCachedMeta(Id_);
     auto asyncMeta = cookie.GetValue();
 
     if (cookie.IsActive()) {
@@ -110,7 +110,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
             session,
             Passed(std::move(cookie)));
 
-        Host_->StorageHeavyInvoker->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
+        Context_->StorageHeavyInvoker->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
     }
 
     return
@@ -118,7 +118,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
             ProfileReadMetaLatency(session);
             return FilterMeta(cachedMeta->GetMeta(), extensionTags);
         })
-       .AsyncVia(Host_->StorageHeavyInvoker));
+       .AsyncVia(Context_->StorageHeavyInvoker));
 }
 
 TRefCountedBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
@@ -132,7 +132,7 @@ TRefCountedBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
         }
     }
 
-    auto blocksExt = Host_->ChunkMetaManager->FindCachedBlocksExt(GetId());
+    auto blocksExt = Context_->ChunkMetaManager->FindCachedBlocksExt(GetId());
     if (!blocksExt) {
         return nullptr;
     }
@@ -159,7 +159,7 @@ TChunkFileReaderPtr TBlobChunkBase::GetReader()
         }
     }
 
-    auto reader = Host_->BlobReaderCache->GetReader(this);
+    auto reader = Context_->BlobReaderCache->GetReader(this);
 
     {
         auto guard = WriterGuard(LifetimeLock_);
@@ -231,7 +231,7 @@ void TBlobChunkBase::DoReadMeta(
     const TReadMetaSessionPtr& session,
     TCachedChunkMetaCookie cookie)
 {
-    VERIFY_INVOKER_AFFINITY(Host_->StorageHeavyInvoker);
+    VERIFY_INVOKER_AFFINITY(Context_->StorageHeavyInvoker);
 
     YT_LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
         Id_,
@@ -278,7 +278,7 @@ void TBlobChunkBase::DoReadMeta(
         session->Options.ReadSessionId,
         readTime);
 
-    Host_->ChunkMetaManager->EndInsertCachedMeta(std::move(cookie), std::move(meta));
+    Context_->ChunkMetaManager->EndInsertCachedMeta(std::move(cookie), std::move(meta));
 }
 
 void TBlobChunkBase::OnBlocksExtLoaded(
@@ -292,7 +292,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     int pendingBlockCount = 0;
     bool diskFetchNeeded = false;
 
-    const auto& config = Host_->DataNodeConfig;
+    const auto& config = Context_->DataNodeConfig;
 
     for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
@@ -650,7 +650,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         // Initialize session.
         StartReadSession(session, options);
         session->Invoker = CreateFixedPriorityInvoker(
-            Host_->StorageHeavyInvoker,
+            Context_->StorageHeavyInvoker,
             options.WorkloadDescriptor.GetPriority());
         session->EntryCount = static_cast<int>(blockIndexes.size());
         session->Entries.reset(new TReadBlockSetSession::TBlockEntry[session->EntryCount]);
@@ -701,7 +701,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     if (blocksExt) {
         OnBlocksExtLoaded(session, blocksExt);
     } else {
-        auto cookie = Host_->ChunkMetaManager->BeginInsertCachedBlocksExt(Id_);
+        auto cookie = Context_->ChunkMetaManager->BeginInsertCachedBlocksExt(Id_);
         auto asyncBlocksExt = cookie.GetValue();
         if (cookie.IsActive()) {
             ReadMeta(options)
@@ -712,7 +712,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                             auto guard = WriterGuard(BlocksExtLock_);
                             WeakBlocksExt_ = blocksExt;
                         }
-                        Host_->ChunkMetaManager->EndInsertCachedBlocksExt(std::move(cookie), blocksExt);
+                        Context_->ChunkMetaManager->EndInsertCachedBlocksExt(std::move(cookie), blocksExt);
                     } else {
                         cookie.Cancel(TError(result));
                     }
@@ -775,7 +775,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
     guard.Release();
 
     if (!reader) {
-        reader = Host_->BlobReaderCache->GetReader(this);
+        reader = Context_->BlobReaderCache->GetReader(this);
     }
 
     auto prepareFuture = reader->PrepareToReadChunkFragments(options, useDirectIO);
@@ -811,7 +811,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
             YT_LOG_DEBUG("Chunk reader prepared to read fragments (ChunkId: %v, LocationId: %v)",
                 Id_,
                 Location_->GetId());
-        }).AsyncVia(Host_->StorageLightInvoker));
+        }).AsyncVia(Context_->StorageLightInvoker));
 }
 
 IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
@@ -832,7 +832,7 @@ void TBlobChunkBase::SyncRemove(bool force)
 {
     VERIFY_INVOKER_AFFINITY(Location_->GetAuxPoolInvoker());
 
-    Host_->BlobReaderCache->EvictReader(this);
+    Context_->BlobReaderCache->EvictReader(this);
 
     Location_->RemoveChunkFiles(Id_, force);
 }
@@ -849,12 +849,12 @@ TFuture<void> TBlobChunkBase::AsyncRemove()
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoredBlobChunk::TStoredBlobChunk(
-    TChunkHostPtr host,
-    TLocationPtr location,
+    TChunkContextPtr context,
+    TChunkLocationPtr location,
     const TChunkDescriptor& descriptor,
     TRefCountedChunkMetaPtr meta)
     : TBlobChunkBase(
-        host,
+        std::move(context),
         std::move(location),
         descriptor,
         std::move(meta))
@@ -863,14 +863,14 @@ TStoredBlobChunk::TStoredBlobChunk(
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedBlobChunk::TCachedBlobChunk(
-    TChunkHostPtr host,
-    TLocationPtr location,
+    TChunkContextPtr context,
+    TChunkLocationPtr location,
     const TChunkDescriptor& descriptor,
     TRefCountedChunkMetaPtr meta,
     const TArtifactKey& key,
     TClosure destroyedHandler)
     : TBlobChunkBase(
-        host,
+        std::move(context),
         std::move(location),
         descriptor,
         std::move(meta))

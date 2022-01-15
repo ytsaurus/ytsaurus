@@ -50,7 +50,7 @@ public:
         TDataNodeConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         IInvokerPtr controlInvoker,
-        TChunkHostPtr chunkHost,
+        TChunkContextPtr chunkContext,
         IChunkStoreHostPtr chunkStoreHost);
 
     //! Scans locations for chunks and registers them.
@@ -119,7 +119,7 @@ public:
     TFuture<void> RemoveChunk(const IChunkPtr& chunk);
 
     //! Triggers medium change for all chunks in location.
-    void ChangeLocationMedium(const TLocationPtr& location, int oldMediumIndex);
+    void ChangeLocationMedium(const TChunkLocationPtr& location, int oldMediumIndex);
 
     //! Finds a suitable storage location for a new chunk.
     /*!
@@ -161,7 +161,7 @@ private:
     const TDataNodeConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IInvokerPtr ControlInvoker_;
-    const TChunkHostPtr ChunkHost_;
+    const TChunkContextPtr ChunkContext_;
     const IChunkStoreHostPtr ChunkStoreHost_;
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 

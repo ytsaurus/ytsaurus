@@ -1,5 +1,6 @@
 #include "cypress_integration.h"
 #include "private.h"
+#include "chunk_location.h"
 #include "chunk.h"
 #include "chunk_view.h"
 #include "chunk_list.h"
@@ -9,8 +10,11 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 
 #include <yt/yt/server/master/cypress_server/virtual.h>
+
+#include <yt/yt/server/lib/object_server/helpers.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
@@ -22,6 +26,67 @@ using namespace NCypressServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualChunkLocationMap
+    : public TVirtualMapBase
+{
+public:
+    TVirtualChunkLocationMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
+    { }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    {
+        const auto& nodeTracker = Bootstrap_->GetDataNodeTracker();
+        const auto& chunkLocations = nodeTracker->ChunkLocations();
+        std::vector<TString> keys;
+        keys.reserve(std::min(sizeLimit, std::ssize(chunkLocations)));
+        for (auto [locationId, location] : chunkLocations) {
+            if (std::ssize(keys) >= sizeLimit) {
+                break;
+            }
+            keys.push_back(ToString(location->GetUuid()));
+        }
+        return keys;
+    }
+
+    i64 GetSize() const override
+    {
+        const auto& nodeTracker = Bootstrap_->GetDataNodeTracker();
+        return nodeTracker->ChunkLocations().GetSize();
+    }
+
+    IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        const auto& nodeTracker = Bootstrap_->GetDataNodeTracker();
+        auto* location = nodeTracker->FindChunkLocationByUuid(TChunkLocationUuid::FromString(key));
+        if (!IsObjectAlive(location)) {
+            return nullptr;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(location);
+    }
+};
+
+INodeTypeHandlerPtr CreateChunkLocationMapTypeHandler(TBootstrap* bootstrap)
+{
+    YT_VERIFY(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::ChunkLocationMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualChunkLocationMap>(bootstrap, owningNode);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,9 +308,7 @@ class TVirtualChunkViewMap
     : public TVirtualMulticellMapBase
 {
 public:
-    TVirtualChunkViewMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMulticellMapBase(bootstrap, owningNode)
-    { }
+    using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
     std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
@@ -290,9 +353,7 @@ class TVirtualChunkListMap
     : public TVirtualMulticellMapBase
 {
 public:
-    TVirtualChunkListMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMulticellMapBase(bootstrap, owningNode)
-    { }
+    using TVirtualMulticellMapBase::TVirtualMulticellMapBase;
 
 private:
     std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
@@ -369,7 +430,7 @@ private:
             return nullptr;
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(medium);
     }
 };

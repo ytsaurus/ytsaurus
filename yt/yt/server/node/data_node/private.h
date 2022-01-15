@@ -16,7 +16,7 @@ inline const NLogging::TLogger P2PLogger("P2P");
 inline const NProfiling::TProfiler P2PProfiler = DataNodeProfiler.WithPrefix("/p2p");
 
 inline const TString CellIdFileName("cell_id");
-inline const TString LocationUuidFileName("uuid");
+inline const TString ChunkLocationUuidFileName("uuid");
 inline const TString MultiplexedDirectory("multiplexed");
 inline const TString TrashDirectory("trash");
 inline const TString CleanExtension("clean");

@@ -97,7 +97,7 @@ static const int TableArtifactBufferRowCount = 10000;
 class TSessionCounterGuard
 {
 public:
-    explicit TSessionCounterGuard(TLocationPtr location)
+    explicit TSessionCounterGuard(TChunkLocationPtr location)
         : Location_(std::move(location))
     {
         Location_->UpdateSessionCount(ESessionType::User, +1);
@@ -113,7 +113,7 @@ public:
     }
 
 private:
-    TLocationPtr Location_;
+    TChunkLocationPtr Location_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,13 +122,13 @@ class TErrorInterceptingOutput
     : public IOutputStream
 {
 public:
-    TErrorInterceptingOutput(TLocationPtr location, IOutputStream* underlying)
+    TErrorInterceptingOutput(TChunkLocationPtr location, IOutputStream* underlying)
         : Location_(std::move(location))
         , Underlying_(underlying)
     { }
 
 private:
-    const TLocationPtr Location_;
+    const TChunkLocationPtr Location_;
     IOutputStream* const Underlying_;
 
 
@@ -175,7 +175,7 @@ class TErrorInterceptingChunkWriter
     : public IChunkWriter
 {
 public:
-    TErrorInterceptingChunkWriter(TLocationPtr location, IChunkWriterPtr underlying)
+    TErrorInterceptingChunkWriter(TChunkLocationPtr location, IChunkWriterPtr underlying)
         : Location_(std::move(location))
         , Underlying_(std::move(underlying))
     { }
@@ -236,7 +236,7 @@ public:
     }
 
 private:
-    const TLocationPtr Location_;
+    const TChunkLocationPtr Location_;
     const IChunkWriterPtr Underlying_;
 
 
@@ -301,7 +301,7 @@ public:
                 "cache" + ToString(index),
                 locationConfig,
                 Bootstrap_->GetDynamicConfigManager(),
-                TChunkHost::Create(Bootstrap_),
+                TChunkContext::Create(Bootstrap_),
                 CreateChunkStoreHost(Bootstrap_));
 
             futures.push_back(
@@ -711,7 +711,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto chunk = New<TCachedBlobChunk>(
-            TChunkHost::Create(Bootstrap_),
+            TChunkContext::Create(Bootstrap_),
             location,
             descriptor,
             meta,
