@@ -10,6 +10,9 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NCypressServer::INodeTypeHandlerPtr CreateChunkLocationMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap);
+
 NCypressServer::INodeTypeHandlerPtr CreateChunkMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     NObjectClient::EObjectType type);

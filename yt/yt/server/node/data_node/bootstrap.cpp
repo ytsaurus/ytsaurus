@@ -78,7 +78,7 @@ public:
             GetConfig()->DataNode,
             GetDynamicConfigManager(),
             GetControlInvoker(),
-            TChunkHost::Create(this),
+            TChunkContext::Create(this),
             CreateChunkStoreHost(this));
 
         ChunkBlockManager_ = CreateChunkBlockManager(ClusterNodeBootstrap_->GetChunkRegistry());
@@ -93,8 +93,7 @@ public:
 
         MediumUpdater_ = New<TMediumUpdater>(
             this,
-            MediumDirectoryManager_,
-            dynamicConfig->MediumUpdater->Period);
+            MediumDirectoryManager_);
 
         ChunkStore_->Initialize();
 
@@ -373,9 +372,6 @@ private:
         P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
         P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);
         P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
-
-        const auto& mediumUpdaterConfig = newConfig->DataNode->MediumUpdater;
-        MediumUpdater_->SetPeriod(mediumUpdaterConfig->Period);
     }
 };
 

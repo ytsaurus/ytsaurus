@@ -19,12 +19,7 @@ class TProxyRoleProxy
     : public TNonversionedObjectProxyBase<TProxyRole>
 {
 public:
-    TProxyRoleProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TProxyRole* proxyRole)
-        : TBase(bootstrap, metadata, proxyRole)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TProxyRole>;

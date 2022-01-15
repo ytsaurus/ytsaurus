@@ -112,7 +112,7 @@ THashMap<TString, TString> MakeWriteIOTags(TString method, const ISessionPtr& se
 
 THashMap<TString, TString> MakeReadIOTags(
     TString method,
-    const TLocationPtr& location,
+    const TChunkLocationPtr& location,
     const IServiceContextPtr& context,
     const TChunkId& chunkId,
     TGuid readSessionId = TGuid())
@@ -1062,8 +1062,8 @@ private:
             IncrementReadThrottlingCounter(context);
         }
 
-        THashMap<TLocation*, int> locationToLocationIndex;
-        std::vector<std::pair<TLocation*, int>> requestedLocations;
+        THashMap<TChunkLocation*, int> locationToLocationIndex;
+        std::vector<std::pair<TChunkLocation*, int>> requestedLocations;
 
         struct TChunkRequestInfo
         {

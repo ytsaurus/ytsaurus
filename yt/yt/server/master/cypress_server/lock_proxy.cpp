@@ -23,12 +23,7 @@ class TLockProxy
     : public TNonversionedObjectProxyBase<TLock>
 {
 public:
-    TLockProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TLock* lock)
-        : TBase(bootstrap, metadata, lock)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TLock>;

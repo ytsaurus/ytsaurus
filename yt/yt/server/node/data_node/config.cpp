@@ -302,14 +302,6 @@ TVolumeManagerConfig::TVolumeManagerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMediumUpdaterDynamicConfig::TMediumUpdaterDynamicConfig()
-{
-    RegisterParameter("period", Period)
-        .Default(TDuration::Minutes(5));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TMasterConnectorConfig::TMasterConnectorConfig()
 {
     RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
@@ -643,8 +635,7 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
 
     RegisterParameter("master_connector", MasterConnector)
         .DefaultNew();
-    RegisterParameter("medium_updater", MediumUpdater)
-        .DefaultNew();
+
     RegisterParameter("ally_replica_manager", AllyReplicaManager)
         .DefaultNew();
 

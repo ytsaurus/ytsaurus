@@ -12,8 +12,8 @@ message TMediumChunkStatistics
     required int32 chunk_count = 2;
 }
 
-// Describes the current state of a storage location.
-message TStorageLocationStatistics
+// Describes the current state of a chunk location.
+message TChunkLocationStatistics
 {
     optional NYT.NProto.TGuid location_uuid = 12;
     optional string disk_family = 13 [default = "UNKNOWN"];
@@ -83,7 +83,7 @@ message TNodeStatistics
     required int32 total_repair_session_count = 8;
     required int64 total_low_watermark_space = 14;
     required bool full = 5;
-    repeated TStorageLocationStatistics storage_locations = 6;
+    repeated TChunkLocationStatistics chunk_locations = 6;
     required int32 available_tablet_slots = 11;
     required int32 used_tablet_slots = 12;
     required TMemoryStatistics memory = 15;
@@ -195,7 +195,7 @@ message TDataNodeStatistics
     required int32 total_repair_session_count = 7;
     required int64 total_low_watermark_space = 8;
     required bool full = 9;
-    repeated TStorageLocationStatistics storage_locations = 10;
+    repeated TChunkLocationStatistics chunk_locations = 10;
     repeated TMediumStatistics media = 11;
 }
 

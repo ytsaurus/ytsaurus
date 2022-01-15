@@ -23,12 +23,7 @@ class TMediumProxy
     : public TNonversionedObjectProxyBase<TMedium>
 {
 public:
-    TMediumProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TMedium* medium)
-        : TBase(bootstrap, metadata, medium)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TMedium>;

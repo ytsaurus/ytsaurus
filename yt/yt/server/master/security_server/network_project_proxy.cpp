@@ -19,12 +19,7 @@ class TNetworkProjectProxy
     : public TNonversionedObjectProxyBase<TNetworkProject>
 {
 public:
-    TNetworkProjectProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TNetworkProject* networkProject)
-        : TBase(bootstrap, metadata, networkProject)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TNetworkProject>;

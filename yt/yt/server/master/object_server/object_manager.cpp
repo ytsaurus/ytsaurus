@@ -323,6 +323,7 @@ private:
     void HydraRemoveExpiredRecentlyAppliedMutationIds(NProto::TReqRemoveExpiredRecentlyAppliedMutationIds* request);
 
     void DoRemoveObject(TObject* object);
+    void SendObjectLifeStageConfirmation(TObjectId objectId);
     void CheckRemovingObjectRefCounter(TObject* object);
     void CheckObjectLifeStageVoteCount(TObject* object);
     void ConfirmObjectLifeStageToPrimaryMaster(TObject* object);
@@ -1455,7 +1456,8 @@ void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* objec
 
     auto lifeStage = object->GetLifeStage();
     if (lifeStage == EObjectLifeStage::CreationCommitted ||
-        lifeStage == EObjectLifeStage::RemovalCommitted) {
+        lifeStage == EObjectLifeStage::RemovalCommitted)
+    {
         return;
     }
 
@@ -1628,6 +1630,10 @@ void TObjectManager::TImpl::ReplicateObjectCreationToSecondaryMaster(
     TObject* object,
     TCellTag cellTag)
 {
+    if (!object->IsAlive()) {
+        return;
+    }
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     if (object->IsBuiltin()) {
         // Builtin objects are already created at secondary masters,
@@ -1648,6 +1654,10 @@ void TObjectManager::TImpl::ReplicateObjectAttributesToSecondaryMaster(
     TObject* object,
     TCellTag cellTag)
 {
+    if (!object->IsAlive()) {
+        return;
+    }
+
     DoReplicateObjectAttributesToSecondaryMaster(object, cellTag, /*mandatory*/ false);
 }
 
@@ -1819,7 +1829,7 @@ void TObjectManager::TImpl::HydraRemoveForeignObject(NProto::TReqRemoveForeignOb
     auto objectId = FromProto<TObjectId>(request->object_id());
 
     auto* object = FindObject(objectId);
-    if (!object) {
+    if (!IsObjectAlive(object)) {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Attempt to remove a non-existing foreign object (ObjectId: %v)",
             objectId);
         return;

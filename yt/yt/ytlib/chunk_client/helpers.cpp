@@ -115,8 +115,7 @@ const THashSet<int>& GetSchedulerChunkMetaExtensionTagsFilter()
 
 void ValidateReplicationFactor(int replicationFactor)
 {
-    if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor)
-    {
+    if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor) {
         THROW_ERROR_EXCEPTION("Replication factor %v is out of range [%v,%v]",
             replicationFactor,
             MinReplicationFactor,

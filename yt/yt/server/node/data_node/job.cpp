@@ -1716,7 +1716,7 @@ private:
             metaFutures.push_back(req->Invoke());
         }
 
-        THashMap<TLocationUuid, TString> locationUuidToAddress;
+        THashMap<TChunkLocationUuid, TString> locationUuidToAddress;
 
         auto rspOrErrors = WaitFor(AllSet(metaFutures))
             .ValueOrThrow();
@@ -1730,7 +1730,7 @@ private:
             const auto& address = replica.NodeDescriptor.GetDefaultAddress();
             if (rspOrError.IsOK()) {
                 const auto& rsp = rspOrError.Value();
-                auto locationUuid = FromProto<TLocationUuid>(rsp->location_uuid());
+                auto locationUuid = FromProto<TChunkLocationUuid>(rsp->location_uuid());
                 const auto& miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
 
                 TChunkSealInfo chunkSealInfo;

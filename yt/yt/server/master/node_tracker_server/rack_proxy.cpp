@@ -26,12 +26,7 @@ class TRackProxy
     : public TNonversionedObjectProxyBase<TRack>
 {
 public:
-    TRackProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TRack* rack)
-        : TBase(bootstrap, metadata, rack)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TRack>;

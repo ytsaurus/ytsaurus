@@ -24,12 +24,7 @@ class TDynamicStoreProxy
     : public TNonversionedObjectProxyBase<TDynamicStore>
 {
 public:
-    TDynamicStoreProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TDynamicStore* dynamicStore)
-        : TBase(bootstrap, metadata, dynamicStore)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TDynamicStore>;

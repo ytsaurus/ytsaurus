@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
+#include <yt/yt/server/lib/hydra_common/entity_map.h>
+
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
@@ -59,10 +61,16 @@ struct IDataNodeTracker
         NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
         NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response) = 0;
 
+    virtual void ValidateRegisterNode(
+        const TString& address,
+        NNodeTrackerClient::NProto::TReqRegisterNode* request) = 0;
     virtual void ProcessRegisterNode(
         NNodeTrackerServer::TNode* node,
         NNodeTrackerClient::NProto::TReqRegisterNode* request,
         NNodeTrackerClient::NProto::TRspRegisterNode* response) = 0;
+
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkLocation, TChunkLocation)
+    virtual TChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDataNodeTracker)

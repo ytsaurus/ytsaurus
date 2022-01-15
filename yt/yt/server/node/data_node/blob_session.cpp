@@ -59,7 +59,7 @@ class TBlobWritePipeline
 {
 public:
     TBlobWritePipeline(
-        TLocationPtr location,
+        TChunkLocationPtr location,
         IInvokerPtr sessionInvoker,
         NChunkClient::TChunkId chunkId,
         TSessionOptions options,
@@ -112,7 +112,7 @@ public:
     }
 
 private:
-    const TLocationPtr Location_;
+    const TChunkLocationPtr Location_;
     const IInvokerPtr SessionInvoker_;
     const TSessionOptions Options_;
     const NLogging::TLogger Logger;
@@ -415,7 +415,7 @@ TChunkInfo TBlobSession::OnFinished(const TError& error)
                 Pipeline_->GetChunkInfo().disk_space());
 
             auto chunk = New<TStoredBlobChunk>(
-                TChunkHost::Create(Bootstrap_),
+                TChunkContext::Create(Bootstrap_),
                 Location_,
                 descriptor,
                 Pipeline_->GetChunkMeta());

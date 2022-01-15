@@ -22,6 +22,8 @@
 
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
 
+#include <yt/yt/server/lib/object_server/helpers.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
@@ -29,8 +31,6 @@
 #include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
-
-#include <yt/yt/server/lib/misc/object_helpers.h>
 
 namespace NYT::NNodeTrackerServer {
 

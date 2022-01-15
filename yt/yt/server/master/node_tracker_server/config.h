@@ -86,8 +86,6 @@ public:
 
     TDuration TotalNodeStatisticsUpdatePeriod;
 
-    bool BanNewNodes;
-
     TDuration IncrementalNodeStatesGossipPeriod;
     TDuration FullNodeStatesGossipPeriod;
 
@@ -120,9 +118,6 @@ public:
 
         RegisterParameter("total_node_statistics_update_period", TotalNodeStatisticsUpdatePeriod)
             .Default(TDuration::Seconds(60));
-
-        RegisterParameter("ban_new_nodes", BanNewNodes)
-            .Default(false);
 
         RegisterParameter("incremental_node_states_gossip_period", IncrementalNodeStatesGossipPeriod)
             .Default(TDuration::Seconds(1));
@@ -168,7 +163,7 @@ public:
         RegisterParameter("replicate_host_name_during_registration", ReplicateHostNameDuringRegistration)
             .Default(false)
             .DontSerializeDefault();
-        
+
         RegisterParameter("enable_structured_log", EnableStructuredLog)
             .Default(false)
             .DontSerializeDefault();

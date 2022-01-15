@@ -10,7 +10,7 @@ from yt_commands import (
     unfreeze_table, reshard_table, wait_for_tablet_state, sync_create_cells, sync_mount_table,
     sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
-    sync_reshard_table_automatic, sync_balance_tablet_cells, is_multicell, raises_yt_error)
+    sync_reshard_table_automatic, sync_balance_tablet_cells, raises_yt_error)
 
 from yt.common import YtError
 
@@ -1171,7 +1171,7 @@ class TestTabletBalancer(TabletActionsBase):
     def test_sync_move_one_table(self):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         cells = sync_create_cells(4)
-        if is_multicell:
+        if self.is_multicell():
             self._create_sorted_table("//tmp/t1", external_cell_tag=1, in_memory_mode="uncompressed")
             self._create_sorted_table("//tmp/t2", external_cell_tag=2, in_memory_mode="uncompressed")
         else:

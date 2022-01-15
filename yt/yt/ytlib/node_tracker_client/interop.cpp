@@ -185,7 +185,7 @@ void FillDataNodeStatistics(
     nodeStatistics->set_total_repair_session_count(dataNodeStatistics.total_repair_session_count());
     nodeStatistics->set_total_low_watermark_space(dataNodeStatistics.total_low_watermark_space());
     nodeStatistics->set_full(dataNodeStatistics.full());
-    nodeStatistics->mutable_storage_locations()->CopyFrom(dataNodeStatistics.storage_locations());
+    nodeStatistics->mutable_chunk_locations()->CopyFrom(dataNodeStatistics.chunk_locations());
     nodeStatistics->mutable_media()->CopyFrom(dataNodeStatistics.media());
 }
 
@@ -202,7 +202,7 @@ void FromNodeStatistics(
     dataNodeStatistics->set_total_repair_session_count(nodeStatistics.total_repair_session_count());
     dataNodeStatistics->set_total_low_watermark_space(nodeStatistics.total_low_watermark_space());
     dataNodeStatistics->set_full(nodeStatistics.full());
-    dataNodeStatistics->mutable_storage_locations()->CopyFrom(nodeStatistics.storage_locations());
+    dataNodeStatistics->mutable_chunk_locations()->CopyFrom(nodeStatistics.chunk_locations());
     dataNodeStatistics->mutable_media()->CopyFrom(nodeStatistics.media());
 }
 

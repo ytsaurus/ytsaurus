@@ -9,7 +9,7 @@ import "yt/ytlib/chunk_client/proto/medium_directory.proto";
 
 message TMediumOverride
 {
-    required NYT.NProto.TGuid location_id = 1;
+    required NYT.NProto.TGuid location_uuid = 1;
     required int32 medium_index = 2;
 }
 
@@ -41,7 +41,7 @@ message TRspFullHeartbeat
 
     repeated NChunkClient.NProto.TChunkReplicaAnnouncementRequest replica_announcement_requests = 2;
     optional bool enable_lazy_replica_announcements = 3;
-    
+
     optional NChunkClient.NProto.TMediumDirectory medium_directory = 4;
     optional TMediumOverrides medium_overrides = 5;
 }

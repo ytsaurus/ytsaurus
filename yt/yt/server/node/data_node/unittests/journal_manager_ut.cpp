@@ -97,7 +97,7 @@ public:
         Config,
         DynamicConfigManager);
 
-    TChunkHostPtr ChunkHost = New<TChunkHost>(TChunkHost{
+    TChunkContextPtr ChunkContext = New<TChunkContext>(TChunkContext{
         .ChunkMetaManager = ChunkMetaManager,
 
         .StorageHeavyInvoker = CreatePrioritizedInvoker(Thread->GetInvoker()),
@@ -122,7 +122,7 @@ public:
             Config,
             DynamicConfigManager,
             Thread->GetInvoker(),
-            ChunkHost,
+            ChunkContext,
             ChunkStoreHost);
 
         BIND([&] {

@@ -40,7 +40,7 @@ TFuture<void> TJournalSession::DoStart()
 
         Changelog_ = changelog;
         Chunk_ = New<TJournalChunk>(
-            TChunkHost::Create(Bootstrap_),
+            TChunkContext::Create(Bootstrap_),
             Location_,
             TChunkDescriptor(GetChunkId()));
         Chunk_->SetActive(true);

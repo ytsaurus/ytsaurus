@@ -26,12 +26,7 @@ class TSchemaProxy
     : public TNonversionedObjectProxyBase<TSchemaObject>
 {
 public:
-    TSchemaProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TSchemaObject* object)
-        : TBase(bootstrap, metadata, object)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TSchemaObject>;

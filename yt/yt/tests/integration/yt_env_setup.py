@@ -258,6 +258,10 @@ class YTEnvSetup(object):
     def is_multicell(cls):
         return cls.NUM_SECONDARY_MASTER_CELLS > 0
 
+    @classmethod
+    def get_num_secondary_master_cells(cls):
+        return cls.NUM_SECONDARY_MASTER_CELLS
+
     # To be redefined in successors
     @classmethod
     def modify_master_config(cls, config, tag, index):

@@ -57,8 +57,8 @@ public:
 
 protected:
     TBlobChunkBase(
-        TChunkHostPtr host,
-        TLocationPtr location,
+        TChunkContextPtr context,
+        TChunkLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta);
 
@@ -148,8 +148,8 @@ class TStoredBlobChunk
 {
 public:
     TStoredBlobChunk(
-        TChunkHostPtr host,
-        TLocationPtr location,
+        TChunkContextPtr context,
+        TChunkLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta = nullptr);
 };
@@ -165,8 +165,8 @@ class TCachedBlobChunk
 {
 public:
     TCachedBlobChunk(
-        TChunkHostPtr host,
-        TLocationPtr location,
+        TChunkContextPtr context,
+        TChunkLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta,
         const TArtifactKey& key,

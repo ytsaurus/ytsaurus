@@ -12,7 +12,7 @@ using NChunkClient::TChunkId;
 using NChunkClient::TSessionId;
 using NChunkClient::ESessionType;
 using NChunkClient::TBlockId;
-using NChunkClient::TLocationUuid;
+using NChunkClient::TChunkLocationUuid;
 
 using NNodeTrackerClient::TNodeId;
 
@@ -49,13 +49,13 @@ DECLARE_REFCOUNTED_CLASS(TCachedChunkMeta)
 DECLARE_REFCOUNTED_CLASS(TCachedBlocksExt)
 DECLARE_REFCOUNTED_STRUCT(IChunkMetaManager)
 
-DECLARE_REFCOUNTED_CLASS(TLocation)
+DECLARE_REFCOUNTED_CLASS(TChunkLocation)
 DECLARE_REFCOUNTED_CLASS(TStoreLocation)
 DECLARE_REFCOUNTED_CLASS(TCacheLocation)
 DECLARE_REFCOUNTED_CLASS(TJournalManager)
 DECLARE_REFCOUNTED_STRUCT(TLocationPerformanceCounters)
 
-DECLARE_REFCOUNTED_STRUCT(TChunkHost)
+DECLARE_REFCOUNTED_STRUCT(TChunkContext)
 DECLARE_REFCOUNTED_STRUCT(IChunk)
 DECLARE_REFCOUNTED_CLASS(TBlobChunkBase)
 DECLARE_REFCOUNTED_CLASS(TStoredBlobChunk)
@@ -73,7 +73,6 @@ DECLARE_REFCOUNTED_CLASS(TCacheLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiplexedChangelogConfig)
 DECLARE_REFCOUNTED_CLASS(TArtifactCacheReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TRepairReaderConfig)
-DECLARE_REFCOUNTED_CLASS(TMediumUpdaterDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TSealReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)

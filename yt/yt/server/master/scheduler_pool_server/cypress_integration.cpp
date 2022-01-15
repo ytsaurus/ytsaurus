@@ -1,7 +1,7 @@
 #include "cypress_integration.h"
 #include "scheduler_pool_manager.h"
 
-#include <yt/yt/server/lib/misc/object_helpers.h>
+#include <yt/yt/server/lib/object_server/helpers.h>
 
 #include <yt/yt/server/master/cypress_server/virtual.h>
 

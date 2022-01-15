@@ -12,7 +12,7 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/yt/server/lib/misc/object_helpers.h>
+#include <yt/yt/server/lib/object_server/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 

@@ -11,7 +11,7 @@ class TJournalChunk
 {
 public:
     TJournalChunk(
-        TChunkHostPtr host,
+        TChunkContextPtr context,
         TStoreLocationPtr location,
         const TChunkDescriptor& descriptor);
 

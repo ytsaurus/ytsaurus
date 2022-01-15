@@ -296,11 +296,11 @@ TClusterNodeConfig::TClusterNodeConfig()
         .Default(false);
 
     RegisterParameter("flavors", Flavors)
-        .Default(std::vector<NNodeTrackerClient::ENodeFlavor>({
+        .Default({
             NNodeTrackerClient::ENodeFlavor::Data,
             NNodeTrackerClient::ENodeFlavor::Exec,
             NNodeTrackerClient::ENodeFlavor::Tablet
-        }));
+        });
 
     RegisterParameter("master_connector", MasterConnector)
         .DefaultNew();

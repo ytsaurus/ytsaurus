@@ -25,12 +25,7 @@ class TCypressShardProxy
     : public TNonversionedObjectProxyBase<TCypressShard>
 {
 public:
-    TCypressShardProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TCypressShard* action)
-        : TBase(bootstrap, metadata, action)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TCypressShard>;

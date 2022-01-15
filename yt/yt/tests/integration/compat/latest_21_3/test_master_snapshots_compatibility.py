@@ -1,10 +1,11 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import (
-    get, set, raises_yt_error, create_medium, ls, exists, wait,
-    authors, print_debug, build_master_snapshots, update_nodes_dynamic_config)
+    ls, exists, get, set, raises_yt_error, authors, print_debug, build_master_snapshots)
 
 from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
+
+from yt.test_helpers import assert_items_equal
 
 import os
 import pytest
@@ -33,29 +34,19 @@ def check_cluster_name_simple():
         set("//sys/@cluster_name", "a" * 130)
 
 
-def check_medium_overrides():
-    update_nodes_dynamic_config({"data_node": {"medium_updater": {"period": 100}}})
-    node = "//sys/data_nodes/" + ls("//sys/data_nodes")[0]
-    location_uuid = get(node + "/@statistics/locations/0/location_uuid")
+def check_chunk_locations():
+    node_address = ls("//sys/cluster_nodes")[0]
 
-    media = ["my_test_medium" + str(i) for i in range(2)]
-    for medium in media:
-        if not exists("//sys/media/" + medium):
-            create_medium(medium)
-    set(node + "/@config", {"medium_overrides": {
-        location_uuid: media[0],
-        "0-0-0-0": media[0],
-        "ffffffff-ffffffff-ffffffff-ffffffff": media[0],
-    }})
-
-    wait(lambda: get(node + "/@statistics/locations/0/medium_name") == media[0])
+    location_uuids = list(location["location_uuid"] for location in get("//sys/cluster_nodes/{}/@statistics/locations".format(node_address)))
+    assert len(location_uuids) > 0
 
     yield
 
-    assert {location_uuid: media[0]} == get(node + "/@medium_overrides")
-
-    set(node + "/@medium_overrides", {location_uuid: media[1]})
-    wait(lambda: get(node + "/@statistics/locations/0/medium_name") == media[1])
+    assert_items_equal(get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys(), location_uuids)
+    for location_uuid in location_uuids:
+        assert exists("//sys/chunk_locations/{}".format(location_uuid))
+        assert get("//sys/chunk_locations/{}/@uuid".format(location_uuid)) == location_uuid
+        assert get("//sys/chunk_locations/{}/@node_address".format(location_uuid)) == node_address
 
 
 class TestMasterSnapshotsCompatibility(YTEnvSetup):
@@ -100,7 +91,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
         CHECKER_LIST = [
             check_cluster_connection_simple,
             check_cluster_name_simple,
-            check_medium_overrides,
+            check_chunk_locations
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

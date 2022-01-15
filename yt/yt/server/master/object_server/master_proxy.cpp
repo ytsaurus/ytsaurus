@@ -50,12 +50,7 @@ class TMasterProxy
     : public TNonversionedObjectProxyBase<TMasterObject>
 {
 public:
-    TMasterProxy(
-        TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TMasterObject* object)
-        : TBase(bootstrap, metadata, object)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TMasterObject>;

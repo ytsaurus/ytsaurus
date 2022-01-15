@@ -1,9 +1,10 @@
 #include "helpers.h"
 #include "private.h"
+#include "chunk.h"
 #include "chunk_owner_base.h"
 #include "chunk_manager.h"
 #include "chunk_view.h"
-#include "chunk.h"
+#include "chunk_location.h"
 #include "dynamic_store.h"
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
@@ -1232,18 +1233,14 @@ void SerializeMediumDirectory(
 
 void SerializeMediumOverrides(
     TNode* node,
-    NDataNodeTrackerClient::NProto::TMediumOverrides* mediumOverrides,
-    const TChunkManagerPtr& chunkManager)
+    NDataNodeTrackerClient::NProto::TMediumOverrides* protoMediumOverrides)
 {
-    for (auto [locationUuid, mediumIndex] : node->MediumOverrides()) {
-        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (!IsObjectAlive(medium)) {
-            continue;
+    for (auto* location : node->ChunkLocations()) {
+        if (const auto& mediumOverride = location->MediumOverride()) {
+            auto* protoMediumOverride = protoMediumOverrides->add_overrides();
+            ToProto(protoMediumOverride->mutable_location_uuid(), location->GetUuid());
+            protoMediumOverride->set_medium_index(mediumOverride->GetIndex());
         }
-
-        auto* mediumOverride = mediumOverrides->add_overrides();
-        ToProto(mediumOverride->mutable_location_id(), locationUuid);
-        mediumOverride->set_medium_index(medium->GetIndex());
     }
 }
 

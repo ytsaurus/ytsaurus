@@ -10,7 +10,6 @@
 #include "host_type_handler.h"
 #include "rack_type_handler.h"
 #include "data_center_type_handler.h"
-
 // COMPAT(gritukan)
 #include "exec_node_tracker.h"
 
@@ -28,6 +27,7 @@
 #include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 #include <yt/yt/server/master/chunk_server/job.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk_location.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -276,6 +276,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeOnline);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeUnregistered);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisposed);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeZombified);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeBanChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDecommissionChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisableWriteSessionsChanged);
@@ -311,6 +312,8 @@ public:
 
         // Detach node from host.
         node->SetHost(nullptr);
+
+        NodeZombified_.Fire(node);
     }
 
     TObjectId ObjectIdFromNodeId(TNodeId nodeId) override
@@ -383,6 +386,13 @@ public:
     {
         auto it = NameToHostMap_.find(name);
         return it == NameToHostMap_.end() ? nullptr : it->second;
+    }
+
+    THost* GetHostByName(const TString& name) override
+    {
+        auto* host = FindHostByName(name);
+        YT_VERIFY(host);
+        return host;
     }
 
     void SetHostRack(THost* host, TRack* rack) override
@@ -948,14 +958,11 @@ private:
     std::vector<TNodeGroup> NodeGroups_;
     TNodeGroup* DefaultNodeGroup_ = nullptr;
     THashSet<TString> PendingRegisterNodeAddreses_;
-    THashMap<TLocationUuid, TNode*> RegisteredLocationUuids_;
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
     // COMPAT(gritukan)
     bool NeedToCreateHostObjects_ = false;
-    // COMPAT(kvk1920)
-    bool NeedToTransformLegacyMediumOverrides_ = false;
 
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
 
@@ -998,7 +1005,6 @@ private:
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
         auto tags = FromProto<std::vector<TString>>(request->tags());
         auto flavors = FromProto<THashSet<ENodeFlavor>>(request->flavors());
-        auto locationUuids = FromProto<std::vector<TLocationUuid>>(request->location_uuids());
 
         TString hostName;
         // COMPAT(gritukan)
@@ -1008,15 +1014,18 @@ private:
             hostName = address;
         }
 
-        ValidateNoDuplicateLocationUuids(address, locationUuids);
-
         // COMPAT(gritukan)
         if (flavors.empty()) {
-            flavors = THashSet<ENodeFlavor>{
+            flavors = {
                 ENodeFlavor::Data,
                 ENodeFlavor::Exec,
                 ENodeFlavor::Tablet,
             };
+        }
+
+        if (flavors.contains(ENodeFlavor::Data) || flavors.contains(ENodeFlavor::Exec)) {
+            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+            dataNodeTracker->ValidateRegisterNode(address, request);
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -1072,17 +1081,8 @@ private:
             oldNodeRack = node->GetRack();
         }
 
-        for (auto locationUuid : locationUuids) {
-            if (auto it = RegisteredLocationUuids_.find(locationUuid)) {
-                THROW_ERROR_EXCEPTION("Cannot register node %Qv: there is a registered node %Qv with the same location uuid %v",
-                    address,
-                    it->second->GetDefaultAddress(),
-                    locationUuid);
-            }
-        }
-
         auto* host = FindHostByName(hostName);
-        if (!host) {
+        if (!IsObjectAlive(host)) {
             YT_VERIFY(multicellManager->IsPrimaryMaster());
 
             auto req = TMasterYPathProxy::CreateObject();
@@ -1096,35 +1096,32 @@ private:
             try {
                 SyncExecuteVerb(rootService, req);
             } catch (const std::exception& ex) {
-                YT_LOG_ALERT(ex, "Failed to create host for a node");
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Failed to create host for a node");
 
                 const auto& objectManager = Bootstrap_->GetObjectManager();
                 objectManager->UnrefObject(node);
                 throw;
             }
 
-            host = FindHostByName(hostName);
-            YT_VERIFY(host);
+            host = GetHostByName(hostName);
 
             if (GetDynamicConfig()->PreserveRackForNewHost && oldNodeRack) {
                 SetHostRack(host, oldNodeRack);
             }
         }
 
-        if (!isNodeNew) {
+        if (isNodeNew) {
+            auto nodeId = request->has_node_id() ? request->node_id() : GenerateNodeId();
+            node = CreateNode(nodeId, nodeAddresses);
+        } else {
             // NB: Default address should not change.
             auto oldDefaultAddress = node->GetDefaultAddress();
             node->SetNodeAddresses(nodeAddresses);
             YT_VERIFY(node->GetDefaultAddress() == oldDefaultAddress);
-        } else {
-            auto nodeId = request->has_node_id() ? request->node_id() : GenerateNodeId();
-            node = CreateNode(nodeId, nodeAddresses);
         }
 
         node->SetHost(host);
-
         node->SetNodeTags(tags);
-
         SetNodeFlavors(node, flavors);
 
         if (request->has_cypress_annotations()) {
@@ -1137,26 +1134,21 @@ private:
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
+        UpdateNodeCounters(node, +1);
 
-        if (multicellManager->IsPrimaryMaster()) {
-            PostRegisterNodeMutation(node);
+        node->SetLocalState(ENodeState::Registered, Bootstrap_);
+        node->ReportedHeartbeats().clear();
+
+        if (leaseTransaction) {
+            node->SetLeaseTransaction(leaseTransaction);
+            RegisterLeaseTransaction(node);
         }
 
-        if (isNodeNew && GetDynamicConfig()->BanNewNodes) {
-            node->SetBanned(true);
-            {
-                auto nodePath = GetNodePath(node);
-                auto req = TCypressYPathProxy::Set(nodePath + "/@" + BanMessageAttributeName);
-                req->set_value(ConvertToYsonString("The node has never been seen before and has been banned provisionally").ToString());
-                auto rootService = Bootstrap_->GetObjectManager()->GetRootService();
-                SyncExecuteVerb(rootService, req);
-            }
-            node->SetLocalState(ENodeState::Offline, Bootstrap_);
-            node->ReportedHeartbeats().clear();
+        NodeRegistered_.Fire(node);
 
-            THROW_ERROR_EXCEPTION("Node %Qv (#%v) created and provisionally banned",
-                address,
-                node->GetId());
+        if (node->IsDataNode() || node->IsExecNode()) {
+            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+            dataNodeTracker->ProcessRegisterNode(node, request, response);
         }
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node registered (NodeId: %v, Address: %v, Tags: %v, Flavors: %v, LeaseTransactionId: %v)",
@@ -1166,35 +1158,16 @@ private:
             flavors,
             leaseTransactionId);
 
-        node->SetLocalState(ENodeState::Registered, Bootstrap_);
-        node->ReportedHeartbeats().clear();
-
-        UpdateNodeCounters(node, +1);
-
-        if (leaseTransaction) {
-            node->SetLeaseTransaction(leaseTransaction);
-            RegisterLeaseTransaction(node);
-        }
-
-        for (auto locationUuid : locationUuids) {
-            YT_VERIFY(RegisteredLocationUuids_.emplace(locationUuid, node).second);
-        }
-
-        node->LocationUuids() = std::move(locationUuids);
-
-        NodeRegistered_.Fire(node);
-
-        response->set_node_id(node->GetId());
-        response->set_use_new_heartbeats(GetDynamicConfig()->UseNewHeartbeats);
-
-        if (node->IsDataNode()) {
-            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-            dataNodeTracker->ProcessRegisterNode(node, request, response);
-        }
-
         // NB: Exec nodes should not report heartbeats to secondary masters,
         // so node can already be online for this cell.
         CheckNodeOnline(node);
+
+        if (multicellManager->IsPrimaryMaster()) {
+            PostRegisterNodeMutation(node);
+        }
+
+        response->set_node_id(node->GetId());
+        response->set_use_new_heartbeats(GetDynamicConfig()->UseNewHeartbeats);
 
         if (context) {
             context->SetResponseInfo("NodeId: %v",
@@ -1529,7 +1502,6 @@ private:
         RackMap_.SaveValues(context);
         DataCenterMap_.SaveValues(context);
         HostMap_.SaveValues(context);
-        Save(context, RegisteredLocationUuids_);
         Save(context, NodesWithFlavor_);
     }
 
@@ -1544,7 +1516,6 @@ private:
             HostMap_.LoadKeys(context);
         }
 
-        NeedToTransformLegacyMediumOverrides_ = context.GetVersion() < EMasterReign::MediumOverridesViaHeartbeats;
         NeedToCreateHostObjects_ = context.GetVersion() < EMasterReign::HostObjects;
     }
 
@@ -1561,7 +1532,9 @@ private:
             HostMap_.LoadValues(context);
         }
 
-        Load(context, RegisteredLocationUuids_);
+        if (context.GetVersion() < EMasterReign::ChunkLocation) {
+            Load<THashMap<TChunkLocationUuid, TNode*>>(context);
+        }
     }
 
 
@@ -1619,11 +1592,6 @@ private:
             InsertToAddressMaps(node);
             InsertToFlavorSets(node);
             UpdateNodeCounters(node, +1);
-
-            // COMPAT(kvk1920)
-            if (NeedToTransformLegacyMediumOverrides_) {
-                node->TransformLegacyMediumOverrides(Bootstrap_);
-            }
 
             if (node->GetLeaseTransaction()) {
                 RegisterLeaseTransaction(node);
@@ -1956,10 +1924,6 @@ private:
             node->SetLocalState(ENodeState::Unregistered, Bootstrap_);
             node->ReportedHeartbeats().clear();
 
-            for (const auto& locationUuid : node->LocationUuids()) {
-                YT_VERIFY(RegisteredLocationUuids_.erase(locationUuid) > 0);
-            }
-
             NodeUnregistered_.Fire(node);
 
             if (propagate) {
@@ -2002,20 +1966,6 @@ private:
 
         if (node->GetLocalState() == ENodeState::Unregistered) {
             DisposeNode(node);
-        }
-    }
-
-    static void ValidateNoDuplicateLocationUuids(
-        const TString& address,
-        const std::vector<TLocationUuid>& uuids)
-    {
-        THashSet<TLocationUuid> uuidSet;
-        for (auto uuid : uuids) {
-            if (!uuidSet.insert(uuid).second) {
-                THROW_ERROR_EXCEPTION("Duplicate location uuid %v reported by node %Qv",
-                    uuid,
-                    address);
-            }
         }
     }
 
@@ -2106,6 +2056,10 @@ private:
             request.add_flavors(static_cast<int>(flavor));
         }
 
+        for (const auto* location : node->ChunkLocations()) {
+            ToProto(request.add_chunk_location_uuids(), location->GetUuid());
+        }
+
         if (GetDynamicConfig()->ReplicateHostNameDuringRegistration) {
             request.set_host_name(node->GetHost()->GetName());
         }
@@ -2160,23 +2114,34 @@ private:
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
-        auto replicateKeys = [&]<class TObjectMap>(const TObjectMap& objectMap) {
+        auto replicateKeys = [&] (const auto& objectMap) {
             for (auto* object : GetValuesSortedByKey(objectMap)) {
-                if (!IsObjectAlive(object)) {
-                    continue;
-                }
                 objectManager->ReplicateObjectCreationToSecondaryMaster(object, cellTag);
             }
         };
         replicateKeys(HostMap_);
         replicateKeys(RackMap_);
         replicateKeys(DataCenterMap_);
+    }
 
-        auto nodes = GetValuesSortedByKey(NodeMap_);
-        for (const auto* node : nodes) {
+    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        auto replicateValues = [&] (const auto& objectMap) {
+            for (auto* object : GetValuesSortedByKey(objectMap)) {
+                objectManager->ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
+            }
+        };
+        replicateValues(NodeMap_);
+        replicateValues(HostMap_);
+        replicateValues(RackMap_);
+        replicateValues(DataCenterMap_);
+
+        for (const auto* node : GetValuesSortedByKey(NodeMap_)) {
             if (!IsObjectAlive(node)) {
                 continue;
             }
@@ -2197,24 +2162,6 @@ private:
                 multicellManager->PostToMaster(request, cellTag);
             }
         }
-    }
-
-    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        auto replicateValues = [&]<class TObjectMap>(const TObjectMap& objectMap) {
-            for (auto* object : GetValuesSortedByKey(objectMap)) {
-                if (!IsObjectAlive(object)) {
-                    continue;
-                }
-                objectManager->ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
-            }
-        };
-        replicateValues(NodeMap_);
-        replicateValues(HostMap_);
-        replicateValues(RackMap_);
-        replicateValues(DataCenterMap_);
     }
 
     void InsertToAddressMaps(TNode* node)
@@ -2468,7 +2415,7 @@ private:
                 statistics->OnlineNodeCount++;
 
                 const auto& nodeStatistics = node_->DataNodeStatistics();
-                for (const auto& location : nodeStatistics.storage_locations()) {
+                for (const auto& location : nodeStatistics.chunk_locations()) {
                     int mediumIndex = location.medium_index();
                     if (!node_->GetDecommissioned()) {
                         statistics->SpacePerMedium[mediumIndex].Available += location.available_space();

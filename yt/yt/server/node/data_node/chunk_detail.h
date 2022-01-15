@@ -33,7 +33,7 @@ struct TChunkDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkHost final
+struct TChunkContext final
 {
     IChunkMetaManagerPtr ChunkMetaManager;
 
@@ -46,8 +46,10 @@ struct TChunkHost final
     IJournalDispatcherPtr JournalDispatcher;
     IBlobReaderCachePtr BlobReaderCache;
 
-    static TChunkHostPtr Create(NClusterNode::IBootstrapBase* bootstrap);
+    static TChunkContextPtr Create(NClusterNode::IBootstrapBase* bootstrap);
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunkContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +59,7 @@ class TChunkBase
 {
 public:
     TChunkId GetId() const override;
-    const TLocationPtr& GetLocation() const override;
+    const TChunkLocationPtr& GetLocation() const override;
     TString GetFileName() const override;
 
     int GetVersion() const override;
@@ -81,8 +83,8 @@ public:
     void TrySweepReader() override;
 
 protected:
-    const TChunkHostPtr Host_;
-    const TLocationPtr Location_;
+    const TChunkContextPtr Context_;
+    const TChunkLocationPtr Location_;
     const TChunkId Id_;
 
     std::atomic<int> Version_ = 0;
@@ -117,8 +119,8 @@ protected:
     using TReadMetaSessionPtr = TIntrusivePtr<TReadMetaSession>;
 
     TChunkBase(
-        TChunkHostPtr host,
-        TLocationPtr location,
+        TChunkContextPtr context,
+        TChunkLocationPtr location,
         TChunkId id);
     ~TChunkBase();
 

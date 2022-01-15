@@ -24,12 +24,7 @@ class TDataCenterProxy
     : public TNonversionedObjectProxyBase<TDataCenter>
 {
 public:
-    TDataCenterProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TDataCenter* dc)
-        : TBase(bootstrap, metadata, dc)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TDataCenter>;

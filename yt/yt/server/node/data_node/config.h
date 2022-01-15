@@ -345,20 +345,6 @@ DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMediumUpdaterDynamicConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    //! Period of media config fetching from Cypress.
-    TDuration Period;
-
-    TMediumUpdaterDynamicConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TMediumUpdaterDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 // COMPAT(gritukan): Drop all the optionals in this class after configs migration.
 class TMasterConnectorConfig
     : public NYTree::TYsonSerializable
@@ -685,7 +671,6 @@ public:
     TTableSchemaCacheDynamicConfigPtr TableSchemaCache;
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
-    TMediumUpdaterDynamicConfigPtr MediumUpdater;
     TAllyReplicaManagerDynamicConfigPtr AllyReplicaManager;
 
     //! Prepared chunk readers are kept open during this period of time after the last use.

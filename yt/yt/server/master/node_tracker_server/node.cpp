@@ -17,6 +17,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/job.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk_location.h>
 
 #include <yt/yt/server/master/object_server/object.h>
 
@@ -54,10 +55,6 @@ using namespace NCellarNodeTrackerClient::NProto;
 using namespace NYTree;
 
 using NYT::FromProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Logger = NodeTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -238,7 +235,7 @@ void TNode::ComputeFillFactorsAndTotalSpace()
 {
     TMediumMap<std::pair<i64, i64>> freeAndUsedSpace;
 
-    for (const auto& location : DataNodeStatistics_.storage_locations()) {
+    for (const auto& location : DataNodeStatistics_.chunk_locations()) {
         auto mediumIndex = location.medium_index();
         auto& space = freeAndUsedSpace[mediumIndex];
         auto& freeSpace = space.first;
@@ -264,7 +261,7 @@ void TNode::ComputeFillFactorsAndTotalSpace()
 void TNode::ComputeSessionCount()
 {
     SessionCount_.clear();
-    for (const auto& location : DataNodeStatistics_.storage_locations()) {
+    for (const auto& location : DataNodeStatistics_.chunk_locations()) {
         auto mediumIndex = location.medium_index();
         if (location.enabled() && !location.full()) {
             SessionCount_[mediumIndex] = SessionCount_[mediumIndex].value_or(0) + location.session_count();
@@ -349,7 +346,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
     ComputeAggregatedState(bootstrap);
 }
 
-void TNode::RecomputeIOWeights(const NChunkServer::TChunkManagerPtr& chunkManager)
+void TNode::RecomputeIOWeights(const TChunkManagerPtr& chunkManager)
 {
     IOWeights_.clear();
     for (const auto& statistics : DataNodeStatistics_.media()) {
@@ -427,6 +424,7 @@ void TNode::Save(TSaveContext& context) const
     }
     Save(context, UserTags_);
     Save(context, NodeTags_);
+    Save(context, ChunkLocations_);
     Save(context, RegisterTime_);
     Save(context, LastSeenTime_);
     Save(context, ClusterNodeStatistics_);
@@ -464,37 +462,10 @@ void TNode::Save(TSaveContext& context) const
     Save(context, Cellars_);
     Save(context, Annotations_);
     Save(context, Version_);
-    Save(context, LocationUuids_);
     Save(context, Flavors_);
     Save(context, ReportedHeartbeats_);
     Save(context, ReplicaEndorsements_);
     Save(context, ConsistentReplicaPlacementTokenCount_);
-    Save(context, MediumOverrides_);
-}
-
-// COMPAT(kvk1920)
-void TNode::TransformLegacyMediumOverrides(TBootstrap* bootstrap)
-{
-    YT_VERIFY(MediumOverrides_.empty());
-    const auto& chunkManager = bootstrap->GetChunkManager();
-    for (const auto& [locationUuid, mediumName] : LegacyMediumOverrides_) {
-        auto* medium = chunkManager->FindMediumByName(mediumName);
-        if (!IsObjectAlive(medium)) {
-            YT_LOG_ALERT("Invalid medium override for location; dropped (Node: %v, LocationUuid: %v, MediumName: %v)",
-                GetDefaultAddress(),
-                locationUuid,
-                mediumName);
-            continue;
-        }
-        if (locationUuid == EmptyLocationUuid || locationUuid == InvalidLocationUuid) {
-            YT_LOG_ALERT("Invalid location uuid in medium overrides; dropped (Node: %v, LocationUuid: %v, MediumName: %v)",
-                GetDefaultAddress(),
-                locationUuid,
-                mediumName);
-            continue;
-        }
-        YT_VERIFY(MediumOverrides_.emplace(locationUuid, medium->GetIndex()).second);
-    }
 }
 
 void TNode::Load(TLoadContext& context)
@@ -523,6 +494,10 @@ void TNode::Load(TLoadContext& context)
 
     Load(context, UserTags_);
     Load(context, NodeTags_);
+
+    if (context.GetVersion() >= EMasterReign::ChunkLocation) {
+        Load(context, ChunkLocations_);
+    }
 
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
@@ -564,7 +539,9 @@ void TNode::Load(TLoadContext& context)
     Load(context, Cellars_);
     Load(context, Annotations_);
     Load(context, Version_);
-    Load(context, LocationUuids_);
+    if (context.GetVersion() < EMasterReign::ChunkLocation) {
+        Load(context, CompatChunkLocationUuids_);
+    }
     Load(context, Flavors_);
     // COMPAT(savrus) ENodeHeartbeatType is compatible with ENodeFlavor.
     Load(context, ReportedHeartbeats_);
@@ -588,22 +565,13 @@ void TNode::Load(TLoadContext& context)
             }
         }
     }
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::MediumOverridesViaHeartbeats) {
-        if (auto config = FindAttribute("config")) {
-            try {
-                auto parsedConfig = ConvertToNode(config)->AsMap();
-                auto mediumOverrides = parsedConfig->GetChildOrThrow("medium_overrides");
-                LegacyMediumOverrides_ = ConvertTo<TNode::TLegacyMediumOverrideMap>(mediumOverrides);
-            } catch (const std::exception& ex) {
-                LegacyMediumOverrides_.clear();
-                YT_LOG_ALERT(ex, "Failed to parse //sys/cluster_nodes/%v/@config/medium_overrides (Config: %v)",
-                    GetDefaultAddress(),
-                    config);
-            }
-        }
-    } else {
-        Load(context, MediumOverrides_);
+
+    // COMPAT(babenko)
+    if (context.GetVersion() >= EMasterReign::MediumOverridesViaHeartbeats &&
+        context.GetVersion() < EMasterReign::ChunkLocation)
+    {
+        using TMediumOverrideMap = THashMap<TChunkLocationUuid, int>;
+        Load<TMediumOverrideMap>(context);
     }
 
     ComputeDefaultAddress();
@@ -965,7 +933,7 @@ void TNode::ValidateNotBanned()
 
 bool TNode::HasMedium(int mediumIndex) const
 {
-    const auto& locations = DataNodeStatistics_.storage_locations();
+    const auto& locations = DataNodeStatistics_.chunk_locations();
     auto it = std::find_if(
         locations.begin(),
         locations.end(),

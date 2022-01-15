@@ -871,6 +871,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateCellTrackerService(this)); // master hydra service
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateChunkLocationMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostVitalChunkMap));

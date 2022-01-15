@@ -889,12 +889,12 @@ public:
     TImpl(
         TDataNodeConfigPtr config,
         TStoreLocation* location,
-        TChunkHostPtr chunkHost)
+        TChunkContextPtr chunkContext)
         : MultiplexedChangelogConfig_(UpdateYsonSerializable(config->MultiplexedChangelog, location->GetConfig()->MultiplexedChangelog))
         , HighLatencySplitChangelogConfig_(UpdateYsonSerializable(config->HighLatencySplitChangelog, location->GetConfig()->HighLatencySplitChangelog))
         , LowLatencySplitChangelogConfig_(UpdateYsonSerializable(config->LowLatencySplitChangelog, location->GetConfig()->LowLatencySplitChangelog))
         , Location_(location)
-        , ChunkHost_(chunkHost)
+        , ChunkContext_(chunkContext)
         , Logger(DataNodeLogger.WithTag("LocationId: %v", Location_->GetId()))
     {
         MultiplexedChangelogDispatcher_ = CreateFileChangelogDispatcher(
@@ -1029,7 +1029,7 @@ private:
     const TFileChangelogConfigPtr HighLatencySplitChangelogConfig_;
     const TFileChangelogConfigPtr LowLatencySplitChangelogConfig_;
     TStoreLocation* const Location_;
-    TChunkHostPtr ChunkHost_;
+    TChunkContextPtr ChunkContext_;
 
     const NLogging::TLogger Logger;
 
@@ -1145,11 +1145,11 @@ private:
             }
 
             auto chunk = New<TJournalChunk>(
-                Impl_->ChunkHost_,
+                Impl_->ChunkContext_,
                 Impl_->Location_,
                 TChunkDescriptor(chunkId));
 
-            const auto& dispatcher = Impl_->ChunkHost_->JournalDispatcher;
+            const auto& dispatcher = Impl_->ChunkContext_->JournalDispatcher;
             auto asyncChangelog = dispatcher->CreateChangelog(
                 chunk->GetStoreLocation(),
                 chunkId,
@@ -1172,7 +1172,7 @@ private:
                 return nullptr;
             }
 
-            const auto& dispatcher = Impl_->ChunkHost_->JournalDispatcher;
+            const auto& dispatcher = Impl_->ChunkContext_->JournalDispatcher;
             auto journalChunk = chunk->AsJournalChunk();
             auto changelog = WaitFor(dispatcher->OpenChangelog(journalChunk->GetStoreLocation(), chunkId))
                 .ValueOrThrow();
@@ -1210,7 +1210,7 @@ private:
             auto journalChunk = chunk->AsJournalChunk();
             chunkStore->UnregisterChunk(chunk);
 
-            const auto& dispatcher = Impl_->ChunkHost_->JournalDispatcher;
+            const auto& dispatcher = Impl_->ChunkContext_->JournalDispatcher;
             WaitFor(dispatcher->RemoveChangelog(journalChunk, false))
                 .ThrowOnError();
 
@@ -1242,8 +1242,8 @@ private:
 TJournalManager::TJournalManager(
     TDataNodeConfigPtr config,
     TStoreLocation* location,
-    TChunkHostPtr chunkHost)
-    : Impl_(New<TImpl>(config, location, chunkHost))
+    TChunkContextPtr chunkContext)
+    : Impl_(New<TImpl>(config, location, chunkContext))
 { }
 
 TJournalManager::~TJournalManager() = default;
