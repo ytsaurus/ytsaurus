@@ -178,16 +178,16 @@ public class ApiServiceClientImpl implements ApiServiceClient {
             if (startTransaction.getSticky() && (rpcClient == null || !rpcClient.equals(sender))) {
                 logger.trace("Create sticky transaction with new client to proxy {}", sender.getAddressString());
                 result = new ApiServiceTransaction(
-                        new ApiServiceClientImpl(Objects.requireNonNull(sender), rpcOptions, heavyExecutor),
+                        sender,
+                        rpcOptions,
                         id,
                         startTimestamp,
                         startTransaction.getPing(),
                         startTransaction.getPingAncestors(),
                         startTransaction.getSticky(),
                         startTransaction.getPingPeriod().orElse(null),
-                        startTransaction.getFailedPingRetryPeriod().orElse(null),
                         sender.executor(),
-                        startTransaction.getOnPingFailed().orElse(null));
+                        heavyExecutor);
             } else {
                 if (startTransaction.getSticky()) {
                     logger.trace("Create sticky transaction with client {} to proxy {}", this,
@@ -204,9 +204,7 @@ public class ApiServiceClientImpl implements ApiServiceClient {
                         startTransaction.getPingAncestors(),
                         startTransaction.getSticky(),
                         startTransaction.getPingPeriod().orElse(null),
-                        startTransaction.getFailedPingRetryPeriod().orElse(null),
-                        sender.executor(),
-                        startTransaction.getOnPingFailed().orElse(null));
+                        sender.executor());
             }
 
             sender.ref();

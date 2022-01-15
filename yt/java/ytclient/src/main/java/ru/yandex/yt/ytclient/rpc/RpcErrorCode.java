@@ -24,8 +24,6 @@ public enum RpcErrorCode {
 
     TooManyOperations(202),
 
-    ConcurrentTransactionLockConflict(402),
-
     SessionAlreadyExists(703),
     ChunkAlreadyExists(704),
     WindowError(705),
