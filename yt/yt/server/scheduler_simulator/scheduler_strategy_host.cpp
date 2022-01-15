@@ -76,7 +76,7 @@ const std::vector<IInvokerPtr>& TSchedulerStrategyHost::GetNodeShardInvokers() c
 
 TFluentLogEvent TSchedulerStrategyHost::LogFairShareEventFluently(TInstant now)
 {
-    return LogEventFluently(ELogEventType::FairShareInfo, now);
+    return LogEventFluently(GetEventLogger(), ELogEventType::FairShareInfo, now);
 }
 
 TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter) const

@@ -118,6 +118,7 @@ DECLARE_REFCOUNTED_STRUCT(TRefCountedJobPreemptionStatusMapPerOperation);
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const auto SchedulerEventLogger = NLogging::TLogger("SchedulerEventLog").WithEssential();
+inline const auto SchedulerStructuredLogger = NLogging::TLogger("SchedulerStructuredLog").WithEssential();
 inline const auto SchedulerResourceMeteringLogger = NLogging::TLogger("SchedulerResourceMetering").WithEssential();
 
 inline const NProfiling::TProfiler SchedulerProfiler{"/scheduler"};

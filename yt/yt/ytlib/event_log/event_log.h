@@ -18,7 +18,7 @@ class TFluentLogEventConsumer
     : public NYson::TForwardingYsonConsumer
 {
 public:
-    TFluentLogEventConsumer(IYsonConsumer* tableConsumer, const NLogging::TLogger* logger);
+    TFluentLogEventConsumer(const NLogging::TLogger* logger, IYsonConsumer* tableConsumer);
 
 protected:
     void OnMyBeginMap() override;

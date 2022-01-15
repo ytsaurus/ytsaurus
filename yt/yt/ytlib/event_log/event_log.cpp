@@ -21,7 +21,7 @@ using namespace NComplexTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFluentLogEventConsumer::TFluentLogEventConsumer(IYsonConsumer* tableConsumer, const NLogging::TLogger* logger)
+TFluentLogEventConsumer::TFluentLogEventConsumer(const NLogging::TLogger* logger, IYsonConsumer* tableConsumer)
     : Logger_(logger)
     , TableConsumer_(tableConsumer)
 {
