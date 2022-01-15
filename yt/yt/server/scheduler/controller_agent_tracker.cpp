@@ -539,10 +539,6 @@ public:
             }
             YT_VERIFY(operationIdToOperationJobMetrics.emplace(operationId, std::move(operationInfo.JobMetrics)).second);
 
-            // TODO(ignat): remove/refactor this log message after fixing the bug.
-            if (!operationInfo.AlertMap.empty()) {
-                YT_LOG_DEBUG("Received alert information (OperationId: %v)", operation->GetId());
-            }
             for (const auto& [alertType, alert] : operationInfo.AlertMap) {
                 scheduler->SetOperationAlert(operationId, alertType, alert);
             }
