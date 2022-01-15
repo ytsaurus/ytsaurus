@@ -2,13 +2,12 @@
 
 #include "private.h"
 #include "decorated_automaton.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
 #include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 
 #include <yt/yt/ytlib/election/public.h>
-
-#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/client/hydra/version.h>
 

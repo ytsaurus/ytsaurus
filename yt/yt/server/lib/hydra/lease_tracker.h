@@ -1,8 +1,7 @@
 #pragma once
 
 #include "private.h"
-
-#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/ytlib/election/public.h>
 

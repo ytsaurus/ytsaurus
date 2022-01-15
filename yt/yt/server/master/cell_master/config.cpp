@@ -70,6 +70,8 @@ TCellMasterConfig::TCellMasterConfig()
     RegisterParameter("enable_networking", EnableNetworking)
         .Default(true);
     RegisterParameter("cluster_connection", ClusterConnection);
+    RegisterParameter("use_new_hydra", UseNewHydra)
+        .Default(false);
 
     RegisterPostprocessor([&] {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {

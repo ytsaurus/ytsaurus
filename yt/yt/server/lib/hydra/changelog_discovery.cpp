@@ -1,12 +1,11 @@
 #include "changelog_discovery.h"
 #include "private.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/config.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
-
-#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -70,7 +69,7 @@ private:
                 peerId,
                 ChangelogId_);
 
-            THydraServiceProxy proxy(channel);
+            TLegacyHydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.LookupChangelog();
@@ -87,7 +86,7 @@ private:
 
     void OnResponse(
         TPeerId peerId,
-        const THydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
+        const TLegacyHydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v)",
@@ -220,7 +219,7 @@ private:
             YT_LOG_DEBUG("Requesting changelog info (PeerId: %v)",
                 peerId);
 
-            THydraServiceProxy proxy(channel);
+            TLegacyHydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.LookupChangelog();
@@ -235,7 +234,7 @@ private:
 
     void OnResponse(
         TPeerId peerId,
-        const THydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
+        const TLegacyHydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
             const auto& rsp = rspOrError.Value();

@@ -5,9 +5,13 @@
 #include <yt/yt/server/lib/election/config.h>
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/distributed_election_manager.h>
+#include <yt/yt/server/lib/election/public.h>
+
+#include <yt/yt/ytlib/election/proto/election_service.pb.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/public.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -18,11 +22,15 @@
 #include <yt/yt/core/rpc/server.h>
 #include <yt/yt/core/rpc/static_channel_factory.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 namespace NYT::NElection {
 namespace {
 
 using namespace NConcurrency;
 using namespace NRpc;
+
+using NYT::ToProto;
 
 using testing::Return;
 using testing::InSequence;
@@ -82,7 +90,9 @@ public:
 
         EXPECT_CALL(*CallbacksMock, FormatPriority(_))
             .WillRepeatedly(Invoke([] (TPeerPriority priority) {
-                return ToString(priority);
+                return Format("{First: %v, Second: %v}",
+                    priority.first,
+                    priority.second);
             }));
     }
 
@@ -146,7 +156,7 @@ TEST_F(TElectionTest, SinglePeer)
     Configure(1, 0);
 
     EXPECT_CALL(*CallbacksMock, GetPriority())
-        .WillRepeatedly(Return(0));
+        .WillRepeatedly(Return(std::make_pair(0LL, 0LL)));
 
     {
         InSequence dummy;
@@ -162,7 +172,7 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
     Configure(3, 0);
 
     EXPECT_CALL(*CallbacksMock, GetPriority())
-        .WillRepeatedly(Return(0));
+        .WillRepeatedly(Return(std::make_pair(0LL, 0LL)));
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
@@ -171,7 +181,7 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
                 response->set_state(static_cast<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
                 response->set_vote_id(2);
                 ToProto(response->mutable_vote_epoch_id(), TEpochId());
-                response->set_priority(id);
+                ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0LL, id));
                 response->set_self_id(id);
                 context->Reply();
             }));
@@ -191,7 +201,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
     Configure(3, 0);
 
     EXPECT_CALL(*CallbacksMock, GetPriority())
-        .WillRepeatedly(Return(0));
+        .WillRepeatedly(Return(std::make_pair(0LL, 0LL)));
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
@@ -207,7 +217,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
                 response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
-                response->set_priority(id);
+                ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0, id));
                 response->set_self_id(id);
                 context->Reply();
             }));
@@ -238,7 +248,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
     Configure(3, 0);
 
     EXPECT_CALL(*CallbacksMock, GetPriority())
-        .WillRepeatedly(Return(0));
+        .WillRepeatedly(Return(std::make_pair(0LL, 0LL)));
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
@@ -254,7 +264,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
                 response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
-                response->set_priority(id);
+                ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0, id));
                 response->set_self_id(id);
                 context->Reply();
             }));
@@ -278,7 +288,7 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
     Configure(3, 0);
 
     EXPECT_CALL(*CallbacksMock, GetPriority())
-        .WillRepeatedly(Return(0));
+        .WillRepeatedly(Return(std::make_pair(0LL, 0LL)));
 
     int startLeadingCounter = 0;
     for (int id = 1; id < 3; id++) {
@@ -295,7 +305,7 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
                 response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
-                response->set_priority(id);
+                ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0, id));
                 response->set_self_id(id);
                 context->Reply();
             }));
@@ -332,7 +342,7 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
     Configure(3, 0);
 
     EXPECT_CALL(*CallbacksMock, GetPriority())
-        .WillRepeatedly(Return(0));
+        .WillRepeatedly(Return(std::make_pair(0LL, 0LL)));
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
@@ -348,7 +358,7 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
                 response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
-                response->set_priority(id);
+                ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0, id));
                 response->set_self_id(id);
                 context->Reply();
             }));
@@ -420,7 +430,7 @@ TEST_P(TElectionGenericTest, Basic)
     TElectionTestData data = GetParam();
 
     EXPECT_CALL(*CallbacksMock, GetPriority())
-        .WillRepeatedly(Return(0));
+        .WillRepeatedly(Return(std::make_pair(0LL, 0LL)));
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
@@ -430,7 +440,7 @@ TEST_P(TElectionGenericTest, Basic)
                     response->set_state(static_cast<int>(status->State));
                     response->set_vote_id(status->VoteId);
                     ToProto(response->mutable_vote_epoch_id(), status->VoteEpochId);
-                    response->set_priority(status->Priority);
+                    ToProto(response->mutable_priority(), status->Priority);
                     response->set_self_id(id);
                     context->Reply();
                 }
@@ -463,34 +473,34 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         TElectionTestData(
             -1,
-            TStatus(EPeerState::Following, 0, TEpochId(), 1),
-            TStatus(EPeerState::Following, 0, TEpochId(), 2)
+            TStatus(EPeerState::Following, 0, TEpochId(), {0, 1}),
+            TStatus(EPeerState::Following, 0, TEpochId(), {0, 2})
         ),
         TElectionTestData(
             1,
-            TStatus(EPeerState::Leading, 1, OtherEpoch, 1)
+            TStatus(EPeerState::Leading, 1, OtherEpoch, {0, 1})
         ),
         TElectionTestData(
             -1,
-            TStatus(EPeerState::Leading, 1, OtherEpoch, -1)
+            TStatus(EPeerState::Leading, 1, OtherEpoch, {-1, -1})
         ),
         // all followers
         TElectionTestData(
             -1,
-            TStatus(EPeerState::Following, 1, OtherEpoch, 1),
-            TStatus(EPeerState::Following, 2, OtherEpoch, 2)
+            TStatus(EPeerState::Following, 1, OtherEpoch, {0, 1}),
+            TStatus(EPeerState::Following, 2, OtherEpoch, {0, 2})
         ),
         // all leaders
         TElectionTestData(
             2,
-            TStatus(EPeerState::Leading, 1, OtherEpoch, 1),
-            TStatus(EPeerState::Leading, 2, OtherEpoch, 2)
+            TStatus(EPeerState::Leading, 1, OtherEpoch, {0, 1}),
+            TStatus(EPeerState::Leading, 2, OtherEpoch, {0, 2})
         ),
         // potential leader should recognize itself as a leader
         TElectionTestData(
             -1,
-            TStatus(EPeerState::Following, 2, OtherEpoch, 1),
-            TStatus(EPeerState::Following, 2, OtherEpoch, 2)
+            TStatus(EPeerState::Following, 2, OtherEpoch, {0, 1}),
+            TStatus(EPeerState::Following, 2, OtherEpoch, {0, 2})
         )
 ));
 
@@ -508,7 +518,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
     auto delay = GetParam();
 
     EXPECT_CALL(*CallbacksMock, GetPriority())
-        .WillRepeatedly(Return(0));
+        .WillRepeatedly(Return(std::make_pair(0LL, 0LL)));
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
@@ -517,7 +527,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
                     response->set_state(static_cast<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
                     response->set_vote_id(2);
                     ToProto(response->mutable_vote_epoch_id(), TEpochId());
-                    response->set_priority(id);
+                    ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0, id));
                     response->set_self_id(id);
                     context->Reply();
                 }), delay);

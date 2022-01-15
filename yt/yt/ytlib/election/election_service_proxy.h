@@ -15,7 +15,7 @@ class TElectionServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TElectionServiceProxy, ElectionService,
-        .SetProtocolVersion(1));
+        .SetProtocolVersion(2));
 
     DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));

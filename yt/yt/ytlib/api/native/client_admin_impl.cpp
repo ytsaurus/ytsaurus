@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/helpers.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
@@ -162,91 +163,13 @@ void TClient::DoSwitchLeader(
 
     auto newLeaderChannel = createChannel(newLeaderAddress);
 
-    {
-        YT_LOG_INFO("Validating new leader");
-
-        THydraServiceProxy proxy(newLeaderChannel);
-        auto req = proxy.GetPeerState();
-        req->SetTimeout(options.Timeout);
-
-        auto rspOrError = WaitFor(req->Invoke());
-        if (rspOrError.IsOK()) {
-            auto state = FromProto<EPeerState>(rspOrError.Value()->peer_state());
-            if (state != EPeerState::Following) {
-                THROW_ERROR_EXCEPTION("Invalid peer state: expected %Qlv, found %Qlv",
-                    EPeerState::Following,
-                    state);
-            }
-        } else {
-            auto error = TError(rspOrError);
-            // COMPAT(gritukan)
-            if (error.FindMatching(NRpc::EErrorCode::NoSuchMethod)) {
-                YT_LOG_INFO("Remote Hydra is too old, leader validation cannot be performed");
-            } else {
-                THROW_ERROR error;
-            }
-        }
-    }
-
-    {
-        YT_LOG_INFO("Preparing switch at current leader");
-
-        THydraServiceProxy proxy(currentLeaderChannel);
-        auto req = proxy.PrepareLeaderSwitch();
-        req->SetTimeout(options.Timeout);
-
-        WaitFor(req->Invoke())
-            .ValueOrThrow();
-    }
-
-    {
-        YT_LOG_INFO("Synchronizing new leader with the current one");
-
-        THydraServiceProxy proxy(newLeaderChannel);
-        auto req = proxy.ForceSyncWithLeader();
-        req->SetTimeout(options.Timeout);
-
-        WaitFor(req->Invoke())
-            .ValueOrThrow();
-    }
-
-    TError restartReason(
-        "Switching leader to %v by %Qv request",
+    NHydra::SwitchLeader(peerChannels,
+        currentLeaderChannel,
+        newLeaderChannel,
+        addresses,
         newLeaderAddress,
+        options.Timeout,
         Options_.User);
-
-    {
-        YT_LOG_INFO("Restarting new leader with priority boost armed");
-
-        THydraServiceProxy proxy(newLeaderChannel);
-        auto req = proxy.ForceRestart();
-        req->SetTimeout(options.Timeout);
-        ToProto(req->mutable_reason(), restartReason);
-        req->set_arm_priority_boost(true);
-
-        WaitFor(req->Invoke())
-            .ValueOrThrow();
-    }
-
-    {
-        YT_LOG_INFO("Restarting all other peers");
-
-        YT_VERIFY(peerChannels.size() == addresses.size());
-        for (int peerId = 0; peerId < std::ssize(peerChannels); ++peerId) {
-            const auto& peerAddress = addresses[peerId];
-            if (peerAddress == newLeaderAddress) {
-                continue;
-            }
-
-            THydraServiceProxy proxy(peerChannels[peerId]);
-            auto req = proxy.ForceRestart();
-            req->SetTimeout(options.Timeout);
-            ToProto(req->mutable_reason(), restartReason);
-
-            // Fire-and-forget.
-            req->Invoke();
-        }
-    }
 }
 
 void TClient::DoGCCollect(const TGCCollectOptions& options)

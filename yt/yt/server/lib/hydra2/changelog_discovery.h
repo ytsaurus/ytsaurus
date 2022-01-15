@@ -17,6 +17,12 @@ struct TChangelogInfo
     int RecordCount = -1;
 };
 
+TFuture<std::pair<int, int>> ComputeQuorumLatestChangelogId(
+    NHydra::TDistributedHydraManagerConfigPtr config,
+    NElection::TCellManagerPtr cellManager,
+    int localChangelogId,
+    int localTerm);
+
 //! Looks for a changelog with a given id containing the desired number of records.
 /*!
  *  If none are found, then |InvalidSegmentId| is returned in the info.

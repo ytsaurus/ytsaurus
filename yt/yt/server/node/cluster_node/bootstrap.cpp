@@ -90,7 +90,7 @@
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
 
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra/file_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/file_snapshot_store.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>

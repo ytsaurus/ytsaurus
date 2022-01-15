@@ -27,6 +27,7 @@ struct TMutationRequest
     NRpc::TMutationId MutationId;
     bool Retry = false;
     NTracing::TTraceContextPtr TraceContext;
+    TEpochId EpochId;
 };
 
 DEFINE_ENUM(EMutationResponseOrigin,

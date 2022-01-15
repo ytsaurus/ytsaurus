@@ -45,6 +45,8 @@ using TRevision = ui64;
 constexpr TRevision NullRevision = 0;
 
 struct TVersion;
+struct TReachableState;
+struct TElectionPriority;
 
 ////////////////////////////////////////////////////////////////////////////////
 

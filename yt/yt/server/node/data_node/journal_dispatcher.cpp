@@ -143,6 +143,11 @@ public:
             ChunkId_);
     }
 
+    const TChangelogMeta& GetMeta() const override
+    {
+        return UnderlyingChangelog_->GetMeta();
+    }
+
     int GetRecordCount() const override
     {
         return UnderlyingChangelog_->GetRecordCount();

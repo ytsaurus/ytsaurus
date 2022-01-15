@@ -10,20 +10,64 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReachableState
+{
+    int SegmentId = 0;
+    i64 SequenceNumber = 0;
+
+    TReachableState() = default;
+    TReachableState(int segmentId, i64 sequenceNumber) noexcept;
+
+    std::strong_ordering operator <=> (const TReachableState& other) const;
+    bool operator == (const TReachableState& other) const = default;
+};
+
+void FormatValue(TStringBuilderBase* builder, TReachableState state, TStringBuf /*spec*/);
+TString ToString(TReachableState state);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TElectionPriority
+{
+    // Actual election priority is a pair (LastMutationTerm, ReachableState.SequenceNumber).
+    // Term is used to determine a new leader's term.
+    // ReachableState.SegmentId is used as a hint for recovery.
+
+    // TODO(aleksandra-zh): Consider removing term from here.
+    int Term = 0;
+    int LastMutationTerm = 0;
+    TReachableState ReachableState;
+
+    TElectionPriority() = default;
+    TElectionPriority(
+        int term,
+        int lastMutationTerm,
+        int segmentId,
+        i64 sequenceNumber) noexcept;
+    TElectionPriority(
+        int term,
+        int lastMutationTerm,
+        TReachableState reachableState) noexcept;
+
+    std::strong_ordering operator <=> (const TElectionPriority& other) const;
+    bool operator == (const TElectionPriority& other) const = default;
+};
+
+void FormatValue(TStringBuilderBase* builder, TElectionPriority state, TStringBuf /*spec*/);
+TString ToString(TElectionPriority state);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TVersion
 {
-    int SegmentId;
-    int RecordId;
+    int SegmentId = 0;
+    int RecordId = 0;
 
-    TVersion() noexcept;
+    TVersion() = default;
     TVersion(int segmentId, int recordId) noexcept;
 
-    bool operator < (TVersion other) const;
-    bool operator == (TVersion other) const;
-    bool operator != (TVersion other) const;
-    bool operator > (TVersion other) const;
-    bool operator <= (TVersion other) const;
-    bool operator >= (TVersion other) const;
+    std::strong_ordering operator <=> (const TVersion& other) const;
+    bool operator == (const TVersion& other) const = default;
 
     TRevision ToRevision() const;
     static TVersion FromRevision(TRevision revision);

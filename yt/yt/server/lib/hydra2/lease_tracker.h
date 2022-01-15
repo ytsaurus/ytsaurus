@@ -81,7 +81,6 @@ class TLeaseTracker
 public:
     TLeaseTracker(
         NHydra::TDistributedHydraManagerConfigPtr config,
-        TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         TLeaderLeasePtr lease,
         std::vector<TCallback<TFuture<void>()>> customLeaseCheckers,
@@ -102,7 +101,6 @@ private:
     class TFollowerPinger;
 
     const NHydra::TDistributedHydraManagerConfigPtr Config_;
-    const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
     const TLeaderLeasePtr Lease_;
     const std::vector<TCallback<TFuture<void>()>> CustomLeaseCheckers_;

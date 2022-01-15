@@ -1,15 +1,15 @@
 #include "checkpointer.h"
 #include "decorated_automaton.h"
 #include "mutation_committer.h"
-#include "snapshot_discovery.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/snapshot_discovery.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 #include <yt/yt/client/hydra/version.h>
 
 namespace NYT::NHydra {
@@ -121,7 +121,7 @@ private:
                 YT_LOG_DEBUG("Requesting follower to build a snapshot (PeerId: %v)",
                     peerId);
 
-                THydraServiceProxy proxy(channel);
+                TLegacyHydraServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(Owner_->Config_->SnapshotBuildTimeout);
 
                 auto req = proxy.BuildSnapshot();
@@ -144,7 +144,7 @@ private:
                 .Via(Owner_->EpochContext_->EpochControlInvoker));
     }
 
-    void OnRemoteSnapshotBuilt(TPeerId id, const THydraServiceProxy::TErrorOrRspBuildSnapshotPtr& rspOrError)
+    void OnRemoteSnapshotBuilt(TPeerId id, const TLegacyHydraServiceProxy::TErrorOrRspBuildSnapshotPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
@@ -234,7 +234,7 @@ private:
 
             YT_LOG_DEBUG("Requesting follower to rotate the changelog (PeerId: %v)", peerId);
 
-            THydraServiceProxy proxy(channel);
+            TLegacyHydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Owner_->Config_->ControlRpcTimeout);
 
             auto req = proxy.RotateChangelog();
@@ -256,7 +256,7 @@ private:
                 .Via(Owner_->EpochContext_->EpochControlInvoker));
     }
 
-    void OnRemoteChangelogRotated(TPeerId id, const THydraServiceProxy::TErrorOrRspRotateChangelogPtr& rspOrError)
+    void OnRemoteChangelogRotated(TPeerId id, const TLegacyHydraServiceProxy::TErrorOrRspRotateChangelogPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 

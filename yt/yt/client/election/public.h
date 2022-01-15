@@ -8,7 +8,7 @@ namespace NYT::NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TEpochId = TGuid;
-using TPeerPriority = i64;
+using TPeerPriority = std::pair<i64, i64>;
 
 using TPeerId = int;
 constexpr TPeerId InvalidPeerId = -1;

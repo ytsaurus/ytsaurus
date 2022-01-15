@@ -27,8 +27,9 @@
 #include <yt/yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
 
-#include <yt/yt/server/lib/hydra/remote_changelog_store.h>
-#include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/remote_changelog_store.h>
+#include <yt/yt/server/lib/hydra_common/remote_snapshot_store.h>
+
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/hive/transaction_participant_provider.h>

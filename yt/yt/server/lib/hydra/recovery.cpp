@@ -3,6 +3,7 @@
 #include "config.h"
 #include "decorated_automaton.h"
 #include "changelog_discovery.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -12,7 +13,6 @@
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
-#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -163,7 +163,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             .ValueOrThrow();
 
         if (changelog) {
-            YT_LOG_INFO("Changelog opened (ChangelogId: %v)",
+        YT_LOG_INFO("Changelog opened (ChangelogId: %v)",
                 changelogId);
         } else {
             if (!IsLeader() && !Options_.WriteChangelogsAtFollowers) {
@@ -175,7 +175,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
                 changelogId,
                 currentVersion);
 
-            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId))
+            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, /* meta */ {}))
                 .ValueOrThrow();
         }
 
@@ -216,7 +216,7 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
     auto channel = EpochContext_->CellManager->GetPeerChannel(EpochContext_->LeaderId);
     YT_VERIFY(channel);
 
-    THydraServiceProxy proxy(channel);
+    TLegacyHydraServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
     auto req = proxy.LookupChangelog();

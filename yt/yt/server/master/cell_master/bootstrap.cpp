@@ -34,11 +34,10 @@
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-
-#include <yt/yt/server/lib/hydra/file_snapshot_store.h>
-#include <yt/yt/server/lib/hydra/local_changelog_store.h>
-#include <yt/yt/server/lib/hydra/local_snapshot_service.h>
-#include <yt/yt/server/lib/hydra/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/file_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
+#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/local_snapshot_service.h>
 
 #include <yt/yt/server/lib/discovery_server/config.h>
 #include <yt/yt/server/lib/discovery_server/discovery_server.h>
@@ -802,6 +801,7 @@ void TBootstrap::DoInitialize()
         });
 
     fileSnapshotStore->Initialize();
+
     AlertManager_->Initialize();
     ObjectManager_->Initialize();
     // Recalculates roles for master cells.
@@ -855,6 +855,7 @@ void TBootstrap::DoInitialize()
     for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
         RpcServer_->RegisterService(service); // cell realm
     }
+
     RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, fileSnapshotStore)); // cell realm
     RpcServer_->RegisterService(CreateNodeTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateDataNodeTrackerService(this)); // master hydra service

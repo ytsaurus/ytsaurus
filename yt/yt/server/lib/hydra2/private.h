@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/server/lib/hydra_common/public.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
 
@@ -7,27 +9,28 @@
 
 #include <yt/yt/core/misc/lazy_ptr.h>
 
+#include <yt/yt/core/concurrency/fls.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NHydra2 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TEpochContext)
-
-DECLARE_REFCOUNTED_CLASS(TSyncFileChangelog)
 DECLARE_REFCOUNTED_CLASS(TDecoratedAutomaton)
-DECLARE_REFCOUNTED_CLASS(TLeaderRecovery)
-DECLARE_REFCOUNTED_CLASS(TFollowerRecovery)
+DECLARE_REFCOUNTED_CLASS(TRecovery)
 DECLARE_REFCOUNTED_CLASS(TLeaderLease)
 DECLARE_REFCOUNTED_CLASS(TLeaseTracker)
 DECLARE_REFCOUNTED_CLASS(TLeaderCommitter)
 DECLARE_REFCOUNTED_CLASS(TFollowerCommitter)
-DECLARE_REFCOUNTED_CLASS(TCheckpointer)
-DECLARE_REFCOUNTED_CLASS(TFileSnapshotStore)
-DECLARE_REFCOUNTED_CLASS(TLocalHydraJanitor)
-DECLARE_REFCOUNTED_CLASS(TFileChangelog)
+
+DECLARE_REFCOUNTED_STRUCT(TEpochContext)
 DECLARE_REFCOUNTED_STRUCT(IChangelogDiscarder)
+DECLARE_REFCOUNTED_STRUCT(TPendingMutation)
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern NConcurrency::TFls<NElection::TEpochId> CurrentEpochId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +43,16 @@ using NElection::TEpochId;
 
 using NHydra::EPeerState;
 using NHydra::EErrorCode;
+using NHydra::EFinalRecoveryAction;
+
 using NHydra::HydraLogger;
+
+using NHydra::TVersion;
+using NHydra::TElectionPriority;
+using NHydra::TReachableState;
+
+using NHydra::InvalidPeerId;
+using NHydra::TReign;
 
 ////////////////////////////////////////////////////////////////////////////////
 

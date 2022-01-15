@@ -19,10 +19,13 @@
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
+#include <yt/yt/server/lib/hydra_common/local_hydra_janitor.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra/local_hydra_janitor.h>
 #include <yt/yt/server/lib/hydra/private.h>
+
+#include <yt/yt/server/lib/hydra2/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra2/private.h>
 
 #include <yt/yt/server/master/object_server/object.h>
 #include <yt/yt/server/master/object_server/private.h>
@@ -60,8 +63,8 @@ namespace NYT::NCellMaster {
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NElection;
-using namespace NHydra;
 using namespace NHiveServer;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,18 +124,33 @@ public:
         TDistributedHydraManagerDynamicOptions hydraManagerDynamicOptions{
             .AbandonLeaderLeaseDuringRecovery = true
         };
-        HydraManager_ = CreateDistributedHydraManager(
-            Config_->HydraManager,
-            Bootstrap_->GetControlInvoker(),
-            GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
-            Automaton_,
-            Bootstrap_->GetRpcServer(),
-            electionManagerThunk,
-            Bootstrap_->GetCellManager()->GetCellId(),
-            Bootstrap_->GetChangelogStoreFactory(),
-            Bootstrap_->GetSnapshotStore(),
-            hydraManagerOptions,
-            hydraManagerDynamicOptions);
+        if (Config_->UseNewHydra) {
+            HydraManager_ = NHydra2::CreateDistributedHydraManager(
+                Config_->HydraManager,
+                Bootstrap_->GetControlInvoker(),
+                GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
+                Automaton_,
+                Bootstrap_->GetRpcServer(),
+                electionManagerThunk,
+                Bootstrap_->GetCellManager()->GetCellId(),
+                Bootstrap_->GetChangelogStoreFactory(),
+                Bootstrap_->GetSnapshotStore(),
+                hydraManagerOptions,
+                hydraManagerDynamicOptions);
+        } else {
+            HydraManager_ = NHydra::CreateDistributedHydraManager(
+                Config_->HydraManager,
+                Bootstrap_->GetControlInvoker(),
+                GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
+                Automaton_,
+                Bootstrap_->GetRpcServer(),
+                electionManagerThunk,
+                Bootstrap_->GetCellManager()->GetCellId(),
+                Bootstrap_->GetChangelogStoreFactory(),
+                Bootstrap_->GetSnapshotStore(),
+                hydraManagerOptions,
+                hydraManagerDynamicOptions);
+        }
 
         HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
         HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));

@@ -31,6 +31,8 @@ DECLARE_REFCOUNTED_STRUCT(ISnapshotStore)
 
 DECLARE_REFCOUNTED_CLASS(TSnapshotStoreThunk)
 DECLARE_REFCOUNTED_CLASS(TChangelogStoreFactoryThunk)
+DECLARE_REFCOUNTED_CLASS(TLocalHydraJanitor)
+DECLARE_REFCOUNTED_CLASS(TFileSnapshotStore)
 
 struct TDistributedHydraManagerOptions;
 
@@ -61,7 +63,8 @@ DECLARE_REFCOUNTED_CLASS(TLocalHydraJanitorConfig)
 using TReign = int;
 
 //! A special value representing an invalid snapshot (or changelog) id.
-const int InvalidSegmentId = -1;
+constexpr int InvalidSegmentId = -1;
+constexpr int InvalidTerm = -1;
 
 template <class TValue>
 struct TDefaultEntityMapTraits;

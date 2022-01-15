@@ -182,7 +182,7 @@ public:
                     GetStartVersion(),
                     GetMutationCount());
 
-                THydraServiceProxy proxy(channel);
+                TLegacyHydraServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(owner->Config_->CommitFlushRpcTimeout);
 
                 auto request = proxy.AcceptMutations();
@@ -227,7 +227,7 @@ private:
     std::optional<TWallTimer> CommitTimer_;
 
 
-    void OnRemoteFlush(TPeerId followerId, const THydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
+    void OnRemoteFlush(TPeerId followerId, const TLegacyHydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
     {
         auto owner = Owner_.Lock();
         if (!owner) {
@@ -660,7 +660,7 @@ TFuture<TMutationResponse> TFollowerCommitter::Forward(TMutationRequest&& reques
     auto channel = CellManager_->GetPeerChannel(EpochContext_->LeaderId);
     YT_VERIFY(channel);
 
-    THydraServiceProxy proxy(channel);
+    TLegacyHydraServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->CommitForwardingRpcTimeout);
 
     auto req = proxy.CommitMutation();
@@ -672,7 +672,7 @@ TFuture<TMutationResponse> TFollowerCommitter::Forward(TMutationRequest&& reques
     }
     req->Attachments().push_back(request.Data);
 
-    return req->Invoke().Apply(BIND([] (const THydraServiceProxy::TErrorOrRspCommitMutationPtr& rspOrError) {
+    return req->Invoke().Apply(BIND([] (const TLegacyHydraServiceProxy::TErrorOrRspCommitMutationPtr& rspOrError) {
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error forwarding mutation to leader");
         const auto& rsp = rspOrError.Value();
         return TMutationResponse{

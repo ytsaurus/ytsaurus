@@ -3,6 +3,7 @@
 #include "config.h"
 #include "decorated_automaton.h"
 #include "changelog_discovery.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -28,11 +29,11 @@ using namespace NRpc;
 using namespace NElection;
 using namespace NConcurrency;
 using namespace NHydra;
-using namespace NHydra::NProto;
+using namespace NHydra2::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRecoveryBase::TRecoveryBase(
+TRecovery::TRecovery(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
     const TDistributedHydraManagerDynamicOptions& dynamicOptions,
@@ -41,7 +42,8 @@ TRecoveryBase::TRecoveryBase(
     ISnapshotStorePtr snapshotStore,
     TResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext,
-    TVersion syncVersion,
+    TReachableState targetState,
+    bool isLeader,
     NLogging::TLogger logger)
     : Config_(std::move(config))
     , Options_(options)
@@ -51,7 +53,8 @@ TRecoveryBase::TRecoveryBase(
     , SnapshotStore_(std::move(snapshotStore))
     , ResponseKeeper_(std::move(responseKeeper))
     , EpochContext_(epochContext)
-    , SyncVersion_(syncVersion)
+    , TargetState_(targetState)
+    , IsLeader_(isLeader)
     , Logger(std::move(logger))
 {
     YT_VERIFY(Config_);
@@ -62,55 +65,50 @@ TRecoveryBase::TRecoveryBase(
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
 }
 
-void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
+void TRecovery::Recover(int term)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YT_VERIFY(EpochContext_->ReachableVersion <= targetVersion);
+    auto epochContext = EpochContext_;
+    // >?
+    if (epochContext->Term != term) {
+        THROW_ERROR_EXCEPTION("Cannot recover to term %v in term %v",
+            epochContext->Term,
+            term);
+    }
 
-    auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
-    if (currentVersion > targetVersion) {
-        // NB: YT-14934, rollback is possible at observers but not at leaders.
-        if (IsLeader()) {
-            YT_LOG_FATAL("Current automaton version is greater than target version during leader recovery "
-                "(CurrentVersion: %v, TargetVersion: %v)",
-                currentVersion,
-                targetVersion);
+    auto currentState = DecoratedAutomaton_->GetReachableState();
+    if (currentState > TargetState_) {
+        // NB: YT-14934, rollback is possible at followers but not at leaders.
+        if (IsLeader_) {
+            YT_LOG_FATAL("Current automaton state is greater than target state during leader recovery "
+                "(CurrentState: %v, TargetState: %v)",
+                currentState,
+                TargetState_);
         } else {
-            THROW_ERROR_EXCEPTION("Error recovering to version %v: current automaton version %v is greater",
-                targetVersion,
-                currentVersion);
+            THROW_ERROR_EXCEPTION("Error recovering to state %v: current automaton state %v is greater",
+                TargetState_,
+                currentState);
         }
     }
 
-    auto reachableVersion = EpochContext_->ReachableVersion;
-    YT_VERIFY(reachableVersion <= targetVersion);
-
     int snapshotId = InvalidSegmentId;
-    if (targetVersion.SegmentId > currentVersion.SegmentId) {
-        auto snapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId(targetVersion.SegmentId));
+    if (TargetState_.SegmentId > currentState.SegmentId) {
+        auto snapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId());
         THROW_ERROR_EXCEPTION_IF_FAILED(snapshotIdOrError, "Error computing the latest snapshot id");
-
         snapshotId = snapshotIdOrError.Value();
-        YT_VERIFY(snapshotId <= targetVersion.SegmentId);
     }
 
-    YT_LOG_INFO("Recovering from version %v to version %v",
-        currentVersion,
-        targetVersion);
-
-    TVersion snapshotVersion;
-    if (snapshotId != InvalidSegmentId) {
-        snapshotVersion = TVersion(snapshotId, 0);
-    }
+     YT_LOG_INFO("Recovering from %v to %v",
+        currentState,
+        TargetState_);
 
     int initialChangelogId;
-    if (snapshotVersion > currentVersion) {
+    if (snapshotId > currentState.SegmentId) {
         // Load the snapshot.
-        YT_LOG_INFO("Using snapshot for recovery (SnapshotId: %v, SnapshotVersion: %v, CurrentVersion: %v)",
+        YT_LOG_INFO("Trying to use snapshot for recovery (SnapshotId: %v, CurrentState: %v)",
             snapshotId,
-            snapshotVersion,
-            currentVersion);
+            currentState);
 
         YT_VERIFY(snapshotId != InvalidSegmentId);
         auto snapshotReader = SnapshotStore_->CreateReader(snapshotId);
@@ -124,100 +122,120 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         auto stateHash = meta.state_hash();
         auto timestamp = FromProto<TInstant>(meta.timestamp());
 
-        if (ResponseKeeper_) {
-            ResponseKeeper_->Stop();
+        auto snapshotSegmentId = meta.has_last_segment_id() ? meta.last_segment_id() : snapshotId;
+        auto snapshotRecordId = meta.has_last_record_id() ? meta.last_record_id() : 0;
+        auto lastMutationTerm = meta.has_last_mutation_term() ? meta.last_mutation_term() : 0;
+
+        YT_VERIFY(snapshotSegmentId >= currentState.SegmentId);
+        YT_VERIFY(sequenceNumber >= currentState.SequenceNumber);
+
+        YT_LOG_INFO("Snapshot state (SegmentId: %v, SequenceNumber: %v)",
+            snapshotSegmentId,
+            sequenceNumber);
+
+        if (snapshotSegmentId == currentState.SegmentId && sequenceNumber == currentState.SequenceNumber) {
+            YT_LOG_INFO("No need to use snapshot for recovery");
+        } else {
+            YT_LOG_INFO("Using snapshot for recovery");
+            if (ResponseKeeper_) {
+                ResponseKeeper_->Stop();
+            }
+
+            auto future = BIND(&TDecoratedAutomaton::LoadSnapshot, DecoratedAutomaton_)
+                .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
+                .Run(snapshotId,
+                    lastMutationTerm,
+                    {snapshotSegmentId, snapshotRecordId},
+                    sequenceNumber,
+                    randomSeed,
+                    stateHash,
+                    timestamp,
+                    snapshotReader);
+            WaitFor(future)
+                .ThrowOnError();
         }
 
-        DecoratedAutomaton_->LoadSnapshot(
-            snapshotId,
-            snapshotVersion,
-            sequenceNumber,
-            randomSeed,
-            stateHash,
-            timestamp,
-            snapshotReader);
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.
-        YT_LOG_INFO("Not using snapshots for recovery (SnapshotVersion: %v, CurrentVersion: %v)",
-            snapshotVersion,
-            currentVersion);
-        initialChangelogId = currentVersion.SegmentId;
+        YT_LOG_INFO("Not using snapshots for recovery (SnapshotId: %v, CurrentState: %v)",
+            snapshotId,
+            currentState);
+        initialChangelogId = currentState.SegmentId;
     }
 
     // Shortcut for observer startup.
-    if (targetVersion == TVersion() && !IsLeader() && !Options_.WriteChangelogsAtFollowers)
+    // TODO
+    if (TargetState_ == TReachableState() && !IsLeader_ && !Options_.WriteChangelogsAtFollowers) {
         return;
+    }
 
-    YT_LOG_INFO("Replaying changelogs (ChangelogIds: %v-%v, TargetVersion: %v)",
+    YT_LOG_INFO("Replaying changelogs (ChangelogIds: %v-%v, TargetState: %v)",
         initialChangelogId,
-        targetVersion.SegmentId,
-        targetVersion);
+        TargetState_.SegmentId,
+        TargetState_);
 
-    IChangelogPtr targetChangelog;
-    int changelogId = initialChangelogId;
-    while (changelogId <= targetVersion.SegmentId) {
+    auto changelogId = initialChangelogId;
+    IChangelogPtr changelog;
+    while (changelogId <= TargetState_.SegmentId) {
         YT_LOG_INFO("Opening changelog (ChangelogId: %v)",
             changelogId);
 
-        auto changelog = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId))
+        changelog = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId))
             .ValueOrThrow();
 
         if (changelog) {
             YT_LOG_INFO("Changelog opened (ChangelogId: %v)",
                 changelogId);
         } else {
-            if (!IsLeader() && !Options_.WriteChangelogsAtFollowers) {
+            if (!IsLeader_ && !Options_.WriteChangelogsAtFollowers) {
                 THROW_ERROR_EXCEPTION("Changelog %v is missing", changelogId);
             }
 
-            auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
-            YT_LOG_INFO("Changelog is missing and will be created (ChangelogId: %v, Version: %v)",
-                changelogId,
-                currentVersion);
+            // Leader can miss a changelog if we are recovering to snapshot version.
 
-            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId))
+            YT_LOG_INFO("Changelog is missing and will be created (ChangelogId: %v)",
+                changelogId);
+
+            NHydra::NProto::TChangelogMeta meta;
+            meta.set_term(term);
+            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
                 .ValueOrThrow();
         }
 
-        if (!IsLeader() && Options_.WriteChangelogsAtFollowers) {
+        if (!IsLeader_ && Options_.WriteChangelogsAtFollowers) {
             SyncChangelog(changelog, changelogId);
         }
 
-        int targetRecordId = changelogId == targetVersion.SegmentId
-            ? targetVersion.RecordId
-            : changelog->GetRecordCount();
+        // int targetRecordId = changelogId == targetVersion.SegmentId
+        //     ? targetVersion.RecordId
+        //     : changelog->GetRecordCount();
 
-        if (!ReplayChangelog(changelog, changelogId, targetRecordId)) {
+        if (!ReplayChangelog(changelog, changelogId, TargetState_.SequenceNumber)) {
             TDelayedExecutor::WaitForDuration(Config_->ChangelogRecordCountCheckRetryPeriod);
             continue;
         }
 
-        if (changelogId == targetVersion.SegmentId) {
-            targetChangelog = changelog;
-        }
-
         ++changelogId;
+        // verify term
     }
 
-    YT_VERIFY(targetChangelog);
-
-    if (IsLeader() || Options_.WriteChangelogsAtFollowers) {
-        YT_VERIFY(targetChangelog->GetRecordCount() == targetVersion.RecordId);
-        DecoratedAutomaton_->SetChangelog(targetChangelog);
+    auto automatonState = DecoratedAutomaton_->GetReachableState();
+    if (automatonState != TargetState_) {
+        THROW_ERROR_EXCEPTION("Unable to recover to version (AutomatonState: %v, TargetState: %v)",
+            automatonState,
+            TargetState_);
     }
-
-    DecoratedAutomaton_->SetLoggedVersion(targetVersion);
 }
 
-void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
+void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto channel = EpochContext_->CellManager->GetPeerChannel(EpochContext_->LeaderId);
     YT_VERIFY(channel);
 
-    THydraServiceProxy proxy(channel);
+    TInternalHydraServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
     auto req = proxy.LookupChangelog();
@@ -230,106 +248,58 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
 
     int remoteRecordCount = rsp->record_count();
     int localRecordCount = changelog->GetRecordCount();
-    // NB: Don't download records past the sync point since they are expected to be postponed.
-    int syncRecordCount = changelogId == SyncVersion_.SegmentId
-        ? SyncVersion_.RecordId
-        : remoteRecordCount;
 
-    YT_LOG_INFO("Syncing changelog %v: local %v, remote %v, sync %v",
+    YT_LOG_INFO("Syncing changelog %v: local %v, remote %v",
         changelogId,
         localRecordCount,
-        remoteRecordCount,
-        syncRecordCount);
+        remoteRecordCount);
 
     if (localRecordCount > remoteRecordCount) {
-        YT_VERIFY(syncRecordCount == remoteRecordCount);
         auto result = WaitFor(changelog->Truncate(remoteRecordCount));
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error truncating changelog");
-    } else if (localRecordCount < syncRecordCount) {
+    } else if (localRecordCount < remoteRecordCount) {
         auto asyncResult = DownloadChangelog(
             Config_,
             EpochContext_->CellManager,
             ChangelogStore_,
             changelogId,
-            syncRecordCount);
+            remoteRecordCount);
         auto result = WaitFor(asyncResult);
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error downloading changelog records");
     }
 }
 
-bool TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId)
+bool TRecovery::ReplayChangelog(IChangelogPtr changelog, int changelogId, i64 targetSequenceNumber)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
-
-    YT_LOG_INFO("Replaying changelog %v from version %v to version %v",
+    const auto& meta = changelog->GetMeta();
+    auto changelogTerm = meta.term();
+    auto changelogRecordCount = changelog->GetRecordCount();
+    YT_LOG_INFO("Replaying changelog %v (RecordCount: %v, TargetSequenceNumber: %v, Term: %v)",
         changelogId,
-        currentVersion,
-        TVersion(changelogId, targetRecordId));
+        changelogRecordCount,
+        targetSequenceNumber,
+        changelogTerm);
 
-    if (currentVersion.SegmentId != changelogId) {
-        YT_VERIFY(currentVersion.SegmentId == changelogId - 1);
-
-        // Prepare to apply mutations at the rotated version.
-        DecoratedAutomaton_->RotateAutomatonVersion(changelogId);
+    int currentRecordId = 0;
+    auto automatonVersion = DecoratedAutomaton_->GetAutomatonVersion();
+    if (automatonVersion.SegmentId == changelogId) {
+        currentRecordId = automatonVersion.RecordId;
     }
 
-    YT_LOG_INFO("Checking changelog record count (ChangelogId: %v)",
-        changelogId);
+    while (currentRecordId < changelogRecordCount && DecoratedAutomaton_->GetSequenceNumber() < targetSequenceNumber) {
+        auto automatonNumber = DecoratedAutomaton_->GetSequenceNumber();
+        auto recordsNeeded = targetSequenceNumber - automatonNumber;
+        YT_VERIFY(recordsNeeded > 0);
 
-    if (changelog->GetRecordCount() < targetRecordId) {
-        YT_LOG_INFO("Changelog record count is too low (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
-            changelogId,
-            targetRecordId,
-            changelog->GetRecordCount());
-        return false;
-    }
-
-    YT_LOG_INFO("Changelog record count is OK (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
-        changelogId,
-        targetRecordId,
-        changelog->GetRecordCount());
-
-    YT_LOG_INFO("Checking changelog quorum record count (ChangelogId: %v)",
-        changelogId);
-
-    auto asyncResult = ComputeChangelogQuorumInfo(
-        Config_,
-        EpochContext_->CellManager,
-        changelogId,
-        changelog->GetRecordCount());
-    auto result = WaitFor(asyncResult)
-        .ValueOrThrow();
-
-    if (result.RecordCountLo < targetRecordId) {
-        YT_LOG_INFO("Changelog quorum record count is too low (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
-            changelogId,
-            targetRecordId,
-            result.RecordCountLo);
-        return false;
-    }
-
-    YT_LOG_INFO("Changelog quorum record count is OK (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
-        changelogId,
-        targetRecordId,
-        result.RecordCountLo);
-
-    while (true) {
-        int startRecordId = DecoratedAutomaton_->GetAutomatonVersion().RecordId;
-        int recordsNeeded = targetRecordId - startRecordId;
-        YT_VERIFY(recordsNeeded >= 0);
-        if (recordsNeeded == 0) {
-            break;
-        }
-
-        YT_LOG_INFO("Trying to read records %v-%v from changelog %v",
-            startRecordId,
-            targetRecordId - 1,
+        YT_LOG_INFO("Trying to read mutations %v-%v from changelog %v",
+            currentRecordId,
+            currentRecordId + recordsNeeded - 1,
             changelogId);
 
         auto asyncRecordsData = changelog->Read(
-            startRecordId,
+            currentRecordId,
             recordsNeeded,
             Config_->MaxChangelogBytesPerRequest);
         auto recordsData = WaitFor(asyncRecordsData)
@@ -337,243 +307,43 @@ bool TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
         int recordsRead = static_cast<int>(recordsData.size());
 
         YT_LOG_INFO("Finished reading records %v-%v from changelog %v",
-            startRecordId,
-            startRecordId + recordsRead - 1,
+            currentRecordId,
+            currentRecordId + recordsRead - 1,
             changelogId);
 
         YT_LOG_INFO("Applying records %v-%v from changelog %v",
-            startRecordId,
-            startRecordId + recordsRead - 1,
+            currentRecordId,
+            currentRecordId + recordsRead - 1,
             changelogId);
 
-        for (const auto& data : recordsData)  {
-            DecoratedAutomaton_->ApplyMutationDuringRecovery(data);
-        }
+        auto future = BIND([=, this_ = MakeStrong(this), recordsData = std::move(recordsData)] {
+                for (const auto& data : recordsData)  {
+                    DecoratedAutomaton_->ApplyMutationDuringRecovery(data, changelogTerm);
+                }
+            })
+            .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
+            .Run();
+
+        WaitFor(future)
+            .ThrowOnError();
+
+        currentRecordId += recordsRead;
     }
 
+    auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
+    YT_LOG_INFO("Replayed changelog (AutomatonSequenceNumber: %v, TargetSequenceNumber: %v)",
+        automatonSequenceNumber,
+        targetSequenceNumber);
     return true;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TLeaderRecovery::TLeaderRecovery(
-    TDistributedHydraManagerConfigPtr config,
-    const TDistributedHydraManagerOptions& options,
-    const TDistributedHydraManagerDynamicOptions& dynamicOptions,
-    TDecoratedAutomatonPtr decoratedAutomaton,
-    IChangelogStorePtr changelogStore,
-    ISnapshotStorePtr snapshotStore,
-    TResponseKeeperPtr responseKeeper,
-    TEpochContext* epochContext,
-    NLogging::TLogger logger)
-    : TRecoveryBase(
-        std::move(config),
-        options,
-        dynamicOptions,
-        std::move(decoratedAutomaton),
-        std::move(changelogStore),
-        std::move(snapshotStore),
-        std::move(responseKeeper),
-        epochContext,
-        epochContext->ReachableVersion,
-        std::move(logger))
-{ }
-
-TFuture<void> TLeaderRecovery::Run()
+TFuture<void> TRecovery::Run(int term)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return BIND(&TLeaderRecovery::DoRun, MakeStrong(this))
-        .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
-        .Run();
-}
-
-void TLeaderRecovery::DoRun()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    if (EpochContext_->ChangelogStore->IsReadOnly()) {
-        THROW_ERROR_EXCEPTION("Cannot recover leader with a read-only changelog store");
-    }
-
-    RecoverToVersion(EpochContext_->ReachableVersion);
-}
-
-bool TLeaderRecovery::IsLeader() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFollowerRecovery::TFollowerRecovery(
-    TDistributedHydraManagerConfigPtr config,
-    const TDistributedHydraManagerOptions& options,
-    const TDistributedHydraManagerDynamicOptions& dynamicOptions,
-    TDecoratedAutomatonPtr decoratedAutomaton,
-    IChangelogStorePtr changelogStore,
-    ISnapshotStorePtr snapshotStore,
-    TResponseKeeperPtr responseKeeper,
-    TEpochContext* epochContext,
-    TVersion syncVersion,
-    NLogging::TLogger logger)
-    : TRecoveryBase(
-        std::move(config),
-        options,
-        dynamicOptions,
-        std::move(decoratedAutomaton),
-        std::move(changelogStore),
-        std::move(snapshotStore),
-        std::move(responseKeeper),
-        epochContext,
-        syncVersion,
-        std::move(logger))
-    , PostponedVersion_(syncVersion)
-    , CommittedVersion_(syncVersion)
-{ }
-
-TFuture<void> TFollowerRecovery::Run()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return BIND(&TFollowerRecovery::DoRun, MakeStrong(this))
-        .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
-        .Run();
-}
-
-void TFollowerRecovery::DoRun()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    RecoverToVersion(SyncVersion_);
-
-    YT_LOG_INFO("Checkpoint reached; started catching up with leader");
-
-    while (true) {
-        TVersion committedVersion;
-        {
-            auto guard = Guard(SpinLock_);
-            committedVersion = CommittedVersion_;
-        }
-
-        DecoratedAutomaton_->CommitMutations(committedVersion, false);
-
-        decltype(PostponedActions_) postponedActions;
-        {
-            auto guard = Guard(SpinLock_);
-            postponedActions.swap(PostponedActions_);
-            if (postponedActions.empty() && !DecoratedAutomaton_->HasReadyMutations()) {
-                YT_LOG_INFO("No more postponed actions accepted");
-                NoMorePostponedActions_ = true;
-                break;
-            }
-        }
-
-        YT_LOG_INFO("Logging postponed actions (ActionCount: %v)",
-            postponedActions.size());
-
-        for (const auto& action : postponedActions) {
-            Visit(action,
-                [&] (const TPostponedMutation& mutation) {
-                    DecoratedAutomaton_->LogFollowerMutation(mutation.RecordData, nullptr);
-                },
-                [&] (TPostponedChangelogRotation) {
-                    WaitFor(DecoratedAutomaton_->RotateChangelog())
-                        .ThrowOnError();
-                });
-        }
-    }
-
-    YT_LOG_INFO("Finished catching up with leader");
-}
-
-bool TFollowerRecovery::PostponeChangelogRotation(TVersion version)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto guard = Guard(SpinLock_);
-
-    if (NoMorePostponedActions_) {
-        return false;
-    }
-
-    if (PostponedVersion_ > version) {
-        YT_LOG_DEBUG("Late changelog rotation received during recovery, ignored: expected %v, received %v",
-            PostponedVersion_,
-            version);
-        return true;
-    }
-
-    if (PostponedVersion_ < version) {
-        THROW_ERROR_EXCEPTION("Out-of-order changelog rotation received during recovery: expected %v, received %v",
-            PostponedVersion_,
-            version);
-    }
-
-    PostponedActions_.push_back(TPostponedChangelogRotation());
-
-    YT_LOG_INFO("Postponing changelog rotation at version %v",
-        PostponedVersion_);
-
-    PostponedVersion_ = PostponedVersion_.Rotate();
-
-    return true;
-}
-
-bool TFollowerRecovery::PostponeMutations(
-    TVersion version,
-    const std::vector<TSharedRef>& recordsData)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto guard = Guard(SpinLock_);
-
-    if (NoMorePostponedActions_) {
-        return false;
-    }
-
-    if (PostponedVersion_ > version) {
-        YT_LOG_DEBUG("Late mutations received during recovery, ignored: expected %v, received %v",
-            PostponedVersion_,
-            version);
-        return true;
-    }
-
-    if (PostponedVersion_ != version) {
-        THROW_ERROR_EXCEPTION("Out-of-order mutations received during recovery: expected %v, received %v",
-            PostponedVersion_,
-            version);
-    }
-
-    YT_LOG_DEBUG("Mutations postponed (StartVersion: %v, MutationCount: %v)",
-        PostponedVersion_,
-        recordsData.size());
-
-    for (const auto& data : recordsData) {
-        PostponedActions_.push_back(TPostponedMutation{data});
-    }
-
-    PostponedVersion_ = PostponedVersion_.Advance(recordsData.size());
-
-    return true;
-}
-
-void TFollowerRecovery::SetCommittedVersion(TVersion version)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto guard = Guard(SpinLock_);
-
-    CommittedVersion_ = std::max(CommittedVersion_, version);
-}
-
-bool TFollowerRecovery::IsLeader() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return false;
+    return BIND(&TRecovery::Recover, MakeStrong(this))
+        .AsyncVia(EpochContext_->EpochControlInvoker)
+        .Run(term);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
