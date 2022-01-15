@@ -59,7 +59,7 @@ CLUSTER_CONNECTION_CONFIG_PATCH = {
 }
 
 SCHEDULER_CONFIG_PATCH = {
-    "cluster_connection":  CLUSTER_CONNECTION_CONFIG_PATCH,
+    "cluster_connection": CLUSTER_CONNECTION_CONFIG_PATCH,
     "scheduler": {
         "operations_update_period": None,
         "watchers_update_period": 300,
@@ -92,7 +92,7 @@ CONTROLLER_AGENT_CONFIG_PATCH = {
 
 NODE_CONFIG_PATCHES = [
     {
-        "cluster_connection":  CLUSTER_CONNECTION_CONFIG_PATCH,
+        "cluster_connection": CLUSTER_CONNECTION_CONFIG_PATCH,
         "master_connector": {
             "heartbeat_period": 300,
             "heartbeat_period_splay": 50,
@@ -223,6 +223,9 @@ def modify_cluster_configuration(yt_config, cluster_configuration):
     for config in itervalues(cluster_configuration["driver"]):
         if yt_config.optimize_config:
             update_inplace(config, DRIVER_CONFIG_PATCH)
+
+        if yt_config.delta_driver_config:
+            update_inplace(config, yt_config.delta_driver_config)
 
     for config in cluster_configuration["scheduler"]:
         if yt_config.optimize_config:

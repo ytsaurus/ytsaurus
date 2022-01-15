@@ -144,6 +144,9 @@ class YtTestEnvironment(object):
             for config in configs["http_proxy"]:
                 if delta_proxy_config:
                     update_inplace(config, delta_proxy_config)
+            for config in configs["driver"]:
+                if delta_proxy_config:
+                    update_inplace(config, delta_proxy_config)
 
         local_temp_directory = os.path.join(sandbox_path, "tmp_" + run_id)
         if not os.path.exists(local_temp_directory):
