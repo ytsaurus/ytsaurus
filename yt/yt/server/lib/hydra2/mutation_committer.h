@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "decorated_automaton.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
 #include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
@@ -19,6 +20,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/mpsc_queue.h>
+
 #include <yt/yt/core/profiling/profiler.h>
 
 #include <yt/yt/library/tracing/async_queue_trace.h>
@@ -27,20 +30,18 @@ namespace NYT::NHydra2 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMutationDraft
+{
+    NHydra::TMutationRequest Request;
+    TPromise<NHydra::TMutationResponse> Promise;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCommitterBase
     : public TRefCounted
 {
 public:
-    //! Temporarily suspends writing mutations to the changelog and keeps them in memory.
-    void SuspendLogging();
-
-    //! Resumes an earlier suspended mutation logging and sends out all pending mutations.
-    void ResumeLogging();
-
-    //! Returns |true| is mutation logging is currently suspended.
-    bool IsLoggingSuspended() const;
-
-
     //! Raised on mutation logging failure.
     DEFINE_SIGNAL(void(const TError& error), LoggingFailed);
 
@@ -53,8 +54,7 @@ protected:
         NLogging::TLogger logger,
         NProfiling::TProfiler profiler);
 
-    virtual void DoSuspendLogging() = 0;
-    virtual void DoResumeLogging() = 0;
+    TFuture<void> DoCommitMutations(std::vector<TPendingMutationPtr> mutations);
 
     const NHydra::TDistributedHydraManagerConfigPtr Config_;
     const NHydra::TDistributedHydraManagerOptions Options_;
@@ -65,24 +65,23 @@ protected:
 
     const NElection::TCellManagerPtr CellManager_;
 
-    NProfiling::TEventTimer LoggingSuspensionProfilingTimer_;
+    NHydra::NProto::TMutationHeader MutationHeader_;
+    TFuture<void> LastLoggedMutationFuture_ = VoidFuture;
 
-    bool LoggingSuspended_ = false;
-    std::optional<NProfiling::TWallTimer> LoggingSuspensionTimer_;
-    NConcurrency::TDelayedExecutorCookie LoggingSuspensionTimeoutCookie_;
+    int ChangelogId_ = -1;
+    NHydra::IChangelogPtr Changelog_;
+
+    DEFINE_BYVAL_RO_PROPERTY(i64, SelfCommittedSequenceNumber);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-private:
-    void OnLoggingSuspensionTimeout();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages commits carried out by a leader.
 /*!
- *  \note Thread affinity: AutomatonThread
+ *  \note Thread affinity: ControlThread
  */
 class TLeaderCommitter
     : public TCommitterBase
@@ -92,29 +91,27 @@ public:
         NHydra::TDistributedHydraManagerConfigPtr config,
         const NHydra::TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
+        TLeaderLeasePtr leaderLease,
+        TMpscQueue<TMutationDraft>* queue,
+        int changelogId,
+        NHydra::IChangelogPtr changelog,
+        TReachableState reachableState,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
         NProfiling::TProfiler profiler);
 
     ~TLeaderCommitter();
 
-    //! Initiates a new distributed commit.
-    /*!
-     *  A distributed commit is completed when the mutation is received, applied,
-     *  and flushed to the changelog by a quorum of replicas.
-     */
-    TFuture<NHydra::TMutationResponse> Commit(NHydra::TMutationRequest&& request);
+    TReachableState GetCommittedState() const;
+    TVersion GetLoggedVersion() const;
 
-    //! Sends out the current batch of mutations.
-    void Flush();
+    bool CanBuildSnapshot() const;
+    TFuture<int> BuildSnapshot(bool waitForCompletion);
 
-    //! Returns a future that is set when all mutations submitted to #Commit are
-    //! flushed by a quorum of changelogs.
-    TFuture<void> GetQuorumFlushFuture();
+    void SetReadOnly();
 
-    //! Cleans things up, aborts all pending mutations with a human-readable error.
+    void Start(int changelogId);
     void Stop();
-
 
     //! Raised each time a checkpoint is needed.
     DEFINE_SIGNAL(void(bool snapshotIsMandatory), CheckpointNeeded);
@@ -123,51 +120,71 @@ public:
     DEFINE_SIGNAL(void(const TError& error), CommitFailed);
 
 private:
-    class TBatch;
-    using TBatchPtr = TIntrusivePtr<TBatch>;
-
-    TFuture<NHydra::TMutationResponse> LogLeaderMutation(
-        TInstant timestamp,
-        NHydra::TMutationRequest&& request);
-
-    void OnBatchCommitted(const TErrorOr<NHydra::TVersion>& errorOrVersion);
-    TIntrusivePtr<TBatch> GetOrCreateBatch(NHydra::TVersion version);
-    void AddToBatch(
-        const TDecoratedAutomaton::TPendingMutation& pendingMutation,
-        TSharedRef recordData,
-        TFuture<void> localFlushFuture);
-
-    void OnAutoSnapshotCheck();
-
-    void FireCommitFailed(const TError& error);
-
-    void DoSuspendLogging() override;
-    void DoResumeLogging() override;
-
-    const NConcurrency::TPeriodicExecutorPtr AutoSnapshotCheckExecutor_;
     const NConcurrency::TInvokerAlarmPtr BatchAlarm_;
+    const TLeaderLeasePtr LeaderLease_;
 
-    struct TPendingMutation
+    const NConcurrency::TPeriodicExecutorPtr AcceptMutationsExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr SerializeMutationsExecutor_;
+
+    struct TPeerState
     {
-        TPendingMutation(
-            TInstant timestamp,
-            NHydra::TMutationRequest&& request)
-            : Timestamp(timestamp)
-            , Request(request)
-        { }
-
-        TInstant Timestamp;
-        NHydra::TMutationRequest Request;
-        TPromise<NHydra::TMutationResponse> CommitPromise = NewPromise<NHydra::TMutationResponse>();
+        i64 NextExpectedSequenceNumber = 0;
+        i64 LastLoggedSequenceNumber = 0;
     };
+    std::vector<TPeerState> PeerStates_;
 
-    std::vector<TPendingMutation> PendingMutations_;
+    ui64 LastRandomSeed_ = 0;
 
-    TBatchPtr CurrentBatch_;
-    TFuture<void> PrevBatchQuorumFlushFuture_ = VoidFuture;
+    TReachableState CommittedState_;
+    i64 LastOffloadedSequenceNumber_ = 0;
+    TVersion LoggedVersion_;
 
-    NProfiling::TEventTimer CommitTimer_;
-    NProfiling::TSummary BatchSize_;
+    bool ReadOnly_ = false;
+
+    bool AqcuiringChangelog_ = false;
+    // TODO(aleksandra-zh): restart if this queue is too large.
+    TMpscQueue<TMutationDraft>* PreliminaryMutationQueue_;
+
+    struct TShapshotInfo
+    {
+        int SnapshotId = -1;
+        // Build a snapshot right after this mutation.
+        i64 SequenceNumber = -1;
+        std::vector<bool> HasReply;
+        std::vector<std::optional<TChecksum>> Checksums;
+
+        TPromise<int> Promise = NewPromise<int>();
+
+        int ReplyCount = 0;
+    };
+    std::optional<TShapshotInfo> LastSnapshotInfo_;
+
+    i64 MutationQueueDataSize_ = 0;
+    std::deque<TPendingMutationPtr> MutationQueue_;
+
+    NProfiling::TSummary BatchSummarySize_;
+
+    void SerializeMutations();
+    void Flush();
+    void OnRemoteFlush(
+        int followerId,
+        const TInternalHydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError);
+    void MaybeSendBatch();
+
+    void DrainQueue();
+
+    void LogMutation(TMutationDraft&& mutationDraft);
+
+    void MaybePromoteCommitedSequenceNumber();
+    void OnCommittedSequenceNumberUpdated();
+
+    void MaybeCheckpoint();
+    void Checkpoint();
+    void OnChangelogAcquired(const TError& result);
+
+    void OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<NHydra::TRemoteSnapshotParams>& rspOrError);
+    void OnSnapshotReply(int peerId);
+    void OnSnapshotsComplete();
 };
 
 DEFINE_REFCOUNTED_TYPE(TLeaderCommitter)
@@ -176,7 +193,7 @@ DEFINE_REFCOUNTED_TYPE(TLeaderCommitter)
 
 //! Manages commits carried out by a follower.
 /*!
- *  \note Thread affinity: AutomatonThread
+ *  \note Thread affinity: ControlThread
  */
 class TFollowerCommitter
     : public TCommitterBase
@@ -188,35 +205,46 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
-        NProfiling::TProfiler profiler);
+        NProfiling::TProfiler /*profiler*/);
 
-    //! Logs a batch of mutations at the follower.
-    TFuture<void> AcceptMutations(
-        NHydra::TVersion expectedVersion,
+    void AcceptMutations(
+        i64 startSequenceNumber,
         const std::vector<TSharedRef>& recordsData);
+    TFuture<void> LogMutations();
+    void CommitMutations(i64 committedSequenceNumber);
 
     //! Forwards a given mutation to the leader via RPC.
     TFuture<NHydra::TMutationResponse> Forward(NHydra::TMutationRequest&& request);
+
+    TFuture<void> GetLastLoggedMutationFuture();
+
+    i64 GetLoggedSequenceNumber() const;
+    void SetLoggedSequenceNumber(i64 number);
+    i64 GetExpectedSequenceNumber() const;
+
+    void RegisterNextChangelog(int id, NHydra::IChangelogPtr changelog);
 
     //! Cleans things up, aborts all pending mutations with a human-readable error.
     void Stop();
 
 private:
-    TFuture<void> DoAcceptMutations(
-        NHydra::TVersion expectedVersion,
-        const std::vector<TSharedRef>& recordsData);
+    // Accepted, but not logged.
+    std::queue<TPendingMutationPtr> AcceptedMutations_;
+    i64 AcceptedSequenceNumber_ = 0;
 
-    void DoSuspendLogging() override;
-    void DoResumeLogging() override;
+    // Logged, but not committed.
+    std::queue<TPendingMutationPtr> LoggedMutations_;
+    i64 LoggedSequenceNumber_ = 0;
 
-    struct TPendingMutation
-    {
-        std::vector<TSharedRef> RecordsData;
-        NHydra::TVersion ExpectedVersion;
-        TPromise<void> Promise;
-    };
+    bool LoggingMutations_ = false;
 
-    std::vector<TPendingMutation> PendingMutations_;
+    TCompactFlatMap<int, NHydra::IChangelogPtr, 4> NextChangelogs_;
+
+    void PrepareNextChangelog(TVersion version);
+
+    void DoAcceptMutation(const TSharedRef& recordData);
+    TFuture<void> LogMutation(const TPendingMutationPtr& mutation);
+    void OnMutationsLogged(int loggedCount, i64 lastMutationSequenceNumber);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFollowerCommitter)

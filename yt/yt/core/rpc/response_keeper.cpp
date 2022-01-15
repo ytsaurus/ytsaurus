@@ -16,6 +16,7 @@
 namespace NYT::NRpc {
 
 using namespace NConcurrency;
+using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +40,6 @@ public:
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Invoker_);
-        VERIFY_INVOKER_THREAD_AFFINITY(Invoker_, HomeThread);
 
         EvictionExecutor_ = New<TPeriodicExecutor>(
             Invoker_,
@@ -48,16 +48,16 @@ public:
         EvictionExecutor_->Start();
 
         profiler.AddFuncGauge("/response_keeper/kept_response_count", MakeStrong(this), [this] {
-            return FinishedResponseCount_.load();
+            return FinishedResponseCount_;
         });
         profiler.AddFuncGauge("/response_keeper/kept_response_space", MakeStrong(this), [this] {
-            return FinishedResponseSpace_.load();
+            return FinishedResponseSpace_;
         });
     }
 
     void Start()
     {
-        VERIFY_THREAD_AFFINITY(HomeThread);
+        auto guard = WriterGuard(Lock_);
 
         if (Started_) {
             return;
@@ -75,7 +75,7 @@ public:
 
     void Stop()
     {
-        VERIFY_THREAD_AFFINITY(HomeThread);
+        auto guard = WriterGuard(Lock_);
 
         if (!Started_) {
             return;
@@ -93,16 +93,189 @@ public:
 
     TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry)
     {
-        auto result = FindRequest(id, isRetry);
-        if (!result) {
-            YT_VERIFY(PendingResponses_.emplace(id, NewPromise<TSharedRefArray>()).second);
-        }
-        return result;
+        auto guard = WriterGuard(Lock_);
+
+        return DoTryBeginRequest(id, isRetry);
     }
 
     TFuture<TSharedRefArray> FindRequest(TMutationId id, bool isRetry) const
     {
-        VERIFY_THREAD_AFFINITY(HomeThread);
+        auto guard = ReaderGuard(Lock_);
+
+        return DoFindRequest(id, isRetry);
+    }
+
+    void EndRequest(TMutationId id, TSharedRefArray response, bool remember)
+    {
+        auto guard = WriterGuard(Lock_);
+
+        YT_ASSERT(id);
+
+        if (!Started_) {
+            return;
+        }
+
+        if (!response) {
+            YT_LOG_ALERT("Null response passed to response keeper (MutationId: %v, Remember: %v)",
+                id,
+                remember);
+        }
+
+
+        TPromise<TSharedRefArray> promise;
+        if (auto pendingIt = PendingResponses_.find(id)) {
+            promise = std::move(pendingIt->second);
+            PendingResponses_.erase(pendingIt);
+        }
+
+        if (remember) {
+            // NB: Allow duplicates.
+            auto [it, inserted] = FinishedResponses_.emplace(id, response);
+            if (!inserted) {
+                return;
+            }
+
+            auto space = static_cast<i64>(GetByteSize(response));
+            ResponseEvictionQueue_.push(TEvictionItem{
+                id,
+                NProfiling::GetCpuInstant(),
+                space,
+                it
+            });
+
+            FinishedResponseCount_ += 1;
+            FinishedResponseSpace_ += space;
+        }
+
+        if (promise) {
+            guard.Release();
+            promise.Set(response);
+        }
+    }
+
+    void EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember)
+    {
+        auto guard = WriterGuard(Lock_);
+
+        YT_ASSERT(id);
+
+        if (!Started_) {
+            return;
+        }
+
+        if (responseOrError.IsOK()) {
+            EndRequest(id, std::move(responseOrError.Value()), remember);
+            return;
+        }
+
+        auto it = PendingResponses_.find(id);
+        if (it == PendingResponses_.end()) {
+            return;
+        }
+
+        auto promise = std::move(it->second);
+        PendingResponses_.erase(it);
+
+        guard.Release();
+
+        promise.Set(TError(std::move(responseOrError)));
+    }
+
+    void CancelPendingRequests(const TError& error)
+    {
+        auto guard = WriterGuard(Lock_);
+
+        if (!Started_) {
+            return;
+        }
+
+        auto pendingResponses = std::move(PendingResponses_);
+
+        guard.Release();
+
+        for (const auto& [id, promise] : pendingResponses) {
+            promise.Set(error);
+        }
+
+        YT_LOG_INFO(error, "All pending requests canceled");
+    }
+
+    bool TryReplyFrom(const IServiceContextPtr& context)
+    {
+        auto guard = WriterGuard(Lock_);
+
+        auto mutationId = context->GetMutationId();
+        if (!mutationId) {
+            return false;
+        }
+
+        if (auto keptAsyncResponseMessage = DoTryBeginRequest(mutationId, context->IsRetry())) {
+            context->ReplyFrom(std::move(keptAsyncResponseMessage));
+            return true;
+        }
+
+        context->GetAsyncResponseMessage()
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>&) {
+                const auto& error = context->GetError();
+                EndRequest(
+                    mutationId,
+                    context->GetResponseMessage(),
+                    error.GetCode() != NRpc::EErrorCode::Unavailable);
+            }).Via(Invoker_));
+        return false;
+    }
+
+    bool IsWarmingUp() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return NProfiling::GetCpuInstant() < WarmupDeadline_;
+    }
+
+private:
+    const TResponseKeeperConfigPtr Config_;
+    const IInvokerPtr Invoker_;
+    const NLogging::TLogger Logger;
+
+    TPeriodicExecutorPtr EvictionExecutor_;
+
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
+
+    bool Started_ = false;
+    NProfiling::TCpuInstant WarmupDeadline_ = 0;
+
+    using TFinishedResponseMap = THashMap<TMutationId, TSharedRefArray>;
+    TFinishedResponseMap FinishedResponses_;
+
+    int FinishedResponseCount_ = 0;
+    i64 FinishedResponseSpace_ = 0;
+
+    struct TEvictionItem
+    {
+        TMutationId Id;
+        NProfiling::TCpuInstant When;
+        i64 Space;
+        TFinishedResponseMap::iterator Iterator;
+    };
+
+    TRingQueue<TEvictionItem> ResponseEvictionQueue_;
+
+    THashMap<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
+
+    TFuture<TSharedRefArray> DoTryBeginRequest(TMutationId id, bool isRetry)
+    {
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
+
+        auto result = DoFindRequest(id, isRetry);
+        if (!result) {
+            EmplaceOrCrash(PendingResponses_, std::make_pair(id, NewPromise<TSharedRefArray>()));
+        }
+        return result;
+    }
+
+    TFuture<TSharedRefArray> DoFindRequest(TMutationId id, bool isRetry) const
+    {
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
         YT_ASSERT(id);
 
         if (!Started_) {
@@ -135,164 +308,12 @@ public:
                 << TErrorAttribute("warmup_time", Config_->WarmupTime);
         }
 
-        return TFuture<TSharedRefArray>();
+        return {};
     }
-
-    void EndRequest(TMutationId id, TSharedRefArray response, bool remember)
-    {
-        VERIFY_THREAD_AFFINITY(HomeThread);
-        YT_ASSERT(id);
-
-        if (!Started_) {
-            return;
-        }
-
-        if (!response) {
-            YT_LOG_ALERT("Null response passed to response keeper (MutationId: %v, Remember: %v)",
-                id,
-                remember);
-        }
-
-        auto pendingIt = PendingResponses_.find(id);
-
-        TPromise<TSharedRefArray> promise;
-        if (pendingIt != PendingResponses_.end()) {
-            promise = std::move(pendingIt->second);
-            PendingResponses_.erase(pendingIt);
-        }
-
-        if (remember) {
-            // NB: Allow duplicates.
-            auto [it, inserted] = FinishedResponses_.emplace(id, response);
-            if (!inserted) {
-                return;
-            }
-
-            auto space = static_cast<i64>(GetByteSize(response));
-            ResponseEvictionQueue_.push(TEvictionItem{
-                id,
-                NProfiling::GetCpuInstant(),
-                space,
-                it
-            });
-
-            FinishedResponseCount_ += 1;
-            FinishedResponseSpace_ += space;
-        }
-
-        if (promise) {
-            promise.Set(response);
-        }
-    }
-
-    void EndRequest(TMutationId id, TErrorOr<TSharedRefArray> responseOrError, bool remember)
-    {
-        VERIFY_THREAD_AFFINITY(HomeThread);
-        YT_ASSERT(id);
-
-        if (!Started_) {
-            return;
-        }
-
-        if (responseOrError.IsOK()) {
-            EndRequest(id, std::move(responseOrError.Value()), remember);
-            return;
-        }
-
-        auto it = PendingResponses_.find(id);
-        if (it == PendingResponses_.end()) {
-            return;
-        }
-
-        auto promise = std::move(it->second);
-        PendingResponses_.erase(it);
-
-        promise.Set(TError(responseOrError));
-    }
-
-    void CancelPendingRequests(const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(HomeThread);
-
-        if (!Started_) {
-            return;
-        }
-
-        auto pendingResponses = std::move(PendingResponses_);
-        for (auto& [id, promise] : pendingResponses) {
-            promise.Set(error);
-        }
-
-        YT_LOG_INFO(error, "All pending requests canceled");
-    }
-
-    bool TryReplyFrom(const IServiceContextPtr& context)
-    {
-        VERIFY_THREAD_AFFINITY(HomeThread);
-
-        auto mutationId = context->GetMutationId();
-        if (!mutationId) {
-            return false;
-        }
-
-        auto keptAsyncResponseMessage = TryBeginRequest(mutationId, context->IsRetry());
-        if (keptAsyncResponseMessage) {
-            context->ReplyFrom(std::move(keptAsyncResponseMessage));
-            return true;
-        } else {
-            context->GetAsyncResponseMessage()
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>&) {
-                    const auto& error = context->GetError();
-                    EndRequest(
-                        mutationId,
-                        context->GetResponseMessage(),
-                        error.GetCode() != NRpc::EErrorCode::Unavailable);
-                }).Via(Invoker_));
-            return false;
-        }
-    }
-
-    bool IsWarmingUp() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return NProfiling::GetCpuInstant() < WarmupDeadline_;
-    }
-
-private:
-    const TResponseKeeperConfigPtr Config_;
-    const IInvokerPtr Invoker_;
-    const NLogging::TLogger Logger;
-
-    TPeriodicExecutorPtr EvictionExecutor_;
-
-    bool Started_ = false;
-    std::atomic<NProfiling::TCpuInstant> WarmupDeadline_ = 0;
-
-    using TFinishedResponseMap = THashMap<TMutationId, TSharedRefArray>;
-    TFinishedResponseMap FinishedResponses_;
-
-    std::atomic<int> FinishedResponseCount_ = 0;
-    std::atomic<i64> FinishedResponseSpace_ = 0;
-
-    struct TEvictionItem
-    {
-        TMutationId Id;
-        NProfiling::TCpuInstant When;
-        i64 Space;
-        TFinishedResponseMap::iterator Iterator;
-    };
-
-    TRingQueue<TEvictionItem> ResponseEvictionQueue_;
-
-    THashMap<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
-
 
     void OnEvict()
     {
-        VERIFY_THREAD_AFFINITY(HomeThread);
+        auto guard = WriterGuard(Lock_);
 
         if (!Started_) {
             return;

@@ -4,6 +4,14 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TPeerPriority
+{
+   required int64 first = 1;
+   required int64 second = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqPingFollower
 {
     required int32 leader_id = 1;
@@ -15,6 +23,7 @@ message TRspPingFollower
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 message TReqGetStatus
 { }
 
@@ -23,10 +32,8 @@ message TRspGetStatus
     required int32 state = 1;
     required int32 vote_id = 2;
     required NYT.NProto.TGuid vote_epoch_id = 3;
-    required int64 priority = 4;
+    required TPeerPriority priority = 4;
     required int32 self_id = 5;
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////

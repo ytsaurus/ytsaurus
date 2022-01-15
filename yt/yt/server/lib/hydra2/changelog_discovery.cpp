@@ -1,5 +1,6 @@
 #include "changelog_discovery.h"
 #include "private.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/config.h>
 
@@ -14,6 +15,7 @@ namespace NYT::NHydra2 {
 
 using namespace NElection;
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +24,7 @@ class TDiscoverChangelogSession
 {
 public:
     TDiscoverChangelogSession(
-        NHydra::TDistributedHydraManagerConfigPtr config,
+        TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
         int changelogId,
         int minRecordCount)
@@ -47,7 +49,7 @@ public:
     }
 
 private:
-    const NHydra::TDistributedHydraManagerConfigPtr Config_;
+    const TDistributedHydraManagerConfigPtr Config_;
     const NElection::TCellManagerPtr CellManager_;
     const int ChangelogId_;
     const int MinRecordCount_;
@@ -70,7 +72,7 @@ private:
                 peerId,
                 ChangelogId_);
 
-            NHydra::THydraServiceProxy proxy(channel);
+            TInternalHydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.LookupChangelog();
@@ -87,7 +89,7 @@ private:
 
     void OnResponse(
         TPeerId peerId,
-        const NHydra::THydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
+        const TInternalHydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v)",
@@ -126,7 +128,7 @@ private:
 };
 
 TFuture<TChangelogInfo> DiscoverChangelog(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+    TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     int changelogId,
     int minRecordCount)
@@ -146,7 +148,7 @@ class TComputeQuorumInfoSession
 {
 public:
     TComputeQuorumInfoSession(
-        NHydra::TDistributedHydraManagerConfigPtr config,
+        TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
         int changelogId,
         int localRecordCount)
@@ -172,7 +174,7 @@ public:
     }
 
 private:
-    const NHydra::TDistributedHydraManagerConfigPtr Config_;
+    const TDistributedHydraManagerConfigPtr Config_;
     const NElection::TCellManagerPtr CellManager_;
     const int ChangelogId_;
 
@@ -180,6 +182,7 @@ private:
 
     std::vector<int> RecordCountsLo_;
     std::vector<int> RecordCountsHi_;
+    // Consider actually using this.
     std::vector<TError> InnerErrors_;
     TPromise<TChangelogQuorumInfo> Promise_ = NewPromise<TChangelogQuorumInfo>();
 
@@ -220,7 +223,7 @@ private:
             YT_LOG_DEBUG("Requesting changelog info (PeerId: %v)",
                 peerId);
 
-            NHydra::THydraServiceProxy proxy(channel);
+            TInternalHydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.LookupChangelog();
@@ -235,7 +238,7 @@ private:
 
     void OnResponse(
         TPeerId peerId,
-        const NHydra::THydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
+        const TInternalHydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
             const auto& rsp = rspOrError.Value();
@@ -273,7 +276,7 @@ private:
 };
 
 TFuture<TChangelogQuorumInfo> ComputeChangelogQuorumInfo(
-    NHydra::TDistributedHydraManagerConfigPtr config,
+    TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     int changelogId,
     int localRecordCount)
@@ -283,6 +286,151 @@ TFuture<TChangelogQuorumInfo> ComputeChangelogQuorumInfo(
         std::move(cellManager),
         changelogId,
         localRecordCount);
+    return session->Run();
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TComputeQuorumLatestChangelogIdSession
+    : public TRefCounted
+{
+public:
+    TComputeQuorumLatestChangelogIdSession(
+        TDistributedHydraManagerConfigPtr config,
+        TCellManagerPtr cellManager,
+        int localChangelogId,
+        int localTerm)
+        : Config_(config)
+        , CellManager_(cellManager)
+    {
+        YT_VERIFY(Config_);
+        YT_VERIFY(CellManager_);
+
+        YT_VERIFY(CellManager_->GetSelfConfig().Voting);
+        RegisterSuccess(localChangelogId, localTerm);
+    }
+
+    TFuture<std::pair<int, int>> Run()
+    {
+        BIND(&TComputeQuorumLatestChangelogIdSession::DoRun, MakeStrong(this))
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+            .Run();
+        return Promise_;
+    }
+
+private:
+    const TDistributedHydraManagerConfigPtr Config_;
+    const NElection::TCellManagerPtr CellManager_;
+    const TPromise<std::pair<int, int>> Promise_ = NewPromise<std::pair<int, int>>();
+
+    const NLogging::TLogger Logger = HydraLogger;
+
+    int ChangelogId_ = 0;
+    int Term_ = 0;
+    int SuccessCount_ = 0;
+
+    std::vector<TError> InnerErrors_;
+
+    void RegisterSuccess(int changelogId, int term)
+    {
+        ++SuccessCount_;
+        ChangelogId_ = std::max(ChangelogId_, changelogId);
+        Term_ = std::max(Term_, term);
+    }
+
+    void RegisterFailure(const TError& error)
+    {
+        InnerErrors_.push_back(error);
+    }
+
+    void DoRun()
+    {
+        YT_LOG_INFO("Computing latest quorum changelog id");
+
+        std::vector<TFuture<void>> asyncResults;
+        asyncResults.reserve(CellManager_->GetTotalPeerCount());
+        for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
+            if (peerId == CellManager_->GetSelfPeerId()) {
+                continue;
+            }
+
+            const auto& config = CellManager_->GetPeerConfig(peerId);
+            if (!config.Voting) {
+                continue;
+            }
+
+            auto channel = CellManager_->GetPeerChannel(peerId);
+            if (!channel) {
+                continue;
+            }
+
+            YT_LOG_DEBUG("Requesting changelog info (PeerId: %v)",
+                peerId);
+
+            TInternalHydraServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
+
+            auto req = proxy.GetLatestChangelogId();
+            asyncResults.push_back(req->Invoke().Apply(
+                BIND(&TComputeQuorumLatestChangelogIdSession::OnResponse, MakeStrong(this), peerId)));
+        }
+
+        AllSucceeded(asyncResults).Subscribe(
+            BIND(&TComputeQuorumLatestChangelogIdSession::OnComplete, MakeStrong(this)));
+    }
+
+    void OnResponse(
+        TPeerId peerId,
+        const TInternalHydraServiceProxy::TErrorOrRspGetLatestChangelogIdPtr& rspOrError)
+    {
+        if (rspOrError.IsOK()) {
+            const auto& rsp = rspOrError.Value();
+            int changelogId = rsp->changelog_id();
+            int term = rsp->term();
+            RegisterSuccess(changelogId, term);
+
+            YT_LOG_DEBUG("Changelog id received (PeerId: %v, ChangelogId: %v, Term: %v)",
+                peerId,
+                changelogId,
+                term);
+        } else {
+            RegisterFailure(rspOrError);
+
+            YT_LOG_WARNING(rspOrError, "Error requesting changelog id (PeerId: %v)",
+                peerId);
+        }
+    }
+
+    void OnComplete(const TError&)
+    {
+        int quorum = CellManager_->GetQuorumPeerCount();
+        if (SuccessCount_ < quorum) {
+            Promise_.TrySet(TError("Not enough answers to compute quorum changelog id: %v out of %v",
+                SuccessCount_,
+                quorum));
+            return;
+        }
+
+        YT_LOG_INFO("Computed quorum latest changelog id (ChangelogId: %v, Term: %v)",
+            ChangelogId_,
+            Term_);
+
+        Promise_.Set({ChangelogId_, Term_});
+    }
+};
+
+TFuture<std::pair<int, int>> ComputeQuorumLatestChangelogId(
+    TDistributedHydraManagerConfigPtr config,
+    TCellManagerPtr cellManager,
+    int localChangelogId,
+    int localTerm)
+{
+    auto session = New<TComputeQuorumLatestChangelogIdSession>(
+        std::move(config),
+        std::move(cellManager),
+        localChangelogId,
+        localTerm);
     return session->Run();
 }
 

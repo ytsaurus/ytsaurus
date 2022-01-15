@@ -5,7 +5,7 @@
 #include "lease_tracker.h"
 #include "mutation_committer.h"
 #include "recovery.h"
-#include "snapshot_discovery.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/changelog.h>
@@ -15,6 +15,7 @@
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
+#include <yt/yt/server/lib/hydra_common/snapshot_discovery.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
@@ -22,8 +23,6 @@
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
-
-#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -133,10 +132,10 @@ public:
 
         TString FormatPriority(TPeerPriority priority) override
         {
-            auto version = TVersion::FromRevision(priority / 2);
+            TVersion version(priority.first, priority.second / 2);
             return Format("%v%v",
                 version,
-                (priority % 2) != 0 ? "+" : "");
+                (priority.second % 2) != 0 ? "+" : "");
         }
 
     private:
@@ -158,7 +157,7 @@ public:
         const TDistributedHydraManagerDynamicOptions& dynamicOptions)
         : THydraServiceBase(
             controlInvoker,
-            THydraServiceProxy::GetDescriptor(),
+            TLegacyHydraServiceProxy::GetDescriptor(),
             HydraLogger.WithTag("CellId: %v", cellId),
             cellId)
         , Config_(config)
@@ -1177,7 +1176,7 @@ private:
         EnablePriorityBoost_ = value;
     }
 
-    i64 GetElectionPriority()
+    TPeerPriority GetElectionPriority()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1190,7 +1189,7 @@ private:
             ? DecoratedAutomaton_->GetAutomatonVersion()
             : *ReachableVersion_;
 
-        return (version.ToRevision() * 2) + (EnablePriorityBoost_ ? 1 : 0);
+        return {version.SegmentId, version.RecordId * 2 + (EnablePriorityBoost_ ? 1 : 0)};
     }
 
 
@@ -1613,7 +1612,7 @@ private:
 
         YT_LOG_INFO("Trying to abandon existing leader lease");
 
-        std::vector<TFuture<THydraServiceProxy::TRspAbandonLeaderLeasePtr>> futures;
+        std::vector<TFuture<TLegacyHydraServiceProxy::TRspAbandonLeaderLeasePtr>> futures;
         const auto& cellManager = epochContext->CellManager;
         for (int peerId = 0; peerId < cellManager->GetTotalPeerCount(); ++peerId) {
             auto peerChannel = cellManager->GetPeerChannel(peerId);
@@ -1624,7 +1623,7 @@ private:
             YT_LOG_INFO("Requesting peer to abandon existing leader lease (PeerId: %v)",
                 peerId);
 
-            THydraServiceProxy proxy(std::move(peerChannel));
+            TLegacyHydraServiceProxy proxy(std::move(peerChannel));
             auto req = proxy.AbandonLeaderLease();
             req->SetTimeout(Config_->AbandonLeaderLeaseRequestTimeout);
             req->set_peer_id(cellManager->GetSelfPeerId());
@@ -2058,7 +2057,7 @@ private:
         auto channel = epochContext->CellManager->GetPeerChannel(epochContext->LeaderId);
         YT_VERIFY(channel);
 
-        THydraServiceProxy proxy(std::move(channel));
+        TLegacyHydraServiceProxy proxy(std::move(channel));
         proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
         auto req = proxy.SyncWithLeader();
@@ -2071,7 +2070,7 @@ private:
         return epochContext->LeaderSyncPromise;
     }
 
-    void OnSyncWithLeaderResponse(const THydraServiceProxy::TErrorOrRspSyncWithLeaderPtr& rspOrError)
+    void OnSyncWithLeaderResponse(const TLegacyHydraServiceProxy::TErrorOrRspSyncWithLeaderPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2176,19 +2175,25 @@ private:
         auto channel = epochContext->CellManager->GetPeerChannel(AutomatonEpochContext_->LeaderId);
         YT_VERIFY(channel);
 
-        THydraServiceProxy proxy(std::move(channel));
+        TLegacyHydraServiceProxy proxy(std::move(channel));
         auto request = proxy.ReportMutationsStateHashes();
 
+        std::vector<i64> sequenceNumbers;
         for (auto sequenceNumber = startSequenceNumber; sequenceNumber <= endSequenceNumber; sequenceNumber += rate) {
-            auto stateHash = StateHashChecker_->GetStateHash(sequenceNumber);
-            if (stateHash) {
-                auto mutationInfo = request->add_mutations_info();
-                mutationInfo->set_sequence_number(sequenceNumber);
-                mutationInfo->set_state_hash(*stateHash);
-            }
+            sequenceNumbers.push_back(sequenceNumber);
         }
 
-        request->Invoke().Subscribe(BIND([&, startSequenceNumber, endSequenceNumber] (const THydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
+        for (auto [sequenceNumber, stateHash] : StateHashChecker_->GetStateHashes(std::move(sequenceNumbers))) {
+            auto mutationInfo = request->add_mutations_info();
+            mutationInfo->set_sequence_number(sequenceNumber);
+            mutationInfo->set_state_hash(stateHash);
+        }
+
+        if (request->mutations_info().empty()) {
+            return;
+        }
+
+        request->Invoke().Subscribe(BIND([&, startSequenceNumber, endSequenceNumber] (const TLegacyHydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
             if (rspOrError.IsOK()) {
                 YT_LOG_DEBUG("Mutations state hashes reported (StartSequenceNumber: %v, EndSequenceNumber: %v)",
                     startSequenceNumber,

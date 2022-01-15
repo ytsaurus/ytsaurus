@@ -1,6 +1,7 @@
 #include "changelog_download.h"
 #include "changelog_discovery.h"
 #include "private.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -33,7 +34,7 @@ void DoDownloadChangelog(
     int recordCount)
 {
     try {
-        YT_LOG_INFO("Requested %v records in changelog %v",
+        YT_LOG_INFO("Requested changelog records (RecordCount: %v, ChangelogId: %v)",
             recordCount,
             changelogId);
 
@@ -42,7 +43,7 @@ void DoDownloadChangelog(
             .ValueOrThrow();
 
         if (changelog->GetRecordCount() >= recordCount) {
-            YT_LOG_INFO("Local changelog already contains %v records, no download needed",
+            YT_LOG_INFO("Local changelog already contains enough records, no download needed (RecordCount: %v)",
                 changelog->GetRecordCount());
             return;
         }
@@ -52,12 +53,12 @@ void DoDownloadChangelog(
             .ValueOrThrow();
         int downloadedRecordCount = changelog->GetRecordCount();
 
-        YT_LOG_INFO("Downloading records %v-%v from peer %v",
+        YT_LOG_INFO("Downloading records from peer (StartRecord: %v, EndRecord: %v, PeerId: %v)",
             changelog->GetRecordCount(),
             recordCount - 1,
             changelogInfo.PeerId);
 
-        THydraServiceProxy proxy(cellManager->GetPeerChannel(changelogInfo.PeerId));
+        TInternalHydraServiceProxy proxy(cellManager->GetPeerChannel(changelogInfo.PeerId));
         proxy.SetDefaultTimeout(config->ChangelogDownloadRpcTimeout);
 
         while (downloadedRecordCount < recordCount) {
@@ -65,7 +66,7 @@ void DoDownloadChangelog(
                 config->MaxChangelogRecordsPerRequest,
                 recordCount - downloadedRecordCount);
 
-            YT_LOG_DEBUG("Requesting records %v-%v",
+            YT_LOG_DEBUG("Requesting records (StartRecord: %v, EndRecord: %v)",
                 downloadedRecordCount,
                 downloadedRecordCount + desiredChunkSize - 1);
 
@@ -91,17 +92,11 @@ void DoDownloadChangelog(
             }
 
             int actualChunkSize = static_cast<int>(records.size());
-            if (actualChunkSize != desiredChunkSize) {
-                YT_LOG_DEBUG("Received records %v-%v while %v records were requested",
-                    downloadedRecordCount,
-                    downloadedRecordCount + actualChunkSize - 1,
-                    desiredChunkSize);
-                // Continue anyway.
-            } else {
-                YT_LOG_DEBUG("Received records %v-%v",
-                    downloadedRecordCount,
-                    downloadedRecordCount + actualChunkSize - 1);
-            }
+            YT_LOG_DEBUG("Received records (StartRecord: %v, EndRecord: %v, DesiredRecordCount: %v, ActualRecordCount: %v)",
+                downloadedRecordCount,
+                downloadedRecordCount + actualChunkSize - 1,
+                desiredChunkSize,
+                actualChunkSize);
 
             auto future = changelog->Append(records);
             downloadedRecordCount += records.size();

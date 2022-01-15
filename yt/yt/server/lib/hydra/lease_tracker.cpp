@@ -1,6 +1,7 @@
 #include "lease_tracker.h"
 #include "private.h"
 #include "decorated_automaton.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/config.h>
 
@@ -116,7 +117,7 @@ private:
             epochContext->EpochId,
             alivePeerIds);
 
-        THydraServiceProxy proxy(channel);
+        TLegacyHydraServiceProxy proxy(channel);
         auto req = proxy.PingFollower();
         req->SetTimeout(Owner_->Config_->LeaderLeaseTimeout);
         ToProto(req->mutable_epoch_id(), epochContext->EpochId);
@@ -137,7 +138,7 @@ private:
     void OnResponse(
         TPeerId followerId,
         bool voting,
-        const THydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
+        const TLegacyHydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 

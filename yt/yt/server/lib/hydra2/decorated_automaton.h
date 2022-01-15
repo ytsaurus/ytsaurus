@@ -23,6 +23,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/new.h>
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
@@ -40,19 +41,46 @@ namespace NYT::NHydra2 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPendingMutation final
+{
+    TPendingMutation(
+        TVersion version,
+        NHydra::TMutationRequest&& request,
+        TInstant timestamp,
+        ui64 randomSeed,
+        ui64 prevRandomSeed,
+        i64 sequenceNumber,
+        TSharedRef serializedMutation,
+        TPromise<NHydra::TMutationResponse> promise = {});
+
+    TVersion Version;
+    NHydra::TMutationRequest Request;
+    TInstant Timestamp;
+    ui64 RandomSeed;
+    ui64 PrevRandomSeed;
+    i64 SequenceNumber;
+    TSharedRef SerializedMutation;
+    TPromise<NHydra::TMutationResponse> LocalCommitPromise;
+};
+
+DEFINE_REFCOUNTED_TYPE(TPendingMutation)
+
+using TPendingMutationPtr = TIntrusivePtr<TPendingMutation>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TEpochContext
     : public TRefCounted
 {
     NElection::TCellManagerPtr CellManager;
     NHydra::IChangelogStorePtr ChangelogStore;
-    NHydra::TVersion ReachableVersion;
+    TReachableState ReachableState;
+    int Term = NHydra::InvalidTerm;
 
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
     IInvokerPtr EpochControlInvoker;
-    TCheckpointerPtr Checkpointer;
-    TLeaderRecoveryPtr LeaderRecovery;
-    TFollowerRecoveryPtr FollowerRecovery;
+    TRecoveryPtr Recovery;
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
     TLeaseTrackerPtr LeaseTracker;
@@ -63,9 +91,10 @@ struct TEpochContext
     std::atomic_flag Restarting = ATOMIC_FLAG_INIT;
     bool LeaderSwitchStarted = false;
     bool LeaderLeaseExpired = false;
+    bool AcquiringChangelog = false;
 
     TIntrusivePtr<NConcurrency::TAsyncBatcher<void>> LeaderSyncBatcher;
-    std::optional<NHydra::TVersion> LeaderSyncVersion;
+    std::optional<i64> LeaderSyncSequenceNumber;
     TPromise<void> LeaderSyncPromise;
     NProfiling::TWallTimer LeaderSyncTimer;
 
@@ -170,30 +199,21 @@ public:
 
     TEpochContextPtr GetEpochContext();
 
-    NHydra::TVersion GetLoggedVersion() const;
-    void SetLoggedVersion(NHydra::TVersion version);
-
-    ui64 GetRandomSeed() const;
-    i64 GetSequenceNumber() const;
-
     ui64 GetStateHash() const;
+    i64 GetSequenceNumber() const;
+    i64 GetRandomSeed() const;
+    int GetLastMutationTerm() const;
 
-    void SetChangelog(NHydra::IChangelogPtr changelog);
+    TReachableState GetReachableState() const;
 
-    int GetRecordCountSinceLastCheckpoint() const;
-    i64 GetDataSizeSinceLastCheckpoint() const;
     TInstant GetSnapshotBuildDeadline() const;
 
-    NHydra::TVersion GetAutomatonVersion() const;
-    void RotateAutomatonVersion(int segmentId);
-
-    NHydra::TVersion GetCommittedVersion() const;
-
-    NHydra::TVersion GetPingVersion() const;
+    TVersion GetAutomatonVersion() const;
 
     void LoadSnapshot(
         int snapshotId,
-        NHydra::TVersion version,
+        int lastMutationTerm,
+        TVersion version,
         i64 sequenceNumber,
         ui64 randomSeed,
         ui64 stateHash,
@@ -202,57 +222,17 @@ public:
 
     void ValidateSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
-    void ApplyMutationDuringRecovery(const TSharedRef& recordData);
-
     TFuture<NHydra::TMutationResponse> TryBeginKeptRequest(const NHydra::TMutationRequest& request);
 
-    struct TPendingMutation
-    {
-        TPendingMutation(
-            NHydra::TVersion version,
-            NHydra::TMutationRequest&& request,
-            TInstant timestamp,
-            ui64 randomSeed,
-            ui64 prevRandomSeed,
-            i64 sequenceNumber)
-            : Version(version)
-            , Request(request)
-            , Timestamp(timestamp)
-            , RandomSeed(randomSeed)
-            , PrevRandomSeed(prevRandomSeed)
-            , SequenceNumber(sequenceNumber)
-        { }
+    TFuture<NHydra::TRemoteSnapshotParams> BuildSnapshot(int snapshotId, i64 sequenceNumber);
 
-        NHydra::TVersion Version;
-        NHydra::TMutationRequest Request;
-        TInstant Timestamp;
-        ui64 RandomSeed;
-        ui64 PrevRandomSeed;
-        i64 SequenceNumber;
-        TPromise<NHydra::TMutationResponse> LocalCommitPromise = NewPromise<NHydra::TMutationResponse>();
-    };
+    void ApplyMutationDuringRecovery(const TSharedRef& recordData, int term);
 
-    const TPendingMutation& LogLeaderMutation(
-        TInstant timestamp,
-        NHydra::TMutationRequest&& request,
-        TSharedRef* recordData,
-        TFuture<void>* localFlushFuture);
-    const TPendingMutation& LogFollowerMutation(
-        const TSharedRef& recordData,
-        TFuture<void>* localFlushFuture);
+    void ApplyMutations(const std::vector<TPendingMutationPtr>& mutations, int term);
+    void ApplyMutation(const TPendingMutationPtr& mutation, int term);
 
-    TFuture<NHydra::TRemoteSnapshotParams> BuildSnapshot();
-
-    TFuture<void> RotateChangelog();
-
-    void CommitMutations(NHydra::TVersion version, bool mayYield);
-
-    bool HasReadyMutations() const;
-
-    void RotateAutomatonVersionAfterRecovery();
-
-    NHydra::TReign GetCurrentReign() const;
-    NHydra::EFinalRecoveryAction GetFinalRecoveryAction() const;
+    TReign GetCurrentReign() const;
+    EFinalRecoveryAction GetFinalRecoveryAction() const;
 
     bool IsBuildingSnapshotNow() const;
     int GetLastSuccessfulSnapshotId() const;
@@ -278,7 +258,7 @@ private:
     const IInvokerPtr DefaultGuardedUserInvoker_;
     const IInvokerPtr ControlInvoker_;
     const IInvokerPtr SystemInvoker_;
-    NHydra::ISnapshotStorePtr SnapshotStore_;
+    const NHydra::ISnapshotStorePtr SnapshotStore_;
     const NHydra::TStateHashCheckerPtr StateHashChecker_;
     const IChangelogDiscarderPtr ChangelogDiscarder_;
 
@@ -289,46 +269,32 @@ private:
     TEpochContextPtr EpochContext_;
 
     NHydra::IChangelogPtr Changelog_;
-    TFuture<NHydra::IChangelogPtr> NextChangelogFuture_;
-
-    int RecoveryRecordCount_ = 0;
-    i64 RecoveryDataSize_ = 0;
 
     std::atomic<EPeerState> State_ = {EPeerState::Stopped};
 
-    // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
-    // LoggedVersion_ is only maintained when the peer is active, e.g. not during recovery.
-    std::atomic<NHydra::TVersion> LoggedVersion_ = {};
-    std::atomic<NHydra::TVersion> AutomatonVersion_ = {};
-    std::atomic<NHydra::TVersion> CommittedVersion_ = {};
+    // Last applied mutation.
+    std::atomic<TVersion> AutomatonVersion_ = {};
     std::atomic<ui64> RandomSeed_ = {};
     std::atomic<i64> SequenceNumber_ = {};
     std::atomic<ui64> StateHash_ = {};
+    std::atomic<int> LastMutationTerm_ = NHydra::InvalidTerm;
 
     TInstant Timestamp_ = {};
 
-    bool RotatingChangelog_ = false;
-
-    //! AutomatonVersion_ <= SnapshotVersion_
-    NHydra::TVersion SnapshotVersion_;
+    int NextSnapshotId_ = -1;
+    // AutomatonSequenceNumber <= SnapshotSequenceNumber
+    i64 SnapshotSequenceNumber_;
     TPromise<NHydra::TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic<bool> BuildingSnapshot_ = false;
     TInstant SnapshotBuildDeadline_ = TInstant::Max();
     std::atomic<int> LastSuccessfulSnapshotId_ = -1;
-
-    NHydra::NProto::TMutationHeader MutationHeader_; // pooled instance
-    TRingQueue<TPendingMutation> PendingMutations_;
 
     NProfiling::TEventTimer BatchCommitTimer_;
     NProfiling::TTimeGauge SnapshotLoadTime_;
 
     TForkCountersPtr ForkCounters_;
 
-    ui64 GetLastLoggedRandomSeed() const;
-    i64 GetLastLoggedSequenceNumber() const;
-
-    void RotateAutomatonVersionIfNeeded(NHydra::TVersion mutationVersion);
-    void DoApplyMutation(NHydra::TMutationContext* mutationContext);
+    void DoApplyMutation(NHydra::TMutationContext* mutationContext, TVersion mutationVersion, int term);
 
     bool TryAcquireUserLock();
     void ReleaseUserLock();
@@ -339,10 +305,6 @@ private:
 
     void StartEpoch(TEpochContextPtr epochContext);
     void StopEpoch();
-
-    void DoRotateChangelog();
-
-    void ApplyPendingMutations(bool mayYield);
 
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer);
     void MaybeStartSnapshotBuilder();

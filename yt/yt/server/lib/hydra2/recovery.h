@@ -22,11 +22,11 @@ namespace NYT::NHydra2 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRecoveryBase
+class TRecovery
     : public TRefCounted
 {
-protected:
-    TRecoveryBase(
+public:
+    TRecovery(
         NHydra::TDistributedHydraManagerConfigPtr config,
         const NHydra::TDistributedHydraManagerOptions& options,
         const NHydra::TDistributedHydraManagerDynamicOptions& dynamicOptions,
@@ -35,16 +35,11 @@ protected:
         NHydra::ISnapshotStorePtr snapshotStore,
         NRpc::TResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
-        NHydra::TVersion syncVersion,
+        TReachableState targetState,
+        bool isLeader,
         NLogging::TLogger logger);
 
-    //! Must be derived by the inheritors to control the recovery behavior.
-    virtual bool IsLeader() const = 0;
-
-    //! Recovers to the desired state by first loading an appropriate snapshot
-    //! and then applying changelogs, if necessary.
-    void RecoverToVersion(NHydra::TVersion targetVersion);
-
+    TFuture<void> Run(int term);
 
     const NHydra::TDistributedHydraManagerConfigPtr Config_;
     const NHydra::TDistributedHydraManagerOptions Options_;
@@ -54,12 +49,18 @@ protected:
     const NHydra::ISnapshotStorePtr SnapshotStore_;
     const NRpc::TResponseKeeperPtr ResponseKeeper_;
     TEpochContext* const EpochContext_;
-    const NHydra::TVersion SyncVersion_;
+    const TReachableState TargetState_;
+    const bool IsLeader_;
     const NLogging::TLogger Logger;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 private:
+    //! Recovers to the desired state by first loading an appropriate snapshot
+    //! and then applying changelogs, if necessary.
+    void Recover(int term);
+
     //! Synchronizes the changelog at follower with the leader, i.e.
     //! downloads missing records or truncates redundant ones.
     void SyncChangelog(NHydra::IChangelogPtr changelog, int changelogId);
@@ -69,104 +70,10 @@ private:
      *  The current segment id should match that of #changeLog.
      *  The methods ensures that no mutation is applied twice.
      */
-    bool ReplayChangelog(NHydra::IChangelogPtr changelog, int changelogId, int targetRecordId);
+    bool ReplayChangelog(NHydra::IChangelogPtr changelog, int changelogId, i64 sequenceNumber);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-//! Drives the leader recovery.
-/*!
- *  \note
- *  Thread affinity: any
- */
-class TLeaderRecovery
-    : public TRecoveryBase
-{
-public:
-    TLeaderRecovery(
-        NHydra::TDistributedHydraManagerConfigPtr config,
-        const NHydra::TDistributedHydraManagerOptions& options,
-        const NHydra::TDistributedHydraManagerDynamicOptions& dynamicOptions,
-        TDecoratedAutomatonPtr decoratedAutomaton,
-        NHydra::IChangelogStorePtr changelogStore,
-        NHydra::ISnapshotStorePtr snapshotStore,
-        NRpc::TResponseKeeperPtr responseKeeper,
-        TEpochContext* epochContext,
-        NLogging::TLogger logger);
-
-    //! Performs leader recovery up to #TEpochContext::ReachableVersion.
-    TFuture<void> Run();
-
-private:
-    void DoRun();
-
-    bool IsLeader() const override;
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TLeaderRecovery)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Drives the follower recovery.
-/*!
- *  \note
- *  Thread affinity: any
- */
-class TFollowerRecovery
-    : public TRecoveryBase
-{
-public:
-    TFollowerRecovery(
-        NHydra::TDistributedHydraManagerConfigPtr config,
-        const NHydra::TDistributedHydraManagerOptions& options,
-        const NHydra::TDistributedHydraManagerDynamicOptions& dynamicOptions,
-        TDecoratedAutomatonPtr decoratedAutomaton,
-        NHydra::IChangelogStorePtr changelogStore,
-        NHydra::ISnapshotStorePtr snapshotStore,
-        NRpc::TResponseKeeperPtr responseKeeper,
-        TEpochContext* epochContext,
-        NHydra::TVersion syncVersion,
-        NLogging::TLogger logger);
-
-    //! Performs follower recovery bringing the follower up-to-date and synchronized with the leader.
-    TFuture<void> Run();
-
-    //! Postpones an incoming request for changelog rotation.
-    //! Returns |false| is no more postponed are can be accepted; the caller must back off and retry.
-    bool PostponeChangelogRotation(NHydra::TVersion version);
-
-    //! Postpones incoming mutations.
-    //! Returns |false| is no more postponed are can be accepted; the caller must back off and retry.
-    bool PostponeMutations(NHydra::TVersion version, const std::vector<TSharedRef>& recordsData);
-
-    //! Notifies the recovery process about the latest committed version available at leader.
-    void SetCommittedVersion(NHydra::TVersion version);
-
-private:
-    struct TPostponedMutation
-    {
-        TSharedRef RecordData;
-    };
-
-    struct TPostponedChangelogRotation
-    { };
-
-    using TPostponedAction = std::variant<TPostponedMutation, TPostponedChangelogRotation>;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    std::vector<TPostponedAction> PostponedActions_;
-    bool NoMorePostponedActions_ = false;
-    NHydra::TVersion PostponedVersion_;
-    NHydra::TVersion CommittedVersion_;
-
-    void DoRun();
-
-    bool IsLeader() const override;
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TFollowerRecovery)
+DEFINE_REFCOUNTED_TYPE(TRecovery)
 
 ////////////////////////////////////////////////////////////////////////////////
 

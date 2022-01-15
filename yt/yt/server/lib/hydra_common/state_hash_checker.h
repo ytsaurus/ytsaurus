@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+
 #include <util/generic/map.h>
 
 namespace NYT::NHydra {
@@ -19,8 +21,7 @@ public:
         NLogging::TLogger logger);
 
     void Report(i64 sequenceNumber, ui64 stateHash);
-    std::optional<ui64> GetStateHash(i64 sequenceNumber);
-
+    THashMap<i64, ui64> GetStateHashes(std::vector<i64> sequenceNumbers);
 
 private:
     const int Limit_;
@@ -28,7 +29,7 @@ private:
 
     std::map<i64, ui64> SequenceNumberToStateHash_;
 
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStateHashChecker)

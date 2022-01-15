@@ -6,11 +6,10 @@
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-
-#include <yt/yt/server/lib/hydra/file_snapshot_store.h>
-#include <yt/yt/server/lib/hydra/local_changelog_store.h>
-#include <yt/yt/server/lib/hydra/local_snapshot_service.h>
-#include <yt/yt/server/lib/hydra/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
+#include <yt/yt/server/lib/hydra_common/file_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/local_snapshot_service.h>
 
 #include <yt/yt/server/lib/timestamp_server/timestamp_manager.h>
 

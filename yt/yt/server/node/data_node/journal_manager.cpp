@@ -13,8 +13,8 @@
 #include <yt/yt/server/lib/hydra_common/lazy_changelog.h>
 #include <yt/yt/server/lib/hydra_common/file_helpers.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
+#include <yt/yt/server/lib/hydra_common/file_changelog_dispatcher.h>
 
-#include <yt/yt/server/lib/hydra/file_changelog_dispatcher.h>
 #include <yt/yt/server/lib/hydra/private.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
@@ -760,6 +760,7 @@ private:
 
         auto changelog = WaitFor(MultiplexedChangelogDispatcher_->CreateChangelog(
             GetMultiplexedChangelogPath(id),
+            /* meta */ {},
             Config_))
             .ValueOrThrow();
 
@@ -1049,7 +1050,7 @@ private:
     IChangelogPtr DoCreateChangelog(
         TChunkId chunkId,
         bool enableMultiplexing,
-        const TWorkloadDescriptor& /*workloadDescriptor*/)
+        const TWorkloadDescriptor& /* workloadDescriptor */)
     {
         IChangelogPtr changelog;
 
@@ -1061,6 +1062,7 @@ private:
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = WaitFor(SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
+                /* meta */ {},
                 GetSplitChangelogConfig(enableMultiplexing)))
                 .ValueOrThrow();
         }
@@ -1159,7 +1161,7 @@ private:
                 .ValueOrThrow();
 
             YT_VERIFY(IdToChangelog_.emplace(chunkId, changelog).second);
-            chunkStore->RegisterNewChunk(chunk, /*session*/ nullptr);
+            chunkStore->RegisterNewChunk(chunk, /* session */ nullptr);
 
             return changelog;
         }

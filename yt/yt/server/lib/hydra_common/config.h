@@ -309,6 +309,9 @@ public:
     //! Maximum number of records to collect before flushing the current batch.
     int MaxCommitBatchRecordCount;
 
+    //! Maximum number of mutations to log on one AcceptMutations request.
+    int MaxLoggedMutationsPerRequest;
+
     //! Maximum time to wait before syncing with leader.
     TDuration LeaderSyncDelay;
 
@@ -383,6 +386,12 @@ public:
     //! it will restart automatically.
     TDuration LeaderSwitchTimeout;
 
+    //! Maximum amount of mutations stored in leader's mutation queue.
+    int MaxQueueMutationCount;
+
+    //! Leader's mutation queue data size limit, in bytes.
+    int MaxQueueMutationDataSize;
+
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
@@ -434,13 +443,15 @@ public:
         RegisterParameter("max_commit_batch_delay", MaxCommitBatchDelay)
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("max_commit_batch_record_count", MaxCommitBatchRecordCount)
-            .Default(10000);
+            .Default(10'000);
+        RegisterParameter("max_logged_mutations_per_request", MaxLoggedMutationsPerRequest)
+            .Default(10'000);
 
         RegisterParameter("leader_sync_delay", LeaderSyncDelay)
             .Default(TDuration::MilliSeconds(10));
 
         RegisterParameter("max_changelog_record_count", MaxChangelogRecordCount)
-            .Default(1000000)
+            .Default(1'000'000)
             .GreaterThan(0);
         RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
             .Default(1_GB)
@@ -487,6 +498,14 @@ public:
         RegisterParameter("state_hash_checker_mutation_verification_sampling_rate", StateHashCheckerMutationVerificationSamplingRate)
             .GreaterThan(0)
             .Default(10);
+
+        RegisterParameter("max_queue_mutation_count", MaxQueueMutationCount)
+            .GreaterThan(0)
+            .Default(10'000);
+
+        RegisterParameter("max_queue_mutation_data_size", MaxQueueMutationDataSize)
+            .GreaterThan(0)
+            .Default(1_GB);
 
         RegisterParameter("leader_switch_timeout", LeaderSwitchTimeout)
             .Default(TDuration::Seconds(30));

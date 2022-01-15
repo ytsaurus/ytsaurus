@@ -1,11 +1,11 @@
 #include "decorated_automaton.h"
-#include "snapshot_discovery.h"
 
 #include <yt/yt/server/lib/hydra_common/automaton.h>
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/serialize.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/snapshot_discovery.h>
 #include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
 
 #include <yt/yt/server/lib/misc/fork_executor.h>
@@ -1072,7 +1072,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
 
         if (!NextChangelogFuture_) {
             YT_LOG_INFO("Creating changelog (ChangelogId: %v)", nextChangelogId);
-            NextChangelogFuture_ = EpochContext_->ChangelogStore->CreateChangelog(nextChangelogId);
+            NextChangelogFuture_ = EpochContext_->ChangelogStore->CreateChangelog(nextChangelogId, /* meta */{});
         }
 
         if (Config_->CloseChangelogs) {
@@ -1093,7 +1093,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
             YT_LOG_INFO("Started preallocating changelog (ChangelogId: %v)",
                 preallocatedChangelogId);
             NextChangelogFuture_ =
-                EpochContext_->ChangelogStore->CreateChangelog(preallocatedChangelogId)
+                EpochContext_->ChangelogStore->CreateChangelog(preallocatedChangelogId, /* meta */{})
                     .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<IChangelogPtr>& changelogOrError) {
                         if (changelogOrError.IsOK()) {
                             YT_LOG_INFO("Finished preallocating changelog (ChangelogId: %v)",

@@ -11,6 +11,15 @@ message TSnapshotMeta
     optional uint64 random_seed = 3;
     optional uint64 state_hash = 4;
     optional uint64 timestamp = 5;
+    optional int32 last_segment_id = 6;
+    optional int32 last_record_id = 7;
+    optional int32 last_mutation_term = 8;
+    optional int32 term = 9;
+}
+
+message TChangelogMeta
+{
+    optional int32 term = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

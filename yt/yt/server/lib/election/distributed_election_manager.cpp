@@ -1,10 +1,13 @@
 #include "election_manager.h"
 #include "private.h"
+#include "public.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 #include <yt/yt/ytlib/election/election_service_proxy.h>
+
+#include <yt/yt/ytlib/election/proto/election_service.pb.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -23,6 +26,9 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NRpc;
+
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -389,7 +395,7 @@ private:
         TStatus(
             EPeerState state = EPeerState::Stopped,
             TPeerId vote = InvalidPeerId,
-            TPeerPriority priority = -1,
+            TPeerPriority priority = {-1, -1},
             TEpochId voteEpochId = TEpochId())
             : State(state)
             , VoteId(vote)
@@ -437,7 +443,7 @@ private:
         const auto& rsp = rspOrError.Value();
         auto state = FromProto<EPeerState>(rsp->state());
         auto voteId = rsp->vote_id();
-        auto priority = rsp->priority();
+        auto priority = FromProto<TPeerPriority>(rsp->priority());
         auto epochId = FromProto<TEpochId>(rsp->vote_epoch_id());
         ProcessVote(id, TStatus(state, voteId, priority, epochId));
     }
@@ -1009,7 +1015,7 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
 
     response->set_state(static_cast<int>(State_));
     response->set_vote_id(VoteId_);
-    response->set_priority(priority);
+    ToProto(response->mutable_priority(), priority);
     ToProto(response->mutable_vote_epoch_id(), VoteEpochId_);
     response->set_self_id(CellManager_->GetSelfPeerId());
 

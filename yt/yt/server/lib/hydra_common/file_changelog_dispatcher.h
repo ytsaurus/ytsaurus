@@ -22,6 +22,7 @@ struct IFileChangelogDispatcher
     //! Asynchronously creates a new changelog.
     virtual TFuture<IChangelogPtr> CreateChangelog(
         const TString& path,
+        const NProto::TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config) = 0;
 
     //! Synchronously opens an existing changelog.
@@ -34,6 +35,14 @@ struct IFileChangelogDispatcher
 };
 
 DEFINE_REFCOUNTED_TYPE(IFileChangelogDispatcher)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
+    NIO::IIOEnginePtr ioEngine,
+    TFileChangelogDispatcherConfigPtr config,
+    TString threadName,
+    NProfiling::TProfiler profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

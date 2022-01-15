@@ -1,6 +1,10 @@
 #include "state_hash_checker.h"
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 namespace NYT::NHydra {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,7 +17,9 @@ TStateHashChecker::TStateHashChecker(
 
 void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = WriterGuard(Lock_);
 
     auto it = SequenceNumberToStateHash_.find(sequenceNumber);
     if (it == SequenceNumberToStateHash_.end()) {
@@ -30,13 +36,20 @@ void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash)
     }
 }
 
-std::optional<ui64> TStateHashChecker::GetStateHash(i64 sequenceNumber)
+THashMap<i64, ui64> TStateHashChecker::GetStateHashes(std::vector<i64> sequenceNumbers)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    auto it = SequenceNumberToStateHash_.find(sequenceNumber);
+    auto guard = ReaderGuard(Lock_);
 
-    return it == SequenceNumberToStateHash_.end() ? std::nullopt : std::make_optional(it->second);
+    THashMap<i64, ui64> result;
+    for (auto sequenceNumber : sequenceNumbers) {
+        auto it = SequenceNumberToStateHash_.find(sequenceNumber);
+        if (it != SequenceNumberToStateHash_.end()) {
+            EmplaceOrCrash(result, std::make_pair(sequenceNumber, it->second));
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

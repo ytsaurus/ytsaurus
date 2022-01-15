@@ -1,13 +1,12 @@
 #include "changelog_download.h"
 #include "changelog_discovery.h"
 #include "private.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
-
-#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -56,7 +55,7 @@ void DoDownloadChangelog(
             recordCount - 1,
             changelogInfo.PeerId);
 
-        THydraServiceProxy proxy(cellManager->GetPeerChannel(changelogInfo.PeerId));
+        TLegacyHydraServiceProxy proxy(cellManager->GetPeerChannel(changelogInfo.PeerId));
         proxy.SetDefaultTimeout(config->ChangelogDownloadRpcTimeout);
 
         while (downloadedRecordCount < recordCount) {

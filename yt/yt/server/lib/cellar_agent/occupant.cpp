@@ -20,12 +20,10 @@
 #include <yt/yt/server/lib/hydra_common/hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/snapshot_store_thunk.h>
 #include <yt/yt/server/lib/hydra_common/changelog_store_factory_thunk.h>
+#include <yt/yt/server/lib/hydra_common/remote_changelog_store.h>
+#include <yt/yt/server/lib/hydra_common/remote_snapshot_store.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra/remote_changelog_store.h>
-#include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
-#include <yt/yt/server/lib/hydra/remote_changelog_store.h>
-#include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>

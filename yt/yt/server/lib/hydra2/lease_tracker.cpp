@@ -1,6 +1,7 @@
 #include "lease_tracker.h"
 #include "private.h"
 #include "decorated_automaton.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/config.h>
 
@@ -95,34 +96,29 @@ private:
 
     void SendPing(TPeerId followerId)
     {
-        auto channel = Owner_->EpochContext_->CellManager->GetPeerChannel(followerId);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+
+        const auto& epochContext = Owner_->EpochContext_;
+
+        auto channel = epochContext->CellManager->GetPeerChannel(followerId);
         if (!channel) {
             return;
         }
 
-        const auto& decoratedAutomaton = Owner_->DecoratedAutomaton_;
-        const auto& epochContext = Owner_->EpochContext_;
-
-        auto pingVersion = decoratedAutomaton->GetPingVersion();
-        auto committedVersion = decoratedAutomaton->GetState() == EPeerState::Leading
-            ? std::make_optional(decoratedAutomaton->GetAutomatonVersion())
-            : std::nullopt;
         auto alivePeerIds = epochContext->AlivePeerIds.Load();
 
-        YT_LOG_DEBUG("Sending ping to follower (FollowerId: %v, PingVersion: %v, CommittedVersion: %v, EpochId: %v, AlivePeerIds: %v)",
+        YT_LOG_DEBUG("Sending ping to follower (FollowerId: %v, Term: %v, EpochId: %v, AlivePeerIds: %v)",
             followerId,
-            pingVersion,
-            committedVersion,
+            epochContext->Term,
             epochContext->EpochId,
             alivePeerIds);
 
-        NHydra::THydraServiceProxy proxy(channel);
+        TInternalHydraServiceProxy proxy(channel);
         auto req = proxy.PingFollower();
         req->SetTimeout(Owner_->Config_->LeaderLeaseTimeout);
         ToProto(req->mutable_epoch_id(), epochContext->EpochId);
-        req->set_ping_revision(pingVersion.ToRevision());
-        if (committedVersion) {
-            req->set_committed_revision(committedVersion->ToRevision());
+        if (Owner_->TrackingEnabled_) {
+            req->set_term(epochContext->Term);
         }
         for (auto peerId : alivePeerIds) {
             req->add_alive_peer_ids(peerId);
@@ -137,7 +133,7 @@ private:
     void OnResponse(
         TPeerId followerId,
         bool voting,
-        const NHydra::THydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
+        const TInternalHydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
@@ -155,7 +151,7 @@ private:
             state);
 
         if (voting) {
-            if (state == EPeerState::Following) {
+            if (state == EPeerState::Following || state == EPeerState::FollowerRecovery) {
                 OnSuccess();
             } else {
                 PingErrors_.push_back(TError("Follower %v is in %Qlv state",
@@ -189,13 +185,11 @@ private:
 
 TLeaseTracker::TLeaseTracker(
     NHydra::TDistributedHydraManagerConfigPtr config,
-    TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     TLeaderLeasePtr lease,
     std::vector<TCallback<TFuture<void>()>> customLeaseCheckers,
     NLogging::TLogger logger)
     : Config_(std::move(config))
-    , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , EpochContext_(epochContext)
     , Lease_(std::move(lease))
     , CustomLeaseCheckers_(std::move(customLeaseCheckers))
@@ -206,7 +200,6 @@ TLeaseTracker::TLeaseTracker(
         Config_->LeaderLeaseCheckPeriod))
 {
     YT_VERIFY(Config_);
-    YT_VERIFY(DecoratedAutomaton_);
     YT_VERIFY(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
 

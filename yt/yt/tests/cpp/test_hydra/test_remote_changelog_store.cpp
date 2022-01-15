@@ -4,10 +4,11 @@
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
-
-#include <yt/yt/server/lib/hydra/remote_changelog_store.h>
+#include <yt/yt/server/lib/hydra_common/remote_changelog_store.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
+
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -127,7 +128,7 @@ protected:
             .ValueOrThrow();
         auto changelogStoreFactory = CreateChangelogStoreFactory(prerequisiteTransaction->GetId());
         auto changelogStore = LockStoreFactory(changelogStoreFactory);
-        auto changelog = WaitFor(changelogStore->CreateChangelog(changelogIndex))
+        auto changelog = WaitFor(changelogStore->CreateChangelog(changelogIndex, /*meta*/ {}))
             .ValueOrThrow();
 
         WaitFor(changelog->Append(MakeRange(Records_.begin(), Records_.begin() + recordCount)))
@@ -192,7 +193,7 @@ TEST_F(TRemoteChangelogStoreTest, TestReadWrite)
 
     auto changelogStoreFactory = CreateChangelogStoreFactory(prerequisiteTransaction->GetId());
     auto changelogStore = LockStoreFactory(changelogStoreFactory);
-    auto changelog = WaitFor(changelogStore->CreateChangelog(/*id*/ 1))
+    auto changelog = WaitFor(changelogStore->CreateChangelog(/*id*/ 1, /*meta*/ {}))
         .ValueOrThrow();
 
     WaitFor(changelog->Append(MakeRange(Records_.begin(), Records_.begin() + 2)))
@@ -231,13 +232,13 @@ TEST_F(TRemoteChangelogStoreTest, TestTwoConcurrentWritersAreForbidden)
     auto prerequisiteTransaction2 = WaitFor(Client_->StartTransaction(ETransactionType::Master))
         .ValueOrThrow();
     auto store2 = createAndLockStore(prerequisiteTransaction2->GetId());
-    auto changelog2 = WaitFor(store2->CreateChangelog(/*id*/ 2))
+    auto changelog2 = WaitFor(store2->CreateChangelog(/*id*/ 2, /*meta*/ {}))
         .ValueOrThrow();
 
     // Prerequistie transaction of #store1 is aborted, no more changelogs
     // can be allocated.
-    EXPECT_FALSE(WaitFor(store1->CreateChangelog(/*id*/ 2)).IsOK());
-    EXPECT_FALSE(WaitFor(store1->CreateChangelog(/*id*/ 3)).IsOK());
+    EXPECT_FALSE(WaitFor(store1->CreateChangelog(/*id*/ 2, /*meta*/ {})).IsOK());
+    EXPECT_FALSE(WaitFor(store1->CreateChangelog(/*id*/ 3, /*meta*/ {})).IsOK());
 }
 
 TEST_F(TRemoteChangelogStoreTest, TestTruncate)
@@ -327,7 +328,7 @@ TEST_F(TRemoteChangelogStoreTest, TestPendingMutations)
 
     auto changelogStoreFactory = CreateChangelogStoreFactory(prerequisiteTransaction->GetId());
     auto changelogStore = LockStoreFactory(changelogStoreFactory);
-    auto changelog = WaitFor(changelogStore->CreateChangelog(/*id*/ 1))
+    auto changelog = WaitFor(changelogStore->CreateChangelog(/*id*/ 1, /*meta*/ {}))
         .ValueOrThrow();
 
     for (int index = 0; index < 5; ++index) {

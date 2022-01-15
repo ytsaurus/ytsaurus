@@ -34,6 +34,10 @@
 
 #include <yt/yt/server/lib/hydra_common/public.h>
 
+#include <yt/yt/server/lib/hydra/public.h>
+
+#include <yt/yt/server/lib/hydra2/public.h>
+
 #include <yt/yt/server/lib/timestamp_server/public.h>
 
 #include <yt/yt/server/lib/discovery_server/public.h>

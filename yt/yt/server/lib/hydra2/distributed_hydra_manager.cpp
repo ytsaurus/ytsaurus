@@ -1,11 +1,11 @@
 #include "distributed_hydra_manager.h"
 #include "private.h"
-#include "checkpointer.h"
+#include "changelog_acquisition.h"
 #include "decorated_automaton.h"
 #include "lease_tracker.h"
 #include "mutation_committer.h"
 #include "recovery.h"
-#include "snapshot_discovery.h"
+#include "changelog_discovery.h"
 
 #include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/changelog.h>
@@ -14,11 +14,13 @@
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/snapshot_discovery.h>
 #include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/config.h>
+#include <yt/yt/server/lib/election/public.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
@@ -38,6 +40,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/actions/invoker_detail.h>
+
 #include <yt/yt/core/misc/atomic_object.h>
 
 #include <util/generic/cast.h>
@@ -56,9 +60,26 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto PostponeBackoffTime = TDuration::MilliSeconds(100);
+class TEpochIdInjectingInvoker
+    : public TInvokerWrapper
+{
+public:
+    TEpochIdInjectingInvoker(IInvokerPtr underlying, TEpochId epochId)
+        : TInvokerWrapper(std::move(underlying))
+        , EpochId_(epochId)
+    { }
 
-////////////////////////////////////////////////////////////////////////////////
+    void Invoke(TClosure callback) override
+    {
+        UnderlyingInvoker_->Invoke(BIND([callback = std::move(callback), epochId = EpochId_] {
+            *CurrentEpochId = epochId;
+            callback();
+        }));
+    }
+
+private:
+    const TEpochId EpochId_;
+};
 
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManager)
 
@@ -70,8 +91,7 @@ DEFINE_ENUM(EGraceDelayStatus,
 );
 
 class TDistributedHydraManager
-    : public THydraServiceBase
-    , public IDistributedHydraManager
+    : public IDistributedHydraManager
 {
 public:
     class TElectionCallbacks
@@ -134,10 +154,10 @@ public:
 
         TString FormatPriority(TPeerPriority priority) override
         {
-            auto version = TVersion::FromRevision(priority / 2);
-            return Format("%v%v",
-                version,
-                (priority % 2) != 0 ? "+" : "");
+            return Format("{Term: %v, SequenceNumber: %v, Boost: %v}",
+                priority.first,
+                priority.second / 2,
+                priority.second % 2 == 1);
         }
 
     private:
@@ -157,30 +177,22 @@ public:
         ISnapshotStorePtr snapshotStore,
         const TDistributedHydraManagerOptions& options,
         const TDistributedHydraManagerDynamicOptions& dynamicOptions)
-        : THydraServiceBase(
-            controlInvoker,
-            THydraServiceProxy::GetDescriptor(),
-            HydraLogger.WithTag("CellId: %v", cellId),
-            cellId)
-        , Config_(config)
-        , RpcServer_(rpcServer)
-        , ElectionManager_(electionManager)
-        , ControlInvoker_(controlInvoker)
+        : Config_(std::move(config))
+        , RpcServer_(std::move(rpcServer))
+        , ElectionManager_(std::move(electionManager))
+        , ControlInvoker_(std::move(controlInvoker))
         , CancelableControlInvoker_(CancelableContext_->CreateInvoker(ControlInvoker_))
-        , AutomatonInvoker_(automatonInvoker)
-        , ChangelogStoreFactory_(changelogStoreFactory)
-        , SnapshotStore_(snapshotStore)
+        , AutomatonInvoker_(std::move(automatonInvoker))
+        , ChangelogStoreFactory_(std::move(changelogStoreFactory))
+        , SnapshotStore_(std::move(snapshotStore))
         , Options_(options)
         , StateHashChecker_(New<TStateHashChecker>(Config_->MaxStateHashCheckerEntryCount, HydraLogger))
         , DynamicOptions_(dynamicOptions)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
         , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)))
+        , Logger(HydraLogger.WithTag("CellId: %v", cellId))
         , LeaderSyncTimer_(Profiler_.Timer("/leader_sync_time"))
-    {
-        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
-
-        DecoratedAutomaton_ = New<TDecoratedAutomaton>(
+        , DecoratedAutomaton_(New<TDecoratedAutomaton>(
             Config_,
             Options_,
             automaton,
@@ -189,30 +201,18 @@ public:
             SnapshotStore_,
             StateHashChecker_,
             Logger,
-            Profiler_);
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AcceptMutations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceBuildSnapshot)
-            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RotateChangelog));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithLeader));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceSyncWithLeader));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitMutation)
-            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Poke)
-            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonLeaderLease));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReportMutationsStateHashes)
-            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareLeaderSwitch)
-            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceRestart));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPeerState));
+            Profiler_))
+        , HydraService_(New<THydraService>(
+            this,
+            ControlInvoker_,
+            cellId))
+        , InternalHydraService_(New<TInternalHydraService>(
+            this,
+            ControlInvoker_,
+            cellId))
+    {
+        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     }
 
     void Initialize() override
@@ -225,7 +225,8 @@ public:
 
         DecoratedAutomaton_->Initialize();
 
-        RpcServer_->RegisterService(this);
+        RpcServer_->RegisterService(HydraService_);
+        RpcServer_->RegisterService(InternalHydraService_);
 
         YT_LOG_INFO("Hydra instance initialized");
 
@@ -251,7 +252,8 @@ public:
         ElectionManager_->Abandon(error);
 
         if (ControlState_ != EPeerState::None) {
-            RpcServer_->UnregisterService(this);
+            RpcServer_->UnregisterService(HydraService_);
+            RpcServer_->UnregisterService(InternalHydraService_);
         }
 
         StopEpoch();
@@ -338,43 +340,40 @@ public:
 
     TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epochContext = AutomatonEpochContext_;
-
-        if (!epochContext || !IsActiveLeader()) {
+        auto epochContext = ControlEpochContext_;
+        if (!IsActiveLeader() || !epochContext || !epochContext->LeaderCommitter) {
             return MakeFuture<int>(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Not an active leader"));
         }
+        const auto& leaderCommitter = epochContext->LeaderCommitter;
 
-        auto loggedVersion = DecoratedAutomaton_->GetLoggedVersion();
+        auto loggedVersion = leaderCommitter->GetLoggedVersion();
+        // TODO: make sure this still makes sense.
         if (GetReadOnly() && loggedVersion.RecordId == 0) {
             auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
             if (loggedVersion.SegmentId == lastSnapshotId) {
                 return MakeFuture<int>(TError(
-                    NHydra::EErrorCode::ReadOnlySnapshotBuilt,
+                    NHydra2::EErrorCode::ReadOnlySnapshotBuilt,
                     "The requested read-only snapshot is already built")
                     << TErrorAttribute("snapshot_id", lastSnapshotId));
             }
             return MakeFuture<int>(TError(
-                NHydra::EErrorCode::ReadOnlySnapshotBuildFailed,
+                NHydra2::EErrorCode::ReadOnlySnapshotBuildFailed,
                 "Cannot build a snapshot in read-only mode"));
         }
 
-        if (!epochContext->Checkpointer->CanBuildSnapshot()) {
+        if (!leaderCommitter->CanBuildSnapshot()) {
             return MakeFuture<int>(TError(
                 NRpc::EErrorCode::Unavailable,
-                "Cannot build a snapshot at the moment"));
+                "Snapshot is already being built"));
         }
 
         SetReadOnly(setReadOnly);
 
-        if (waitForSnapshotCompletion) {
-            return BuildSnapshotAndWatch(setReadOnly);
-        } else {
-            return MakeFuture(BuildSnapshotAndDetach(setReadOnly));
-        }
+        return leaderCommitter->BuildSnapshot(waitForSnapshotCompletion);
     }
 
     void ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
@@ -391,13 +390,15 @@ public:
 
             BuildYsonFluently(consumer)
                 .BeginMap()
+                    // TODO(aleksandra-zh): add real committed/logged info.
+                    .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
+
                     .Item("state").Value(DecoratedAutomaton_->GetState())
-                    .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetCommittedVersion()))
                     .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
-                    .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
-                    .Item("random_seed").Value(DecoratedAutomaton_->GetRandomSeed())
-                    .Item("sequence_number").Value(DecoratedAutomaton_->GetSequenceNumber())
-                    .Item("state_hash").Value(DecoratedAutomaton_->GetStateHash())
+                    .Item("automaton_random_seed").Value(DecoratedAutomaton_->GetRandomSeed())
+                    .Item("automaton_sequence_number").Value(DecoratedAutomaton_->GetSequenceNumber())
+                    .Item("automaton_state_hash").Value(DecoratedAutomaton_->GetStateHash())
+
                     .Item("active").Value(IsActive())
                     .Item("active_leader").Value(IsActiveLeader())
                     .Item("active_follower").Value(IsActiveFollower())
@@ -436,63 +437,87 @@ public:
         return epochContext->LeaderSyncBatcher->Run();
     }
 
-    TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
+    TEpochId GetCurrentEpochId()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        // NB: This is monotonic: once in read-only mode, cannot leave it.
-        if (ReadOnly_) {
-            auto readOnlyError = TError(
-                EErrorCode::ReadOnly,
-                "Read-only mode is active");
-            return MakeFuture<TMutationResponse>(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Cannot commit a mutation at the moment")
-                << readOnlyError);
+        return *CurrentEpochId;
+    }
+
+    TFuture<TMutationResponse> EnqueueMutation(TMutationRequest&& request)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto keptResponse = DecoratedAutomaton_->TryBeginKeptRequest(request);
+        if (keptResponse) {
+            return keptResponse;
         }
 
+        auto promise = NewPromise<TMutationResponse>();
+        auto future = promise.ToFuture();
+        if (!request.EpochId) {
+            request.EpochId = GetCurrentEpochId();
+        }
+
+        YT_LOG_DEBUG("Enqueue mutation");
+        PreliminaryMutationQueue_.Enqueue({
+            .Request = request,
+            .Promise = std::move(promise)
+        });
+        return future;
+    }
+
+    TFuture<TMutationResponse> Forward(TMutationRequest&& request)
+    {
+        // TODO: Change affinity to any.
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto epochContext = ControlEpochContext_;
+
+        const auto& cellManager = epochContext->CellManager;
+        auto channel = cellManager->GetPeerChannel(epochContext->LeaderId);
+        YT_VERIFY(channel);
+
+        TInternalHydraServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Config_->CommitForwardingRpcTimeout);
+
+        auto req = proxy.CommitMutation();
+        req->set_type(request.Type);
+        req->set_reign(request.Reign);
+        if (request.MutationId) {
+            ToProto(req->mutable_mutation_id(), request.MutationId);
+            req->set_retry(request.Retry);
+        }
+        req->Attachments().push_back(request.Data);
+
+        return req->Invoke().Apply(BIND([] (const TInternalHydraServiceProxy::TErrorOrRspCommitMutationPtr& rspOrError) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error forwarding mutation to leader");
+            const auto& rsp = rspOrError.Value();
+            return TMutationResponse{
+                EMutationResponseOrigin::LeaderForwarding,
+                TSharedRefArray(rsp->Attachments(), TSharedRefArray::TMoveParts{})
+            };
+        }));
+    }
+
+    TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
+    {
         auto state = GetAutomatonState();
         switch (state) {
             case EPeerState::Leading:
-                if (!LeaderRecovered_) {
-                    return MakeFuture<TMutationResponse>(TError(
-                        NRpc::EErrorCode::Unavailable,
-                        "Leader has not yet recovered"));
-                }
-
-                if (!LeaderLease_->IsValid() || AutomatonEpochContext_->LeaderLeaseExpired) {
-                    auto error = TError(
-                        NRpc::EErrorCode::Unavailable,
-                        "Leader lease is no longer valid");
-                    // Ensure monotonicity: once Hydra rejected a mutation, no more mutations are accepted.
-                    AutomatonEpochContext_->LeaderLeaseExpired = true;
-                    ScheduleRestart(AutomatonEpochContext_, error);
-                    return MakeFuture<TMutationResponse>(error);
-                }
-
-                if (AutomatonEpochContext_->LeaderSwitchStarted) {
-                    // This check is also monotonic (see above).
-                    return MakeFuture<TMutationResponse>(TError(
-                        NRpc::EErrorCode::Unavailable,
-                        "Leader switch is in progress"));
-                }
-
-                return AutomatonEpochContext_->LeaderCommitter->Commit(std::move(request));
+                return EnqueueMutation(std::move(request));
 
             case EPeerState::Following:
-                if (!FollowerRecovered_) {
-                    return MakeFuture<TMutationResponse>(TError(
-                        NRpc::EErrorCode::Unavailable,
-                        "Follower has not yet recovered"));
-                }
-
                 if (!request.AllowLeaderForwarding) {
                     return MakeFuture<TMutationResponse>(TError(
                         NRpc::EErrorCode::Unavailable,
                         "Leader mutation forwarding is not allowed"));
                 }
 
-                return AutomatonEpochContext_->FollowerCommitter->Forward(std::move(request));
+                YT_VERIFY(ControlEpochContext_);
+                return BIND(&TDistributedHydraManager::Forward, MakeStrong(this))
+                    .AsyncVia(ControlEpochContext_->EpochControlInvoker)
+                    .Run(std::move(request));
 
             default:
                 return MakeFuture<TMutationResponse>(TError(
@@ -509,7 +534,7 @@ public:
 
     bool GetReadOnly() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        // VERIFY_THREAD_AFFINITY(ControlThread);
 
         return ReadOnly_;
     }
@@ -561,12 +586,18 @@ private:
 
     const NProfiling::TProfiler Profiler_;
 
+    const TLogger Logger;
+
     THashMap<TString, NProfiling::TCounter> RestartCounter_;
     NProfiling::TEventTimer LeaderSyncTimer_;
 
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
 
-    std::atomic<bool> ReadOnly_ = {false};
+    bool ReadOnly_ = false;
+
+    int SnapshotId_ = -1;
+    TFuture<TRemoteSnapshotParams> SnapshotFuture_;
+
     std::atomic<bool> LeaderRecovered_ = {false};
     std::atomic<bool> FollowerRecovered_ = {false};
     std::atomic<EGraceDelayStatus> GraceDelayStatus_ = EGraceDelayStatus::None;
@@ -575,7 +606,7 @@ private:
     TSystemLockGuard SystemLockGuard_;
 
     IChangelogStorePtr ChangelogStore_;
-    std::optional<TVersion> ReachableVersion_;
+    std::optional<TElectionPriority> ElectionPriority_;
     bool EnablePriorityBoost_ = false;
     TPromise<void> ParticipationPromise_ = NewPromise<void>();
 
@@ -586,36 +617,400 @@ private:
 
     TAtomicObject<TPeerIdSet> AlivePeerIds_;
 
+    TMpscQueue<TMutationDraft> PreliminaryMutationQueue_;
+
+    class TOwnedHydraServiceBase
+        : public THydraServiceBase
+    {
+    protected:
+        TOwnedHydraServiceBase(
+            TDistributedHydraManagerPtr owner,
+            IInvokerPtr invoker,
+            const TServiceDescriptor& descriptor,
+            TCellId cellId)
+        : THydraServiceBase(
+            invoker,
+            descriptor,
+            HydraLogger.WithTag("CellId: %v", cellId),
+            cellId)
+        , Owner_(owner)
+    { }
+
+    TDistributedHydraManagerPtr GetOwnerOrThrow()
+    {
+        auto owner = Owner_.Lock();
+        if (!owner) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Service is shutting down");
+        }
+        return owner;
+    }
+
+    // THydraServiceBase overrides.
+    IHydraManagerPtr GetHydraManager() override
+    {
+        return GetOwnerOrThrow();
+    }
+
+    private:
+        const TWeakPtr<TDistributedHydraManager> Owner_;
+    };
+
+    class THydraService
+        : public TOwnedHydraServiceBase
+    {
+    public:
+        THydraService(
+            TDistributedHydraManagerPtr distributedHydraManager,
+            IInvokerPtr controlInvoker,
+            TCellId cellId)
+        : TOwnedHydraServiceBase(
+            distributedHydraManager,
+            controlInvoker,
+            THydraServiceProxy::GetDescriptor(),
+            cellId)
+        {
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceBuildSnapshot));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceSyncWithLeader));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(Poke));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareLeaderSwitch));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceRestart));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPeerState));
+        }
+
+    private:
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ForceBuildSnapshot)
+        {
+            bool setReadOnly = request->set_read_only();
+            bool waitForSnapshotCompletion = request->wait_for_snapshot_completion();
+            context->SetRequestInfo("SetReadOnly: %v, WaitForSnapshotCompletion: %v",
+                setReadOnly,
+                waitForSnapshotCompletion);
+
+            auto owner = GetOwnerOrThrow();
+            int snapshotId = WaitFor(owner->BuildSnapshot(setReadOnly, waitForSnapshotCompletion))
+                .ValueOrThrow();
+
+            context->SetResponseInfo("SnapshotId: %v",
+                snapshotId);
+
+            response->set_snapshot_id(snapshotId);
+
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ForceSyncWithLeader)
+        {
+            context->SetRequestInfo();
+
+            auto owner = GetOwnerOrThrow();
+            context->ReplyFrom(owner->SyncWithLeader());
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, PrepareLeaderSwitch)
+        {
+            context->SetRequestInfo();
+
+            auto owner = GetOwnerOrThrow();
+            owner->PrepareLeaderSwitch();
+
+            TMutationRequest mutationRequest{
+                .Reign = owner->GetCurrentReign(),
+                .Type = HeartbeatMutationType,
+                .Data = TSharedMutableRef()
+            };
+
+            owner->CommitMutation(std::move(mutationRequest))
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
+                    context->Reply(TError(result));
+                }));
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, Poke)
+        {
+            context->SetRequestInfo();
+
+            auto owner = GetOwnerOrThrow();
+            owner->CommitMutation(TMutationRequest{.Reign = owner->GetCurrentReign()})
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
+                    context->Reply(result);
+                }));
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ForceRestart)
+        {
+            auto reason = FromProto<TError>(request->reason());
+            auto armPriorityBoost = request->arm_priority_boost();
+            context->SetRequestInfo("Reason: %v, ArmPriorityBoost: %v",
+                reason,
+                armPriorityBoost);
+
+            auto owner = GetOwnerOrThrow();
+            owner->ForceRestart(reason, armPriorityBoost);
+
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, GetPeerState)
+        {
+            context->SetRequestInfo();
+
+            auto owner = GetOwnerOrThrow();
+            auto state = owner->GetControlState();
+
+            context->SetResponseInfo("PeerState: %v", state);
+
+            response->set_peer_state(ToUnderlying(state));
+            context->Reply();
+        }
+    };
+    const TIntrusivePtr<THydraService> HydraService_;
+
+    class TInternalHydraService
+        : public TOwnedHydraServiceBase
+    {
+    public:
+        TInternalHydraService(
+            TDistributedHydraManagerPtr distributedHydraManager,
+            IInvokerPtr controlInvoker,
+            TCellId cellId)
+        : TOwnedHydraServiceBase(
+            distributedHydraManager,
+            controlInvoker,
+            TInternalHydraServiceProxy::GetDescriptor(),
+            cellId)
+        {
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(GetLatestChangelogId));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
+                .SetCancelable(true));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(AcceptMutations));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(AcquireChangelog));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithLeader));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitMutation));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonLeaderLease));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(ReportMutationsStateHashes));
+        }
+
+    private:
+        DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
+        {
+            int changelogId = request->changelog_id();
+            context->SetRequestInfo("ChangelogId: %v", changelogId);
+
+            auto owner = GetOwnerOrThrow();
+            auto recordCount = owner->LookupChangelog(changelogId);
+
+            response->set_record_count(recordCount);
+
+            context->SetResponseInfo("RecordCount: %v", recordCount);
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, GetLatestChangelogId)
+        {
+            auto owner = GetOwnerOrThrow();
+            auto [changelogId, term] = owner->GetLatestChangelogId();
+
+            response->set_changelog_id(changelogId);
+            response->set_term(term);
+
+            context->SetResponseInfo("ChangelogId: %v", changelogId);
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, ReadChangeLog)
+        {
+            int changelogId = request->changelog_id();
+            int startRecordId = request->start_record_id();
+            int recordCount = request->record_count();
+            context->SetRequestInfo("ChangelogId: %v, StartRecordId: %v, RecordCount: %v",
+                changelogId,
+                startRecordId,
+                recordCount);
+
+            auto owner = GetOwnerOrThrow();
+            auto recordsData = owner->ReadChangeLog(changelogId, startRecordId, recordCount);
+
+            // Pack refs to minimize allocations.
+            response->Attachments().push_back(PackRefs(recordsData));
+
+            context->SetResponseInfo("RecordCount: %v", recordsData.size());
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, AcceptMutations)
+        {
+            auto owner = GetOwnerOrThrow();
+            owner->AcceptMutations(request, response, context);
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, PingFollower)
+        {
+            auto epochId = FromProto<TEpochId>(request->epoch_id());
+            auto term = request->has_term() ? std::make_optional(request->term()) : std::nullopt;
+            auto alivePeerIds = FromProto<TPeerIdSet>(request->alive_peer_ids());
+            context->SetRequestInfo("EpochId: %v, Term: %v, AlivePeerIds: %v",
+                epochId,
+                term,
+                alivePeerIds);
+
+            auto owner = GetOwnerOrThrow();
+            auto state = owner->PingFollower(epochId, term, alivePeerIds);
+
+            response->set_state(ToProto<int>(state));
+
+            // Reply with OK in any case.
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, AcquireChangelog)
+        {
+            auto term = request->term();
+            auto extractPriority = [&] () -> std::optional<TPeerPriority> {
+                if (!request->has_priority()) {
+                    return std::nullopt;
+                }
+                TPeerPriority priority;
+                FromProto(&priority, request->priority());
+                return priority;
+            };
+            auto priority = extractPriority();
+            auto changelogId = request->changelog_id();
+
+            context->SetRequestInfo("Term: %v, Priority: %v, ChangelogId: %v",
+                term,
+                priority,
+                changelogId);
+
+            auto owner = GetOwnerOrThrow();
+            owner->AcquireChangelog(term, priority, changelogId);
+
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, SyncWithLeader)
+        {
+            auto epochId = FromProto<TEpochId>(request->epoch_id());
+            auto term = request->term();
+            context->SetRequestInfo("EpochId: %v, Term: %v",
+                epochId,
+                term);
+
+            auto owner = GetOwnerOrThrow();
+            auto state = owner->SyncWithLeader(epochId, term);
+
+            context->SetResponseInfo("CommittedState: %v",
+                state);
+
+            response->set_committed_sequence_number(state.SequenceNumber);
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, CommitMutation)
+        {
+            TMutationRequest mutationRequest;
+            mutationRequest.Reign = request->reign();
+            mutationRequest.Type = request->type();
+            if (request->has_mutation_id()) {
+                mutationRequest.MutationId = FromProto<TMutationId>(request->mutation_id());
+                mutationRequest.Retry = request->retry();
+            }
+            mutationRequest.Data = request->Attachments()[0];
+
+            auto owner = GetOwnerOrThrow();
+
+            // COMPAT(savrus) Fix heartbeats from old participants.
+            if (mutationRequest.Type != HeartbeatMutationType && !mutationRequest.Reign) {
+                mutationRequest.Reign = owner->GetCurrentReign();
+            }
+
+            context->SetRequestInfo("MutationType: %v, MutationId: %v, Retry: %v",
+                mutationRequest.Type,
+                mutationRequest.MutationId,
+                mutationRequest.Retry);
+
+            owner->CommitMutation(std::move(mutationRequest))
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
+                    if (!result.IsOK()) {
+                        context->Reply(result);
+                        return;
+                    }
+
+                    const auto& mutationResponse = result.Value();
+                    response->Attachments() = mutationResponse.Data.ToVector();
+                    context->Reply();
+                }));
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, AbandonLeaderLease)
+        {
+            auto peerId = request->peer_id();
+            context->SetRequestInfo("PeerId: %v",
+                peerId);
+
+            auto owner = GetOwnerOrThrow();
+            auto abandoned = owner->AbandonLeaderLease(peerId);
+
+            response->set_abandoned(abandoned);
+            context->SetResponseInfo("Abandoned: %v",
+                abandoned);
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, ReportMutationsStateHashes)
+        {
+            context->SetRequestInfo();
+
+            auto owner = GetOwnerOrThrow();
+
+            // TODO: remove it from here.
+            if (owner->Config_->EnableStateHashChecker) {
+                for (const auto& mutationInfo : request->mutations_info()) {
+                    auto sequenceNumber = mutationInfo.sequence_number();
+                    auto stateHash = mutationInfo.state_hash();
+                    owner->StateHashChecker_->Report(sequenceNumber, stateHash);
+                }
+            }
+
+            context->Reply();
+        }
+    };
+    const TIntrusivePtr<TInternalHydraService> InternalHydraService_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, LookupChangelog)
+    i64 LookupChangelog(int changelogId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        int changelogId = request->changelog_id();
-        context->SetRequestInfo("ChangelogId: %v", changelogId);
 
         auto changelog = OpenChangelogOrThrow(changelogId);
-        int recordCount = changelog->GetRecordCount();
-        response->set_record_count(recordCount);
-
-        context->SetResponseInfo("RecordCount: %v", recordCount);
-        context->Reply();
+        return changelog->GetRecordCount();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ReadChangeLog)
+    std::pair<int, int> GetLatestChangelogId()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        int changelogId = request->changelog_id();
-        int startRecordId = request->start_record_id();
-        int recordCount = request->record_count();
-        context->SetRequestInfo("ChangelogId: %v, StartRecordId: %v, RecordCount: %v",
-            changelogId,
-            startRecordId,
-            recordCount);
+        if (!ChangelogStore_) {
+            THROW_ERROR_EXCEPTION("Changelog store is not yet initialized");
+        }
+
+        auto changelogId = WaitFor(ChangelogStore_->GetLatestChangelogId())
+            .ValueOrThrow();
+        if (changelogId == InvalidSegmentId) {
+            return {InvalidSegmentId, InvalidTerm};
+        }
+        auto changelog = OpenChangelogOrThrow(changelogId);
+        auto meta = changelog->GetMeta();
+
+        return {changelogId, meta.term()};
+    }
+
+    std::vector<TSharedRef> ReadChangeLog(int changelogId, i64 startRecordId, i64 recordCount)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(startRecordId >= 0);
         YT_VERIFY(recordCount >= 0);
@@ -626,123 +1021,137 @@ private:
             startRecordId,
             recordCount,
             Config_->MaxChangelogBytesPerRequest);
-        auto recordsData = WaitFor(asyncRecordsData)
+        return WaitFor(asyncRecordsData)
             .ValueOrThrow();
-
-        // Pack refs to minimize allocations.
-        response->Attachments().push_back(PackRefs(recordsData));
-
-        context->SetResponseInfo("RecordCount: %v", recordsData.size());
-        context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, AcceptMutations)
-    {
-        auto epochId = FromProto<TEpochId>(request->epoch_id());
-        auto startVersion = TVersion::FromRevision(request->start_revision());
-        auto committedVersion = TVersion::FromRevision(request->committed_revision());
-        auto mutationCount = request->Attachments().size();
-        context->SetRequestInfo("StartVersion: %v, CommittedVersion: %v, EpochId: %v, MutationCount: %v",
-            startVersion,
-            committedVersion,
-            epochId,
-            mutationCount);
-
-        bool again;
-        do {
-            again = false;
-
-            // AcceptMutations and RotateChangelog handling must start in Control Thread
-            // since during recovery Automaton Thread may be busy for prolonged periods of time
-            // and we must still be able to capture and postpone the relevant mutations.
-            //
-            // Additionally, it is vital for AcceptMutations, BuildSnapshot, and RotateChangelog handlers
-            // to follow the same thread transition pattern (start in ControlThread, then switch to
-            // Automaton Thread) to ensure consistent callbacks ordering.
-            //
-            // E.g. BuildSnapshot and RotateChangelog calls rely on the fact than all mutations
-            // that were previously sent via AcceptMutations are accepted (and the logged version is
-            // propagated appropriately).
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
-            auto controlState = GetControlState();
-            if (controlState != EPeerState::Following && controlState != EPeerState::FollowerRecovery) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::Unavailable,
-                    "Cannot accept mutations in %Qlv state",
-                    controlState);
-            }
-
-            auto epochContext = GetControlEpochContext(epochId);
-
-            switch (controlState) {
-                case EPeerState::Following: {
-                    SwitchTo(epochContext->EpochUserAutomatonInvoker);
-                    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-                    CommitMutationsAtFollower(committedVersion);
-
-                    try {
-                        auto asyncResult = epochContext->FollowerCommitter->AcceptMutations(
-                            startVersion,
-                            request->Attachments());
-                        WaitFor(asyncResult)
-                            .ThrowOnError();
-                        response->set_logged(Options_.WriteChangelogsAtFollowers);
-                    } catch (const std::exception& ex) {
-                        auto error = TError("Error logging mutations")
-                            << ex;
-                        ScheduleRestart(epochContext, error);
-                        THROW_ERROR error;
-                    }
-                    break;
-                }
-
-                case EPeerState::FollowerRecovery: {
-                    try {
-                        CheckForInitialPing(startVersion);
-                        auto followerRecovery = epochContext->FollowerRecovery;
-                        if (followerRecovery) {
-                            if (!followerRecovery->PostponeMutations(startVersion, request->Attachments())) {
-                                BackoffPostpone();
-                                again = true;
-                                continue;
-                            }
-                            followerRecovery->SetCommittedVersion(committedVersion);
-                        }
-                        response->set_logged(false);
-                    } catch (const std::exception& ex) {
-                        auto error = TError("Error postponing mutations during recovery")
-                            << ex;
-                        ScheduleRestart(epochContext, error);
-                        THROW_ERROR error;
-                    }
-                    break;
-                }
-
-                default:
-                    YT_ABORT();
-            }
-        } while (again);
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, PingFollower)
+    void AcceptMutations(
+        TTypedServiceRequest<NProto::TReqAcceptMutations>* request,
+        TTypedServiceResponse<NProto::TRspAcceptMutations>* response,
+        const TIntrusivePtr<TTypedServiceContext<NProto::TReqAcceptMutations, NProto::TRspAcceptMutations>>& context)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
-        auto pingVersion = TVersion::FromRevision(request->ping_revision());
-        auto committedVersion = request->has_committed_revision()
-            ? std::make_optional(TVersion::FromRevision(request->committed_revision()))
-            : std::nullopt;
-        auto alivePeerIds = FromProto<TPeerIdSet>(request->alive_peer_ids());
-        context->SetRequestInfo("PingVersion: %v, CommittedVersion: %v, EpochId: %v, AlivePeerIds: %v",
-            pingVersion,
-            committedVersion,
+        auto startSequenceNumber = request->start_sequence_number();
+        auto committedSequenceNumber = request->committed_sequence_number();
+        auto committedSegmentId = request->committed_segment_id();
+        auto term = request->term();
+
+        auto mutationCount = request->Attachments().size();
+        context->SetRequestInfo("StartSequenceNumber: %v, CommittedSequenceNumber: %v, CommittedSegmentId: %v, EpochId: %v, MutationCount: %v",
+            startSequenceNumber,
+            committedSequenceNumber,
+            committedSegmentId,
             epochId,
-            alivePeerIds);
+            mutationCount);
+
+        auto controlState = GetControlState();
+        if (controlState != EPeerState::Following && controlState != EPeerState::FollowerRecovery) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot accept mutations in %Qlv state",
+                controlState);
+        }
+
+        auto epochContext = GetControlEpochContext(epochId);
+
+        if (term < epochContext->Term) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot accept mutations from term %v in term %v",
+                term,
+                epochContext->Term);
+        }
+
+        if (epochContext->AcquiringChangelog) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot accept mutations while acquiring changelog");
+        }
+
+        if (!CheckForInitialPing({committedSegmentId, committedSequenceNumber}, term)) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot accept mutations before initial ping with OK version is recieved");
+        }
+
+        // We can not verify term before CheckForInitialPing because term may change on initial ping.
+        // However, we should verify our term is not greater then leader's before CheckForInitialPing to
+        // prevent term changing to a lower value.
+        if (term > epochContext->Term) {
+            YT_LOG_INFO("Received accept mutations with a greater term (CurrentTerm: %v, NewTerm: %v)",
+                epochContext->Term,
+                term);
+            auto error = TError("Received accept mutations with a greater term")
+                << TErrorAttribute("self_term", epochContext->Term)
+                << TErrorAttribute("leader_term", term);
+            ScheduleRestart(epochContext, error);
+            // TODO: Maybe replace restart with:
+            // epochContext->Term = term;
+            THROW_ERROR(error);
+        }
+
+        // This should be done before processing mutations, otherwise we might apply a mutation
+        // with a greater sequence number.
+        if (controlState == EPeerState::Following && request->has_snapshot_request()) {
+            const auto& snapshotRequest = request->snapshot_request();
+            auto snapshotId = snapshotRequest.snapshot_id();
+            if (snapshotId < SnapshotId_) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Received a snapshot request with a snapshot id %v while last snasphot id %v is greater",
+                    snapshotId,
+                    SnapshotId_);
+            } else if (snapshotId == SnapshotId_) {
+                YT_LOG_DEBUG("Received a redunant snasphot request, ignoring (SnapshotId: %v)",
+                    SnapshotId_);
+            } else {
+                SnapshotId_ = snapshotRequest.snapshot_id();
+                YT_LOG_INFO("Received a new snasphot request (SnapshotId: %v)",
+                    SnapshotId_);
+                SnapshotFuture_ = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
+                    .AsyncVia(epochContext->EpochUserAutomatonInvoker)
+                    .Run(snapshotRequest.snapshot_id(), snapshotRequest.sequence_number());
+            }
+
+            if (SnapshotFuture_ && SnapshotFuture_.IsSet()) {
+                auto* snapshotResponse = response->mutable_snapshot_response();
+                const auto& valueOrError = SnapshotFuture_.Get();
+                snapshotResponse->set_ok(valueOrError.IsOK());
+                if (valueOrError.IsOK()) {
+                    auto value = valueOrError.Value();
+                    snapshotResponse->set_snapshot_id(value.SnapshotId);
+                    snapshotResponse->set_checksum(value.Checksum);
+                }
+            }
+        }
+
+        epochContext->FollowerCommitter->AcceptMutations(
+            startSequenceNumber,
+            request->Attachments());
+
+        if (controlState == EPeerState::Following) {
+            epochContext->FollowerCommitter->LogMutations();
+            CommitMutationsAtFollower(committedSequenceNumber);
+        }
+
+        // we must make sure LoggedSequenceNumber in committer is initialized
+        auto loggedSequenceNumber = epochContext->FollowerCommitter->GetLoggedSequenceNumber();
+        auto expectedSequenceNumber = epochContext->FollowerCommitter->GetExpectedSequenceNumber();
+        response->set_logged_sequence_number(loggedSequenceNumber);
+        response->set_expected_sequence_number(expectedSequenceNumber);
+
+        context->SetResponseInfo("LoggedSequenceNumber: %v, ExpectedSequenceNumber: %v",
+            loggedSequenceNumber,
+            expectedSequenceNumber);
+        context->Reply();
+    }
+
+    // epochId seems redundant
+    EPeerState PingFollower(TEpochId epochId, std::optional<int> term, TPeerIdSet alivePeerIds)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto controlState = GetControlState();
         if (controlState != EPeerState::Following && controlState != EPeerState::FollowerRecovery) {
@@ -753,213 +1162,124 @@ private:
         }
 
         auto epochContext = GetControlEpochContext(epochId);
-
-        switch (controlState) {
-            case EPeerState::Following:
-                if (committedVersion) {
-                    epochContext->EpochUserAutomatonInvoker->Invoke(
-                        BIND(&TDistributedHydraManager::CommitMutationsAtFollower, MakeStrong(this), *committedVersion));
-                }
-                break;
-
-            case EPeerState::FollowerRecovery:
-                CheckForInitialPing(pingVersion);
-                if (auto followerRecovery = epochContext->FollowerRecovery; followerRecovery && committedVersion) {
-                    followerRecovery->SetCommittedVersion(*committedVersion);
-                }
-                break;
-
-            default:
-                YT_ABORT();
+        if (term && epochContext->Term != term) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Term mismatch: expected %v, got %v",
+                epochContext->Term,
+                term);
         }
 
         epochContext->AlivePeerIds.Store(alivePeerIds);
 
-        response->set_state(ToProto<int>(GetControlState()));
-
-        // Reply with OK in any case.
-        context->Reply();
+        return controlState;
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, BuildSnapshot)
+    void AcquireChangelog(int term, std::optional<TPeerPriority> priority, int changelogId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        Y_UNUSED(response);
 
-        auto epochId = FromProto<TEpochId>(request->epoch_id());
-        auto version = TVersion::FromRevision(request->revision());
-        bool setReadOnly = request->set_read_only();
-        context->SetRequestInfo("EpochId: %v, Version: %v, SetReadOnly: %v",
-            epochId,
-            version,
-            setReadOnly);
+        auto elections = priority.has_value();
+
+        auto epochContext = ControlEpochContext_;
+        auto changelogStore = ChangelogStore_;
 
         auto controlState = GetControlState();
-        if (controlState != EPeerState::Following) {
+        if (controlState != EPeerState::FollowerRecovery && controlState != EPeerState::Following) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
-                "Cannot build snapshot in %Qlv state",
+                "Cannot acquire changelog %v in %Qlv state",
+                changelogId,
                 controlState);
         }
 
-        if (!Options_.WriteSnapshotsAtFollowers) {
-            THROW_ERROR_EXCEPTION("Cannot build snapshot at follower");
+        if (epochContext->Term > term || (elections && epochContext->Term == term)) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot acquire changelog %v with term %v in term %v",
+                changelogId,
+                term,
+                epochContext->Term);
         }
 
-        auto epochContext = GetControlEpochContext(epochId);
+        auto selfPriority = GetElectionPriority();
+        if (elections && selfPriority > priority) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot acquire changelog %v because self priority %v is greater than leader priority %v",
+                changelogId,
+                selfPriority,
+                priority);
+        }
 
-        SwitchTo(epochContext->EpochUserAutomatonInvoker);
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        auto currentChangelogId = WaitFor(changelogStore->GetLatestChangelogId())
+            .ValueOrThrow();
 
-        if (DecoratedAutomaton_->GetLoggedVersion() != version) {
-            auto error = TError(
-                NHydra::EErrorCode::InvalidVersion,
-                "Invalid logged version")
-                << TErrorAttribute("expected_version", ToString(version))
-                << TErrorAttribute("actual_version", ToString(DecoratedAutomaton_->GetLoggedVersion()));
+        if (currentChangelogId >= changelogId) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot acquire changelog %v because changelog %v exists",
+                changelogId,
+                currentChangelogId);
+        }
+
+        if (epochContext->AcquiringChangelog) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Changelog is already being acquired");
+        }
+
+        if (elections) {
+            epochContext->Term = term;
+            epochContext->AcquiringChangelog = true;
+        }
+
+        auto acquiringChangelogGuard = Finally([&] {
+            epochContext->AcquiringChangelog = false;
+        });
+
+        if (elections) {
+            WaitFor(epochContext->FollowerCommitter->GetLastLoggedMutationFuture())
+                .ThrowOnError();
+        }
+
+        NHydra::NProto::TChangelogMeta meta;
+        meta.set_term(term);
+
+        for (int i = currentChangelogId + 1; i <= changelogId; ++i) {
+            auto changelog = WaitFor(changelogStore->CreateChangelog(i, meta))
+                .ValueOrThrow();
+            epochContext->FollowerCommitter->RegisterNextChangelog(i, changelog);
+        }
+
+        YT_LOG_INFO("Changelog acquired (ChangelogId: %v, Priority: %v, Term: %v)",
+            changelogId,
+            priority,
+            term);
+    }
+
+    // I'm sure there are more places where I can use it.
+    void ValidateTerm(const TEpochContextPtr& epochContext, int term)
+    {
+        if (term > epochContext->Term) {
+            auto error = TError("Leader's term %v is less than follower's term %v",
+                epochContext->Term,
+                term);
             ScheduleRestart(epochContext, error);
-            context->Reply(error);
-            return;
         }
 
-        SetReadOnly(setReadOnly);
-
-        auto result = WaitFor(DecoratedAutomaton_->BuildSnapshot())
-            .ValueOrThrow();
-
-        response->set_checksum(result.Checksum);
-
-        context->Reply();
+        if (term < epochContext->Term) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Current term %v is greater than follower's term %v",
+                epochContext->Term,
+                term);
+        }
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ForceBuildSnapshot)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        bool setReadOnly = request->set_read_only();
-        bool waitForSnapshotCompletion = request->wait_for_snapshot_completion();
-        context->SetRequestInfo("SetReadOnly: %v, WaitForSnapshotCompletion: %v",
-            setReadOnly,
-            waitForSnapshotCompletion);
-
-        int snapshotId = WaitFor(BuildSnapshot(setReadOnly, waitForSnapshotCompletion))
-            .ValueOrThrow();
-
-        context->SetResponseInfo("SnapshotId: %v",
-            snapshotId);
-
-        response->set_snapshot_id(snapshotId);
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, RotateChangelog)
-    {
-        Y_UNUSED(response);
-
-        auto epochId = FromProto<TEpochId>(request->epoch_id());
-        auto version = TVersion::FromRevision(request->revision());
-
-        context->SetRequestInfo("EpochId: %v, Version: %v",
-            epochId,
-            version);
-
-        bool again;
-        do {
-            again = false;
-
-            // See AcceptMutations.
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
-            auto controlState = GetControlState();
-            if (controlState != EPeerState::Following && controlState  != EPeerState::FollowerRecovery) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::Unavailable,
-                    "Cannot rotate changelog while in %Qlv state",
-                    controlState);
-            }
-
-            auto epochContext = GetControlEpochContext(epochId);
-
-            switch (controlState) {
-                case EPeerState::Following: {
-                    SwitchTo(epochContext->EpochUserAutomatonInvoker);
-                    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-                    try {
-                        if (DecoratedAutomaton_->GetLoggedVersion() != version) {
-                            THROW_ERROR_EXCEPTION(
-                                NHydra::EErrorCode::InvalidVersion,
-                                "Invalid logged version: expected %v, actual %v",
-                                version,
-                                DecoratedAutomaton_->GetLoggedVersion());
-                        }
-
-                        auto followerCommitter = epochContext->FollowerCommitter;
-                        if (followerCommitter->IsLoggingSuspended()) {
-                            THROW_ERROR_EXCEPTION(
-                                NRpc::EErrorCode::Unavailable,
-                                "Changelog is already being rotated");
-                        }
-
-                        followerCommitter->SuspendLogging();
-                        WaitFor(DecoratedAutomaton_->RotateChangelog())
-                            .ThrowOnError();
-                        followerCommitter->ResumeLogging();
-
-                        response->set_rotated(true);
-                    } catch (const std::exception& ex) {
-                        auto error = TError("Error rotating changelog")
-                            << ex;
-                        ScheduleRestart(epochContext, error);
-                        THROW_ERROR error;
-                    }
-
-                    break;
-                }
-
-                case EPeerState::FollowerRecovery: {
-                    auto followerRecovery = epochContext->FollowerRecovery;
-                    if (!followerRecovery) {
-                        // NB: No restart.
-                        THROW_ERROR_EXCEPTION(
-                            NRpc::EErrorCode::Unavailable,
-                            "Initial ping is not received yet");
-                    }
-
-                    try {
-                        if (!followerRecovery->PostponeChangelogRotation(version)) {
-                            BackoffPostpone();
-                            again = true;
-                            continue;
-                        }
-                    } catch (const std::exception& ex) {
-                        auto error = TError("Error postponing changelog rotation during recovery")
-                            << ex;
-                        ScheduleRestart(epochContext, error);
-                        THROW_ERROR error;
-                    }
-
-                    break;
-                }
-
-                default:
-                    YT_ABORT();
-            }
-        } while (again);
-
-        context->SetResponseInfo("Rotated: %v",
-            response->rotated());
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, SyncWithLeader)
+    TReachableState SyncWithLeader(TEpochId epochId, int term)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto epochId = FromProto<TEpochId>(request->epoch_id());
-        context->SetRequestInfo("EpochId: %v",
-            epochId);
 
         if (!IsActiveLeader()) {
             THROW_ERROR_EXCEPTION(
@@ -968,74 +1288,23 @@ private:
         }
 
         // Validate epoch id.
-        GetControlEpochContext(epochId);
+        auto epochContext = GetControlEpochContext(epochId);
 
-        auto version = DecoratedAutomaton_->GetCommittedVersion();
+        ValidateTerm(epochContext, term);
 
-        context->SetResponseInfo("CommittedVersion: %v",
-            version);
-
-        response->set_committed_revision(version.ToRevision());
-        context->Reply();
+        return epochContext->LeaderCommitter->GetCommittedState();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ForceSyncWithLeader)
+    void PrepareLeaderSwitch()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        context->SetRequestInfo();
-
-        context->ReplyFrom(SyncWithLeader());
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, CommitMutation)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMutationRequest mutationRequest;
-        mutationRequest.Reign = request->reign();
-        mutationRequest.Type = request->type();
-        if (request->has_mutation_id()) {
-            mutationRequest.MutationId = FromProto<TMutationId>(request->mutation_id());
-            mutationRequest.Retry = request->retry();
-        }
-        mutationRequest.Data = request->Attachments()[0];
-
-        // COMPAT(savrus) Fix heartbeats from old participants.
-        if (mutationRequest.Type != HeartbeatMutationType && !mutationRequest.Reign) {
-            mutationRequest.Reign = GetCurrentReign();
-        }
-
-        context->SetRequestInfo("MutationType: %v, MutationId: %v, Retry: %v",
-            mutationRequest.Type,
-            mutationRequest.MutationId,
-            mutationRequest.Retry);
-
-        CommitMutation(std::move(mutationRequest))
-            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                    return;
-                }
-
-                const auto& mutationResponse = result.Value();
-                response->Attachments() = mutationResponse.Data.ToVector();
-                context->Reply();
-            }));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, PrepareLeaderSwitch)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        context->SetRequestInfo();
 
         auto state = GetAutomatonState();
         if (state != EPeerState::Leading) {
             THROW_ERROR_EXCEPTION("Peer is not leading");
         }
 
-        auto epochContext = AutomatonEpochContext_;
+        auto epochContext = ControlEpochContext_;
         if (epochContext->LeaderSwitchStarted) {
             THROW_ERROR_EXCEPTION("Leader is already being switched");
         }
@@ -1051,70 +1320,22 @@ private:
             }),
             Config_->LeaderSwitchTimeout);
 
-        TMutationRequest mutationRequest{
-            .Reign = GetCurrentReign(),
-            .Type = HeartbeatMutationType,
-            .Data = TSharedMutableRef::Allocate(0)
-        };
-
-        CommitMutation(std::move(mutationRequest))
-            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
-                context->Reply(TError(result));
-            }));
-
         epochContext->LeaderSwitchStarted = true;
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, Poke)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        context->SetRequestInfo();
-
-        CommitMutation(TMutationRequest{.Reign = GetCurrentReign()})
-            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
-                context->Reply(result);
-            }));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, AbandonLeaderLease)
+    bool AbandonLeaderLease(int peerId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto peerId = request->peer_id();
-        context->SetRequestInfo("PeerId: %v",
-            peerId);
 
         bool abandoned = LeaderLease_->TryAbandon();
         if (abandoned) {
             YT_LOG_INFO("Leader lease abandonded (RequestingPeerId: %v)",
                 peerId);
         }
-
-        response->set_abandoned(abandoned);
-        context->SetResponseInfo("Abandoned: %v",
-            abandoned);
-        context->Reply();
+        return abandoned;
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ReportMutationsStateHashes)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        context->SetRequestInfo();
-
-        if (Config_->EnableStateHashChecker) {
-            for (const auto& mutationInfo : request->mutations_info()) {
-                auto sequenceNumber = mutationInfo.sequence_number();
-                auto stateHash = mutationInfo.state_hash();
-                StateHashChecker_->Report(sequenceNumber, stateHash);
-            }
-        }
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ForceRestart)
+    void ForceRestart(const TError& reason, bool armPriorityBoost)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1124,12 +1345,6 @@ private:
                 "Peer is in %Qlv state",
                 GetControlState());
         }
-
-        auto reason = FromProto<TError>(request->reason());
-        auto armPriorityBoost = request->arm_priority_boost();
-        context->SetRequestInfo("Reason: %v, ArmPriorityBoost: %v",
-            reason,
-            armPriorityBoost);
 
         if (armPriorityBoost) {
             SetPriorityBoost(true);
@@ -1142,24 +1357,7 @@ private:
             WaitFor(ParticipationPromise_.ToFuture())
                 .ThrowOnError();
         }
-
-        context->Reply();
     }
-
-    DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, GetPeerState)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        context->SetRequestInfo();
-
-        auto state = GetControlState();
-
-        context->SetResponseInfo("PeerState: %v", state);
-
-        response->set_peer_state(ToUnderlying(state));
-        context->Reply();
-    }
-
 
     void SetPriorityBoost(bool value)
     {
@@ -1178,22 +1376,29 @@ private:
         EnablePriorityBoost_ = value;
     }
 
-    i64 GetElectionPriority()
+    TPeerPriority GetElectionPriority()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!ReachableVersion_) {
+        // order?
+        if (!ElectionPriority_) {
             THROW_ERROR_EXCEPTION("Election priority is not available");
         }
 
         auto controlState = GetControlState();
-        auto version = controlState == EPeerState::Leading || controlState == EPeerState::Following
-            ? DecoratedAutomaton_->GetAutomatonVersion()
-            : *ReachableVersion_;
-
-        return (version.ToRevision() * 2) + (EnablePriorityBoost_ ? 1 : 0);
+        auto getElectionPriority = [&] {
+            if (controlState == EPeerState::Leading || controlState == EPeerState::Following) {
+                YT_VERIFY(ControlEpochContext_);
+                // it looks possible that last mutation's term might be < ControlEpochContext_->Term
+                // but for now lets pretend it is not
+                return TElectionPriority(ControlEpochContext_->Term, ControlEpochContext_->Term, DecoratedAutomaton_->GetReachableState());
+            } else {
+                return *ElectionPriority_;
+            }
+        };
+        auto priority = getElectionPriority();
+        return {priority.LastMutationTerm, priority.ReachableState.SequenceNumber * 2 + (EnablePriorityBoost_ ? 1 : 0)};
     }
-
 
     void Participate()
     {
@@ -1255,6 +1460,60 @@ private:
         ElectionManager_->Abandon(error);
     }
 
+    TElectionPriority GetSnapshotElectionPriority()
+    {
+        auto asyncMaxSnapshotId = SnapshotStore_->GetLatestSnapshotId();
+        int maxSnapshotId = WaitFor(asyncMaxSnapshotId)
+            .ValueOrThrow();
+
+        if (maxSnapshotId == InvalidSegmentId) {
+            YT_LOG_INFO("No snapshots found");
+            // Let's pretend we have snapshot 0.
+            return {0, 0, 0, 0};
+        }
+
+        auto reader = SnapshotStore_->CreateReader(maxSnapshotId);
+        WaitFor(reader->Open())
+            .ThrowOnError();
+
+        auto meta = reader->GetParams().Meta;
+        if (!meta.has_term()) {
+            // COMPAT(aleksandra-zh): Looks safe.
+            YT_LOG_INFO("No term in snapshot meta (SnapshotId: %v, SequenceNumber: %v)",
+                maxSnapshotId,
+                meta.sequence_number());
+            return {0, 0, maxSnapshotId, meta.sequence_number()};
+        }
+
+        // TODO: think about this.
+        TElectionPriority electionPriority(meta.term(), meta.last_mutation_term(), meta.last_segment_id(), meta.sequence_number());
+        YT_LOG_INFO(
+            "The latest snapshot election priority is available (SnapshotId: %v, ElectionPriority: %v)",
+            maxSnapshotId,
+            electionPriority);
+        return electionPriority;
+    }
+
+    TElectionPriority GetChangelogElectionPriority()
+    {
+        ChangelogStore_ = WaitFor(ChangelogStoreFactory_->Lock())
+            .ValueOrThrow();
+
+        auto optionalElectionPriority = ChangelogStore_->GetElectionPriority();
+        if (optionalElectionPriority) {
+            YT_LOG_INFO("Changelog election priority is available (ElectionPriority: %v)",
+                *optionalElectionPriority);
+            return *optionalElectionPriority;
+        } else {
+            // meh
+            auto state = DecoratedAutomaton_->GetReachableState();
+            YT_VERIFY(ControlEpochContext_);
+            YT_LOG_INFO("Election priority is not available, using automaton state instead (AutomatonState: %v)",
+                state);
+            return {DecoratedAutomaton_->GetLastMutationTerm(), ControlEpochContext_->Term, state};
+        }
+    }
+
     void DoParticipate()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1262,36 +1521,13 @@ private:
         YT_LOG_INFO("Initializing persistent stores");
 
         auto backoffTime = Config_->MinPersistentStoreInitializationBackoffTime;
+
         while (true) {
             try {
-                auto asyncMaxSnapshotId = SnapshotStore_->GetLatestSnapshotId();
-                int maxSnapshotId = WaitFor(asyncMaxSnapshotId)
-                    .ValueOrThrow();
-
-                if (maxSnapshotId == InvalidSegmentId) {
-                    YT_LOG_INFO("No snapshots found");
-                    // Let's pretend we have snapshot 0.
-                    maxSnapshotId = 0;
-                } else {
-                    YT_LOG_INFO("The latest snapshot is %v", maxSnapshotId);
-                }
-
-                ChangelogStore_ = WaitFor(ChangelogStoreFactory_->Lock())
-                    .ValueOrThrow();
-
-                auto optionalReachableVersion = ChangelogStore_->GetReachableVersion();
-                if (optionalReachableVersion) {
-                    ReachableVersion_ = optionalReachableVersion->SegmentId < maxSnapshotId
-                        ? TVersion(maxSnapshotId, 0)
-                        : *optionalReachableVersion;
-                    YT_LOG_INFO("Reachable version is available (Version: %v)",
-                        ReachableVersion_);
-                } else {
-                    ReachableVersion_ = DecoratedAutomaton_->GetCommittedVersion();
-                    YT_LOG_INFO("Reachable version is not available, using committed version instead (Version: %v)",
-                        ReachableVersion_);
-                }
-
+                auto snapshotElectionPriority = GetSnapshotElectionPriority();
+                auto changelogElectionPriority = GetChangelogElectionPriority();
+                ElectionPriority_ = std::max(snapshotElectionPriority, changelogElectionPriority);
+                ElectionPriority_->Term = std::max(snapshotElectionPriority.Term, changelogElectionPriority.Term);
                 break;
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Error initializing persistent stores, backing off and retrying");
@@ -1332,7 +1568,9 @@ private:
                 break;
         }
 
-        ResetAutomatonEpochContext();
+        if (AutomatonEpochContext_) {
+            AutomatonEpochContext_.Reset();
+        }
 
         YT_LOG_INFO("Hydra instance finalized");
     }
@@ -1347,37 +1585,22 @@ private:
             .ValueOrThrow();
     }
 
-
-    void OnCheckpointNeeded(bool snapshotIsMandatory)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto checkpointer = AutomatonEpochContext_->Checkpointer;
-        if (checkpointer->CanBuildSnapshot()) {
-            bool setReadOnly = false;
-            BuildSnapshotAndWatch(setReadOnly);
-        } else if (checkpointer->CanRotateChangelogs() && !snapshotIsMandatory) {
-            YT_LOG_WARNING("Cannot build a snapshot, just rotating changelogs");
-            RotateChangelogAndWatch();
-        }
-    }
-
     void OnCommitFailed(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto wrappedError = TError("Error committing mutation")
             << error;
-        ScheduleRestart(AutomatonEpochContext_, wrappedError);
+        ScheduleRestart(ControlEpochContext_, wrappedError);
     }
 
     void OnLoggingFailed(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto wrappedError = TError("Error logging mutations")
             << error;
-        ScheduleRestart(AutomatonEpochContext_, wrappedError);
+        ScheduleRestart(ControlEpochContext_, wrappedError);
     }
 
     void OnLeaderLeaseLost(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
@@ -1390,62 +1613,6 @@ private:
     }
 
 
-    void RotateChangelogAndWatch()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto changelogResult = AutomatonEpochContext_->Checkpointer->RotateChangelog();
-        WatchChangelogRotation(changelogResult);
-    }
-
-    int BuildSnapshotAndDetach(bool setReadOnly)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto result = AutomatonEpochContext_->Checkpointer->BuildSnapshot(setReadOnly);
-        WatchChangelogRotation(result.RotateChangelogResult);
-
-        return result.SnapshotId;
-    }
-
-    TFuture<int> BuildSnapshotAndWatch(bool setReadOnly)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto result = AutomatonEpochContext_->Checkpointer->BuildSnapshot(setReadOnly);
-        WatchChangelogRotation(result.RotateChangelogResult);
-
-        return result.SnapshotConstructionResult.Apply(
-            BIND([] (const TRemoteSnapshotParams& params) {
-                return params.SnapshotId;
-            }));
-    }
-
-    void WatchChangelogRotation(TFuture<void> result)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        result.Subscribe(BIND(
-            &TDistributedHydraManager::OnChangelogRotated,
-            MakeWeak(this),
-            MakeWeak(AutomatonEpochContext_)));
-    }
-
-    void OnChangelogRotated(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (!error.IsOK()) {
-            auto wrappedError = TError("Distributed changelog rotation failed")
-                << error;
-            ScheduleRestart(weakEpochContext, wrappedError);
-            return;
-        }
-
-        YT_LOG_INFO("Distributed changelog rotation succeeded");
-    }
-
-
     void OnUpdateAlivePeers()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1455,6 +1622,42 @@ private:
         }
     }
 
+    int AcquireChangelog()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // verify state
+
+        auto selfChangelogId = WaitFor(ChangelogStore_->GetLatestChangelogId())
+            .ValueOrThrow();
+
+        YT_VERIFY(ElectionPriority_);
+
+        auto asyncResult = ComputeQuorumLatestChangelogId(
+            Config_,
+            ControlEpochContext_->CellManager,
+            selfChangelogId,
+            ElectionPriority_->Term);
+        auto [changelogId, term] = WaitFor(asyncResult)
+            .ValueOrThrow();
+
+        auto newChangelogId = changelogId + 1;
+        auto newTerm = term + 1;
+
+        ControlEpochContext_->Term = newTerm;
+
+        // TODO: What kind of barrier should I have here (if any)?
+        auto priority = GetElectionPriority();
+        YT_LOG_INFO("Acquiring changelog (ChangelogId: %v, Priority: %v, Term: %v)",
+            newChangelogId,
+            priority,
+            newTerm);
+        WaitFor(RunChangelogAcquisition(Config_, ControlEpochContext_, newChangelogId, priority))
+            .ThrowOnError();
+        YT_LOG_INFO("Changelog acquired");
+
+        return newChangelogId;
+    }
 
     void OnElectionStartLeading(const NElection::TEpochContextPtr& electionEpochContext)
     {
@@ -1468,28 +1671,19 @@ private:
         ControlState_ = EPeerState::LeaderRecovery;
 
         auto epochContext = StartEpoch(electionEpochContext);
-        epochContext->LeaderCommitter = New<TLeaderCommitter>(
-            Config_,
-            Options_,
-            DecoratedAutomaton_,
-            epochContext.Get(),
-            Logger,
-            Profiler_);
-        epochContext->LeaderCommitter->SubscribeCheckpointNeeded(
-            BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this)));
-        epochContext->LeaderCommitter->SubscribeCommitFailed(
-            BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this)));
-        epochContext->LeaderCommitter->SubscribeLoggingFailed(
-            BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
+        auto automatonError = WaitFor(BIND(&TDistributedHydraManager::OnElectionStartLeadingAutomaton, MakeWeak(this))
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run(epochContext));
+        if (!automatonError.IsOK()) {
+            return;
+        }
 
-        epochContext->Checkpointer = New<TCheckpointer>(
-            Config_,
-            Options_,
-            DecoratedAutomaton_,
-            epochContext.Get(),
-            Logger);
+        epochContext->EpochControlInvoker->Invoke(
+            BIND(&TDistributedHydraManager::RecoverLeader, MakeStrong(this)));
+    }
 
-        SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
+    void OnElectionStartLeadingAutomaton(TEpochContextPtr epochContext)
+    {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(!AutomatonEpochContext_);
@@ -1498,11 +1692,6 @@ private:
         DecoratedAutomaton_->OnStartLeading(epochContext);
 
         StartLeading_.Fire();
-
-        SwitchTo(epochContext->EpochControlInvoker);
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        RecoverLeader();
     }
 
     void RecoverLeader()
@@ -1514,7 +1703,6 @@ private:
         try {
             epochContext->LeaseTracker = New<TLeaseTracker>(
                 Config_,
-                DecoratedAutomaton_,
                 epochContext.Get(),
                 LeaderLease_,
                 LeaderLeaseCheck_.ToVector(),
@@ -1522,7 +1710,32 @@ private:
             epochContext->LeaseTracker->SubscribeLeaseLost(
                 BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), MakeWeak(epochContext)));
 
-            epochContext->LeaderRecovery = New<TLeaderRecovery>(
+            YT_LOG_INFO("Waiting for followers to recover");
+            WaitFor(epochContext->LeaseTracker->GetNextQuorumFuture())
+                .ThrowOnError();
+            YT_LOG_INFO("Followers recovered");
+
+            auto changelogId = AcquireChangelog();
+            auto changelog = OpenChangelogOrThrow(changelogId);
+
+            epochContext->LeaderCommitter = New<TLeaderCommitter>(
+                Config_,
+                Options_,
+                DecoratedAutomaton_,
+                LeaderLease_,
+                &PreliminaryMutationQueue_,
+                changelogId,
+                changelog,
+                epochContext->ReachableState,
+                epochContext.Get(),
+                Logger,
+                Profiler_);
+            epochContext->LeaderCommitter->SubscribeCommitFailed(
+                BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this)));
+            epochContext->LeaderCommitter->SubscribeLoggingFailed(
+                BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
+
+            epochContext->Recovery = New<TRecovery>(
                 Config_,
                 Options_,
                 GetDynamicOptions(),
@@ -1531,25 +1744,11 @@ private:
                 SnapshotStore_,
                 Options_.ResponseKeeper,
                 epochContext.Get(),
+                epochContext->ReachableState,
+                true,
                 Logger);
-            WaitFor(epochContext->LeaderRecovery->Run())
+            WaitFor(epochContext->Recovery->Run(epochContext->Term))
                 .ThrowOnError();
-
-            YT_LOG_INFO("Waiting for followers to recover");
-            WaitFor(epochContext->LeaseTracker->GetNextQuorumFuture())
-                .ThrowOnError();
-            YT_LOG_INFO("Followers recovered");
-
-            SwitchTo(epochContext->EpochSystemAutomatonInvoker);
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-            YT_LOG_INFO("Rotating initial changelog");
-            WaitFor(epochContext->Checkpointer->RotateChangelog())
-                .ThrowOnError();
-            YT_LOG_INFO("Initial changelog rotated");
-
-            SwitchTo(epochContext->EpochControlInvoker);
-            VERIFY_THREAD_AFFINITY(ControlThread);
 
             if (Config_->DisableLeaderLeaseGraceDelay) {
                 YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
@@ -1575,23 +1774,20 @@ private:
 
             ControlLeaderRecoveryComplete_.Fire();
 
-            SwitchTo(epochContext->EpochSystemAutomatonInvoker);
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-
             YT_LOG_INFO("Leader recovery completed");
+            SystemLockGuard_.Release();
 
-            DecoratedAutomaton_->OnLeaderRecoveryComplete();
             LeaderRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
             }
 
-            ApplyFinalRecoveryAction(true);
+            WaitFor(BIND(&TDistributedHydraManager::OnLeaderRecoveryCompleteAutomaton, MakeWeak(this))
+                .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
+                .Run())
+                .ThrowOnError();
 
-            SystemLockGuard_.Release();
-
-            AutomatonLeaderRecoveryComplete_.Fire();
-            LeaderActive_.Fire();
+            epochContext->LeaderCommitter->Start(changelogId);
 
             epochContext->HeartbeatMutationCommitExecutor->Start();
         } catch (const std::exception& ex) {
@@ -1599,9 +1795,16 @@ private:
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             ScheduleRestart(epochContext, ex);
         }
+    }
 
-        SwitchTo(epochContext->EpochControlInvoker);
-        VERIFY_THREAD_AFFINITY(ControlThread);
+    void OnLeaderRecoveryCompleteAutomaton()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        DecoratedAutomaton_->OnLeaderRecoveryComplete();
+        AutomatonLeaderRecoveryComplete_.Fire();
+
+        LeaderActive_.Fire();
     }
 
     bool TryAbandonExistingLease(const TEpochContextPtr& epochContext)
@@ -1614,7 +1817,7 @@ private:
 
         YT_LOG_INFO("Trying to abandon existing leader lease");
 
-        std::vector<TFuture<THydraServiceProxy::TRspAbandonLeaderLeasePtr>> futures;
+        std::vector<TFuture<TInternalHydraServiceProxy::TRspAbandonLeaderLeasePtr>> futures;
         const auto& cellManager = epochContext->CellManager;
         for (int peerId = 0; peerId < cellManager->GetTotalPeerCount(); ++peerId) {
             auto peerChannel = cellManager->GetPeerChannel(peerId);
@@ -1625,7 +1828,7 @@ private:
             YT_LOG_INFO("Requesting peer to abandon existing leader lease (PeerId: %v)",
                 peerId);
 
-            THydraServiceProxy proxy(std::move(peerChannel));
+            TInternalHydraServiceProxy proxy(std::move(peerChannel));
             auto req = proxy.AbandonLeaderLease();
             req->SetTimeout(Config_->AbandonLeaderLeaseRequestTimeout);
             req->set_peer_id(cellManager->GetSelfPeerId());
@@ -1676,6 +1879,8 @@ private:
 
         ProfileRestart(error);
 
+        auto epochContext = ControlEpochContext_;
+
         // Save for later to respect the thread affinity.
         auto leaderCommitter = ControlEpochContext_->LeaderCommitter;
 
@@ -1684,20 +1889,31 @@ private:
         YT_VERIFY(ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery);
         ControlState_ = EPeerState::Elections;
 
-        SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        if (leaderCommitter) {
+            leaderCommitter->Stop();
+        }
 
-        ResetAutomatonEpochContext();
-
-        leaderCommitter->Stop();
-
-        DecoratedAutomaton_->OnStopLeading();
-
-        StopLeading_.Fire();
+        auto automatonError = WaitFor(BIND(&TDistributedHydraManager::OnElectionStopLeadingAutomaton, MakeWeak(this))
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run());
+        if (!automatonError.IsOK()) {
+            return;
+        }
 
         Participate();
     }
 
+    void OnElectionStopLeadingAutomaton()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (AutomatonEpochContext_) {
+            AutomatonEpochContext_.Reset();
+        }
+        DecoratedAutomaton_->OnStopLeading();
+
+        StopLeading_.Fire();
+    }
 
     void OnElectionStartFollowing(const NElection::TEpochContextPtr& electionEpochContext)
     {
@@ -1724,7 +1940,16 @@ private:
         epochContext->FollowerCommitter->SubscribeLoggingFailed(
             BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
 
-        SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
+        auto automatonError = WaitFor(BIND(&TDistributedHydraManager::OnElectionsStartFollowingAutomaton, MakeWeak(this))
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run(epochContext));
+        if (!automatonError.IsOK()) {
+            return;
+        }
+    }
+
+    void OnElectionsStartFollowingAutomaton(TEpochContextPtr epochContext)
+    {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(!AutomatonEpochContext_);
@@ -1742,37 +1967,39 @@ private:
         auto epochContext = ControlEpochContext_;
 
         try {
-            WaitFor(epochContext->FollowerRecovery->Run())
+            WaitFor(epochContext->Recovery->Run(epochContext->Term))
                 .ThrowOnError();
 
             YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
             ControlState_ = EPeerState::Following;
-            ControlLeaderRecoveryComplete_.Fire();
-
-            SwitchTo(epochContext->EpochSystemAutomatonInvoker);
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            ControlFollowerRecoveryComplete_.Fire();
 
             YT_LOG_INFO("Follower recovery completed");
+            SystemLockGuard_.Release();
 
-            DecoratedAutomaton_->OnFollowerRecoveryComplete();
-            FollowerRecovered_ = true;
+            WaitFor(BIND(&TDistributedHydraManager::OnFollowerRecoveryCompleteAutomaton, MakeWeak(this))
+                .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
+                .Run())
+                .ThrowOnError();
+
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
             }
 
-            ApplyFinalRecoveryAction(false);
-
-            SystemLockGuard_.Release();
-
-            AutomatonFollowerRecoveryComplete_.Fire();
+            FollowerRecovered_ = true;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Follower recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             ScheduleRestart(epochContext, ex);
         }
+    }
 
-        SwitchTo(epochContext->EpochControlInvoker);
-        VERIFY_THREAD_AFFINITY(ControlThread);
+    void OnFollowerRecoveryCompleteAutomaton()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        DecoratedAutomaton_->OnFollowerRecoveryComplete();
+        AutomatonFollowerRecoveryComplete_.Fire();
     }
 
     void OnElectionStopFollowing(const TError& error)
@@ -1783,28 +2010,37 @@ private:
 
         ProfileRestart(error);
 
+        auto epochContext = ControlEpochContext_;
+
         // Save for later to respect the thread affinity.
-        auto followerCommitter = ControlEpochContext_->FollowerCommitter;
+        auto followerCommitter = epochContext->FollowerCommitter;
+        followerCommitter->Stop();
 
         StopEpoch();
 
         YT_VERIFY(ControlState_ == EPeerState::Following || ControlState_ == EPeerState::FollowerRecovery);
         ControlState_ = EPeerState::Elections;
 
-        SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
+        auto automatonError = WaitFor(BIND(&TDistributedHydraManager::OnElectionStopFollowingAutomaton, MakeWeak(this))
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run());
+        if (!automatonError.IsOK()) {
+            return;
+        }
+
+        Participate();
+    }
+
+    void OnElectionStopFollowingAutomaton()
+    {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ResetAutomatonEpochContext();
-
-        followerCommitter->Stop();
-
+        if (AutomatonEpochContext_) {
+            AutomatonEpochContext_.Reset();
+        }
         DecoratedAutomaton_->OnStopFollowing();
 
         StopFollowing_.Fire();
-
-        Participate();
-
-        SystemLockGuard_.Release();
     }
 
     void OnElectionStopVoting(const TError& error)
@@ -1820,82 +2056,42 @@ private:
         Participate();
     }
 
-    void ApplyFinalRecoveryAction(bool isLeader)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto finalAction = DecoratedAutomaton_->GetFinalRecoveryAction();
-        if (finalAction == EFinalRecoveryAction::None) {
-            return;
-        }
-
-        YT_LOG_INFO("Applying final recovery action (FinalRecoveryAction: %v)",
-            finalAction);
-
-        switch (finalAction) {
-            case EFinalRecoveryAction::BuildSnapshotAndRestart:
-                SetReadOnly(true);
-
-                if (isLeader || Options_.WriteSnapshotsAtFollowers) {
-                    YT_LOG_INFO("Building compatibility snapshot");
-                    DecoratedAutomaton_->RotateAutomatonVersionAfterRecovery();
-                    auto resultOrError = WaitFor(DecoratedAutomaton_->BuildSnapshot());
-                    if (resultOrError.IsOK()) {
-                        const auto& result = resultOrError.Value();
-                        YT_LOG_INFO(resultOrError, "Compatibility snapshot built (SnapshotId: %v)",
-                            result.SnapshotId);
-                    } else {
-                        YT_LOG_WARNING(resultOrError, "Error building compatibility snapshot");
-                    }
-                }
-
-                YT_LOG_INFO("Stopping Hydra instance and waiting for resurrection");
-
-                SwitchTo(ControlEpochContext_->EpochControlInvoker);
-                VERIFY_THREAD_AFFINITY(ControlThread);
-
-                WaitFor(Finalize())
-                    .ThrowOnError();
-
-                // Unreachable because Finalize stops epoch executor.
-                YT_ABORT();
-
-            default:
-                YT_ABORT();
-        }
-    }
-
-    void CheckForInitialPing(TVersion pingVersion)
+    bool CheckForInitialPing(TReachableState committedState, int term)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
+
+        if (ControlState_ != EPeerState::FollowerRecovery) {
+            YT_VERIFY(ControlState_ == EPeerState::Following);
+            return true;
+        }
 
         auto epochContext = ControlEpochContext_;
-
         // Check if initial ping is already received.
-        if (epochContext->FollowerRecovery) {
-            return;
+        if (epochContext->Recovery) {
+            return true;
         }
 
-        // Check if the logged version at leader is lower than our reachable (logged) version.
-        // This is a rare case but could happen at least in the following two scenarios:
-        // 1) When a follower restarts rapid enough and appears
-        // (for some limited time frame) ahead of the leader w.r.t. the current changelog.
-        // 2) When the quorum gets broken during changelog rotation
-        // and some follower joins the a newly established (and still recovering!) quorum
-        // with an empty changelog that nobody else has.
-        auto reachableVersion = epochContext->ReachableVersion;
-        if (pingVersion < reachableVersion) {
-            YT_LOG_DEBUG("Received initial ping from leader with a stale version; ignored (LeaderVersion: %v, ReachableVersion: %v)",
-                pingVersion,
-                epochContext->ReachableVersion);
-            return;
+        YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
+
+        auto reachableState = epochContext->ReachableState;
+        // This is weird now.
+        if (committedState < reachableState) {
+            YT_LOG_DEBUG("Received initial ping from leader with a stale version; ignored (LeaderState: %v, ReachableState: %v)",
+                committedState,
+                epochContext->ReachableState);
+            return false;
         }
 
-        YT_LOG_INFO("Received initial ping from leader (LeaderVersion: %v)",
-            pingVersion);
+        YT_LOG_INFO("Received initial ping from leader (CommittedState: %v, Term: %v)",
+            committedState,
+            term);
 
-        epochContext->FollowerRecovery = New<TFollowerRecovery>(
+        // If we join an active quorum, we wont get an AcquireChangelog request from leader,
+        // so we wont be able to promote our term there, so we have to do it here.
+        // Looks safe.
+        epochContext->Term = term;
+
+        epochContext->Recovery = New<TRecovery>(
             Config_,
             Options_,
             GetDynamicOptions(),
@@ -1904,13 +2100,26 @@ private:
             SnapshotStore_,
             Options_.ResponseKeeper,
             epochContext.Get(),
-            pingVersion,
+            committedState,
+            false,
             Logger);
+        epochContext->FollowerCommitter->SetLoggedSequenceNumber(committedState.SequenceNumber);
+
+        // Make sure we dont try to build the same snapshot twice.
+        // (It does not always help, LoadSnapshot in decorated automaton explains why).
+        SnapshotId_ = committedState.SegmentId;
 
         epochContext->EpochControlInvoker->Invoke(
             BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this)));
+
+        return true;
     }
 
+    IInvokerPtr CreateEpochInvoker(const TEpochContextPtr& epochContext, const IInvokerPtr& underlying)
+    {
+        auto invoker = epochContext->CancelableContext->CreateInvoker(underlying);
+        return New<TEpochIdInjectingInvoker>(invoker, epochContext->EpochId);
+    }
 
     TEpochContextPtr StartEpoch(const NElection::TEpochContextPtr& electionEpochContext)
     {
@@ -1919,15 +2128,16 @@ private:
         auto epochContext = New<TEpochContext>();
         epochContext->CellManager = electionEpochContext->CellManager;
         epochContext->ChangelogStore = ChangelogStore_;
-        epochContext->ReachableVersion = *ReachableVersion_;
+        epochContext->ReachableState = ElectionPriority_->ReachableState;
+        epochContext->Term = ElectionPriority_->Term;
         epochContext->LeaderId = electionEpochContext->LeaderId;
         epochContext->EpochId = electionEpochContext->EpochId;
         epochContext->CancelableContext = electionEpochContext->CancelableContext;
-        epochContext->EpochControlInvoker = epochContext->CancelableContext->CreateInvoker(CancelableControlInvoker_);
-        epochContext->EpochSystemAutomatonInvoker = epochContext->CancelableContext->CreateInvoker(DecoratedAutomaton_->GetSystemInvoker());
-        epochContext->EpochUserAutomatonInvoker = epochContext->CancelableContext->CreateInvoker(AutomatonInvoker_);
+        epochContext->EpochControlInvoker = CreateEpochInvoker(epochContext, CancelableControlInvoker_);
+        epochContext->EpochSystemAutomatonInvoker = CreateEpochInvoker(epochContext, DecoratedAutomaton_->GetSystemInvoker());
+        epochContext->EpochUserAutomatonInvoker = CreateEpochInvoker(epochContext, AutomatonInvoker_);
         epochContext->HeartbeatMutationCommitExecutor = New<TPeriodicExecutor>(
-            epochContext->EpochUserAutomatonInvoker,
+            epochContext->EpochControlInvoker,
             BIND(&TDistributedHydraManager::OnHeartbeatMutationCommit, MakeWeak(this)),
             Config_->HeartbeatMutationPeriod);
         if (epochContext->LeaderId == epochContext->CellManager->GetSelfPeerId()) {
@@ -1955,6 +2165,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        YT_LOG_INFO("StopEpoch");
+
         ResetControlEpochContext();
 
         LeaderRecovered_ = false;
@@ -1968,7 +2180,7 @@ private:
             ChangelogStore_.Reset();
         }
 
-        ReachableVersion_.reset();
+        ElectionPriority_.reset();
     }
 
     TEpochContextPtr GetControlEpochContext(TEpochId epochId)
@@ -1978,7 +2190,7 @@ private:
         auto currentEpochId = ControlEpochContext_->EpochId;
         if (epochId != currentEpochId) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidEpoch,
+                NHydra2::EErrorCode::InvalidEpoch,
                 "Invalid epoch: expected %v, received %v",
                 currentEpochId,
                 epochId);
@@ -1997,26 +2209,13 @@ private:
         auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
         ControlEpochContext_->CancelableContext->Cancel(error);
 
+        ControlEpochContext_->LeaderSyncBatcher->Cancel(error);
+        if (ControlEpochContext_->LeaderSyncPromise) {
+            TrySetLeaderSyncPromise(ControlEpochContext_, error);
+        }
+
         ControlEpochContext_.Reset();
     }
-
-    void ResetAutomatonEpochContext()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        if (!AutomatonEpochContext_) {
-            return;
-        }
-
-        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
-        AutomatonEpochContext_->LeaderSyncBatcher->Cancel(error);
-        if (AutomatonEpochContext_->LeaderSyncPromise) {
-            TrySetLeaderSyncPromise(AutomatonEpochContext_, error);
-        }
-
-        AutomatonEpochContext_.Reset();
-    }
-
 
     static TFuture<void> DoSyncWithLeader(
         const TWeakPtr<TDistributedHydraManager>& weakThis,
@@ -2035,14 +2234,14 @@ private:
 
         return BIND(&TDistributedHydraManager::DoSyncWithLeaderCore, this_)
             .AsyncViaGuarded(
-                epochContext->EpochUserAutomatonInvoker,
+                epochContext->EpochControlInvoker,
                 TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"))
             .Run();
     }
 
     TFuture<void> DoSyncWithLeaderCore()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (GetAutomatonState() == EPeerState::Leading) {
             return VoidFuture;
@@ -2050,7 +2249,7 @@ private:
 
         YT_LOG_DEBUG("Synchronizing with leader");
 
-        auto epochContext = AutomatonEpochContext_;
+        auto epochContext = ControlEpochContext_;
 
         YT_VERIFY(!epochContext->LeaderSyncPromise);
         epochContext->LeaderSyncPromise = NewPromise<void>();
@@ -2059,68 +2258,69 @@ private:
         auto channel = epochContext->CellManager->GetPeerChannel(epochContext->LeaderId);
         YT_VERIFY(channel);
 
-        THydraServiceProxy proxy(std::move(channel));
+        TInternalHydraServiceProxy proxy(std::move(channel));
         proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
         auto req = proxy.SyncWithLeader();
         ToProto(req->mutable_epoch_id(), epochContext->EpochId);
+        req->set_term(epochContext->Term);
 
         req->Invoke().Subscribe(
             BIND(&TDistributedHydraManager::OnSyncWithLeaderResponse, MakeStrong(this))
-                .Via(epochContext->EpochUserAutomatonInvoker));
+                .Via(epochContext->EpochControlInvoker));
 
         return epochContext->LeaderSyncPromise;
     }
 
-    void OnSyncWithLeaderResponse(const THydraServiceProxy::TErrorOrRspSyncWithLeaderPtr& rspOrError)
+    void OnSyncWithLeaderResponse(const TInternalHydraServiceProxy::TErrorOrRspSyncWithLeaderPtr& rspOrError)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epochContext = AutomatonEpochContext_;
+        auto epochContext = ControlEpochContext_;
 
         if (!rspOrError.IsOK()) {
-            TrySetLeaderSyncPromise(AutomatonEpochContext_, rspOrError);
+            TrySetLeaderSyncPromise(epochContext, rspOrError);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
-        auto committedVersion = TVersion::FromRevision(rsp->committed_revision());
+        auto committedSequenceNumber = rsp->committed_sequence_number();
 
-        YT_LOG_DEBUG("Received synchronization response from leader (CommittedVersion: %v)",
-            committedVersion);
+        YT_LOG_DEBUG("Received synchronization response from leader (CommittedSequenceNumber: %v)",
+            committedSequenceNumber);
 
-        YT_VERIFY(!epochContext->LeaderSyncVersion);
-        epochContext->LeaderSyncVersion = committedVersion;
-        CommitMutationsAtFollower(committedVersion);
+        YT_VERIFY(!epochContext->LeaderSyncSequenceNumber);
+        epochContext->LeaderSyncSequenceNumber = committedSequenceNumber;
+        CommitMutationsAtFollower(committedSequenceNumber);
     }
 
     void CheckForPendingLeaderSync()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epochContext = AutomatonEpochContext_;
+        auto epochContext = ControlEpochContext_;
 
-        if (!epochContext->LeaderSyncPromise || !epochContext->LeaderSyncVersion) {
+        if (!epochContext->LeaderSyncPromise || !epochContext->LeaderSyncSequenceNumber) {
             return;
         }
 
-        auto neededCommittedVersion = *epochContext->LeaderSyncVersion;
-        auto actualCommittedVersion = DecoratedAutomaton_->GetAutomatonVersion();
-        if (neededCommittedVersion > actualCommittedVersion) {
+        auto neededCommittedSequenceNumber = *epochContext->LeaderSyncSequenceNumber;
+        auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
+        if (neededCommittedSequenceNumber > automatonSequenceNumber) {
             return;
         }
 
-        YT_LOG_DEBUG("Leader synchronization complete (NeededCommittedVersion: %v, ActualCommittedVersion: %v)",
-            neededCommittedVersion,
-            actualCommittedVersion);
+        YT_LOG_DEBUG("Leader synchronization complete (NeededCommittedSequenceNumber: %v, AutomatonSequenceNumber: %v)",
+            neededCommittedSequenceNumber,
+            automatonSequenceNumber);
 
         TrySetLeaderSyncPromise(epochContext);
-        epochContext->LeaderSyncVersion.reset();
+        epochContext->LeaderSyncSequenceNumber.reset();
     }
 
     void TrySetLeaderSyncPromise(const TEpochContextPtr& epochContext, TError error = {})
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         TError wrappedError;
         if (error.IsOK()) {
@@ -2139,13 +2339,13 @@ private:
     }
 
 
-    void CommitMutationsAtFollower(TVersion committedVersion)
+    void CommitMutationsAtFollower(i64 committedSequenceNumber)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto lastSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
 
-        DecoratedAutomaton_->CommitMutations(committedVersion, true);
+        AutomatonEpochContext_->FollowerCommitter->CommitMutations(committedSequenceNumber);
         CheckForPendingLeaderSync();
 
         auto currentSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
@@ -2157,7 +2357,7 @@ private:
 
     void ReportMutationStateHashesToLeader(i64 startSequenceNumber, i64 endSequenceNumber)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto rate = Config_->StateHashCheckerMutationVerificationSamplingRate;
 
@@ -2177,19 +2377,25 @@ private:
         auto channel = epochContext->CellManager->GetPeerChannel(AutomatonEpochContext_->LeaderId);
         YT_VERIFY(channel);
 
-        THydraServiceProxy proxy(std::move(channel));
+        TInternalHydraServiceProxy proxy(std::move(channel));
         auto request = proxy.ReportMutationsStateHashes();
 
+        std::vector<i64> sequenceNumbers;
         for (auto sequenceNumber = startSequenceNumber; sequenceNumber <= endSequenceNumber; sequenceNumber += rate) {
-            auto stateHash = StateHashChecker_->GetStateHash(sequenceNumber);
-            if (stateHash) {
-                auto mutationInfo = request->add_mutations_info();
-                mutationInfo->set_sequence_number(sequenceNumber);
-                mutationInfo->set_state_hash(*stateHash);
-            }
+            sequenceNumbers.push_back(sequenceNumber);
         }
 
-        request->Invoke().Subscribe(BIND([&, startSequenceNumber, endSequenceNumber] (const THydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
+        for (auto [sequenceNumber, stateHash] : StateHashChecker_->GetStateHashes(std::move(sequenceNumbers))) {
+            auto mutationInfo = request->add_mutations_info();
+            mutationInfo->set_sequence_number(sequenceNumber);
+            mutationInfo->set_state_hash(stateHash);
+        }
+
+        if (request->mutations_info().empty()) {
+            return;
+        }
+
+        request->Invoke().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TInternalHydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
             if (rspOrError.IsOK()) {
                 YT_LOG_DEBUG("Mutations state hashes reported (StartSequenceNumber: %v, EndSequenceNumber: %v)",
                     startSequenceNumber,
@@ -2204,7 +2410,7 @@ private:
 
     void OnHeartbeatMutationCommit()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (GetReadOnly()) {
             return;
@@ -2214,7 +2420,7 @@ private:
 
         CommitMutation(TMutationRequest{.Reign = GetCurrentReign()})
             .WithTimeout(Config_->HeartbeatMutationTimeout)
-            .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
+            .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(ControlEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {
                     YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
                     return;
@@ -2242,31 +2448,20 @@ private:
 
     void SetReadOnly(bool value)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!value) {
             return;
         }
 
-        bool expected = false;
-        if (ReadOnly_.compare_exchange_strong(expected, true)) {
+        YT_VERIFY(IsActiveLeader());
+
+        if (!ReadOnly_) {
+            ReadOnly_ = true;
             YT_LOG_INFO("Read-only mode activated");
+
+            ControlEpochContext_->LeaderCommitter->SetReadOnly();
         }
-    }
-
-
-    void BackoffPostpone()
-    {
-        YT_LOG_DEBUG("Cannot postpone more actions at the moment; backing off and retrying");
-        TDelayedExecutor::WaitForDuration(PostponeBackoffTime);
-        SwitchTo(ControlInvoker_);
-    }
-
-
-    // THydraServiceBase overrides.
-    IHydraManagerPtr GetHydraManager() override
-    {
-        return this;
     }
 };
 

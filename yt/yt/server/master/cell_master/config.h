@@ -305,6 +305,8 @@ public:
 
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
+    bool UseNewHydra;
+
     TCellMasterConfig();
 };
 
