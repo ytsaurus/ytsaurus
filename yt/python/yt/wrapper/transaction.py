@@ -376,7 +376,7 @@ class PingTransaction(Thread):
             if ping_failed_mode == "send_signal":
                 os.kill(os.getpid(), signal.SIGUSR1)
             elif ping_failed_mode == "interrupt_main":
-                Thread(target=interrupt_main).start()
+                Thread(target=interrupt_main, name="ping_failed_interrupt_main").start()
             elif ping_failed_mode == "terminate_process":
                 logging.shutdown()
                 os.kill(os.getpid(), signal.SIGTERM)

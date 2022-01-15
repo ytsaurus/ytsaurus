@@ -10,6 +10,7 @@ import yt.wrapper as yt
 import pytest
 import sys
 import time
+import threading
 
 
 get_time = time.monotonic if hasattr(time, 'monotonic') else time.time
@@ -99,6 +100,22 @@ class TestPingFailedModes(object):
         with set_config_option("ping_failed_mode", "interrupt_main"):
             with pytest.raises(KeyboardInterrupt):
                 reproduce_transaction_loss()
+
+        print("Checking threads", file=sys.stderr)
+        while True:
+            names = []
+            try:
+                for thread in threading.enumerate():
+                    if not thread.is_alive():
+                        continue
+                    names.append(thread.getName())
+                    if thread.getName() == "ping_failed_interrupt_main":
+                        thread.join(timeout=0.1)
+                break
+            except KeyboardInterrupt:
+                pass
+            print("Thread names: {}".format(names), file=sys.stderr)
+        print("Checking threads completed", file=sys.stderr)
 
     @authors("marat-khalili")
     def test_pass(self):
