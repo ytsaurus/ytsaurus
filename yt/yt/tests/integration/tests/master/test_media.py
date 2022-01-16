@@ -673,6 +673,12 @@ class TestDynamicMedia(YTEnvSetup):
         }
     }
 
+    def teardown_method(self, method):
+        for node in ls("//sys/data_nodes"):
+            for location in self._get_locations("//sys/data_nodes/" + node):
+                remove("//sys/chunk_locations/{}/@medium_override".format(location))
+        super(TestDynamicMedia, self).teardown_method(method)
+
     @classmethod
     def modify_node_config(cls, config):
         assert len(config["data_node"]["store_locations"]) == 1
@@ -727,7 +733,8 @@ class TestDynamicMedia(YTEnvSetup):
         assert self._get_locations(node)[location2]["medium_name"] == "default"
 
         wait(lambda: self._get_locations(node)[location1]["chunk_count"] == 0)
-        assert self._get_locations(node)[location2]["chunk_count"] == 1
+        assert self._get_locations(node)[location2]["chunk_count"] >= 1
+        wait(lambda: self._get_locations(node)[location2]["chunk_count"] == 1)
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
@@ -742,7 +749,8 @@ class TestDynamicMedia(YTEnvSetup):
         assert self._get_locations(node)[location2]["medium_name"] == medium_name
 
         wait(lambda: self._get_locations(node)[location2]["chunk_count"] == 0)
-        assert self._get_locations(node)[location1]["chunk_count"] == 1
+        assert self._get_locations(node)[location1]["chunk_count"] >= 1
+        wait(lambda: self._get_locations(node)[location1]["chunk_count"] == 1)
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
