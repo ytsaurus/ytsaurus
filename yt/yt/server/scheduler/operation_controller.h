@@ -22,6 +22,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TControllerRuntimeData)
 
+TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!

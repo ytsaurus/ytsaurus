@@ -21,6 +21,29 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData)
+{
+    bool hasPendingJobs = runtimeData->GetPendingJobCount() > 0;
+    if (!Dominates(runtimeData->GetNeededResources(), TJobResources())) {
+        return TError("Controller has reported negative needed resources")
+            << TErrorAttribute("needed_resources", runtimeData->GetNeededResources());
+    }
+    if (hasPendingJobs != (runtimeData->GetNeededResources() != TJobResources())) {
+        return TError("Controller has reported inconsistent values for pending job count and needed resources")
+            << TErrorAttribute("pending_job_count", runtimeData->GetPendingJobCount())
+            << TErrorAttribute("needed_resources", runtimeData->GetNeededResources());
+    }
+    for (const auto& jobResources : runtimeData->MinNeededJobResources()) {
+        if (!Dominates(jobResources.ToJobResources(), TJobResources())) {
+            return TError("Controller has reported negative min needed job resources element")
+                << TErrorAttribute("min_needed_job_resources", runtimeData->MinNeededJobResources());
+        }
+    }
+    return TError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FromProto(
     TOperationControllerInitializeResult* result,
     const NControllerAgent::NProto::TInitializeOperationResult& resultProto,
