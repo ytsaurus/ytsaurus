@@ -2834,7 +2834,7 @@ void TOperationControllerBase::ProcessJobFinishedResult(const TJobFinishedResult
     if (!result.OperationFailedError.IsOK()) {
         OnOperationFailed(result.OperationFailedError);
     }
-        
+
     for (const auto& treeId : result.NewlyBannedTrees) {
         MaybeBanInTentativeTree(treeId);
     }
@@ -9674,15 +9674,9 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AutoMergeEnabled_);
     Persist(context, InputHasOrderedDynamicStores_);
     Persist(context, StandardStreamDescriptors_);
-
-    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::MainResourceConsumptionPerTree) {
-        Persist(context, MainResourceConsumptionPerTree_);
-    }
-
-    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::AccountResourceUsageLeaseMap) {
-        Persist(context, EnableMasterResourceUsageAccounting_);
-        Persist(context, AccountResourceUsageLeaseMap_);
-    }
+    Persist(context, MainResourceConsumptionPerTree_);
+    Persist(context, EnableMasterResourceUsageAccounting_);
+    Persist(context, AccountResourceUsageLeaseMap_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.

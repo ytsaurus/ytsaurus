@@ -769,16 +769,10 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, Logger);
 
-    // COMPAT(alexkolodezny)
-    if (context.GetVersion() >= ESnapshotVersion::ReadyExhaustTimers) {
-        Persist(context, ReadyTimer_);
-        Persist(context, ExhaustTimer_);
-    }
+    Persist(context, ReadyTimer_);
+    Persist(context, ExhaustTimer_);
 
-    // COMPAT(alexkolodezny)
-    if (context.GetVersion() >= ESnapshotVersion::AggregateJobStatistics) {
-        Persist(context, AggregatedJobStatistics_);
-    }
+    Persist(context, AggregatedJobStatistics_);
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
