@@ -2218,10 +2218,13 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
 
     i64 totalUtilizationGpu = 0;
     i64 totalUtilizationMemory = 0;
+    i64 totalMemory = 0;
     i64 totalLoad = 0;
     i64 totalMaxMemoryUsed = 0;
     i64 totalUtilizationPower = 0;
+    i64 totalPower = 0;
     i64 totalUtilizationClocksSm = 0;
+    i64 totalClocksSm = 0;
 
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
     for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
@@ -2266,19 +2269,22 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
 
         totalUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
         totalUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
+        totalMemory += slotStatistics.CumulativeMemory;
         totalLoad += slotStatistics.CumulativeLoad;
         totalMaxMemoryUsed += slotStatistics.MaxMemoryUsed;
         totalUtilizationPower += slotStatistics.CumulativeUtilizationPower;
+        totalPower += slotStatistics.CumulativePower;
         totalUtilizationClocksSm += slotStatistics.CumulativeUtilizationClocksSm;
+        totalClocksSm += slotStatistics.CumulativeClocksSm;
     }
 
     statistics->AddSample("/user_job/gpu/utilization_gpu", totalUtilizationGpu);
     statistics->AddSample("/user_job/gpu/utilization_memory", totalUtilizationMemory);
     statistics->AddSample("/user_job/gpu/utilization_power", totalUtilizationPower);
     statistics->AddSample("/user_job/gpu/utilization_clocks_sm", totalUtilizationClocksSm);
-    statistics->AddSample("/user_job/gpu/memory", totalUtilizationMemory);
-    statistics->AddSample("/user_job/gpu/power", totalUtilizationPower);
-    statistics->AddSample("/user_job/gpu/clocks_sm", totalUtilizationClocksSm);
+    statistics->AddSample("/user_job/gpu/memory", totalMemory);
+    statistics->AddSample("/user_job/gpu/power", totalPower);
+    statistics->AddSample("/user_job/gpu/clocks_sm", totalClocksSm);
     statistics->AddSample("/user_job/gpu/load", totalLoad);
     statistics->AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
 }
