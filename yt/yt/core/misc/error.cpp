@@ -598,10 +598,10 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit) const
     auto result = std::make_unique<TImpl>();
     result->SetCode(GetCode());
     result->SetMessage(truncateString(GetMessage()));
-    result->CopyBuiltinAttributesFrom(*Impl_);
     if (Impl_->HasAttributes()) {
         result->SetAttributes(truncateAttributes(Impl_->Attributes()));
     }
+    result->CopyBuiltinAttributesFrom(*Impl_);
 
     if (std::ssize(InnerErrors()) <= maxInnerErrorCount) {
         for (const auto& innerError : InnerErrors()) {
