@@ -235,12 +235,11 @@ public:
         Persist(context, SupportLocality_);
         Persist(context, TeleportChunks_);
         Persist(context, IsCompleted_);
+        Persist(context, StructuredLogger);
+
         if (context.IsLoad()) {
             ValidateLogger(Logger);
             RowBuffer_ = New<TRowBuffer>();
-        }
-        if (context.GetVersion() >= ESnapshotVersion::StructuredTagsInLogger) {
-            Persist(context, StructuredLogger);
         }
     }
 

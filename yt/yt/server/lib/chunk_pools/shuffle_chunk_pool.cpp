@@ -468,27 +468,11 @@ private:
                 Persist(context, SuspendCount);
                 Persist(context, State);
                 Persist(context, IsApproximate);
-
-                // COMPAT(gritukan): We are either loading or saving snapshot of new version,
-                // so we freely use #RowCount and #DataWeight here.
-                if (context.GetVersion() >= ESnapshotVersion::OptimizeShufflePool) {
-                    Persist(context, RowCount);
-                    Persist(context, DataWeight);
-                }
-
+                Persist(context, RowCount);
+                Persist(context, DataWeight);
                 Persist(context, DataWeightProgressCounterGuard);
                 Persist(context, RowProgressCounterGuard);
                 Persist(context, JobProgressCounterGuard);
-
-                // COMPAT(gritukan): We are loading old snapshot using code of new version.
-                // All the previous versions of the job preparation code stored row count and
-                // data weight of a job into a corresponding progress counter that was loaded
-                // using the code above. #RowCount and #DataWeight can be obtained from guard
-                // values in this case.
-                if (context.IsLoad() && context.GetVersion() < ESnapshotVersion::OptimizeShufflePool) {
-                    RowCount = RowProgressCounterGuard.GetValue();
-                    DataWeight = DataWeightProgressCounterGuard.GetValue();
-                }
             }
 
             template <class... TArgs>
