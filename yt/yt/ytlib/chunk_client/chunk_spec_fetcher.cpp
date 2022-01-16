@@ -273,7 +273,7 @@ void TTabletChunkSpecFetcher::Add(
     mountInfo->ValidateDynamic();
     // Currently only sorted dynamic tables are supported.
     mountInfo->ValidateSorted();
-    mountInfo->ValidateNotReplicated();
+    mountInfo->ValidateNotPhysicallyLog();
 
     AddSorted(*mountInfo, tableIndex, ranges);
 }

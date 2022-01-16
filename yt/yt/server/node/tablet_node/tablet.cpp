@@ -1260,6 +1260,11 @@ bool TTablet::IsReplicated() const
     return TypeFromId(TableId_) == EObjectType::ReplicatedTable;
 }
 
+bool TTablet::IsPhysicallyLog() const
+{
+    return IsLogTableType(TypeFromId(TableId_));
+}
+
 int TTablet::GetColumnLockCount() const
 {
     return LockIndexToName_.size();
@@ -1498,7 +1503,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
 
 void TTablet::Initialize()
 {
-    PhysicalSchema_ = IsReplicated() ? TableSchema_->ToReplicationLog() : TableSchema_;
+    PhysicalSchema_ = IsPhysicallyLog() ? TableSchema_->ToReplicationLog() : TableSchema_;
 
     TableSchemaData_ = TWireProtocolReader::GetSchemaData(*TableSchema_);
     KeysSchemaData_ = TWireProtocolReader::GetSchemaData(*PhysicalSchema_->ToKeys());

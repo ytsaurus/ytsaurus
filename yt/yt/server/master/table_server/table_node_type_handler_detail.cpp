@@ -100,10 +100,13 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     ValidateReplicationFactor(replicationFactor);
 
     bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
-    bool replicated = TypeFromId(id.ObjectId) == EObjectType::ReplicatedTable;
+    auto type = TypeFromId(id.ObjectId);
+    bool replicated = type == EObjectType::ReplicatedTable;
+    bool log = IsLogTableType(type);
 
-    if (replicated && !dynamic) {
-        THROW_ERROR_EXCEPTION("Replicated table must be dynamic");
+    if (log && !dynamic) {
+        THROW_ERROR_EXCEPTION("Table of type %Qlv must be dynamic",
+            type);
     }
 
     auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
@@ -132,12 +135,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         effectiveTableSchema = schemaById->AsTableSchema().Get();
     } else if (tableSchema) {
         effectiveTableSchema = &*tableSchema;
-    }
-
-    if (replicated) {
-        if (!dynamic) {
-            THROW_ERROR_EXCEPTION("Replicated table must be dynamic");
-        }
     }
 
     if (effectiveTableSchema) {
@@ -190,7 +187,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         node->SetOptimizeFor(optimizeFor);
         node->SetHunkErasureCodec(hunkErasureCodec);
 
-        if (node->IsReplicated()) {
+        if (node->IsPhysicallyLog()) {
             // NB: This setting may be not visible in attributes but crucial for replication
             // to work properly.
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
@@ -453,6 +450,13 @@ ICypressNodeProxyPtr TTableNodeTypeHandler::DoGetProxy(
         &Metadata_,
         transaction,
         trunkNode);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+EObjectType TReplicationLogTableNodeTypeHandler::GetObjectType() const
+{
+    return EObjectType::ReplicationLogTable;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

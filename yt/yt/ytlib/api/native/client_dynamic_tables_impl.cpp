@@ -310,7 +310,7 @@ private:
             DetailedProfilingInfo_->MountCacheWaitTime += mountCacheWaitTime;
         }
 
-        tableInfo->ValidateNotReplicated();
+        tableInfo->ValidateNotPhysicallyLog();
 
         TDataSplit result;
         SetObjectId(&result, tableInfo->TableId);
@@ -685,6 +685,9 @@ TRowset TClient::DoLookupRowsOnce(
         auto replicaFallbackInfo = GetReplicaFallbackInfo(inSyncReplicas);
         return WaitFor(replicaFallbackHandler(replicaFallbackInfo))
             .ValueOrThrow();
+    } else if (tableInfo->IsReplicationLog()) {
+        // TODO(savrus) Add after YT-16090 
+        THROW_ERROR_EXCEPTION("Lookup from queue replica is not supported");
     }
 
     // TODO(sandello): Use code-generated comparer here.
@@ -1720,9 +1723,17 @@ public:
                 << TErrorAttribute("cluster", ClusterName_);
         }
 
+        auto type = TypeFromId(tableInfo.SourceTableId);
+
         // TODO(ifsmirnov): most of checks below are subject to future work.
-        if (TypeFromId(tableInfo.SourceTableId) == EObjectType::ReplicatedTable) {
+        if (type == EObjectType::ReplicatedTable) {
             THROW_ERROR_EXCEPTION("Table %Qv is replicated",
+                tableInfo.SourcePath)
+                << TErrorAttribute("cluster", ClusterName_);
+        }
+
+        if (type == EObjectType::ReplicationLogTable) {
+            THROW_ERROR_EXCEPTION("Table %Qv is a replication log",
                 tableInfo.SourcePath)
                 << TErrorAttribute("cluster", ClusterName_);
         }

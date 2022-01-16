@@ -33,6 +33,16 @@ bool TTableMountInfo::IsReplicated() const
     return TypeFromId(TableId) == EObjectType::ReplicatedTable;
 }
 
+bool TTableMountInfo::IsReplicationLog() const
+{
+    return TypeFromId(TableId) == EObjectType::ReplicationLogTable;
+}
+
+bool TTableMountInfo::IsPhysicallyLog() const
+{
+    return IsReplicated() || IsReplicationLog();
+}
+
 TTabletInfoPtr TTableMountInfo::GetTabletByIndexOrThrow(int tabletIndex) const
 {
     if (tabletIndex < 0 || tabletIndex >= std::ssize(Tablets)) {
@@ -144,12 +154,12 @@ void TTableMountInfo::ValidateOrdered() const
     if (!IsOrdered()) {
         THROW_ERROR_EXCEPTION("Table %v is not ordered", Path);
     }
-}
+}   
 
-void TTableMountInfo::ValidateNotReplicated() const
+void TTableMountInfo::ValidateNotPhysicallyLog() const
 {
-    if (IsReplicated()) {
-        THROW_ERROR_EXCEPTION("Table %v is replicated", Path);
+    if (IsPhysicallyLog()) {
+        THROW_ERROR_EXCEPTION("Table %v physically contains replication log", Path);
     }
 }
 
@@ -157,6 +167,13 @@ void TTableMountInfo::ValidateReplicated() const
 {
     if (!IsReplicated()) {
         THROW_ERROR_EXCEPTION("Table %v is not replicated", Path);
+    }
+}
+
+void TTableMountInfo::ValidateReplicationLog() const
+{
+    if (!IsReplicationLog()) {
+        THROW_ERROR_EXCEPTION("Table %v is not replication log", Path);
     }
 }
 

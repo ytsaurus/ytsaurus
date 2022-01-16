@@ -187,6 +187,7 @@ public:
     bool IsLogicallyEmpty() const;
     bool IsUniqueKeys() const;
     bool IsReplicated() const;
+    bool IsPhysicallyLog() const;
     bool IsPhysicallySorted() const;
 
     NTabletClient::ETabletState GetTabletState() const;

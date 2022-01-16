@@ -120,7 +120,7 @@ private:
         const ITabletSlotPtr& slot,
         TTablet* tablet)
     {
-        if (tablet->IsReplicated()) {
+        if (tablet->IsPhysicallyLog()) {
             return;
         }
 

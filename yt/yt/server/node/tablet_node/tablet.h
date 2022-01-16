@@ -551,6 +551,7 @@ public:
     bool IsPhysicallySorted() const;
     bool IsPhysicallyOrdered() const;
     bool IsReplicated() const;
+    bool IsPhysicallyLog() const;
 
     int GetColumnLockCount() const;
 

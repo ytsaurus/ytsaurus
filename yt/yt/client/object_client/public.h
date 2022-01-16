@@ -182,6 +182,7 @@ DEFINE_ENUM(EObjectType,
     ((Link)                          (417))
     ((Document)                      (421))
     ((ReplicatedTable)               (425))
+    ((ReplicationLogTable)           (431))
 
     // Portals
     ((PortalEntrance)               (11000))

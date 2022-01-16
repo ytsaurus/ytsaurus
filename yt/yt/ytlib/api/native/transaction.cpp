@@ -584,7 +584,7 @@ private:
             }
 
             const auto& tableInfo = TableSession_->GetInfo();
-            if (Options_.UpstreamReplicaId && tableInfo->IsReplicated() && !tableInfo->ReplicationCardToken.ReplicationCardId) {
+            if (Options_.UpstreamReplicaId && tableInfo->IsReplicated()) {
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::TableMustNotBeReplicated,
                     "Replicated table %v cannot act as a replication sink",
@@ -664,8 +664,8 @@ private:
             const auto& deleteSchema = tableInfo->Schemas[ETableSchemaKind::Delete];
             const auto& deleteIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Delete);
 
-            const auto& modificationSchema = !tableInfo->IsReplicated() && !tableInfo->IsSorted() ? primarySchema : primarySchemaWithTabletIndex;
-            const auto& modificationIdMapping = !tableInfo->IsReplicated() && !tableInfo->IsSorted() ? primaryIdMapping : primaryWithTabletIndexIdMapping;
+            const auto& modificationSchema = !tableInfo->IsPhysicallyLog() && !tableInfo->IsSorted() ? primarySchema : primarySchemaWithTabletIndex;
+            const auto& modificationIdMapping = !tableInfo->IsPhysicallyLog() && !tableInfo->IsSorted() ? primaryIdMapping : primaryWithTabletIndexIdMapping;
 
             const auto& rowBuffer = transaction->RowBuffer_;
 
@@ -688,7 +688,7 @@ private:
                         break;
 
                     case ERowModificationType::VersionedWrite:
-                        if (tableInfo->IsReplicated() && !tableInfo->ReplicationCardToken) {
+                        if (tableInfo->IsReplicated()) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustNotBeReplicated,
                                 "Cannot perform versioned writes into a replicated table %v",
@@ -768,7 +768,7 @@ private:
                         }
 
                         auto modificationType = modification.Type;
-                        if (tableInfo->IsReplicated() && modificationType == ERowModificationType::WriteAndLock) {
+                        if (tableInfo->IsPhysicallyLog() && modificationType == ERowModificationType::WriteAndLock) {
                             modificationType = ERowModificationType::Write;
                         }
 

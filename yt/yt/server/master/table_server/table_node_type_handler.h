@@ -11,6 +11,7 @@ namespace NYT::NTableServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 NCypressServer::INodeTypeHandlerPtr CreateTableTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateReplicationLogTableTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
