@@ -65,7 +65,8 @@ TEST(TErrorTest, FormatCtor)
 
 TEST(TErrorTest, TruncateSimple)
 {
-    auto error = TError("Some error");
+    auto error = TError("Some error")
+        << TErrorAttribute("my_attr", "Attr value");
     auto truncatedError = error.Truncate();
     EXPECT_EQ(error.GetCode(), truncatedError.GetCode());
     EXPECT_EQ(error.GetMessage(), truncatedError.GetMessage());
@@ -73,6 +74,7 @@ TEST(TErrorTest, TruncateSimple)
     EXPECT_EQ(error.GetTid(), truncatedError.GetTid());
     EXPECT_EQ(error.GetSpanId(), truncatedError.GetSpanId());
     EXPECT_EQ(error.GetDatetime(), truncatedError.GetDatetime());
+    EXPECT_EQ(error.Attributes().Get<TString>("my_attr"), truncatedError.Attributes().Get<TString>("my_attr"));
 }
 
 TEST(TErrorTest, TruncateLarge)
