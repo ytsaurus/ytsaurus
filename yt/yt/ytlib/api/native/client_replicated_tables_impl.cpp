@@ -226,6 +226,9 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
     bool someReplicated = false;
     bool someNotReplicated = false;
     for (const auto& tableInfo : tableInfos) {
+        if (tableInfo->IsReplicationLog()) {
+            THROW_ERROR_EXCEPTION("Replication log table is not supported for this type of query");
+        }
         if (tableInfo->IsReplicated()) {
             someReplicated = true;
         } else {

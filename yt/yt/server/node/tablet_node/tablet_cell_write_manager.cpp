@@ -201,7 +201,7 @@ public:
             auto lockless =
                 atomicity == EAtomicity::None ||
                 tablet->IsPhysicallyOrdered() ||
-                tablet->IsReplicated() ||
+                tablet->IsPhysicallyLog() ||
                 versioned;
             if (lockless) {
                 // Skip the whole message.
@@ -368,7 +368,7 @@ public:
                 LockTablet(tablet);
                 transaction->LockedTablets().push_back(tablet);
 
-                if (tablet->IsReplicated() && transaction->GetRowsPrepared()) {
+                if (tablet->IsPhysicallyLog() && transaction->GetRowsPrepared()) {
                     tablet->SetDelayedLocklessRowCount(tablet->GetDelayedLocklessRowCount() + record.RowCount);
                 }
             }
@@ -813,7 +813,7 @@ private:
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = Host_->GetTabletOrThrow(writeRecord.TabletId);
 
-            if (!tablet->IsReplicated()) {
+            if (!tablet->IsPhysicallyLog()) {
                 continue;
             }
 
@@ -1030,7 +1030,7 @@ private:
         for (auto [tablet, rowCount] : tabletToRowCount) {
             FinishTabletCommit(tablet, transaction, commitTimestamp);
 
-            if (!tablet->IsReplicated()) {
+            if (!tablet->IsPhysicallyLog()) {
                 continue;
             }
 
@@ -1074,7 +1074,7 @@ private:
             TCompactFlatMap<TTablet*, int, 8> tabletToRowCount;
             for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
                 auto* tablet = Host_->FindTablet(writeRecord.TabletId);
-                if (!tablet || !tablet->IsReplicated()) {
+                if (!tablet || !tablet->IsPhysicallyLog()) {
                     continue;
                 }
 

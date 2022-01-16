@@ -341,7 +341,7 @@ class TestChaos(DynamicTablesBase):
                     {"name": "value", "type": "string"}]
                 })
         driver = attributes.pop("driver", None)
-        create("replicated_table", path, attributes=attributes, driver=driver)
+        create("replication_log_table", path, attributes=attributes, driver=driver)
 
     @authors("savrus")
     def test_chaos_table(self):

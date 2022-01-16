@@ -293,6 +293,11 @@ bool TTableNode::IsReplicated() const
     return GetType() == EObjectType::ReplicatedTable;
 }
 
+bool TTableNode::IsPhysicallyLog() const
+{
+    return IsLogTableType(GetType());
+}
+
 bool TTableNode::IsPhysicallySorted() const
 {
     return IsSorted() && !IsReplicated();

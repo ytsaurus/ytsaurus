@@ -470,7 +470,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
     }
 
     tableInfo->ValidateDynamic();
-    tableInfo->ValidateNotReplicated();
+    tableInfo->ValidateNotPhysicallyLog();
 
     THashMap<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 

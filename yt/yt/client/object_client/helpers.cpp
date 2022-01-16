@@ -26,6 +26,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::File ||
         type == EObjectType::Table ||
         type == EObjectType::ReplicatedTable ||
+        type == EObjectType::ReplicationLogTable ||
         type == EObjectType::Journal ||
         type == EObjectType::ChunkMap ||
         type == EObjectType::LostChunkMap ||
@@ -107,6 +108,7 @@ bool IsUserType(EObjectType type)
         type == EObjectType::File ||
         type == EObjectType::Table ||
         type == EObjectType::ReplicatedTable ||
+        type == EObjectType::ReplicationLogTable ||
         type == EObjectType::TableReplica ||
         type == EObjectType::TabletAction ||
         type == EObjectType::Journal ||
@@ -122,7 +124,15 @@ bool IsTableType(EObjectType type)
 {
     return
         type == EObjectType::Table ||
-        type == EObjectType::ReplicatedTable;
+        type == EObjectType::ReplicatedTable ||
+        type == EObjectType::ReplicationLogTable;
+}
+
+bool IsLogTableType(EObjectType type)
+{
+    return
+        type == EObjectType::ReplicatedTable ||
+        type == EObjectType::ReplicationLogTable;
 }
 
 bool IsCellType(EObjectType type)

@@ -1088,8 +1088,9 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         case EInternedAttributeKey::EnableDynamicStoreRead: {
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
-            if (lockedTable->IsReplicated()) {
-                THROW_ERROR_EXCEPTION("Dynamic store read for replicated tables is not supported");
+            if (lockedTable->IsPhysicallyLog()) {
+                THROW_ERROR_EXCEPTION("Dynamic store read is not supported for table type %Qlv",
+                    lockedTable->GetType());
             }
             if (lockedTable->IsDynamic()) {
                 lockedTable->ValidateAllTabletsUnmounted("Cannot change dynamic stores readability");
@@ -1130,7 +1131,7 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
-            if (!lockedTable->IsDynamic() || !lockedTable->IsSorted()) {
+            if (!lockedTable->IsDynamic() || !lockedTable->IsSorted() || lockedTable->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Replication card token can be used only with sorted dynamic tables");
             }
             lockedTable->ValidateAllTabletsUnmounted("Cannot change upstream replication card");
@@ -1173,8 +1174,9 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             lockedTable->ValidateAllTabletsUnmounted("Cannot change table atomicity mode");
 
             auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
-            if (table->IsReplicated() && atomicity != NTransactionClient::EAtomicity::Full) {
-                THROW_ERROR_EXCEPTION("Replicated tables only support %Qlv atomicity, cannot set it to %Qlv",
+            if (table->IsPhysicallyLog() && atomicity != NTransactionClient::EAtomicity::Full) {
+                THROW_ERROR_EXCEPTION("Table of type %Qlv only support %Qlv atomicity, cannot set it to %Qlv",
+                    table->GetType(),
                     NTransactionClient::EAtomicity::Full,
                     atomicity);
             }
@@ -1193,8 +1195,9 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             lockedTable->ValidateAllTabletsUnmounted("Cannot change table commit ordering mode");
 
             auto ordering = ConvertTo<NTransactionClient::ECommitOrdering>(value);
-            if (table->IsReplicated() && ordering != NTransactionClient::ECommitOrdering::Strong) {
-                THROW_ERROR_EXCEPTION("Replicated tables only support %Qlv commit ordering, cannot set it to %Qlv",
+            if (table->IsPhysicallyLog() && ordering != NTransactionClient::ECommitOrdering::Strong) {
+                THROW_ERROR_EXCEPTION("Table of type %Qlv only support %Qlv commit ordering, cannot set it to %Qlv",
+                    table->GetType(),
                     NTransactionClient::ECommitOrdering::Strong,
                     ordering);
             }
@@ -1646,9 +1649,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             THROW_ERROR_EXCEPTION("Schema modification cannot be specified as schema attribute");
         }
 
-        if (table->IsReplicated()) {
+        if (table->IsPhysicallyLog()) {
             if (options.Schema || options.SchemaModification || options.Dynamic) {
-                THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
+                THROW_ERROR_EXCEPTION("Cannot alter table of type %Qlv",
+                    table->GetType());
             }
         }
 
@@ -1666,7 +1670,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             if (!dynamic) {
                 THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
             }
-            if (table->IsReplicated() && !table->ReplicationCardToken()) {
+            if (table->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
             }
 

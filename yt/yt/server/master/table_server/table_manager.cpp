@@ -722,7 +722,7 @@ public:
         for (auto* table : GetValuesSortedByKey(collocatedTables)) {
             switch (type) {
                 case ETableCollocationType::Replication:
-                    if (table->GetType() != EObjectType::ReplicatedTable) {
+                    if (!table->IsReplicated()) {
                         THROW_ERROR_EXCEPTION("Unexpected type of table %v: expected %Qlv, actual %Qlv",
                             table->GetId(),
                             EObjectType::ReplicatedTable,
@@ -859,7 +859,7 @@ public:
                     return;
                 }
 
-                if (table->GetType() != EObjectType::ReplicatedTable) {
+                if (!table->IsReplicated()) {
                     THROW_ERROR_EXCEPTION("Unexpected type of table %v: expected %Qlv, actual %Qlv",
                         table->GetId(),
                         EObjectType::ReplicatedTable,

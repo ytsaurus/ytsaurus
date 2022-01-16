@@ -77,6 +77,17 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicationLogTableNodeTypeHandler
+    : public TTableNodeTypeHandler
+{
+public:
+    using TTableNodeTypeHandler::TTableNodeTypeHandler;
+
+    NObjectClient::EObjectType GetObjectType() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReplicatedTableNodeTypeHandler
     : public TTableNodeTypeHandlerBase<TReplicatedTableNode>
 {

@@ -13,6 +13,11 @@ INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)
     return New<TTableNodeTypeHandler>(bootstrap);
 }
 
+INodeTypeHandlerPtr CreateReplicationLogTableTypeHandler(TBootstrap* bootstrap)
+{
+    return New<TReplicationLogTableNodeTypeHandler>(bootstrap);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableServer

@@ -412,7 +412,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
         .ValueOrThrow();
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
-    tableInfo->ValidateNotReplicated();
+    tableInfo->ValidateNotPhysicallyLog();
 
     // Visit all tablets and group tablet subrequests by nodes.
     using TSubrequest = NQueryClient::NProto::TReqFetchTabletStores::TSubrequest;

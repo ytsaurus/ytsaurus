@@ -115,6 +115,8 @@ struct TTableMountInfo
     bool IsSorted() const;
     bool IsOrdered() const;
     bool IsReplicated() const;
+    bool IsReplicationLog() const;
+    bool IsPhysicallyLog() const;
 
     TTabletInfoPtr GetTabletByIndexOrThrow(int tabletIndex) const;
     int GetTabletIndexForKey(TRange<NTableClient::TUnversionedValue> key) const;
@@ -129,8 +131,9 @@ struct TTableMountInfo
     void ValidateDynamic() const;
     void ValidateSorted() const;
     void ValidateOrdered() const;
-    void ValidateNotReplicated() const;
+    void ValidateNotPhysicallyLog() const;
     void ValidateReplicated() const;
+    void ValidateReplicationLog() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountInfo)

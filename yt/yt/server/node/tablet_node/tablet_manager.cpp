@@ -374,8 +374,8 @@ public:
         try {
             auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
 
-            if (tablet->IsReplicated()) {
-                THROW_ERROR_EXCEPTION("Cannot trim a replicated table tablet");
+            if (tablet->IsPhysicallyLog()) {
+                THROW_ERROR_EXCEPTION("Trim is not supported for this table type");
             }
 
             tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
@@ -2960,7 +2960,7 @@ private:
 
     IStoreManagerPtr CreateStoreManager(TTablet* tablet)
     {
-        if (tablet->IsReplicated()) {
+        if (tablet->IsPhysicallyLog()) {
             return DoCreateStoreManager<TReplicatedStoreManager>(tablet);
         } else {
             if (tablet->IsPhysicallySorted()) {

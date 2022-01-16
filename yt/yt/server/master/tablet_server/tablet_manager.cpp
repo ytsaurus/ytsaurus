@@ -402,11 +402,6 @@ public:
                 << TErrorAttribute("\"preserve_timestamps\"", preserveTimestamps);
         }
 
-        // TODO(savrus) Fix this check for multicell environment.
-        if (table->ReplicationCardToken()) {
-            THROW_ERROR_EXCEPTION("Cannot create table replica for queue table");
-        }
-
         table->ValidateNotBackup("Cannot create table replica from a backup table");
 
         YT_VERIFY(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
@@ -1396,8 +1391,9 @@ public:
             return;
         }
 
-        if (table->IsReplicated() && !table->IsLogicallyEmpty()) {
-            THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
+        if (table->IsPhysicallyLog() && !table->IsLogicallyEmpty()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard non-empty table of type %Qlv",
+                table->GetType());
         }
 
         // Now check against tablets.
@@ -1813,8 +1809,9 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard a static table");
         }
 
-        if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Cannot automatically reshard a replicated table");
+        if (table->IsPhysicallyLog()) {
+            THROW_ERROR_EXCEPTION("Cannot automatically reshard table of type %Qlv",
+                table->GetType());
         }
 
         for (const auto& tablet : table->Tablets()) {
@@ -2126,8 +2123,9 @@ public:
                 "table was recently restored from backup and still has some restrictions");
         }
 
-        if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table is replicated");
+        if (table->IsPhysicallyLog()) {
+            THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static for table type %Qlv",
+                table->GetType());
         }
 
         if (table->IsSorted()) {
@@ -6689,8 +6687,9 @@ private:
         const TTableNode* table,
         const TTableMountConfigPtr& mountConfig)
     {
-        if (table->IsReplicated() && mountConfig->InMemoryMode != EInMemoryMode::None) {
-            THROW_ERROR_EXCEPTION("Cannot mount a replicated dynamic table in memory");
+        if (table->IsPhysicallyLog() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+            THROW_ERROR_EXCEPTION("Cannot mount dynamic table of type %Qlv in memory",
+                table->GetType());
         }
         if (!table->IsPhysicallySorted() && mountConfig->EnableLookupHashTable) {
             THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" can be \"true\" only for sorted dynamic table");
@@ -6699,7 +6698,7 @@ private:
 
     bool IsDynamicStoreReadEnabled(const TTableNode* table)
     {
-        if (table->IsReplicated()) {
+        if (table->IsPhysicallyLog()) {
             return false;
         }
 
@@ -6869,8 +6868,9 @@ private:
                     break;
 
                 case ENodeCloneMode::Move:
-                    if (trunkNode->IsReplicated()) {
-                        THROW_ERROR_EXCEPTION("Cannot move a replicated table");
+                    if (trunkNode->IsPhysicallyLog()) {
+                        THROW_ERROR_EXCEPTION("Cannot move a table of type %Qlv",
+                            trunkNode->GetType());
                     }
                     trunkNode->ValidateAllTabletsUnmounted("Cannot move dynamic table");
                     break;
@@ -6881,8 +6881,9 @@ private:
                         THROW_ERROR_EXCEPTION("Cannot backup table that was recently restored and still "
                             "has some restrictions");
                     }
-                    if (trunkNode->IsReplicated()) {
-                        THROW_ERROR_EXCEPTION("Cannot backup a replicated table");
+                    if (trunkNode->IsPhysicallyLog()) {
+                        THROW_ERROR_EXCEPTION("Cannot backup a table of type %Qlv",
+                            trunkNode->GetType());
                     }
                     break;
 
@@ -6890,8 +6891,9 @@ private:
                     if (trunkNode->GetBackupState() != ETableBackupState::BackupCompleted) {
                         THROW_ERROR_EXCEPTION("Cannot restore table since it is not a backup table");
                     }
-                    if (trunkNode->IsReplicated()) {
-                        THROW_ERROR_EXCEPTION("Cannot restore a replicated table");
+                    if (trunkNode->IsPhysicallyLog()) {
+                        THROW_ERROR_EXCEPTION("Cannot restore a table of type %Qlv",
+                            trunkNode->GetType());
                     }
                     break;
 
