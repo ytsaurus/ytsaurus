@@ -111,10 +111,10 @@ class TestPingFailedModes(object):
                     names.append(thread.getName())
                     if thread.getName() == "ping_failed_interrupt_main":
                         thread.join(timeout=0.1)
+                print("Thread names: {}".format(names), file=sys.stderr)
                 break
             except KeyboardInterrupt:
                 pass
-            print("Thread names: {}".format(names), file=sys.stderr)
         print("Checking threads completed", file=sys.stderr)
 
     @authors("marat-khalili")
