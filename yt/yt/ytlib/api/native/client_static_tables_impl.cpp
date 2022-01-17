@@ -58,6 +58,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
             .NodeDirectory = nodeDirectory,
             .Mode = options.FetcherMode,
             .StoreChunkStatistics = true,
+            .EnableEarlyFinish = options.EnableEarlyFinish,
             .Logger = Logger,
         });
 

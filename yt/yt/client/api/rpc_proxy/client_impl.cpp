@@ -1286,6 +1286,8 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
     req->mutable_fetcher()->set_node_rpc_timeout(
         NYT::ToProto<i64>(options.FetcherConfig->NodeRpcTimeout));
 
+    req->set_enable_early_finish(options.EnableEarlyFinish);
+
     ToProto(req->mutable_transactional_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetColumnarStatisticsPtr& rsp) {

@@ -1383,6 +1383,7 @@ message TReqGetColumnarStatistics
     required TFetchChunkSpec fetch_chunk_spec = 2;
     required TFetcher fetcher = 3;
     optional EColumnarStatisticsFetcherMode fetcher_mode = 4;
+    optional bool enable_early_finish = 5 [default = false];
 
     optional TTransactionalOptions transactional_options = 100;
 }

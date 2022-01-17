@@ -64,6 +64,7 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
 
     auto req = proxy.GetColumnarStatistics();
     ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+    req->set_enable_early_finish(Options_.EnableEarlyFinish);
 
     for (int chunkIndex : chunkIndexes) {
         auto* subrequest = req->add_subrequests();

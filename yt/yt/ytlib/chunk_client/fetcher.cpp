@@ -368,12 +368,15 @@ void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& e
 {
     const auto& chunk = Chunks_[chunkIndex];
     auto chunkId = chunk->GetChunkId();
+    const auto& address = NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
 
-    YT_LOG_DEBUG(error, "Error fetching chunk info (ChunkId: %v, Address: %v)",
-        chunkId,
-        NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
+    if (error.FindMatching(NYT::EErrorCode::Timeout)) {
+        YT_LOG_DEBUG(error, "Timed out fetching chunk info (ChunkId: %v, Address: %v)", chunkId, address);
+    } else {
+        YT_LOG_DEBUG(error, "Error fetching chunk info (ChunkId: %v, Address: %v)", chunkId, address);
+        DeadChunks_.emplace(nodeId, chunkId);
+    }
 
-    DeadChunks_.emplace(nodeId, chunkId);
     YT_VERIFY(UnfetchedChunkIndexes_.insert(chunkIndex).second);
 }
 

@@ -21,6 +21,7 @@ struct TColumnarStatisticsFetcherOptions
     EColumnarStatisticsFetcherMode Mode = EColumnarStatisticsFetcherMode::Fallback;
     bool StoreChunkStatistics = false;
     bool AggregatePerTableStatistics = false;
+    bool EnableEarlyFinish = false;
     NLogging::TLogger Logger = TableClientLogger;
 };
 

@@ -311,12 +311,15 @@ TGetTableColumnarStatisticsCommand::TGetTableColumnarStatisticsCommand()
         .Default(EColumnarStatisticsFetcherMode::FromNodes);
     RegisterParameter("max_chunks_per_node_fetch", MaxChunksPerNodeFetch)
         .Default();
+    RegisterParameter("enable_early_finish", EnableEarlyFinish)
+        .Default(false);
 }
 
 void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
 {
     Options.FetchChunkSpecConfig = context->GetConfig()->TableReader;
     Options.FetcherConfig = context->GetConfig()->Fetcher;
+    Options.EnableEarlyFinish = EnableEarlyFinish;
 
     if (MaxChunksPerNodeFetch) {
         Options.FetcherConfig = CloneYsonSerializable(Options.FetcherConfig);

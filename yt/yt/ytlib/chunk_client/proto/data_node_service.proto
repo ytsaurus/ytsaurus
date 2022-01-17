@@ -494,6 +494,7 @@ message TReqGetColumnarStatistics
 
     repeated TSubrequest subrequests = 2;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
+    optional bool enable_early_finish = 4;
 }
 
 message TRspGetColumnarStatistics
