@@ -94,6 +94,7 @@ private:
     std::vector<NYPath::TRichYPath> Paths;
     NTableClient::EColumnarStatisticsFetcherMode FetcherMode;
     std::optional<int> MaxChunksPerNodeFetch;
+    bool EnableEarlyFinish;
 
     void DoExecute(ICommandContextPtr context) override;
 };

@@ -31,8 +31,23 @@ class TestColumnarStatistics(YTEnvSetup):
         },
     }
 
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "testing_options": {
+                "columnar_statistics_chunk_meta_fetch_max_delay": 5000
+            },
+            "columnar_statistics_read_timeout_fraction": 0.1,
+        }
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "fetcher": {
+            "node_rpc_timeout": 10000
+        },
+    }
+
+    @staticmethod
     def _expect_statistics(
-        self,
         lower_row_index,
         upper_row_index,
         columns,
@@ -41,6 +56,7 @@ class TestColumnarStatistics(YTEnvSetup):
         expected_legacy_data_weight=0,
         fetcher_mode="from_nodes",
         table="//tmp/t",
+        enable_early_finish=False
     ):
         path = '["{0}{{{1}}}[{2}:{3}]";]'.format(
             table,
@@ -48,7 +64,9 @@ class TestColumnarStatistics(YTEnvSetup):
             "#" + str(lower_row_index) if lower_row_index is not None else "",
             "#" + str(upper_row_index) if upper_row_index is not None else "",
         )
-        statistics = get_table_columnar_statistics(path, fetcher_mode=fetcher_mode)[0]
+        statistics = get_table_columnar_statistics(path,
+                                                   fetcher_mode=fetcher_mode,
+                                                   enable_early_finish=enable_early_finish)[0]
         assert statistics["legacy_chunks_data_weight"] == expected_legacy_data_weight
         assert statistics["column_data_weights"] == dict(zip(columns.split(","), expected_data_weights))
         if expected_timestamp_weight is not None:
@@ -555,6 +573,76 @@ class TestColumnarStatistics(YTEnvSetup):
         statistics0 = get_table_columnar_statistics('["//tmp/t{a}";]')
         statistics1 = get_table_columnar_statistics('["//tmp/t{a}";]', max_chunks_per_node_fetch=1)
         assert statistics0 == statistics1
+
+
+##################################################################
+
+
+class TestColumnarStatisticsEarlyFinish(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "enable_map_job_size_adjustment": False,
+            "max_user_file_table_data_weight": 2000,
+            "operation_options": {
+                "spec_template": {
+                    "use_columnar_statistics": True,
+                },
+            },
+            "tagged_memory_statistics_update_period": 100,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "testing_options": {
+                "columnar_statistics_chunk_meta_fetch_max_delay": 6000
+            },
+            "columnar_statistics_read_timeout_fraction": 0.3,
+        }
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "fetcher": {
+            "node_rpc_timeout": 3000
+        },
+    }
+
+    @authors("achulkov2")
+    def test_get_table_columnar_statistics_with_early_finish(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 1})
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
+        write_table("<append=%true>//tmp/t", [{"a": "x" * 200}, {"c": True}])
+        write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
+
+        with pytest.raises(YtError):
+            TestColumnarStatistics._expect_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=False)
+
+        TestColumnarStatistics._expect_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=True)
+
+
+##################################################################
+
+
+class TestColumnarStatisticsEarlyFinishRpcProxy(TestColumnarStatisticsEarlyFinish):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_DRIVER_CONFIG = {
+        "fetcher": {
+            "node_rpc_timeout": 3000
+        },
+    }
 
 
 ##################################################################

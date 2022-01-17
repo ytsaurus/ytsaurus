@@ -363,6 +363,16 @@ TChunkAutotomizerConfig::TChunkAutotomizerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDataNodeTestingOptions::TDataNodeTestingOptions()
+{
+    RegisterParameter(
+        "columnar_statistics_chunk_meta_fetch_max_delay",
+        ColumnarStatisticsChunkMetaFetchMaxDelay)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDataNodeConfig::TDataNodeConfig()
 {
     RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -516,6 +526,9 @@ TDataNodeConfig::TDataNodeConfig()
     RegisterParameter("block_read_timeout_fraction", BlockReadTimeoutFraction)
         .Default(0.75);
 
+    RegisterParameter("columnar_statistics_read_timeout_fraction", ColumnarStatisticsReadTimeoutFraction)
+        .Default(0.75);
+
     RegisterParameter("background_artifact_validation_delay", BackgroundArtifactValidationDelay)
         .Default(TDuration::Minutes(5));
 
@@ -523,6 +536,9 @@ TDataNodeConfig::TDataNodeConfig()
         .DefaultNew();
 
     RegisterParameter("p2p", P2P)
+        .DefaultNew();
+
+    RegisterParameter("testing_options", TestingOptions)
         .DefaultNew();
 
     RegisterPreprocessor([&] {

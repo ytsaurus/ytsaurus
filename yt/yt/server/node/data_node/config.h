@@ -441,6 +441,21 @@ DEFINE_REFCOUNTED_TYPE(TChunkAutotomizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDataNodeTestingOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! This duration will be used to insert delays within [0, MaxDelay] after each
+    //! chunk meta fetch for GetColumnarStatistics.
+    std::optional<TDuration> ColumnarStatisticsChunkMetaFetchMaxDelay;
+
+    TDataNodeTestingOptions();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDataNodeTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -628,6 +643,11 @@ public:
     //! it still tries to read at least one block).
     double BlockReadTimeoutFraction;
 
+    //! Fraction of the GetColumnarStatistics RPC timeout, after which early exit is performed and currently uncompleted
+    //! chunk fetches are failed with a timeout error.
+    //! The enable_early_exit field has to be set to true in the request options for this option to have any effect.
+    double ColumnarStatisticsReadTimeoutFraction;
+
     //! Delay between node initializatin and start of background artifact validation.
     TDuration BackgroundArtifactValidationDelay;
 
@@ -636,6 +656,9 @@ public:
 
     //! Config for the new P2P implementation.
     TP2PConfigPtr P2P;
+
+    //! Testing options.
+    TDataNodeTestingOptionsPtr TestingOptions;
 
     TDataNodeConfig();
 

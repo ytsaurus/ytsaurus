@@ -4242,6 +4242,8 @@ private:
 
         options.FetcherMode = CheckedEnumCast<NTableClient::EColumnarStatisticsFetcherMode>(request->fetcher_mode());
 
+        options.EnableEarlyFinish = request->enable_early_finish();
+
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
