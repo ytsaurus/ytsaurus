@@ -15,7 +15,7 @@ class TestChunkLocations(YTEnvSetup):
         assert get("//sys/cluster_nodes/@count") == get("//sys/chunk_locations/@count")
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
             node_address = str(node)
-            for location_uuid, _ in node.attributes["chunk_locations"].iteritems():
+            for location_uuid, _ in node.attributes["chunk_locations"].items():
                 assert get("//sys/chunk_locations/{}/@node_address".format(location_uuid)) == node_address
                 assert get("//sys/chunk_locations/{}/@uuid".format(location_uuid)) == location_uuid
 
@@ -24,7 +24,7 @@ class TestChunkLocations(YTEnvSetup):
         node_address = ls("//sys/cluster_nodes")[0]
 
         def check_locations_state(state):
-            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).iteritems():
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).items():
                 assert get("//sys/chunk_locations/{}/@state".format(location_uuid)) == state
 
         check_locations_state("online")
@@ -36,7 +36,7 @@ class TestChunkLocations(YTEnvSetup):
     def test_removing_node_destroys_locations(self):
         node_address = ls("//sys/cluster_nodes")[0]
 
-        location_uuids = get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys()
+        location_uuids = list(get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys())
         assert len(location_uuids) > 0
 
         set("//sys/cluster_nodes/{0}/@banned".format(node_address), True)
@@ -54,7 +54,7 @@ class TestChunkLocations(YTEnvSetup):
     @authors("babenko")
     def test_cannot_remove_location_for_online_node(self):
         node_address = ls("//sys/cluster_nodes")[0]
-        location_uuids = get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys()
+        location_uuids = list(get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys())
         assert len(location_uuids) > 0
 
         for location_uuid in location_uuids:
@@ -65,7 +65,7 @@ class TestChunkLocations(YTEnvSetup):
     def test_can_remove_location_for_offline_node(self):
         node_address = ls("//sys/cluster_nodes")[0]
 
-        location_uuids = get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys()
+        location_uuids = list(get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys())
         assert len(location_uuids) > 0
 
         set("//sys/cluster_nodes/{0}/@banned".format(node_address), True)
@@ -82,7 +82,7 @@ class TestChunkLocations(YTEnvSetup):
     def test_medium_override(self):
         node_address = ls("//sys/cluster_nodes")[0]
 
-        location_uuids = get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys()
+        location_uuids = list(get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys())
         assert len(location_uuids) > 0
         location_uuid = location_uuids[0]
 

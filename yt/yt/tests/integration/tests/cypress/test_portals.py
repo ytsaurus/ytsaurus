@@ -131,7 +131,7 @@ class TestPortals(YTEnvSetup):
         table_id = create("table", "//tmp/p/t")
         shard_id = get("//tmp/p/t/@shard_id")
 
-        for i in xrange(10):
+        for i in range(10):
             create("map_node", "//tmp/p/m" + str(i))
 
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
@@ -220,7 +220,7 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("map_node", "//tmp/p/m")
 
-        PAYLOAD = "a" * 100
+        PAYLOAD = b"a" * 100
 
         if with_outer_tx:
             tx = start_transaction()
@@ -450,7 +450,7 @@ class TestPortals(YTEnvSetup):
 
         create("file", "//tmp/p1/m/f", attributes={"external_cell_tag": 3})
         assert get("//tmp/p1/m/f/@account") == "a"
-        FILE_PAYLOAD = "PAYLOAD"
+        FILE_PAYLOAD = b"PAYLOAD"
         write_file("//tmp/p1/m/f", FILE_PAYLOAD)
 
         wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 1)
@@ -524,7 +524,7 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
 
         create("file", "//tmp/p1/f", attributes={"external_cell_tag": 3, "account": "a"})
-        FILE_PAYLOAD = "PAYLOAD"
+        FILE_PAYLOAD = b"PAYLOAD"
         write_file("//tmp/p1/f", FILE_PAYLOAD)
 
         if in_tx:
@@ -730,7 +730,7 @@ class TestPortals(YTEnvSetup):
         )
         write_table("//tmp/m/t", TABLE_PAYLOAD)
 
-        FILE_PAYLOAD = "PAYLOAD"
+        FILE_PAYLOAD = b"PAYLOAD"
         create(
             "file",
             "//tmp/m/f",
@@ -830,7 +830,7 @@ class TestPortals(YTEnvSetup):
         create("table", "//tmp/m1/t", attributes={"external": True, "external_cell_tag": 3})
         write_table("//tmp/m1/t", TABLE_PAYLOAD)
 
-        FILE_PAYLOAD = "PAYLOAD"
+        FILE_PAYLOAD = b"PAYLOAD"
         create("file", "//tmp/m1/f", attributes={"external": True, "external_cell_tag": 3})
         write_file("//tmp/m1/f", FILE_PAYLOAD)
 
@@ -883,7 +883,7 @@ class TestPortals(YTEnvSetup):
         )
         write_table("//tmp/m/t", TABLE_PAYLOAD)
 
-        FILE_PAYLOAD = "PAYLOAD"
+        FILE_PAYLOAD = b"PAYLOAD"
         create(
             "file",
             "//tmp/m/f",
@@ -1248,7 +1248,7 @@ class TestPortals(YTEnvSetup):
         copy("//tmp/t", "//tmp/p1/t")
 
         copy_attributes = get("//tmp/p1/t/@")
-        for k, v in attributes.iteritems():
+        for k, v in attributes.items():
             assert copy_attributes[k] == v
 
     @authors("shakurov")

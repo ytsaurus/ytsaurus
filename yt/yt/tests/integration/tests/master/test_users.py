@@ -10,7 +10,7 @@ from yt.common import YtError
 
 import pytest
 
-import __builtin__
+import builtins
 
 
 ##################################################################
@@ -431,7 +431,7 @@ class TestUsers(YTEnvSetup):
         )
         add_member("u", "g1")
 
-        wait(lambda: __builtin__.set(["g1", "g2"]) <= __builtin__.set(get("//sys/users/u/@member_of_closure")))
+        wait(lambda: builtins.set(["g1", "g2"]) <= builtins.set(get("//sys/users/u/@member_of_closure")))
 
     @authors("gritukan")
     def test_network_projects(self):

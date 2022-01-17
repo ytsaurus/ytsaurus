@@ -179,7 +179,7 @@ class TestChunkServer(YTEnvSetup):
     @authors("babenko")
     def test_decommission_journal(self):
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", [{"data": "payload" + str(i)} for i in xrange(0, 10)])
+        write_journal("//tmp/j", [{"data": "payload" + str(i)} for i in range(0, 10)])
         self._test_decommission("//tmp/j", 3)
 
     @authors("babenko")
@@ -197,7 +197,7 @@ class TestChunkServer(YTEnvSetup):
 
         assert get("//sys/@chunk_replicator_enabled")
 
-        for i in xrange(19):
+        for i in range(19):
             set("//sys/cluster_nodes/%s/@banned" % nodes[i], True)
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
@@ -220,7 +220,7 @@ class TestChunkServer(YTEnvSetup):
 
         chunks_json = execute_command("list", {"path": "//sys/chunks", "output_format": "json"})
         for c in json.loads(chunks_json):
-            assert isinstance(c, basestring)
+            assert isinstance(c, str)
 
     @authors("shakurov")
     def test_chunk_requisition_registry_orchid(self):
@@ -296,7 +296,7 @@ class TestChunkServer(YTEnvSetup):
     @pytest.mark.parametrize("service_to_restart", [NODES_SERVICE, MASTERS_SERVICE])
     def test_journal_chunk_replica_removal(self, service_to_restart):
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", [{"data": "payload" + str(i)} for i in xrange(0, 10)])
+        write_journal("//tmp/j", [{"data": "payload" + str(i)} for i in range(0, 10)])
 
         self._wait_for_replicas_removal("//tmp/j", service_to_restart)
 
@@ -312,8 +312,8 @@ class TestChunkServer(YTEnvSetup):
         node_id = get("#{0}/@stored_replicas".format(chunk_id))[0]
         location_path = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}/location".format(node_id, chunk_id))
 
-        with open("{}/disabled".format(location_path), "w") as f:
-            f.write("{foo=bar}")
+        with open("{}/disabled".format(location_path), "wb") as f:
+            f.write(b"{foo=bar}")
 
         wait(lambda: node_id not in get("#{0}/@stored_replicas".format(chunk_id)))
         assert not exists("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(node_id, chunk_id))

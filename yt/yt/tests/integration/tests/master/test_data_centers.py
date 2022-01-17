@@ -12,7 +12,7 @@ from yt.common import YtError
 import pytest
 
 import time
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -21,15 +21,15 @@ class TestDataCenters(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 20
 
-    JOURNAL_DATA = [{"data": "payload" + str(i)} for i in xrange(0, 10)]
-    FILE_DATA = "payload"
+    JOURNAL_DATA = [{"data": "payload" + str(i)} for i in range(0, 10)]
+    FILE_DATA = b"payload"
 
     def _get_replica_nodes(self, chunk_id):
         return list(str(x) for x in get("#" + chunk_id + "/@stored_replicas"))
 
     def _wait_for_safely_placed(self, chunk_id, replica_count):
         ok = False
-        for i in xrange(60):
+        for i in range(60):
             if (
                 not get("#" + chunk_id + "/@replication_status/unsafely_placed")
                 and len(self._get_replica_nodes(chunk_id)) == replica_count
@@ -70,7 +70,7 @@ class TestDataCenters(YTEnvSetup):
         node_to_rack_map = {}
         nodes = get_nodes()
         index = 0
-        created_indexes = __builtin__.set()
+        created_indexes = builtins.set()
         for node in nodes:
             rack = "r" + str(index)
             if index not in created_indexes:
@@ -85,7 +85,7 @@ class TestDataCenters(YTEnvSetup):
         rack_to_dc_map = {}
         racks = get_racks()
         index = 0
-        created_indexes = __builtin__.set()
+        created_indexes = builtins.set()
         for rack in racks:
             dc = "d" + str(index)
             if index not in created_indexes:
@@ -107,17 +107,17 @@ class TestDataCenters(YTEnvSetup):
             self._reset_data_center(rack)
 
     def _set_rack_map(self, node_to_rack_map):
-        racks = frozenset(node_to_rack_map.itervalues())
+        racks = frozenset(node_to_rack_map.values())
         for rack in racks:
             create_rack(rack)
-        for node, rack in node_to_rack_map.iteritems():
+        for node, rack in node_to_rack_map.items():
             set("//sys/cluster_nodes/" + node + "/@rack", rack)
 
     def _set_data_center_map(self, rack_to_dc_map):
-        dcs = frozenset(rack_to_dc_map.itervalues())
+        dcs = frozenset(rack_to_dc_map.values())
         for dc in dcs:
             create_data_center(dc)
-        for rack, dc in rack_to_dc_map.iteritems():
+        for rack, dc in rack_to_dc_map.items():
             set("//sys/racks/" + rack + "/@data_center", dc)
 
     def _get_max_replicas_per_rack(self, node_to_rack_map, chunk_id):
@@ -127,7 +127,7 @@ class TestDataCenters(YTEnvSetup):
             rack = node_to_rack_map[replica]
             rack_to_counter.setdefault(rack, 0)
             rack_to_counter[rack] += 1
-        return max(rack_to_counter.itervalues())
+        return max(rack_to_counter.values())
 
     def _get_max_replicas_per_data_center(self, node_to_rack_map, rack_to_dc_map, chunk_id):
         replicas = self._get_replica_nodes(chunk_id)
@@ -137,7 +137,7 @@ class TestDataCenters(YTEnvSetup):
             dc = rack_to_dc_map[rack]
             dc_to_counter.setdefault(dc, 0)
             dc_to_counter[rack] += 1
-        return max(dc_to_counter.itervalues())
+        return max(dc_to_counter.values())
 
     @authors("shakurov")
     def test_create(self):
@@ -289,7 +289,7 @@ class TestDataCenters(YTEnvSetup):
 
     @authors("shakurov")
     def test_data_center_count_limit(self):
-        for i in xrange(16):
+        for i in range(16):
             create_data_center("d" + str(i))
         with pytest.raises(YtError):
             create_data_center("too_many")

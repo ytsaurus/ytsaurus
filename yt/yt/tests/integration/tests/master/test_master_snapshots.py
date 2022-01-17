@@ -82,24 +82,24 @@ def check_removed_account():
     create_account("a1")
     create_account("a2")
 
-    for i in xrange(0, 5):
+    for i in range(0, 5):
         table = "//tmp/a1_table{0}".format(i)
         create("table", table, attributes={"account": "a1"})
         write_table(table, {"a": "b"})
         copy(table, "//tmp/a2_table{0}".format(i), attributes={"account": "a2"})
 
-    for i in xrange(0, 5):
+    for i in range(0, 5):
         chunk_id = get_singular_chunk_id("//tmp/a2_table{0}".format(i))
         wait(lambda: len(get("#{0}/@requisition".format(chunk_id))) == 2)
 
-    for i in xrange(0, 5):
+    for i in range(0, 5):
         remove("//tmp/a1_table" + str(i))
 
     remove_account("a1", sync_deletion=False)
 
     yield
 
-    for i in xrange(0, 5):
+    for i in range(0, 5):
         chunk_id = get_singular_chunk_id("//tmp/a2_table{0}".format(i))
         wait(lambda: len(get("#{0}/@requisition".format(chunk_id))) == 1)
 
@@ -228,7 +228,7 @@ def check_dynamic_tables():
 
 
 def check_security_tags():
-    for i in xrange(10):
+    for i in range(10):
         create(
             "table",
             "//tmp/table_with_tags" + str(i),
@@ -237,7 +237,7 @@ def check_security_tags():
 
     yield
 
-    for i in xrange(10):
+    for i in range(10):
         assert_items_equal(
             get("//tmp/table_with_tags" + str(i) + "/@security_tags"),
             ["atag" + str(i), "btag" + str(i)],
@@ -263,18 +263,18 @@ def check_transactions():
 
 def check_duplicate_attributes():
     attrs = []
-    for i in xrange(10):
+    for i in range(10):
         attrs.append(str(i) * 2000)
 
-    for i in xrange(10):
+    for i in range(10):
         create("map_node", "//tmp/m{}".format(i))
-        for j in xrange(len(attrs)):
+        for j in range(len(attrs)):
             set("//tmp/m{}/@a{}".format(i, j), attrs[j])
 
     yield
 
-    for i in xrange(10):
-        for j in xrange(len(attrs)):
+    for i in range(10):
+        for j in range(len(attrs)):
             assert get("//tmp/m{}/@a{}".format(i, j)) == attrs[j]
 
 
@@ -408,7 +408,7 @@ def check_chunk_locations():
         set("//sys/chunk_locations/{}/@medium_override".format(location_uuid), "nvme_override")
 
     def check_everything():
-        for node_address, location_uuids in node_to_location_uuids.iteritems():
+        for node_address, location_uuids in node_to_location_uuids.items():
             assert exists("//sys/cluster_nodes/{}".format(node_address))
             found_location_uuids = get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys()
             assert_items_equal(location_uuids, found_location_uuids)
@@ -479,10 +479,10 @@ class TestMasterSnapshots(YTEnvSetup):
         def check_sensor(path):
             sensors = profiler_factory().at_primary_master(master_address).list()
             return path in sensors
-        wait(lambda: check_sensor("yt/snapshots/free_space"))
-        wait(lambda: check_sensor("yt/snapshots/available_space"))
-        wait(lambda: check_sensor("yt/changelogs/free_space"))
-        wait(lambda: check_sensor("yt/changelogs/available_space"))
+        wait(lambda: check_sensor(b"yt/snapshots/free_space"))
+        wait(lambda: check_sensor(b"yt/snapshots/available_space"))
+        wait(lambda: check_sensor(b"yt/changelogs/free_space"))
+        wait(lambda: check_sensor(b"yt/changelogs/available_space"))
 
 
 class TestAllMastersSnapshots(YTEnvSetup):
@@ -555,7 +555,7 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
 
         secondary_masters = get("//sys/secondary_masters", suppress_transaction_coordinator_sync=True)
         for cell_tag in secondary_masters:
-            addresses = secondary_masters[cell_tag].keys()
+            addresses = list(secondary_masters[cell_tag].keys())
             wait(lambda: is_leader_in_readonly("//sys/secondary_masters/{}".format(cell_tag), addresses))
 
         # Must not hang on this.

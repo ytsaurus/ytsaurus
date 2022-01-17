@@ -267,7 +267,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//tmp/t/@chunk_merger_mode", "deep")
 
         for _ in range(10):
-            wait(lambda: self._get_chunk_merger_txs() > 0)
+            wait(lambda: len(self._get_chunk_merger_txs()) > 0)
             self._abort_chunk_merger_txs()
 
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
@@ -811,11 +811,11 @@ class TestChunkMerger(YTEnvSetup):
         )
         create("table", "//tmp/t", attributes={"optimize_for": optimize_for, "schema": schema})
 
-        rows1 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "x": "x" + str(i)} for i in xrange(0, 10)]
+        rows1 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "x": "x" + str(i)} for i in range(0, 10)]
         write_table("<append=true>//tmp/t", rows1)
-        rows2 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "y": "y" + str(i)} for i in xrange(10, 20)]
+        rows2 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "y": "y" + str(i)} for i in range(10, 20)]
         write_table("<append=true>//tmp/t", rows2)
-        rows3 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "z": "z" + str(i)} for i in xrange(20, 30)]
+        rows3 = [{"a": "a" + str(i), "b": "b" + str(i), "c": i, "z": "z" + str(i)} for i in range(20, 30)]
         write_table("<append=true>//tmp/t", rows3)
         assert read_table("//tmp/t") == rows1 + rows2 + rows3
 

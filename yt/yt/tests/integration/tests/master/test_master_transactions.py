@@ -15,7 +15,7 @@ from flaky import flaky
 
 from time import sleep
 from datetime import datetime, timedelta
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -260,8 +260,8 @@ class TestMasterTransactions(YTEnvSetup):
                 cell_tags.append("3")
 
         def check(r):
-            assert_items_equal(r.keys(), cell_tags)
-            for (k, v) in r.iteritems():
+            assert_items_equal(list(r.keys()), cell_tags)
+            for (k, v) in r.items():
                 assert v == []
 
         check(get("#" + tx + "/@staged_object_ids"))
@@ -378,7 +378,7 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_abort_snapshot_lock(self):
         create("file", "//tmp/file")
-        write_file("//tmp/file", "some_data")
+        write_file("//tmp/file", b"some_data")
 
         tx = start_transaction()
 
@@ -389,7 +389,7 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_commit_snapshot_lock(self):
         create("file", "//tmp/file")
-        write_file("//tmp/file", "some_data")
+        write_file("//tmp/file", b"some_data")
 
         tx = start_transaction()
 
@@ -488,7 +488,7 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("babenko")
     def test_very_deep_transactions_yt_9961(self):
         tx = None
-        for _ in xrange(10):
+        for _ in range(10):
             if tx is None:
                 tx = start_transaction()
             else:
@@ -513,7 +513,7 @@ class TestMasterTransactions(YTEnvSetup):
     def test_transaction_depth_limit(self):
         set("//sys/@config/transaction_manager/max_transaction_depth", 5)
         tx = None
-        for _ in xrange(6):
+        for _ in range(6):
             if tx is None:
                 tx = start_transaction()
             else:
@@ -562,7 +562,7 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
         def pick_tx(n):
             return {1: tx1, 2: tx2, 3: tx3}[n]
 
-        committed_txs = __builtin__.set()
+        committed_txs = builtins.set()
 
         def assert_on_commit():
             for tx in [tx for tx in ["0-0-0-0", tx1, tx2, tx3] if tx not in committed_txs]:

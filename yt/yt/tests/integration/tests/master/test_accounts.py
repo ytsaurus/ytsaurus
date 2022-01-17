@@ -22,7 +22,7 @@ import pytest
 from time import sleep
 from operator import itemgetter
 from copy import deepcopy
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -323,7 +323,7 @@ class AccountsTestSuiteBase(YTEnvSetup):
         )
 
     def teardown_method(self, method):
-        for cell_index in xrange(self.NUM_SECONDARY_MASTER_CELLS + 1):
+        for cell_index in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
             driver = get_driver(cell_index)
             accounts = ls("//sys/accounts", driver=driver)
             for account in accounts:
@@ -483,14 +483,14 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: get_account_disk_space("tmp") == 0)
 
         create("file", "//tmp/f1")
-        write_file("//tmp/f1", "some_data")
+        write_file("//tmp/f1", b"some_data")
 
         wait(lambda: get_account_disk_space("tmp") > 0)
         space = get_account_disk_space("tmp")
         assert space > 0
 
         create("file", "//tmp/f2")
-        write_file("//tmp/f2", "some_data")
+        write_file("//tmp/f2", b"some_data")
 
         wait(lambda: get_account_disk_space("tmp") == 2 * space)
 
@@ -508,7 +508,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
         with self.WaitForAccountUsage("//tmp/f", new_account="tmp"):
             create("file", "//tmp/f")
-            write_file("//tmp/f", "some_data")
+            write_file("//tmp/f", b"some_data")
 
         space = get_account_disk_space("tmp")
 
@@ -532,7 +532,7 @@ class TestAccounts(AccountsTestSuiteBase):
         assert get_account_disk_space("max") == 0
 
         create("file", "//tmp/f", attributes={"account": "max"})
-        write_file("//tmp/f", "some_data")
+        write_file("//tmp/f", b"some_data")
 
         wait(lambda: get_account_disk_space("max") > 0)
 
@@ -547,7 +547,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
         with self.WaitForAccountUsage("//tmp/f", new_account="max"):
             create("file", "//tmp/f", attributes={"account": "max"})
-            write_file("//tmp/f", "some_data")
+            write_file("//tmp/f", b"some_data")
 
         space = get_account_disk_space("max")
         assert space > 0
@@ -578,7 +578,7 @@ class TestAccounts(AccountsTestSuiteBase):
             create("table", "//tmp/t")
 
         tx = start_transaction(timeout=60000)
-        for i in xrange(0, 5):
+        for i in range(0, 5):
             with self.WaitForAccountUsage("//tmp/t", tx=tx, append=True):
                 write_table("<append=true>//tmp/t", {"a": "b"}, tx=tx)
 
@@ -877,7 +877,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
         with self.WaitForAccountUsage("//tmp/f1", new_account="max"):
             create("file", "//tmp/f1", attributes={"account": "max"})
-            write_file("//tmp/f1", "some_data")
+            write_file("//tmp/f1", b"some_data")
 
         assert get_account_disk_space("max") > 0
         assert not self._is_account_disk_space_limit_violated("max")
@@ -887,13 +887,13 @@ class TestAccounts(AccountsTestSuiteBase):
 
         create("file", "//tmp/f2", attributes={"account": "max"})
         with pytest.raises(YtError):
-            write_file("//tmp/f2", "some_data")
+            write_file("//tmp/f2", b"some_data")
 
         set_account_disk_space_limit("max", get_account_disk_space("max") + 1)
         assert not self._is_account_disk_space_limit_violated("max")
 
         create("file", "//tmp/f3", attributes={"account": "max"})
-        write_file("//tmp/f3", "some_data")
+        write_file("//tmp/f3", b"some_data")
 
         wait(lambda: self._is_account_disk_space_limit_violated("max"))
 
@@ -901,9 +901,9 @@ class TestAccounts(AccountsTestSuiteBase):
     def test_disk_space_limits4(self):
         create("map_node", "//tmp/a")
         create("file", "//tmp/a/f1")
-        write_file("//tmp/a/f1", "some_data")
+        write_file("//tmp/a/f1", b"some_data")
         create("file", "//tmp/a/f2")
-        write_file("//tmp/a/f2", "some_data")
+        write_file("//tmp/a/f2", b"some_data")
 
         disk_space = get_chunk_owner_disk_space("//tmp/a/f1")
         disk_space_2 = get_chunk_owner_disk_space("//tmp/a/f2")
@@ -922,8 +922,8 @@ class TestAccounts(AccountsTestSuiteBase):
         multicell_sleep()
 
         def write_multiple_chunks_to_file():
-            for i in xrange(20):
-                write_file("//tmp/b/a/f3", "some_data {0}".format(i))
+            for i in range(20):
+                write_file("//tmp/b/a/f3", "some_data {0}".format(i).encode("utf-8"))
 
         create("file", "//tmp/b/a/f3")
         # Writing new data should fail...
@@ -1335,7 +1335,7 @@ class TestAccounts(AccountsTestSuiteBase):
             or actual_resource_usage["chunk_count"] != resource_usage["chunk_count"]
         ):
             return False
-        for medium, disk_space in resource_usage["disk_space_per_medium"].iteritems():
+        for medium, disk_space in resource_usage["disk_space_per_medium"].items():
             if actual_resource_usage["disk_space_per_medium"].get(medium, 0) != disk_space:
                 return False
         return True
@@ -1660,7 +1660,7 @@ class TestAccounts(AccountsTestSuiteBase):
         prev_usage = self._get_detailed_master_memory_usage("a", "tablets")
 
         sync_unmount_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[]] + [[i] for i in xrange(11)])
+        sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(11)])
         sync_mount_table("//tmp/t")
 
         master_memory_sleep()
@@ -1668,7 +1668,7 @@ class TestAccounts(AccountsTestSuiteBase):
         prev_usage = self._get_detailed_master_memory_usage("a", "tablets")
 
         sync_unmount_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[]] + [[i] for i in xrange(2)])
+        sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(2)])
         sync_mount_table("//tmp/t")
 
         wait(lambda: self._get_detailed_master_memory_usage("a", "tablets") < prev_usage)
@@ -1781,7 +1781,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
         t1_schema_id = get("//tmp/t1/@schema_id")
         t2_schema_id = get("//tmp/t2/@schema_id")
-        assert __builtin__.set(get("#" + t2_schema_id + "/@referencing_accounts")) == {"tmp"}
+        assert builtins.set(get("#" + t2_schema_id + "/@referencing_accounts")) == {"tmp"}
 
         t1_schema_master_memory = get("#" + t1_schema_id + "/@memory_usage")
         t2_schema_master_memory = get("#" + t2_schema_id + "/@memory_usage")
@@ -1800,7 +1800,7 @@ class TestAccounts(AccountsTestSuiteBase):
         if get("//tmp/t1/@external"):
             # Schema object is present on external cell also.
             expected_memory_usage += memory_usage_delta
-        assert __builtin__.set(get("#" + t2_schema_id + "/@referencing_accounts")) == {"tmp", "a"}
+        assert builtins.set(get("#" + t2_schema_id + "/@referencing_accounts")) == {"tmp", "a"}
         wait(lambda: get("//sys/accounts/a/@resource_usage/detailed_master_memory/schemas") == expected_memory_usage,
              sleep_backoff=2.0)
 
@@ -2156,7 +2156,7 @@ class TestAccounts(AccountsTestSuiteBase):
         resource_usage = get("//sys/accounts/@total_resource_usage")
         committed_resource_usage = get("//sys/accounts/@total_committed_resource_usage")
         stable_iteration_count = 0
-        for i in xrange(0, 30):
+        for i in range(0, 30):
             sleep(0.3)
             new_resource_usage = get("//sys/accounts/@total_resource_usage")
             new_committed_resource_usage = get("//sys/accounts/@total_committed_resource_usage")
@@ -2216,7 +2216,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         ]
 
     def _get_account_tree_master_memory_usage(self, account):
-        master_memory = get("//sys/accounts/" + account + "/@recursive_resource_usage/master_memory")
+        master_memory = get("//sys/accounts/" + account + "/@recursive_resource_usage/master_memory/total")
         assert master_memory >= 0
         return master_memory
 
@@ -2351,8 +2351,8 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("kiselyovp")
     def test_depth_limit2(self):
         depth_limit = 10
-        left_depth = (depth_limit + 1) / 2
-        right_depth = depth_limit / 2 + 1
+        left_depth = (depth_limit + 1) // 2
+        right_depth = depth_limit // 2 + 1
 
         for i in range(1, left_depth + 1):
             create_account("L" + str(i), None if i == 1 else "L" + str(i - 1), empty=True)
@@ -2512,8 +2512,6 @@ class TestAccountTree(AccountsTestSuiteBase):
         with pytest.raises(YtError):
             set("//sys/accounts/42/@name", "69")
         with pytest.raises(YtError):
-            set("//sys/accounts/42/@name", 420)
-        with pytest.raises(YtError):
             set("//sys/accounts/42/@name", "slash/42")
         with pytest.raises(YtError):
             set("//sys/accounts/42/@name", "a" * 101)
@@ -2639,7 +2637,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("market")
         create_account("metrika-dev", "metrika")
         create("file", "//tmp/f")
-        write_file("//tmp/f", "abacaba")
+        write_file("//tmp/f", b"abacaba")
         set("//tmp/f/@account", "metrika-dev")
 
         set("//sys/accounts/metrika-dev/@parent_name", "market")
@@ -2688,7 +2686,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         with pytest.raises(YtError):
             move("//sys/account_tree/yt", "//sys/account_tree/YaMR/2.0")
 
-        for cell_index in xrange(self.NUM_SECONDARY_MASTER_CELLS + 1):
+        for cell_index in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
             driver = get_driver(cell_index)
             assert not exists("//sys/account_tree/YaMR/yt", driver=driver)
             assert not exists("//sys/account_tree/YaMR/2.0", driver=driver)
@@ -2878,7 +2876,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             )
         with self.WaitForAccountUsage("//tmp/yt/file", new_account="yt"):
             create("file", "//tmp/yt/file")
-            write_file("//tmp/yt/file", "abacaba")
+            write_file("//tmp/yt/file", b"abacaba")
         with self.WaitForAccountUsage("//tmp/yt/yt-prod/table", new_account="yt-prod"):
             create("table", "//tmp/yt/yt-prod/table")
             write_table("//tmp/yt/yt-prod/table", {"a": "b"})
@@ -3455,15 +3453,15 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt", attributes={"resource_limits": {"disk_space_per_medium": {"default": 1}}})
         create_account("yt2", attributes={"resource_limits": {"disk_space_per_medium": {"default": 2, "nvme1": 1}}})
 
-        with raises_yt_error("violated_resources {'disk_space_per_medium': {'default': 1L, 'nvme1': 1L}}"):
+        with raises_yt_error("violated_resources {'disk_space_per_medium': {'default': 1, 'nvme1': 1}}"):
             set("//sys/account_tree/yt2/@parent_name", "yt")
 
         set("//sys/accounts/yt/@resource_limits/disk_space_per_medium", {"default": 2})
-        with raises_yt_error("violated_resources {'disk_space_per_medium': {'nvme1': 1L}}"):
+        with raises_yt_error("violated_resources {'disk_space_per_medium': {'nvme1': 1}}"):
             set("//sys/account_tree/yt2/@parent_name", "yt")
 
         set("//sys/accounts/yt/@resource_limits/disk_space_per_medium", {"default": 1, "nvme1": 1})
-        with raises_yt_error("violated_resources {'disk_space_per_medium': {'default': 1L}}"):
+        with raises_yt_error("violated_resources {'disk_space_per_medium': {'default': 1}}"):
             set("//sys/account_tree/yt2/@parent_name", "yt")
 
         set("//sys/accounts/yt/@resource_limits/disk_space_per_medium", {"default": 2, "nvme1": 1})
@@ -3571,7 +3569,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         # yt-prod
 
         create("file", "//tmp/yt-prod/file")
-        write_file("//tmp/yt-prod/file", "abacaba")
+        write_file("//tmp/yt-prod/file", b"abacaba")
         set("//tmp/yt-prod/file/@primary_medium", "hdd7")
 
         # violate hdd7 disk space limit for yt-prod

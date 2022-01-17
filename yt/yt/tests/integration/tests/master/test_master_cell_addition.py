@@ -23,7 +23,7 @@ from yt.test_helpers import assert_items_equal
 import pytest
 
 from copy import deepcopy
-import __builtin__
+import builtins
 
 ################################################################################
 
@@ -55,13 +55,13 @@ class TestMasterCellAddition(YTEnvSetup):
 
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
-    CELL_IDS = __builtin__.set()
+    CELL_IDS = builtins.set()
 
     @classmethod
     def setup_class(cls):
         super(TestMasterCellAddition, cls).setup_class()
         # NB: the last secondary cell is not started here.
-        for cell_index in xrange(1, cls.NUM_SECONDARY_MASTER_CELLS):
+        for cell_index in range(1, cls.NUM_SECONDARY_MASTER_CELLS):
             cls.Env.start_master_cell(cell_index)
 
         cls.Env.start_nodes()
@@ -90,7 +90,7 @@ class TestMasterCellAddition(YTEnvSetup):
                 build_snapshot(cell_id=cell_id, set_read_only=True)
 
             with Restarter(cls.Env, MASTERS_SERVICE):
-                for i in xrange(len(cls.PATCHED_CONFIGS)):
+                for i in range(len(cls.PATCHED_CONFIGS)):
                     cls.PATCHED_CONFIGS[i]["secondary_masters"].append(cls.STASHED_CELL_CONFIGS[i])
 
                 cls.Env.rewrite_master_configs()
@@ -317,7 +317,7 @@ class TestMasterCellAddition(YTEnvSetup):
             set("//sys/chunk_locations/{}/@medium_override".format(location_uuid), "nvme_override")
 
         def check_everything(driver=None):
-            for node_address, location_uuids in node_to_location_uuids.iteritems():
+            for node_address, location_uuids in node_to_location_uuids.items():
                 assert exists("//sys/cluster_nodes/{}".format(node_address), driver=driver)
                 found_location_uuids = get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address), driver=driver).keys()
                 assert_items_equal(location_uuids, found_location_uuids)

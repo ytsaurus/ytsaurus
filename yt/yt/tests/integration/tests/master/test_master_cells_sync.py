@@ -36,7 +36,7 @@ class TestMasterCellsSync(YTEnvSetup):
         try:
 
             def _check():
-                for i in xrange(self.Env.yt_config.secondary_cell_count):
+                for i in range(self.Env.yt_config.secondary_cell_count):
                     if not check(get_driver(i + 1)):
                         return False
                 return True
@@ -44,23 +44,23 @@ class TestMasterCellsSync(YTEnvSetup):
 
         finally:
             if self.delayed_secondary_cells_start:
-                for cell_index in xrange(self.Env.yt_config.secondary_cell_count):
+                for cell_index in range(self.Env.yt_config.secondary_cell_count):
                     self.Env.kill_master_cell(cell_index + 1)
 
     def teardown(self):
         if self.delayed_secondary_cells_start:
-            for cell_index in xrange(self.Env.yt_config.secondary_cell_count):
+            for cell_index in range(self.Env.yt_config.secondary_cell_count):
                 self.Env.start_master_cell(cell_index + 1)
 
     @authors("asaitgalin")
     def test_users_sync(self):
         create_user("tester")
 
-        for i in xrange(10):
+        for i in range(10):
             set("//sys/users/tester/@custom{0}".format(i), "value")
         self._check_true_for_secondary(
             lambda driver: all(
-                [get("//sys/users/tester/@custom{0}".format(i), driver=driver) == "value" for i in xrange(10)]
+                [get("//sys/users/tester/@custom{0}".format(i), driver=driver) == "value" for i in range(10)]
             )
         )
         self._check_true_for_secondary(lambda driver: "tester" in ls("//sys/users", driver=driver))
@@ -78,12 +78,12 @@ class TestMasterCellsSync(YTEnvSetup):
         self._check_true_for_secondary(lambda driver: "tester" in get("//sys/groups/sudoers/@members", driver=driver))
         self._check_true_for_secondary(lambda driver: "sudoers" in get("//sys/users/tester/@member_of", driver=driver))
 
-        for i in xrange(10):
+        for i in range(10):
             set("//sys/groups/sudoers/@attr{0}".format(i), "value")
         remove_member("tester", "sudoers")
 
         check_attributes = lambda driver: all(  # noqa
-            [get("//sys/groups/sudoers/@attr{0}".format(i), driver=driver) == "value" for i in xrange(10)]
+            [get("//sys/groups/sudoers/@attr{0}".format(i), driver=driver) == "value" for i in range(10)]
         )
         check_membership = lambda driver: "tester" not in get("//sys/groups/sudoers/@members", driver=driver)  # noqa
 
@@ -95,11 +95,11 @@ class TestMasterCellsSync(YTEnvSetup):
     def test_accounts_sync(self):
         create_account("tst", sync_creation=False)
 
-        for i in xrange(10):
+        for i in range(10):
             set("//sys/accounts/tst/@attr{0}".format(i), "value")
         self._check_true_for_secondary(
             lambda driver: all(
-                [get("//sys/accounts/tst/@attr{0}".format(i), driver=driver) == "value" for i in xrange(10)]
+                [get("//sys/accounts/tst/@attr{0}".format(i), driver=driver) == "value" for i in range(10)]
             )
         )
 
@@ -152,7 +152,7 @@ class TestMasterCellsSync(YTEnvSetup):
     def test_tablet_cell_bundle_sync(self):
         create_tablet_cell_bundle("b")
 
-        for i in xrange(10):
+        for i in range(10):
             set("//sys/tablet_cell_bundles/b/@custom{0}".format(i), "value")
         self._check_true_for_secondary(
             lambda driver: all(
@@ -162,7 +162,7 @@ class TestMasterCellsSync(YTEnvSetup):
                         driver=driver,
                     )
                     == "value"
-                    for i in xrange(10)
+                    for i in range(10)
                 ]
             )
         )

@@ -24,7 +24,7 @@ import pytest
 
 from contextlib import contextmanager
 from copy import deepcopy
-from cStringIO import StringIO
+from io import BytesIO
 from datetime import timedelta
 from string import printable
 import time
@@ -237,7 +237,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("ignat")
     def test_attributes(self):
-        set("//tmp/t", "<attr=100;mode=rw> {nodes=[1; 2]}", is_raw=True)
+        set("//tmp/t", b"<attr=100;mode=rw> {nodes=[1; 2]}", is_raw=True)
         assert get("//tmp/t/@attr") == 100
         assert get("//tmp/t/@mode") == "rw"
 
@@ -258,7 +258,7 @@ class TestCypress(YTEnvSetup):
             get("//tmp/t/@mode")
 
         # changing attributes
-        set("//tmp/t/a", "<author = ignat> []", is_raw=True)
+        set("//tmp/t/a", b"<author = ignat> []", is_raw=True)
         assert get("//tmp/t/a") == []
         assert get("//tmp/t/a/@author") == "ignat"
 
@@ -266,7 +266,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/a/@author") == "not_ignat"
 
         # nested attributes (actually shows <>)
-        set("//tmp/t/b", "<dir = <file = <>-100> #> []", is_raw=True)
+        set("//tmp/t/b", b"<dir = <file = <>-100> #> []", is_raw=True)
         assert get("//tmp/t/b/@dir/@") == {"file": -100}
         assert get("//tmp/t/b/@dir/@file") == -100
         assert get("//tmp/t/b/@dir/@file/@") == {}
@@ -316,7 +316,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_attributes_tx_read_table(self):
-        set("//tmp/t", "<attr=100> 123", is_raw=True)
+        set("//tmp/t", b"<attr=100> 123", is_raw=True)
         assert get("//tmp/t") == 123
         assert get("//tmp/t/@attr") == 100
         assert "attr" in get("//tmp/t/@")
@@ -348,7 +348,7 @@ class TestCypress(YTEnvSetup):
         # check input format for json
         set(
             "//tmp/json_in",
-            '{"list": [1,2,{"string": "this"}]}',
+            b'{"list": [1,2,{"string": "this"}]}',
             is_raw=True,
             input_format="json",
         )
@@ -356,7 +356,7 @@ class TestCypress(YTEnvSetup):
 
         # check output format for json
         set("//tmp/json_out", {"list": [1, 2, {"string": "this"}]})
-        assert get("//tmp/json_out", is_raw=True, output_format="json") == '{"list":[1,2,{"string":"this"}]}'
+        assert get(b"//tmp/json_out", is_raw=True, output_format="json") == b'{"list":[1,2,{"string":"this"}]}'
 
     @authors("ignat")
     def test_map_remove_all1(self):
@@ -428,7 +428,7 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     def test_attr_remove_all1(self):
         # remove items from attributes
-        set("//tmp/attr", "<_foo=bar;_key=value>42", is_raw=True)
+        set("//tmp/attr", b"<_foo=bar;_key=value>42", is_raw=True)
         remove("//tmp/attr/@*")
         with pytest.raises(YtError):
             get("//tmp/attr/@_foo")
@@ -465,7 +465,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_copy_simple3(self):
-        set("//tmp/a", "<x=y> 1", is_raw=True)
+        set("//tmp/a", b"<x=y> 1", is_raw=True)
         copy("//tmp/a", "//tmp/b")
         assert get("//tmp/b/@x") == "y"
 
@@ -1513,15 +1513,15 @@ class TestCypress(YTEnvSetup):
 
     @authors("ignat")
     def test_boolean(self):
-        yson_format = yson.loads("yson")
-        set("//tmp/boolean", "%true", is_raw=True)
+        yson_format = yson.loads(b"yson")
+        set("//tmp/boolean", b"%true", is_raw=True)
         assert get("//tmp/boolean/@type") == "boolean_node"
         assert get("//tmp/boolean", output_format=yson_format)
 
     @authors("lukyan")
     def test_uint64(self):
-        yson_format = yson.loads("yson")
-        set("//tmp/my_uint", "123456u", is_raw=True)
+        yson_format = yson.loads(b"yson")
+        set("//tmp/my_uint", b"123456u", is_raw=True)
         assert get("//tmp/my_uint/@type") == "uint64_node"
         assert get("//tmp/my_uint", output_format=yson_format) == 123456
 
@@ -1529,7 +1529,7 @@ class TestCypress(YTEnvSetup):
     def test_map_node_children_limit(self):
         set("//sys/@config/cypress_manager/max_node_child_count", 100)
         create("map_node", "//tmp/test_node")
-        for i in xrange(100):
+        for i in range(100):
             create("map_node", "//tmp/test_node/" + str(i))
         with pytest.raises(YtError):
             create("map_node", "//tmp/test_node/100")
@@ -1973,7 +1973,7 @@ class TestCypress(YTEnvSetup):
     @flaky(max_runs=3)
     def test_expiration_timeout3(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 4000})
-        for i in xrange(10):
+        for i in range(10):
             # NB: asking if whether the node exists prolongs its life.
             assert exists("//tmp/t1")
             time.sleep(1.0)
@@ -2167,20 +2167,20 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_batch_with_concurrency_success(self):
-        for i in xrange(10):
+        for i in range(10):
             set("//tmp/{0}".format(i), i)
         get_results = execute_batch(
-            [make_batch_request("get", return_only_value=True, path="//tmp/{0}".format(i)) for i in xrange(10)],
+            [make_batch_request("get", return_only_value=True, path="//tmp/{0}".format(i)) for i in range(10)],
             concurrency=2,
         )
         assert len(get_results) == 10
-        for i in xrange(10):
+        for i in range(10):
             assert get_batch_output(get_results[i]) == i
 
     @authors("babenko", "shakurov")
     def test_recursive_resource_usage_map(self):
         create("map_node", "//tmp/m")
-        for i in xrange(10):
+        for i in range(10):
             set("//tmp/m/" + str(i), i)
         assert get("//tmp/m/@recursive_resource_usage/node_count") == 11
         tx = start_transaction()
@@ -2189,7 +2189,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko", "shakurov")
     def test_recursive_resource_usage_list(self):
         create("list_node", "//tmp/l")
-        for i in xrange(10):
+        for i in range(10):
             set("//tmp/l/end", i)
         assert get("//tmp/l/@recursive_resource_usage/node_count") == 11
         tx = start_transaction()
@@ -2198,7 +2198,7 @@ class TestCypress(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_master_memory_resource_usage(self):
         create("map_node", "//tmp/m")
-        for i in xrange(10):
+        for i in range(10):
             set("//tmp/m/" + str(i), i)
 
         wait(lambda: get("//tmp/m/@resource_usage/master_memory") > 0)
@@ -3030,7 +3030,7 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             set("//tmp/test_node/@annotation", "a" * 1025)
         with pytest.raises(YtError):
-            set("//tmp/test_node/@annotation", unichr(255))
+            set("//tmp/test_node/@annotation", chr(255))
         set("//tmp/test_node/@annotation", printable)
 
     @authors("avmatrosov")
@@ -3692,7 +3692,7 @@ class TestCypressApiVersion4(YTEnvSetup):
 
     def _execute(self, command, **kwargs):
         kwargs["driver"] = self.driver
-        input_stream = StringIO(kwargs.pop("input")) if "input" in kwargs else None
+        input_stream = BytesIO(kwargs.pop("input")) if "input" in kwargs else None
         return yson.loads(execute_command(command, kwargs, input_stream=input_stream))
 
     @authors("levysotsky")
@@ -3701,12 +3701,12 @@ class TestCypressApiVersion4(YTEnvSetup):
 
     @authors("levysotsky")
     def test_set_and_get(self):
-        assert self._execute("set", path="//tmp/a", input='{"b"= 3}') == {}
+        assert self._execute("set", path="//tmp/a", input=b'{"b"= 3}') == {}
         assert self._execute("get", path="//tmp/a") == {"value": {"b": 3}}
 
     @authors("levysotsky")
     def test_list(self):
-        self._execute("set", path="//tmp/map", input='{"a"= 1; "b"= 2; "c"= 3}')
+        self._execute("set", path="//tmp/map", input=b'{"a"= 1; "b"= 2; "c"= 3}')
         assert self._execute("list", path="//tmp/map") == {"value": ["a", "b", "c"]}
 
     @authors("levysotsky")
@@ -3716,14 +3716,14 @@ class TestCypressApiVersion4(YTEnvSetup):
 
     @authors("levysotsky", "shakurov")
     def test_lock_unlock(self):
-        self._execute("set", path="//tmp/a", input='{"a"= 1}')
+        self._execute("set", path="//tmp/a", input=b'{"a"= 1}')
         result = self._execute("start_transaction")
         tx = result["transaction_id"]
         lock_result = self._execute("lock", path="//tmp/a", transaction_id=tx)
         assert "lock_id" in lock_result and "node_id" in lock_result
         assert len(get("//tmp/a/@locks")) == 1
         with pytest.raises(YtError):
-            self._execute("set", path="//tmp/a", input='{"a"=2}')
+            self._execute("set", path="//tmp/a", input=b'{"a"=2}')
         self._execute("unlock", path="//tmp/a", transaction_id=tx)
         assert len(get("//tmp/a/@locks")) == 0
-        self._execute("set", path="//tmp/a", input='{"a"=3}')
+        self._execute("set", path="//tmp/a", input=b'{"a"=3}')

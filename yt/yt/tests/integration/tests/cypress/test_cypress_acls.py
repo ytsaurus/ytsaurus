@@ -260,7 +260,7 @@ class CheckPermissionBase(YTEnvSetup):
             authenticated_user="u",
         )
         assert rows == [{"c": "c"}]
-        assert_items_equal(response_parameters["omitted_inaccessible_columns"], ["a", "b"])
+        assert_items_equal(response_parameters["omitted_inaccessible_columns"], [b"a", b"b"])
 
 
 class TestCypressAcls(CheckPermissionBase):
@@ -456,7 +456,7 @@ class TestCypressAcls(CheckPermissionBase):
         create_account("a")
 
         create("table", "//tmp/t1")
-        write_table("//tmp/t1", {str(i): i for i in xrange(20)})
+        write_table("//tmp/t1", {str(i): i for i in range(20)})
 
         create("table", "//tmp/t2")
 
@@ -1314,8 +1314,8 @@ class TestCypressAcls(CheckPermissionBase):
             assert response_parameters["omitted_inaccessible_columns"] == expected_omitted_columns
 
         do("//tmp/t{public}", {"public": "a"}, [])
-        do("//tmp/t", public_row, ["secret"])
-        do("//tmp/t{secret}", {}, ["secret"])
+        do("//tmp/t", public_row, [b"secret"])
+        do("//tmp/t{secret}", {}, [b"secret"])
 
     @authors("babenko")
     def test_map_table_with_denied_columns(self):

@@ -12,7 +12,7 @@ from yt.common import YtError
 import pytest
 
 from copy import deepcopy
-import __builtin__
+import builtins
 
 
 ################################################################################
@@ -123,10 +123,10 @@ class TestMedia(YTEnvSetup):
         return True
 
     def _get_chunk_replica_nodes(self, chunk_id):
-        return __builtin__.set(str(r) for r in get("#{0}/@stored_replicas".format(chunk_id)))
+        return builtins.set(str(r) for r in get("#{0}/@stored_replicas".format(chunk_id)))
 
     def _get_chunk_replica_media(self, chunk_id):
-        return __builtin__.set(r.attributes["medium"] for r in get("#{0}/@stored_replicas".format(chunk_id)))
+        return builtins.set(r.attributes["medium"] for r in get("#{0}/@stored_replicas".format(chunk_id)))
 
     def _ban_nodes(self, nodes):
         banned = False
@@ -415,7 +415,7 @@ class TestMedia(YTEnvSetup):
     def test_journal_medium(self):
         create("journal", "//tmp/j", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/j/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
-        data = [{"data": "payload" + str(i)} for i in xrange(0, 10)]
+        data = [{"data": "payload" + str(i)} for i in range(0, 10)]
         write_journal("//tmp/j", data)
         wait_until_sealed("//tmp/j")
         chunk_id = get_singular_chunk_id("//tmp/j")
@@ -426,7 +426,7 @@ class TestMedia(YTEnvSetup):
     def test_file_medium(self):
         create("file", "//tmp/f", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/f/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
-        write_file("//tmp/f", "payload")
+        write_file("//tmp/f", b"payload")
         chunk_id = get_singular_chunk_id("//tmp/f")
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
@@ -725,7 +725,7 @@ class TestDynamicMedia(YTEnvSetup):
 
         location1, location2 = self._get_locations(node).keys()
 
-        wait(lambda: sum(map(lambda location: location["chunk_count"], self._get_locations(node).values())) == 1)
+        wait(lambda: sum([location["chunk_count"] for location in self._get_locations(node).values()]) == 1)
 
         set("//sys/chunk_locations/{}/@medium_override".format(location1), medium_name)
 

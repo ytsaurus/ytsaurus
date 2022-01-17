@@ -27,7 +27,7 @@ class TestAccessLog(YTEnvSetup):
     CELL_TAG_TO_DIRECTORIES = {0: "//tmp/access_log"}
 
     def _log_lines(self, path, directory):
-        with open(path, "r") as fd:
+        with open(path, "rb") as fd:
             for line in fd:
                 try:
                     line_json = json.loads(line)
@@ -56,7 +56,7 @@ class TestAccessLog(YTEnvSetup):
             written_logs.extend([line_json for line_json in self._log_lines(path, directory)])
 
         def _check_entry_is_in_log(log, line_json):
-            for key, value in log.iteritems():
+            for key, value in log.items():
                 if key in ["attributes", "transaction_id", "operation_type"]:
                     if line_json.get("transaction_info") is None or \
                             key not in line_json.get("transaction_info") or \
