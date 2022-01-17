@@ -143,7 +143,7 @@ public:
         OnFairShareUpdateAt(TInstant::Now());
     }
 
-    void OnMinNeededJobResourcesUpdate() override
+    void OnMinNeededJobResourcesUpdate()
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -193,7 +193,10 @@ public:
         }
     }
 
-    void RegisterOperation(IOperationStrategyHost* operation, std::vector<TString>* unknownTreeIds) override
+    void RegisterOperation(
+        IOperationStrategyHost* operation,
+        std::vector<TString>* unknownTreeIds,
+        TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -218,6 +221,17 @@ public:
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
             GetTree(treeId)->RegisterOperation(state, operation->GetStrategySpecForTree(treeId), treeParams);
+        }
+
+        for (const auto& [treeName, poolName] : state->TreeIdToPoolNameMap()) {
+            auto tree = GetTree(treeName);
+            poolTreeControllerSettingsMap->emplace(
+                treeName,
+                TPoolTreeControllerSettings{
+                    .SchedulingTagFilter = tree->GetNodesFilter(),
+                    .Tentative = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Tentative,
+                    .MainResource = tree->GetConfig()->MainResource,
+                });
         }
     }
 
@@ -445,23 +459,6 @@ public:
         }
 
         DoBuildOperationProgress(&ISchedulerTree::BuildBriefOperationProgress, operationId, fluent);
-    }
-
-    TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) override
-    {
-        TPoolTreeControllerSettingsMap result;
-        const auto& state = GetOperationState(operationId);
-        for (const auto& [treeName, poolName] : state->TreeIdToPoolNameMap()) {
-            auto tree = GetTree(treeName);
-            result.emplace(
-                treeName,
-                TPoolTreeControllerSettings{
-                    .SchedulingTagFilter = tree->GetNodesFilter(),
-                    .Tentative = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Tentative,
-                    .MainResource = tree->GetConfig()->MainResource,
-                });
-        }
-        return result;
     }
 
     std::vector<std::pair<TOperationId, TError>> GetHungOperations() override
@@ -1204,7 +1201,7 @@ public:
         return FairShareUpdateExecutor_->GetExecutedEvent();
     }
 
-    void OnBuildResourceMetering() override
+    void OnBuildResourceMetering()
     {
         DoBuildResourceMeteringAt(TInstant::Now());
     }

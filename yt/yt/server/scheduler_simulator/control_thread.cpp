@@ -243,7 +243,8 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
 
     // Notify scheduler.
     std::vector<TString> unknownTreeIds;
-    SchedulerStrategy_->RegisterOperation(operation.Get(), &unknownTreeIds);
+    TPoolTreeControllerSettingsMap poolTreeControllerSettingsMap;
+    SchedulerStrategy_->RegisterOperation(operation.Get(), &unknownTreeIds, &poolTreeControllerSettingsMap);
     YT_VERIFY(unknownTreeIds.empty());
     StrategyHost_.LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationStarted)
         .Item("operation_id").Value(operation->GetId())
