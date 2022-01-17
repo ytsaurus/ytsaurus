@@ -549,7 +549,7 @@ struct TLookupRequestOptions
     NTableClient::TColumnFilter ColumnFilter;
     bool KeepMissingRows = false;
     bool EnablePartialResult = false;
-    bool UseLookupCache = false;
+    std::optional<bool> UseLookupCache;
     TDetailedProfilingInfoPtr DetailedProfilingInfo;
 };
 

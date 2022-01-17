@@ -474,6 +474,8 @@ public:
     // to see if backup is in progress.
     DEFINE_BYVAL_RW_PROPERTY(EBackupStage, BackupStage, EBackupStage::None);
 
+    DEFINE_BYVAL_RW_PROPERTY(i64, NonActiveStoresUnmergedRowCount);
+
 public:
     TTablet(
         TTabletId tabletId,
@@ -631,6 +633,10 @@ public:
     void RecomputeReplicaStatuses();
 
     void CheckedSetBackupStage(EBackupStage previous, EBackupStage next);
+
+    void RecomputeNonActiveStoresUnmergedRowCount();
+
+    void UpdateUnmergedRowCount();
 
 private:
     ITabletContext* const Context_;

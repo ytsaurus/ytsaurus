@@ -124,6 +124,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto newSnapshot = tablet->BuildSnapshot(slot, epoch);
+        tablet->RecomputeNonActiveStoresUnmergedRowCount();
 
         {
             auto guard = WriterGuard(TabletSnapshotsSpinLock_);
