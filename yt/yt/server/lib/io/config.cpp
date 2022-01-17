@@ -18,6 +18,8 @@ TIOTrackerConfig::TIOTrackerConfig()
         .Default(TDuration::Minutes(15));
     RegisterParameter("period_quant", PeriodQuant)
         .Default(TDuration::MilliSeconds(50));
+    RegisterParameter("enable_event_dequeue", EnableEventDequeue)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

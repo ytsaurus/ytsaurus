@@ -33,6 +33,10 @@ public:
     //! Period used to poll the queue for new events.
     TDuration PeriodQuant;
 
+    //! If set to true, the events will be dequeued and processed, otherwise they will stay in the queue.
+    //! This option is used only for testing and must be always set to true in production.
+    bool EnableEventDequeue;
+
     TIOTrackerConfig();
 };
 

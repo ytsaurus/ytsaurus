@@ -388,6 +388,10 @@ private:
 
         TPeriodicYielder yielder(TDuration::MilliSeconds(50));
         while (true) {
+            if (!Config_.Load()->EnableEventDequeue) {
+                TDelayedExecutor::WaitForDuration(PeriodQuant_);
+                continue;
+            }
             auto events = EventStack_.DequeueAll(/*reverse*/ true);
             if (events.empty()) {
                 AggregateSink_.TryFlush();
