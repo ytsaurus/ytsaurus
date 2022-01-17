@@ -32,6 +32,8 @@ class UInt64Type extends UserDefinedType[UInt64Long]
       ("sqlType" -> sqlType.jsonValue)
   }
 
+  override def catalogString: String = "uint64"
+
   private def castToLongGen(name: String): String = s"(new org.apache.spark.sql.yson.UInt64Long($name))"
 
   override def hashGen(name: String): String = s"${castToLongGen(name)}.hashCode()"

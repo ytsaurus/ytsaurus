@@ -57,6 +57,41 @@ class SubmissionClient(proxy: String,
     launcher.setConf("spark.yt.pyFiles", s"yt:/${spytPythonPath(spytVersion)}")
     launcher.setConf("spark.eventLog.dir", "ytEventLog:/" + eventLogPath)
 
+    // spark.worker.metrics.sources
+
+    launcher.setConf("spark.worker.metrics.sources", "org.apache.spark.deploy.yt.metrics.WorkerSource")
+    launcher.setConf("spark.io.compression.codec", "snappy")
+    // spark.sql.files.maxPartitionBytes                     2Gb
+    //spark.yt.minPartitionBytes                            1Gb
+    //spark.yt.write.batchSize                              2500000
+    //spark.yt.read.keyColumnsFilterPushdown.enabled        false
+    launcher.setConf("spark.sql.files.maxPartitionBytes", "2Gb")
+    launcher.setConf("spark.yt.minPartitionBytes", "1Gb")
+    launcher.setConf("spark.yt.write.batchSize", "2500000")
+    launcher.setConf("spark.yt.read.keyColumnsFilterPushdown.enabled", "false")
+    launcher.setConf("spark.sql.extensions", "ru.yandex.spark.yt.format.YtSparkExtensions")
+    launcher.setConf("spark.sql.sources.commitProtocolClass", "ru.yandex.spark.yt.format.YtOutputCommitter")
+    launcher.setConf("spark.hadoop.fs.yt.impl", "ru.yandex.spark.yt.fs.YtFileSystem")
+    launcher.setConf("spark.hadoop.fs.ytEventLog.impl", "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem")
+    launcher.setConf("spark.hadoop.fs.ytEventLog.singleReadLimit", "268435456")
+    launcher.setConf("spark.hadoop.fs.ytTable.impl", "ru.yandex.spark.yt.fs.YtTableFileSystem")
+    launcher.setConf("spark.hadoop.fs.defaultFS", "ytTable:///")
+    launcher.setConf("spark.hadoop.yt.timeout", "30000")
+    launcher.setConf("spark.hadoop.yt.dynTable.rowSize", "16777216")
+    launcher.setConf("spark.hadoop.yt.byop.enabled", "true")
+    launcher.setConf("spark.yt.globalTransaction.enabled", "false")
+    launcher.setConf("spark.yt.globalTransaction.timeout", "2m")
+    // launcher.setConf("spark.shuffle.service.enabled", "true")
+    launcher.setConf("spark.sql.execution.arrow.pyspark.enabled", "true")
+    launcher.setConf("spark.sql.adaptive.enabled", "true")
+    launcher.setConf("spark.driver.defaultJavaOptions", "-Dio.netty.tryReflectionSetAccessible=true --illegal-access=permit --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.util.concurrent=ALL-UNNAMED --add-opens java.security.jgss/sun.security.krb5=ALL-UNNAMED")
+    launcher.setConf("spark.executor.defaultJavaOptions", "-Dio.netty.tryReflectionSetAccessible=true")
+    launcher.setConf("spark.driver.memory", "1G")
+    launcher.setConf("spark.driver.maxResultSize", "1G")
+    launcher.setConf("spark.executor.cores", "4")
+    launcher.setConf("spark.executor.memory", "4G")
+    launcher.setConf("spark.cores.max", "20")
+
     submitInner(launcher, retryConfig)
   }
 

@@ -48,23 +48,13 @@ object YtUtils {
     })
   }
 
-  private def getCompatibleSchema(sparkSession: SparkSession, schema: StructType): StructType = {
-    // backward compatibility
-    if (sparkSession.conf.getOption("spark.yt.cluster.version").exists(_ < "3.0.1-1.1.1+yandex")) {
-      getOldFormatSchema(schema)
-    } else {
-      schema
-    }
-  }
-
   private def getSchema(sparkSession: SparkSession, path: YPathEnriched, parameters: Map[String, String])
                        (implicit client: CompoundClient): StructType = {
     val config = SchemaConverterConfig(sparkSession)
     val parsingTypeV3 = parameters.get(Options.PARSING_TYPE_V3).map(_.toBoolean).getOrElse(config.parsingTypeV3)
     val schemaHint = SchemaConverter.schemaHint(parameters)
     val schemaTree = YtWrapper.attribute(path.toYPath, "schema", path.transaction)
-    val sparkSchema = SchemaConverter.sparkSchema(schemaTree, schemaHint, parsingTypeV3)
-    getCompatibleSchema(sparkSession, sparkSchema)
+    SchemaConverter.sparkSchema(schemaTree, schemaHint, parsingTypeV3)
   }
 
   private def getClient(sparkSession: SparkSession): CompoundClient = {
