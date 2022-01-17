@@ -1,6 +1,7 @@
 package org.apache.spark.sql.e2e.check
 
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.yson.{YsonBinary, YsonType}
 
 object CheckRowsUtils {
   def checkRows(actual: Seq[Any], expected: Seq[Any], schema: Seq[StructField]): Boolean = {
@@ -33,6 +34,7 @@ object CheckRowsUtils {
           ma.forall { case (k, va) =>
             me.get(k).exists(ve => Math.abs(va - ve) < 0.0001)
           }
+        case YsonType => actual.asInstanceOf[YsonBinary].bytes sameElements expected.asInstanceOf[YsonBinary].bytes
       }
     }
   }

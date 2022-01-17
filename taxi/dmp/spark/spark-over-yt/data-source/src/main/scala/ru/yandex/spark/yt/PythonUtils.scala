@@ -3,6 +3,7 @@ package ru.yandex.spark.yt
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql._
+import org.apache.spark.sql.yson.YsonBinary
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt.fs.GlobalTableSettings
 import ru.yandex.spark.yt.serializers.YtLogicalType
@@ -32,7 +33,7 @@ object PythonUtils {
     val columnToYsonUdf = dataType match {
       case _: StructType =>
         udf((row: Row) =>
-          YsonEncoder.encode(row, broadcastDataType.value, skipNulls)
+          YsonBinary(YsonEncoder.encode(row, broadcastDataType.value, skipNulls))
         )
     }
     dataFrame.withColumn(newName, columnToYsonUdf(col(oldName)))

@@ -36,6 +36,8 @@ class YsonType extends UserDefinedType[YsonBinary] with ValidatedCastType {
       ("serializedClass" -> serializedPyClass) ~
       ("sqlType" -> sqlType.jsonValue)
   }
+
+  override def catalogString: String = "yson"
 }
 
 case object YsonType extends YsonType
