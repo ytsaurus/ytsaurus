@@ -592,7 +592,7 @@ private:
 
         for (auto cellId : coordinatorCellIds) {
             // TODO(savrus) This could happen in case if coordinator cell id has been removed from CoordinatorCellIds_ and then added.
-            // Need to make a better protocol. 
+            // Need to make a better protocol.
             YT_VERIFY(!replicationCard->Coordinators().find(cellId));
 
             replicationCard->Coordinators().insert(std::make_pair(cellId, TCoordinatorInfo{EShortcutState::Granting}));
@@ -616,22 +616,37 @@ private:
         }
 
         for (const auto& replica : replicationCard->Replicas()) {
-            if (IsStableReplicaMode(replica.Mode) && IsStableReplicaState(replica.State)) {
-                continue;
+            if (!IsStableReplicaMode(replica.Mode) || !IsStableReplicaState(replica.State)) {
+                Bootstrap_->GetMasterConnection()->GetTimestampProvider()->GenerateTimestamps()
+                    .Subscribe(BIND(
+                        &TChaosManager::OnNewReplicationEraTimestampGenerated,
+                        MakeWeak(this),
+                        replicationCard->GetId(),
+                        replicationCard->GetEra())
+                        .Via(AutomatonInvoker_));
+                break;
             }
-
-            Bootstrap_->GetMasterConnection()->GetTimestampProvider()->GenerateTimestamps()
-                .Apply(BIND(
-                    &TChaosManager::CommitNewReplicationEraTimestamp,
-                    MakeWeak(this),
-                    replicationCard->GetId(),
-                    replicationCard->GetEra())
-                    .AsyncVia(AutomatonInvoker_));
         }
     }
 
-    void CommitNewReplicationEraTimestamp(TReplicationCardId replicationCardId, TReplicationEra era, TTimestamp timestamp)
+    void OnNewReplicationEraTimestampGenerated(
+        TReplicationCardId replicationCardId,
+        TReplicationEra era,
+        const TErrorOr<TTimestamp>& timestampOrError)
     {
+        if (!timestampOrError.IsOK()) {
+            YT_LOG_DEBUG(timestampOrError, "Error generating new era timestamp (ReplicationCardId: %v, Era: %v)",
+                replicationCardId,
+                era);
+            return;
+        }
+
+        auto timestamp = timestampOrError.Value();
+        YT_LOG_DEBUG("New era timestamp generated (ReplicationCardId: %v, Era: %v, Timestamp: %llx)",
+            replicationCardId,
+            era,
+            timestamp);
+
         NChaosNode::NProto::TReqCommenceNewReplicationEra request;
         ToProto(request.mutable_replication_card_id(), replicationCardId);
         request.set_timestamp(timestamp);
