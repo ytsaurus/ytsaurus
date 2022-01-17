@@ -207,7 +207,7 @@ private:
             const auto& chunk = Chunks_[chunkIndex];
             const auto& sliceRequest = ChunkToChunkSliceRequest_[chunk];
 
-            auto chunkDataSize = chunk->GetUncompressedDataSize();
+            auto chunkDataSize = chunk->GetDataWeight();
 
             if (!chunk->BoundaryKeys()) {
                 THROW_ERROR_EXCEPTION("Missing boundary keys in chunk %v", chunk->GetChunkId());

@@ -207,6 +207,9 @@ public:
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSliceDataWeights)
+            .SetCancelable(true)
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
             .SetCancelable(true)
@@ -1512,6 +1515,81 @@ private:
             }
         }
         return AllSet(chunkMetaFutures);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSliceDataWeights)
+    {
+        auto requestCount = request->chunk_requests_size();
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+
+        context->SetRequestInfo("RequestCount: %v, Workload: %v",
+            requestCount,
+            workloadDescriptor);
+
+        ValidateOnline();
+
+        GetChunkMetasForRequests(workloadDescriptor, request->chunk_requests())
+            .Subscribe(BIND([=, this_ = MakeStrong(this)](const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
+                if (!resultsError.IsOK()) {
+                    context->Reply(resultsError);
+                    return;
+                }
+
+                if (context->IsCanceled()) {
+                    return;
+                }
+
+                const auto& results = resultsError.Value();
+                YT_VERIFY(std::ssize(results) == requestCount);
+
+                auto keySetWriter = New<TKeySetWriter>();
+
+                for (int requestIndex = 0; requestIndex < requestCount; ++requestIndex) {
+                    ProcessSliceSize(
+                        request->chunk_requests(requestIndex),
+                        response->add_chunk_responses(),
+                        results[requestIndex]);
+                }
+
+                context->Reply();
+        }).Via(Bootstrap_->GetStorageHeavyInvoker()));
+    }
+
+    void ProcessSliceSize(
+        const TReqGetChunkSliceDataWeights::TChunkSlice& weightedChunkRequest,
+        TRspGetChunkSliceDataWeights::TWeightedChunk* weightedChunkResponse,
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
+    {
+        auto chunkId = FromProto<TChunkId>(weightedChunkRequest.chunk_id());
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
+                chunkId);
+
+            const auto& chunkMeta = metaOrError.Value();
+            auto type = CheckedEnumCast<EChunkType>(chunkMeta->type());
+            if (type != EChunkType::Table) {
+                THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
+                    chunkId,
+                    EChunkType::Table,
+                    type);
+            }
+
+            auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
+            if (!miscExt.sorted()) {
+                THROW_ERROR_EXCEPTION("Chunk %v is not sorted", chunkId);
+            }
+
+            auto dataWeight = NChunkClient::GetChunkSliceDataWeights(
+                weightedChunkRequest,
+                *chunkMeta);
+
+            weightedChunkResponse->set_data_weight(dataWeight);
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            YT_LOG_WARNING(error, "Error building chunk slices (ChunkId: %v)",
+                chunkId);
+            ToProto(weightedChunkResponse->mutable_error(), error);
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)

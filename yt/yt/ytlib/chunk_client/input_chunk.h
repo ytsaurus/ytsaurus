@@ -153,6 +153,26 @@ TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, NNodeTrackerClient::TNo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TWeightedInputChunk
+    : public TRefCounted
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
+    DEFINE_BYVAL_RW_PROPERTY(TInputChunkPtr, InputChunk);
+
+public:
+    TWeightedInputChunk() = default;
+    TWeightedInputChunk(TWeightedInputChunk&& other) = default;
+
+    TWeightedInputChunk(
+        TInputChunkPtr inputChunk,
+        i64 dataWeight);
+};
+
+DEFINE_REFCOUNTED_TYPE(TWeightedInputChunk)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient
 
 Y_DECLARE_PODTYPE(NYT::NChunkClient::TInputChunkBase);

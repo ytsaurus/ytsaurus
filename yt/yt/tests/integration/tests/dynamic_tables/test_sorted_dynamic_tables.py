@@ -2308,3 +2308,156 @@ class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
         rows[0]["key2"] = None
         assert_items_equal(read_table("//tmp/t"), rows)
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+
+class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
+    @authors("alexelexa")
+    @pytest.mark.parametrize(
+        "first_tablet_index,last_tablet_index",
+        [(0, 0), (0, 1), (1, 3), (3, 4), (4, 4), (0, 4), (None, None)])
+    def test_reshard_with_slicing(self, first_tablet_index, last_tablet_index):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@chunk_writer", {"block_size": 1})
+
+        def reshard_and_check(tablet_count, tablet_count_expected, first_tablet_index=None, last_tablet_index=None):
+            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True,
+                               first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+            assert(get("//tmp/t/@tablet_count") == tablet_count_expected)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(150)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+
+        reshard_and_check(3, 3, first_tablet_index=0, last_tablet_index=0)
+        reshard_and_check(5, 5)
+
+        tablet_count_expected = 7
+        if last_tablet_index is not None and first_tablet_index is not None:
+            tablet_count_expected += 5 - (last_tablet_index - first_tablet_index + 1)
+
+        reshard_and_check(7, tablet_count_expected, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+        sync_compact_table("//tmp/t")
+
+        first_tablet_index = first_tablet_index if first_tablet_index is not None else 0
+        last_tablet_index = first_tablet_index + 6
+
+        tablets_info = get("//tmp/t/@tablets")
+        total_size = sum(info["statistics"]["uncompressed_data_size"]
+                         for info in tablets_info[first_tablet_index : last_tablet_index+1])
+
+        expected_size = total_size / (last_tablet_index - first_tablet_index + 1)
+        for index in range(first_tablet_index, last_tablet_index+1):
+            assert(abs(tablets_info[index]["statistics"]["uncompressed_data_size"] - expected_size) <= max(0.1 * expected_size, 100))
+
+    @authors("alexelexa")
+    def test_reshard_with_slicing_and_compaction_small(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@chunk_writer", {"block_size": 1})
+
+        def reshard_and_check(tablet_count, tablet_count_expected, first_tablet_index, last_tablet_index):
+            sync_unmount_table("//tmp/t")
+            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True,
+                               first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+            sync_compact_table("//tmp/t")
+            assert(get("//tmp/t/@tablet_count") == tablet_count_expected)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        with pytest.raises(YtError):
+            reshard_and_check(2 * len(rows), 2 * len(rows), first_tablet_index=None, last_tablet_index=None)
+        reshard_and_check(3, 3, first_tablet_index=0, last_tablet_index=0)
+        reshard_and_check(5, 5, first_tablet_index=None, last_tablet_index=None)
+
+    @authors("alexelexa")
+    def test_reshard_with_slicing_and_compaction_big(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@chunk_writer", {"block_size": 100})
+
+        def reshard_and_check(tablet_count, tablet_count_expected, first_tablet_index=None,
+                              last_tablet_index=None, with_compaction=True):
+            sync_unmount_table("//tmp/t")
+            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True,
+                               first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+            if with_compaction:
+                sync_compact_table("//tmp/t")
+            assert(get("//tmp/t/@tablet_count") == tablet_count_expected)
+
+        def check_tablets_sizes(first_tablet_index, last_tablet_index):
+            tablets_info = get("//tmp/t/@tablets")
+            total_size = sum(info["statistics"]["uncompressed_data_size"]
+                             for info in tablets_info[first_tablet_index : last_tablet_index+1])
+
+            expected_size = total_size / (last_tablet_index - first_tablet_index + 1)
+            for index in range(first_tablet_index, last_tablet_index+1):
+                assert(abs(tablets_info[index]["statistics"]["uncompressed_data_size"] - expected_size) <= 0.1 * expected_size)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(1000)]
+        insert_rows("//tmp/t", rows)
+
+        base_tablet_count = 5
+        reshard_and_check(base_tablet_count, base_tablet_count)
+        check_tablets_sizes(0, base_tablet_count - 1)
+
+        current_tablet_count = 5
+        first_last_tablet_indices = [(0, 0), (0, 1), (1, 3), (3, 4), (4, 4), (0, 4)]
+        for first_tablet_index, last_tablet_index in first_last_tablet_indices:
+            if current_tablet_count != base_tablet_count:
+                reshard_and_check(base_tablet_count, base_tablet_count)
+                check_tablets_sizes(0, base_tablet_count - 1)
+
+            tablet_count = 7
+            tablet_count_expected = tablet_count + base_tablet_count - (last_tablet_index - first_tablet_index + 1)
+
+            reshard_and_check(tablet_count, tablet_count_expected, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+            check_tablets_sizes(first_tablet_index, first_tablet_index + tablet_count - 1)
+            current_tablet_count = tablet_count_expected
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("with_alter", [True, False])
+    @pytest.mark.parametrize("with_pivots", [True, False])
+    def test_reshard_with_slicing_after_alter(self, with_alter, with_pivots):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@chunk_writer", {"block_size": 100})
+        if with_pivots:
+            sync_reshard_table("//tmp/t", [[], [65]])
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in range(99)]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        new_schema = [
+            {
+                "name": "key",
+                "type": "int64",
+                "sort_order": "ascending",
+            },
+            {
+                "name": "new_key",
+                "type": "int64",
+                "sort_order": "ascending",
+            },
+            {"name": "value", "type": "string"},
+        ]
+
+        tablet_count = 3
+        expected = [[], [33], [65]]
+        if with_alter:
+            alter_table("//tmp/t", schema=new_schema)
+            if with_pivots:
+                expected[-1] = expected[-1] + [yson.YsonEntity()]
+
+        sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
+        assert(get("//tmp/t/@tablet_count") == tablet_count)
+        assert(self._get_pivot_keys("//tmp/t") == expected)

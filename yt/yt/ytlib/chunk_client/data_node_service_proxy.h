@@ -34,6 +34,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, PingSession,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkMeta);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetChunkSliceDataWeights);
     DEFINE_RPC_PROXY_METHOD(NProto, UpdatePeer);
     DEFINE_RPC_PROXY_METHOD(NProto, GetTableSamples);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkSlices);

@@ -772,6 +772,10 @@ private:
     std::vector<NTableClient::TLegacyOwningKey> PickUniformPivotKeys(
         const NYPath::TYPath& path,
         int tabletCount);
+    std::vector<NTableClient::TLegacyOwningKey> PickPivotKeysWithSlicing(
+        const NYPath::TYPath& path,
+        int tabletCount,
+        const TReshardTableOptions& options);
 
     void DoReshardTableWithPivotKeys(
         const NYPath::TYPath& path,

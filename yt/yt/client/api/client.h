@@ -209,6 +209,8 @@ struct TReshardTableOptions
     , public TTabletRangeOptions
 {
     std::optional<bool> Uniform;
+    std::optional<bool> EnableSlicing;
+    std::optional<double> SlicingAccuracy;
 };
 
 struct TReshardTableAutomaticOptions

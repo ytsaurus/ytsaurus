@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_slice.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -42,6 +43,12 @@ void ToProto(
     const TKeySetWriterPtr& keyBoundsWriter,
     NProto::TChunkSlice* protoChunkSlice,
     const TChunkSlice& chunkSlice);
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 GetChunkSliceDataWeights(
+    const NProto::TReqGetChunkSliceDataWeights::TChunkSlice& weightedChunkRequest,
+    const NProto::TChunkMeta& meta);
 
 ////////////////////////////////////////////////////////////////////////////////
 

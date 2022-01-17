@@ -44,6 +44,8 @@ DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcher)
 
+DECLARE_REFCOUNTED_CLASS(TChunkSliceSizeFetcher)
+
 DECLARE_REFCOUNTED_CLASS(TSchemafulPipe)
 
 DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkReader)
@@ -114,6 +116,8 @@ DECLARE_REFCOUNTED_STRUCT(IHunkChunkReaderStatistics)
 DECLARE_REFCOUNTED_STRUCT(IHunkChunkWriterStatistics)
 class THunkChunkReaderCounters;
 class THunkChunkWriterCounters;
+
+class TSliceBoundaryKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 

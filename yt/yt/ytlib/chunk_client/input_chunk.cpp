@@ -417,4 +417,13 @@ TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, TNodeId nodeId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TWeightedInputChunk::TWeightedInputChunk(
+    TInputChunkPtr inputChunk,
+    i64 dataWeight)
+    : DataWeight_(dataWeight)
+    , InputChunk_(std::move(inputChunk))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

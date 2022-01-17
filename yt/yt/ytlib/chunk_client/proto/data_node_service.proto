@@ -7,6 +7,7 @@ import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/chunk_client/proto/block_id.proto";
 import "yt/ytlib/chunk_client/proto/chunk_info.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
 import "yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
 import "yt/ytlib/chunk_client/proto/session_id.proto";
@@ -391,6 +392,32 @@ message TRspGetChunkMeta
     optional bool net_throttling = 2 [default = false];
     optional TChunkReaderStatistics chunk_reader_statistics = 3;
     optional NYT.NProto.TGuid location_uuid = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetChunkSliceDataWeights
+{
+    message TChunkSlice
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        optional TReadLimit lower_limit = 2;
+        optional TReadLimit upper_limit = 3;
+    }
+
+    repeated TChunkSlice chunk_requests = 1;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
+}
+
+message TRspGetChunkSliceDataWeights
+{
+    message TWeightedChunk
+    {
+        optional NYT.NProto.TError error = 1;
+        optional int64 data_weight = 2;
+    }
+
+    repeated TWeightedChunk chunk_responses = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
