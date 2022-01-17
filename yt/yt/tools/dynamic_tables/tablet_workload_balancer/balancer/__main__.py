@@ -1,8 +1,9 @@
 import argparse
 import logging
 import os
-import time
 import signal
+import sys
+import time
 from yt import yson
 
 from yt.yt.tools.dynamic_tables.tablet_workload_balancer.lib import (
@@ -44,9 +45,9 @@ def balance_main():
         tables = list(load.get_tables_list_by_directory(args.directory))
 
     logging.basicConfig(
+        stream=sys.stderr,
         format="%(asctime)s - %(levelname)s - %(message)s",
-        level=logging.DEBUG if args.debug_log else logging.INFO,
-        filename=args.debug_log if args.debug_log else 'tablet_workload_balancer.log')
+        level=logging.DEBUG if args.debug_log else logging.INFO)
     logging.getLogger('matplotlib.font_manager').disabled = True
 
     if args.one_shot:

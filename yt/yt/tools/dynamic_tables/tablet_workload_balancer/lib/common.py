@@ -21,7 +21,7 @@ def add_common_arguments(parser):
     parser.add_argument('--legend', action='store_true', help='add legend to plots')
     parser.add_argument('--percentiles', type=str, default=None,
                         help='plot only percentlies, a list of percentlies is expected')
-    parser.add_argument('--debug-log', type=str, help='debug log filename', default=None)
+    parser.add_argument('--debug-log', action='store_true', help='set logging level to DEBUG')
 
 
 def save_yson_list_item(data, filename):
