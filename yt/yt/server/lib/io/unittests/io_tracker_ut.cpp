@@ -77,8 +77,9 @@ TEST(TIOTrackerTest, QueueOverflow)
     auto config = New<TIOTrackerConfig>();
     config->Enable = true;
     config->EnableRaw = true;
+    config->EnableEventDequeue = false;
     config->QueueSizeLimit = 10;
-    auto ioTracker = CreateIOTracker(std::move(config));
+    auto ioTracker = CreateIOTracker(config);
 
     std::atomic<int> eventCount = 0;
     std::atomic<int> goodEventCount = 0;
@@ -93,6 +94,10 @@ TEST(TIOTrackerTest, QueueOverflow)
     for (int i = 0; i < 50; ++i) {
         ioTracker->Enqueue(CreateEvent(1, 1, "good", i < 10 ? "true" : "false"));
     }
+
+    auto newConfig = CloneYsonSerializable(config);
+    newConfig->EnableEventDequeue = true;
+    ioTracker->SetConfig(std::move(newConfig));
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(200));
 
