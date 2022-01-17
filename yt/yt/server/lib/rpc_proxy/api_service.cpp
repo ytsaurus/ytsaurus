@@ -2924,7 +2924,9 @@ private:
             : TColumnFilter(std::move(columnFilterIndexes));
         options->KeepMissingRows = request->keep_missing_rows();
         options->EnablePartialResult = request->enable_partial_result();
-        options->UseLookupCache = request->use_lookup_cache();
+        if (request->has_use_lookup_cache()) {
+            options->UseLookupCache = request->use_lookup_cache();
+        }
     }
 
     void ProcessLookupRowsDetailedProfilingInfo(

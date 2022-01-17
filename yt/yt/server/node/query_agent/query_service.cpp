@@ -635,7 +635,10 @@ private:
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
 
-        bool useLookupCache = request->use_lookup_cache();
+        std::optional<bool> useLookupCache;
+        if (request->has_use_lookup_cache()) {
+            useLookupCache = request->use_lookup_cache();
+        }
 
         auto addResult = [] (auto* request, auto* response, const TErrorOr<TSharedRef>& result) {
             if (request->enable_partial_result() && !result.IsOK()) {

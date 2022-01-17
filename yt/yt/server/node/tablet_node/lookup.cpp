@@ -73,14 +73,16 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         bool produceAllVersions,
-        bool useLookupCache,
+        std::optional<bool> useLookupCache,
         const TColumnFilter& columnFilter,
         const TClientChunkReadOptions& chunkReadOptions,
         TSharedRange<TUnversionedRow> lookupKeys)
         : TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
-        , UseLookupCache_(useLookupCache && TabletSnapshot_->RowCache)
+        , UseLookupCache_(
+            TabletSnapshot_->RowCache &&
+            useLookupCache.value_or(TabletSnapshot_->Settings.MountConfig->EnableLookupCacheByDefault))
         , ColumnFilter_(columnFilter)
         , ChunkReadOptions_(chunkReadOptions)
         , LookupKeys_(std::move(lookupKeys))
@@ -716,7 +718,7 @@ void DoLookupRows(
     const TTabletSnapshotPtr& tabletSnapshot,
     TTimestamp timestamp,
     bool produceAllVersions,
-    bool useLookupCache,
+    std::optional<bool> useLookupCache,
     const TColumnFilter& columnFilter,
     TClientChunkReadOptions chunkReadOptions,
     TSharedRange<TUnversionedRow> lookupKeys,
@@ -814,7 +816,7 @@ void DoLookupRows(
 void LookupRows(
     const TTabletSnapshotPtr& tabletSnapshot,
     TReadTimestampRange timestampRange,
-    bool useLookupCache,
+    std::optional<bool> useLookupCache,
     const TClientChunkReadOptions& chunkReadOptions,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -856,7 +858,7 @@ void LookupRows(
 void VersionedLookupRows(
     const TTabletSnapshotPtr& tabletSnapshot,
     TTimestamp timestamp,
-    bool useLookupCache,
+    std::optional<bool> useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
     TWireProtocolReader* reader,
@@ -903,7 +905,7 @@ void VersionedLookupRows(
 void ExecuteSingleRead(
     TTabletSnapshotPtr tabletSnapshot,
     TReadTimestampRange timestampRange,
-    bool useLookupCache,
+    std::optional<bool> useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
     TWireProtocolReader* reader,
@@ -945,7 +947,7 @@ void ExecuteSingleRead(
 void LookupRead(
     const TTabletSnapshotPtr& tabletSnapshot,
     TReadTimestampRange timestampRange,
-    bool useLookupCache,
+    std::optional<bool> useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
     TWireProtocolReader* reader,

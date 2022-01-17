@@ -120,6 +120,8 @@ public:
     bool EnableLookupHashTable;
 
     i64 LookupCacheRowsPerTablet;
+    double LookupCacheRowsRatio;
+    bool EnableLookupCacheByDefault;
 
     i64 RowCountToKeep;
 
@@ -312,6 +314,10 @@ public:
 
         RegisterParameter("lookup_cache_rows_per_tablet", LookupCacheRowsPerTablet)
             .Default(0);
+        RegisterParameter("lookup_cache_rows_ratio", LookupCacheRowsRatio)
+            .Default(0);
+        RegisterParameter("enable_lookup_cache_by_default", EnableLookupCacheByDefault)
+            .Default(false);
 
         RegisterParameter("row_count_to_keep", RowCountToKeep)
             .Default(0);

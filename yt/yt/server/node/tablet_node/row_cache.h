@@ -12,7 +12,7 @@ namespace NYT::NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
-    
+
 struct IRowCacheMemoryTracker
     : public IMemoryUsageTracker
 {

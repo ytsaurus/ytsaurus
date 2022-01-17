@@ -504,6 +504,9 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason)
 
     if (activeStore) {
         activeStore->SetStoreState(EStoreState::PassiveDynamic);
+        auto nonActiveStoresUnmergedRowCount = Tablet_->GetNonActiveStoresUnmergedRowCount();
+        Tablet_->SetNonActiveStoresUnmergedRowCount(nonActiveStoresUnmergedRowCount + activeStore->GetRowCount());
+
         StructuredLogger_->OnStoreStateChanged(activeStore);
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v, Reason: %v)",

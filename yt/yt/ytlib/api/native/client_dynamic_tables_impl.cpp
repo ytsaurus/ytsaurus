@@ -833,7 +833,9 @@ TRowset TClient::DoLookupRowsOnce(
         req->set_timestamp(options.Timestamp);
         req->set_retention_timestamp(options.RetentionTimestamp);
         req->set_enable_partial_result(options.EnablePartialResult);
-        req->set_use_lookup_cache(options.UseLookupCache);
+        if (options.UseLookupCache) {
+            req->set_use_lookup_cache(*options.UseLookupCache);
+        }
 
         if (inMemoryMode != EInMemoryMode::None) {
             req->Header().set_uncancelable(true);

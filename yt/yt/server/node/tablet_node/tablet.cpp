@@ -1128,6 +1128,10 @@ void TTablet::AddStore(IStorePtr store)
         YT_VERIFY(partition->Stores().insert(sortedStore).second);
         sortedStore->SetPartition(partition);
         UpdateOverlappingStoreCount();
+
+        if (store->GetStoreState() != EStoreState::ActiveDynamic) {
+            NonActiveStoresUnmergedRowCount_ += store->GetRowCount();
+        }
     } else {
         auto orderedStore = store->AsOrdered();
         YT_VERIFY(StoreRowIndexMap_.emplace(orderedStore->GetStartingRowIndex(), orderedStore).second);
@@ -1143,6 +1147,8 @@ void TTablet::RemoveStore(IStorePtr store)
         YT_VERIFY(partition->Stores().erase(sortedStore) == 1);
         sortedStore->SetPartition(nullptr);
         UpdateOverlappingStoreCount();
+
+        NonActiveStoresUnmergedRowCount_ -= store->GetRowCount();
     } else {
         auto orderedStore = store->AsOrdered();
         YT_VERIFY(StoreRowIndexMap_.erase(orderedStore->GetStartingRowIndex()) == 1);
@@ -1538,16 +1544,28 @@ void TTablet::Initialize()
 
 void TTablet::ConfigureRowCache()
 {
-    if (Settings_.MountConfig->LookupCacheRowsPerTablet > 0) {
+    i64 lookupCacheCapacity = Settings_.MountConfig->LookupCacheRowsPerTablet;
+    double lookupCacheRowsRatio = Settings_.MountConfig->LookupCacheRowsRatio;
+
+    if (lookupCacheRowsRatio > 0) {
+        i64 unmergedRowCount = NonActiveStoresUnmergedRowCount_;
+        if (ActiveStore_) {
+            unmergedRowCount += ActiveStore_->GetRowCount();
+        }
+
+        lookupCacheCapacity = lookupCacheRowsRatio * unmergedRowCount;
+    }
+
+    if (lookupCacheCapacity > 0) {
         if (!RowCache_) {
             RowCache_ = New<TRowCache>(
-                Settings_.MountConfig->LookupCacheRowsPerTablet,
+                lookupCacheCapacity,
                 TabletNodeProfiler.WithTag("table_path", TablePath_),
                 Context_
                     ->GetMemoryUsageTracker()
                     ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
         } else {
-            RowCache_->GetCache()->SetCapacity(Settings_.MountConfig->LookupCacheRowsPerTablet);
+            RowCache_->GetCache()->SetCapacity(lookupCacheCapacity);
         }
     } else if (RowCache_) {
         RowCache_.Reset();
@@ -1944,6 +1962,35 @@ void TTablet::CheckedSetBackupStage(EBackupStage previous, EBackupStage next)
 {
     YT_VERIFY(GetBackupStage() == previous);
     SetBackupStage(next);
+}
+
+void TTablet::RecomputeNonActiveStoresUnmergedRowCount()
+{
+    i64 nonActiveStoresUnmergedRowCount = 0;
+    for (const auto& store : StoreIdMap_) {
+        if (store.second != ActiveStore_) {
+            nonActiveStoresUnmergedRowCount += store.second->GetRowCount();
+        }
+    }
+
+    NonActiveStoresUnmergedRowCount_ = nonActiveStoresUnmergedRowCount;
+}
+
+void TTablet::UpdateUnmergedRowCount()
+{
+    if (RowCache_) {
+        double lookupCacheRowsRatio = Settings_.MountConfig->LookupCacheRowsRatio;
+
+        if (lookupCacheRowsRatio > 0) {
+            i64 unmergedRowCount = NonActiveStoresUnmergedRowCount_;
+            if (ActiveStore_) {
+                unmergedRowCount += ActiveStore_->GetRowCount();
+            }
+
+            i64 lookupCacheCapacity = lookupCacheRowsRatio * unmergedRowCount;
+            RowCache_->GetCache()->SetCapacity(lookupCacheCapacity);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

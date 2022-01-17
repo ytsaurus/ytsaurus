@@ -180,6 +180,9 @@ bool TSortedStoreManager::ExecuteWrites(
             return false;
         }
     }
+
+    Tablet_->UpdateUnmergedRowCount();
+
     return true;
 }
 
@@ -552,9 +555,6 @@ void TSortedStoreManager::CreateActiveStore()
 
     ActiveStore_->SetRowBlockedHandler(CreateRowBlockedHandler(ActiveStore_));
 
-    Tablet_->AddStore(ActiveStore_);
-    Tablet_->SetActiveStore(ActiveStore_);
-
     if (Tablet_->GetState() == ETabletState::UnmountFlushing ||
         Tablet_->GetState() == ETabletState::FreezeFlushing)
     {
@@ -568,6 +568,9 @@ void TSortedStoreManager::CreateActiveStore()
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Active store created (StoreId: %v)",
             storeId);
     }
+
+    Tablet_->AddStore(ActiveStore_);
+    Tablet_->SetActiveStore(ActiveStore_);
 }
 
 void TSortedStoreManager::ResetActiveStore()

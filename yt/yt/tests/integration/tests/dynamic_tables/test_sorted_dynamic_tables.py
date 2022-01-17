@@ -401,6 +401,47 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/lookup_rows_cache/used".format(node)) == 0)
 
     @authors("lukyan")
+    def test_lookup_cache_options(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000, 2)]
+        insert_rows("//tmp/t", rows)
+
+        sync_flush_table("//tmp/t")
+
+        # Cache is not configured yet.
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=False)
+        expected = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2)]
+        assert_items_equal(actual, expected)
+
+        # Lookup key without polluting cache to increment static_chunk_row_lookup_count.
+        lookup_rows("//tmp/t", [{"key": 2}])
+
+        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        wait(lambda: get(path) > 50)
+        assert get(path) == 51
+
+        set("//tmp/t/@lookup_cache_rows_ratio", 0.1)
+        set("//tmp/t/@enable_lookup_cache_by_default", True)
+        remount_table("//tmp/t")
+
+        # Populate cache and use it.
+        for step in xrange(1, 5):
+            expected = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2 * step)]
+            actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2 * step)])
+            assert_items_equal(actual, expected)
+
+        # Lookup key without cache.
+        lookup_rows("//tmp/t", [{"key": 2}], use_lookup_cache=False)
+
+        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        wait(lambda: get(path) > 101)
+        assert get(path) == 102
+
+    @authors("lukyan")
     def test_lookup_cache_flush(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", lookup_cache_rows_per_tablet=50)

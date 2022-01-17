@@ -727,7 +727,9 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     req->set_retention_timestamp(options.RetentionTimestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
     req->set_enable_partial_result(options.EnablePartialResult);
-    req->set_use_lookup_cache(options.UseLookupCache);
+    if (options.UseLookupCache) {
+        req->set_use_lookup_cache(*options.UseLookupCache);
+    }
 
     req->SetMultiplexingBand(options.MultiplexingBand);
     req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
@@ -763,7 +765,9 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     }
     req->set_timestamp(options.Timestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
-    req->set_use_lookup_cache(options.UseLookupCache);
+    if (options.UseLookupCache) {
+        req->set_use_lookup_cache(*options.UseLookupCache);
+    }
 
     req->SetMultiplexingBand(options.MultiplexingBand);
     req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
@@ -802,7 +806,9 @@ TFuture<std::vector<IUnversionedRowsetPtr>> TClientBase::MultiLookup(
         }
         protoSubrequest->set_keep_missing_rows(subrequestOptions.KeepMissingRows);
         protoSubrequest->set_enable_partial_result(subrequestOptions.EnablePartialResult);
-        protoSubrequest->set_use_lookup_cache(subrequestOptions.UseLookupCache);
+        if (subrequestOptions.UseLookupCache) {
+            protoSubrequest->set_use_lookup_cache(*subrequestOptions.UseLookupCache);
+        }
 
         auto rowset = SerializeRowset(
             subrequest.NameTable,

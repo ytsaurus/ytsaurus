@@ -13,7 +13,7 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletSnapshot
-	: public TRefCounted
+    : public TRefCounted
 {
     NObjectClient::TObjectId TableId;
     NHydra::TRevision MountRevision = NHydra::NullRevision;
