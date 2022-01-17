@@ -316,7 +316,7 @@ class PingTransaction(Thread):
         :param int ping_period: ping period in milliseconds.
         :param int ping_timeout: ping request timeout in milliseconds.
         """
-        super(PingTransaction, self).__init__()
+        super(PingTransaction, self).__init__(name="PingTransaction")
         self.transaction = transaction
         self.ping_period = time_option_to_milliseconds(ping_period)
         self.ping_timeout = time_option_to_milliseconds(ping_timeout)

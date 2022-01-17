@@ -58,6 +58,17 @@ def reproduce_transaction_loss(
         except yt.errors.YtNoSuchTransaction:
             pass
 
+        while True:
+            ping_threads_found = False
+            for thread in threading.enumerate():
+                if not thread.is_alive():
+                    continue
+                if thread.getName() == "PingTransaction":
+                    ping_threads_found = True
+                    thread.join(timeout=0.1)
+            if not ping_threads_found:
+                break
+
         if must_interrupt_sleep:
             assert first_sleep_duration < 0.9 * wait_time, (first_sleep_duration, wait_time)
 
