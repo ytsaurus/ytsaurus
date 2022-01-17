@@ -96,11 +96,11 @@ public:
             YT_VERIFY(block.block_index() == blockIndex);
 
             auto blockLastKey = FromProto<TUnversionedOwningRow>(block.last_key());
-            TUnversionedOwningRow trimedBlockLastKey(
+            TUnversionedOwningRow trimmedBlockLastKey(
                 blockLastKey.begin(),
                 blockLastKey.begin() + SliceComparator_.GetLength());
             auto blockUpperBound = TOwningKeyBound::FromRow(
-                /* row */std::move(trimedBlockLastKey),
+                /* row */std::move(trimmedBlockLastKey),
                 /* isInclusive */true,
                 /* isUpper */true);
 
@@ -368,6 +368,102 @@ void ToProto(
 
     protoChunkSlice->set_data_weight_override(chunkSlice.DataWeight);
     protoChunkSlice->set_row_count_override(chunkSlice.RowCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 GetChunkSliceDataWeights(
+    const NProto::TReqGetChunkSliceDataWeights::TChunkSlice& weightedChunkRequest,
+    const NProto::TChunkMeta& chunkMeta)
+{
+    auto miscExt = GetProtoExtension<NProto::TMiscExt>(chunkMeta.extensions());
+    auto chunkId = FromProto<TChunkId>(weightedChunkRequest.chunk_id());
+
+    i64 rowCount = 0;
+    i64 chunkDataWeight = miscExt.data_weight();
+    i64 chunkRowCount = miscExt.row_count();
+
+    auto chunkFormat = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
+    switch (chunkFormat) {
+        case EChunkFormat::TableSchemalessHorizontal:
+        case EChunkFormat::TableUnversionedColumnar:
+        case EChunkFormat::TableVersionedSimple:
+        case EChunkFormat::TableVersionedColumnar:
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("Unsupported format %Qlv for chunk %v",
+                chunkFormat,
+                chunkId);
+    }
+
+    TComparator chunkComparator;
+    if (auto schemaExt = FindProtoExtension<TTableSchemaExt>(chunkMeta.extensions())) {
+        chunkComparator = FromProto<TTableSchema>(*schemaExt).ToComparator();
+    } else {
+        auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+        int keyColumnCount = keyColumnsExt.names_size();
+        chunkComparator = TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
+    }
+
+    TOwningKeyBound chunkLowerBound;
+    TOwningKeyBound chunkUpperBound;
+    YT_VERIFY(FindBoundaryKeyBounds(chunkMeta, &chunkLowerBound, &chunkUpperBound));
+
+    TReadLimit sliceLowerLimit(
+        weightedChunkRequest.lower_limit(),
+        /*isUpper*/ false,
+        chunkComparator.GetLength());
+    TReadLimit sliceUpperLimit(
+        weightedChunkRequest.upper_limit(),
+        /*isUpper*/ true,
+        chunkComparator.GetLength());
+
+    auto sliceLowerBound = sliceLowerLimit.KeyBound()
+        ? sliceLowerLimit.KeyBound()
+        : chunkLowerBound;
+    auto sliceUpperBound = sliceUpperLimit.KeyBound()
+        ? sliceUpperLimit.KeyBound()
+        : chunkUpperBound;
+
+    TOwningKeyBound prevBlockUpperBound;
+    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
+    auto blockCount = blockMetaExt.blocks_size();
+    for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+        const auto& block = blockMetaExt.blocks(blockIndex);
+        YT_VERIFY(block.block_index() == blockIndex);
+
+        auto blockLastKey = FromProto<TUnversionedOwningRow>(block.last_key());
+        TUnversionedOwningRow trimmedBlockLastKey(
+            blockLastKey.begin(),
+            blockLastKey.begin() + chunkComparator.GetLength());
+        auto blockUpperBound = TOwningKeyBound::FromRow(
+            /*row*/ std::move(trimmedBlockLastKey),
+            /*isInclusive*/ true,
+            /*isUpper*/ true);
+
+        auto blockLowerBound = blockIndex == 0
+            ? chunkLowerBound
+            : prevBlockUpperBound.Invert();
+
+        prevBlockUpperBound = blockUpperBound;
+
+        if (chunkComparator.IsRangeEmpty(blockLowerBound, blockUpperBound)) {
+            blockLowerBound = blockLowerBound.ToggleInclusiveness();
+            YT_VERIFY(!chunkComparator.IsRangeEmpty(blockLowerBound, blockUpperBound));
+        }
+
+        if (chunkComparator.IsRangeEmpty(sliceLowerBound, blockUpperBound)) {
+            continue;
+        }
+
+        if (chunkComparator.IsRangeEmpty(blockLowerBound, sliceUpperBound)) {
+            break;
+        }
+
+        rowCount += block.row_count();
+    }
+
+    return chunkDataWeight * rowCount / chunkRowCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

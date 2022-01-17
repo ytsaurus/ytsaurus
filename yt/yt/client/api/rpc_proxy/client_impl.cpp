@@ -343,6 +343,12 @@ TFuture<void> TClient::ReshardTable(
     if (options.Uniform) {
         req->set_uniform(*options.Uniform);
     }
+    if (options.EnableSlicing) {
+        req->set_enable_slicing(*options.EnableSlicing);
+    }
+    if (options.SlicingAccuracy) {
+        req->set_slicing_accuracy(*options.SlicingAccuracy);
+    }
 
     ToProto(req->mutable_mutating_options(), options);
     ToProto(req->mutable_tablet_range_options(), options);

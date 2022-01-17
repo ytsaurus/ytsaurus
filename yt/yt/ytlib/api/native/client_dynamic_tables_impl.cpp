@@ -50,9 +50,20 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+
+#include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
+#include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
+#include <yt/yt/ytlib/table_client/pivot_keys_builder.h>
+#include <yt/yt/ytlib/table_client/samples_fetcher.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
@@ -64,6 +75,8 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include "yt/yt/core/misc/numeric_helpers.h"
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 
@@ -92,6 +105,9 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+
+constexpr double SlicingAccuracyDefault = 0.05;
+constexpr i64 ExpectedAverageOverlapping = 10;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1502,6 +1518,223 @@ void TClient::DoReshardTableWithPivotKeys(
     ExecuteTabletServiceRequest(path, "Resharding", &req);
 }
 
+std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
+    const TYPath& path,
+    int tabletCount,
+    const TReshardTableOptions& options)
+{
+    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+        .ValueOrThrow();
+
+    tableInfo->ValidateDynamic();
+    tableInfo->ValidateSorted();
+
+    TTableId tableId;
+    TCellTag externalCellTag;
+    auto tableAttributes = ResolveExternalTable(
+        path,
+        &tableId,
+        &externalCellTag);
+
+    TReadRange range;
+    if (options.FirstTabletIndex) {
+        auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(*options.FirstTabletIndex);
+        auto keyBound = tabletInfo->GetLowerKeyBound();
+        range.LowerLimit() = TReadLimit(keyBound);
+    }
+
+    if (options.LastTabletIndex && options.LastTabletIndex < std::ssize(tableInfo->Tablets) - 1) {
+        auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(*options.LastTabletIndex + 1);
+        auto keyBound = tabletInfo->GetLowerKeyBound();
+        range.UpperLimit() = TReadLimit(keyBound).Invert();
+    }
+
+    auto prepareFetchRequest = [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& request, int /*tableIndex*/) {
+        request->set_fetch_all_meta_extensions(false);
+        request->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+        request->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+        AddCellTagToSyncWith(request, tableId);
+        NCypressClient::SetTransactionId(request, NullTransactionId);
+    };
+
+    auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
+        MakeStrong(this),
+        Connection_->GetNodeDirectory(),
+        Connection_->GetInvoker(),
+        Connection_->GetConfig()->MaxChunksPerFetch,
+        Connection_->GetConfig()->MaxChunksPerLocateRequest,
+        prepareFetchRequest,
+        Logger);
+
+    chunkSpecFetcher->Add(
+        tableId,
+        externalCellTag,
+        /*chunkCount*/ -1,
+        /*tableIndex*/ 0,
+        {range});
+
+    YT_LOG_DEBUG("Fetching chunk specs");
+
+    WaitFor(chunkSpecFetcher->Fetch())
+        .ThrowOnError();
+
+    YT_LOG_DEBUG("Chunk specs fetched");
+
+    i64 chunksDataWeight = 0;
+    THashSet<TChunkId> chunkIds;
+    for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        if (!chunkIds.contains(chunkId)) {
+            chunksDataWeight += GetChunkDataWeight(chunkSpec);
+            chunkIds.insert(chunkId);
+        }
+    }
+
+    auto accuracy = options.SlicingAccuracy.value_or(SlicingAccuracyDefault);
+
+    auto expectedTabletSize = DivCeil<i64>(chunksDataWeight, tabletCount);
+    i64 minSliceSize = std::max(expectedTabletSize * accuracy / ExpectedAverageOverlapping, 1.);
+
+    YT_LOG_DEBUG("Builder initialization for resharding with slicing"
+        " (ChunksDataWeight: %v, ExpectedTabletSize: %v, MinSliceSize: %v, Accuracy: %v)",
+        chunksDataWeight,
+        expectedTabletSize,
+        minSliceSize,
+        accuracy);
+
+    const auto& comparator = tableInfo->Schemas[ETableSchemaKind::Primary]->ToComparator();
+    auto keyColumnCount = tableInfo->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
+    TReshardPivotKeysBuilder reshardBuilder(
+        comparator,
+        keyColumnCount,
+        tabletCount,
+        accuracy,
+        expectedTabletSize);
+
+    chunkIds.clear();
+    i64 unlimitedChunksDataWeight = 0;
+    i64 maxBlockSize = 0;
+    std::vector<TInputChunkPtr> splittedChunks;
+
+    for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+        auto inputChunk = New<TInputChunk>(chunkSpec);
+        auto chunkDataWeight = GetChunkDataWeight(chunkSpec);
+        maxBlockSize = std::max(maxBlockSize, inputChunk->GetMaxBlockSize());
+
+        if ((chunkSpec.has_lower_limit() || chunkSpec.has_upper_limit()) &&
+            chunkDataWeight > minSliceSize) {
+
+            splittedChunks.push_back(inputChunk);
+        } else {
+            reshardBuilder.AddChunk(chunkSpec);
+            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+            if (!chunkIds.contains(chunkId)) {
+                unlimitedChunksDataWeight += chunkDataWeight;
+                chunkIds.insert(chunkId);
+            }
+        }
+    }
+
+    if (!splittedChunks.empty()) {
+        auto config = New<TFetcherConfig>();
+        auto sizeFetcher = New<TChunkSliceSizeFetcher>(
+            config,
+            Connection_->GetNodeDirectory(),
+            Connection_->GetInvoker(),
+            /*chunkScraper*/ nullptr,
+            MakeStrong(this),
+            Logger);
+
+        for (const auto& inputChunk : splittedChunks) {
+            sizeFetcher->AddChunk(inputChunk);
+        }
+
+        YT_LOG_DEBUG("Fetching chunk slice sizes");
+
+        WaitFor(sizeFetcher->Fetch())
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Chunk slice sizes fetched");
+
+        i64 limitedChunksDataWeight = 0;
+        for (const auto& chunk : sizeFetcher->WeightedChunks()) {
+            limitedChunksDataWeight += chunk->GetDataWeight();
+            reshardBuilder.AddChunk(chunk);
+        }
+
+        auto expectedTabletSize = DivCeil<i64>(limitedChunksDataWeight + unlimitedChunksDataWeight, tabletCount);
+        YT_LOG_DEBUG("Replacing resharding with slicing expected tablet size"
+            " (LimitedChunksDataWeight: %v, UnlimitedChunksDataWeight: %v, ExpectedTabletSize: %v)",
+            limitedChunksDataWeight, 
+            unlimitedChunksDataWeight,
+            expectedTabletSize);
+
+        reshardBuilder.SetExpectedTabletSize(expectedTabletSize);
+    }
+
+    YT_LOG_DEBUG("Computing chunks for slicing");
+
+    reshardBuilder.ComputeChunksForSlicing();
+
+    auto firstTabletIndex = options.FirstTabletIndex.value_or(0);
+    reshardBuilder.SetFirstPivotKey(tableInfo->GetTabletByIndexOrThrow(firstTabletIndex)->PivotKey);
+
+    if (reshardBuilder.GetChunksForSlicing().empty() || reshardBuilder.AreAllPivotsFound()) {
+        YT_LOG_DEBUG("Picked pivot keys without slicing");
+        return reshardBuilder.GetPivotKeys();
+    }
+
+    if (!reshardBuilder.GetChunksForSlicing().empty()) {
+        auto rowBuffer = New<TRowBuffer>();
+        auto chunkSliceFetcher = CreateChunkSliceFetcher(
+            Connection_->GetConfig()->ChunkSliceFetcher,
+            Connection_->GetNodeDirectory(),
+            Connection_->GetInvoker(),
+            /*chunkScraper*/ nullptr,
+            MakeStrong(this),
+            rowBuffer,
+            Logger);
+
+        for (const auto& [inputChunk, size] : reshardBuilder.GetChunksForSlicing()) {
+            auto chunkSlice = CreateInputChunkSlice(inputChunk);
+            InferLimitsFromBoundaryKeys(chunkSlice, rowBuffer);
+            auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+            dataSlice->TransformToNew(rowBuffer, comparator.GetLength());
+
+            auto sliceCount = DivCeil<i64>(size, minSliceSize);
+            auto sliceSize = DivCeil<i64>(size, sliceCount);
+            sliceSize = std::max(minSliceSize, sliceSize);
+
+            chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true);
+        }
+
+        YT_LOG_DEBUG("Fetching chunk slices");
+
+        WaitFor(chunkSliceFetcher->Fetch())
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Chunk slices fetched");
+
+        for (const auto& slice : chunkSliceFetcher->GetChunkSlices()) {
+            reshardBuilder.AddSlice(slice);
+        }
+    }
+
+    YT_LOG_DEBUG("Computing pivot keys after slicing");
+
+    reshardBuilder.ComputeSlicedChunksPivotKeys();
+
+    if (!reshardBuilder.AreAllPivotsFound()) {
+        THROW_ERROR_EXCEPTION("Could not reshard to desired tablet count, consider reducing tablet count or specifying pivot keys manually")
+            << TErrorAttribute("path", path)
+            << TErrorAttribute("tablet_count", tabletCount)
+            << TErrorAttribute("max_block_size", maxBlockSize);
+    }
+
+    return reshardBuilder.GetPivotKeys();
+}
+
 void TClient::DoReshardTableWithTabletCount(
     const TYPath& path,
     int tabletCount,
@@ -1513,6 +1746,12 @@ void TClient::DoReshardTableWithTabletCount(
         }
 
         auto pivots = PickUniformPivotKeys(path, tabletCount);
+        DoReshardTableWithPivotKeys(path, pivots, options);
+        return;
+    }
+
+    if (options.EnableSlicing.value_or(false)) {
+        auto pivots = PickPivotKeysWithSlicing(path, tabletCount, options);
         DoReshardTableWithPivotKeys(path, pivots, options);
         return;
     }

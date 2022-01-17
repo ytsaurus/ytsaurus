@@ -520,6 +520,11 @@ TReshardTableCommand::TReshardTableCommand()
         .GreaterThan(0);
     RegisterParameter("uniform", Options.Uniform)
         .Default();
+    RegisterParameter("enable_slicing", Options.EnableSlicing)
+        .Default();
+    RegisterParameter("slicing_accuracy", Options.SlicingAccuracy)
+        .Default()
+        .GreaterThan(0);
 
     RegisterPostprocessor([&] () {
         if (PivotKeys && TabletCount) {
@@ -530,6 +535,15 @@ TReshardTableCommand::TReshardTableCommand()
         }
         if (Options.Uniform && PivotKeys) {
             THROW_ERROR_EXCEPTION("\"uniform\" can be specified only with \"tablet_count\"");
+        }
+        if (Options.EnableSlicing && PivotKeys) {
+            THROW_ERROR_EXCEPTION("\"enable_slicing\" can be specified only with \"tablet_count\"");
+        }
+        if (Options.EnableSlicing && Options.Uniform) {
+            THROW_ERROR_EXCEPTION("Cannot specify both \"enable_slicing\" and \"uniform\"");
+        }
+        if (Options.SlicingAccuracy && !Options.EnableSlicing) {
+            THROW_ERROR_EXCEPTION("\"slicing_accuracy\" can be specified only with \"enable_slicing\"");
         }
     });
 }

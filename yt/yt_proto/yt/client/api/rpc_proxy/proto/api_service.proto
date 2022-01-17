@@ -1287,6 +1287,9 @@ message TReqReshardTable
 
     optional bool uniform = 4;
 
+    optional bool enable_slicing = 5;
+    optional double slicing_accuracy = 6;
+
     optional TMutatingOptions mutating_options = 103;
     optional TTabletRangeOptions tablet_range_options = 104;
 

@@ -85,6 +85,8 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
         .DefaultNew();
+    RegisterParameter("chunk_slice_fetcher", ChunkSliceFetcher)
+        .DefaultNew();
 
     RegisterParameter("query_evaluator", QueryEvaluator)
         .DefaultNew();

@@ -568,7 +568,7 @@ def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=F
 
 def reshard_table(path,
                   pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None,
-                  uniform=None, sync=False, client=None):
+                  uniform=None, enable_slicing=None, slicing_accuracy=None, sync=False, client=None):
     """Changes pivot keys separating tablets of a given table.
 
     TODO
@@ -583,6 +583,8 @@ def reshard_table(path,
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
     set_param(params, "uniform", uniform)
+    set_param(params, "enable_slicing", enable_slicing)
+    set_param(params, "slicing_accuracy", slicing_accuracy)
 
     response = make_request("reshard_table", params, client=client)
 

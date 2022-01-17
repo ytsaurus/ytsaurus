@@ -2089,6 +2089,12 @@ private:
         if (request->has_uniform()) {
             options.Uniform = request->uniform();
         }
+        if (request->has_enable_slicing()) {
+            options.EnableSlicing = request->enable_slicing();
+        }
+        if (request->has_slicing_accuracy()) {
+            options.SlicingAccuracy = request->slicing_accuracy();
+        }
 
         TFuture<void> result;
         if (request->has_tablet_count()) {
