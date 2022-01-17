@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import signal
+import sys
 import time
 from yt import yson
 
@@ -126,9 +127,9 @@ def plot_main():
     multi_plot_config = load_config(args.config) if args.config else [make_config_from_args(args)]
 
     logging.basicConfig(
+        stream=sys.stderr,
         format="%(asctime)s - %(levelname)s - %(message)s",
-        level=logging.DEBUG if args.debug_log else logging.INFO,
-        filename=args.debug_log if args.debug_log else 'plotter.log')
+        level=logging.DEBUG if args.debug_log else logging.INFO)
     logging.getLogger('matplotlib.font_manager').disabled = True
     logging.info('Plotter configuration: %s', multi_plot_config)
 
