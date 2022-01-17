@@ -730,7 +730,7 @@ class TestDynamicMedia(YTEnvSetup):
         set("//sys/chunk_locations/{}/@medium_override".format(location1), medium_name)
 
         wait(lambda: self._get_locations(node)[location1]["medium_name"] == medium_name)
-        assert self._get_locations(node)[location2]["medium_name"] == "default"
+        wait(lambda: self._get_locations(node)[location2]["medium_name"] == "default")
 
         wait(lambda: self._get_locations(node)[location1]["chunk_count"] == 0)
         assert self._get_locations(node)[location2]["chunk_count"] >= 1
@@ -746,7 +746,7 @@ class TestDynamicMedia(YTEnvSetup):
         set("//sys/chunk_locations/{}/@medium_override".format(location2), medium_name)
 
         wait(lambda: self._get_locations(node)[location1]["medium_name"] == "default")
-        assert self._get_locations(node)[location2]["medium_name"] == medium_name
+        wait(lambda: self._get_locations(node)[location2]["medium_name"] == medium_name)
 
         wait(lambda: self._get_locations(node)[location2]["chunk_count"] == 0)
         assert self._get_locations(node)[location1]["chunk_count"] >= 1
