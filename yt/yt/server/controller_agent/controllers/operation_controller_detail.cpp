@@ -3235,6 +3235,11 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
 
     auto jobId = jobSummary->Id;
 
+    YT_LOG_DEBUG(
+        "Process running job (JobId: %v, HasStatistics: %v)",
+        jobId,
+        static_cast<bool>(jobSummary->StatisticsYson));
+
     if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CrashControllerAgent) {
         bool canCrashControllerAgent = false;
         {
