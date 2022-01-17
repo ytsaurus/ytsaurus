@@ -3254,15 +3254,17 @@ private:
         operation->SetController(controller);
 
         std::vector<TString> unknownTreeIds;
-        Strategy_->RegisterOperation(operation.Get(), &unknownTreeIds);
+        TPoolTreeControllerSettingsMap poolTreeControllerSettingsMap;
+
+        Strategy_->RegisterOperation(operation.Get(), &unknownTreeIds, &poolTreeControllerSettingsMap);
+        operation->PoolTreeControllerSettingsMap() = poolTreeControllerSettingsMap;
         operation->EraseTrees(unknownTreeIds);
+
         YT_LOG_DEBUG_UNLESS(
             unknownTreeIds.empty(),
             "Operation has unknown pool trees after registration (OperationId: %v, TreeIds: %v)",
             operation->GetId(),
             unknownTreeIds);
-
-        operation->PoolTreeControllerSettingsMap() = Strategy_->GetOperationPoolTreeControllerSettingsMap(operation->GetId());
 
         for (const auto& nodeShard : NodeShards_) {
             nodeShard->GetInvoker()->Invoke(BIND(

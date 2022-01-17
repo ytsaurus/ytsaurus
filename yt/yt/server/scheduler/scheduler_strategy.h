@@ -148,9 +148,17 @@ struct TCachedJobPreemptionStatuses
 struct ISchedulerStrategy
     : public virtual TRefCounted
 {
+    //! Performs scheduling of new jobs.
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
 
+    //! Performs preemption for jobs of operation with enabled graceful preemption.
     virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
+    
+    //! Notify strategy about job updates.
+    virtual void ProcessJobUpdates(
+        const std::vector<TJobUpdate>& jobUpdates,
+        std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
+        std::vector<TJobId>* jobsToAbort) = 0;
 
     //! Save some strategy-specific attributes from handshake result.
     virtual void OnMasterHandshake(const TMasterHandshakeResult& result) = 0;
@@ -160,22 +168,6 @@ struct ISchedulerStrategy
 
     //! Stops all activities, resets all state.
     virtual void OnMasterDisconnected() = 0;
-
-    //! Called periodically to collect the metrics of tree elements.
-    virtual void OnFairShareProfilingAt(TInstant now) = 0;
-
-    //! Called periodically to build new tree snapshots.
-    virtual void OnFairShareUpdateAt(TInstant now) = 0;
-
-    //! Called periodically to log scheduling tree state.
-    virtual void OnFairShareLoggingAt(TInstant now) = 0;
-
-    //! Called periodically to log essential for simulator tree state.
-    virtual void OnFairShareEssentialLoggingAt(TInstant now) = 0;
-
-    // TODO(eshcherbin): Do we really need this method in the interface?
-    //! Called periodically to update min needed job resources for operation.
-    virtual void OnMinNeededJobResourcesUpdate() = 0;
 
     //! Validates that operation can be started.
     /*!
@@ -200,7 +192,10 @@ struct ISchedulerStrategy
     /*!
      *  The implementation must throw no exceptions.
      */
-    virtual void RegisterOperation(IOperationStrategyHost* operation, std::vector<TString>* unknownTreeIds) = 0;
+    virtual void RegisterOperation(
+        IOperationStrategyHost* operation,
+        std::vector<TString>* unknownTreeIds,
+        TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) = 0;
 
     //! Disable operation. Remove all operation jobs from tree.
     /*!
@@ -229,15 +224,6 @@ struct ISchedulerStrategy
     //! Returns an error if scheduling segment initialization is impossible. This results in operation's failure.
     virtual TError InitOperationSchedulingSegment(TOperationId operationId) = 0;
 
-    virtual TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const = 0;
-
-    virtual THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> GetOperationSchedulingSegmentModuleUpdates() const = 0;
-
-    virtual void ProcessJobUpdates(
-        const std::vector<TJobUpdate>& jobUpdates,
-        std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
-        std::vector<TJobId>* jobsToAbort) = 0;
-
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 
     virtual void ApplyScheduledAndPreemptedResourcesDelta(
@@ -249,6 +235,8 @@ struct ISchedulerStrategy
 
     virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
+    //! TODO(ignat): is it really needed.
+    //! Used only to make a decision about loading persistent state.
     virtual bool IsInitialized() = 0;
 
     virtual std::vector<TString> GetNodeTreeIds(const TBooleanFormulaTags& tags) = 0;
@@ -302,21 +290,34 @@ struct ISchedulerStrategy
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
-    virtual TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) = 0;
-
     virtual std::vector<std::pair<TOperationId, TError>> GetHungOperations() = 0;
 
     virtual void ScanPendingOperations() = 0;
 
     virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
+    
+    //! These methods are used for scheduling segments implementation.
+    virtual TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const = 0;
 
-    // TODO(eshcherbin): Do we really need this method in the interface?
-    //! Called periodically to build resource guarantees and usages statistics.
-    virtual void OnBuildResourceMetering() = 0;
+    virtual THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> GetOperationSchedulingSegmentModuleUpdates() const = 0;
 
     virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatusesForNode(
         const TString& nodeAddress,
         const TBooleanFormulaTags& nodeTags) const = 0;
+    
+    //! These OnFairShare*At methods used for testing purposes in simulator.
+    //! Called periodically to collect the metrics of tree elements.
+    virtual void OnFairShareProfilingAt(TInstant now) = 0;
+
+    //! Called periodically to build new tree snapshots.
+    virtual void OnFairShareUpdateAt(TInstant now) = 0;
+
+    //! Called periodically to log scheduling tree state.
+    virtual void OnFairShareLoggingAt(TInstant now) = 0;
+
+    //! Called periodically to log essential for simulator tree state.
+    virtual void OnFairShareEssentialLoggingAt(TInstant now) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)
