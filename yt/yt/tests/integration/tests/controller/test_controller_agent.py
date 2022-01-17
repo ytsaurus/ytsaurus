@@ -551,7 +551,11 @@ class TestOperationControllerLimit(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_operation_controller_memory_limit_exceeded(self):
-        op = run_test_vanilla("sleep 60", job_count=1)
+        op = run_test_vanilla("sleep 60", job_count=1, spec={
+            "testing": {
+                "allocation_size": 100 * 1024 * 1024,
+            },
+        })
         with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
             op.track()
 
@@ -727,12 +731,12 @@ class TestMemoryWatchdog(YTEnvSetup):
     @authors("alexkolodezny")
     def test_memory_watchdog(self):
         big_ops = []
-        for _ in range(5):
+        for _ in range(2):
             big_ops.append(run_test_vanilla(
                 with_breakpoint("BREAKPOINT; sleep 5"),
                 spec={
                     "testing": {
-                        "allocation_size": 200 * 1024 * 1024,
+                        "allocation_size": 500 * 1024 * 1024,
                     },
                 },
                 track=False,
@@ -762,4 +766,4 @@ class TestMemoryWatchdog(YTEnvSetup):
             except YtError as err:
                 assert err.contains_code(yt_error_codes.ControllerMemoryLimitExceeded)
                 failed += 1
-        assert failed == 2
+        assert failed == 1
