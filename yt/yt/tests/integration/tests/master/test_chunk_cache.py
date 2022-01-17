@@ -11,7 +11,7 @@ import os.path
 
 
 def trim(filepath):
-    with open(filepath, "w"):
+    with open(filepath, "wb"):
         pass
 
 
@@ -90,7 +90,7 @@ class TestChunkCache(YTEnvSetup):
         create("file", "//tmp/file.py")
         write_file(
             "//tmp/file.py",
-            """
+            b"""
 import sys
 
 for line in sys.stdin:

@@ -11,7 +11,7 @@ from yt.common import YtError
 
 import pytest
 
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -41,7 +41,7 @@ class TestCypressLocks(YTEnvSetup):
             lock("/", mode="None", tx=tx)
 
         # attributes do not have @lock_mode
-        set("//tmp/value", "<attr=some>42", is_raw=True, tx=tx)
+        set("//tmp/value", b"<attr=some>42", is_raw=True, tx=tx)
         with pytest.raises(YtError):
             lock("//tmp/value/@attr/@lock_mode", tx=tx)
 
@@ -50,7 +50,7 @@ class TestCypressLocks(YTEnvSetup):
     @authors("panin", "ignat")
     def test_lock_mode(self):
         tx = start_transaction()
-        set("//tmp/map", "{list=<attr=some>[1;2;3]}", is_raw=True, tx=tx)
+        set("//tmp/map", b"{list=<attr=some>[1;2;3]}", is_raw=True, tx=tx)
 
         # check that lock is set on nested nodes
         assert get("//tmp/map/@lock_mode", tx=tx) == "exclusive"
@@ -66,7 +66,7 @@ class TestCypressLocks(YTEnvSetup):
 
         tx = start_transaction(driver=driver)
         rsp = lock("//tmp/node", mode="snapshot", tx=tx, full_response=True, driver=driver)
-        assert rsp.keys() == ["lock_id", "node_id", "revision"]
+        assert list(rsp.keys()) == ["lock_id", "node_id", "revision"]
         assert rsp["lock_id"] == get("//tmp/node/@locks/0/id")
 
         set("//tmp/node", {}, driver=driver)
@@ -514,7 +514,7 @@ class TestCypressLocks(YTEnvSetup):
     @authors("shakurov")
     @pytest.mark.parametrize(
         "transactions_to_skip",
-        [{1, 3, 5}, {1, 3}, {1, 5}, {3, 5}, {1}, {3}, {5}, __builtin__.set()],
+        [{1, 3, 5}, {1, 3}, {1, 5}, {3, 5}, {1}, {3}, {5}, builtins.set()],
     )
     @pytest.mark.parametrize(
         "modes",
@@ -530,7 +530,7 @@ class TestCypressLocks(YTEnvSetup):
 
         prev_tx = None
         transactions = [None] * 6
-        for i in xrange(0, 6):
+        for i in range(0, 6):
             if i + 1 in transactions_to_skip:
                 transactions[i] = None
             else:
@@ -787,7 +787,7 @@ class TestCypressLocks(YTEnvSetup):
     def test_redundant_lock3(self):
         create("table", "//tmp/t")
         tx = start_transaction()
-        for i in xrange(5):
+        for i in range(5):
             write_table("//tmp/t", {"foo": "bar"}, tx=tx)
             assert len(get("//tmp/t/@locks")) == 1
 

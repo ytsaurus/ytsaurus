@@ -276,7 +276,7 @@ class TestRemoveClusterNodes(YTEnvSetup):
 
     @authors("babenko")
     def test_remove_nodes(self):
-        for _ in xrange(10):
+        for _ in range(10):
             with Restarter(self.Env, NODES_SERVICE):
                 for node in ls("//sys/cluster_nodes"):
                     wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")

@@ -11,7 +11,7 @@ from yt.common import YtError
 
 import pytest
 
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -20,8 +20,8 @@ class TestRacks(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 20
 
-    JOURNAL_DATA = [{"data": "payload" + str(i)} for i in xrange(0, 10)]
-    FILE_DATA = "payload"
+    JOURNAL_DATA = [{"data": "payload" + str(i)} for i in range(0, 10)]
+    FILE_DATA = b"payload"
 
     def _get_replica_nodes(self, chunk_id):
         return list(str(x) for x in get("#{0}/@stored_replicas".format(chunk_id)))
@@ -48,7 +48,7 @@ class TestRacks(YTEnvSetup):
     def _init_n_racks(self, n):
         nodes = get_nodes()
         index = 0
-        created_indexes = __builtin__.set()
+        created_indexes = builtins.set()
         for node in nodes:
             rack = "r" + str(index)
             if index not in created_indexes:
@@ -63,10 +63,10 @@ class TestRacks(YTEnvSetup):
             self._reset_rack(node)
 
     def _set_rack_map(self, node_to_rack_map):
-        racks = frozenset(node_to_rack_map.itervalues())
+        racks = frozenset(node_to_rack_map.values())
         for rack in racks:
             create_rack(rack)
-        for node, rack in node_to_rack_map.iteritems():
+        for node, rack in node_to_rack_map.items():
             set("//sys/cluster_nodes/" + node + "/@rack", rack)
 
     def _get_max_replicas_per_rack(self, node_to_rack_map, chunk_id):
@@ -76,7 +76,7 @@ class TestRacks(YTEnvSetup):
             rack = node_to_rack_map[replica]
             rack_to_counter.setdefault(rack, 0)
             rack_to_counter[rack] += 1
-        return max(rack_to_counter.itervalues())
+        return max(rack_to_counter.values())
 
     @authors("babenko", "ignat")
     def test_create(self):
@@ -170,7 +170,7 @@ class TestRacks(YTEnvSetup):
 
         nodes = ls("//sys/cluster_nodes")
         self._set_rack(nodes[0], "r1")
-        for i in xrange(1, len(nodes)):
+        for i in range(1, len(nodes)):
             self._set_rack(nodes[i], "r2")
 
         create("file", "//tmp/file")
@@ -264,7 +264,7 @@ class TestRacks(YTEnvSetup):
         create_rack("r2")
 
         nodes = ls("//sys/cluster_nodes")
-        for i in xrange(len(nodes)):
+        for i in range(len(nodes)):
             rack = "r" + str(i % 3)
             self._set_rack(nodes[i], rack)
 
@@ -301,7 +301,7 @@ class TestRacks(YTEnvSetup):
 
         mapping = {}
         nodes = get_nodes()
-        for i in xrange(len(nodes)):
+        for i in range(len(nodes)):
             mapping[nodes[i]] = "r" + str(i % 3)
         for node in replicas:
             mapping[node] = "r0"
@@ -315,7 +315,7 @@ class TestRacks(YTEnvSetup):
     def test_journals_with_degraded_racks(self):
         mapping = {}
         nodes = get_nodes()
-        for i in xrange(len(nodes)):
+        for i in range(len(nodes)):
             mapping[nodes[i]] = "r" + str(i % 2)
         self._set_rack_map(mapping)
 
@@ -327,7 +327,7 @@ class TestRacks(YTEnvSetup):
 
     @authors("babenko")
     def test_rack_count_limit(self):
-        for i in xrange(255):
+        for i in range(255):
             create_rack("r" + str(i))
         with pytest.raises(YtError):
             create_rack("too_many")
