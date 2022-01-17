@@ -214,7 +214,7 @@ object SparkPackagePlugin extends AutoPlugin {
     import scala.language.postfixOps
     import scala.sys.process._
 
-    val sparkBuildCommand = s"mvn -P scala-2.12 clean deploy -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
+    val sparkBuildCommand = s"mvn -P scala-2.12 clean test deploy -Dscala-2.12 -Djava11 -pl core -pl sql/catalyst -pl sql/core"
     println("Building spark...")
     val code = Process(sparkBuildCommand, cwd = sparkHome) !
 
