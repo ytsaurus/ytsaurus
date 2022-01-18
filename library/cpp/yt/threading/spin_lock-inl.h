@@ -28,9 +28,9 @@ inline void TSpinLock::Acquire() noexcept
 inline void TSpinLock::Release() noexcept
 {
 #ifdef NDEBUG
-    Value_.store(UnlockedValue, std::memory_order_relaxed);
+    Value_.store(UnlockedValue, std::memory_order_release);
 #else
-    YT_ASSERT(Value_.exchange(UnlockedValue, std::memory_order_relaxed) != UnlockedValue);
+    YT_ASSERT(Value_.exchange(UnlockedValue, std::memory_order_release) != UnlockedValue);
 #endif
 }
 
