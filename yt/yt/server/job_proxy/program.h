@@ -15,6 +15,7 @@
 #include <yt/yt/core/misc/shutdown.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
 #include <yt/yt/core/ytalloc/bindings.h>
 
@@ -60,6 +61,7 @@ protected:
         EnableShutdownLoggingToStderr();
         ConfigureUids();
         ConfigureIgnoreSigpipe();
+        EnablePhdrCache();
         ConfigureCrashHandler();
         CloseAllDescriptors();
         ConfigureAllocator({
