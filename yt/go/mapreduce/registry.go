@@ -34,6 +34,22 @@ func Register(job Job) {
 	registry[key] = t
 }
 
+// RegisterName registers job type with overriden name.
+func RegisterName(name string, job Job) {
+	gob.RegisterName(name, job)
+	t := reflect.TypeOf(job)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	if t.Kind() != reflect.Struct {
+		panic(fmt.Sprintf("job type must be pointer to a struct, but got %T", job))
+	}
+
+	key := t.PkgPath() + "." + t.Name()
+	registry[key] = reflect.TypeOf(job)
+}
+
 // RegisterJobPart registers type that might be used as part of the job state.
 func RegisterJobPart(state interface{}) {
 	gob.Register(state)
