@@ -85,6 +85,19 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPreemptiveScheduleJobsStage
+{
+    TScheduleJobsStage* Stage;
+    EOperationPreemptionPriority TargetOperationPreemptionPriority = EOperationPreemptionPriority::None;
+    EJobPreemptionLevel MinJobPreemptionLevel = EJobPreemptionLevel::Preemptable;
+    bool ForcePreemptionAttempt = false;
+};
+
+static const int MaxPreemptiveStageCount = 4;
+using TPreemptiveScheduleJobsStageList = TCompactVector<TPreemptiveScheduleJobsStage, MaxPreemptiveStageCount>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class represents fair share tree.
 //!
 //! We maintain following entities:
@@ -110,14 +123,6 @@ class TFairShareTree
 public:
     using TFairShareTreePtr = TIntrusivePtr<TFairShareTree>;
 
-    struct TJobWithPreemptionInfo
-    {
-        TJobPtr Job;
-        bool IsPreemptable = false;
-        TSchedulerOperationElementPtr OperationElement;
-    };
-
-public:
     TFairShareTree(
         TFairShareStrategyTreeConfigPtr config,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
@@ -1551,17 +1556,20 @@ private:
         if (scheduleJobsWithPreemption) {
             context.CountOperationsByPreemptionPriority(treeSnapshotImpl->RootElement());
 
-            // First try to schedule a job with aggressive preemption for aggressively starving operations only.
-            {
-                context.StartStage(&SchedulingStages_[EJobSchedulingStage::AggressivelyPreemptive]);
-                DoScheduleJobsWithAggressivePreemption(treeSnapshotImpl, &context, now);
-                context.FinishStage();
-            }
+            for (const auto& preemptiveStage : BuildPreemptiveSchedulingStageList()) {
+                // We allow to schedule at most one job using preemption.
+                if (context.SchedulingStatistics().ScheduledDuringPreemption > 0) {
+                    break;
+                }
 
-            // If no jobs were scheduled in the previous stage, try to schedule a job with regular preemption.
-            if (context.SchedulingStatistics().ScheduledDuringPreemption == 0) {
-                context.StartStage(&SchedulingStages_[EJobSchedulingStage::Preemptive]);
-                DoScheduleJobsWithPreemption(treeSnapshotImpl, &context, now);
+                context.StartStage(preemptiveStage.Stage);
+                DoScheduleJobsWithPreemption(
+                    treeSnapshotImpl,
+                    &context,
+                    now,
+                    preemptiveStage.TargetOperationPreemptionPriority,
+                    preemptiveStage.MinJobPreemptionLevel,
+                    preemptiveStage.ForcePreemptionAttempt);
                 context.FinishStage();
             }
         } else {
@@ -1576,68 +1584,104 @@ private:
 
         // Interrupt some jobs if usage is greater that limit.
         if (schedulingContext->ShouldAbortJobsSinceResourcesOvercommit()) {
-            YT_LOG_DEBUG("Interrupting jobs on node since resources are overcommitted (NodeId: %v, Address: %v)",
-                schedulingContext->GetNodeDescriptor().Id,
-                schedulingContext->GetNodeDescriptor().Address);
-
-            std::vector<TJobWithPreemptionInfo> jobInfos;
-            for (const auto& job : schedulingContext->RunningJobs()) {
-                auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
-                if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
-                    YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
-                        job->GetId(),
-                        job->GetOperationId());
-                    continue;
-                }
-                jobInfos.push_back(TJobWithPreemptionInfo{
-                    .Job = job,
-                    .IsPreemptable = operationElement->IsJobPreemptable(job->GetId(), /* aggressivePreemptionEnabled */ false),
-                    .OperationElement = operationElement,
-                });
-            }
-
-            auto hasCpuGap = [] (const TJobWithPreemptionInfo& jobWithPreemptionInfo)
-            {
-                return jobWithPreemptionInfo.Job->ResourceUsage().GetCpu() < jobWithPreemptionInfo.Job->ResourceLimits().GetCpu();
-            };
-
-            std::sort(
-                jobInfos.begin(),
-                jobInfos.end(),
-                [&] (const TJobWithPreemptionInfo& lhs, const TJobWithPreemptionInfo& rhs) {
-                    if (lhs.IsPreemptable != rhs.IsPreemptable) {
-                        return lhs.IsPreemptable < rhs.IsPreemptable;
-                    }
-
-                    if (!lhs.IsPreemptable) {
-                        // Save jobs without cpu gap.
-                        bool lhsHasCpuGap = hasCpuGap(lhs);
-                        bool rhsHasCpuGap = hasCpuGap(rhs);
-                        if (lhsHasCpuGap != rhsHasCpuGap) {
-                            return lhsHasCpuGap > rhsHasCpuGap;
-                        }
-                    }
-
-                    return lhs.Job->GetStartTime() < rhs.Job->GetStartTime();
-                }
-            );
-
-            auto currentResources = TJobResources();
-            for (const auto& jobInfo : jobInfos) {
-                if (!Dominates(schedulingContext->ResourceLimits(), currentResources + jobInfo.Job->ResourceUsage())) {
-                    YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v)",
-                        jobInfo.Job->GetId(),
-                        jobInfo.OperationElement->GetId());
-                    PreemptJob(jobInfo.Job, jobInfo.OperationElement, treeSnapshotImpl, schedulingContext, EJobPreemptionReason::ResourceOvercommit);
-                } else {
-                    currentResources += jobInfo.Job->ResourceUsage();
-                }
-            }
+            AbortJobsSinceResourcesOvercommit(schedulingContext, treeSnapshotImpl);
         }
 
         schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics());
 
         CumulativeScheduleJobsTime_.Add(scheduleJobsTimer.GetElapsedTime());
+    }
+
+    TPreemptiveScheduleJobsStageList BuildPreemptiveSchedulingStageList()
+    {
+        return TPreemptiveScheduleJobsStageList{
+            TPreemptiveScheduleJobsStage{
+                .Stage = &SchedulingStages_[EJobSchedulingStage::AggressivelyPreemptive],
+                .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Aggressive,
+                .MinJobPreemptionLevel = EJobPreemptionLevel::AggressivelyPreemptable,
+                .ForcePreemptionAttempt = false,
+            },
+            TPreemptiveScheduleJobsStage{
+                .Stage = &SchedulingStages_[EJobSchedulingStage::Preemptive],
+                .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Regular,
+                .MinJobPreemptionLevel = EJobPreemptionLevel::Preemptable,
+                .ForcePreemptionAttempt = true,
+            }};
+    }
+
+    std::vector<TJobWithPreemptionInfo> CollectJobsWithPreemptionInfo(
+        const ISchedulingContextPtr& schedulingContext,
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl) const
+    {
+        std::vector<TJobWithPreemptionInfo> jobInfos;
+        for (const auto& job : schedulingContext->RunningJobs()) {
+            auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
+            if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
+                YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
+                    job->GetId(),
+                    job->GetOperationId());
+                continue;
+            }
+            jobInfos.push_back(TJobWithPreemptionInfo{
+                .Job = job,
+                .PreemptionStatus = operationElement->GetJobPreemptionStatus(job->GetId()),
+                .OperationElement = operationElement,
+            });
+        }
+
+        return jobInfos;
+    }
+
+    void SortJobsWithPreemptionInfo(std::vector<TJobWithPreemptionInfo>* jobInfos) const
+    {
+        std::sort(
+            jobInfos->begin(),
+            jobInfos->end(),
+            [&] (const TJobWithPreemptionInfo& lhs, const TJobWithPreemptionInfo& rhs) {
+                if (lhs.PreemptionStatus != rhs.PreemptionStatus) {
+                    return lhs.PreemptionStatus < rhs.PreemptionStatus;
+                }
+
+                if (lhs.PreemptionStatus != EJobPreemptionStatus::Preemptable) {
+                    auto hasCpuGap = [] (const TJobWithPreemptionInfo& jobWithPreemptionInfo) {
+                        return jobWithPreemptionInfo.Job->ResourceUsage().GetCpu() < jobWithPreemptionInfo.Job->ResourceLimits().GetCpu();
+                    };
+
+                    // Save jobs without cpu gap.
+                    bool lhsHasCpuGap = hasCpuGap(lhs);
+                    bool rhsHasCpuGap = hasCpuGap(rhs);
+                    if (lhsHasCpuGap != rhsHasCpuGap) {
+                        return lhsHasCpuGap < rhsHasCpuGap;
+                    }
+                }
+
+                return lhs.Job->GetStartTime() < rhs.Job->GetStartTime();
+            }
+        );
+    }
+
+    void AbortJobsSinceResourcesOvercommit(
+        const ISchedulingContextPtr& schedulingContext,
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl)
+    {
+        YT_LOG_DEBUG("Interrupting jobs on node since resources are overcommitted (NodeId: %v, Address: %v)",
+            schedulingContext->GetNodeDescriptor().Id,
+            schedulingContext->GetNodeDescriptor().Address);
+
+        auto jobInfos = CollectJobsWithPreemptionInfo(schedulingContext, treeSnapshotImpl);
+        SortJobsWithPreemptionInfo(&jobInfos);
+
+        TJobResources currentResources;
+        for (const auto& jobInfo : jobInfos) {
+            if (!Dominates(schedulingContext->ResourceLimits(), currentResources + jobInfo.Job->ResourceUsage())) {
+                YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v)",
+                    jobInfo.Job->GetId(),
+                    jobInfo.OperationElement->GetId());
+                PreemptJob(jobInfo.Job, jobInfo.OperationElement, treeSnapshotImpl, schedulingContext, EJobPreemptionReason::ResourceOvercommit);
+            } else {
+                currentResources += jobInfo.Job->ResourceUsage();
+            }
+        }
     }
 
     void DoScheduleJobsWithoutPreemption(
@@ -1707,157 +1751,45 @@ private:
         }
     }
 
-    void DoScheduleJobsWithAggressivePreemption(
-        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
-        TScheduleJobsContext* context,
-        TCpuInstant startTime)
-    {
-        DoScheduleJobsWithPreemptionImpl(
-            treeSnapshotImpl,
-            context,
-            startTime,
-            /*targetOperationPreemptionPriority*/ EOperationPreemptionPriority::Aggressive,
-            /*minJobPreemptionLevel*/ EJobPreemptionLevel::AggressivelyPreemptable,
-            /*forceStage*/ false);
-    }
-
-    void DoScheduleJobsWithPreemption(
-        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
-        TScheduleJobsContext* context,
-        TCpuInstant startTime)
-    {
-        DoScheduleJobsWithPreemptionImpl(
-            treeSnapshotImpl,
-            context,
-            startTime,
-            /*targetOperationPreemptionPriority*/ EOperationPreemptionPriority::Regular,
-            /*minJobPreemptionLevel*/ EJobPreemptionLevel::Preemptable,
-            /*forceStage*/ true);
-    }
-
     // TODO(eshcherbin): Maybe receive a set of preemptable job levels instead of max level.
-    void DoScheduleJobsWithPreemptionImpl(
+    void DoScheduleJobsWithPreemption(
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
         TScheduleJobsContext* context,
         TCpuInstant startTime,
         EOperationPreemptionPriority targetOperationPreemptionPriority,
         EJobPreemptionLevel minJobPreemptionLevel,
-        bool forceStage)
+        bool forcePreemptionAttempt)
     {
         YT_VERIFY(targetOperationPreemptionPriority != EOperationPreemptionPriority::None);
 
-        if (!forceStage && context->OperationCountByPreemptionPriority()[targetOperationPreemptionPriority] == 0) {
+        // NB(eshcherbin): We might want to analyze jobs and attempt preemption even if there are no candidate operations of target priority.
+        // For example, we preempt jobs in pools or operations which exceed their specified resource limits.
+        bool shouldAttemptScheduling = context->OperationCountByPreemptionPriority()[targetOperationPreemptionPriority] > 0;
+        bool shouldAttemptPreemption = forcePreemptionAttempt || shouldAttemptScheduling;
+        if (!shouldAttemptPreemption) {
             return;
         }
 
-        auto& rootElement = treeSnapshotImpl->RootElement();
-        const auto& treeConfig = treeSnapshotImpl->TreeConfig();
-        const auto& controllerConfig = treeSnapshotImpl->ControllerConfig();
-
-        // NB: this method aims 2 goals relevant for scheduling with preemption
-        // 1. Resets 'Active' attribute after scheduling without preemption (that is necessary for PrescheduleJob correctness).
+        // NB: This method achieves 2 goals relevant for scheduling with preemption:
+        // 1. Reset |Active| attribute after scheduling without preemption (this is necessary for PrescheduleJob correctness).
         // 2. Initialize dynamic attributes and calculate local resource usages if scheduling without preemption was skipped.
         context->PrepareForScheduling(treeSnapshotImpl->RootElement());
 
-        auto preemptionReason = [&] {
-            switch (targetOperationPreemptionPriority) {
-                case EOperationPreemptionPriority::Aggressive:
-                    return EJobPreemptionReason::AggressivePreemption;
-                case EOperationPreemptionPriority::Regular:
-                    return EJobPreemptionReason::Preemption;
-                default:
-                    YT_ABORT();
-            }
-        }();
-        // Compute discount to node usage.
-        YT_LOG_TRACE("Looking for preemptable jobs (MinJobPreemptionLevel: %v)", minJobPreemptionLevel);
-        std::vector<TJobPtr> unconditionallyPreemptableJobs;
+        std::vector<TJobWithPreemptionInfo> unconditionallyPreemptableJobs;
         TNonOwningJobSet forcefullyPreemptableJobs;
-        int totalConditionallyPreemptableJobCount = 0;
-        int maxConditionallyPreemptableJobCountInPool = 0;
-        {
-            NProfiling::TWallTimer timer;
-
-            const auto& nodeModule = TNodeSchedulingSegmentManager::GetNodeModule(
-                context->SchedulingContext()->GetNodeDescriptor(),
-                treeConfig->SchedulingSegments->ModuleType);
-            for (const auto& job : context->SchedulingContext()->RunningJobs()) {
-                auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
-                if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
-                    YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
-                        job->GetId(),
-                        job->GetOperationId());
-                    continue;
-                }
-
-                bool isJobForcefullyPreemptable = !operationElement->IsSchedulingSegmentCompatibleWithNode(
-                    context->SchedulingContext()->GetSchedulingSegment(),
-                    nodeModule);
-                if (isJobForcefullyPreemptable) {
-                    YT_ELEMENT_LOG_DETAILED(operationElement,
-                        "Job is forcefully preemptable because it is running on a node in a different scheduling segment or module "
-                        "(JobId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v, Module: %v)",
-                        job->GetId(),
-                        operationElement->GetId(),
-                        operationElement->SchedulingSegment(),
-                        context->SchedulingContext()->GetSchedulingSegment(),
-                        context->SchedulingContext()->GetNodeDescriptor().Address,
-                        context->SchedulingContext()->GetNodeDescriptor().DataCenter);
-
-                    forcefullyPreemptableJobs.insert(job.Get());
-                }
-
-                bool isJobPreemptable = isJobForcefullyPreemptable ||
-                    (context->GetJobPreemptionLevel(operationElement, job->GetId()) >= minJobPreemptionLevel);
-                if (!isJobPreemptable) {
-                    continue;
-                }
-
-                auto preemptionBlockingAncestor = operationElement->FindPreemptionBlockingAncestor(
-                    targetOperationPreemptionPriority,
-                    context->DynamicAttributesList(),
-                    treeConfig);
-                bool isUnconditionalPreemptionAllowed = isJobForcefullyPreemptable ||
-                    preemptionBlockingAncestor == nullptr;
-                bool isConditionalPreemptionAllowed = treeSnapshotImpl->TreeConfig()->EnableConditionalPreemption &&
-                    !isUnconditionalPreemptionAllowed &&
-                    preemptionBlockingAncestor != operationElement;
-
-                if (isUnconditionalPreemptionAllowed) {
-                    const auto* parent = operationElement->GetParent();
-                    while (parent) {
-                        context->LocalUnconditionalUsageDiscountMap()[parent->GetTreeIndex()] += job->ResourceUsage();
-                        parent = parent->GetParent();
-                    }
-                    context->SchedulingContext()->UnconditionalResourceUsageDiscount() += job->ResourceUsage();
-                    unconditionallyPreemptableJobs.push_back(job);
-                } else if (isConditionalPreemptionAllowed) {
-                    context->ConditionallyPreemptableJobSetMap()[preemptionBlockingAncestor->GetTreeIndex()].insert(job.Get());
-                    ++totalConditionallyPreemptableJobCount;
-                }
-            }
-
-            context->PrepareConditionalUsageDiscounts(treeSnapshotImpl->RootElement(), targetOperationPreemptionPriority);
-            for (const auto& [_, jobSet] : context->ConditionallyPreemptableJobSetMap()) {
-                maxConditionallyPreemptableJobCountInPool = std::max(
-                    maxConditionallyPreemptableJobCountInPool,
-                    static_cast<int>(jobSet.size()));
-            }
-
-            context->StageState()->AnalyzeJobsDuration += timer.GetElapsedTime();
-        }
-
-        context->SchedulingStatistics().UnconditionallyPreemptableJobCount = unconditionallyPreemptableJobs.size();
-        context->SchedulingStatistics().UnconditionalResourceUsageDiscount = context->SchedulingContext()->UnconditionalResourceUsageDiscount();
-        context->SchedulingStatistics().MaxConditionalResourceUsageDiscount = context->SchedulingContext()->GetMaxConditionalUsageDiscount();
-        context->SchedulingStatistics().TotalConditionallyPreemptableJobCount = totalConditionallyPreemptableJobCount;
-        context->SchedulingStatistics().MaxConditionallyPreemptableJobCountInPool = maxConditionallyPreemptableJobCountInPool;
+        AnalyzePreemptableJobs(
+            treeSnapshotImpl,
+            context,
+            targetOperationPreemptionPriority,
+            minJobPreemptionLevel,
+            &unconditionallyPreemptableJobs,
+            &forcefullyPreemptableJobs);
 
         int startedBeforePreemption = context->SchedulingContext()->StartedJobs().size();
 
         // NB: Schedule at most one job with preemption.
         TJobPtr jobStartedUsingPreemption;
-        {
+        if (shouldAttemptScheduling) {
             YT_LOG_TRACE(
                 "Scheduling new jobs with preemption "
                 "(UnconditionallyPreemptableJobs: %v, UnconditionalResourceUsageDiscount: %v, TargetOperationPreemptionPriority: %v)",
@@ -1865,6 +1797,8 @@ private:
                 FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount()),
                 targetOperationPreemptionPriority);
 
+            auto& rootElement = treeSnapshotImpl->RootElement();
+            const auto& controllerConfig = treeSnapshotImpl->ControllerConfig();
             TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
 
             while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
@@ -1890,11 +1824,113 @@ private:
         }
 
         int startedAfterPreemption = context->SchedulingContext()->StartedJobs().size();
-
         context->SchedulingStatistics().ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
+        DoPreemptJobsAfterScheduling(
+            treeSnapshotImpl,
+            context,
+            targetOperationPreemptionPriority,
+            std::move(unconditionallyPreemptableJobs),
+            forcefullyPreemptableJobs,
+            jobStartedUsingPreemption);
+    }
+
+    void AnalyzePreemptableJobs(
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
+        TScheduleJobsContext* context,
+        EOperationPreemptionPriority targetOperationPreemptionPriority,
+        EJobPreemptionLevel minJobPreemptionLevel,
+        std::vector<TJobWithPreemptionInfo>* unconditionallyPreemptableJobs,
+        TNonOwningJobSet* forcefullyPreemptableJobs)
+    {
+        const auto& treeConfig = treeSnapshotImpl->TreeConfig();
+
+        YT_LOG_TRACE("Looking for preemptable jobs (MinJobPreemptionLevel: %v)", minJobPreemptionLevel);
+
+        int totalConditionallyPreemptableJobCount = 0;
+        int maxConditionallyPreemptableJobCountInPool = 0;
+
+        NProfiling::TWallTimer timer;
+
+        const auto& nodeModule = TNodeSchedulingSegmentManager::GetNodeModule(
+            context->SchedulingContext()->GetNodeDescriptor(),
+            treeConfig->SchedulingSegments->ModuleType);
+        auto jobInfos = CollectJobsWithPreemptionInfo(context->SchedulingContext(), treeSnapshotImpl);
+        for (const auto& jobInfo : jobInfos) {
+            const auto& [job, _, operationElement] = jobInfo;
+
+            bool isJobForcefullyPreemptable = !operationElement->IsSchedulingSegmentCompatibleWithNode(
+                context->SchedulingContext()->GetSchedulingSegment(),
+                nodeModule);
+            if (isJobForcefullyPreemptable) {
+                YT_ELEMENT_LOG_DETAILED(operationElement,
+                    "Job is forcefully preemptable because it is running on a node in a different scheduling segment or module "
+                    "(JobId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v, Module: %v)",
+                    job->GetId(),
+                    operationElement->GetId(),
+                    operationElement->SchedulingSegment(),
+                    context->SchedulingContext()->GetSchedulingSegment(),
+                    context->SchedulingContext()->GetNodeDescriptor().Address,
+                    context->SchedulingContext()->GetNodeDescriptor().DataCenter);
+
+                forcefullyPreemptableJobs->insert(job.Get());
+            }
+
+            bool isJobPreemptable = isJobForcefullyPreemptable || (context->GetJobPreemptionLevel(jobInfo) >= minJobPreemptionLevel);
+            if (!isJobPreemptable) {
+                continue;
+            }
+
+            auto preemptionBlockingAncestor = operationElement->FindPreemptionBlockingAncestor(
+                targetOperationPreemptionPriority,
+                context->DynamicAttributesList(),
+                treeConfig);
+            bool isUnconditionalPreemptionAllowed = isJobForcefullyPreemptable ||
+                preemptionBlockingAncestor == nullptr;
+            bool isConditionalPreemptionAllowed = treeSnapshotImpl->TreeConfig()->EnableConditionalPreemption &&
+                !isUnconditionalPreemptionAllowed &&
+                preemptionBlockingAncestor != operationElement;
+
+            if (isUnconditionalPreemptionAllowed) {
+                const auto* parent = operationElement->GetParent();
+                while (parent) {
+                    context->LocalUnconditionalUsageDiscountMap()[parent->GetTreeIndex()] += job->ResourceUsage();
+                    parent = parent->GetParent();
+                }
+                context->SchedulingContext()->UnconditionalResourceUsageDiscount() += job->ResourceUsage();
+                unconditionallyPreemptableJobs->push_back(jobInfo);
+            } else if (isConditionalPreemptionAllowed) {
+                context->ConditionallyPreemptableJobSetMap()[preemptionBlockingAncestor->GetTreeIndex()].insert(jobInfo);
+                ++totalConditionallyPreemptableJobCount;
+            }
+        }
+
+        context->PrepareConditionalUsageDiscounts(treeSnapshotImpl->RootElement(), targetOperationPreemptionPriority);
+        for (const auto& [_, jobSet] : context->ConditionallyPreemptableJobSetMap()) {
+            maxConditionallyPreemptableJobCountInPool = std::max(
+                maxConditionallyPreemptableJobCountInPool,
+                static_cast<int>(jobSet.size()));
+        }
+
+        context->StageState()->AnalyzeJobsDuration += timer.GetElapsedTime();
+
+        context->SchedulingStatistics().UnconditionallyPreemptableJobCount = unconditionallyPreemptableJobs->size();
+        context->SchedulingStatistics().UnconditionalResourceUsageDiscount = context->SchedulingContext()->UnconditionalResourceUsageDiscount();
+        context->SchedulingStatistics().MaxConditionalResourceUsageDiscount = context->SchedulingContext()->GetMaxConditionalUsageDiscount();
+        context->SchedulingStatistics().TotalConditionallyPreemptableJobCount = totalConditionallyPreemptableJobCount;
+        context->SchedulingStatistics().MaxConditionallyPreemptableJobCountInPool = maxConditionallyPreemptableJobCountInPool;
+    }
+
+    void DoPreemptJobsAfterScheduling(
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
+        TScheduleJobsContext* context,
+        EOperationPreemptionPriority targetOperationPreemptionPriority,
+        std::vector<TJobWithPreemptionInfo> preemptableJobs,
+        const TNonOwningJobSet& forcefullyPreemptableJobs,
+        const TJobPtr& jobStartedUsingPreemption)
+    {
         // Collect conditionally preemptable jobs.
-        TNonOwningJobSet conditionallyPreemptableJobs;
+        TJobWithPreemptionInfoSet conditionallyPreemptableJobs;
         if (jobStartedUsingPreemption) {
             auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(jobStartedUsingPreemption->GetOperationId());
             YT_VERIFY(operationElement);
@@ -1910,21 +1946,14 @@ private:
             }
         }
 
-        std::vector<TJobPtr> preemptableJobs = std::move(unconditionallyPreemptableJobs);
         preemptableJobs.insert(preemptableJobs.end(), conditionallyPreemptableJobs.begin(), conditionallyPreemptableJobs.end());
+        SortJobsWithPreemptionInfo(&preemptableJobs);
+        std::reverse(preemptableJobs.begin(), preemptableJobs.end());
 
         // Reset discounts.
         context->SchedulingContext()->ResetUsageDiscounts();
         context->LocalUnconditionalUsageDiscountMap().clear();
         context->ConditionallyPreemptableJobSetMap().clear();
-
-        // Preempt jobs if needed.
-        std::sort(
-            preemptableJobs.begin(),
-            preemptableJobs.end(),
-            [] (const TJobPtr& lhs, const TJobPtr& rhs) {
-                return lhs->GetStartTime() > rhs->GetStartTime();
-            });
 
         auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> const TSchedulerCompositeElement* {
             auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
@@ -1942,18 +1971,16 @@ private:
             return nullptr;
         };
 
-        auto findOperationElementForJob = [&] (const TJobPtr& job) -> TSchedulerOperationElement* {
-            auto operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
-            if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
-                YT_LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
-                    job->GetId(),
-                    job->GetOperationId());
-
-                return nullptr;
+        auto preemptionReason = [&] {
+            switch (targetOperationPreemptionPriority) {
+                case EOperationPreemptionPriority::Aggressive:
+                    return EJobPreemptionReason::AggressivePreemption;
+                case EOperationPreemptionPriority::Regular:
+                    return EJobPreemptionReason::Preemption;
+                default:
+                    YT_ABORT();
             }
-
-            return operationElement;
-        };
+        }();
 
         int currentJobIndex = 0;
         for (; currentJobIndex < std::ssize(preemptableJobs); ++currentJobIndex) {
@@ -1961,11 +1988,8 @@ private:
                 break;
             }
 
-            const auto& job = preemptableJobs[currentJobIndex];
-            auto operationElement = findOperationElementForJob(job);
-            if (!operationElement) {
-                continue;
-            }
+            const auto& jobInfo = preemptableJobs[currentJobIndex];
+            const auto& [job, _, operationElement] = jobInfo;
 
             if (jobStartedUsingPreemption) {
                 // TODO(eshcherbin): Rethink preemption reason format to allow more variable attributes easily.
@@ -1976,7 +2000,7 @@ private:
                     jobStartedUsingPreemption->GetOperationId(),
                     targetOperationPreemptionPriority,
                     forcefullyPreemptableJobs.contains(job.Get()) ? "forcefully" : "nonforcefully",
-                    conditionallyPreemptableJobs.contains(job.Get()) ? "conditionally" : "unconditionally"));
+                    conditionallyPreemptableJobs.contains(jobInfo) ? "conditionally" : "unconditionally"));
 
                 job->SetPreemptedFor(TPreemptedFor{
                     .JobId = jobStartedUsingPreemption->GetId(),
@@ -1995,17 +2019,13 @@ private:
         // may be preempted (e.g. an aggressively preemptable job can be preempted without scheduling any new jobs).
         // This is one of the reasons why we advise against specified resource limits.
         for (; currentJobIndex < std::ssize(preemptableJobs); ++currentJobIndex) {
-            const auto& job = preemptableJobs[currentJobIndex];
-            if (conditionallyPreemptableJobs.contains(job.Get())) {
+            const auto& jobInfo = preemptableJobs[currentJobIndex];
+            if (conditionallyPreemptableJobs.contains(jobInfo)) {
                 // Only unconditionally preemptable jobs can be preempted to recover violated resource limits.
                 continue;
             }
 
-            auto operationElement = findOperationElementForJob(job);
-            if (!operationElement) {
-                continue;
-            }
-
+            const auto& [job, _, operationElement] = jobInfo;
             if (!Dominates(operationElement->GetResourceLimits(), operationElement->GetInstantResourceUsage())) {
                 job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                     operationElement->GetId()));
@@ -2036,21 +2056,12 @@ private:
         const auto& treeConfig = treeSnapshotImpl->TreeConfig();
 
         YT_LOG_TRACE("Looking for gracefully preemptable jobs");
-        for (const auto& job : schedulingContext->RunningJobs()) {
-            if (job->GetPreemptionMode() != EPreemptionMode::Graceful || job->GetPreempted()) {
-                continue;
-            }
-
-            auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
-
-            if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
-                YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
-                    job->GetId(),
-                    job->GetOperationId());
-                continue;
-            }
-
-            if (operationElement->IsJobPreemptable(job->GetId(), /* aggressivePreemptionEnabled */ false)) {
+        const auto jobInfos = CollectJobsWithPreemptionInfo(schedulingContext, treeSnapshotImpl);
+        for (const auto& [job, preemptionStatus, operationElement] : jobInfos) {
+            bool shouldPreemptJobGracefully = (job->GetPreemptionMode() == EPreemptionMode::Graceful) &&
+                !job->GetPreempted() &&
+                (preemptionStatus == EJobPreemptionStatus::Preemptable);
+            if (shouldPreemptJobGracefully) {
                 schedulingContext->PreemptJob(job, treeConfig->JobGracefulInterruptTimeout, EJobPreemptionReason::GracefulPreemption);
             }
         }
