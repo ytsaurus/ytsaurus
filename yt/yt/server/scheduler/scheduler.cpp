@@ -1085,6 +1085,8 @@ public:
         }
 
         LogEventFluently(&SchedulerStructuredLogger, ELogEventType::RuntimeParametersInfo)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("authenticated_user").Value(user)
             .Item("runtime_params").Value(newParams);
 
         YT_LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
