@@ -642,7 +642,7 @@ protected:
 
         context.PrepareForScheduling(rootElement);
         rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
-        rootElement->PrescheduleJob(&context, /*operationPreemptionPriority*/ {});
+        rootElement->PrescheduleJob(&context, /*targetOperationPreemptionPriority*/ {});
 
         operationElement->ScheduleJob(&context, /* ignorePacking */ true);
 
@@ -1932,23 +1932,33 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
         EXPECT_FALSE(donorOperationElement->IsJobPreemptable(donorJobs[jobIndex]->GetId(), /*aggressivePreemptionEnabled*/ false));
     }
 
-    auto operationPreemptionPriority = EOperationPreemptionPriority::Regular;
+    auto targetOperationPreemptionPriority = EOperationPreemptionPriority::Regular;
     EXPECT_EQ(guaranteedPool.Get(), donorOperationElement->FindPreemptionBlockingAncestor(
-        operationPreemptionPriority,
+        targetOperationPreemptionPriority,
         context.DynamicAttributesList(),
         TreeConfig_));
     for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
         const auto& job = donorJobs[jobIndex];
-        EXPECT_TRUE(donorOperationElement->IsJobPreemptable(job->GetId(), /*aggressivePreemptionEnabled*/ false));
-        context.ConditionallyPreemptableJobSetMap()[guaranteedPool->GetTreeIndex()].insert(job.Get());
+        auto preemptionStatus = donorOperationElement->GetJobPreemptionStatus(job->GetId());
+        EXPECT_EQ(EJobPreemptionStatus::Preemptable, preemptionStatus);
+        context.ConditionallyPreemptableJobSetMap()[guaranteedPool->GetTreeIndex()].insert(TJobWithPreemptionInfo{
+            .Job = job,
+            .PreemptionStatus = preemptionStatus,
+            .OperationElement = donorOperationElement
+        });
     }
 
-    context.PrepareConditionalUsageDiscounts(rootElement.Get(), operationPreemptionPriority);
+    context.PrepareConditionalUsageDiscounts(rootElement.Get(), targetOperationPreemptionPriority);
 
     auto jobs = context.GetConditionallyPreemptableJobsInPool(guaranteedPool.Get());
     EXPECT_EQ(5, std::ssize(jobs));
     for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
-        EXPECT_TRUE(jobs.contains(donorJobs[jobIndex].Get()));
+        const auto& job = donorJobs[jobIndex];
+        EXPECT_TRUE(jobs.contains(TJobWithPreemptionInfo{
+            .Job = job,
+            .PreemptionStatus = donorOperationElement->GetJobPreemptionStatus(job->GetId()),
+            .OperationElement = donorOperationElement,
+        }));
     }
 
     EXPECT_TRUE(context.GetConditionallyPreemptableJobsInPool(blockingPool.Get()).empty());
@@ -2814,7 +2824,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     context.StartStage(&NonPreemptiveSchedulingStage_);
     context.PrepareForScheduling(rootElement);
     rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
-    rootElement->PrescheduleJob(&context, /*operationPreemptionPriority*/ {});
+    rootElement->PrescheduleJob(&context, /*targetOperationPreemptionPriority*/ {});
 
     for (auto operationElement : operationElements) {
         const auto& dynamicAttributes = context.DynamicAttributesFor(rootElement.Get());
@@ -2845,7 +2855,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     context.StartStage(&NonPreemptiveSchedulingStage_);
     context.PrepareForScheduling(rootElement);
     rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
-    rootElement->PrescheduleJob(&context, /*operationPreemptionPriority*/ {});
+    rootElement->PrescheduleJob(&context, /*targetOperationPreemptionPriority*/ {});
 
     for (auto operationElement : operationElements) {
         const auto& childHeapMap = context.ChildHeapMap();

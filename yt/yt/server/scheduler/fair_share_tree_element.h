@@ -134,7 +134,6 @@ private:
 using TChildHeapMap = THashMap<int, TChildHeap>;
 using TJobResourcesMap = THashMap<int, TJobResources>;
 using TNonOwningJobSet = THashSet<TJob*>;
-using TJobSetMap = THashMap<int, TNonOwningJobSet>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,6 +225,33 @@ struct TScheduleJobsStage
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobWithPreemptionInfo
+{
+    TJobPtr Job;
+    EJobPreemptionStatus PreemptionStatus = EJobPreemptionStatus::NonPreemptable;
+    TSchedulerOperationElementPtr OperationElement;
+
+    bool operator ==(const TJobWithPreemptionInfo& other) const = default;
+};
+
+using TJobWithPreemptionInfoSet = THashSet<TJobWithPreemptionInfo>;
+using TJobWithPreemptionInfoSetMap = THashMap<int, TJobWithPreemptionInfoSet>;
+
+} // namespace NYT::NScheduler
+
+template <>
+struct THash<NYT::NScheduler::TJobWithPreemptionInfo>
+{
+    inline size_t operator ()(const NYT::NScheduler::TJobWithPreemptionInfo& jobInfo) const
+    {
+        return THash<NYT::NScheduler::TJobPtr>()(jobInfo.Job);
+    }
+};
+
+namespace NYT::NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TScheduleJobsContext
 {
 private:
@@ -263,7 +289,7 @@ private:
     DEFINE_BYREF_RW_PROPERTY(TChildHeapMap, ChildHeapMap);
     //! Populated only for pools.
     DEFINE_BYREF_RW_PROPERTY(TJobResourcesMap, LocalUnconditionalUsageDiscountMap);
-    DEFINE_BYREF_RW_PROPERTY(TJobSetMap, ConditionallyPreemptableJobSetMap);
+    DEFINE_BYREF_RW_PROPERTY(TJobWithPreemptionInfoSetMap, ConditionallyPreemptableJobSetMap);
 
     DEFINE_BYREF_RW_PROPERTY(TJobResources, CurrentConditionalDiscount);
 
@@ -290,7 +316,7 @@ public:
     EOperationPreemptionPriority GetOperationPreemptionPriority(const TSchedulerOperationElement* operationElement) const;
     void CountOperationsByPreemptionPriority(const TSchedulerRootElementPtr& rootElement);
 
-    EJobPreemptionLevel GetJobPreemptionLevel(const TSchedulerOperationElement* operationElement, TJobId jobId) const;
+    EJobPreemptionLevel GetJobPreemptionLevel(const TJobWithPreemptionInfo& jobWithPreemptionInfo) const;
 
     void PrepareForScheduling(const TSchedulerRootElementPtr& rootElement);
     void PrescheduleJob(
@@ -301,7 +327,7 @@ public:
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
 
     void PrepareConditionalUsageDiscounts(const TSchedulerRootElementPtr& rootElement, EOperationPreemptionPriority operationPreemptionPriority);
-    const TNonOwningJobSet& GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const;
+    const TJobWithPreemptionInfoSet& GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const;
     TJobResources GetLocalUnconditionalUsageDiscountFor(const TSchedulerElement* element) const;
 
     void StartStage(TScheduleJobsStage* schedulingStage);
@@ -1186,6 +1212,7 @@ public:
     void SetJobResourceUsage(TJobId jobId, const TJobResources& resources);
 
     bool IsJobKnown(TJobId jobId) const;
+    //! This method is deprecated and used only in unit tests. Use |GetJobPreemptionStatus| instead.
     bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
 
     EJobPreemptionStatus GetJobPreemptionStatus(TJobId jobId) const;

@@ -586,6 +586,52 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(donor_op.id) + "/resource_usage/cpu") == 1.0)
         wait(lambda: get(scheduler_orchid_pool_path("blocking_pool") + "/resource_usage/cpu") == 1.5)
 
+    @authors("eshcherbin")
+    def test_job_preemption_order(self):
+        set("//sys/scheduler/config/min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1})
+        set("//sys/scheduler/config/operation_hangup_check_period", 1000000000)
+
+        create_pool("production", attributes={"strong_guarantee_resources": {"cpu": 3.0}})
+        create_pool(
+            "research",
+            attributes={
+                "allow_aggressive_preemption": False,
+                "scheduling_tag_filter": "research",
+                "resource_limits": {"cpu": 0.0},
+            })
+
+        nodes = ls("//sys/cluster_nodes")
+
+        op1 = run_sleeping_vanilla(
+            job_count=6,
+            task_patch={"cpu_limit": 0.5},
+            spec={"pool": "research"},
+        )
+
+        for i, node in enumerate(nodes):
+            set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "research")
+
+            set("//sys/pools/research/@resource_limits/cpu", float(i) + 0.5)
+            wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/resource_usage/cpu", default=None) == float(i) + 0.5)
+            time.sleep(0.1)
+
+            set("//sys/pools/research/@resource_limits/cpu", float(i) + 1.0)
+            wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/resource_usage/cpu", default=None) == float(i) + 1.0)
+            time.sleep(0.1)
+
+        op2 = run_sleeping_vanilla(task_patch={"cpu_limit": 0.5}, spec={"pool": "production", "scheduling_tag_filter": nodes[0]})
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/preemptable_job_count") == 1)
+        wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/resource_usage/cpu", default=None) == 0.0)
+
+        time.sleep(1.5)
+        assert get(scheduler_orchid_operation_path(op2.id) + "/resource_usage/cpu") == 0.0
+
+        last_node_jobs = sorted([(job["start_time"], job_id) for job_id, job in op1.get_running_jobs().items() if job["address"] == nodes[2]])
+        earlier_job = last_node_jobs[0][1]
+        run_sleeping_vanilla(task_patch={"cpu_limit": 0.5}, spec={"pool": "production", "scheduling_tag_filter": nodes[2]})
+        wait(lambda: len(op1.get_running_jobs()) == 5)
+        wait(lambda: earlier_job in op1.get_running_jobs())
+
 ##################################################################
 
 

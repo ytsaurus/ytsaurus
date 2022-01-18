@@ -58,7 +58,7 @@ TString FormatProfilingRangeIndex(int rangeIndex)
 
 static const TString InvalidCustomProfilingTag("invalid");
 
-static const TNonOwningJobSet EmptyJobSet;
+static const TJobWithPreemptionInfoSet EmptyJobWithPreemptionInfoSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,11 +145,10 @@ void TScheduleJobsContext::CountOperationsByPreemptionPriority(const TSchedulerR
     SchedulingStatistics_.OperationCountByPreemptionPriority = OperationCountByPreemptionPriority_;
 }
 
-EJobPreemptionLevel TScheduleJobsContext::GetJobPreemptionLevel(const TSchedulerOperationElement* operationElement, TJobId jobId) const
+EJobPreemptionLevel TScheduleJobsContext::GetJobPreemptionLevel(const TJobWithPreemptionInfo& jobWithPreemptionInfo) const
 {
-    auto aggressivePreemptionAllowed = operationElement->GetEffectiveAggressivePreemptionAllowed();
-    auto jobPreemptionStatus = operationElement->GetJobPreemptionStatus(jobId);
-    switch (jobPreemptionStatus) {
+    auto aggressivePreemptionAllowed = jobWithPreemptionInfo.OperationElement->GetEffectiveAggressivePreemptionAllowed();
+    switch (jobWithPreemptionInfo.PreemptionStatus) {
         case EJobPreemptionStatus::NonPreemptable:
             return EJobPreemptionLevel::NonPreemptable;
         case EJobPreemptionStatus::AggressivelyPreemptable:
@@ -207,10 +206,10 @@ void TScheduleJobsContext::PrepareConditionalUsageDiscounts(const TSchedulerRoot
     rootElement->PrepareConditionalUsageDiscounts(this, targetOperationPreemptionPriority);
 }
 
-const TNonOwningJobSet& TScheduleJobsContext::GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const
+const TJobWithPreemptionInfoSet& TScheduleJobsContext::GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const
 {
     auto it = ConditionallyPreemptableJobSetMap_.find(element->GetTreeIndex());
-    return it != ConditionallyPreemptableJobSetMap_.end() ? it->second : EmptyJobSet;
+    return it != ConditionallyPreemptableJobSetMap_.end() ? it->second : EmptyJobWithPreemptionInfoSet;
 }
 
 TJobResources TScheduleJobsContext::GetLocalUnconditionalUsageDiscountFor(const TSchedulerElement* element) const
@@ -1249,8 +1248,8 @@ void TSchedulerCompositeElement::PrepareConditionalUsageDiscounts(
     EOperationPreemptionPriority targetOperationPreemptionPriority) const
 {
     TJobResources deltaConditionalDiscount;
-    for (auto* job : context->GetConditionallyPreemptableJobsInPool(this)) {
-        deltaConditionalDiscount += job->ResourceUsage();
+    for (const auto& jobInfo : context->GetConditionallyPreemptableJobsInPool(this)) {
+        deltaConditionalDiscount += jobInfo.Job->ResourceUsage();
     }
 
     context->CurrentConditionalDiscount() += deltaConditionalDiscount;
