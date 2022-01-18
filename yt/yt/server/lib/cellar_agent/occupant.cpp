@@ -447,7 +447,8 @@ public:
                 connection->GetClusterDirectorySynchronizer()->Start();
                 providers = {
                     CreateTransactionParticipantProvider(connection),
-                    CreateTransactionParticipantProvider(connection->GetClusterDirectory())};
+                    CreateTransactionParticipantProvider(connection->GetClusterDirectory())
+                };
             }
             TransactionSupervisor_ = CreateTransactionSupervisor(
                 Config_->TransactionSupervisor,

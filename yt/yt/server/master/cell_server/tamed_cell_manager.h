@@ -10,11 +10,10 @@
 #include <yt/yt/server/master/cypress_server/public.h>
 
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
-#include <yt/yt/server/lib/hydra_common/mutation.h>
 
 #include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/yt/core/misc/compact_vector.h>
+#include <yt/yt/client/object_client/public.h>
 
 namespace NYT::NCellServer {
 
@@ -56,6 +55,9 @@ public:
     virtual const THashSet<TCellBase*>& Cells(NCellarClient::ECellarType cellarType) = 0;
     virtual TCellBase* GetCellOrThrow(TTamedCellId id) = 0;
     virtual void RemoveCell(TCellBase* cell, bool force) = 0;
+
+    virtual TCellBase* FindCellByCellTag(NObjectClient::TCellTag cellTag) = 0;
+    virtual TCellBase* GetCellByCellTagOrThrow(NObjectClient::TCellTag cellTag) = 0;
 
     virtual TCellBase* CreateCell(TCellBundle* cellBundle, TArea* area, std::unique_ptr<TCellBase> holder) = 0;
     virtual void ZombifyCell(TCellBase* cell) = 0;

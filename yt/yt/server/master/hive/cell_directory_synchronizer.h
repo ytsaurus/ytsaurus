@@ -20,7 +20,7 @@ class TCellDirectorySynchronizer
 public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
-        NHiveClient::TCellDirectoryPtr cellDirectory,
+        NHiveClient::ICellDirectoryPtr cellDirectory,
         NCellServer::ITamedCellManagerPtr cellManager,
         NHydra::IHydraManagerPtr hydraManager,
         IInvokerPtr automatonInvoker);

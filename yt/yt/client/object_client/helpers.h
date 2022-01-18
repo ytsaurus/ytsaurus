@@ -114,6 +114,10 @@ TObjectId ReplaceCellTagInId(
 template <int ShardCount>
 int GetShardIndex(TObjectId id);
 
+//! Returns true if #cellId is uniquely identified by its tag component.
+//! Currenly these are master and chaos cells
+bool IsGlobalCellId(TCellId cellId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Relies on first 32 bits of object id to be pseudo-random,

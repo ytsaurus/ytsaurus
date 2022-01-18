@@ -27,8 +27,7 @@ class TCellPeerDescriptor;
 struct TCellDescriptor;
 struct TCellInfo;
 
-DECLARE_REFCOUNTED_CLASS(TCellDirectory)
-
+DECLARE_REFCOUNTED_STRUCT(ICellDirectory)
 DECLARE_REFCOUNTED_STRUCT(ICellDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TClusterDirectory)

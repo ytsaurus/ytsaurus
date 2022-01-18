@@ -112,31 +112,31 @@ public:
         const std::vector<NYPath::TYPath>& movableTables,
         const NApi::TBalanceTabletCellsOptions& options) override;
 
-    TFuture<NChaosClient::TReplicationCardToken> CreateReplicationCard(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+    TFuture<NChaosClient::TReplicationCardId> CreateReplicationCard(
+        NChaosClient::TReplicationCardId replicationCardId,
         const TCreateReplicationCardOptions& options = {}) override;
 
     TFuture<NChaosClient::TReplicationCardPtr> GetReplicationCard(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options = {}) override;
 
     TFuture<NChaosClient::TReplicaId> CreateReplicationCardReplica(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         const NChaosClient::TReplicaInfo& replica,
         const TCreateReplicationCardReplicaOptions& options = {}) override;
 
     TFuture<void> RemoveReplicationCardReplica(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
         const TRemoveReplicationCardReplicaOptions& options = {}) override;
 
     TFuture<void> AlterReplicationCardReplica(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
         const TAlterReplicationCardReplicaOptions& options = {}) override;
 
     TFuture<void> UpdateReplicationProgress(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
         const TUpdateReplicationProgressOptions& options = {}) override;
 

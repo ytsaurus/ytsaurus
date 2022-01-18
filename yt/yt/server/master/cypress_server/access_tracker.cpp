@@ -206,7 +206,7 @@ void TAccessTracker::OnFlush()
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto leaderChannel = cellDirectory->GetChannel(multicellManager->GetCellId(), EPeerKind::Leader);
+        auto leaderChannel = cellDirectory->GetChannelByCellId(multicellManager->GetCellId(), EPeerKind::Leader);
 
         TCypressServiceProxy leaderProxy(std::move(leaderChannel));
         auto leaderRequest = leaderProxy.TouchNodes();

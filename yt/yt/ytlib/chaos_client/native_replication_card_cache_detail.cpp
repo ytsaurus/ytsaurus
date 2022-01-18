@@ -84,8 +84,8 @@ public:
         , Key_ (key)
         , Logger(logger)
     {
-        Logger.WithTag("ReplicationCardToken: %v, CacheSessionId: %v",
-            Key_.Token,
+        Logger.WithTag("ReplicationCardId: %v, CacheSessionId: %v",
+            Key_.CardId,
             TGuid::Create());
     }
 
@@ -94,7 +94,7 @@ public:
         auto channel = Owner_->ChaosCacheChannel_;
         auto proxy = TChaosServiceProxy(channel);
         auto req = proxy.GetReplicationCard();
-        ToProto(req->mutable_replication_card_token(), Key_.Token);
+        ToProto(req->mutable_replication_card_id(), Key_.CardId);
         req->set_request_coordinators(Key_.RequestCoordinators);
         req->set_request_replication_progress(Key_.RequestProgress);
         req->set_request_history(Key_.RequestHistory);
@@ -141,9 +141,9 @@ TFuture<TReplicationCardPtr> TReplicationCardCache::DoGet(const TReplicationCard
 {
     auto connection = Connection_.Lock();
     if (!connection) {
-        auto error = TError("Unable to get replication card: сonnection terminated")
-            << TErrorAttribute("replication_card_token", key.Token);
-        return MakeFuture<TReplicationCardPtr>(error);
+        return MakeFuture<TReplicationCardPtr>(
+            TError("Unable to get replication card: сonnection terminated")
+                << TErrorAttribute("replication_card_id", key.CardId));
     }
 
     auto invoker = connection->GetInvoker();

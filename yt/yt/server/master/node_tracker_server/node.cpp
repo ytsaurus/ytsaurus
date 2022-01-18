@@ -856,10 +856,9 @@ TNode::TCellSlot* TNode::GetCellSlot(const TCellBase* cell)
     return slot;
 }
 
-void TNode::DetachTabletCell(const TCellBase* cell)
+void TNode::DetachCell(const TCellBase* cell)
 {
-    auto* slot = FindCellSlot(cell);
-    if (slot) {
+    if (auto* slot = FindCellSlot(cell)) {
         *slot = TCellSlot();
     }
 }

@@ -591,22 +591,22 @@ TFuture<std::vector<TTabletActionId>> TClient::BalanceTabletCells(
     }));
 }
 
-TFuture<NChaosClient::TReplicationCardToken> TClient::CreateReplicationCard(
-    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+TFuture<NChaosClient::TReplicationCardId> TClient::CreateReplicationCard(
+    NObjectClient::TCellId /*chaosCellId*/,
     const TCreateReplicationCardOptions& /*options*/)
 {
     YT_UNIMPLEMENTED();
 }
 
 TFuture<NChaosClient::TReplicationCardPtr> TClient::GetReplicationCard(
-    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    NChaosClient::TReplicationCardId /*replicationCardId*/,
     const TGetReplicationCardOptions& /*options*/)
 {
     YT_UNIMPLEMENTED();
 }
 
 TFuture<TReplicaId> TClient::CreateReplicationCardReplica(
-    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    NChaosClient::TReplicationCardId /*replicationCardId*/,
     const NChaosClient::TReplicaInfo& /*replica*/,
     const TCreateReplicationCardReplicaOptions& /*options*/)
 {
@@ -614,7 +614,7 @@ TFuture<TReplicaId> TClient::CreateReplicationCardReplica(
 }
 
 TFuture<void> TClient::RemoveReplicationCardReplica(
-    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    NChaosClient::TReplicationCardId /*replicationCardId*/,
     NChaosClient::TReplicaId /*replicaId*/,
     const TRemoveReplicationCardReplicaOptions& /*options*/)
 {
@@ -622,7 +622,7 @@ TFuture<void> TClient::RemoveReplicationCardReplica(
 }
 
 TFuture<void> TClient::AlterReplicationCardReplica(
-    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    NChaosClient::TReplicationCardId /*replicationCardId*/,
     NChaosClient::TReplicaId /*replicaId*/,
     const TAlterReplicationCardReplicaOptions& /*options*/)
 {
@@ -630,7 +630,7 @@ TFuture<void> TClient::AlterReplicationCardReplica(
 }
 
 TFuture<void> TClient::UpdateReplicationProgress(
-    const NChaosClient::TReplicationCardToken& /*replicationCardToken*/,
+    NChaosClient::TReplicationCardId /*replicationCardId*/,
     NChaosClient::TReplicaId /*replicaId*/,
     const TUpdateReplicationProgressOptions& /*options*/)
 {

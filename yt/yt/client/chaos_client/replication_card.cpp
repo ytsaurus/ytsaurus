@@ -27,32 +27,6 @@ bool IsStableReplicaState(EReplicaState state)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicationCardToken::TReplicationCardToken(
-    NObjectClient::TCellId chaosCellId,
-    TReplicationCardId replicationCardId)
-    : ChaosCellId(chaosCellId)
-    , ReplicationCardId(replicationCardId)
-{ }
-
-TReplicationCardToken::operator size_t() const
-{
-    return MultiHash(
-        ChaosCellId,
-        ReplicationCardId);
-}
-
-TReplicationCardToken::operator bool() const
-{
-    return static_cast<bool>(ReplicationCardId);
-}
-
-bool TReplicationCardToken::operator == (const TReplicationCardToken& other) const
-{
-    return ChaosCellId == other.ChaosCellId && ReplicationCardId == other.ReplicationCardId;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void FormatValue(TStringBuilderBase* builder, const TReplicationProgress& replicationProgress, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{Segments: %v, UpperKey: %v}",
@@ -110,18 +84,6 @@ void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicatio
 TString ToString(const TReplicationCard& replicationCard)
 {
     return ToStringViaBuilder(replicationCard);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TReplicationCardToken& replicationCardToken, TStringBuf /*spec*/)
-{
-    builder->AppendFormat("{ChaosCellId: %v, ReplicationCardId: %v}",
-        replicationCardToken.ChaosCellId,
-        replicationCardToken.ReplicationCardId);
-}
-
-TString ToString(const TReplicationCardToken& replicationCardToken)
-{
-    return ToStringViaBuilder(replicationCardToken);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

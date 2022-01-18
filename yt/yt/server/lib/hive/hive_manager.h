@@ -43,7 +43,7 @@ class THiveManager
 public:
     THiveManager(
         THiveManagerConfigPtr config,
-        NHiveClient::TCellDirectoryPtr cellDirectory,
+        NHiveClient::ICellDirectoryPtr cellDirectory,
         TCellId selfCellId,
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,

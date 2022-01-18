@@ -12,8 +12,6 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NChaosClient::TReplicationCardToken;
-
 DEFINE_ENUM(EShortcutState,
     ((Granting)     (0))
     ((Granted)      (1))

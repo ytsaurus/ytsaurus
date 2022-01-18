@@ -43,12 +43,6 @@ message TReplicationCard
     required uint64 era = 3;
 }
 
-message TReplicationCardToken
-{
-    required NYT.NProto.TGuid chaos_cell_id = 1;
-    required NYT.NProto.TGuid replication_card_id = 2;
-}
-
 message TUpstreamReplicationCard
 {
     required NYT.NProto.TGuid chaos_cell_id = 1; // NObjectClient::TCellId

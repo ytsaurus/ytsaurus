@@ -170,6 +170,14 @@ bool IsSchemaType(EObjectType type)
     return (static_cast<ui32>(type) & SchemaObjectTypeMask) != 0;
 }
 
+bool IsGlobalCellId(TCellId cellId)
+{
+    auto type = TypeFromId(cellId);
+    return
+        type == EObjectType::MasterCell ||
+        type == EObjectType::ChaosCell;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectClient

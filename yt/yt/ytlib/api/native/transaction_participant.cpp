@@ -29,7 +29,7 @@ class TTransactionParticipant
 {
 public:
     TTransactionParticipant(
-        TCellDirectoryPtr cellDirectory,
+        ICellDirectoryPtr cellDirectory,
         ICellDirectorySynchronizerPtr cellDirectorySynchronizer,
         ITimestampProviderPtr timestampProvider,
         IConnectionPtr connection,
@@ -141,7 +141,7 @@ public:
     }
 
 private:
-    const TCellDirectoryPtr CellDirectory_;
+    const ICellDirectoryPtr CellDirectory_;
     const ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     const ITimestampProviderPtr TimestampProvider_;
     const IConnectionPtr Connection_;
@@ -176,7 +176,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto channel = CellDirectory_->FindChannel(CellId_);
+        auto channel = CellDirectory_->FindChannelByCellId(CellId_);
         if (channel) {
             return MakeFuture(channel);
         }
@@ -184,7 +184,7 @@ private:
             return MakeNoChannelError();
         }
         return CellDirectorySynchronizer_->Sync().Apply(BIND([=, this_ = MakeStrong(this)] () {
-            auto channel = CellDirectory_->FindChannel(CellId_);
+            auto channel = CellDirectory_->FindChannelByCellId(CellId_);
             if (channel) {
                 return MakeFuture(channel);
             }
@@ -206,7 +206,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ITransactionParticipantPtr CreateTransactionParticipant(
-    TCellDirectoryPtr cellDirectory,
+    ICellDirectoryPtr cellDirectory,
     ICellDirectorySynchronizerPtr cellDirectorySynchronizer,
     ITimestampProviderPtr timestampProvider,
     IConnectionPtr connection,

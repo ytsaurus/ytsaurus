@@ -409,7 +409,7 @@ public:
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         auto cellId = GetCellId(cellTag);
-        auto channel = cellDirectory->FindChannel(cellId, peerKind);
+        auto channel = cellDirectory->FindChannelByCellId(cellId, peerKind);
         if (!channel) {
             return nullptr;
         }

@@ -297,31 +297,31 @@ public:
         const std::vector<NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options), (override));
 
-    MOCK_METHOD(TFuture<NChaosClient::TReplicationCardToken>, CreateReplicationCard, (
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+    MOCK_METHOD(TFuture<NChaosClient::TReplicationCardId>, CreateReplicationCard, (
+        NObjectClient::TCellId chaosCellId,
         const TCreateReplicationCardOptions& options), (override));
 
     MOCK_METHOD(TFuture<NChaosClient::TReplicationCardPtr>, GetReplicationCard, (
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options), (override));
 
     MOCK_METHOD(TFuture<NChaosClient::TReplicaId>, CreateReplicationCardReplica, (
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         const NChaosClient::TReplicaInfo& replica,
         const TCreateReplicationCardReplicaOptions& options), (override));
 
     MOCK_METHOD(TFuture<void>, RemoveReplicationCardReplica, (
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
         const TRemoveReplicationCardReplicaOptions& options), (override));
 
     MOCK_METHOD(TFuture<void>, AlterReplicationCardReplica, (
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
         const TAlterReplicationCardReplicaOptions& options), (override));
 
     MOCK_METHOD(TFuture<void>, UpdateReplicationProgress, (
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
         const TUpdateReplicationProgressOptions& options), (override));
 

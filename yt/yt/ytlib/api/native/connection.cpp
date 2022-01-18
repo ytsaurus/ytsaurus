@@ -178,7 +178,7 @@ public:
             this,
             MediumDirectory_);
 
-        CellDirectory_ = New<NHiveClient::TCellDirectory>(
+        CellDirectory_ = NHiveClient::CreateCellDirectory(
             Config_->CellDirectory,
             ChannelFactory_,
             GetNetworks(),
@@ -416,7 +416,7 @@ public:
         return MasterCellDirectorySynchronizer_;
     }
 
-    const NHiveClient::TCellDirectoryPtr& GetCellDirectory() override
+    const NHiveClient::ICellDirectoryPtr& GetCellDirectory() override
     {
         return CellDirectory_;
     }
@@ -525,7 +525,7 @@ public:
             srcCellIds,
             dstCellId);
 
-        auto channel = CellDirectory_->GetChannelOrThrow(dstCellId);
+        auto channel = CellDirectory_->GetChannelByCellIdOrThrow(dstCellId);
         THiveServiceProxy proxy(std::move(channel));
 
         auto req = proxy.SyncWithOthers();
@@ -588,7 +588,7 @@ private:
     IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     TSyncReplicaCachePtr SyncReplicaCache_;
 
-    TCellDirectoryPtr CellDirectory_;
+    ICellDirectoryPtr CellDirectory_;
     ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     const TCellTrackerPtr DownedCellTracker_ = New<TCellTracker>();
 

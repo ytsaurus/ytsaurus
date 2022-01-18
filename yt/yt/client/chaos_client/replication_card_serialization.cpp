@@ -325,18 +325,6 @@ void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TR
     replicationCard->Era = protoReplicationCard.era();
 }
 
-void ToProto(NChaosClient::NProto::TReplicationCardToken* protoReplicationCardToken, const TReplicationCardToken& replicationCardToken)
-{
-    ToProto(protoReplicationCardToken->mutable_chaos_cell_id(), replicationCardToken.ChaosCellId);
-    ToProto(protoReplicationCardToken->mutable_replication_card_id(), replicationCardToken.ReplicationCardId);
-}
-
-void FromProto(TReplicationCardToken* replicationCardToken, const NChaosClient::NProto::TReplicationCardToken& protoReplicationCardToken)
-{
-    FromProto(&replicationCardToken->ChaosCellId, protoReplicationCardToken.chaos_cell_id());
-    FromProto(&replicationCardToken->ReplicationCardId, protoReplicationCardToken.replication_card_id());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosClient

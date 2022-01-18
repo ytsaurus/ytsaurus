@@ -213,7 +213,7 @@ public:
         const auto& client = Bootstrap_->GetMasterClient();
         const auto& connection = client->GetNativeConnection();
         const auto& cellDirectory = connection->GetCellDirectory();
-        return cellDirectory->GetChannel(cellId, NHydra::EPeerKind::Leader);
+        return cellDirectory->GetChannelByCellId(cellId, NHydra::EPeerKind::Leader);
     }
 
     bool IsConnected() const override

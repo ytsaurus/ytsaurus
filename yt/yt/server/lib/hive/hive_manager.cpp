@@ -85,7 +85,7 @@ class THiveManager::TImpl
 public:
     TImpl(
         THiveManagerConfigPtr config,
-        TCellDirectoryPtr cellDirectory,
+        ICellDirectoryPtr cellDirectory,
         TCellId selfCellId,
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
@@ -312,7 +312,7 @@ public:
 private:
     const TCellId SelfCellId_;
     const THiveManagerConfigPtr Config_;
-    const TCellDirectoryPtr CellDirectory_;
+    const ICellDirectoryPtr CellDirectory_;
     const IInvokerPtr AutomatonInvoker_;
     const IInvokerPtr GuardedAutomatonInvoker_;
     const IHydraManagerPtr HydraManager_;
@@ -615,7 +615,7 @@ private:
             return cachedChannel;
         }
 
-        auto channel = CellDirectory_->FindChannel(mailbox->GetCellId());
+        auto channel = CellDirectory_->FindChannelByCellId(mailbox->GetCellId());
         if (!channel) {
             return nullptr;
         }
@@ -944,7 +944,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto channel = CellDirectory_->FindChannel(cellId, EPeerKind::Leader);
+        auto channel = CellDirectory_->FindChannelByCellId(cellId, EPeerKind::Leader);
         if (!channel) {
             return MakeFuture(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -1617,7 +1617,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, MailboxMap_)
 
 THiveManager::THiveManager(
     THiveManagerConfigPtr config,
-    TCellDirectoryPtr cellDirectory,
+    ICellDirectoryPtr cellDirectory,
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,

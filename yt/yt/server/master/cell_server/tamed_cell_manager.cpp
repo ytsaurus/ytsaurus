@@ -267,7 +267,7 @@ public:
         }
         YT_VERIFY(cellBundle->Areas().empty());
 
-        // Remove tablet cell bundle from maps.
+        // Remove cell bundle from maps.
         YT_VERIFY(NameToCellBundleMap_[cellBundle->GetCellarType()].erase(cellBundle->GetName()) == 1);
         YT_VERIFY(CellBundlesPerTypeMap_[cellBundle->GetCellarType()].erase(cellBundle) == 1);
 
@@ -285,7 +285,7 @@ public:
 
         const auto& currentOptions = cellBundle->GetOptions();
         if (newOptions->PeerCount != currentOptions->PeerCount && !cellBundle->Cells().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot change peer count since tablet cell bundle has %v tablet cell(s)",
+            THROW_ERROR_EXCEPTION("Cannot change peer count since cell bundle has %v cell(s)",
                 cellBundle->Cells().size());
         }
         if (newOptions->IndependentPeers != currentOptions->IndependentPeers && !cellBundle->Cells().empty()) {
@@ -445,39 +445,52 @@ public:
         }
     }
 
-    TCellBase* CreateCell(TCellBundle* cellBundle, TArea* area, std::unique_ptr<TCellBase> holder) override
+    TCellBase* CreateCell(
+        TCellBundle* cellBundle,
+        TArea* area,
+        std::unique_ptr<TCellBase> holder) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(cellBundle, EPermission::Use);
 
-        auto id = holder->GetId();
-        if (FindCell(id)) {
+        auto cellId = holder->GetId();
+        auto cellTag = CellTagFromId(cellId);
+
+        if (IsGlobalCellId(cellId) && CellTagToCell_.contains(cellTag)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Cell %v already exists",
-                id);
+                "Cell with tag %v already exists",
+                cellTag);
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
+        if (FindCell(cellId)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Cell with id %v already exists",
+                cellId);
+        }
 
         int peerCount = cellBundle->GetOptions()->PeerCount;
         holder->Peers().resize(peerCount);
         holder->SetCellBundle(cellBundle);
         YT_VERIFY(cellBundle->Cells().insert(holder.get()).second);
         YT_VERIFY(CellsPerTypeMap_[holder->GetCellarType()].insert(holder.get()).second);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
 
         holder->SetArea(area);
         YT_VERIFY(area->Cells().insert(holder.get()).second);
 
-        auto* cell = CellMap_.Insert(id, std::move(holder));
+        auto* cell = CellMap_.Insert(cellId, std::move(holder));
 
         if (cell->IsIndependent()) {
             cell->SetLeadingPeerId(InvalidPeerId);
         }
 
+        MaybeRegisterGlobalCell(cell);
         ReconfigureCell(cell);
 
         // Make the fake reference.
@@ -486,10 +499,10 @@ public:
         cell->GossipStatus().Initialize(Bootstrap_);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->CreateMailbox(id);
+        hiveManager->CreateMailbox(cellId);
 
-        auto cellMapNodeProxy = GetCellMapNode(id);
-        auto cellNodePath = "/" + ToString(id);
+        auto cellMapNodeProxy = GetCellMapNode(cellId);
+        auto cellNodePath = "/" + ToString(cellId);
 
         try {
             // NB: Users typically are not allowed to create these types.
@@ -552,12 +565,12 @@ public:
             YT_LOG_ERROR_IF(
                 IsMutationLoggingEnabled(),
                 ex,
-                "Error registering tablet cell in Cypress (CellId: %v)",
+                "Error registering cell in Cypress (CellId: %v)",
                 cell->GetId());
 
             objectManager->UnrefObject(cell);
-            THROW_ERROR_EXCEPTION("Error registering tablet cell in Cypress")
-                    << ex;
+            THROW_ERROR_EXCEPTION("Error registering cell in Cypress")
+                << ex;
         }
 
         CellCreated_.Fire(cell);
@@ -582,7 +595,7 @@ public:
                 continue;
             }
             if (peer.Node) {
-                peer.Node->DetachTabletCell(cell);
+                peer.Node->DetachCell(cell);
             }
             if (!peer.Descriptor.IsNull()) {
                 RemoveFromAddressToCellMap(peer.Descriptor, cell);
@@ -607,7 +620,7 @@ public:
                 // NB: Subtree transactions were already aborted above.
                 cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error unregisterting tablet cell from Cypress");
+                YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error unregisterting cell from Cypress");
             }
         }
 
@@ -630,6 +643,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         CellMap_.Release(cell->GetId()).release();
+        MaybeUnregisterGlobalCell(cell);
     }
 
     void UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount) override
@@ -732,14 +746,32 @@ public:
         return CellsPerTypeMap_[cellarType];
     }
 
-    TCellBase* GetCellOrThrow(TTamedCellId id) override
+    TCellBase* GetCellOrThrow(TTamedCellId cellId) override
     {
-        auto* cell = FindCell(id);
+        auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "No such tablet cell %v",
-                id);
+                "No cell with id %v is known",
+                cellId);
+        }
+        return cell;
+    }
+
+    TCellBase* FindCellByCellTag(TCellTag cellTag) override
+    {
+        auto it = CellTagToCell_.find(cellTag);
+        return it == CellTagToCell_.end() ? nullptr : it->second;
+    }
+
+    TCellBase* GetCellByCellTagOrThrow(TCellTag cellTag) override
+    {
+        auto* cell = FindCellByCellTag(cellTag);
+        if (!IsObjectAlive(cell)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No cell with tag %v is known",
+                cellTag);
         }
         return cell;
     }
@@ -749,21 +781,21 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removing tablet cell (CellId: %v, Force: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removing cell (CellId: %v, Force: %v)",
             cell->GetId(),
             force);
 
         switch (cell->GetCellLifeStage()) {
             case ECellLifeStage::Running: {
-                // Decommission tablet cell on primary master.
+                // Decommission cell on primary master.
                 DecommissionCell(cell);
 
-                // Decommission tablet cell on secondary masters.
+                // Decommission cell on secondary masters.
                 NTabletServer::NProto::TReqDecommissionTabletCellOnMaster req;
                 ToProto(req.mutable_cell_id(), cell->GetId());
                 multicellManager->PostToMasters(req, multicellManager->GetRegisteredMasterCellTags());
 
-                // Decommission tablet cell on node.
+                // Decommission cell on node.
                 if (force) {
                     OnCellDecommissionedOnNode(cell);
                 }
@@ -796,9 +828,9 @@ public:
             return;
         }
 
-        // Decommission tablet cell on node.
+        // Decommission cell on node.
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requesting tablet cell decommission on node (CellId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requesting cell decommission on node (CellId: %v)",
             cell->GetId());
 
         cell->SetCellLifeStage(ECellLifeStage::DecommissioningOnNode);
@@ -826,7 +858,7 @@ public:
         if (!IsObjectAlive(cell)) {
             YT_LOG_WARNING_IF(
                 IsMutationLoggingEnabled(),
-                "Attempted to update peer count of inexistent cell (CellId: %v)",
+                "Attempted to update peer count of non-existing cell (CellId: %v)",
                 cellId);
             return;
         }
@@ -880,7 +912,7 @@ public:
 
         cell->SetCellLifeStage(ECellLifeStage::Decommissioned);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell decommissioned (CellId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell decommissioned (CellId: %v)",
             cell->GetId());
     }
 
@@ -912,7 +944,7 @@ public:
         if (!cellBundle) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "No such %v cell bundle %Qlv",
+                "No such %Qlv cell bundle %Qlv",
                 cellarType,
                 name);
         }
@@ -931,7 +963,7 @@ public:
         if (!cellBundle) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "No such tablet cell bundle %v",
+                "No such cell bundle %v",
                 cellBundleId);
         }
 
@@ -954,7 +986,7 @@ public:
         if (FindCellBundleByName(newName, cellBundle->GetCellarType(), false)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Tablet cell bundle %Qv already exists",
+                "Cell bundle %Qv already exists",
                 newName);
         }
 
@@ -1037,6 +1069,7 @@ private:
 
     THashMap<ECellarType, THashMap<TString, TCellBundle*>> NameToCellBundleMap_;
 
+    THashMap<TCellTag, TCellBase*> CellTagToCell_;
     THashMap<TString, TCellSet> AddressToCell_;
     THashMap<TTransaction*, std::pair<TCellBase*, std::optional<TPeerId>>> TransactionToCellMap_;
 
@@ -1099,6 +1132,22 @@ private:
         AreaMap_.LoadValues(context);
     }
 
+    void MaybeRegisterGlobalCell(TCellBase* cell)
+    {
+        auto cellId = cell->GetId();
+        if (IsGlobalCellId(cellId)) {
+            EmplaceOrCrash(CellTagToCell_, CellTagFromId(cellId), cell);
+        }
+    }
+
+    void MaybeUnregisterGlobalCell(TCellBase* cell)
+    {
+        auto cellId = cell->GetId();
+        if (IsGlobalCellId(cellId)) {
+            // NB: Missing cell is fine.
+            CellTagToCell_.erase(CellTagFromId(cellId));
+        }
+    }
 
     void OnAfterSnapshotLoaded() override
     {
@@ -1133,6 +1182,8 @@ private:
             if (!IsObjectAlive(cell)) {
                 continue;
             }
+
+            MaybeRegisterGlobalCell(cell);
 
             YT_VERIFY(cell->GetCellBundle()->Cells().insert(cell).second);
             YT_VERIFY(cell->GetArea()->Cells().insert(cell).second);
@@ -1178,6 +1229,7 @@ private:
         CellMap_.Clear();
         AreaMap_.Clear();
         NameToCellBundleMap_.clear();
+        CellTagToCell_.clear();
         AddressToCell_.clear();
         TransactionToCellMap_.clear();
         CellBundlesPerTypeMap_.clear();
@@ -1746,7 +1798,7 @@ private:
         if (!IsObjectAlive(cell)) {
             YT_LOG_WARNING_IF(
                 IsMutationLoggingEnabled(),
-                "Attempted to assigning peer on inexistent cell (CellId: %v)",
+                "Attempted to assigning peer on non-existing cell (CellId: %v)",
                 cellId);
             return;
         }
@@ -1775,7 +1827,7 @@ private:
             {
                 YT_LOG_WARNING_IF(
                     IsMutationLoggingEnabled(),
-                    "Attempted to assign peer on inexistent node (CellId: %v, PeerId: %v, Address: %v)",
+                    "Attempted to assign peer on non-existing node (CellId: %v, PeerId: %v, Address: %v)",
                     cellId,
                     peerId,
                     descriptor.GetDefaultAddress());
@@ -1819,7 +1871,7 @@ private:
             cell->AssignPeer(descriptor, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell peer assigned (CellId: %v, PeerId: %v, Address: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell peer assigned (CellId: %v, PeerId: %v, Address: %v)",
                 cellId,
                 peerId,
                 descriptor.GetDefaultAddress());
@@ -1842,7 +1894,7 @@ private:
         if (!IsObjectAlive(cell)) {
             YT_LOG_WARNING_IF(
                 IsMutationLoggingEnabled(),
-                "Attempted to revoking peer of inexistent cell (CellId: %v)",
+                "Attempted to revoking peer of non-existing cell (CellId: %v)",
                 cellId);
             return;
         }
@@ -1919,7 +1971,7 @@ private:
         if (!IsObjectAlive(cell)) {
             YT_LOG_WARNING_IF(
                 IsMutationLoggingEnabled(),
-                "Attempted to set leading peer of inexistent cell (CellId: %v)",
+                "Attempted to set leading peer of non-existing cell (CellId: %v)",
                 cellId);
             return;
         }
@@ -1947,7 +1999,7 @@ private:
         cell->SetLeadingPeerId(peerId);
 
         const auto& descriptor = cell->Peers()[peerId].Descriptor;
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
             cellId,
             descriptor.GetDefaultAddress(),
             peerId);
@@ -2017,7 +2069,7 @@ private:
 
         YT_LOG_DEBUG_IF(
             IsMutationLoggingEnabled(),
-            "Tablet cell reconfigured (CellId: %v, Version: %v)",
+            "Cell reconfigured (CellId: %v, Version: %v)",
             cell->GetId(),
             cell->GetConfigVersion());
     }
@@ -2039,7 +2091,7 @@ private:
     void ValidateHasHealthyCells(TCellBundle* bundle)
     {
         if (!CheckHasHealthyCells(bundle)) {
-            THROW_ERROR_EXCEPTION("No healthy tablet cells in bundle %Qv",
+            THROW_ERROR_EXCEPTION("No healthy cells in bundle %Qv",
                 bundle->GetName());
         }
     }
@@ -2144,7 +2196,7 @@ private:
         }
         multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction started (CellId: %v, PeerId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction started (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
             peerId,
             transaction->GetId());
@@ -2176,7 +2228,7 @@ private:
 
         YT_VERIFY(TransactionToCellMap_.emplace(transaction, std::make_pair(cell, peerId)).second);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction attached (CellId: %v, PeerId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction attached (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
             peerId,
             transaction->GetId());
@@ -2201,7 +2253,7 @@ private:
 
         auto* transaction = cell->GetPrerequisiteTransaction(peerId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting prerequisite transaction (CellId: %v, PeerId: %v, transactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting cell prerequisite transaction (CellId: %v, PeerId: %v, transactionId: %v)",
             cell->GetId(),
             peerId,
             GetObjectId(transaction));
@@ -2230,7 +2282,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
             peerId,
             transactionId);
@@ -2245,10 +2297,10 @@ private:
         auto peerId = request->has_peer_id() ? std::make_optional(request->peer_id()) : std::nullopt;
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto transaction = transactionManager->FindTransaction(transactionId);
+        auto* transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_ALERT("Prerequisite transaction not found at secondary master (CellId: %v, PeerId: %v, TransactionId: %v)",
+            YT_LOG_ALERT("Cell prerequisite transaction not found at secondary master (CellId: %v, PeerId: %v, TransactionId: %v)",
                 cellId,
                 peerId,
                 transactionId);
@@ -2258,7 +2310,7 @@ private:
         // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
         TransactionToCellMap_.erase(transaction);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cellId,
             peerId,
             transactionId);
@@ -2274,12 +2326,12 @@ private:
         auto [cell, peerId] = it->second;
         TransactionToCellMap_.erase(it);
 
-        auto revocationReason = TError("Tablet cell prerequisite transaction %v finished",
+        auto revocationReason = TError("Cell prerequisite transaction %v finished",
             transaction->GetId());
 
         cell->SetPrerequisiteTransaction(peerId, nullptr);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction finished (CellId: %v, PeerId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction finished (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
             peerId,
             transaction->GetId());
@@ -2308,13 +2360,13 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), reason, "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), reason, "Cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
             descriptor.GetDefaultAddress(),
             peerId);
 
         if (peer.Node) {
-            peer.Node->DetachTabletCell(cell);
+            peer.Node->DetachCell(cell);
         }
 
         RemoveFromAddressToCellMap(descriptor, cell);

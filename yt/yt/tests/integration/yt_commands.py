@@ -49,18 +49,18 @@ except ImportError:  # Python 3
 ###########################################################################
 
 root_logger = logging.getLogger()
-
-clusters_drivers = {}
 is_multicell = None
 path_to_run_tests = None
-_zombie_responses = []
-_events_on_fs = None
 default_api_version = 4
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp = 0x3FFFFFFFFFFFFF01
 AsyncLastCommittedTimestamp = 0x3FFFFFFFFFFFFF04
 MinTimestamp = 0x0000000000000001
+
+_clusters_drivers = {}
+_zombie_responses = []
+_events_on_fs = None
 
 
 def authors(*the_authors):
@@ -127,10 +127,10 @@ def print_debug(*args):
 
 
 def get_driver(cell_index=0, cluster="primary", api_version=default_api_version):
-    if cluster not in clusters_drivers:
+    if cluster not in _clusters_drivers:
         return None
 
-    return clusters_drivers[cluster][cell_index][api_version]
+    return _clusters_drivers[cluster][cell_index][api_version]
 
 
 def _get_driver(driver):
@@ -165,7 +165,7 @@ def init_drivers(clusters):
                 for i in xrange(instance.yt_config.secondary_cell_count)
             ]
 
-            clusters_drivers[instance._cluster_name] = [default_driver] + secondary_drivers
+            _clusters_drivers[instance._cluster_name] = [default_driver] + secondary_drivers
 
 
 def sorted_dicts(list_of_dicts):
@@ -196,7 +196,7 @@ def wait_assert(check_fn, *args, **kwargs):
 
 
 def wait_drivers():
-    for cluster in list(clusters_drivers.values()):
+    for cluster in list(_clusters_drivers.values()):
         cell_tag = 0
 
         def driver_is_ready():
@@ -210,11 +210,11 @@ def wait_drivers():
 
 
 def terminate_drivers():
-    for cluster in clusters_drivers:
-        for drivers_by_cell_tag in clusters_drivers[cluster]:
+    for cluster in _clusters_drivers:
+        for drivers_by_cell_tag in _clusters_drivers[cluster]:
             for driver in list(itervalues(drivers_by_cell_tag)):
                 driver.terminate()
-    clusters_drivers.clear()
+    _clusters_drivers.clear()
 
 
 def get_branch(dict, path):
@@ -1931,19 +1931,26 @@ def create_replication_card(**kwargs):
     return execute_command("create_replication_card", kwargs, parse_yson=True)
 
 
-def get_replication_card(**kwargs):
+def get_replication_card(replication_card_id, **kwargs):
+    kwargs["replication_card_id"] = replication_card_id
     return execute_command("get_replication_card", kwargs, parse_yson=True)
 
 
-def create_replication_card_replica(**kwargs):
+def create_replication_card_replica(replication_card_id, replica_info, **kwargs):
+    kwargs["replication_card_id"] = replication_card_id
+    kwargs["replica_info"] = replica_info
     return execute_command("create_replication_card_replica", kwargs, parse_yson=True)
 
 
-def remove_replication_card_replica(**kwargs):
+def remove_replication_card_replica(replication_card_id, replica_id, **kwargs):
+    kwargs["replication_card_id"] = replication_card_id
+    kwargs["replica_id"] = replica_id
     return execute_command("remove_replication_card_replica", kwargs, parse_yson=True)
 
 
-def alter_replication_card_replica(**kwargs):
+def alter_replication_card_replica(replication_card_id, replica_id, **kwargs):
+    kwargs["replication_card_id"] = replication_card_id
+    kwargs["replica_id"] = replica_id
     return execute_command("alter_replication_card_replica", kwargs, parse_yson=True)
 
 #########################################
@@ -2091,11 +2098,39 @@ def get_guid_from_parts(lo, hi):
     return "{3:x}-{2:x}-{1:x}-{0:x}".format(*ints)
 
 
-def generate_uuid(generator=None):
-    def get_int():
-        return hex(random.randint(0, 2 ** 32 - 1))[2:].rstrip("L")
+def _format_uuid_part(value):
+    return hex(value)[2:].rstrip("L")
 
-    return "-".join([get_int() for _ in xrange(4)])
+
+def _generate_uuid_part(limit=2 ** 32):
+    return _format_uuid_part(random.randint(0, limit - 1))
+
+
+def generate_uuid():
+    return "-".join([_generate_uuid_part() for _ in xrange(4)])
+
+
+def _format_chaos_cell_id(cell_tag):
+    # See IsWellKnownId.
+    # EObjectType::ChaosCell == 1200
+    return _generate_uuid_part(2 ** 16) + "-" + \
+        _generate_uuid_part() + "-" + \
+        _format_uuid_part(2 ** 16 * cell_tag + 1200) + "-" + \
+        _generate_uuid_part()
+
+
+_current_chaos_cell_tag = 100
+
+
+def _generate_chaos_cell_tag():
+    global _current_chaos_cell_tag
+    _current_chaos_cell_tag += 1
+    assert _current_chaos_cell_tag <= 10000
+    return _current_chaos_cell_tag
+
+
+def generate_chaos_cell_id():
+    return _format_chaos_cell_id(_generate_chaos_cell_tag())
 
 
 ##################################################################
@@ -2263,13 +2298,14 @@ def wait_for_chunk_replicator_enabled(driver=None):
 
 def get_cluster_drivers(primary_driver=None):
     if primary_driver is None:
-        return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in clusters_drivers["primary"]]
-    for drivers in clusters_drivers.values():
+        return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in _clusters_drivers["primary"]]
+    for drivers in _clusters_drivers.values():
         if drivers[0][default_api_version] == primary_driver:
             return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in drivers]
     raise "Failed to get cluster drivers"
 
 
+# TODO(babenko): rename to wait_for_tablet_cells
 def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
     print_debug("Waiting for tablet cells to become healthy...")
 
@@ -2324,6 +2360,7 @@ def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
         wait(lambda: check_cells(driver=driver))
 
 
+# TODO(babenko): rename to sync_create_tablet_cells
 def sync_create_cells(cell_count, driver=None, **attributes):
     cell_ids = []
     for _ in xrange(cell_count):
@@ -2331,6 +2368,72 @@ def sync_create_cells(cell_count, driver=None, **attributes):
         cell_ids.append(cell_id)
     wait_for_cells(cell_ids, driver=driver)
     return cell_ids
+
+
+def create_chaos_cell(cell_bundle, cell_id, cluster_names):
+    drivers = [get_driver(cluster=cluster_name) for cluster_name in cluster_names]
+
+    params = {
+        "type": "chaos_cell",
+        "attributes": {
+            "id": cell_id,
+            "cell_bundle": cell_bundle,
+        },
+        "driver": drivers[0],
+    }
+
+    result = execute_command("create", params)
+    result_cell_id = yson.loads(result)["object_id"]
+    assert cell_id == result_cell_id
+
+    for driver in drivers[1:]:
+        params["driver"] = driver
+        execute_command("create", params)
+
+
+def wait_for_chaos_cell(cell_id, cluster_names):
+    def check():
+        for cluster_name in cluster_names:
+            driver = get_driver(cluster=cluster_name)
+            if get("#{0}/@health".format(cell_id), driver=driver) != "good":
+                return False
+        return True
+    wait(check)
+
+
+def sync_create_chaos_cell(cell_bundle, cell_id, cluster_names):
+    create_chaos_cell(cell_bundle, cell_id, cluster_names)
+    wait_for_chaos_cell(cell_id, cluster_names)
+
+
+def create_chaos_cell_bundle(name, cluster_names):
+    drivers = [get_driver(cluster=cluster_name) for cluster_name in cluster_names]
+
+    params_pattern = {
+        "type": "chaos_cell_bundle",
+        "attributes": {
+            "name": name,
+            "chaos_options": {
+                "peers": [{"remote": True, "alien_cluster": cluster_name} for cluster_name in cluster_names],
+            },
+            "options": {
+                "changelog_account": "sys",
+                "snapshot_account": "sys",
+                "peer_count": len(cluster_names),
+                "independent_peers": True,
+            }
+        }
+    }
+
+    bundle_ids = []
+    for peer_id, driver in enumerate(drivers):
+        params = pycopy.deepcopy(params_pattern)
+        params["attributes"]["chaos_options"]["peers"][peer_id] = {}
+        params["driver"] = driver
+        result = execute_command("create", params)
+        bundle_ids.append(yson.loads(result)["object_id"])
+
+    return bundle_ids
 
 
 def wait_until_sealed(path, driver=None):
@@ -2524,7 +2627,7 @@ def sync_control_chunk_replicator(enabled):
                 "//sys/@chunk_replicator_enabled",
                 driver=drivers_by_cell_tag[default_api_version],
             ) == enabled
-            for drivers_by_cell_tag in clusters_drivers["primary"]
+            for drivers_by_cell_tag in _clusters_drivers["primary"]
         )
     )
 

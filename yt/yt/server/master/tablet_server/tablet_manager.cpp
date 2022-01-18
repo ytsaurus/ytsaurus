@@ -5,7 +5,6 @@
 #include "config.h"
 #include "cypress_integration.h"
 #include "private.h"
-#include "replication_card.h"
 #include "table_replica.h"
 #include "table_replica_type_handler.h"
 #include "tablet.h"
@@ -3564,7 +3563,7 @@ private:
                     }
                 }
 
-                if (table->ReplicationCardToken()) {
+                if (table->GetReplicationCardId()) {
                     if (tablet->ReplicationProgress().Segments.empty()) {
                         tablet->ReplicationProgress().Segments.push_back({tablet->GetPivotKey(), MinTimestamp});
                         tablet->ReplicationProgress().UpperKey = tablet->GetIndex() + 1 == std::ssize(allTablets)
@@ -3572,7 +3571,7 @@ private:
                             : allTablets[tabletIndex + 1]->GetPivotKey();
                     }
 
-                    ToProto(req.mutable_replication_card_token(), ConvertToClientReplicationCardToken(table->ReplicationCardToken()));
+                    ToProto(req.mutable_replication_card_id(), table->GetReplicationCardId());
                     ToProto(req.mutable_replication_progress(), tablet->ReplicationProgress());
                 }
 
@@ -3987,7 +3986,7 @@ private:
         }
 
         // Copy replication progress.
-        if (table->IsPhysicallySorted() && table->ReplicationCardToken()) {
+        if (table->IsPhysicallySorted() && table->GetReplicationCardId()) {
             TReplicationProgress progress;
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tablet = tablets[index];

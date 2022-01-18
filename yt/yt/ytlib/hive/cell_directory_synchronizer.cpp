@@ -30,7 +30,7 @@ class TCellDirectorySynchronizer
 public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
-        TCellDirectoryPtr cellDirectory,
+        ICellDirectoryPtr cellDirectory,
         TCellIdList cellIdsToSyncCells,
         const NLogging::TLogger& logger)
         : Config_(std::move(config))
@@ -69,7 +69,7 @@ public:
 
 private:
     const TCellDirectorySynchronizerConfigPtr Config_;
-    const TCellDirectoryPtr CellDirectory_;
+    const ICellDirectoryPtr CellDirectory_;
     const TCellIdList CellIdsToSyncCells_;
 
     const NLogging::TLogger Logger;
@@ -108,7 +108,7 @@ private:
             YT_LOG_DEBUG("Started synchronizing cell directory");
 
             auto cellId = CellIdsToSyncCells_[RandomGenerator_.Generate<size_t>() % CellIdsToSyncCells_.size()];
-            auto channel = CellDirectory_->GetChannelOrThrow(cellId, NHydra::EPeerKind::Follower);
+            auto channel = CellDirectory_->GetChannelByCellIdOrThrow(cellId, NHydra::EPeerKind::Follower);
             THiveServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->SyncRpcTimeout);
 
@@ -157,7 +157,7 @@ private:
 
 ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
-    TCellDirectoryPtr cellDirectory,
+    ICellDirectoryPtr cellDirectory,
     TCellIdList cellIdsToSyncCells,
     const NLogging::TLogger& logger)
 {

@@ -1690,31 +1690,31 @@ struct IClient
         const std::vector<NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options = {}) = 0;
 
-    virtual TFuture<NChaosClient::TReplicationCardToken> CreateReplicationCard(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+    virtual TFuture<NChaosClient::TReplicationCardId> CreateReplicationCard(
+        NObjectClient::TCellId chaosCellId,
         const TCreateReplicationCardOptions& options = {}) = 0;
 
     virtual TFuture<NChaosClient::TReplicationCardPtr> GetReplicationCard(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        const NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options = {}) = 0;
 
     virtual TFuture<NChaosClient::TReplicaId> CreateReplicationCardReplica(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         const NChaosClient::TReplicaInfo& replica,
         const TCreateReplicationCardReplicaOptions& options = {}) = 0;
 
     virtual TFuture<void> RemoveReplicationCardReplica(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
         const TRemoveReplicationCardReplicaOptions& options = {}) = 0;
 
     virtual TFuture<void> AlterReplicationCardReplica(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
         const TAlterReplicationCardReplicaOptions& options = {}) = 0;
 
     virtual TFuture<void> UpdateReplicationProgress(
-        const NChaosClient::TReplicationCardToken& replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
         const TUpdateReplicationProgressOptions& options = {}) = 0;
 

@@ -51,7 +51,7 @@ struct IConnection
     virtual const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() = 0;
     virtual const NCellMasterClient::TCellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() = 0;
 
-    virtual const NHiveClient::TCellDirectoryPtr& GetCellDirectory() = 0;
+    virtual const NHiveClient::ICellDirectoryPtr& GetCellDirectory() = 0;
     virtual const NHiveClient::ICellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() = 0;
 
     virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() = 0;

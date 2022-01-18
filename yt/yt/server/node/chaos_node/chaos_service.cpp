@@ -67,19 +67,20 @@ private:
     {
         SyncWithUpstream();
 
-        auto replicationCardToken = FromProto<NChaosClient::TReplicationCardToken>(request->replication_card_token());
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         bool includeCoordinators = request->request_coordinators();
         bool includeProgress = request->request_replication_progress();
         bool includeHistory = request->request_history();
 
-        context->SetRequestInfo("ReplicationCardToken: %v, IncludeCoordinators: %v, IncludeProgress: %v, IncludeHistory: %v",
-            replicationCardToken,
+        context->SetRequestInfo("ReplicationCardId: %v, IncludeCoordinators: %v, IncludeProgress: %v, IncludeHistory: %v",
+            replicationCardId,
             includeCoordinators,
             includeProgress,
             includeHistory);
 
         const auto& chaosManager = Slot_->GetChaosManager();
-        auto replicationCard = chaosManager->GetReplicationCard(replicationCardToken.ReplicationCardId);
+        auto replicationCard = chaosManager->GetReplicationCard(replicationCardId);
+
         auto* protoReplicationCard = response->mutable_replication_card();
         protoReplicationCard->set_era(replicationCard->GetEra());
 
@@ -98,8 +99,8 @@ private:
             ToProto(protoReplica, replica, includeProgress, includeHistory);
         }
 
-        context->SetResponseInfo("ReplicationCardToken: %v, CoordinatorCellIds: %v, ReplicationCard: %v",
-            replicationCardToken,
+        context->SetResponseInfo("ReplicationCardId: %v, CoordinatorCellIds: %v, ReplicationCard: %v",
+            replicationCardId,
             coordinators,
             *replicationCard);
 
@@ -108,19 +109,19 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, CreateTableReplica)
     {
-        auto replicationCardToken = FromProto<NChaosClient::TReplicationCardToken>(request->replication_card_token());
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replica = FromProto<TReplicaInfo>(request->replica_info());
 
-        context->SetRequestInfo("ReplicationCardToken: %v, Replica: %v",
-            replicationCardToken,
+        context->SetRequestInfo("ReplicationCardId: %v, Replica: %v",
+            replicationCardId,
             replica);
 
         if (!IsStableReplicaMode(replica.Mode)) {
-            THROW_ERROR_EXCEPTION("Invalid replica mode %Qv", replica.Mode);
+            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", replica.Mode);
         }
 
         if (!IsStableReplicaState(replica.State)) {
-            THROW_ERROR_EXCEPTION("Invalid replica state %Qv", replica.State);
+            THROW_ERROR_EXCEPTION("Invalid replica state %Qlv", replica.State);
         }
 
         const auto& chaosManager = Slot_->GetChaosManager();
@@ -129,11 +130,11 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RemoveTableReplica)
     {
-        auto replicationCardToken = FromProto<NChaosClient::TReplicationCardToken>(request->replication_card_token());
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<TReplicaId>(request->replica_id());
 
-        context->SetRequestInfo("ReplicationCardToken: %v, ReplicaId: %v",
-            replicationCardToken,
+        context->SetRequestInfo("ReplicationCardId: %v, ReplicaId: %v",
+            replicationCardId,
             replicaId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
@@ -142,7 +143,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, AlterTableReplica)
     {
-        auto replicationCardToken = FromProto<NChaosClient::TReplicationCardToken>(request->replication_card_token());
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<TTableId>(request->replica_id());
         auto mode = request->has_mode()
             ? std::make_optional(FromProto<EReplicaMode>(request->mode()))
@@ -152,15 +153,15 @@ private:
             : std::nullopt;
 
         if (mode && !IsStableReplicaMode(*mode)) {
-            THROW_ERROR_EXCEPTION("Invalid replica mode %Qv", *mode);
+            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
         }
 
         if (state && !IsStableReplicaState(*state)) {
-            THROW_ERROR_EXCEPTION("Invalid replica state %Qv", *state);
+            THROW_ERROR_EXCEPTION("Invalid replica state %Qlv", *state);
         }
 
-        context->SetRequestInfo("ReplicationCardToken: %v, ReplicaId: %v, Mode: %v, State: %v",
-            replicationCardToken,
+        context->SetRequestInfo("ReplicationCardId: %v, ReplicaId: %v, Mode: %v, State: %v",
+            replicationCardId,
             replicaId,
             mode,
             state);
@@ -171,12 +172,12 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateReplicationProgress)
     {
-        auto replicationCardToken = FromProto<NChaosClient::TReplicationCardToken>(request->replication_card_token());
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<TTableId>(request->replica_id());
         auto progress = FromProto<TReplicationProgress>(request->replication_progress());
 
-        context->SetRequestInfo("ReplicationCardToken: %v, ReplicaId: %v, ReplicationProgress: %v",
-            replicationCardToken,
+        context->SetRequestInfo("ReplicationCardId: %v, ReplicaId: %v, ReplicationProgress: %v",
+            replicationCardId,
             replicaId,
             progress);
 

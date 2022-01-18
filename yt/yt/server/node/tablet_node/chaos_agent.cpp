@@ -34,17 +34,17 @@ public:
     TChaosAgent(
         TTablet* tablet,
         ITabletSlotPtr slot,
-        const TReplicationCardToken& replicationCardToken,
+        TReplicationCardId replicationCardId,
         NNative::IConnectionPtr localConnection)
         : Tablet_(tablet)
         , Slot_(std::move(slot))
         , MountConfig_(tablet->GetSettings().MountConfig)
-        , ReplicationCardToken_(replicationCardToken)
+        , ReplicationCardId_(replicationCardId)
         , Connection_(std::move(localConnection))
         , Logger(TabletNodeLogger
-            .WithTag("%v, ReplicationCardToken: %v",
+            .WithTag("%v, ReplicationCardId: %v",
                 tablet->GetLoggingTag(),
-                replicationCardToken))
+                replicationCardId))
     { }
 
     void Enable() override
@@ -69,7 +69,7 @@ private:
     TTablet* const Tablet_;
     const ITabletSlotPtr Slot_;
     const TTableMountConfigPtr MountConfig_;
-    const TReplicationCardToken ReplicationCardToken_;
+    const TReplicationCardId ReplicationCardId_;
     const NNative::IConnectionPtr Connection_;
 
     TReplicationCardPtr ReplicationCard_;
@@ -102,7 +102,7 @@ private:
             const auto& replicationCardCache = Connection_->GetReplicationCardCache();
 
             ReplicationCard_ = WaitFor(replicationCardCache->GetReplicationCard({
-                    .Token = ReplicationCardToken_,
+                    .CardId = ReplicationCardId_,
                     .RequestHistory = true,
                     .RequestProgress = true
                 })).ValueOrThrow();
@@ -227,7 +227,7 @@ private:
             .Progress = *Tablet_->RuntimeData()->ReplicationProgress.Load()
         };
         auto future = client->UpdateReplicationProgress(
-            ReplicationCardToken_,
+            ReplicationCardId_,
             Tablet_->GetUpstreamReplicaId(),
             options);
         auto resultOrError = WaitFor(future);
@@ -246,13 +246,13 @@ private:
 IChaosAgentPtr CreateChaosAgent(
     TTablet* tablet,
     ITabletSlotPtr slot,
-    const TReplicationCardToken& replicationCardToken,
+    TReplicationCardId replicationCardId,
     NNative::IConnectionPtr localConnection)
 {
     return New<TChaosAgent>(
         tablet,
         std::move(slot),
-        replicationCardToken,
+        replicationCardId,
         std::move(localConnection));
 }
 
