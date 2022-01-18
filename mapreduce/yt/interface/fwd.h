@@ -302,8 +302,10 @@ namespace NYT {
     class IIOperationPreparationContext;
 
     class IJob;
+    using IJobPtr = ::TIntrusivePtr<IJob>;
 
     class IRawJob;
+    using IRawJobPtr = ::TIntrusivePtr<IRawJob>;
 
     enum EMergeMode : int;
 
