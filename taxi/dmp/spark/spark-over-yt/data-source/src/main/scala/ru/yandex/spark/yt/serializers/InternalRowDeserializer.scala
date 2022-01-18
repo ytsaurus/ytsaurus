@@ -7,6 +7,7 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
+import ru.yandex.inside.yt.kosher.common.Decimal.binaryToText
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonDecoder
@@ -99,6 +100,8 @@ class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[In
       case BinaryType => addValue(bytes)
       case YsonType => addValue(bytes)
       case StringType => addValue(UTF8String.fromBytes(bytes))
+      case d: DecimalType =>
+        addValue(Decimal(BigDecimal(binaryToText(bytes, d.precision, d.scale)), d.precision, d.scale))
       case _ @ (ArrayType(_, _) | StructType(_) | MapType(_, _, _)) =>
         addValue(YsonDecoder.decode(bytes, indexedDataTypes(_index)))
     }

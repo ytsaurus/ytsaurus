@@ -1,7 +1,5 @@
 package ru.yandex.spark.yt.serializers
 
-import io.circe.parser._
-import io.circe.syntax._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtTable
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
@@ -13,8 +11,7 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.TypeUtils.{isTuple, isVariant, isVariantOverTuple}
 import ru.yandex.spark.yt.serializers.YtLogicalType.getStructField
 import ru.yandex.spark.yt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
-import ru.yandex.type_info.TiType
-import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
+import ru.yandex.yt.ytclient.tables.{ColumnSortOrder, TableSchema}
 
 object SchemaConverter {
   object MetadataFields {
@@ -139,6 +136,9 @@ object SchemaConverter {
     case FloatType => YtLogicalType.Float
     case DoubleType => YtLogicalType.Double
     case BooleanType => YtLogicalType.Boolean
+    case d: DecimalType =>
+      val dT = if (d.precision > 35) applyYtLimitToSparkDecimal(d) else d
+      YtLogicalType.Decimal(dT.precision, dT.scale)
     case aT: ArrayType =>
       YtLogicalType.Array(wrapNullable(ytLogicalTypeV3(aT.elementType), aT.containsNull))
     case sT: StructType if isTuple(sT) =>
@@ -225,6 +225,21 @@ object SchemaConverter {
         throw new IllegalArgumentException(
           s"YT data source does not support ${field.dataType.simpleString} data type.")
       }
+    }
+  }
+
+  def applyYtLimitToSparkDecimal(dataType: DecimalType): DecimalType = {
+    val precision = dataType.precision
+    val scale = dataType.scale
+    val overflow = precision - 35
+    if (overflow > 0) {
+      if (scale < overflow) {
+        throw new IllegalArgumentException("Precision and scale couldn't be reduced for satisfying yt limitations")
+      } else {
+        DecimalType(precision - overflow, scale - overflow)
+      }
+    } else {
+      dataType
     }
   }
 }

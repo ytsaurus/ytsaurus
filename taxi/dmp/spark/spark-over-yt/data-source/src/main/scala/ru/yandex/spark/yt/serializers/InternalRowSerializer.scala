@@ -7,7 +7,9 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.slf4j.LoggerFactory
+import ru.yandex.inside.yt.kosher.common.Decimal.textToBinary
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
+import ru.yandex.spark.yt.serializers.SchemaConverter.applyYtLimitToSparkDecimal
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.`object`.{WireProtocolWriteable, WireRowSerializer}
@@ -85,6 +87,20 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
         sparkField.dataType match {
           case BinaryType | YsonType => writeBytes(writeable, idMapping, aggregate, i, row.getBinary(i))
           case StringType => writeBytes(writeable, idMapping, aggregate, i, row.getUTF8String(i).getBytes)
+          case d: DecimalType =>
+            val (precision, scale) = if (ytFieldHint.exists(_.isDecimal)) {
+              val decimalHint = ytFieldHint.get.asDecimal()
+              (decimalHint.getPrecision, decimalHint.getScale)
+            } else {
+              val dT = if (d.precision > 35) applyYtLimitToSparkDecimal(d) else d
+              (dT.precision, dT.scale)
+            }
+            val value = row.getDecimal(i, d.precision, d.scale)
+            val result = value.changePrecision(precision, scale)
+            if (!result) {
+              throw new IllegalArgumentException("Decimal value couldn't fit in yt limitations (precision <= 35)")
+            }
+            writeBytes(writeable, idMapping, aggregate, i, textToBinary(value.toString, precision, scale))
           case t@(ArrayType(_, _) | StructType(_) | MapType(_, _, _)) =>
             val skipNulls = sparkField.metadata.contains("skipNulls") && sparkField.metadata.getBoolean("skipNulls")
             writeBytes(writeable, idMapping, aggregate, i,

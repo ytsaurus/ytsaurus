@@ -48,6 +48,9 @@ object YtLogicalTypeSerializer {
       composite match {
         case opt: YtLogicalType.Optional =>
           builder.key("item").value(serializeTypeV3(opt.inner, innerForm))
+        case dec: YtLogicalType.Decimal =>
+          builder.key("precision").value(dec.precision)
+            .key("scale").value(dec.scale)
         case list: YtLogicalType.Array =>
           builder.key("item").value(serializeTypeV3(list.inner, innerForm))
         case dict: YtLogicalType.Dict =>
@@ -90,6 +93,11 @@ object YtLogicalTypeSerializer {
       alias match {
         case YtLogicalType.Optional =>
           YtLogicalType.Optional(deserializeTypeV3(m.getOrThrow("item")))
+        case YtLogicalType.Decimal =>
+          YtLogicalType.Decimal(
+            m.getOrThrow("precision").intValue(),
+            m.getOrThrow("scale").intValue()
+          )
         case YtLogicalType.Dict =>
           YtLogicalType.Dict(
             deserializeTypeV3(m.getOrThrow("key")),

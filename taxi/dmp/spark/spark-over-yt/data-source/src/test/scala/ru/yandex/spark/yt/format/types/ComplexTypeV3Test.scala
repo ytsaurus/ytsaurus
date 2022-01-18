@@ -1,11 +1,13 @@
 package ru.yandex.spark.yt.format.types
 
-import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtUtils
+import org.apache.spark.sql.{DataFrameReader, Row}
 import org.scalatest.{FlatSpec, Matchers}
+import ru.yandex.inside.yt.kosher.common.Decimal.textToBinary
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.serializers.YtLogicalType
@@ -64,6 +66,12 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
     ))
   }
 
+  // TODO put in TestUtils
+  private def testEnabledAndDisabledArrow(f: DataFrameReader => Unit): Unit = {
+    f(spark.read.enableArrow)
+    f(spark.read.disableArrow)
+  }
+
   it should "read optional from yt" in {
     val data = Seq(Some(1L), Some(2L), None)
 
@@ -78,6 +86,22 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
 
     val res = spark.read.yt(tmpPath)
     res.collect() should contain theSameElementsAs data.map(x => Row(x.orNull))
+  }
+
+  it should "read decimal from yt" in {
+    val precision = 3
+    val scale = 2
+    val data = Seq("1.23", "0.21")
+    val byteDecimal = data.map(x => textToBinary(x, precision, scale))
+    writeTableFromURow(byteDecimal.map(x => packToRow(x, ColumnValueType.STRING)), tmpPath,
+      new TableSchema.Builder().setUniqueKeys(false).addValue("a", TiType.decimal(precision, scale)).build())
+
+    withConf(s"spark.yt.${ParsingTypeV3.name}", "true") {
+      testEnabledAndDisabledArrow { reader =>
+        val res = reader.yt(tmpPath)
+        res.collect().map(x => x.getDecimal(0).toString) should contain theSameElementsAs data
+      }
+    }
   }
 
   it should "read array from yt" in {
@@ -209,6 +233,24 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
 
     val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
     res.collect() should contain theSameElementsAs data.map(x => Row(Row(x: _*)))
+  }
+
+  it should "write decimal to yt" in {
+    import spark.implicits._
+    val data = Seq(BigDecimal("1.23"), BigDecimal("0.21"))
+    data
+      .toDF("a").coalesce(1)
+      .write.option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
+
+    testEnabledAndDisabledArrow { reader =>
+      val res = reader.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
+
+      res.columns should contain theSameElementsAs Seq("a")
+      res.collect().map(x => x.getDecimal(0).toString) should contain theSameElementsAs Seq(
+        "1.230000000000000",
+        "0.210000000000000"
+      )
+    }
   }
 
   it should "write array to yt" in {

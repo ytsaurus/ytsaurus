@@ -107,6 +107,16 @@ object YtLogicalType {
 
   case object Void extends AtomicYtLogicalType("void", 0x100c, ColumnValueType.NULL, TiType.voidType(), NullType) //?
 
+  case class Decimal(precision: Int, scale: Int) extends CompositeYtLogicalType {
+    override def sparkType: DataType = DecimalType(precision, scale)
+
+    override def alias: CompositeYtLogicalTypeAlias = Decimal
+
+    override def tiType: TiType = TiType.decimal(precision, scale)
+  }
+
+  case object Decimal extends CompositeYtLogicalTypeAlias("decimal")
+
   case class Optional(inner: YtLogicalType) extends CompositeYtLogicalType {
     override def value: Int = inner.value
 
@@ -211,7 +221,7 @@ object YtLogicalType {
     Int8, Uint8, Int16, Uint16, Int32, Uint32, Utf8, Date, Datetime, Timestamp, Interval, Void)
 
   private lazy val compositeTypes = Seq(Optional, Dict, Array, Struct, Tuple,
-    Tagged, Variant)
+    Tagged, Variant, Decimal)
 
   def fromName(name: String): YtLogicalType = {
     findOrThrow(name, atomicTypes)
