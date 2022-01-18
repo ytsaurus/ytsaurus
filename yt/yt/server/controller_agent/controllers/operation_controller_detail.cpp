@@ -4762,9 +4762,9 @@ void TOperationControllerBase::TryScheduleJob(
         }
 
         YT_LOG_DEBUG(
-            "Attempting to schedule a %v job (Task: %v, Address: %v, Locality: %v, JobLimits: %v, "
+            "Attempting to schedule job (Kind: %v, Task: %v, Address: %v, Locality: %v, JobLimits: %v, "
             "PendingDataWeight: %v, PendingJobCount: %v)",
-            scheduleLocalJob ? "local" : "non-local",
+            scheduleLocalJob ? "Local" : "NonLocal",
             task->GetTitle(),
             address,
             locality,
@@ -8955,7 +8955,7 @@ void TOperationControllerBase::LogProgress(bool force)
     auto now = GetCpuInstant();
     if (force || now > NextLogProgressDeadline) {
         NextLogProgressDeadline = now + LogProgressBackoff;
-        YT_LOG_DEBUG("Progress: %v", GetLoggingProgress());
+        YT_LOG_DEBUG("Operation progress (Progress: %v)", GetLoggingProgress());
     }
 }
 
