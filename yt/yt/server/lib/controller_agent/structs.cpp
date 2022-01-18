@@ -23,7 +23,7 @@ namespace {
 
 void MergeJobSummaries(
     TJobSummary& schedulerJobSummary,
-    const TJobSummary& nodeJobSummary)
+    TJobSummary&& nodeJobSummary)
 {
     YT_VERIFY(schedulerJobSummary.Id == nodeJobSummary.Id);
 
@@ -218,7 +218,7 @@ std::unique_ptr<TFailedJobSummary> MergeJobSummaries(
     std::unique_ptr<TFailedJobSummary> schedulerJobSummary,
     std::unique_ptr<TFailedJobSummary> nodeJobSummary)
 {
-    MergeJobSummaries(*schedulerJobSummary, *nodeJobSummary);
+    MergeJobSummaries(*schedulerJobSummary, std::move(*nodeJobSummary));
     return schedulerJobSummary;
 }
 
@@ -226,7 +226,7 @@ std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
     std::unique_ptr<TAbortedJobSummary> schedulerJobSummary,
     std::unique_ptr<TAbortedJobSummary> nodeJobSummary)
 {
-    MergeJobSummaries(*schedulerJobSummary, *nodeJobSummary);
+    MergeJobSummaries(*schedulerJobSummary, std::move(*nodeJobSummary));
     return schedulerJobSummary;
 }
 
@@ -234,7 +234,7 @@ std::unique_ptr<TCompletedJobSummary> MergeJobSummaries(
     std::unique_ptr<TCompletedJobSummary> schedulerJobSummary,
     std::unique_ptr<TCompletedJobSummary> nodeJobSummary)
 {
-    MergeJobSummaries(*schedulerJobSummary, *nodeJobSummary);
+    MergeJobSummaries(*schedulerJobSummary, std::move(*nodeJobSummary));
     return schedulerJobSummary;
 }
 
