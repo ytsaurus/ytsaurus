@@ -306,6 +306,7 @@ TOperationControllerBase::TOperationControllerBase(
         Config->CheckTentativeTreeEligibilityPeriod))
     , MediumDirectory_(Host->GetMediumDirectory())
     , ExperimentAssignments_(operation->ExperimentAssignments())
+    , TotalJobCounter_(New<TProgressCounter>())
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -2154,7 +2155,7 @@ void TOperationControllerBase::FinalizeFeatures()
 
     ControllerFeatures_.AddSingular(
         "job_count",
-        BuildYsonNodeFluently().Value(DataFlowGraph_->GetTotalJobCounter()));
+        BuildYsonNodeFluently().Value(GetTotalJobCounter()));
 }
 
 void TOperationControllerBase::SafeCommit()
@@ -4128,7 +4129,7 @@ void TOperationControllerBase::AnalyzeInputStatistics()
 void TOperationControllerBase::AnalyzeIntermediateJobsStatistics()
 {
     TError error;
-    if (GetDataFlowGraph()->GetTotalJobCounter()->GetLost() > 0) {
+    if (GetTotalJobCounter()->GetLost() > 0) {
         error = TError(
             "Some intermediate outputs were lost and will be regenerated; "
             "operation will take longer than usual");
@@ -4314,7 +4315,7 @@ void TOperationControllerBase::AnalyzeJobsDuration()
 void TOperationControllerBase::AnalyzeOperationDuration()
 {
     TError error;
-    const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
+    const auto& jobCounter = GetTotalJobCounter();
     for (const auto& task : Tasks) {
         if (!task->GetUserJobSpec()) {
             continue;
@@ -4613,6 +4614,7 @@ void TOperationControllerBase::RegisterTask(TTaskPtr task)
     task->Prepare();
     task->Initialize();
     task->Prepare();
+    task->RegisterCounters(TotalJobCounter_);
     Tasks.emplace_back(std::move(task));
 }
 
@@ -7672,7 +7674,7 @@ bool TOperationControllerBase::IsLocalityEnabled() const
 
 TString TOperationControllerBase::GetLoggingProgress() const
 {
-    const auto& jobCounter = DataFlowGraph_->GetTotalJobCounter();
+    const auto& jobCounter = GetTotalJobCounter();
     return Format(
         "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
         "UnavailableInputChunks: %v",
@@ -8558,8 +8560,8 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
         .EndMap()
         // COMPAT(gritukan): Drop it in favour of "total_job_counter".
-        .Item("jobs").Value(DataFlowGraph_->GetTotalJobCounter())
-        .Item("total_job_counter").Value(DataFlowGraph_->GetTotalJobCounter())
+        .Item("jobs").Value(GetTotalJobCounter())
+        .Item("total_job_counter").Value(GetTotalJobCounter())
         .Item("data_flow_graph").BeginMap()
             .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
         .EndMap()
@@ -8595,10 +8597,10 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
             .Item("state").Value(State.load())
             // COMPAT(gritukan): Drop it in favour of "total_job_counter".
             .Item("jobs").Do(BIND([&] (TFluentAny fluent) {
-                SerializeBriefVersion(DataFlowGraph_->GetTotalJobCounter(), fluent.GetConsumer());
+                SerializeBriefVersion(GetTotalJobCounter(), fluent.GetConsumer());
             }))
             .Item("total_job_counter").Do(BIND([&] (TFluentAny fluent) {
-                SerializeBriefVersion(DataFlowGraph_->GetTotalJobCounter(), fluent.GetConsumer());
+                SerializeBriefVersion(GetTotalJobCounter(), fluent.GetConsumer());
             }))
             .Item("build_time").Value(TInstant::Now());
     }
@@ -9038,7 +9040,7 @@ int TOperationControllerBase::GetTotalJobCount() const
         return 0;
     }
 
-    return GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
+    return GetTotalJobCounter()->GetTotal();
 }
 
 i64 TOperationControllerBase::GetDataSliceCount() const
@@ -9682,6 +9684,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, MainResourceConsumptionPerTree_);
     Persist(context, EnableMasterResourceUsageAccounting_);
     Persist(context, AccountResourceUsageLeaseMap_);
+    Persist(context, TotalJobCounter_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -10320,6 +10323,11 @@ const NYson::TYsonString& TOperationControllerBase::TCachedYsonCallback::GetValu
         UpdateTime_ = now;
     }
     return Value_;
+}
+
+const TProgressCounterPtr& TOperationControllerBase::GetTotalJobCounter() const
+{
+    return TotalJobCounter_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

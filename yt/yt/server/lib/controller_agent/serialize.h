@@ -15,6 +15,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AddAccountIntoUserObject)             (300705))
     // 22.1 start here
     ((RefactorStatistics)                   (300801))
+    ((AddTotalJobStatistics)                (300802))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

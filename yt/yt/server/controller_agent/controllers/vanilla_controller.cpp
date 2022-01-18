@@ -252,7 +252,7 @@ public:
 
     TString GetLoggingProgress() const override
     {
-        const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
+        const auto& jobCounter = GetTotalJobCounter();
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, ",
             jobCounter->GetTotal(),
@@ -368,7 +368,7 @@ public:
         for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
             expectedJobCount += taskSpec->JobCount;
         }
-        const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
+        const auto& jobCounter = GetTotalJobCounter();
         int startedJobCount = jobCounter->GetRunning() + jobCounter->GetCompletedTotal();
 
         if (expectedJobCount != jobCounter->GetRunning()) {

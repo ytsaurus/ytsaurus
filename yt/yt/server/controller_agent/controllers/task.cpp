@@ -341,6 +341,12 @@ void TTask::RegisterInGraph(TDataFlowGraph::TVertexDescriptor inputVertex)
     RegisterInGraph();
 }
 
+void TTask::RegisterCounters(const TProgressCounterPtr& parent)
+{
+    GetChunkPoolOutput()->GetJobCounter()->AddParent(parent);
+    CompetitiveJobManager_.GetProgressCounter()->AddParent(parent);
+}
+
 void TTask::CheckCompleted()
 {
     if (!CompletedFired_ && IsCompleted()) {
