@@ -56,7 +56,6 @@ private:
     void Shutdown()
     {
         Thread_->Stop(/*graceful*/ true);
-        Queue_->Shutdown();
     }
 
     DECLARE_LEAKY_SINGLETON_FRIEND()
