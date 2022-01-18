@@ -226,6 +226,8 @@ public:
 
     void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
 
+    void RegisterCounters(const TProgressCounterPtr& parent);
+
 protected:
     NLogging::TSerializableLogger Logger;
 

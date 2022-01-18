@@ -441,6 +441,8 @@ public:
     //! Returns |true| when operation completion event is scheduled to control invoker.
     bool IsFinished() const override;
 
+    const TProgressCounterPtr& GetTotalJobCounter() const;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -1260,6 +1262,8 @@ private:
         void Persist(const TPersistenceContext& context);
     };
     THashMap<TString, TResourceUsageLeaseInfo> AccountResourceUsageLeaseMap_;
+
+    TProgressCounterPtr TotalJobCounter_;
 
     void AccountExternalScheduleJobFailures() const;
 

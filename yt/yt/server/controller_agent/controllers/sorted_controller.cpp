@@ -318,7 +318,7 @@ protected:
                 return false;
             }
 
-            auto totalJobCount = Controller_->GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
+            auto totalJobCount = Controller_->GetTotalJobCounter()->GetTotal();
             return
                 !(Controller_->AutoMergeTask_ && CanLoseJobs()) &&
                 !Controller_->HasStaticJobDistribution() &&

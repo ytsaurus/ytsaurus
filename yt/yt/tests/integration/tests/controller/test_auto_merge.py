@@ -817,6 +817,15 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
         assert tasks[0]["task_name"] == ("map" if op_type == "map" else "sorted_reduce")
         assert tasks[1]["task_name"] == "auto_merge"
 
+        map_job_count = tasks[0]["job_counter"]["completed"]["total"]
+        auto_merge_job_count = tasks[1]["job_counter"]["completed"]["total"]
+        assert map_job_count == 10
+        assert auto_merge_job_count > 0
+
+        total_job_counter = get(op.get_path() + "/@progress/total_job_counter")
+        print(total_job_counter)
+        assert total_job_counter["completed"]["total"] == map_job_count + auto_merge_job_count
+
     @authors("gepardo")
     def test_aggregated_statistics(self):
         create("table", "//tmp/t_in",

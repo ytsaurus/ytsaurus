@@ -282,7 +282,7 @@ protected:
             }
 
             // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-            auto totalJobCount = Controller_->GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
+            auto totalJobCount = Controller_->GetTotalJobCounter()->GetTotal();
             return
                 !Controller_->IsExplicitJobCount_ &&
                 2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * std::ssize(Controller_->GetOutputTablePaths()) &&

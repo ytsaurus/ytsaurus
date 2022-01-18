@@ -173,7 +173,7 @@ public:
             YT_VERIFY(Controller_->GetOperationType() == EOperationType::Map);
 
             // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-            auto totalJobCount = Controller_->GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
+            auto totalJobCount = Controller_->GetTotalJobCounter()->GetTotal();
             return
                 !(Controller_->AutoMergeTask_ && CanLoseJobs()) &&
                 !Controller_->JobSizeConstraints_->IsExplicitJobCount() &&

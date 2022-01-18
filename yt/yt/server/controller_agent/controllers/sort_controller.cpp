@@ -3741,7 +3741,7 @@ private:
 
     TString GetLoggingProgress() const override
     {
-        const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
+        const auto& jobCounter = GetTotalJobCounter();
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
             "Partitions = {T: %v, C: %v}, "
@@ -4635,7 +4635,7 @@ private:
 
     TString GetLoggingProgress() const override
     {
-        const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
+        const auto& jobCounter = GetTotalJobCounter();
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
             "Partitions = {T: %v, C: %v}, "

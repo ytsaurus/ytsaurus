@@ -64,8 +64,6 @@ public:
 
     void BuildLegacyYson(NYTree::TFluentMap fluent) const;
 
-    const TProgressCounterPtr& GetTotalJobCounter() const;
-
     const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const;
 
     void SetNodeDirectory(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
