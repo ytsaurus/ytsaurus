@@ -467,7 +467,7 @@ public:
         auto forwardedCellId = connection->GetMasterCellId(ForwardedCellTag_);
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelOrThrow(forwardedCellId, peerKind);
+        auto channel = cellDirectory->GetChannelByCellIdOrThrow(forwardedCellId, peerKind);
 
         TObjectServiceProxy proxy(std::move(channel));
         auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
@@ -1585,7 +1585,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     auto cellId = connection->GetMasterCellId(cellTag);
 
     const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelOrThrow(cellId, peerKind);
+    auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId, peerKind);
 
     auto identity = ParseAuthenticationIdentityFromProto(header);
 

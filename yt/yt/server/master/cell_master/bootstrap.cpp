@@ -449,7 +449,7 @@ const THiveManagerPtr& TBootstrap::GetHiveManager() const
     return HiveManager_;
 }
 
-const TCellDirectoryPtr& TBootstrap::GetCellDirectory() const
+const ICellDirectoryPtr& TBootstrap::GetCellDirectory() const
 {
     return CellDirectory_;
 }
@@ -643,7 +643,7 @@ void TBootstrap::DoInitialize()
 
     NodeChannelFactory_ = CreateNodeChannelFactory(ChannelFactory_, networks);
 
-    CellDirectory_ = New<TCellDirectory>(
+    CellDirectory_ = CreateCellDirectory(
         Config_->CellDirectory,
         ChannelFactory_,
         networks,
@@ -793,7 +793,7 @@ void TBootstrap::DoInitialize()
         CellId_,
         PrimaryCellTag_,
         TimestampProvider_,
-        std::vector<ITransactionParticipantProviderPtr>{
+        std::vector{
             CreateTransactionParticipantProvider(
                 CellDirectory_,
                 TimestampProvider_,

@@ -35,12 +35,12 @@ const auto static& Logger = MasterCacheLogger;
 
 TChaosCacheKey::TChaosCacheKey(
     TString user,
-    TReplicationCardToken replicationCardToken,
+    TReplicationCardId cardId,
     bool requestCoordinators,
     bool requestProgress,
     bool requestHistory)
     : User(std::move(user))
-    , ReplicationCardToken(std::move(replicationCardToken))
+    , CardId(cardId)
     , RequestCoordinators(requestCoordinators)
     , RequestProgress(requestProgress)
     , RequestHistory(requestHistory)
@@ -50,27 +50,17 @@ TChaosCacheKey::operator size_t() const
 {
     return MultiHash(
         User,
-        ReplicationCardToken,
+        CardId,
         RequestCoordinators,
         RequestProgress,
         RequestHistory);
 }
 
-bool TChaosCacheKey::operator == (const TChaosCacheKey& other) const
-{
-    return
-        User == other.User &&
-        ReplicationCardToken == other.ReplicationCardToken &&
-        RequestCoordinators == other.RequestCoordinators &&
-        RequestProgress == other.RequestProgress &&
-        RequestHistory == other.RequestHistory;
-}
-
 void FormatValue(TStringBuilderBase* builder, const TChaosCacheKey& key, TStringBuf /*format*/)
 {
-    builder->AppendFormat("{User:%v Token:%v Coordinators:%v Progress:%v History:%v}",
+    builder->AppendFormat("{User: %v, CardId: %v, Coordinators: %v, Progress: %v, History: %v}",
         key.User,
-        key.ReplicationCardToken,
+        key.CardId,
         key.RequestCoordinators,
         key.RequestProgress,
         key.RequestHistory);

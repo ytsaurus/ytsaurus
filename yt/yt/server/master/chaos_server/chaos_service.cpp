@@ -19,6 +19,7 @@ namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
 using namespace NChaosClient;
+using namespace NObjectClient;
 using namespace NHiveClient;
 using namespace NRpc;
 
@@ -41,7 +42,10 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncAlienCells)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))
             .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetCellDescriptors)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetCellDescriptorsByCellBundle)
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetCellDescriptorsByCellTags)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))
             .SetHeavy(true));
     }
@@ -60,7 +64,7 @@ private:
             auto cellId = requestDescriptor.CellId;
             int configVersion = requestDescriptor.ConfigVersion;
 
-            auto cell = chaosManager->FindChaosCell(cellId);
+            auto cell = chaosManager->FindChaosCellById(cellId);
             if (!IsObjectAlive(cell) || cell->GetConfigVersion() <= configVersion) {
                 continue;
             }
@@ -89,33 +93,37 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetCellDescriptors)
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetCellDescriptorsByCellBundle)
     {
-        auto cellIds = FromProto<std::vector<TChaosCellId>>(request->cell_ids());
-        auto cellBundleName = request->has_cell_bundle()
-            ? std::make_optional(request->cell_bundle())
-            : std::nullopt;
+        const auto& cellBundleName = request->cell_bundle();
 
-        context->SetRequestInfo("CellIds: %v, CellBundle: %v",
-            cellIds,
+        context->SetRequestInfo("CellBundle: %v",
             cellBundleName);
 
         const auto& chaosManager = Bootstrap_->GetChaosManager();
-        std::vector<TCellDescriptor> cellDescriptors;
-
-        for (auto cellId : cellIds) {
-            auto* cell = chaosManager->GetChaosCellOrThrow(cellId);
-            cellDescriptors.push_back(cell->GetDescriptor());
+        auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(cellBundleName);
+        for (const auto* cell : cellBundle->Cells()) {
+            ToProto(response->add_cell_descriptors(), cell->GetDescriptor());
         }
 
-        if (cellBundleName) {
-            auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(*cellBundleName);
-            for (auto* cell : cellBundle->Cells()) {
-                cellDescriptors.push_back(cell->GetDescriptor());
-            }
+        context->SetResponseInfo("CellCount: %v",
+            response->cell_descriptors_size());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetCellDescriptorsByCellTags)
+    {
+        auto cellTags = FromProto<std::vector<TCellTag>>(request->cell_tags());
+
+        context->SetRequestInfo("CellTags: %v",
+            cellTags);
+
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        for (auto cellTag : cellTags) {
+            auto* cell = chaosManager->GetChaosCellByTagOrThrow(cellTag);
+            ToProto(response->add_cell_descriptors(), cell->GetDescriptor());
         }
 
-        ToProto(response->mutable_cell_descriptors(), cellDescriptors);
         context->Reply();
     }
 };

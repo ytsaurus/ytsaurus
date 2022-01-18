@@ -1,7 +1,9 @@
 #include "replication_card_cache.h"
 
-#include <yt/yt/core/misc/format.h>
-#include <yt/yt/core/misc/hash.h>
+#include <library/cpp/yt/string/format.h>
+#include <library/cpp/yt/string/guid.h>
+
+#include <util/digest/multi.h>
 
 namespace NYT::NChaosClient {
 
@@ -9,18 +11,17 @@ namespace NYT::NChaosClient {
 
 TReplicationCardCacheKey::operator size_t() const
 {
-    size_t result = 0;
-    HashCombine(result, Token);
-    HashCombine(result, RequestHistory);
-    HashCombine(result, RequestProgress);
-    HashCombine(result, RequestCoordinators);
-    return result;
+    return MultiHash(
+        CardId,
+        RequestHistory,
+        RequestCoordinators,
+        RequestProgress);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCardCacheKey& key, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Token: %v, History: %v, Progress: %v, Coordinators: %v}",
-        key.Token,
+    builder->AppendFormat("{CardId: %v, History: %v, Progress: %v, Coordinators: %v}",
+        key.CardId,
         key.RequestHistory,
         key.RequestProgress,
         key.RequestCoordinators);

@@ -16,13 +16,26 @@ message TRspSyncAlienCells
     repeated TAlienCellDescriptor cell_descriptors = 1;
 }
 
-message TReqGetCellDescriptors
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetCellDescriptorsByCellBundle
 {
-    repeated NYT.NProto.TGuid cell_ids = 1;
-    optional string cell_bundle = 2;
+    required string cell_bundle = 2;
 }
 
-message TRspGetCellDescriptors
+message TRspGetCellDescriptorsByCellBundle
+{
+    repeated NYT.NHiveClient.NProto.TCellDescriptor cell_descriptors = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetCellDescriptorsByCellTags
+{
+    repeated int32 cell_tags = 1;
+}
+
+message TRspGetCellDescriptorsByCellTags
 {
     repeated NYT.NHiveClient.NProto.TCellDescriptor cell_descriptors = 1;
 }

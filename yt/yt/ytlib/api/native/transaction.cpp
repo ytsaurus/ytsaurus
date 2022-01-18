@@ -639,7 +639,7 @@ private:
                 }
             }
 
-            if (Options_.TopmostTransaction && tableInfo->ReplicationCardToken) {
+            if (Options_.TopmostTransaction && tableInfo->ReplicationCardId) {
                 // For chaos tables we write to all replicas via nested invocations above.
                 return;
             }
@@ -930,10 +930,10 @@ private:
             VERIFY_THREAD_AFFINITY_ANY();
 
             TableInfo_ = tableInfo;
-            if (TableInfo_->ReplicationCardToken) {
+            if (TableInfo_->ReplicationCardId) {
                 UpstreamReplicaId_ = TableInfo_->UpstreamReplicaId;
             }
-            if (!TableInfo_->ReplicationCardToken) {
+            if (!TableInfo_->ReplicationCardId) {
                 return OnGotReplicationCard(true);
             } else if (ReplicationCard_) {
                 return OnGotReplicationCard(false);
@@ -945,12 +945,12 @@ private:
 
                 const auto& replicationCardCache = transaction->Client_->GetReplicationCardCache();
                 return replicationCardCache->GetReplicationCard({
-                        .Token = tableInfo->ReplicationCardToken,
+                        .CardId = tableInfo->ReplicationCardId,
                         .RequestCoordinators = true
                     }).Apply(BIND([=, this_ = MakeStrong(this)] (const TReplicationCardPtr& replicationCard) {
                         YT_LOG_DEBUG("Got replication card from cache (Path: %v, ReplicationCardId: %v, CoordinatorCellIds: %v)",
                             TableInfo_->Path,
-                            TableInfo_->ReplicationCardToken.ReplicationCardId,
+                            TableInfo_->ReplicationCardId,
                             replicationCard->CoordinatorCellIds);
 
                         ReplicationCard_ = replicationCard;
@@ -1901,35 +1901,36 @@ private:
             if (session->GetInfo()->IsReplicated()) {
                 CommitOptions_.Force2PC = true;
             }
-            if (auto chaosCellId = session->GetInfo()->ReplicationCardToken.ChaosCellId;
-                chaosCellId &&
-                session->GetReplicationCard()->Era > InitialReplicationEra &&
+
+            const auto& replicationCard = session->GetReplicationCard();
+            auto replicationCardId = session->GetInfo()->ReplicationCardId;
+            if (replicationCardId &&
+                replicationCard->Era > InitialReplicationEra &&
                 !options.CoordinatorCellId)
             {
-                CommitOptions_.Force2PC = true;
-                const auto& coordinatorCellIds = session->GetReplicationCard()->CoordinatorCellIds;
+                const auto& coordinatorCellIds = replicationCard->CoordinatorCellIds;
 
-                YT_LOG_DEBUG("Considering replication card (Path: %v, ReplicationCadId: %v, Era: %v, CoordinatorCellIds: %v)",
+                YT_LOG_DEBUG("Considering replication card (Path: %v, ReplicationCardId: %v, Era: %v, CoordinatorCellIds: %v)",
                     path,
-                    session->GetInfo()->ReplicationCardToken.ReplicationCardId,
-                    session->GetReplicationCard()->Era,
-                    session->GetReplicationCard()->CoordinatorCellIds);
+                    replicationCardId,
+                    replicationCard->Era,
+                    coordinatorCellIds);
 
                 if (coordinatorCellIds.empty()) {
                     THROW_ERROR_EXCEPTION("Coordinators are not available")
-                        << TErrorAttribute("replication_card_id", session->GetInfo()->ReplicationCardToken.ReplicationCardId)
-                        << TErrorAttribute("chaos_cell_id", session->GetInfo()->ReplicationCardToken.ChaosCellId);
+                        << TErrorAttribute("replication_card_id", replicationCardId);
                 }
 
                 auto coordinatorCellId = coordinatorCellIds[RandomNumber(coordinatorCellIds.size())];
                 Transaction_->RegisterParticipant(coordinatorCellId);
 
                 NChaosClient::NProto::TReqReplicatedCommit request;
-                ToProto(request.mutable_replication_card_id(), session->GetInfo()->ReplicationCardToken.ReplicationCardId);
+                ToProto(request.mutable_replication_card_id(), replicationCardId);
                 request.set_replication_era(session->GetReplicationCard()->Era);
 
                 DoAddAction(coordinatorCellId, MakeTransactionActionData(request));
 
+                CommitOptions_.Force2PC = true;
                 CommitOptions_.CoordinatorCellId = coordinatorCellId;
 
                 YT_LOG_DEBUG("Coordinator selected (CoordinatorCellId: %v)",

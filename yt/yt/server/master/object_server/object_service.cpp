@@ -1226,7 +1226,7 @@ private:
                 auto cellId = connection->GetMasterCellId(cellTag);
 
                 const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-                auto channel = cellDirectory->GetChannelOrThrow(cellId, peerKind);
+                auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId, peerKind);
 
                 TObjectServiceProxy proxy(std::move(channel));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();

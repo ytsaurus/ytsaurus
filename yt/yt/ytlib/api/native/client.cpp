@@ -189,7 +189,7 @@ IChannelPtr TClient::GetMasterChannelOrThrow(
 IChannelPtr TClient::GetCellChannelOrThrow(TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelOrThrow(cellId);
+    auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId);
     return CreateAuthenticatedChannel(std::move(channel), Options_.GetAuthenticationIdentity());
 }
 
@@ -398,7 +398,7 @@ IChannelPtr TClient::GetLeaderCellChannelOrThrow(TCellId cellId)
 
     const auto& cellDirectory = Connection_->GetCellDirectory();
     if (cellDirectory->IsCellRegistered(cellId)) {
-        return cellDirectory->GetChannelOrThrow(cellId);
+        return cellDirectory->GetChannelByCellIdOrThrow(cellId);
     }
 
     auto config = Connection_->GetConfig()->ClockServers;

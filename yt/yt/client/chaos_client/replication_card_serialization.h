@@ -39,10 +39,9 @@ void ToProto(
     bool includeCoordinators = false,
     bool includeProgress = false,
     bool includeHistory = false);
-void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TReplicationCard& protoReplicationCard);
-
-void ToProto(NChaosClient::NProto::TReplicationCardToken* protoReplicationCardToken, const TReplicationCardToken& replicationCardToken);
-void FromProto(TReplicationCardToken* replicationCardToken, const NChaosClient::NProto::TReplicationCardToken& protoReplicationCardToken);
+void FromProto(
+    TReplicationCard* replicationCard,
+    const NChaosClient::NProto::TReplicationCard& protoReplicationCard);
 
 ////////////////////////////////////////////////////////////////////////////////
 

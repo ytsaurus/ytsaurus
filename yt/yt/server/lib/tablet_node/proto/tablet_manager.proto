@@ -101,7 +101,7 @@ message TReqMountTablet
     optional uint64 retained_timestamp = 21;
     repeated NYT.NProto.TGuid dynamic_store_ids = 22;
     optional TMountHint mount_hint = 23;
-    optional NYT.NChaosClient.NProto.TReplicationCardToken replication_card_token = 27;
+    optional NYT.NProto.TGuid replication_card_id = 27; // NChaosClient::TReplicationCardId
     optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 28;
 }
 

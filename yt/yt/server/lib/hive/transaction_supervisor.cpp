@@ -408,15 +408,18 @@ private:
 
         ITransactionParticipantPtr TryCreateUnderlying()
         {
-            TTransactionParticipantOptions options;
-            options.RpcTimeout = Config_->RpcTimeout;
+            TTransactionParticipantOptions options{
+                .RpcTimeout = Config_->RpcTimeout
+            };
 
             for (const auto& provider : Providers_) {
-                auto participant = provider->TryCreate(CellId_, options);
-                if (participant) {
+                if (auto participant = provider->TryCreate(CellId_, options)) {
                     return participant;
                 }
             }
+
+            YT_LOG_DEBUG("Could not find any matching transaction participant provider");
+
             return nullptr;
         }
 

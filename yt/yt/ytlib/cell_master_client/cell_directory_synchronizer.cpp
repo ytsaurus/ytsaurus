@@ -74,7 +74,7 @@ public:
 
 private:
     const TCellDirectorySynchronizerConfigPtr Config_;
-    TCellDirectoryPtr Directory_;
+    const TCellDirectoryPtr Directory_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
 

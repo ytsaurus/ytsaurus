@@ -40,7 +40,7 @@ class TCellDirectorySynchronizer::TImpl
 public:
     TImpl(
         TCellDirectorySynchronizerConfigPtr config,
-        TCellDirectoryPtr cellDirectory,
+        ICellDirectoryPtr cellDirectory,
         ITamedCellManagerPtr cellManager,
         IHydraManagerPtr hydraManager,
         IInvokerPtr automatonInvoker)
@@ -66,7 +66,7 @@ public:
 
 private:
     const TCellDirectorySynchronizerConfigPtr Config_;
-    const TCellDirectoryPtr CellDirectory_;
+    const ICellDirectoryPtr CellDirectory_;
     const ITamedCellManagerPtr CellManager_;
     const IHydraManagerPtr HydraManager_;
 
@@ -121,7 +121,7 @@ private:
 
 TCellDirectorySynchronizer::TCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
-    TCellDirectoryPtr cellDirectory,
+    ICellDirectoryPtr cellDirectory,
     ITamedCellManagerPtr cellManager,
     IHydraManagerPtr hydraManager,
     IInvokerPtr automatonInvoker)

@@ -93,7 +93,7 @@ private:
     const TCellTagList SecondaryCellTags_;
     const TString User_;
     const ITimestampProviderPtr TimestampProvider_;
-    const NHiveClient::TCellDirectoryPtr CellDirectory_;
+    const NHiveClient::ICellDirectoryPtr CellDirectory_;
     const TCellTrackerPtr DownedCellTracker_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
@@ -894,7 +894,7 @@ private:
                 supervisorPrepareOnlyParticipantCellIds,
                 options.CellIdsToSyncWithBeforePrepare);
 
-            auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(CoordinatorCellId_);
+            auto coordinatorChannel = Owner_->CellDirectory_->GetChannelByCellIdOrThrow(CoordinatorCellId_);
             auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCommitRetryChecker());
             auto req = proxy.CommitTransaction();
             req->SetUser(Owner_->User_);
@@ -978,7 +978,7 @@ private:
         }
 
         YT_VERIFY(CoordinatorCellId_);
-        auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(CoordinatorCellId_);
+        auto coordinatorChannel = Owner_->CellDirectory_->GetChannelByCellIdOrThrow(CoordinatorCellId_);
         auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCheckDownedParticipantsRetryChecker());
         auto req = proxy.GetDownedParticipants();
         req->SetUser(Owner_->User_);
@@ -1053,7 +1053,7 @@ private:
                 Id_,
                 cellId);
 
-            auto channel = Owner_->CellDirectory_->FindChannel(cellId);
+            auto channel = Owner_->CellDirectory_->FindChannelByCellId(cellId);
             if (!channel) {
                 continue;
             }
@@ -1170,7 +1170,7 @@ private:
 
     TFuture<void> SendAbort(TCellId cellId, const TTransactionAbortOptions& options = {})
     {
-        auto channel = Owner_->CellDirectory_->FindChannel(cellId);
+        auto channel = Owner_->CellDirectory_->FindChannelByCellId(cellId);
         if (!channel) {
             return VoidFuture;
         }

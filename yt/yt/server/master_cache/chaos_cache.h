@@ -15,20 +15,20 @@ namespace NYT::NMasterCache {
 struct TChaosCacheKey
 {
     TString User;
-    NChaosClient::TReplicationCardToken ReplicationCardToken;
+    NChaosClient::TReplicationCardId CardId;
     bool RequestCoordinators;
     bool RequestProgress;
     bool RequestHistory;
 
     TChaosCacheKey(
         TString user,
-        NChaosClient::TReplicationCardToken replicationCardToken,
+        NChaosClient::TReplicationCardId replicationCardId,
         bool requestCoordinators,
         bool requestProgress,
         bool requestHistory);
 
     operator size_t() const;
-    bool operator == (const TChaosCacheKey& other) const;
+    bool operator == (const TChaosCacheKey& other) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TChaosCacheKey& key, TStringBuf /*format*/);

@@ -334,11 +334,11 @@ public:
                     case EStorePreloadState::Complete:
                         stats->Static.Usage += bytes;
                         break;
-                    
+
                     case EStorePreloadState::Failed:
                         stats->PreloadStoreFailedCount += 1;
                         break;
-                    
+
                     case EStorePreloadState::None:
                         break;
 
@@ -355,10 +355,10 @@ public:
                 case EInMemoryMode::Uncompressed:
                     countChunkStoreMemory(chunk->GetUncompressedDataSize());
                     break;
-                
+
                 case EInMemoryMode::None:
                     break;
-                
+
                 default:
                     YT_ABORT();
             }
@@ -927,16 +927,16 @@ private:
             AddTableReplica(tablet, descriptor);
         }
 
-        if (request->has_replication_card_token()) {
-            auto replicationCardToken = FromProto<TReplicationCardToken>(request->replication_card_token());
-            auto progress = FromProto<NChaosClient::TReplicationProgress>(request->replication_progress());
-            YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardToken: %v, ReplicationProgress: %v)",
+        if (request->has_replication_card_id()) {
+            auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+            auto progress = FromProto<TReplicationProgress>(request->replication_progress());
+            YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
                 tablet->GetLoggingTag(),
-                replicationCardToken,
+                replicationCardId,
                 progress);
 
             tablet->RuntimeData()->ReplicationProgress.Store(New<TRefCountedReplicationProgress>(std::move(progress)));
-            AddChaosAgent(tablet, replicationCardToken);
+            AddChaosAgent(tablet, replicationCardId);
         }
 
         const auto& lockManager = tablet->GetLockManager();
@@ -3223,12 +3223,12 @@ private:
     }
 
 
-    void AddChaosAgent(TTablet* tablet, const TReplicationCardToken& replicationCardToken)
+    void AddChaosAgent(TTablet* tablet, TReplicationCardId replicationCardId)
     {
         tablet->SetChaosAgent(CreateChaosAgent(
             tablet,
             Slot_,
-            replicationCardToken,
+            replicationCardId,
             Bootstrap_->GetMasterClient()->GetNativeConnection()));
         tablet->SetTablePuller(CreateTablePuller(
             Config_,

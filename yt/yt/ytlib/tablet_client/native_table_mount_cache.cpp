@@ -52,6 +52,7 @@ using namespace NElection;
 using namespace NHiveClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NChaosClient;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NYPath;
@@ -73,7 +74,7 @@ public:
     TTableMountCache(
         TTableMountCacheConfigPtr config,
         IConnectionPtr connection,
-        TCellDirectoryPtr cellDirectory,
+        ICellDirectoryPtr cellDirectory,
         const NLogging::TLogger& logger,
         const NProfiling::TProfiler& profiler)
         : TTableMountCacheBase(std::move(config), logger, profiler.WithPrefix("/table_mount_cache"))
@@ -122,7 +123,7 @@ private:
 
 private:
     const TWeakPtr<IConnection> Connection_;
-    const TCellDirectoryPtr CellDirectory_;
+    const ICellDirectoryPtr CellDirectory_;
     const IInvokerPtr Invoker_;
     const IInvokerPtr TableMountInfoUpdateInvoker_;
 
@@ -334,12 +335,8 @@ private:
             tableInfo->UpstreamReplicaId = FromProto<TTableReplicaId>(rsp->upstream_replica_id());
             tableInfo->Dynamic = rsp->dynamic();
             tableInfo->NeedKeyEvaluation = primarySchema->HasComputedColumns();
-
             tableInfo->EnableDetailedProfiling = rsp->enable_detailed_profiling();
-
-            if (rsp->has_replication_card_token()) {
-                FromProto(&tableInfo->ReplicationCardToken, rsp->replication_card_token());
-            }
+            tableInfo->ReplicationCardId = FromProto<TReplicationCardId>(rsp->replication_card_id());
 
             for (const auto& protoTabletInfo : rsp->tablets()) {
                 auto tabletInfo = New<TTabletInfo>();
@@ -430,7 +427,7 @@ DEFINE_REFCOUNTED_TYPE(TTableMountCache)
 ITableMountCachePtr CreateNativeTableMountCache(
     TTableMountCacheConfigPtr config,
     IConnectionPtr connection,
-    TCellDirectoryPtr cellDirectory,
+    ICellDirectoryPtr cellDirectory,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
 {

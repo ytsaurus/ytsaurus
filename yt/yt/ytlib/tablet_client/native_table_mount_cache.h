@@ -19,7 +19,7 @@ namespace NYT::NTabletClient {
 ITableMountCachePtr CreateNativeTableMountCache(
     TTableMountCacheConfigPtr config,
     NApi::NNative::IConnectionPtr connection,
-    NHiveClient::TCellDirectoryPtr cellDirectory,
+    NHiveClient::ICellDirectoryPtr cellDirectory,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler);
 

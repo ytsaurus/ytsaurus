@@ -11,6 +11,8 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/misc/optional.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -79,53 +81,63 @@ void FromProto(TCellDescriptor* descriptor, const NProto::TCellDescriptor& proto
 /*!
  *  Thread affinity: thread-safe
  */
-class TCellDirectory
-    : public TRefCounted
+struct ICellDirectory
+    : public virtual TRefCounted
 {
-public:
-    TCellDirectory(
-        TCellDirectoryConfigPtr config,
-        NRpc::IChannelFactoryPtr channelFactory,
-        const NNodeTrackerClient::TNetworkPreferenceList& networks,
-        NLogging::TLogger logger);
-
-    ~TCellDirectory();
-
     //! Returns a peer channel of a given kind for a given cell id (|nullptr| if none is known).
     /*!
      *  No user or timeout is configured for the returned channel.
      */
-    NRpc::IChannelPtr FindChannel(
+    virtual NRpc::IChannelPtr FindChannelByCellId(
         TCellId cellId,
-        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
-    //! Similar to #FindChannel but throws an exception if no channel is known.
-    NRpc::IChannelPtr GetChannelOrThrow(
+    //! Similar to #FindChannelByCellId but throws an exception if no channel is known.
+    virtual NRpc::IChannelPtr GetChannelByCellIdOrThrow(
         TCellId cellId,
-        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
-    //! Similar to #FindChannel but fails if no channel is known.
-    NRpc::IChannelPtr GetChannel(
+    //! Similar to #FindChannelByCellId but fails if no channel is known.
+    virtual NRpc::IChannelPtr GetChannelByCellId(
         TCellId cellId,
-        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
+
+
+    //! Similar to #FindChannelByCellId but relies on cell tag rather than full cell id.
+    //! Only works for global cells (see #NObjectClient::IsGlobalCellId).
+    virtual NRpc::IChannelPtr FindChannelByCellTag(
+        NObjectClient::TCellTag cellTag,
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
+
+    //! Similar to #FindChannelByCellTag but throws an exception if no channel is known.
+    virtual NRpc::IChannelPtr GetChannelByCellTagOrThrow(
+        NObjectClient::TCellTag cellTag,
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
+
+    //! Similar to #FindChannelByCellTag but fails if no channel is known.
+    virtual NRpc::IChannelPtr GetChannelByCellTag(
+        NObjectClient::TCellTag cellTag,
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
 
     //! Returns the descriptor for a given cell id (null if the cell is not known).
-    std::optional<TCellDescriptor> FindDescriptor(TCellId cellId);
+    virtual std::optional<TCellDescriptor> FindDescriptor(TCellId cellId) = 0;
 
     //! Returns the descriptor for a given cell id (throws if the cell is not known).
-    TCellDescriptor GetDescriptorOrThrow(TCellId cellId);
+    virtual TCellDescriptor GetDescriptorOrThrow(TCellId cellId) = 0;
 
     //! Returns peer address for a given cell (null if cell is not known or peer has no address).
-    std::optional<TString> FindPeerAddress(TCellId cellId, NElection::TPeerId peerId);
+    virtual std::optional<TString> FindPeerAddress(TCellId cellId, NElection::TPeerId peerId) = 0;
+
 
     //! Returns the list of all registered cells, their versions, and configurations.
-    std::vector<TCellInfo> GetRegisteredCells();
+    virtual std::vector<TCellInfo> GetRegisteredCells()  = 0;
 
     //! Returns |true| if the cell was unregistered by calling #UnregisterCell.
-    bool IsCellUnregistered(TCellId cellId);
+    virtual bool IsCellUnregistered(TCellId cellId) = 0;
 
-    bool IsCellRegistered(TCellId cellId);
+    //! Returns |true| if the cell is registered.
+    virtual bool IsCellRegistered(TCellId cellId) = 0;
 
     struct TSynchronizationResult
     {
@@ -145,45 +157,45 @@ public:
 
     //! Checks cell versions in #knownCells against the actual state;
     //! requests reconfiguration of outdated cells and unregistartion of stale cells.
-    TSynchronizationResult Synchronize(const std::vector<TCellInfo>& knownCells);
+    virtual TSynchronizationResult Synchronize(const std::vector<TCellInfo>& knownCells)  = 0;
 
 
     //! Registers a new cell or updates the configuration of an existing cell
     //! (if new configuration has a higher version).
     //! Returns |true| if the cell was registered (or an update took place).
-    bool ReconfigureCell(NElection::TCellConfigPtr config, int configVersion = 0);
+    virtual bool ReconfigureCell(NElection::TCellConfigPtr config, int configVersion = 0) = 0;
 
     //! Similar to the above but accepts discovery configuration.
-    bool ReconfigureCell(NHydra::TPeerConnectionConfigPtr config, int configVersion = 0);
+    virtual bool ReconfigureCell(NHydra::TPeerConnectionConfigPtr config, int configVersion = 0) = 0;
 
     //! Checks versions and updates cell configuration, if needed.
-    bool ReconfigureCell(const TCellDescriptor& descriptor);
+    virtual bool ReconfigureCell(const TCellDescriptor& descriptor) = 0;
 
     //! Registers a cell with empty description.
     /*!
      *  This call could be used in conjuction with #IsCellUnregistered to make sure that
      *  a given #cellId is no longer valid.
      */
-    void RegisterCell(TCellId cellId);
+    virtual void RegisterCell(TCellId cellId) = 0;
 
     //! Unregisters the cell. Returns |true| if the cell was found.
     /*!
      *  The ids of all unregistered cells are kept forever.
      *  Once the cell is unregistered, no further reconfigurations are possible.
      */
-    bool UnregisterCell(TCellId cellId);
+    virtual bool UnregisterCell(TCellId cellId) = 0;
 
     //! Clears the state; i.e. drops all known registered and unregistered cells.
-    void Clear();
-
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual void Clear() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellDirectory)
+DEFINE_REFCOUNTED_TYPE(ICellDirectory)
+
+ICellDirectoryPtr CreateCellDirectory(
+    TCellDirectoryConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory,
+    const NNodeTrackerClient::TNetworkPreferenceList& networks,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

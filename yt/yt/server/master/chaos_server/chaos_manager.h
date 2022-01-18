@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "chaos_cell.h"
-#include "chaos_cell_bundle.h"
+
+#include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -14,9 +14,15 @@ struct IChaosManager
     : public virtual TRefCounted
 {
     virtual void Initialize() = 0;
+
     virtual const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const = 0;
-    virtual TChaosCell* FindChaosCell(TChaosCellId cellId) const = 0;
-    virtual TChaosCell* GetChaosCellOrThrow(TChaosCellId cellId) const = 0;
+
+    virtual TChaosCell* FindChaosCellById(TChaosCellId cellId) const = 0;
+    virtual TChaosCell* GetChaosCellByIdOrThrow(TChaosCellId cellId) const = 0;
+
+    virtual TChaosCell* FindChaosCellByTag(NObjectClient::TCellTag cellTag) const = 0;
+    virtual TChaosCell* GetChaosCellByTagOrThrow(NObjectClient::TCellTag cellTag) const = 0;
+
     virtual TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name) const = 0;
 };
 

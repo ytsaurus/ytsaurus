@@ -382,7 +382,7 @@ public:
     TCellSlot* FindCellSlot(const NCellServer::TCellBase* cell);
     TCellSlot* GetCellSlot(const NCellServer::TCellBase* cell);
 
-    void DetachTabletCell(const NCellServer::TCellBase* cell);
+    void DetachCell(const NCellServer::TCellBase* cell);
 
     TCellar* FindCellar(NCellarClient::ECellarType cellarType);
     const TCellar* FindCellar(NCellarClient::ECellarType cellarType) const;

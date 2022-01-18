@@ -25,7 +25,7 @@ DEFINE_REFCOUNTED_TYPE(IChaosAgent)
 IChaosAgentPtr CreateChaosAgent(
     TTablet* tablet,
     ITabletSlotPtr slot,
-    const NChaosClient::TReplicationCardToken& replicationCardToken,
+    NChaosClient::TReplicationCardId replicationCardId,
     NApi::NNative::IConnectionPtr localConnection);
 
 ////////////////////////////////////////////////////////////////////////////////

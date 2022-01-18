@@ -2,6 +2,7 @@
 #include "chaos_cell_proxy.h"
 #include "chaos_manager.h"
 
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/yt/server/master/cell_server/cell_type_handler_base.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -35,9 +36,38 @@ public:
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        hintId = attributes->Get("chaos_cell_id", NullObjectId);
-        auto id = objectManager->GenerateId(EObjectType::ChaosCell, hintId);
+        if (!attributes->Contains("id") && !hintId) {
+            THROW_ERROR_EXCEPTION("Must provide a valid chaos cell id");
+        }
+
+        auto id = attributes->GetAndRemove("id", hintId);
+        if (TypeFromId(id) != EObjectType::ChaosCell || IsWellKnownId(id)) {
+            THROW_ERROR_EXCEPTION("Malformed chaos cell id %v",
+                id);
+        }
+
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        if (cellManager->FindCell(id)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Cell with id %v already exists",
+                id);
+        }
+
+        auto cellTag = CellTagFromId(id);
+        if (cellManager->FindCellByCellTag(cellTag)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Cell with tag %v already exists",
+                cellTag);
+        }
+
+        if (hintId && hintId != id) {
+            THROW_ERROR_EXCEPTION("Wrong chaos cell hint id: expected %v, actual %v",
+                hintId,
+                id);
+        }
+
         auto holder = TPoolAllocator::New<TChaosCell>(id);
         return DoCreateObject(std::move(holder), attributes);
     }

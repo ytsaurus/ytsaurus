@@ -125,7 +125,7 @@ public:
     const NTabletServer::IBackupManagerPtr& GetBackupManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
-    const NHiveClient::TCellDirectoryPtr& GetCellDirectory() const;
+    const NHiveClient::ICellDirectoryPtr& GetCellDirectory() const;
     const IInvokerPtr& GetControlInvoker() const;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
 
@@ -197,7 +197,7 @@ protected:
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
     NChaosServer::IChaosManagerPtr ChaosManager_;
     NHiveServer::THiveManagerPtr HiveManager_;
-    NHiveClient::TCellDirectoryPtr CellDirectory_;
+    NHiveClient::ICellDirectoryPtr CellDirectory_;
     NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     ICoreDumperPtr CoreDumper_;

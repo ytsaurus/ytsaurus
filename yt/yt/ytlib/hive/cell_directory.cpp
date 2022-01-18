@@ -21,6 +21,7 @@ using namespace NYTree;
 using namespace NHydra;
 using namespace NElection;
 using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NRpc;
 
 using NYT::ToProto;
@@ -146,11 +147,11 @@ void FromProto(TCellDescriptor* descriptor, const NProto::TCellDescriptor& proto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectory::TImpl
-    : public TRefCounted
+class TCellDirectory
+    : public ICellDirectory
 {
 public:
-    TImpl(
+    TCellDirectory(
         TCellDirectoryConfigPtr config,
         IChannelFactoryPtr channelFactory,
         const TNetworkPreferenceList& networks,
@@ -161,61 +162,85 @@ public:
         , Logger(std::move(logger))
     { }
 
-    IChannelPtr FindChannel(TCellId cellId, EPeerKind peerKind)
+    IChannelPtr FindChannelByCellId(TCellId cellId, EPeerKind peerKind) override
     {
         auto guard = ReaderGuard(SpinLock_);
-        auto it = RegisteredCellMap_.find(cellId);
-        return it == RegisteredCellMap_.end() ? nullptr : it->second.Channels[peerKind];
+        auto it = CellIdToEntry_.find(cellId);
+        return it == CellIdToEntry_.end() ? nullptr : it->second.Channels[peerKind];
     }
 
-    IChannelPtr GetChannelOrThrow(TCellId cellId, EPeerKind peerKind)
+    IChannelPtr GetChannelByCellIdOrThrow(TCellId cellId, EPeerKind peerKind) override
     {
-        auto channel = FindChannel(cellId, peerKind);
+        auto channel = FindChannelByCellId(cellId, peerKind);
         if (!channel) {
-            THROW_ERROR_EXCEPTION("Unknown cell %v",
+            THROW_ERROR_EXCEPTION("No cell with %v is known",
                 cellId);
         }
         return channel;
     }
 
-    IChannelPtr GetChannel(TCellId cellId, EPeerKind peerKind)
+    IChannelPtr GetChannelByCellId(TCellId cellId, EPeerKind peerKind) override
     {
-        auto channel = FindChannel(cellId, peerKind);
+        auto channel = FindChannelByCellId(cellId, peerKind);
         YT_VERIFY(channel);
         return channel;
     }
 
-    std::vector<TCellInfo> GetRegisteredCells()
+    IChannelPtr FindChannelByCellTag(TCellTag cellTag, EPeerKind peerKind) override
+    {
+        auto guard = ReaderGuard(SpinLock_);
+        auto it = CellTagToEntry_.find(cellTag);
+        return it == CellTagToEntry_.end() ? nullptr : it->second->Channels[peerKind];
+    }
+
+    IChannelPtr GetChannelByCellTagOrThrow(TCellTag cellTag, EPeerKind peerKind) override
+    {
+        auto channel = FindChannelByCellTag(cellTag, peerKind);
+        if (!channel) {
+            THROW_ERROR_EXCEPTION("No cell with tag %v is known",
+                cellTag);
+        }
+        return channel;
+    }
+
+    IChannelPtr GetChannelByCellTag(TCellTag cellTag, EPeerKind peerKind) override
+    {
+        auto channel = FindChannelByCellTag(cellTag, peerKind);
+        YT_VERIFY(channel);
+        return channel;
+    }
+
+    std::vector<TCellInfo> GetRegisteredCells() override
     {
         auto guard = ReaderGuard(SpinLock_);
         std::vector<TCellInfo> result;
-        result.reserve(RegisteredCellMap_.size());
-        for (const auto& [cellId, entry] : RegisteredCellMap_) {
+        result.reserve(CellIdToEntry_.size());
+        for (const auto& [cellId, entry] : CellIdToEntry_) {
             result.push_back({cellId, entry.Descriptor.ConfigVersion});
         }
         return result;
     }
 
-    bool IsCellUnregistered(TCellId cellId)
+    bool IsCellUnregistered(TCellId cellId) override
     {
         auto guard = ReaderGuard(SpinLock_);
         return UnregisteredCellIds_.find(cellId) != UnregisteredCellIds_.end();
     }
 
-    bool IsCellRegistered(TCellId cellId)
+    bool IsCellRegistered(TCellId cellId) override
     {
         auto guard = ReaderGuard(SpinLock_);
-        return RegisteredCellMap_.find(cellId) != RegisteredCellMap_.end();
+        return CellIdToEntry_.find(cellId) != CellIdToEntry_.end();
     }
 
-    std::optional<TCellDescriptor> FindDescriptor(TCellId cellId)
+    std::optional<TCellDescriptor> FindDescriptor(TCellId cellId) override
     {
         auto guard = ReaderGuard(SpinLock_);
-        auto it = RegisteredCellMap_.find(cellId);
-        return it == RegisteredCellMap_.end() ? std::nullopt : std::make_optional(it->second.Descriptor);
+        auto it = CellIdToEntry_.find(cellId);
+        return it == CellIdToEntry_.end() ? std::nullopt : std::make_optional(it->second.Descriptor);
     }
 
-    TCellDescriptor GetDescriptorOrThrow(TCellId cellId)
+    TCellDescriptor GetDescriptorOrThrow(TCellId cellId) override
     {
         auto result = FindDescriptor(cellId);
         if (!result) {
@@ -225,9 +250,9 @@ public:
         return *result;
     }
 
-    std::optional<TString> FindPeerAddress(TCellId cellId, TPeerId peerId)
+    std::optional<TString> FindPeerAddress(TCellId cellId, TPeerId peerId) override
     {
-        auto it = RegisteredCellMap_.find(cellId);
+        auto it = CellIdToEntry_.find(cellId);
         if (!it) {
             return {};
         }
@@ -239,7 +264,7 @@ public:
         return peers[peerId].FindAddress(Networks_);
     }
 
-    TSynchronizationResult Synchronize(const std::vector<TCellInfo>& knownCells)
+    TSynchronizationResult Synchronize(const std::vector<TCellInfo>& knownCells) override
     {
         auto guard = ReaderGuard(SpinLock_);
 
@@ -249,14 +274,14 @@ public:
 
             THashMap<TCellId, const TEntry*> missingMap;
             if (trackMissingCells) {
-                for (const auto& [cellId, entry] : RegisteredCellMap_) {
+                for (const auto& [cellId, entry] : CellIdToEntry_) {
                     YT_VERIFY(missingMap.emplace(cellId, &entry).second);
                 }
             }
 
             for (const auto& knownCell : knownCells) {
                 auto cellId = knownCell.CellId;
-                if (auto it = RegisteredCellMap_.find(cellId)) {
+                if (auto it = CellIdToEntry_.find(cellId)) {
                     if (trackMissingCells) {
                         YT_VERIFY(missingMap.erase(cellId) == 1);
                     }
@@ -279,14 +304,14 @@ public:
             return true;
         };
 
-        if (!trySynchronize(knownCells.size() < RegisteredCellMap_.size())) {
+        if (!trySynchronize(knownCells.size() < CellIdToEntry_.size())) {
             YT_VERIFY(trySynchronize(true));
         }
 
         return result;
     }
 
-    bool ReconfigureCell(TCellConfigPtr config, int configVersion)
+    bool ReconfigureCell(TCellConfigPtr config, int configVersion) override
     {
         TCellDescriptor descriptor;
         descriptor.CellId = config->CellId;
@@ -298,7 +323,7 @@ public:
         return ReconfigureCell(descriptor);
     }
 
-    bool ReconfigureCell(TPeerConnectionConfigPtr config, int configVersion)
+    bool ReconfigureCell(TPeerConnectionConfigPtr config, int configVersion) override
     {
         auto cellConfig = New<TCellConfig>();
         cellConfig->CellId = config->CellId;
@@ -310,17 +335,27 @@ public:
         return ReconfigureCell(cellConfig, configVersion);
     }
 
-    bool ReconfigureCell(const TCellDescriptor& descriptor)
+    bool ReconfigureCell(const TCellDescriptor& descriptor) override
     {
         auto guard = WriterGuard(SpinLock_);
-        if (UnregisteredCellIds_.find(descriptor.CellId) != UnregisteredCellIds_.end()) {
+        if (UnregisteredCellIds_.contains(descriptor.CellId)) {
             return false;
         }
-        auto it = RegisteredCellMap_.find(descriptor.CellId);
-        if (it == RegisteredCellMap_.end()) {
-            it = RegisteredCellMap_.emplace(descriptor.CellId, TEntry(descriptor)).first;
+        auto it = CellIdToEntry_.find(descriptor.CellId);
+        if (it == CellIdToEntry_.end()) {
+            it = CellIdToEntry_.emplace(descriptor.CellId, TEntry(descriptor)).first;
+            auto* entry = &it->second;
             if (descriptor.ConfigVersion >= 0) {
-                InitChannel(&it->second);
+                InitChannel(entry);
+            }
+            if (IsGlobalCellId(descriptor.CellId)) {
+                auto cellTag = CellTagFromId(descriptor.CellId);
+                if (auto [jt, inserted] = CellTagToEntry_.emplace(cellTag, entry); !inserted) {
+                    YT_LOG_ALERT("Duplicate global cell id (CellTag: %v, ExistingCellId: %v, NewCellId: %v)",
+                        cellTag,
+                        jt->second->Descriptor.CellId,
+                        descriptor.CellId);
+                }
             }
             YT_LOG_DEBUG("Cell registered (CellId: %v, ConfigVersion: %v)",
                 descriptor.CellId,
@@ -337,29 +372,30 @@ public:
         return false;
     }
 
-    void RegisterCell(TCellId cellId)
+    void RegisterCell(TCellId cellId) override
     {
-        TCellDescriptor descriptor;
-        descriptor.CellId = cellId;
-        ReconfigureCell(descriptor);
+        ReconfigureCell(TCellDescriptor(cellId));
     }
 
-    bool UnregisterCell(TCellId cellId)
+    bool UnregisterCell(TCellId cellId) override
     {
         auto guard = WriterGuard(SpinLock_);
         UnregisteredCellIds_.insert(cellId);
-        if (RegisteredCellMap_.erase(cellId) == 0) {
+        if (CellIdToEntry_.erase(cellId) == 0) {
             return false;
+        }
+        if (IsGlobalCellId(cellId)) {
+            EraseOrCrash(CellTagToEntry_, CellTagFromId(cellId));
         }
         YT_LOG_INFO("Cell unregistered (CellId: %v)",
             cellId);
         return true;
     }
 
-    void Clear()
+    void Clear() override
     {
         auto guard = WriterGuard(SpinLock_);
-        RegisteredCellMap_.clear();
+        CellIdToEntry_.clear();
     }
 
 private:
@@ -379,7 +415,8 @@ private:
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    THashMap<TCellId, TEntry> RegisteredCellMap_;
+    THashMap<TCellId, TEntry> CellIdToEntry_;
+    THashMap<TCellTag, TEntry*> CellTagToEntry_;
     THashSet<TCellId> UnregisteredCellIds_;
 
 
@@ -408,99 +445,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellDirectory::TCellDirectory(
+ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     IChannelFactoryPtr channelFactory,
-    const TNetworkPreferenceList& networks,
+    const NNodeTrackerClient::TNetworkPreferenceList& networks,
     NLogging::TLogger logger)
-    : Impl_(New<TImpl>(
+{
+    return New<TCellDirectory>(
         std::move(config),
         std::move(channelFactory),
         networks,
-        std::move(logger)))
-{ }
-
-TCellDirectory::~TCellDirectory()
-{ }
-
-IChannelPtr TCellDirectory::FindChannel(TCellId cellId, EPeerKind peerKind)
-{
-    return Impl_->FindChannel(cellId, peerKind);
-}
-
-IChannelPtr TCellDirectory::GetChannelOrThrow(TCellId cellId, EPeerKind peerKind)
-{
-    return Impl_->GetChannelOrThrow(cellId, peerKind);
-}
-
-IChannelPtr TCellDirectory::GetChannel(TCellId cellId, EPeerKind peerKind)
-{
-    return Impl_->GetChannel(cellId, peerKind);
-}
-
-std::optional<TCellDescriptor> TCellDirectory::FindDescriptor(TCellId cellId)
-{
-    return Impl_->FindDescriptor(cellId);
-}
-
-TCellDescriptor TCellDirectory::GetDescriptorOrThrow(TCellId cellId)
-{
-    return Impl_->GetDescriptorOrThrow(cellId);
-}
-
-std::optional<TString> TCellDirectory::FindPeerAddress(TCellId cellId, TPeerId peerId)
-{
-    return Impl_->FindPeerAddress(cellId, peerId);
-}
-
-std::vector<TCellInfo> TCellDirectory::GetRegisteredCells()
-{
-    return Impl_->GetRegisteredCells();
-}
-
-bool TCellDirectory::IsCellUnregistered(TCellId cellId)
-{
-    return Impl_->IsCellUnregistered(cellId);
-}
-
-bool TCellDirectory::IsCellRegistered(TCellId cellId)
-{
-    return Impl_->IsCellRegistered(cellId);
-}
-
-TCellDirectory::TSynchronizationResult TCellDirectory::Synchronize(const std::vector<TCellInfo>& knownCells)
-{
-    return Impl_->Synchronize(knownCells);
-}
-
-bool TCellDirectory::ReconfigureCell(TCellConfigPtr config, int configVersion)
-{
-    return Impl_->ReconfigureCell(config, configVersion);
-}
-
-bool TCellDirectory::ReconfigureCell(TPeerConnectionConfigPtr config, int configVersion)
-{
-    return Impl_->ReconfigureCell(config, configVersion);
-}
-
-bool TCellDirectory::ReconfigureCell(const TCellDescriptor& descriptor)
-{
-    return Impl_->ReconfigureCell(descriptor);
-}
-
-void TCellDirectory::RegisterCell(TCellId cellId)
-{
-    Impl_->RegisterCell(cellId);
-}
-
-bool TCellDirectory::UnregisterCell(TCellId cellId)
-{
-    return Impl_->UnregisterCell(cellId);
-}
-
-void TCellDirectory::Clear()
-{
-    Impl_->Clear();
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

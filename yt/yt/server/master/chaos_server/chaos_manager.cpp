@@ -4,8 +4,10 @@
 #include "alien_cell_synchronizer.h"
 #include "alien_cluster_registry.h"
 #include "config.h"
-#include "chaos_cell_bundle_type_handler.h"
+#include "chaos_cell.h"
 #include "chaos_cell_type_handler.h"
+#include "chaos_cell_bundle.h"
+#include "chaos_cell_bundle_type_handler.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
@@ -82,21 +84,18 @@ public:
         return AlienClusterRegistry_;
     }
 
-    TChaosCell* FindChaosCell(TChaosCellId cellId) const override
+    TChaosCell* FindChaosCellById(TChaosCellId cellId) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cell = cellManager->FindCell(cellId);
-        if (!cell || cell->GetType() != EObjectType::ChaosCell) {
-            return nullptr;
-        }
-        return cell->As<TChaosCell>();
+        return IsObjectAlive(cell) && cell->GetType() == EObjectType::ChaosCell ? cell->As<TChaosCell>() : nullptr;
     }
 
-    TChaosCell* GetChaosCellOrThrow(TChaosCellId cellId) const override
+    TChaosCell* GetChaosCellByIdOrThrow(TChaosCellId cellId) const override
     {
-        auto* cell = FindChaosCell(cellId);
-        if (!cell) {
-            THROW_ERROR_EXCEPTION("Unknown chaos cell %v", cellId);
+        auto* cell = FindChaosCellById(cellId);
+        if (!IsObjectAlive(cell)) {
+            THROW_ERROR_EXCEPTION("No chaos cell with id %v is known", cellId);
         }
         return cell;
     }
@@ -106,6 +105,22 @@ public:
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(name, ECellarType::Chaos, true);
         return cellBundle->As<TChaosCellBundle>();
+    }
+
+    virtual TChaosCell* FindChaosCellByTag(TCellTag cellTag) const override
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        auto* cell = cellManager->FindCellByCellTag(cellTag);
+        return IsObjectAlive(cell) && cell->GetType() == EObjectType::ChaosCell ? cell->As<TChaosCell>() : nullptr;
+    }
+
+    virtual TChaosCell* GetChaosCellByTagOrThrow(TCellTag cellTag) const override
+    {
+        auto* cell = FindChaosCellByTag(cellTag);
+        if (!IsObjectAlive(cell)) {
+            THROW_ERROR_EXCEPTION("No chaos cell with tag %v is known", cellTag);
+        }
+        return cell;
     }
 
 private:
@@ -153,7 +168,7 @@ private:
 
         for (const auto& [alienClusterIndex, alienCells] : constellations) {
             for (const auto& alienCell : alienCells) {
-                auto* cell = FindChaosCell(alienCell.CellId);
+                auto* cell = FindChaosCellById(alienCell.CellId);
                 if (!IsObjectAlive(cell) || cell->GetAlienConfigVersion(alienClusterIndex) >= alienCell.ConfigVersion) {
                     continue;
                 }

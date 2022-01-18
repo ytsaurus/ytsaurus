@@ -110,7 +110,7 @@ private:
         for (auto& [alienClusterIndex, descriptors] : descriptorsMap) {
             auto clusterName = GetAlienClusterRegistry()->GetAlienClusterName(alienClusterIndex);
             if (auto client = GetAlienClusterClient(clusterName)) {
-                auto asyncResult = client->SyncAlienCells(std::move(descriptors)); 
+                auto asyncResult = client->SyncAlienCells(std::move(descriptors));
                 asyncAlienDescriptors.push_back(std::move(asyncResult));
                 clients.push_back(std::move(client));
                 clusterIndexes.push_back(alienClusterIndex);
@@ -184,7 +184,6 @@ private:
     NNative::IClientPtr GetAlienClusterClient(const TString& clusterName)
     {
         auto connection = NNative::FindRemoteConnection(Bootstrap_->GetClusterConnection(), clusterName);
-
         if (!connection) {
             YT_LOG_WARNING("Could not find native connection config to alien cluster (ClusterName: %Qv)",
                 clusterName);

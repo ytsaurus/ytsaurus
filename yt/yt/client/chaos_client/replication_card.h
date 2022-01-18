@@ -93,21 +93,6 @@ struct TReplicationCard
 
 DEFINE_REFCOUNTED_TYPE(TReplicationCard)
 
-struct TReplicationCardToken
-{
-    NObjectClient::TCellId ChaosCellId;
-    TReplicationCardId ReplicationCardId;
-
-    TReplicationCardToken() = default;
-    TReplicationCardToken(
-        NObjectClient::TCellId chaosCellId,
-        TReplicationCardId replicationCardId);
-
-    operator size_t() const;
-    explicit operator bool() const;
-    bool operator == (const TReplicationCardToken& other) const;
-};
-
 ///////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationProgress& replicationProgress, TStringBuf /*spec*/);
@@ -121,9 +106,6 @@ TString ToString(const TReplicaInfo& replicaInfo);
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/);
 TString ToString(const TReplicationCard& replicationCard);
-
-void FormatValue(TStringBuilderBase* builder, const TReplicationCardToken& replicationCardToken, TStringBuf /*spec*/);
-TString ToString(const TReplicationCardToken& replicationCardToken);
 
 ////////////////////////////////////////////////////////////////////////////////
 

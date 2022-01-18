@@ -17,7 +17,7 @@ public:
     TReplicationCardCommandBase();
 
 protected:
-    NChaosClient::TReplicationCardToken ReplicationCardToken;
+    NChaosClient::TReplicationCardId ReplicationCardId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +29,7 @@ public:
     TCreateReplicationCardCommand();
 
 private:
-    NChaosClient::TReplicationCardToken ReplicationCardToken;
+    NObjectClient::TCellId ChaosCellId;
 
     void DoExecute(ICommandContextPtr context) override;
 };

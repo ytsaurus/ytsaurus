@@ -311,8 +311,7 @@ private:
         auto* replicationCard = replicationCardHolder.get();
         ReplicationCardMap_.Insert(replicationCardId, std::move(replicationCardHolder));
 
-        auto replicationCardToken = TReplicationCardToken{Slot_->GetCellId(), replicationCardId};
-        ToProto(response->mutable_replication_card_token(), replicationCardToken);
+        ToProto(response->mutable_replication_card_id(), replicationCardId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Created replication card (ReplicationCardId: %v, ReplicationCard: %v)",
             replicationCardId,
@@ -324,8 +323,7 @@ private:
         NChaosClient::NProto::TReqCreateTableReplica* request,
         NChaosClient::NProto::TRspCreateTableReplica* response)
     {
-        auto replicationCardToken = FromProto<NChaosClient::TReplicationCardToken>(request->replication_card_token());
-        const auto& replicationCardId = replicationCardToken.ReplicationCardId;
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto newReplica = FromProto<TReplicaInfo>(request->replica_info());
 
         YT_VERIFY(IsStableReplicaState(newReplica.State));
@@ -378,8 +376,7 @@ private:
 
     void HydraRemoveTableReplica(NChaosClient::NProto::TReqRemoveTableReplica* request)
     {
-        auto replicationCardToken = FromProto<NChaosClient::TReplicationCardToken>(request->replication_card_token());
-        const auto& replicationCardId = replicationCardToken.ReplicationCardId;
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<NChaosClient::TReplicaId>(request->replica_id());
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
@@ -403,68 +400,69 @@ private:
 
     void HydraAlterTableReplica(NChaosClient::NProto::TReqAlterTableReplica* request)
     {
-        auto replicationCardToken = FromProto<NChaosClient::TReplicationCardToken>(request->replication_card_token());
-        const auto& replicationCardId = replicationCardToken.ReplicationCardId;
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<NTableClient::TTableId>(request->replica_id());
-        std::optional<EReplicaMode> mode;
-        std::optional<EReplicaState> state;
-        std::optional<NYTree::TYPath> path;
 
+        std::optional<EReplicaMode> mode;
         if (request->has_mode()) {
             mode = FromProto<EReplicaMode>(request->mode());
             YT_VERIFY(IsStableReplicaMode(*mode));
         }
+
+        std::optional<EReplicaState> state;
         if (request->has_state()) {
             state = FromProto<EReplicaState>(request->state());
             YT_VERIFY(IsStableReplicaState(*state));
         }
+
+        std::optional<NYTree::TYPath> path;
         if (request->has_table_path()) {
             path = request->table_path();
         }
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
-        auto& replica = GetReplicaOrThrow(replicationCard, replicaId);
+        auto* replica = GetReplicaOrThrow(replicationCard, replicaId);
 
-        if (!IsStableReplicaMode(replica.Mode) || !IsStableReplicaState(replica.State)) {
+        if (!IsStableReplicaMode(replica->Mode) || !IsStableReplicaState(replica->State)) {
             THROW_ERROR_EXCEPTION("Replica is transitioning")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("mode", replica.Mode)
-                << TErrorAttribute("state", replica.State);
+                << TErrorAttribute("mode", replica->Mode)
+                << TErrorAttribute("state", replica->State);
         }
 
-        if (path && replica.State != EReplicaState::Disabled) {
+        if (path && replica->State != EReplicaState::Disabled) {
             THROW_ERROR_EXCEPTION("Could not alter replica table path since it is not disabled")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("state", replica.State);
+                << TErrorAttribute("state", replica->State);
         }
 
         bool revoke = false;
 
-        if (mode && replica.Mode != *mode) {
-            if (replica.Mode == EReplicaMode::Sync) {
-                replica.Mode = EReplicaMode::SyncToAsync;
+        if (mode && replica->Mode != *mode) {
+            if (replica->Mode == EReplicaMode::Sync) {
+                replica->Mode = EReplicaMode::SyncToAsync;
                 revoke = true;
-            } else if (replica.Mode == EReplicaMode::Async) {
-                replica.Mode = EReplicaMode::AsyncToSync;
+            } else if (replica->Mode == EReplicaMode::Async) {
+                replica->Mode = EReplicaMode::AsyncToSync;
                 revoke = true;
             }
         }
 
-        if (state && replica.State != *state) {
-            if (replica.State == EReplicaState::Disabled) {
-                replica.State = EReplicaState::Enabling;
+        if (state && replica->State != *state) {
+            if (replica->State == EReplicaState::Disabled) {
+                replica->State = EReplicaState::Enabling;
                 revoke = true;
-            } else if (replica.State == EReplicaState::Enabled) {
-                replica.State = EReplicaState::Disabling;
+            } else if (replica->State == EReplicaState::Enabled) {
+                replica->State = EReplicaState::Disabling;
                 revoke = true;
             }
         }
 
         if (path) {
-            YT_VERIFY(replica.State == EReplicaState::Disabled);
-            replica.TablePath = *path;
+            YT_VERIFY(replica->State == EReplicaState::Disabled);
+            replica->TablePath = *path;
         }
 
         if (revoke) {
@@ -802,18 +800,18 @@ private:
 
     void HydraUpdateReplicationProgress(NChaosClient::NProto::TReqUpdateReplicationProgress* request)
     {
-        auto replicationCardToken = FromProto<NChaosClient::TReplicationCardToken>(request->replication_card_token());
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<NTableClient::TTableId>(request->replica_id());
         auto newProgress = FromProto<TReplicationProgress>(request->replication_progress());
 
-        auto* replicationCard = GetReplicationCardOrThrow(replicationCardToken.ReplicationCardId);
-        auto& replica = GetReplicaOrThrow(replicationCard, replicaId);
-        NChaosClient::UpdateReplicationProgress(&replica.ReplicationProgress, newProgress);
+        auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
+        auto* replica = GetReplicaOrThrow(replicationCard, replicaId);
+        NChaosClient::UpdateReplicationProgress(&replica->ReplicationProgress, newProgress);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (ReplicationCardId: %v, ReplicaId: %v, Progress: %v",
-            replicationCardToken.ReplicationCardId,
+            replicationCardId,
             replicaId,
-            replica.ReplicationProgress);
+            replica->ReplicationProgress);
     }
 
 
@@ -830,9 +828,9 @@ private:
             << TErrorAttribute("replica_id", replicaId);
     }
 
-    TReplicaInfo& GetReplicaOrThrow(TReplicationCard* card, TReplicaId replicaId)
+    TReplicaInfo* GetReplicaOrThrow(TReplicationCard* card, TReplicaId replicaId)
     {
-        return card->Replicas()[GetReplicaIndexOrThrow(card, replicaId)];
+        return &card->Replicas()[GetReplicaIndexOrThrow(card, replicaId)];
     }
 
     void InvestigateStalledReplicationCards()

@@ -395,6 +395,10 @@ class YTEnvSetup(object):
             return "remote_" + str(cluster_index - 1)
 
     @classmethod
+    def get_cluster_names(cls):
+        return [cls.get_cluster_name(cluster_index) for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1)]
+
+    @classmethod
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 

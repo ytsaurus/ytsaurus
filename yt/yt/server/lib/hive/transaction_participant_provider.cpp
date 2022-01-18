@@ -1,4 +1,5 @@
 #include "transaction_participant_provider.h"
+#include "private.h"
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/connection.h>
@@ -20,12 +21,16 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = HiveServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellDirectoryTransactionParticipantProvider
     : public ITransactionParticipantProvider
 {
 public:
     TCellDirectoryTransactionParticipantProvider(
-        TCellDirectoryPtr cellDirectory,
+        ICellDirectoryPtr cellDirectory,
         ITimestampProviderPtr timestampProvider,
         const TCellTagList& cellTags)
         : CellDirectory_(std::move(cellDirectory))
@@ -37,11 +42,17 @@ public:
         TCellId cellId,
         const TTransactionParticipantOptions& options) override
     {
-        if (std::find(CellTags_.begin(), CellTags_.end(), CellTagFromId(cellId)) == CellTags_.end()) {
+        if (TypeFromId(cellId) != EObjectType::ChaosCell &&
+            std::find(CellTags_.begin(), CellTags_.end(), CellTagFromId(cellId)) == CellTags_.end())
+        {
             // NB: This is necessary for replicated tables. If cell is foreign, then next participant
             // provider is used, which is cluster directory participant provider.
             return nullptr;
         }
+
+        YT_LOG_DEBUG("Transaction participant is provided by cell directory (CellId: %v)",
+            cellId);
+
         return NNative::CreateTransactionParticipant(
             CellDirectory_,
             nullptr,
@@ -52,13 +63,13 @@ public:
     }
 
 private:
-    const TCellDirectoryPtr CellDirectory_;
+    const ICellDirectoryPtr CellDirectory_;
     const ITimestampProviderPtr TimestampProvider_;
     const TCellTagList CellTags_;
 };
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
-    TCellDirectoryPtr cellDirectory,
+    ICellDirectoryPtr cellDirectory,
     ITimestampProviderPtr timestampProvider,
     const TCellTagList& cellTags)
 {
@@ -97,12 +108,16 @@ public:
         if (!connection) {
             return nullptr;
         }
+
+        YT_LOG_DEBUG("Transaction participant is provided by remote connnection (CellId: %v, ClusterId: %v)",
+            cellId,
+            connection->GetClusterId());
+
         return connection->CreateTransactionParticipant(cellId, options);
     }
 
 private:
     const TClusterDirectoryPtr ClusterDirectory_;
-
 };
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(

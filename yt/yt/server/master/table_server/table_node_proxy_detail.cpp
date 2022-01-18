@@ -19,7 +19,6 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/server/master/tablet_server/backup_manager.h>
-#include <yt/yt/server/master/tablet_server/replication_card.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
 #include <yt/yt/server/master/tablet_server/table_replica.h>
@@ -71,6 +70,8 @@ using namespace NNodeTrackerServer;
 using namespace NObjectServer;
 using namespace NRpc;
 using namespace NSecurityServer;
+using namespace NChaosClient;
+using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletServer;
@@ -264,10 +265,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UpstreamReplicaId)
         .SetExternal(isExternal)
         .SetPresent(isDynamic));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationCardToken)
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationCardId)
         .SetWritable(true)
         .SetExternal(isExternal)
-        .SetPresent(isDynamic && trunkTable->ReplicationCardToken()));
+        .SetPresent(isDynamic && trunkTable->GetReplicationCardId()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
@@ -683,12 +684,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(trunkTable->GetUpstreamReplicaId());
             return true;
 
-        case EInternedAttributeKey::ReplicationCardToken:
-            if (!isDynamic || !trunkTable->ReplicationCardToken()) {
+        case EInternedAttributeKey::ReplicationCardId:
+            if (!isDynamic || !trunkTable->GetReplicationCardId()) {
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(trunkTable->ReplicationCardToken());
+                .Value(trunkTable->GetReplicationCardId());
             return true;
 
         case EInternedAttributeKey::EnableTabletBalancer:
@@ -1127,15 +1128,15 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             return true;
         }
 
-        case EInternedAttributeKey::ReplicationCardToken: {
+        case EInternedAttributeKey::ReplicationCardId: {
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
             if (!lockedTable->IsDynamic() || !lockedTable->IsSorted() || lockedTable->IsReplicated()) {
-                THROW_ERROR_EXCEPTION("Replication card token can be used only with sorted dynamic tables");
+                THROW_ERROR_EXCEPTION("Replication card can only be set for sorted dynamic tables");
             }
             lockedTable->ValidateAllTabletsUnmounted("Cannot change upstream replication card");
-            lockedTable->MutableReplicationCardToken().Reset();
+            lockedTable->SetReplicationCardId({});
             return true;
         }
 
@@ -1371,19 +1372,24 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             return true;
         }
 
-        case EInternedAttributeKey::ReplicationCardToken: {
+        case EInternedAttributeKey::ReplicationCardId: {
             if (!table->IsDynamic()) {
                 break;
             }
             ValidateNoTransaction();
 
+            auto replicationCardId = ConvertTo<TReplicationCardId>(value);
+            if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
+                THROW_ERROR_EXCEPTION("Malformed replication card id %v",
+                    replicationCardId);
+            }
+
             auto* lockedTable = LockThisImpl();
             if (!lockedTable->IsDynamic() || !lockedTable->IsSorted()) {
-                THROW_ERROR_EXCEPTION("Replication card token can be set only with sorted dynamic tables");
+                THROW_ERROR_EXCEPTION("Replication card can only be set for sorted dynamic tables");
             }
             lockedTable->ValidateAllTabletsUnmounted("Cannot change upstream replication card");
-
-            lockedTable->MutableReplicationCardToken() = ConvertTo<TReplicationCardTokenPtr>(value);
+            lockedTable->SetReplicationCardId(replicationCardId);
             return true;
         }
 
@@ -1590,8 +1596,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         }
     }
 
-    if (trunkTable->ReplicationCardToken()) {
-        ToProto(response->mutable_replication_card_token(), ConvertToClientReplicationCardToken(trunkTable->ReplicationCardToken()));
+    if (trunkTable->GetReplicationCardId()) {
+        ToProto(response->mutable_replication_card_id(), trunkTable->GetReplicationCardId());
     }
 
     context->Reply();

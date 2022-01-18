@@ -85,9 +85,9 @@ private:
         const auto& cellDirectory = connection->GetCellDirectory();
 
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
-        auto proxy = TChaosMasterServiceProxy(channel);
-        auto req = proxy.GetCellDescriptors();
+        auto proxy = TChaosMasterServiceProxy(std::move(channel));
 
+        auto req = proxy.GetCellDescriptorsByCellBundle();
         req->set_cell_bundle(Slot_->GetCellBundleName());
 
         auto result = WaitFor(req->Invoke())

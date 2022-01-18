@@ -13,24 +13,23 @@ using namespace NYson;
 
 TReplicationCardCommandBase::TReplicationCardCommandBase()
 {
-    RegisterParameter("chaos_cell_id", ReplicationCardToken.ChaosCellId);
-    RegisterParameter("replication_card_id", ReplicationCardToken.ReplicationCardId);
+    RegisterParameter("replication_card_id", ReplicationCardId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCreateReplicationCardCommand::TCreateReplicationCardCommand()
 {
-    RegisterParameter("chaos_cell_id", ReplicationCardToken.ChaosCellId);
+    RegisterParameter("chaos_cell_id", ChaosCellId);
 }
 
 void TCreateReplicationCardCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    auto replicationCardIdFuture = client->CreateReplicationCard(ReplicationCardToken, Options);
-    auto replicationCardToken = WaitFor(replicationCardIdFuture)
+    auto replicationCardIdFuture = client->CreateReplicationCard(ChaosCellId, Options);
+    auto replicationCardId = WaitFor(replicationCardIdFuture)
         .ValueOrThrow();
-    ProduceSingleOutputValue(context, "replication_card_id", replicationCardToken.ReplicationCardId);
+    ProduceSingleOutputValue(context, "replication_card_id", replicationCardId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +47,7 @@ TGetReplicationCardCommand::TGetReplicationCardCommand()
 void TGetReplicationCardCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    auto replicationCardFuture = client->GetReplicationCard(ReplicationCardToken, Options);
+    auto replicationCardFuture = client->GetReplicationCard(ReplicationCardId, Options);
     auto replicationCard = WaitFor(replicationCardFuture)
         .ValueOrThrow();
 
@@ -67,7 +66,7 @@ TCreateReplicationCardReplicaCommand::TCreateReplicationCardReplicaCommand()
 void TCreateReplicationCardReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    auto replicaIdFuture = client->CreateReplicationCardReplica(ReplicationCardToken, ReplicaInfo, Options);
+    auto replicaIdFuture = client->CreateReplicationCardReplica(ReplicationCardId, ReplicaInfo, Options);
     auto replicaId = WaitFor(replicaIdFuture)
         .ValueOrThrow();
     ProduceSingleOutputValue(context, "replica_id", replicaId);
@@ -84,7 +83,7 @@ void TRemoveReplicationCardReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
 
-    auto future = client->RemoveReplicationCardReplica(ReplicationCardToken, ReplicaId, Options);
+    auto future = client->RemoveReplicationCardReplica(ReplicationCardId, ReplicaId, Options);
     WaitFor(future)
         .ThrowOnError();
     ProduceEmptyOutput(context);
@@ -107,7 +106,7 @@ void TAlterReplicationCardReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
 
-    auto future = client->AlterReplicationCardReplica(ReplicationCardToken, ReplicaId, Options);
+    auto future = client->AlterReplicationCardReplica(ReplicationCardId, ReplicaId, Options);
     WaitFor(future)
         .ThrowOnError();
     ProduceEmptyOutput(context);
@@ -125,7 +124,7 @@ void TUpdateReplicationProgressCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
 
-    auto future = client->UpdateReplicationProgress(ReplicationCardToken, ReplicaId, Options);
+    auto future = client->UpdateReplicationProgress(ReplicationCardId, ReplicaId, Options);
     WaitFor(future)
         .ThrowOnError();
     ProduceEmptyOutput(context);

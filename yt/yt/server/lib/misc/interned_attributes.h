@@ -336,6 +336,7 @@
     XX(ReplicaPath, replica_path) \
     XX(Replicas, replicas) \
     XX(ReplicatedTableOptions, replicated_table_options) \
+    XX(ReplicationCardId, replication_card_id) \
     XX(ReplicationCollocationId, replication_collocation_id) \
     XX(ReplicationCollocationTablePaths, replication_collocation_table_paths) \
     XX(ReplicationErrorCount, replication_error_count) \
@@ -438,7 +439,6 @@
     XX(UpperLimit, upper_limit) \
     XX(UpstreamReplicaId, upstream_replica_id) \
     XX(Uuid, uuid) \
-    XX(ReplicationCardToken, replication_card_token) \
     XX(UsableAccounts, usable_accounts) \
     XX(UsableNetworkProjects, usable_network_projects) \
     XX(UsableTabletCellBundles, usable_tablet_cell_bundles) \

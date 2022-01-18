@@ -82,6 +82,7 @@ DEFINE_ENUM(EMasterReign,
     ((BackupCheckpoints)                                            (1914))  // ifsmirnov
     ((ChunkLocation)                                                (1915))  // babenko
     ((ReplicationLogTables)                                         (1916))  // savrus
+    ((ReplicationCardTokenIsNoMore)                                 (1917))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

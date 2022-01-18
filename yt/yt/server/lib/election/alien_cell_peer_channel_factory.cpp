@@ -32,7 +32,7 @@ public:
         const TString& cluster,
         TCellId cellId,
         int peerId,
-        TCellDirectoryPtr cellDirectory)
+        ICellDirectoryPtr cellDirectory)
         : Cluster_(cluster)
         , CellId_(cellId)
         , PeerId_(peerId)
@@ -83,7 +83,7 @@ private:
     const TString Cluster_;
     const TCellId CellId_;
     const int PeerId_;
-    const TCellDirectoryPtr CellDirectory_;
+    const ICellDirectoryPtr CellDirectory_;
 
     const TString EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
@@ -113,7 +113,7 @@ class TAlienCellPeerChannelFactory
     : public NElection::IAlienCellPeerChannelFactory
 {
 public:
-    explicit TAlienCellPeerChannelFactory(TCellDirectoryPtr cellDirectory)
+    explicit TAlienCellPeerChannelFactory(ICellDirectoryPtr cellDirectory)
         : CellDirectory_(std::move(cellDirectory))
     { }
 
@@ -133,12 +133,12 @@ public:
     }
 
 private:
-    const TCellDirectoryPtr CellDirectory_;
+    const ICellDirectoryPtr CellDirectory_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAlienCellPeerChannelFactoryPtr CreateAlienCellPeerChannelFactory(TCellDirectoryPtr cellDirectory)
+IAlienCellPeerChannelFactoryPtr CreateAlienCellPeerChannelFactory(ICellDirectoryPtr cellDirectory)
 {
     return New<TAlienCellPeerChannelFactory>(
         std::move(cellDirectory));

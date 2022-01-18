@@ -94,7 +94,7 @@ struct TTableMountInfo
     TTableReplicaId UpstreamReplicaId;
     bool NeedKeyEvaluation;
 
-    NChaosClient::TReplicationCardToken ReplicationCardToken;
+    NChaosClient::TReplicationCardId ReplicationCardId;
 
     std::vector<TTabletInfoPtr> Tablets;
     std::vector<TTabletInfoPtr> MountedTablets;
