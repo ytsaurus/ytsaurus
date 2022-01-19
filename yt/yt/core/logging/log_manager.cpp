@@ -71,7 +71,7 @@ using namespace NTracing;
 static const TLogger Logger(SystemLoggingCategoryName);
 
 static constexpr auto DiskProfilingPeriod = TDuration::Minutes(5);
-static constexpr auto AnchorProfilingPeriod = TDuration::Minutes(1);
+static constexpr auto AnchorProfilingPeriod = TDuration::Seconds(15);
 static constexpr auto DequeuePeriod = TDuration::MilliSeconds(30);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1085,6 +1085,7 @@ private:
             Profiler
                 .WithSparse()
                 .WithDefaultDisabled()
+                .WithProducerRemoveSupport()
                 .AddProducer("/anchors", AnchorBufferedProducer_);
         } else if (!Config_->EnableAnchorProfiling && AnchorBufferedProducer_) {
             AnchorBufferedProducer_.Reset();
