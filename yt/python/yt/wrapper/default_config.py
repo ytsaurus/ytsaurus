@@ -142,7 +142,12 @@ default_config = {
         "check_response_format": True,
 
         # List of commands that use framing (cf. https://yt.yandex-team.ru/docs/description/proxy/http_proxy_reference#framing).
-        "commands_with_framing": ["read_table", "get_table_columnar_statistics", "get_job_input"],
+        "commands_with_framing": [
+            "read_table",
+            "get_table_columnar_statistics",
+            "get_job_input",
+            "list_jobs",
+        ],
     },
 
     # Parameters for dynamic table requests retries.
@@ -450,7 +455,7 @@ default_config = {
     #   yt.read_table("relative/path")
     # translates to
     #   yt.read_table("//prefix/path/relative/path")
-    # 
+    #
     # WARNING: select_rows command ignores this configuration parameter for tables inside query.
     # If there is such need a workaround can be used:
     #   yt.select_rows("... from [{}] ...".format(client.TablePath("relative/path/to/table")))
