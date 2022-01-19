@@ -83,6 +83,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkLocation)                                                (1915))  // babenko
     ((ReplicationLogTables)                                         (1916))  // savrus
     ((ReplicationCardTokenIsNoMore)                                 (1917))  // babenko
+    ((FixObjectSmartPtrLeak)                                        (1918))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -443,7 +443,11 @@ TObjectPtr<T, C>& TObjectPtr<T, C>::operator=(TObjectPtr&& other) noexcept
 {
     NDetail::AssertPersistentStateRead();
     if (this != &other) {
+        NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
         NDetail::AssertObjectValidOrNull(ToObject(other.Ptr_));
+        if (Ptr_) {
+            Context_.Unref(ToObject(Ptr_));
+        }
         Ptr_ = other.Ptr_;
         other.Ptr_ = nullptr;
         Context_ = std::move(other.Context_);
