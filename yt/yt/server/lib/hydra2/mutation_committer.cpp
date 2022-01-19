@@ -675,8 +675,8 @@ void TLeaderCommitter::LogMutation(TMutationDraft&& mutationDraft)
         mutation->Version,
         mutation->RandomSeed);
 
-    MutationQueue_.push_back(std::move(mutation));
     MutationQueueDataSize_ += sizeof(mutation) + mutation->SerializedMutation.Size();
+    MutationQueue_.push_back(std::move(mutation));
 
     MaybeCheckpoint();
     MaybePromoteCommitedSequenceNumber();
@@ -845,6 +845,7 @@ void TFollowerCommitter::PrepareNextChangelog(TVersion version)
     YT_LOG_INFO("Cannot find changelog in next changelogs, creating (Version: %v, Term: %v)",
         version,
         EpochContext_->Term);
+
     NHydra::NProto::TChangelogMeta meta;
     meta.set_term(EpochContext_->Term);
     auto future = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, meta));
@@ -878,13 +879,13 @@ TFuture<void> TFollowerCommitter::LogMutations()
     i64 lastMutationSequenceNumber = 0;
     int loggedCount = 0;
     while (loggedCount < Config_->MaxLoggedMutationsPerRequest && !AcceptedMutations_.empty()) {
-        auto version = AcceptedMutations_.front()->Version;
+        auto mutation = std::move(AcceptedMutations_.front());
+        AcceptedMutations_.pop();
+
+        auto version = mutation->Version;
         if (version.SegmentId != ChangelogId_) {
             PrepareNextChangelog(version);
         }
-
-        auto mutation = std::move(AcceptedMutations_.front());
-        AcceptedMutations_.pop();
 
         localFlushFuture = LogMutation(mutation);
         lastMutationSequenceNumber = mutation->SequenceNumber;
@@ -963,17 +964,6 @@ void TFollowerCommitter::CommitMutations(i64 committedSequenceNumber)
 void TFollowerCommitter::Stop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-
-    while (!AcceptedMutations_.empty()) {
-        AcceptedMutations_.pop();
-    }
-    AcceptedSequenceNumber_ = 0;
-
-    while (!LoggedMutations_.empty()) {
-        LoggedMutations_.pop();
-    }
-    LoggedSequenceNumber_ = 0;
-    NextChangelogs_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

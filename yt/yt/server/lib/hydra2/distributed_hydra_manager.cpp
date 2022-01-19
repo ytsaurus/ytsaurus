@@ -1005,6 +1005,9 @@ private:
         auto changelog = OpenChangelogOrThrow(changelogId);
         auto meta = changelog->GetMeta();
 
+        // We can ingore snaphots terms here: if there is a snapshot built in term X,
+        // there is at least quorum peers with changelog with term X
+        // (at least one of them was created during initial changelog aqcuisition as a persistent vote).
         return {changelogId, meta.term()};
     }
 
@@ -1185,6 +1188,8 @@ private:
         auto changelogStore = ChangelogStore_;
 
         auto controlState = GetControlState();
+
+        // TODO(aleksandra-zh): can we actually be following?
         if (controlState != EPeerState::FollowerRecovery && controlState != EPeerState::Following) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
@@ -1710,10 +1715,10 @@ private:
             epochContext->LeaseTracker->SubscribeLeaseLost(
                 BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), MakeWeak(epochContext)));
 
-            YT_LOG_INFO("Waiting for followers to recover");
+            YT_LOG_INFO("Waiting for followers to enter recovery state");
             WaitFor(epochContext->LeaseTracker->GetNextQuorumFuture())
                 .ThrowOnError();
-            YT_LOG_INFO("Followers recovered");
+            YT_LOG_INFO("Followers are in recovery");
 
             auto changelogId = AcquireChangelog();
             auto changelog = OpenChangelogOrThrow(changelogId);
@@ -2338,14 +2343,13 @@ private:
             }));
     }
 
-
     void CommitMutationsAtFollower(i64 committedSequenceNumber)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto lastSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
 
-        AutomatonEpochContext_->FollowerCommitter->CommitMutations(committedSequenceNumber);
+        ControlEpochContext_->FollowerCommitter->CommitMutations(committedSequenceNumber);
         CheckForPendingLeaderSync();
 
         auto currentSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
