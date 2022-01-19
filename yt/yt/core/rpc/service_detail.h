@@ -845,6 +845,15 @@ private:
     static constexpr size_t ReplyBusBucketCount = 64;
     std::array<TReplyBusBucket, ReplyBusBucketCount> ReplyBusBuckets_;
 
+    struct TQueuedReplyBucket
+    {
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+        THashMap<TRequestId, TFuture<void>> QueuedReplies;
+    };
+
+    static constexpr size_t QueuedReplyBucketCount = 64;
+    std::array<TQueuedReplyBucket, ReplyBusBucketCount> QueuedReplyBusBuckets_;
+
     static constexpr auto DefaultPendingPayloadsTimeout = TDuration::Seconds(30);
     std::atomic<TDuration> PendingPayloadsTimeout_ = DefaultPendingPayloadsTimeout;
 
@@ -910,12 +919,17 @@ private:
         TRequestQueue* requestQueue);
 
     TRequestBucket* GetRequestBucket(TRequestId requestId);
+    TQueuedReplyBucket* GetQueuedReplyBucket(TRequestId requestId);
     TReplyBusBucket* GetReplyBusBucket(const NYT::NBus::IBusPtr& bus);
 
     void RegisterRequest(TServiceContext* context);
     void UnregisterRequest(TServiceContext* context);
     TServiceContextPtr FindRequest(TRequestId requestId);
     TServiceContextPtr DoFindRequest(TRequestBucket* bucket, TRequestId requestId);
+
+    void RegisterQueuedReply(TRequestId requestId, TFuture<void> reply);
+    void UnregisterQueuedReply(TRequestId requestId);
+    bool TryCancelQueuedReply(TRequestId requestId);
 
     TPendingPayloadsEntry* DoGetOrCreatePendingPayloadsEntry(TRequestBucket* bucket, TRequestId requestId);
     std::vector<TStreamingPayload> GetAndErasePendingPayloads(TRequestId requestId);

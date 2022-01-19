@@ -836,7 +836,29 @@ private:
             ? NBus::TSendOptions::AllParts
             : 2; // RPC header + response body
         busOptions.MemoryZone = ResponseMemoryZone_;
-        ReplyBus_->Send(responseMessage, busOptions);
+        busOptions.EnableSendCancelation = Cancelable_;
+
+        auto replySent = ReplyBus_->Send(responseMessage, busOptions);
+        if (Cancelable_ && replySent) {
+            if (auto timeout = GetTimeout()) {
+                auto timeoutCookie = TDelayedExecutor::Submit(
+                    BIND([replySent] {
+                        replySent.Cancel(TError());
+                    }),
+                    ArriveInstant_ + *timeout);
+
+                replySent.Subscribe(BIND([timeoutCookie] (const TError& ) {
+                    TDelayedExecutor::Cancel(timeoutCookie);
+                }));
+            }
+
+            Service_->RegisterQueuedReply(RequestId_, replySent);
+            replySent.Subscribe(BIND([service=MakeWeak(Service_), requestId=RequestId_] (const TError& ) {
+                if (auto p = service.Lock()) {
+                    p->UnregisterQueuedReply(requestId);
+                }
+            }));
+        }
 
         if (auto traceContextTime = GetTraceContextTime()) {
             PerformanceCounters_->TraceContextTimeCounter.Add(*traceContextTime);
@@ -1629,14 +1651,17 @@ void TServiceBase::HandleRequestCancelation(TRequestId requestId)
 {
     SetActive();
 
-    auto context = FindRequest(requestId);
-    if (!context) {
-        YT_LOG_DEBUG("Received cancelation for an unknown request, ignored (RequestId: %v)",
-            requestId);
+    if (TryCancelQueuedReply(requestId)) {
         return;
     }
 
-    context->Cancel();
+    if (auto context = FindRequest(requestId)) {
+        context->Cancel();
+        return;
+    }
+
+    YT_LOG_DEBUG("Received cancelation for an unknown request, ignored (RequestId: %v)",
+        requestId);
 }
 
 void TServiceBase::HandleStreamingPayload(
@@ -1781,6 +1806,11 @@ TServiceBase::TReplyBusBucket* TServiceBase::GetReplyBusBucket(const IBusPtr& bu
     return &ReplyBusBuckets_[THash<IBusPtr>()(bus) % ReplyBusBucketCount];
 }
 
+TServiceBase::TQueuedReplyBucket* TServiceBase::GetQueuedReplyBucket(TRequestId requestId)
+{
+    return &QueuedReplyBusBuckets_[THash<TRequestId>()(requestId) % QueuedReplyBucketCount];
+}
+
 void TServiceBase::RegisterRequest(TServiceContext* context)
 {
     auto requestId = context->GetRequestId();
@@ -1854,6 +1884,41 @@ TServiceBase::TServiceContextPtr TServiceBase::DoFindRequest(TRequestBucket* buc
 {
     auto it = bucket->RequestIdToContext.find(requestId);
     return it == bucket->RequestIdToContext.end() ? nullptr : DangerousGetPtr(it->second);
+}
+
+void TServiceBase::RegisterQueuedReply(TRequestId requestId, TFuture<void> reply)
+{
+    auto* bucket = GetQueuedReplyBucket(requestId);
+    auto guard = Guard(bucket->Lock);
+    bucket->QueuedReplies.emplace(requestId, std::move(reply));
+}
+
+void TServiceBase::UnregisterQueuedReply(TRequestId requestId)
+{
+    auto* bucket = GetQueuedReplyBucket(requestId);
+    auto guard = Guard(bucket->Lock);
+    bucket->QueuedReplies.erase(requestId);
+}
+
+bool TServiceBase::TryCancelQueuedReply(TRequestId requestId)
+{
+    TFuture<void> queuedReply;
+
+    {
+        auto* bucket = GetQueuedReplyBucket(requestId);
+        auto guard = Guard(bucket->Lock);
+        if (auto it = bucket->QueuedReplies.find(requestId); it != bucket->QueuedReplies.end()) {
+            queuedReply = it->second;
+            bucket->QueuedReplies.erase(it);
+        }
+    }
+
+    if (queuedReply) {
+        queuedReply.Cancel(TError());
+        return true;
+    } else {
+        return false;
+    }
 }
 
 TServiceBase::TPendingPayloadsEntry* TServiceBase::DoGetOrCreatePendingPayloadsEntry(TRequestBucket* bucket, TRequestId requestId)
