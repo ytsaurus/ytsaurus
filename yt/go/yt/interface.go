@@ -590,15 +590,23 @@ type ListJobsOptions struct {
 }
 
 type JobStatus struct {
-	ID              JobID          `yson:"id"`
-	Type            string         `yson:"type"`
-	State           string         `yson:"state"`
-	Address         string         `yson:"address"`
-	StartTime       yson.Time      `yson:"start_time"`
-	FinishTime      yson.Time      `yson:"finish_time,omitempty"`
-	FailContextSize int            `yson:"fail_context_size,omitempty"`
-	Error           yterrors.Error `yson:"error,omitempty"`
-	Progress        float64        `yson:"progress,omitempty"`
+	ID              JobID              `yson:"id"`
+	Type            string             `yson:"type"`
+	State           string             `yson:"state"`
+	Address         string             `yson:"address"`
+	StartTime       yson.Time          `yson:"start_time"`
+	FinishTime      yson.Time          `yson:"finish_time,omitempty"`
+	FailContextSize int                `yson:"fail_context_size,omitempty"`
+	Error           yterrors.Error     `yson:"error,omitempty"`
+	Progress        float64            `yson:"progress,omitempty"`
+	ExecAttributes  *JobExecAttributes `yson:"exec_attributes,omitempty"`
+}
+
+type JobExecAttributes struct {
+	MediumName  string   `yson:"medium_name"`
+	IPAddresses []string `yson:"ip_addresses"`
+	SandboxPath string   `yson:"sandbox_path"`
+	SlotIndex   int      `yson:"slot_index"`
 }
 
 type ListOperationsResult struct {
