@@ -56,6 +56,11 @@ bool IsPathPointingToAttributes(const TYPath& path)
     return false;
 }
 
+TYPath YPathJoin(const TYPath& path, TStringBuf literal)
+{
+    return TString::Join(path, "/", ToYPathLiteral(literal));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYPath

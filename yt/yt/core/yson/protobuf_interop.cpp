@@ -8,6 +8,7 @@
 #include <yt/yt/core/yson/null_consumer.h>
 #include <yt/yt/core/yson/protobuf_interop_unknown_fields.h>
 
+#include <yt/yt/core/ypath/helpers.h>
 #include <yt/yt/core/ypath/stack.h>
 #include <yt/yt/core/ypath/token.h>
 #include <yt/yt/core/ypath/tokenizer.h>
@@ -1091,9 +1092,7 @@ private:
         const auto* field = type->FindFieldByName(key);
 
         if (!field) {
-            YPathStack_.Push(TString{key});
-            auto path = YPathStack_.GetPath();
-            YPathStack_.Pop();
+            auto path = NYPath::YPathJoin(YPathStack_.GetPath(), key);
             auto unknownYsonFieldsMode = Options_.UnknownYsonFieldModeResolver(path);
             auto onFinishForwarding = [this] (auto& writer) {
                 writer.Flush();
@@ -1114,7 +1113,7 @@ private:
             if (unknownYsonFieldsMode == EUnknownYsonFieldsMode::Forward) {
                 ForwardingUnknownYsonFieldValueWriter_.YPathStack() = YPathStack_;
                 ForwardingUnknownYsonFieldValueWriter_.YPathStack().Push(TString(key));
-                ForwardingUnknownYsonFieldValueWriter_.Reset();
+                ForwardingUnknownYsonFieldValueWriter_.ResetMode();
                 UnknownYsonFieldKey_ = TString(key);
                 UnknownYsonFieldValueString_.clear();
                 Forward(

@@ -160,7 +160,7 @@ void TForwardingUnknownYsonFieldValueWriter::Flush()
     YsonWriter_.Flush();
 }
 
-void TForwardingUnknownYsonFieldValueWriter::Reset()
+void TForwardingUnknownYsonFieldValueWriter::ResetMode()
 {
     LastMode_ = EUnknownYsonFieldsMode::Forward;
 }
