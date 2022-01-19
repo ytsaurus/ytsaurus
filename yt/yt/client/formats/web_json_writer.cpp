@@ -2,7 +2,6 @@
 
 #include "config.h"
 #include "format.h"
-#include "helpers.h"
 #include "public.h"
 #include "schemaless_writer_adapter.h"
 #include "yql_yson_converter.h"
@@ -10,7 +9,6 @@
 #include <yt/yt/client/complex_types/yson_format_conversion.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
-#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
