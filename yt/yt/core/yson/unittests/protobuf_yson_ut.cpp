@@ -1394,6 +1394,52 @@ TEST(TYsonToProtobufTest, CustomUnknownFieldsModeResolver)
 
         EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(newYsonString)), ConvertToNode(expectedYsonStringAfterSerialization)));
     }
+    {
+        TProtobufWriterOptions options;
+        options.UnknownYsonFieldModeResolver = TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode::Forward);
+        EXPECT_YPATH({
+            TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+                .BeginMap()
+                    .Item("nested_message1").BeginMap()
+                        .Item("int32_field").Value(11)
+                        .Item("unknown_field\1").Value("val")
+                    .EndMap()
+                .EndMap();
+        }, R"(/nested_message1/unknown_field\x01)");
+    }
+    {
+        TProtobufWriterOptions options;
+        options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) {
+            if (path == R"(/nested_message1/unknown_field\x01)") {
+                return EUnknownYsonFieldsMode::Forward;
+            }
+            return EUnknownYsonFieldsMode::Keep;
+        };
+
+        EXPECT_YPATH({
+            TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+                .BeginMap()
+                    .Item("nested_message1").BeginMap()
+                        .Item("int32_field").Value(11)
+                        .Item("unknown_field\1").Value("val")
+                    .EndMap()
+                .EndMap();
+        }, R"(/nested_message1/unknown_field\x01)");
+    }
+    {
+        TProtobufWriterOptions options;
+        options.UnknownYsonFieldModeResolver = TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode::Fail);
+
+        EXPECT_YPATH({
+            TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+                .BeginMap()
+                    .Item("nested_message1").BeginMap()
+                        .Item("int32_field").Value(11)
+                        .Item("unknown_field1").Value("val")
+                    .EndMap()
+                .EndMap();
+        }, "/nested_message1");
+    }
 }
 
 TEST(TYsonToProtobufTest, ReservedFields)

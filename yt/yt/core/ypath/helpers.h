@@ -16,6 +16,8 @@ std::pair<TYPath, TString> DirNameAndBaseName(const TYPath& path);
 //! Check if path contains attribute designation by looking for @ token in it.
 bool IsPathPointingToAttributes(const TYPath& path);
 
+TYPath YPathJoin(const TYPath& path, TStringBuf literal);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYPath

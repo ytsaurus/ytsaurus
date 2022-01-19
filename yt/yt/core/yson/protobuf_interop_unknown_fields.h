@@ -24,7 +24,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NYPath::TYPathStack, YPathStack);
 
     void Flush();
-    void Reset();
+    void ResetMode();
 
 private:
     const TProtobufWriterOptions::TUnknownYsonFieldModeResolver& ModeResolver_;
