@@ -175,7 +175,7 @@ public:
 
     void RecomputeTabletCellStatistics(NCellServer::TCellBase* cellBase);
 
-    void WrapWithBackupChunkViews(TTablet* tablet);
+    void WrapWithBackupChunkViews(TTablet* tablet, NTransactionClient::TTimestamp maxClipTimestamp);
     TError PromoteFlushedDynamicStores(TTablet* tablet);
 
 private:

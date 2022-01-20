@@ -115,6 +115,8 @@ public:
             }
         }
 
+        table->SetBackupCheckpointTimestamp(timestamp);
+
         for (auto* tablet : table->GetTrunkNode()->Tablets()) {
             if (auto* cell = tablet->GetCell()) {
                 tablet->CheckedSetBackupState(
@@ -365,6 +367,8 @@ private:
                 YT_VERIFY(table == tablet->GetTable());
             } else {
                 table = tablet->GetTable();
+                YT_LOG_DEBUG("Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %v)",
+                    table->GetBackupCheckpointTimestamp());
             }
 
             if (tablet->GetBackupState() != ETabletBackupState::BackupStarted) {
@@ -378,7 +382,7 @@ private:
                 continue;
             }
 
-            tabletManager->WrapWithBackupChunkViews(tablet);
+            tabletManager->WrapWithBackupChunkViews(tablet, table->GetBackupCheckpointTimestamp());
 
             tablet->CheckedSetBackupState(
                 ETabletBackupState::BackupStarted,

@@ -36,6 +36,7 @@ DEFINE_ENUM(ETabletReign,
     ((NewLockMasks)                       (100400)) // gritukan
     ((Chaos)                              (100401)) // savrus
     ((BackupsSorted)                      (100402)) // ifsmirnov
+    ((MaxClipTimestamp)                   (100403)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

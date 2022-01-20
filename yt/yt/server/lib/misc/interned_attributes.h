@@ -41,6 +41,7 @@
     XX(AvailableSpace, available_space) \
     XX(AvailableSpacePerMedium, available_space_per_medium) \
     XX(BackupState, backup_state) \
+    XX(BackupCheckpointTimestamp, backup_checkpoint_timestamp) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
     XX(BoundaryKeys, boundary_keys) \

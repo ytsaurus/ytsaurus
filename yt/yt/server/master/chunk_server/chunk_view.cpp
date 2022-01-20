@@ -9,6 +9,7 @@ namespace NYT::NChunkServer {
 using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NCellMaster;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,6 +22,12 @@ TChunkViewModifier TChunkViewModifier::WithReadRange(NChunkClient::TLegacyReadRa
 TChunkViewModifier TChunkViewModifier::WithTransactionId(NObjectClient::TTransactionId transactionId) &&
 {
     SetTransactionId(transactionId);
+    return *this;
+}
+
+TChunkViewModifier TChunkViewModifier::WithMaxClipTimestamp(TTimestamp maxClipTimestamp) &&
+{
+    SetMaxClipTimestamp(maxClipTimestamp);
     return *this;
 }
 
@@ -56,6 +63,10 @@ TChunkViewModifier TChunkViewModifier::RestrictedWith(const TChunkViewModifier& 
         copy.TransactionId_ = other.TransactionId_;
     }
 
+    if (other.MaxClipTimestamp_) {
+        copy.MaxClipTimestamp_ = other.MaxClipTimestamp_;
+    }
+
     return copy;
 }
 
@@ -81,6 +92,7 @@ void TChunkViewModifier::Save(NCellMaster::TSaveContext& context) const
 
     Save(context, ReadRange_);
     Save(context, TransactionId_);
+    Save(context, MaxClipTimestamp_);
 }
 
 void TChunkViewModifier::Load(NCellMaster::TLoadContext& context)
@@ -89,15 +101,25 @@ void TChunkViewModifier::Load(NCellMaster::TLoadContext& context)
 
     Load(context, ReadRange_);
     Load(context, TransactionId_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::MaxClipTimestampInChunkView) {
+        Load(context, MaxClipTimestamp_);
+    }
 }
 
 int CompareButForReadRange(const TChunkViewModifier& lhs, const TChunkViewModifier& rhs)
 {
-    // When ChunkView gets new attributes one should consider them
-    // here and merge only views with identical attributes.
+    // When chunk view gets new attributes one should consider them here
+    // so that adjacent chunk views are merged only if their attributes
+    // are otherwise identical.
 
     if (lhs.GetTransactionId() != rhs.GetTransactionId()) {
         return lhs.GetTransactionId() < rhs.GetTransactionId() ? -1 : 1;
+    }
+
+    if (lhs.GetMaxClipTimestamp() != rhs.GetMaxClipTimestamp()) {
+        return lhs.GetMaxClipTimestamp() < rhs.GetMaxClipTimestamp() ? -1 : 1;
     }
 
     return 0;
@@ -113,6 +135,11 @@ const TLegacyReadRange& TChunkView::ReadRange() const
 TTransactionId TChunkView::GetTransactionId() const
 {
     return Modifier_.GetTransactionId();
+}
+
+TTimestamp TChunkView::GetMaxClipTimestamp() const
+{
+    return Modifier_.GetMaxClipTimestamp();
 }
 
 void TChunkView::SetUnderlyingTree(TChunkTree* underlyingTree)

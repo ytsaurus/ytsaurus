@@ -23,11 +23,16 @@ public:
     //! Denotes the id of the transaction that references override timestamp.
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TTransactionId, TransactionId);
 
+    //! Denotes that all values with timestamp > MaxClipTimestamp should be ignored.
+    //! Only applicable to sorted tables.
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, MaxClipTimestamp);
+
 public:
     void SetReadRange(NChunkClient::TLegacyReadRange readRange);
 
     TChunkViewModifier WithReadRange(NChunkClient::TLegacyReadRange readRange) &&;
     TChunkViewModifier WithTransactionId(NObjectClient::TTransactionId transactionId) &&;
+    TChunkViewModifier WithMaxClipTimestamp(NTransactionClient::TTimestamp maxClipTimestamp) &&;
 
     TChunkViewModifier RestrictedWith(const TChunkViewModifier& other) const;
 
@@ -55,6 +60,7 @@ class TChunkView
 
     DECLARE_BYREF_RO_PROPERTY(NChunkClient::TLegacyReadRange, ReadRange);
     DECLARE_BYVAL_RO_PROPERTY(NObjectClient::TTransactionId, TransactionId);
+    DECLARE_BYVAL_RO_PROPERTY(NTransactionClient::TTimestamp, MaxClipTimestamp);
 
 public:
     using TChunkTree::TChunkTree;
