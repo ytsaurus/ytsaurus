@@ -204,11 +204,11 @@ def yt(request):
     # so in this case you will be able to write 'instance = YT(yt_stuff)',
     # but for now you can use only yt_config and yt_stuff fixtures simultaneously
     try:
-        yt_config = request.getfuncargvalue("yt_config")
+        yt_config = request.getfixturevalue("yt_config")
     except BaseException:
         yt_config = YtConfig()
     try:
-        yt_stuff = request.getfuncargvalue("yt_stuff")
+        yt_stuff = request.getfixturevalue("yt_stuff")
     except BaseException:
         yt_stuff = None
 
