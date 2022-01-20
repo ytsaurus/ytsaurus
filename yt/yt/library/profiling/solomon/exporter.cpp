@@ -685,7 +685,7 @@ void TSolomonExporter::DoHandleShard(
         if (period) {
             if (auto errorOrWindow = SelectReadWindow(*now, *period, readGridStep, gridStep); !errorOrWindow.IsOK()) {
                 ReadDelays_.Increment();
-                YT_LOG_WARNING(errorOrWindow, "Delaying sensor read (Delay: %v)", Config_->ReadDelay);
+                YT_LOG_DEBUG(errorOrWindow, "Delaying sensor read (Delay: %v)", Config_->ReadDelay);
 
                 guard->Release();
                 TDelayedExecutor::WaitForDuration(Config_->ReadDelay);
@@ -702,7 +702,7 @@ void TSolomonExporter::DoHandleShard(
                 readWindow = errorOrWindow.Value();
             }
         } else {
-            YT_LOG_WARNING("Timestamp query arguments are missing; returning last value");
+            YT_LOG_DEBUG("Timestamp query arguments are missing; returning last value");
 
             int gridFactor = gridStep / Config_->GridStep;
             for (auto i = static_cast<int>(Window_.size()) - 1; i >= 0; --i) {
