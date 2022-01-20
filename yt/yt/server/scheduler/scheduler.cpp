@@ -2295,6 +2295,8 @@ private:
 
         LogEventFluently(&SchedulerStructuredLogger, ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
+        
+        YT_LOG_INFO("Master connected for scheduler");
     }
 
     void DoCleanup()
@@ -2382,6 +2384,8 @@ private:
 
             YT_LOG_INFO("Finished disconnecting node shards");
         }
+        
+        YT_LOG_INFO("Master disconnected for scheduler");
     }
 
 
@@ -4178,12 +4182,16 @@ private:
             return;
         }
 
+        YT_LOG_INFO("Fetching revival descriptors for operations (OperationCount: %v)", operations.size());
+
         auto result = WaitFor(MasterConnector_->FetchOperationRevivalDescriptors(operations));
         if (!result.IsOK()) {
             YT_LOG_ERROR(result, "Error fetching revival descriptors");
             MasterConnector_->Disconnect(result);
             return;
         }
+        
+        YT_LOG_INFO("Revival descriptors are fetched (OperationCount: %v)", operations.size());
 
         for (const auto& operation : operations) {
             operation->GetCancelableControlInvoker()->Invoke(
