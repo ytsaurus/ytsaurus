@@ -573,6 +573,27 @@ class TestLookup(TestSortedDynamicTablesBase):
         wait(lambda: _check(False))
         assert _check(False)
 
+    @authors("ifsmirnov")
+    def test_lookup_from_multiple_nodes(self):
+        cells_per_node = 4
+        # Let some nodes be only partially occupied.
+        cell_count = cells_per_node * self.NUM_NODES - self.NUM_NODES // 2
+        sync_create_cells(cell_count)
+
+        random.seed(1234)
+
+        tablet_count = int(cell_count * 2.5)
+        key_count = 1000
+        pivot_keys = [[]] + [[k] for k in sorted(random.sample(range(1, key_count), tablet_count - 1))]
+        self._create_simple_table("//tmp/t", pivot_keys=pivot_keys)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(key_count)]
+        keys = [{"key": i} for i in range(key_count)]
+
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", keys) == rows
+
 
 class TestDataNodeLookup(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 2

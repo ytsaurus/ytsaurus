@@ -824,17 +824,42 @@ TRowset TClient::DoLookupRowsOnce(
 
     auto* codec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsRequestCodec);
 
-    std::vector<TFuture<TQueryServiceProxy::TRspMultireadPtr>> asyncResults(batchesByCells.size());
-
     const auto& cellDirectory = Connection_->GetCellDirectory();
     const auto& networks = Connection_->GetNetworks();
 
-    for (auto [cellId, cellIndex] : cellIdToBatchIndex) {
-        const auto& batches = batchesByCells[cellIndex];
+    std::vector<std::vector<TCellId>> cellIdsByChannels;
+    THashMap<NRpc::TAddressWithNetwork, int> channelIndexByAddress;
 
+    for (auto [cellId, cellIndex] : cellIdToBatchIndex) {
+        auto descriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+
+        // Cells with multiple peers, as well as with zero peers, are not frequent.
+        // We do not coalesce them and allow each cell to pick its channel (possibly hedging)
+        // individually.
+        if (descriptor.Peers.size() != 1) {
+            cellIdsByChannels.push_back({cellId});
+            continue;
+        }
+
+        auto address = descriptor.Peers[0].GetAddressWithNetworkOrThrow(networks);
+        auto emplaced = channelIndexByAddress.emplace(
+            address,
+            cellIdsByChannels.size());
+
+        if (emplaced.second) {
+            cellIdsByChannels.emplace_back();
+        }
+
+        cellIdsByChannels[emplaced.first->second].push_back(cellId);
+    }
+
+    std::vector<TFuture<TQueryServiceProxy::TRspMultireadPtr>> asyncResults;
+    asyncResults.reserve(cellIdsByChannels.size());
+
+    for (const auto& cellIds : cellIdsByChannels) {
         auto channel = CreateTabletReadChannel(
             ChannelFactory_,
-            cellDirectory->GetDescriptorOrThrow(cellId),
+            cellDirectory->GetDescriptorOrThrow(cellIds[0]),
             options,
             networks);
 
@@ -860,18 +885,21 @@ TRowset TClient::DoLookupRowsOnce(
             req->set_retention_config(*retentionConfig);
         }
 
-        for (const auto& batch : batches) {
-            ToProto(req->add_cell_ids(), cellId);
-            ToProto(req->add_tablet_ids(), batch.TabletId);
-            req->add_mount_revisions(batch.MountRevision);
-            auto requestData = codec->Compress(boundEncoder(batch.Keys));
-            req->Attachments().push_back(requestData);
+        for (auto cellId : cellIds) {
+            int batchIndex = cellIdToBatchIndex[cellId];
+            for (const auto& batch : batchesByCells[batchIndex]) {
+                ToProto(req->add_cell_ids(), cellId);
+                ToProto(req->add_tablet_ids(), batch.TabletId);
+                req->add_mount_revisions(batch.MountRevision);
+                auto requestData = codec->Compress(boundEncoder(batch.Keys));
+                req->Attachments().push_back(requestData);
+            }
         }
 
         auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         ext->set_in_memory_mode(ToProto<int>(inMemoryMode));
 
-        asyncResults[cellIndex] = req->Invoke();
+        asyncResults.push_back(req->Invoke());
     }
 
     auto results = WaitFor(AllSet(std::move(asyncResults)))
@@ -879,8 +907,8 @@ TRowset TClient::DoLookupRowsOnce(
 
     if (!options.EnablePartialResult && options.DetailedProfilingInfo) {
         int failedSubrequestCount = 0;
-        for (int cellIndex = 0; cellIndex < std::ssize(results); ++cellIndex) {
-            if (!results[cellIndex].IsOK()) {
+        for (int channelIndex = 0; channelIndex < std::ssize(results); ++channelIndex) {
+            if (!results[channelIndex].IsOK()) {
                 ++failedSubrequestCount;
             }
         }
@@ -893,29 +921,33 @@ TRowset TClient::DoLookupRowsOnce(
 
     auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
 
-    for (int cellIndex = 0; cellIndex < std::ssize(results); ++cellIndex) {
-        if (options.EnablePartialResult && !results[cellIndex].IsOK()) {
+    for (int channelIndex = 0; channelIndex < ssize(results); ++channelIndex) {
+        if (options.EnablePartialResult && !results[channelIndex].IsOK()) {
             continue;
         }
 
-        const auto& batches = batchesByCells[cellIndex];
-        const auto& result = results[cellIndex].ValueOrThrow();
+        const auto& result = results[channelIndex].ValueOrThrow();
 
-        for (int batchIndex = 0; batchIndex < std::ssize(batches); ++batchIndex) {
-            const auto& attachment = result->Attachments()[batchIndex];
+        int batchOffset = 0;
+        for (auto cellId : cellIdsByChannels[channelIndex]) {
+            const auto& batches = batchesByCells[cellIdToBatchIndex[cellId]];
+            for (int localBatchIndex = 0; localBatchIndex < ssize(batches); ++localBatchIndex) {
+                const auto& attachment = result->Attachments()[batchOffset + localBatchIndex];
 
-            if (options.EnablePartialResult && attachment.Empty()) {
-                continue;
+                if (options.EnablePartialResult && attachment.Empty()) {
+                    continue;
+                }
+
+                auto responseData = responseCodec->Decompress(attachment);
+                TWireProtocolReader reader(responseData, outputRowBuffer);
+
+                const auto& batch = batches[localBatchIndex];
+
+                for (size_t index = 0; index < batch.Keys.size(); ++index) {
+                    uniqueResultRows[batch.OffsetInResult + index] = boundDecoder(&reader);
+                }
             }
-
-            auto responseData = responseCodec->Decompress(result->Attachments()[batchIndex]);
-            TWireProtocolReader reader(responseData, outputRowBuffer);
-
-            const auto& batch = batches[batchIndex];
-
-            for (size_t index = 0; index < batch.Keys.size(); ++index) {
-                uniqueResultRows[batch.OffsetInResult + index] = boundDecoder(&reader);
-            }
+            batchOffset += ssize(batches);
         }
     }
 
