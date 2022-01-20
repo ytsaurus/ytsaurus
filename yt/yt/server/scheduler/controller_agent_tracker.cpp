@@ -1109,6 +1109,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         DoCleanup();
+        
+        YT_LOG_INFO("Master connected for controller agent tracker");
     }
 
     void OnMasterDisconnected()
@@ -1116,6 +1118,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         DoCleanup();
+        
+        YT_LOG_INFO("Master disconnected for controller agent tracker");
     }
 
     const IInvokerPtr& GetCancelableControlInvoker()
