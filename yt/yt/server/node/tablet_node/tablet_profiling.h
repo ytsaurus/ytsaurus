@@ -405,6 +405,8 @@ public:
     NProfiling::TCounter* GetThrottlerCounter(ETabletDistributedThrottlerKind kind);
     TLsmCounters* GetLsmCounters();
 
+    const NProfiling::TProfiler& GetProfiler() const;
+
 private:
     const bool Disabled_ = true;
     const NProfiling::TProfiler Profiler_ = {};

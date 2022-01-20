@@ -760,6 +760,11 @@ TLsmCounters* TTableProfiler::GetLsmCounters()
     return &LsmCounters_;
 }
 
+const TProfiler& TTableProfiler::GetProfiler() const
+{
+    return Profiler_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
