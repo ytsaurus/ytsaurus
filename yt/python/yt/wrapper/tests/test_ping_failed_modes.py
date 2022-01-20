@@ -116,14 +116,17 @@ class TestPingFailedModes(object):
         while True:
             names = []
             try:
+                found_ping_related_threads = False
                 for thread in threading.enumerate():
                     if not thread.is_alive():
                         continue
                     names.append(thread.getName())
-                    if thread.getName() == "ping_failed_interrupt_main":
+                    if thread.getName() in ("ping_failed_interrupt_main", "PingTransaction"):
                         thread.join(timeout=0.1)
+                        found_ping_related_threads = True
                 print("Thread names: {}".format(names), file=sys.stderr)
-                break
+                if not found_ping_related_threads:
+                    break
             except KeyboardInterrupt:
                 pass
         print("Checking threads completed", file=sys.stderr)
