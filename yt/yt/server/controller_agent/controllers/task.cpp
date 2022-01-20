@@ -778,7 +778,7 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, ReadyTimer_);
     Persist(context, ExhaustTimer_);
 
-    Persist(context, AggregatedJobStatistics_);
+    Persist(context, AggregatedFinishedJobStatistics_);
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -1836,7 +1836,7 @@ INodePtr TTask::BuildStatisticsNode() const
 {
     return BuildYsonNodeFluently()
         .Do([this] (TFluentAny fluent) {
-            AggregatedJobStatistics_.SerializeCustom(
+            AggregatedFinishedJobStatistics_.SerializeCustom(
                 fluent.GetConsumer(),
                 [] (const TAggregatedJobStatistics::TTaggedSummaries& summaries, IYsonConsumer* consumer) {
                     THashMap<EJobState, TSummary> groupedByJobState;
@@ -1900,9 +1900,9 @@ TDuration TTask::GetExhaustTime() const
     return ExhaustTimer_.GetElapsedTime();
 }
 
-void TTask::UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
+void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
-    AggregatedJobStatistics_.UpdateJobStatistics(joblet, jobSummary);
+    AggregatedFinishedJobStatistics_.UpdateJobStatistics(joblet, *jobSummary.Statistics, jobSummary.State);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

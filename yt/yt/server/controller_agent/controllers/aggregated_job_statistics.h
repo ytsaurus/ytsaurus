@@ -32,7 +32,7 @@ class TAggregatedJobStatistics
 public:
     using TTaggedSummaries = THashMap<TJobStatisticsTags, TSummary>;
 
-    void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+    void UpdateJobStatistics(const TJobletPtr& joblet, const TStatistics& statistics, EJobState jobState);
 
     void Persist(const TPersistenceContext& context);
 
