@@ -10,8 +10,7 @@ namespace NYT::NNodeTrackerServer {
 
 void LogNodeState(
     NCellMaster::TBootstrap* bootstrap,
-    TNode* node,
-    ENodeState state);
+    TNode* node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

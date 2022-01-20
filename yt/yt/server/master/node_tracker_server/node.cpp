@@ -141,7 +141,7 @@ int TNode::GetConsistentReplicaPlacementTokenCount(int mediumIndex) const
     return it == ConsistentReplicaPlacementTokenCount_.end() ? 0 : it->second;
 }
 
-void TNode::ComputeAggregatedState(TBootstrap* bootstrap)
+void TNode::ComputeAggregatedState()
 {
     std::optional<ENodeState> result;
     for (const auto& [cellTag, descriptor] : MulticellDescriptors_) {
@@ -155,8 +155,8 @@ void TNode::ComputeAggregatedState(TBootstrap* bootstrap)
         }
     }
     if (AggregatedState_ != *result) {
-        LogNodeState(bootstrap, this, *result);
         AggregatedState_ = *result;
+        AggregatedStateChanged_.Fire(this);
     }
 }
 
@@ -328,7 +328,7 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 }
 
 
-void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCellTags, TBootstrap* bootstrap)
+void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCellTags)
 {
     auto addCell = [&] (TCellTag someTag) {
         if (MulticellDescriptors_.find(someTag) == MulticellDescriptors_.end()) {
@@ -343,7 +343,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
 
     LocalStatePtr_ = &MulticellDescriptors_[cellTag].State;
 
-    ComputeAggregatedState(bootstrap);
+    ComputeAggregatedState();
 }
 
 void TNode::RecomputeIOWeights(const TChunkManagerPtr& chunkManager)
@@ -364,11 +364,11 @@ ENodeState TNode::GetLocalState() const
     return *LocalStatePtr_;
 }
 
-void TNode::SetLocalState(ENodeState state, TBootstrap* bootstrap)
+void TNode::SetLocalState(ENodeState state)
 {
     if (*LocalStatePtr_ != state) {
         *LocalStatePtr_ = state;
-        ComputeAggregatedState(bootstrap);
+        ComputeAggregatedState();
 
         if (state == ENodeState::Unregistered) {
             ClearCellStatistics();
@@ -376,13 +376,13 @@ void TNode::SetLocalState(ENodeState state, TBootstrap* bootstrap)
     }
 }
 
-void TNode::SetCellDescriptor(TCellTag cellTag, const TCellNodeDescriptor& descriptor, TBootstrap* bootstrap)
+void TNode::SetCellDescriptor(TCellTag cellTag, const TCellNodeDescriptor& descriptor)
 {
     auto& oldDescriptor = GetOrCrash(MulticellDescriptors_, cellTag);
     auto mustRecomputeState = (oldDescriptor.State != descriptor.State);
     oldDescriptor = descriptor;
     if (mustRecomputeState) {
-        ComputeAggregatedState(bootstrap);
+        ComputeAggregatedState();
     }
 }
 

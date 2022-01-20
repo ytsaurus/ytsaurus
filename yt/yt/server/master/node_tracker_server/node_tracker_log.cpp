@@ -19,8 +19,7 @@ using namespace NYTree;
 
 void LogNodeState(
     TBootstrap* bootstrap,
-    TNode* node,
-    ENodeState state)
+    TNode* node)
 {
     
     const auto& hydraManager = bootstrap->GetHydraFacade()->GetHydraManager();
@@ -34,7 +33,7 @@ void LogNodeState(
     LogStructuredEventFluently(NodeTrackerServerStructuredLogger, ELogLevel::Info)
         .Item("node_id").Value(node->GetId())
         .Item("node_address").Value(node->GetDefaultAddress())
-        .Item("node_state").Value(state);
+        .Item("node_state").Value(node->GetAggregatedState());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

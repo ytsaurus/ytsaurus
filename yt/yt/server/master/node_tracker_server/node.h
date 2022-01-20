@@ -301,8 +301,7 @@ public:
     //! Inserts new entries into the map, fills missing onces with ENodeState::Offline value.
     void InitializeStates(
         NObjectClient::TCellTag cellTag,
-        const NObjectClient::TCellTagList& secondaryCellTags,
-        NCellMaster::TBootstrap* bootstrap);
+        const NObjectClient::TCellTagList& secondaryCellTags);
 
     //! Recomputes node IO weights from statistics.
     void RecomputeIOWeights(const NChunkServer::TChunkManagerPtr& chunkManager);
@@ -310,17 +309,18 @@ public:
     //! Gets the local state by dereferencing local state pointer.
     ENodeState GetLocalState() const;
     //! Sets the local state by dereferencing local state pointer.
-    void SetLocalState(ENodeState state, NCellMaster::TBootstrap* bootstrap);
+    void SetLocalState(ENodeState state);
 
     //! Sets the state and statistics for the given cell.
     void SetCellDescriptor(
         NObjectClient::TCellTag cellTag,
-        const TCellNodeDescriptor& descriptor,
-        NCellMaster::TBootstrap* bootstrap);
+        const TCellNodeDescriptor& descriptor);
 
     //! If states are same for all cells then returns this common value.
     //! Otherwise returns "mixed" state.
     ENodeState GetAggregatedState() const;
+
+    DEFINE_SIGNAL(void(TNode* node), AggregatedStateChanged);
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
@@ -445,7 +445,7 @@ private:
 
     int GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) const;
 
-    void ComputeAggregatedState(NCellMaster::TBootstrap* bootstrap);
+    void ComputeAggregatedState();
     void ComputeDefaultAddress();
     void ComputeFillFactorsAndTotalSpace();
     void ComputeSessionCount();
