@@ -40,12 +40,9 @@ void Serialize(const TJobStatisticsTags& tags, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAggregatedJobStatistics::UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
+void TAggregatedJobStatistics::UpdateJobStatistics(const TJobletPtr& joblet, const TStatistics& statistics, EJobState jobState)
 {
-    YT_VERIFY(jobSummary.Statistics);
-
-    auto statistics = *jobSummary.Statistics;
-    auto statisticsState = GetStatisticsJobState(joblet, jobSummary.State);
+    auto statisticsState = GetStatisticsJobState(joblet, jobState);
     auto tags = TJobStatisticsTags{
         .JobState = statisticsState,
         .JobType = joblet->Task->GetVertexDescriptorForJoblet(joblet),

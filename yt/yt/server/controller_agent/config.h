@@ -131,14 +131,19 @@ public:
 
     // Minimum total time sum to analyze operation
     TDuration LowCpuUsageAlertMinExecTime;
-
     // Minimum average job time to analyze operation
     TDuration LowCpuUsageAlertMinAverageJobTime;
-
     // Cpu usage threshold to send an alert
     double LowCpuUsageAlertCpuUsageThreshold;
     std::vector<TString> LowCpuUsageAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> LowCpuUsageAlertJobStates;
+    
+    // Minimum average job time to analyze operation
+    TDuration HighCpuWaitAlertMinAverageJobTime;
+    // Minimum cpu wait time ratio to send an alert
+    double HighCpuWaitAlertThreshold;
+    std::vector<TString> HighCpuWaitAlertStatistics;
+    std::vector<NJobTrackerClient::EJobState> HighCpuWaitAlertJobStates;
 
     // Minimum wall time of operation duration
     TDuration OperationTooLongAlertMinWallTime;
@@ -147,7 +152,12 @@ public:
     TDuration OperationTooLongAlertEstimateDurationThreshold;
 
     TDuration LowGpuUsageAlertMinDuration;
+    // Ratio.
     double LowGpuUsageAlertGpuUsageThreshold;
+    // Ratio.
+    double LowGpuUsageAlertGpuUtilizationPowerThreshold;
+    // Power in Watts.
+    double LowGpuUsageAlertGpuPowerThreshold;
     std::vector<TString> LowGpuUsageAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> LowGpuUsageAlertJobStates;
 
@@ -718,6 +728,9 @@ public:
     TDuration SchedulingTagFilterExpireTimeout;
 
     TSuspiciousJobsOptionsPtr SuspiciousJobs;
+
+    //! Period to update aggregated running job statistics from current running jobs.
+    TDuration RunningJobStatisticsUpdatePeriod;
 
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     std::optional<TDuration> OperationTimeLimit;

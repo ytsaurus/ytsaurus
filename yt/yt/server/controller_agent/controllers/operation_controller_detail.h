@@ -1094,7 +1094,10 @@ private:
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
 
-    TAggregatedJobStatistics AggregatedJobStatistics_;
+    TAggregatedJobStatistics AggregatedRunningJobStatistics_;
+    NConcurrency::TPeriodicExecutorPtr RunningJobStatisticsUpdateExecutor_;
+
+    TAggregatedJobStatistics AggregatedFinishedJobStatistics_;
 
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;
@@ -1277,7 +1280,7 @@ private:
 
     int GetOnlineExecNodeCount();
 
-    void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+    void UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
     void UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished);
 
     void LogProgress(bool force = false);
@@ -1352,6 +1355,8 @@ private:
         const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 
     void UpdateSuspiciousJobsYson();
+
+    void UpdateAggregatedRunningJobStatistics();
 
     void CheckTentativeTreeEligibility();
 

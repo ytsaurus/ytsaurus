@@ -224,7 +224,7 @@ public:
 
     void StopTiming();
 
-    void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+    void UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
 
     void RegisterCounters(const TProgressCounterPtr& parent);
 
@@ -415,7 +415,7 @@ private:
     //! prevent repeated overdraft.
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> ResourceOverdraftedOutputCookies_;
 
-    TAggregatedJobStatistics AggregatedJobStatistics_;
+    TAggregatedJobStatistics AggregatedFinishedJobStatistics_;
 
     NScheduler::TJobResources ApplyMemoryReserve(
         const TExtendedJobResources& jobResources,

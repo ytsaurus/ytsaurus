@@ -102,11 +102,30 @@ void TOperationAlertsConfig::Register(TRegistrar registrar)
             "/user_job/cpu/system",
             "/user_job/cpu/user"
         });
-
+    
     registrar.Parameter("low_cpu_usage_alert_job_states", &TThis::LowCpuUsageAlertJobStates)
         .Default({
             EJobState::Completed
         });
+
+    registrar.Parameter("high_cpu_wait_alert_min_average_job_time", &TThis::HighCpuWaitAlertMinAverageJobTime)
+        .Default(TDuration::Minutes(10));
+
+    registrar.Parameter("high_cpu_wait_alert_threshold", &TThis::HighCpuWaitAlertThreshold)
+        .Default(0.5)
+        .GreaterThan(0);
+
+    registrar.Parameter("high_cpu_wait_alert_statistics", &TThis::HighCpuWaitAlertStatistics)
+        .Default({
+            "/user_job/cpu/wait",
+        });
+
+    registrar.Parameter("high_cpu_wait_alert_job_states", &TThis::HighCpuWaitAlertJobStates)
+        .Default({
+            EJobState::Completed,
+            EJobState::Running
+        });
+
 
     registrar.Parameter("operation_too_long_alert_min_wall_time", &TThis::OperationTooLongAlertMinWallTime)
         .Default(TDuration::Minutes(5));
@@ -118,7 +137,15 @@ void TOperationAlertsConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(30));
 
     registrar.Parameter("low_gpu_usage_alert_gpu_usage_threshold", &TThis::LowGpuUsageAlertGpuUsageThreshold)
-        .Default(0.5);
+        .Default(0.5)
+        .InRange(0.0, 1.0);
+
+    registrar.Parameter("low_gpu_usage_alert_gpu_power_threshold", &TThis::LowGpuUsageAlertGpuPowerThreshold)
+        .Default(100.0);
+    
+    registrar.Parameter("low_gpu_usage_alert_gpu_utilization_power_threshold", &TThis::LowGpuUsageAlertGpuUtilizationPowerThreshold)
+        .Default(0.3)
+        .InRange(0.0, 1.0);
 
     registrar.Parameter("low_gpu_usage_alert_statistics", &TThis::LowGpuUsageAlertStatistics)
         .Default({
@@ -534,6 +561,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("scheduling_tag_filter_expire_timeout", &TThis::SchedulingTagFilterExpireTimeout)
         .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("running_job_statistics_update_period", &TThis::RunningJobStatisticsUpdatePeriod)
+        .Default(TDuration::Minutes(1));
 
     registrar.Parameter("operation_time_limit", &TThis::OperationTimeLimit)
         .Default();

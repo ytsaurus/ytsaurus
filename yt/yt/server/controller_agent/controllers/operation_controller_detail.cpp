@@ -269,6 +269,10 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::UpdateSuspiciousJobsYson, MakeWeak(this)),
         Config->SuspiciousJobs->UpdatePeriod))
+    , RunningJobStatisticsUpdateExecutor_(New<TPeriodicExecutor>(
+        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        BIND(&TThis::UpdateAggregatedRunningJobStatistics, MakeWeak(this)),
+        Config->RunningJobStatisticsUpdatePeriod))
     , ScheduleJobStatistics_(New<TScheduleJobStatistics>())
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
@@ -1272,7 +1276,7 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
             ParseStatistics(&jobSummary, joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
             auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet, jobSummary)
                 .Item("reason").Value(abortReason);
-            UpdateJobStatistics(joblet, jobSummary);
+            UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
         }
         joblet->Task->OnJobAborted(joblet, jobSummary);
     }
@@ -2948,7 +2952,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
-        UpdateJobStatistics(joblet, *jobSummary);
+        UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
 
         taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
 
@@ -3059,7 +3063,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
             .Item("error").Value(error);
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
-        UpdateJobStatistics(joblet, *jobSummary);
+        UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
 
         taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
 
@@ -3179,7 +3183,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
                 fluent
                     .Item("preempted_for").Value(jobSummary->PreemptedFor);
             }
-            UpdateJobStatistics(joblet, *jobSummary);
+            UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
         }
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
@@ -3976,7 +3980,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
             task->GetUserJobMemoryDigest()->GetQuantile(Config->UserJobMemoryReserveQuantile);
 
         for (const auto& jobState : { EJobState::Completed, EJobState::Failed }) {
-            auto summary = AggregatedJobStatistics_.FindSummaryByJobStateAndType(
+            auto summary = AggregatedFinishedJobStatistics_.FindSummaryByJobStateAndType(
                 "/user_job/max_memory",
                 jobState,
                 task->GetVertexDescriptor());
@@ -4150,7 +4154,7 @@ void TOperationControllerBase::AnalyzeAbortedJobs()
     auto aggregateTimeForJobState = [&] (EJobState state) {
         i64 sum = 0;
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            sum += AggregatedJobStatistics_.GetSumByJobStateAndType(
+            sum += AggregatedFinishedJobStatistics_.GetSumByJobStateAndType(
                 "/time/total",
                 state,
                 FormatEnum(type));
@@ -4184,7 +4188,7 @@ void TOperationControllerBase::AnalyzeJobsIOUsage()
     std::vector<TError> innerErrors;
 
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-        auto value = AggregatedJobStatistics_.GetSumByJobStateAndType(
+        auto value = AggregatedFinishedJobStatistics_.GetSumByJobStateAndType(
             "/user_job/woodpecker",
             EJobState::Completed,
             FormatEnum(jobType));
@@ -4205,31 +4209,58 @@ void TOperationControllerBase::AnalyzeJobsIOUsage()
 
 void TOperationControllerBase::AnalyzeJobsCpuUsage()
 {
-    auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
-        return jobSpec->CpuLimit;
-    };
+    {
+        auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
+            return jobSpec->CpuLimit;
+        };
 
-    auto needSetAlert = [&] (i64 totalExecutionTime, i64 jobCount, double ratio) {
-        TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
-        TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
+        auto needSetAlert = [&] (i64 totalExecutionTime, i64 jobCount, double ratio) {
+            TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
+            TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
 
-        return totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
-               averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
-               ratio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold;
-    };
+            return totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
+                   averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
+                   ratio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold;
+        };
 
-    const TString alertMessage =
-        "Average CPU usage of some of your job types is significantly lower than requested 'cpu_limit'. "
-        "Consider decreasing cpu_limit in spec of your operation";
+        const TString alertMessage =
+            "Average CPU usage of some of your job types is significantly lower than requested 'cpu_limit'. "
+            "Consider decreasing cpu_limit in spec of your operation";
 
-    AnalyzeProcessingUnitUsage(
-        Config->OperationAlerts->LowCpuUsageAlertStatistics,
-        Config->OperationAlerts->LowCpuUsageAlertJobStates,
-        getCpuLimit,
-        needSetAlert,
-        "cpu",
-        EOperationAlertType::LowCpuUsage,
-        alertMessage);
+        AnalyzeProcessingUnitUsage(
+            Config->OperationAlerts->LowCpuUsageAlertStatistics,
+            Config->OperationAlerts->LowCpuUsageAlertJobStates,
+            getCpuLimit,
+            needSetAlert,
+            "cpu",
+            EOperationAlertType::LowCpuUsage,
+            alertMessage);
+    }
+        
+    {
+        auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
+            return jobSpec->CpuLimit;
+        };
+
+        auto needSetAlert = [&] (i64 totalExecutionTime, i64 jobCount, double ratio) {
+            TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
+            return averageJobDuration > Config->OperationAlerts->HighCpuWaitAlertMinAverageJobTime &&
+                   ratio > Config->OperationAlerts->HighCpuWaitAlertThreshold;
+        };
+
+        const TString alertMessage =
+            "Average CPU wait time of some of your job types is significantly high (average CPU wait time ratio greater than %v%%). "
+            "Investigate your process.";
+
+        AnalyzeProcessingUnitUsage(
+            Config->OperationAlerts->HighCpuWaitAlertStatistics,
+            Config->OperationAlerts->HighCpuWaitAlertJobStates,
+            getCpuLimit,
+            needSetAlert,
+            "cpu",
+            EOperationAlertType::HighCpuWait,
+            alertMessage);
+    }
 }
 
 void TOperationControllerBase::AnalyzeJobsGpuUsage()
@@ -4242,22 +4273,64 @@ void TOperationControllerBase::AnalyzeJobsGpuUsage()
         return jobSpec->GpuLimit;
     };
 
-    auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
-        return ratio < Config->OperationAlerts->LowGpuUsageAlertGpuUsageThreshold;
-    };
+    {
+        auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
+            return ratio < Config->OperationAlerts->LowGpuUsageAlertGpuUsageThreshold;
+        };
 
-    static const TString alertMessage =
-        "Average gpu usage of some of your job types is significantly lower than requested 'gpu_limit'. "
-        "Consider optimizing your GPU utilization";
+        static const TString alertMessage =
+            "Average gpu usage of some of your job types is significantly lower than requested 'gpu_limit'. "
+            "Consider optimizing your GPU utilization";
 
-    AnalyzeProcessingUnitUsage(
-        Config->OperationAlerts->LowGpuUsageAlertStatistics,
-        Config->OperationAlerts->LowGpuUsageAlertJobStates,
-        getGpuLimit,
-        needSetAlert,
-        "gpu",
-        EOperationAlertType::LowGpuUsage,
-        alertMessage);
+        AnalyzeProcessingUnitUsage(
+            Config->OperationAlerts->LowGpuUsageAlertStatistics,
+            Config->OperationAlerts->LowGpuUsageAlertJobStates,
+            getGpuLimit,
+            needSetAlert,
+            "gpu",
+            EOperationAlertType::LowGpuUsage,
+            alertMessage);
+    }
+
+    {
+        auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
+            return ratio < Config->OperationAlerts->LowGpuUsageAlertGpuUtilizationPowerThreshold;
+        };
+
+        static const TString alertMessage = Format(
+            "Average GPU power usage is significantly lower than %v percents. "
+            "Consider optimizing your GPU process",
+            Config->OperationAlerts->LowGpuUsageAlertGpuUtilizationPowerThreshold * 100.0);
+
+        AnalyzeProcessingUnitUsage(
+            {"/user_job/gpu/utilization_power"},
+            Config->OperationAlerts->LowGpuUsageAlertJobStates,
+            getGpuLimit,
+            needSetAlert,
+            "gpu",
+            EOperationAlertType::LowGpuPower,
+            alertMessage);
+    }
+
+    {
+        auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
+            return ratio < Config->OperationAlerts->LowGpuUsageAlertGpuPowerThreshold;
+        };
+
+        static const TString alertMessage = Format(
+            "Average GPU power usage is significantly lower than %v Watts. "
+            "Consider optimizing your GPU process",
+            Config->OperationAlerts->LowGpuUsageAlertGpuPowerThreshold);
+
+        AnalyzeProcessingUnitUsage(
+            {"/user_job/gpu/power"},
+            Config->OperationAlerts->LowGpuUsageAlertJobStates,
+            getGpuLimit,
+            needSetAlert,
+            "gpu",
+            EOperationAlertType::LowGpuPower,
+            alertMessage);
+    }
 }
 
 void TOperationControllerBase::AnalyzeJobsDuration()
@@ -4271,7 +4344,7 @@ void TOperationControllerBase::AnalyzeJobsDuration()
     std::vector<TError> innerErrors;
 
     for (auto jobType : GetSupportedJobTypesForJobsDurationAnalyzer()) {
-        auto completedJobsSummary = AggregatedJobStatistics_.FindSummaryByJobStateAndType(
+        auto completedJobsSummary = AggregatedFinishedJobStatistics_.FindSummaryByJobStateAndType(
             "/time/total",
             EJobState::Completed,
             FormatEnum(jobType));
@@ -8535,9 +8608,9 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .Item("state").Value(State.load())
         .Item("build_time").Value(TInstant::Now())
         .Item("ready_job_count").Value(GetPendingJobCount())
-        .Item("job_statistics_v2").Value(AggregatedJobStatistics_)
+        .Item("job_statistics_v2").Value(AggregatedFinishedJobStatistics_)
         .Item("job_statistics").Do([this] (TFluentAny fluent) {
-            AggregatedJobStatistics_.SerializeLegacy(fluent.GetConsumer());
+            AggregatedFinishedJobStatistics_.SerializeLegacy(fluent.GetConsumer());
         })
         .Item("peak_memory_usage").Value(PeakMemoryUsage_)
         .Item("estimated_input_statistics").BeginMap()
@@ -8856,6 +8929,17 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
     }
 }
 
+void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
+{
+    TAggregatedJobStatistics runningJobStatistics;
+    for (const auto& [jobId, joblet] : JobletMap) {
+        if (joblet->StatisticsYson) {
+            runningJobStatistics.UpdateJobStatistics(joblet, ConvertTo<TStatistics>(joblet->StatisticsYson), EJobState::Running);
+        }
+    }
+    AggregatedRunningJobStatistics_ = runningJobStatistics;
+}
+
 void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
 {
     std::vector<TJobToRelease> jobsToRelease;
@@ -8918,11 +9002,11 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
     }
 }
 
-void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
+void TOperationControllerBase::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
-    AggregatedJobStatistics_.UpdateJobStatistics(joblet, jobSummary);
+    AggregatedFinishedJobStatistics_.UpdateJobStatistics(joblet, *jobSummary.Statistics, jobSummary.State);
 
-    joblet->Task->UpdateJobStatistics(joblet, jobSummary);
+    joblet->Task->UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
 }
 
 void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished)
@@ -9653,7 +9737,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobletMap);
 
     Persist(context, JobIndexGenerator);
-    Persist(context, AggregatedJobStatistics_);
+    Persist(context, AggregatedFinishedJobStatistics_);
     Persist(context, ScheduleJobStatistics_);
     Persist(context, RowCountLimitTableIndex);
     Persist(context, RowCountLimit);
@@ -10063,24 +10147,29 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
 
         i64 totalExecutionTime = 0;
         i64 jobCount = 0;
+        
+        double limit = getLimit(userJobSpecPtr);
+        if (limit == 0) {
+            continue;
+        }
 
         for (const auto& jobState : jobStates) {
-            auto summary = AggregatedJobStatistics_
+            const auto& aggregatedStatistics = (jobState == EJobState::Running) ? AggregatedRunningJobStatistics_ : AggregatedFinishedJobStatistics_;
+            auto summary = aggregatedStatistics
                 .FindSummaryByJobStateAndType("/time/exec", jobState, taskName)
                 .value_or(NYT::TSummary());
             totalExecutionTime += summary.GetSum();
             jobCount += summary.GetCount();
         }
 
-        double limit = getLimit(userJobSpecPtr);
-        if (jobCount == 0 || totalExecutionTime == 0 || limit == 0) {
+        if (jobCount == 0 || totalExecutionTime == 0) {
             continue;
         }
 
         i64 usage = 0;
         for (const auto& stat : usageStatistics) {
             for (const auto& jobState : jobStates) {
-                usage += AggregatedJobStatistics_.GetSumByJobStateAndType(stat, jobState, taskName);
+                usage += AggregatedFinishedJobStatistics_.GetSumByJobStateAndType(stat, jobState, taskName);
             }
         }
 
