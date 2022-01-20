@@ -42,7 +42,11 @@ class SparkDefaultArguments(object):
     def get_params():
         return {
             "operation_spec": {
-                "annotations": {"is_spark": True},
+                "annotations": {
+                    "is_spark": True,
+                    "solomon_resolver_tag" : "spark",
+                    "solomon_resolver_ports": [27100],
+                },
                 "max_failed_job_count": 10000,
                 "max_stderr_count": 150,
                 "job_cpu_monitor": {
@@ -495,8 +499,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param shs_location: hard set path to log directory
     :param enablers: ...
     :param client: YtClient
-    :param preemption_mode 'normal' or 'graceful' for graceful preemption
-    :param enable_multi_operation_mode use several vanilla operations for one cluster
+    :param preemption_mode: 'normal' or 'graceful' for graceful preemption
+    :param enable_multi_operation_mode: use several vanilla operations for one cluster
     :return:
     """
     spark_discovery = SparkDiscovery(discovery_path=discovery_path)
