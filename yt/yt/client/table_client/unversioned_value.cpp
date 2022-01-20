@@ -103,4 +103,90 @@ void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void AppendWithCut(TStringBuilderBase* builder, TStringBuf string)
+{
+    constexpr auto Cutoff = 128;
+    if (string.size() <= 2 * Cutoff + 3) {
+        builder->AppendString(string);
+    } else {
+        builder->AppendString(string.substr(0, Cutoff));
+        builder->AppendString("...");
+        builder->AppendString(string.substr(string.size() - Cutoff, Cutoff));
+    }
+}
+
+void FormatValue(TStringBuilderBase* builder, const TUnversionedValue& value, TStringBuf format)
+{
+    using NTableClient::EValueFlags;
+    using NTableClient::EValueType;
+
+    bool noFlags = false;
+    for (char c : format) {
+        noFlags |= c == 'k';
+    }
+
+    if (!noFlags) {
+        if (Any(value.Flags & EValueFlags::Aggregate)) {
+            builder->AppendChar('%');
+        }
+        if (Any(value.Flags & EValueFlags::Hunk)) {
+            builder->AppendChar('&');
+        }
+        builder->AppendFormat("%v#", value.Id);
+    }
+    switch (value.Type) {
+        case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            builder->AppendFormat("<%v>", value.Type);
+            break;
+
+        case EValueType::Int64:
+            builder->AppendFormat("%v", value.Data.Int64);
+            break;
+
+        case EValueType::Uint64:
+            builder->AppendFormat("%vu", value.Data.Uint64);
+            break;
+
+        case EValueType::Double:
+            builder->AppendFormat("%v", value.Data.Double);
+            break;
+
+        case EValueType::Boolean:
+            builder->AppendFormat("%v", value.Data.Boolean);
+            break;
+
+        case EValueType::String: {
+            builder->AppendChar('"');
+            AppendWithCut(builder, value.AsStringBuf());
+            builder->AppendChar('"');
+            break;
+        }
+
+        case EValueType::Any:
+        case EValueType::Composite: {
+            if (value.Type == EValueType::Composite) {
+                // ermolovd@ says "composites" are comparable, in contrast to "any".
+                builder->AppendString("><");
+            }
+
+            auto compositeString = ConvertToYsonString(
+                NYson::TYsonString(value.AsString()),
+                NYson::EYsonFormat::Text);
+
+            AppendWithCut(builder, compositeString.AsStringBuf());
+            break;
+        }
+    }
+}
+
+TString ToString(const TUnversionedValue& value, bool valueOnly)
+{
+    return ToStringViaBuilder(value, valueOnly ? "k" : "");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

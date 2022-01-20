@@ -291,66 +291,6 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
     return output.Buf() - buffer;
 }
 
-TString ToString(const TUnversionedValue& value, bool valueOnly)
-{
-    TStringBuilder builder;
-    if (!valueOnly) {
-        if (Any(value.Flags & EValueFlags::Aggregate)) {
-            builder.AppendChar('%');
-        }
-        if (Any(value.Flags & EValueFlags::Hunk)) {
-            builder.AppendChar('&');
-        }
-        builder.AppendFormat("%v#", value.Id);
-    }
-    switch (value.Type) {
-        case EValueType::Null:
-        case EValueType::Min:
-        case EValueType::Max:
-        case EValueType::TheBottom:
-            builder.AppendFormat("<%v>", value.Type);
-            break;
-
-        case EValueType::Int64:
-            builder.AppendFormat("%v", value.Data.Int64);
-            break;
-
-        case EValueType::Uint64:
-            builder.AppendFormat("%vu", value.Data.Uint64);
-            break;
-
-        case EValueType::Double:
-            builder.AppendFormat("%v", value.Data.Double);
-            break;
-
-        case EValueType::Boolean:
-            builder.AppendFormat("%v", value.Data.Boolean);
-            break;
-
-        case EValueType::String:
-            builder.AppendFormat("%Qv", value.AsStringBuf());
-            break;
-
-        case EValueType::Any:
-        case EValueType::Composite:
-            if (value.Type == EValueType::Composite) {
-                // ermolovd@ says "composites" are comparable, in contrast to "any".
-                builder.AppendString("><");
-            }
-            builder.AppendString(ConvertToYsonString(
-                TYsonString(value.AsString()),
-                EYsonFormat::Text).AsStringBuf());
-            break;
-    }
-    auto result = builder.Flush();
-    constexpr auto Cutoff = 128;
-    if (result.size() <= 2 * Cutoff + 3) {
-        return result;
-    } else {
-        return result.substr(0, Cutoff) + "..." + result.substr(result.size() - Cutoff, Cutoff);
-    }
-}
-
 namespace {
 
 [[noreturn]] void ThrowIncomparableTypes(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
@@ -1547,27 +1487,6 @@ void FromBytes(TUnversionedOwningRow* row, TStringBuf bytes)
     *row = DeserializeFromString(TString(bytes));
 }
 
-TString ToString(TUnversionedRow row, bool valuesOnly)
-{
-    return row
-        ? "[" + JoinToString(
-            row,
-            [&] (TStringBuilderBase* builder, const TUnversionedValue& value) {
-                builder->AppendString(ToString(value, valuesOnly));
-            }) + "]"
-        : "<null>";
-}
-
-TString ToString(TMutableUnversionedRow row)
-{
-    return ToString(TUnversionedRow(row));
-}
-
-TString ToString(const TUnversionedOwningRow& row, bool valuesOnly)
-{
-    return ToString(row.Get(), valuesOnly);
-}
-
 void PrintTo(const TUnversionedOwningRow& key, ::std::ostream* os)
 {
     *os << KeyToYson(key);
@@ -2074,6 +1993,50 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey 
     return MakeSharedRange(
         std::move(ranges),
         std::move(rowBuffer));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, TUnversionedRow row, TStringBuf format)
+{
+    if (row) {
+        builder->AppendChar('[');
+        JoinToString(
+            builder,
+            row.Begin(),
+            row.End(),
+            [&] (TStringBuilderBase* builder, const TUnversionedValue& value) {
+                FormatValue(builder, value, format);
+            });
+        builder->AppendChar(']');
+    } else {
+        builder->AppendString("<null>");
+    }
+}
+
+void FormatValue(TStringBuilderBase* builder, TMutableUnversionedRow row, TStringBuf format)
+{
+    FormatValue(builder, TUnversionedRow(row), format);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TUnversionedOwningRow& row, TStringBuf format)
+{
+    FormatValue(builder, TUnversionedRow(row), format);
+}
+
+TString ToString(TUnversionedRow row, bool valuesOnly)
+{
+    return ToStringViaBuilder(row, valuesOnly ? "k" : "");
+}
+
+TString ToString(TMutableUnversionedRow row, bool valuesOnly)
+{
+    return ToString(TUnversionedRow(row), valuesOnly);
+}
+
+TString ToString(const TUnversionedOwningRow& row, bool valuesOnly)
+{
+    return ToString(row.Get(), valuesOnly);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

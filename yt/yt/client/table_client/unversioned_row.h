@@ -220,8 +220,6 @@ size_t ReadRowValue(const char* input, TUnversionedValue* value);
 void Save(TStreamSaveContext& context, const TUnversionedValue& value);
 void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool);
 
-TString ToString(const TUnversionedValue& value, bool valueOnly = false);
-
 //! Ternary comparison predicate for TUnversionedValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
 //! Note that this ignores flags.
@@ -547,10 +545,6 @@ void Deserialize(TLegacyOwningKey& key, NYson::TYsonPullParserCursor* cursor);
 size_t GetYsonSize(const TUnversionedValue& value);
 size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue);
 
-TString ToString(TUnversionedRow row, bool valuesOnly = false);
-TString ToString(TMutableUnversionedRow row);
-TString ToString(const TUnversionedOwningRow& row, bool valuesOnly = false);
-
 //! Debug printers for Gtest unittests.
 void PrintTo(const TUnversionedOwningRow& key, ::std::ostream* os);
 void PrintTo(const TUnversionedRow& value, ::std::ostream* os);
@@ -873,6 +867,16 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey upperBound);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, TUnversionedRow row, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, TMutableUnversionedRow row, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, const TUnversionedOwningRow& row, TStringBuf format);
+
+TString ToString(TUnversionedRow row, bool valuesOnly = false);
+TString ToString(TMutableUnversionedRow row, bool valuesOnly = false);
+TString ToString(const TUnversionedOwningRow& row, bool valuesOnly = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
