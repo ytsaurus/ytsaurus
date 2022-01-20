@@ -3352,12 +3352,17 @@ private:
 
         const auto& agent = operation->FindAgent();
         if (agent) {
-            WaitFor(agent->GetFullHeartbeatProcessed())
-                .ThrowOnError();
-            YT_LOG_DEBUG(
-                "Full heartbeat from agent processed, "
-                "aborted jobs suppossed to be considered by controller agent (OperationId: %v)",
-                operation->GetId());
+            try {
+                WaitFor(agent->GetFullHeartbeatProcessed())
+                    .ThrowOnError();
+                YT_LOG_DEBUG(
+                    "Full heartbeat from agent processed, "
+                    "aborted jobs suppossed to be considered by controller agent (OperationId: %v)",
+                    operation->GetId());
+            } catch (const std::exception& ex) {
+                YT_LOG_INFO(ex, "Failed to wait full heartbeat from agent (OperationId: %v)", operation->GetId());
+                OnOperationAgentUnregistered(operation);
+            }
         }
     }
 
