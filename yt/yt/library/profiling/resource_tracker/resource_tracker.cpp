@@ -185,7 +185,7 @@ TResourceTracker::TResourceTracker()
         return GetProcessMemoryUsage().Rss;
     });
 
-    Profiler.AddFuncCounter("/thread_pool_utilization/max", MakeStrong(this), [this] {
+    Profiler.AddFuncGauge("/utilization/max", MakeStrong(this), [this] {
         return MaxThreadPoolUtilization_.load();
     });
 
