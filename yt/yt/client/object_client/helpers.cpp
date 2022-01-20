@@ -86,7 +86,8 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::NetworkProjectMap ||
         type == EObjectType::HttpProxyRoleMap ||
         type == EObjectType::RpcProxyRoleMap ||
-        type == EObjectType::MasterTableSchemaMap;
+        type == EObjectType::MasterTableSchemaMap ||
+        type == EObjectType::ChaosReplicatedTable;
 }
 
 bool IsUserType(EObjectType type)
@@ -117,7 +118,8 @@ bool IsUserType(EObjectType type)
         type == EObjectType::Document ||
         type == EObjectType::Account ||
         type == EObjectType::SchedulerPool ||
-        type == EObjectType::SchedulerPoolTree;
+        type == EObjectType::SchedulerPoolTree ||
+        type == EObjectType::ChaosReplicatedTable;
 }
 
 bool IsTableType(EObjectType type)

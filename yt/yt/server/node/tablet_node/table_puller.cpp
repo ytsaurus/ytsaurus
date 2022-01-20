@@ -169,26 +169,24 @@ private:
 
             auto replicationCard = tabletSnapshot->TabletChaosData->ReplicationCard;
             auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
-            auto [queueReplica, upperTimestamp] = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
-            if (!queueReplica) {
+            auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
+            if (!queueReplicaInfo) {
                 return;
             }
 
-            auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
-            if (!selfReplica) {
+            auto* selfReplicaInfo = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
+            if (!selfReplicaInfo) {
                 return;
             }
 
-            const auto& cluster = queueReplica->Cluster;
-            const auto& tablePath = queueReplica->TablePath;
-            auto upstreamReplicaId = queueReplica->ReplicaId;
+            const auto& clusterName = queueReplicaInfo->ClusterName;
+            const auto& replicaPath = queueReplicaInfo->ReplicaPath;
             auto replicationRound = tabletSnapshot->TabletChaosData->ReplicationRound;
             TPullRowsResult result;
-
             {
                 TEventTimerGuard timerGuard(counters.PullRowsTime);
 
-                auto foreignConnection = LocalConnection_->GetClusterDirectory()->FindConnection(cluster);
+                auto foreignConnection = LocalConnection_->GetClusterDirectory()->FindConnection(clusterName);
                 auto foreignClient = foreignConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
 
                 TPullRowsOptions options;
@@ -196,17 +194,17 @@ private:
                 options.ReplicationProgress = *replicationProgress;
                 options.StartReplicationRowIndexes = tabletSnapshot->TabletChaosData->CurrentReplicationRowIndexes;
                 options.UpperTimestamp = upperTimestamp;
-                options.UpstreamReplicaId = upstreamReplicaId;
-                options.OrderRowsByTimestamp = selfReplica->ContentType == EReplicaContentType::Queue;
+                options.UpstreamReplicaId = queueReplicaId;
+                options.OrderRowsByTimestamp = selfReplicaInfo->ContentType == EReplicaContentType::Queue;
 
-                YT_LOG_DEBUG("Pulling rows (Cluster: %v, Path: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %llx)",
-                    cluster,
-                    tablePath,
+                YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %llx)",
+                    clusterName,
+                    replicaPath,
                     options.ReplicationProgress,
                     options.StartReplicationRowIndexes,
                     upperTimestamp);
 
-                result = WaitFor(foreignClient->PullRows(tablePath, options))
+                result = WaitFor(foreignClient->PullRows(replicaPath, options))
                     .ValueOrThrow();
             }
 
@@ -292,7 +290,7 @@ private:
         }
     }
 
-    std::pair<NChaosClient::TReplicaInfo*, TTimestamp> PickQueueReplica(
+    std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> PickQueueReplica(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TReplicationCardPtr& replicationCard,
         const TRefCountedReplicationProgressPtr& replicationProgress)
@@ -300,76 +298,72 @@ private:
         // If our progress is less than any queue replica progress, pull from that replica.
         // Otherwise pull from sync replica of oldest era corresponding to our progress.
 
-        YT_LOG_DEBUG("Pick replica to pull from (Replicas: %v)",
-            MakeFormattableView(replicationCard->Replicas,
-                [] (TStringBuilderBase* builder, const NChaosClient::TReplicaInfo& replicaInfo) {
-                    builder->AppendFormat("(%v,%v,%v,%v)", replicaInfo.Cluster, replicaInfo.TablePath,
-                        replicaInfo.Mode, replicaInfo.ContentType);
-                }));
+        YT_LOG_DEBUG("Pick replica to pull from");
 
-        auto findFreshQueueReplica = [&] () -> NChaosClient::TReplicaInfo* {
-            for (auto& replica : replicationCard->Replicas) {
-                if (replica.ContentType == EReplicaContentType::Queue &&
-                    replica.State == EReplicaState::Enabled &&
-                    !IsReplicationProgressGreaterOrEqual(*replicationProgress, replica.ReplicationProgress))
+        auto findFreshQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
+            for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+                if (replicaInfo.ContentType == EReplicaContentType::Queue &&
+                    replicaInfo.State == EReplicaState::Enabled &&
+                    !IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress))
                 {
-                    return &replica;
+                    return {replicaId, &replicaInfo};
                 }
             }
             return {};
         };
 
-        auto findSyncQueueReplica = [&] (auto* selfReplica, auto timestamp) -> std::pair<NChaosClient::TReplicaInfo*, TTimestamp> {
-            for (auto& replica : replicationCard->Replicas) {
-                if (replica.ContentType != EReplicaContentType::Queue || replica.State != EReplicaState::Enabled) {
+        auto findSyncQueueReplica = [&] (auto* selfReplicaInfo, auto timestamp) -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> {
+            for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+                if (replicaInfo.ContentType != EReplicaContentType::Queue || replicaInfo.State != EReplicaState::Enabled) {
                     continue;
                 }
 
-                auto historyItemIndex = replica.FindHistoryItemIndex(timestamp);
+                auto historyItemIndex = replicaInfo.FindHistoryItemIndex(timestamp);
                 if (historyItemIndex == -1) {
                     continue;
                 }
-                if (const auto& item = replica.History[historyItemIndex]; !IsReplicaReallySync(item.Mode, item.State)) {
+
+                if (const auto& item = replicaInfo.History[historyItemIndex]; !IsReplicaReallySync(item.Mode, item.State)) {
                     continue;
                 }
 
                 // Pull from (past) sync replica until it changed mode or we became sync.
-                TTimestamp upperTimestamp = NullTimestamp;
-                if (historyItemIndex + 1 < std::ssize(replica.History)) {
-                    upperTimestamp = replica.History[historyItemIndex + 1].Timestamp;
-                } else if (IsReplicaReallySync(selfReplica->Mode, selfReplica->State)) {
-                    upperTimestamp = selfReplica->History.back().Timestamp;
+                auto upperTimestamp = NullTimestamp;
+                if (historyItemIndex + 1 < std::ssize(replicaInfo.History)) {
+                    upperTimestamp = replicaInfo.History[historyItemIndex + 1].Timestamp;
+                } else if (IsReplicaReallySync(selfReplicaInfo->Mode, selfReplicaInfo->State)) {
+                    upperTimestamp = selfReplicaInfo->History.back().Timestamp;
                 }
 
-                return {&replica, upperTimestamp};
+                return {replicaId, &replicaInfo, upperTimestamp};
             }
 
             return {};
         };
 
-        auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
-        if (!selfReplica) {
+        auto* selfReplicaInfo = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
+        if (!selfReplicaInfo) {
             YT_LOG_DEBUG("Will not pull rows since replication card does not contain us");
             return {};
         }
 
-        if (selfReplica->State != EReplicaState::Enabled) {
+        if (selfReplicaInfo->State != EReplicaState::Enabled) {
             YT_LOG_DEBUG("Will not pull rows since replica is not enabled (ReplicaState: %v)",
-                selfReplica->State);
+                selfReplicaInfo->State);
             return {};
         }
 
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
-        auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
+        auto historyItemIndex = selfReplicaInfo->FindHistoryItemIndex(oldestTimestamp);
         if (historyItemIndex == -1) {
             YT_LOG_DEBUG("Will not pull rows since replica history does not cover replication progress (OldestTimestamp: %v, History: %v)",
                 oldestTimestamp,
-                selfReplica->History);
+                selfReplicaInfo->History);
             return {};
         }
 
-        YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
-        const auto& historyItem = selfReplica->History[historyItemIndex];
+        YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplicaInfo->History));
+        const auto& historyItem = selfReplicaInfo->History[historyItemIndex];
         if (IsReplicaReallySync(historyItem.Mode, historyItem.State)) {
             YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %v, HistoryItem: %v)",
                 oldestTimestamp,
@@ -377,27 +371,24 @@ private:
             return {};
         }
 
-        if (selfReplica->Mode != EReplicaMode::Async) {
+        if (selfReplicaInfo->Mode != EReplicaMode::Async) {
             YT_LOG_DEBUG("Pulling rows while replica is not async (ReplicaMode: %v)",
-                selfReplica->Mode);
+                selfReplicaInfo->Mode);
             // NB: Allow this since sync replica could be catching up.
         }
 
-        auto* queueReplica = findFreshQueueReplica();
-        if (queueReplica) {
+        if (auto [queueReplicaId, queueReplica] = findFreshQueueReplica(); queueReplica) {
             YT_LOG_DEBUG("Pull rows from fresh replica (ReplicaId: %v)",
-                queueReplica->ReplicaId);
-            return {queueReplica, NullTimestamp};
+                queueReplicaId);
+            return {queueReplicaId, queueReplica, NullTimestamp};
         }
 
-        TTimestamp upperTimestamp = NullTimestamp;
-        std::tie(queueReplica, upperTimestamp) = findSyncQueueReplica(selfReplica, oldestTimestamp);
-        if (queueReplica) {
+        if (auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = findSyncQueueReplica(selfReplicaInfo, oldestTimestamp); queueReplicaInfo) {
             YT_LOG_DEBUG("Pull rows from sync replica (ReplicaId: %v, OldestTimestamp: %llx, UpperTimestamp: %llx)",
-                queueReplica->ReplicaId,
+                queueReplicaId,
                 oldestTimestamp,
                 upperTimestamp);
-            return {queueReplica, upperTimestamp};
+            return {queueReplicaId, queueReplicaInfo, upperTimestamp};
         }
 
         YT_LOG_DEBUG("Will not pull rows since no in-sync queue found");

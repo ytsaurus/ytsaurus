@@ -3,7 +3,6 @@
 #include "link_node_proxy.h"
 #include "shard.h"
 #include "portal_exit_node.h"
-#include "private.h"
 
 namespace NYT::NCypressServer {
 
@@ -13,10 +12,6 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,10 +55,6 @@ private:
 
         auto implHolder = TBase::DoCreate(id, context);
         implHolder->SetTargetPath(targetPath);
-
-        YT_LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
-            id,
-            targetPath);
 
         return implHolder;
     }

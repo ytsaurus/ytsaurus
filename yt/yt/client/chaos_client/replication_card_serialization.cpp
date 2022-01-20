@@ -1,10 +1,9 @@
 #include "replication_card_serialization.h"
 
-#include "replication_card.h"
-
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -63,9 +62,8 @@ DECLARE_REFCOUNTED_STRUCT(TSerializableReplicaInfo)
 struct TSerializableReplicaInfo
     : public NYTree::TYsonSerializable
 {
-    TReplicaId ReplicaId;
-    TString Cluster;
-    NYPath::TYPath TablePath;
+    TString ClusterName;
+    NYPath::TYPath ReplicaPath;
     EReplicaContentType ContentType;
     EReplicaMode Mode;
     EReplicaState State;
@@ -73,11 +71,9 @@ struct TSerializableReplicaInfo
 
     TSerializableReplicaInfo()
     {
-        RegisterParameter("replica_id", ReplicaId)
-            .Default();
-        RegisterParameter("cluster", Cluster)
+        RegisterParameter("cluster_name", ClusterName)
             .NonEmpty();
-        RegisterParameter("table_path", TablePath)
+        RegisterParameter("replica_path", ReplicaPath)
             .NonEmpty();
         RegisterParameter("content_type", ContentType);
         RegisterParameter("mode", Mode)
@@ -98,7 +94,7 @@ DECLARE_REFCOUNTED_STRUCT(TSerializableReplicationCard)
 struct TSerializableReplicationCard
     : public NYTree::TYsonSerializable
 {
-    std::vector<TReplicaInfo> Replicas;
+    THashMap<TString, TReplicaInfo> Replicas;
     std::vector<NObjectClient::TCellId> CoordinatorCellIds;
     TReplicationEra Era;
 
@@ -124,15 +120,15 @@ void DeserializeImpl(TReplicationProgress& replicationProgress, TSerializableRep
     for (auto& segment : serializable->Segments) {
         replicationProgress.Segments.push_back({
             .LowerKey = std::move(segment->LowerKey),
-            .Timestamp = segment->Timestamp});
+            .Timestamp = segment->Timestamp
+        });
     }
 }
 
 void DeserializeImpl(TReplicaInfo& replicaInfo, TSerializableReplicaInfoPtr serializable)
 {
-    replicaInfo.ReplicaId = serializable->ReplicaId;
-    replicaInfo.Cluster = serializable->Cluster;
-    replicaInfo.TablePath = serializable->TablePath;
+    replicaInfo.ClusterName = serializable->ClusterName;
+    replicaInfo.ReplicaPath = serializable->ReplicaPath;
     replicaInfo.ContentType = serializable->ContentType;
     replicaInfo.Mode = serializable->Mode;
     replicaInfo.State = serializable->State;
@@ -141,7 +137,10 @@ void DeserializeImpl(TReplicaInfo& replicaInfo, TSerializableReplicaInfoPtr seri
 
 void DeserializeImpl(TReplicationCard& replicationCard, TSerializableReplicationCardPtr serializable)
 {
-    replicationCard.Replicas = std::move(serializable->Replicas);
+    replicationCard.Replicas.clear();
+    for (const auto& [replicaId, replicaInfo] : serializable->Replicas) {
+        EmplaceOrCrash(replicationCard.Replicas, TReplicaId::FromString(replicaId), replicaInfo);
+    }
     replicationCard.CoordinatorCellIds = std::move(serializable->CoordinatorCellIds);
     replicationCard.Era = serializable->Era;
 }
@@ -204,27 +203,46 @@ void Serialize(const TReplicaHistoryItem& replicaHistoryItem, NYson::IYsonConsum
         .EndMap();
 }
 
-void Serialize(const TReplicaInfo& replicaInfo, IYsonConsumer* consumer)
+void Serialize(
+    const TReplicaInfo& replicaInfo,
+    IYsonConsumer* consumer,
+    const TReplicationCardFetchOptions& options)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("replica_id").Value(replicaInfo.ReplicaId)
-            .Item("cluster").Value(replicaInfo.Cluster)
-            .Item("table_path").Value(replicaInfo.TablePath)
+            .Item("cluster_name").Value(replicaInfo.ClusterName)
+            .Item("replica_path").Value(replicaInfo.ReplicaPath)
             .Item("content_type").Value(replicaInfo.ContentType)
             .Item("mode").Value(replicaInfo.Mode)
             .Item("state").Value(replicaInfo.State)
-            .Item("replication_progress").Value(replicaInfo.ReplicationProgress)
-            .Item("history").Value(replicaInfo.History)
+            .DoIf(options.IncludeProgress, [&] (auto fluent) {
+                fluent
+                    .Item("replication_progress").Value(replicaInfo.ReplicationProgress);
+            })
+            .DoIf(options.IncludeHistory, [&] (auto fluent) {
+                fluent
+                    .Item("history").Value(replicaInfo.History);
+            })
         .EndMap();
 }
 
-void Serialize(const TReplicationCard& replicationCard, IYsonConsumer* consumer)
+void Serialize(
+    const TReplicationCard& replicationCard,
+    IYsonConsumer* consumer,
+    const TReplicationCardFetchOptions& options)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("replicas").Value(replicationCard.Replicas)
-            .Item("coordinator_cell_ids").Value(replicationCard.CoordinatorCellIds)
+            .Item("replicas").DoMapFor(replicationCard.Replicas, [&] (auto fluent, const auto& pair) {
+                fluent
+                    .Item(ToString(pair.first)).Do([&] (auto fluent) {
+                        Serialize(pair.second, fluent.GetConsumer(), options);
+                    });
+            })
+            .DoIf(options.IncludeCoordinators, [&] (auto fluent) {
+                fluent
+                    .Item("coordinator_cell_ids").Value(replicationCard.CoordinatorCellIds);
+            })
             .Item("era").Value(replicationCard.Era)
         .EndMap();
 }
@@ -271,27 +289,28 @@ void FromProto(TReplicaHistoryItem* historyItem, const NChaosClient::NProto::TRe
     historyItem->State = FromProto<EReplicaState>(protoHistoryItem.state());
 }
 
-void ToProto(NChaosClient::NProto::TReplicaInfo* protoReplicaInfo, const TReplicaInfo& replicaInfo, bool includeProgress, bool includeHistory)
+void ToProto(
+    NChaosClient::NProto::TReplicaInfo* protoReplicaInfo,
+    const TReplicaInfo& replicaInfo,
+    const TReplicationCardFetchOptions& options)
 {
-    ToProto(protoReplicaInfo->mutable_replica_id(), replicaInfo.ReplicaId);
-    protoReplicaInfo->set_cluster(replicaInfo.Cluster);
-    protoReplicaInfo->set_table_path(replicaInfo.TablePath);
+    protoReplicaInfo->set_cluster_name(replicaInfo.ClusterName);
+    protoReplicaInfo->set_replica_path(replicaInfo.ReplicaPath);
     protoReplicaInfo->set_content_type(ToProto<i32>(replicaInfo.ContentType));
     protoReplicaInfo->set_mode(ToProto<i32>(replicaInfo.Mode));
     protoReplicaInfo->set_state(ToProto<i32>(replicaInfo.State));
-    if (includeProgress) {
+    if (options.IncludeProgress) {
         ToProto(protoReplicaInfo->mutable_progress(), replicaInfo.ReplicationProgress);
     }
-    if (includeHistory) {
+    if (options.IncludeHistory) {
         ToProto(protoReplicaInfo->mutable_history(), replicaInfo.History);
     }
 }
 
 void FromProto(TReplicaInfo* replicaInfo, const NChaosClient::NProto::TReplicaInfo& protoReplicaInfo)
 {
-    FromProto(&replicaInfo->ReplicaId, protoReplicaInfo.replica_id());
-    replicaInfo->Cluster = protoReplicaInfo.cluster();
-    replicaInfo->TablePath = protoReplicaInfo.table_path();
+    replicaInfo->ClusterName = protoReplicaInfo.cluster_name();
+    replicaInfo->ReplicaPath = protoReplicaInfo.replica_path();
     replicaInfo->ContentType = FromProto<EReplicaContentType>(protoReplicaInfo.content_type());
     replicaInfo->Mode = FromProto<EReplicaMode>(protoReplicaInfo.mode());
     replicaInfo->State = FromProto<EReplicaState>(protoReplicaInfo.state());
@@ -304,25 +323,46 @@ void FromProto(TReplicaInfo* replicaInfo, const NChaosClient::NProto::TReplicaIn
 void ToProto(
     NChaosClient::NProto::TReplicationCard* protoReplicationCard,
     const TReplicationCard& replicationCard,
-    bool includeCoordinators,
-    bool includeProgress,
-    bool includeHistory)
+    const TReplicationCardFetchOptions& options)
 {
     protoReplicationCard->set_era(replicationCard.Era);
-    for (const auto& replicaInfo : replicationCard.Replicas) {
-        auto* protoReplicaInfo = protoReplicationCard->add_replicas();
-        ToProto(protoReplicaInfo, replicaInfo, includeProgress, includeHistory);
+    for (const auto& [replicaId, replicaInfo] : SortHashMapByKeys(replicationCard.Replicas)) {
+        auto* protoReplicaEntry = protoReplicationCard->add_replicas();
+        ToProto(protoReplicaEntry->mutable_id(), replicaId);
+        ToProto(protoReplicaEntry->mutable_info(), replicaInfo, options);
     }
-    if (includeCoordinators) {
+    if (options.IncludeCoordinators) {
         ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), replicationCard.CoordinatorCellIds);
     }
 }
 
 void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TReplicationCard& protoReplicationCard)
 {
-    FromProto(&replicationCard->Replicas, protoReplicationCard.replicas());
+    for (const auto& protoEntry : protoReplicationCard.replicas()) {
+        auto replicaId = FromProto<TReplicaId>(protoEntry.id());
+        auto& replicaInfo = EmplaceOrCrash(replicationCard->Replicas, replicaId, TReplicaInfo())->second;
+        FromProto(&replicaInfo, protoEntry.info());
+    }
     FromProto(&replicationCard->CoordinatorCellIds, protoReplicationCard.coordinator_cell_ids());
     replicationCard->Era = protoReplicationCard.era();
+}
+
+void ToProto(
+    NChaosClient::NProto::TReplicationCardFetchOptions* protoOptions,
+    const TReplicationCardFetchOptions& options)
+{
+    protoOptions->set_include_coordinators(options.IncludeCoordinators);
+    protoOptions->set_include_progress(options.IncludeProgress);
+    protoOptions->set_include_history(options.IncludeHistory);
+}
+
+void FromProto(
+    TReplicationCardFetchOptions* options,
+    const NChaosClient::NProto::TReplicationCardFetchOptions& protoOptions)
+{
+    options->IncludeCoordinators = protoOptions.include_coordinators();
+    options->IncludeProgress = protoOptions.include_progress();
+    options->IncludeHistory = protoOptions.include_history();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

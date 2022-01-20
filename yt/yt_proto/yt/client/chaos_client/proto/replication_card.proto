@@ -26,19 +26,23 @@ message TReplicaHistoryItem
 
 message TReplicaInfo
 {
-    optional NYT.NProto.TGuid replica_id = 1;
-    required string cluster = 2;
-    required string table_path = 3;
-    required int32 content_type = 4;
-    required int32 mode = 5;
-    required int32 state = 6;
-    optional TReplicationProgress progress = 7;
-    repeated TReplicaHistoryItem history = 8;
+    required string cluster_name = 1;
+    required string replica_path = 2;
+    required int32 content_type = 3; // EReplicaContentType
+    required int32 mode = 4; // EReplicaMode
+    required int32 state = 5; // EReplicaState
+    optional TReplicationProgress progress = 6;
+    repeated TReplicaHistoryItem history = 7;
 }
 
 message TReplicationCard
 {
-    repeated TReplicaInfo replicas = 1;
+    message TReplicaEntry
+    {
+        required NYT.NProto.TGuid id = 1;
+        required TReplicaInfo info = 2;
+    }
+    repeated TReplicaEntry replicas = 1;
     repeated NYT.NProto.TGuid coordinator_cell_ids = 2;
     required uint64 era = 3;
 }
@@ -48,5 +52,12 @@ message TUpstreamReplicationCard
     required NYT.NProto.TGuid chaos_cell_id = 1; // NObjectClient::TCellId
     required NYT.NProto.TGuid replication_card_id = 2; // NChaosClient::TReplicationCardId
 }
+
+message TReplicationCardFetchOptions
+{
+    optional bool include_coordinators = 1;
+    optional bool include_progress = 2;
+    optional bool include_history = 3;
+};
 
 ////////////////////////////////////////////////////////////////////////////////

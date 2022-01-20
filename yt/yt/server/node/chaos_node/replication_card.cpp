@@ -9,6 +9,8 @@
 
 namespace NYT::NChaosNode {
 
+using namespace NChaosClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCoordinatorInfo::Persist(const TPersistenceContext& context)
@@ -19,6 +21,21 @@ void TCoordinatorInfo::Persist(const TPersistenceContext& context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TReplicaInfo* TReplicationCard::FindReplica(TReplicaId replicaId)
+{
+    auto it = Replicas_.find(replicaId);
+    return it == Replicas_.end() ? nullptr : &it->second;
+}
+
+TReplicaInfo* TReplicationCard::GetReplicaOrThrow(TReplicaId replicaId)
+{
+    auto* replicaInfo = FindReplica(replicaId);
+    if (!replicaInfo) {
+        THROW_ERROR_EXCEPTION("No such replica %v", replicaId);
+    }
+    return replicaInfo;
+}
 
 void TReplicationCard::Save(TSaveContext& context) const
 {

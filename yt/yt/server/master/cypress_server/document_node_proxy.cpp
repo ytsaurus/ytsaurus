@@ -52,17 +52,7 @@ class TDocumentNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TDocumentNode>
 {
 public:
-    TDocumentNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TDocumentNode* trunkNode)
-        : TBase(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TCypressNodeProxyBase::TCypressNodeProxyBase;
 
     ENodeType GetType() const override
     {

@@ -103,8 +103,10 @@ private:
 
             ReplicationCard_ = WaitFor(replicationCardCache->GetReplicationCard({
                     .CardId = ReplicationCardId_,
-                    .RequestHistory = true,
-                    .RequestProgress = true
+                    .FetchOptions = {
+                        .IncludeHistory = true,
+                        .IncludeProgress = true
+                    }
                 })).ValueOrThrow();
 
             Tablet_->ChaosData()->ReplicationCard = ReplicationCard_;

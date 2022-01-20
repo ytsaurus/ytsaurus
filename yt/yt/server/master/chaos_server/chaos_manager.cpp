@@ -8,6 +8,7 @@
 #include "chaos_cell_type_handler.h"
 #include "chaos_cell_bundle.h"
 #include "chaos_cell_bundle_type_handler.h"
+#include "chaos_replicated_table_node_type_handler.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
@@ -21,6 +22,8 @@
 #include <yt/yt/server/master/chaos_server/proto/chaos_manager.pb.h>
 
 #include <yt/yt/server/master/object_server/public.h>
+
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
 
@@ -71,6 +74,9 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateChaosCellBundleTypeHandler(Bootstrap_));
         objectManager->RegisterHandler(CreateChaosCellTypeHandler(Bootstrap_));
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->RegisterHandler(CreateChaosReplicatedTableTypeHandler(Bootstrap_));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         cellManager->SubscribeCellCreated(BIND(&TChaosManager::OnCellCreated, MakeWeak(this)));

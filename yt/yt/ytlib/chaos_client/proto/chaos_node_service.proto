@@ -16,9 +16,7 @@ message TRspCreateReplicationCard
 message TReqGetReplicationCard
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
-    required bool request_coordinators = 2;
-    required bool request_replication_progress = 3;
-    required bool request_history = 4;
+    optional TReplicationCardFetchOptions fetch_options = 2;
 }
 
 message TRspGetReplicationCard

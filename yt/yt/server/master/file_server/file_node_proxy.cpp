@@ -30,17 +30,7 @@ class TFileNodeProxy
     : public TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode>
 {
 public:
-    TFileNodeProxy(
-        TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTransaction* transaction,
-        TFileNode* trunkNode)
-        : TBase(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TCypressNodeProxyBase::TCypressNodeProxyBase;
 
 private:
     using TBase = TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode>;

@@ -138,7 +138,7 @@ private:
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsSecondaryMaster()) {
-                auto connection = Bootstrap_->GetClusterConnection();
+                const auto& connection = Bootstrap_->GetClusterConnection();
                 auto channel = MulticellManager_->FindMasterChannel(CellTag_, NHydra::EPeerKind::Follower);
                 NObjectClient::TObjectServiceProxy proxy(channel, connection->GetStickyGroupSizeCache());
 

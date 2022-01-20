@@ -52,30 +52,26 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
 {
     auto requestId = context->GetRequestId();
     auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-    bool requestCoordinators = request->request_coordinators();
-    bool requestProgress = request->request_replication_progress();
-    bool requestHistory = request->request_history();
-    auto options = TGetReplicationCardOptions{
-        .IncludeCoordinators = requestCoordinators,
-        .IncludeProgress = requestProgress,
-        .IncludeHistory = requestHistory,
-        .BypassCache = true
-    };
+    auto fetchOptions = FromProto<TReplicationCardFetchOptions>(request->fetch_options());
 
-    context->SetRequestInfo("ReplicationCardId: %v",
+    context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
+        fetchOptions,
         replicationCardId);
+
+    TGetReplicationCardOptions getCardOptions;
+    getCardOptions.BypassCache = true;
+    static_cast<TReplicationCardFetchOptions&>(getCardOptions) = fetchOptions;
 
     TFuture<TReplicationCardPtr> replicationCardFuture;
     const auto& requestHeader = context->GetRequestHeader();
     if (requestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
         const auto& cachingRequestHeaderExt = requestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
 
-        auto key = TChaosCacheKey(
-            context->GetAuthenticationIdentity().User,
-            replicationCardId,
-            requestCoordinators,
-            requestProgress,
-            requestHistory);
+        auto key = TChaosCacheKey{
+            .User = context->GetAuthenticationIdentity().User,
+            .CardId = replicationCardId,
+            .FetchOptions = fetchOptions
+        };
 
         YT_LOG_DEBUG("Serving request from cache (RequestId: %v, Key: %v)",
             requestId,
@@ -99,7 +95,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
         }));
 
         if (cookie.IsActive()) {
-            Client_->GetReplicationCard(replicationCardId, options).Apply(
+            Client_->GetReplicationCard(replicationCardId, getCardOptions).Apply(
                 BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TReplicationCardPtr>& replicationCardOrError) mutable {
                     Cache_->EndLookup(
                         requestId,
@@ -108,12 +104,12 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
                 }));
         }
     } else {
-        replicationCardFuture = Client_->GetReplicationCard(replicationCardId, options);
+        replicationCardFuture = Client_->GetReplicationCard(replicationCardId, getCardOptions);
     }
 
     context->ReplyFrom(replicationCardFuture
-        .Apply(BIND([=] (const TReplicationCardPtr& replicationCard) {
-            ToProto(response->mutable_replication_card(), *replicationCard, requestCoordinators, requestProgress, requestHistory);
+        .Apply(BIND([context, response, fetchOptions] (const TReplicationCardPtr& replicationCard) {
+            ToProto(response->mutable_replication_card(), *replicationCard, fetchOptions);
         })));
 }
 

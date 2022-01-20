@@ -25,6 +25,7 @@ DECLARE_REFCOUNTED_CLASS(TReplicationCardCacheConfig)
 struct TReplicationProgress;
 struct TReplicaHistoryItem;
 struct TReplicaInfo;
+struct TReplicationCardFecthOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 

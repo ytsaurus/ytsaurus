@@ -946,7 +946,9 @@ private:
                 const auto& replicationCardCache = transaction->Client_->GetReplicationCardCache();
                 return replicationCardCache->GetReplicationCard({
                         .CardId = tableInfo->ReplicationCardId,
-                        .RequestCoordinators = true
+                        .FetchOptions = {
+                            .IncludeCoordinators = true
+                        }
                     }).Apply(BIND([=, this_ = MakeStrong(this)] (const TReplicationCardPtr& replicationCard) {
                         YT_LOG_DEBUG("Got replication card from cache (Path: %v, ReplicationCardId: %v, CoordinatorCellIds: %v)",
                             TableInfo_->Path,
@@ -1085,12 +1087,12 @@ private:
                     registerReplica(replicaInfo);
                 }
             } else if (HasChaosReplicas()) {
-                for (const auto& chaosReplicaInfo : ReplicationCard_->Replicas) {
+                for (const auto& [chaosReplicaId, chaosReplicaInfo] : ReplicationCard_->Replicas) {
                     if (chaosReplicaInfo.Mode == EReplicaMode::Sync && chaosReplicaInfo.State == EReplicaState::Enabled) {
                         auto replicaInfo = New<TTableReplicaInfo>();
-                        replicaInfo->ClusterName = chaosReplicaInfo.Cluster;
-                        replicaInfo->ReplicaPath = chaosReplicaInfo.TablePath;
-                        replicaInfo->ReplicaId = chaosReplicaInfo.ReplicaId;
+                        replicaInfo->ReplicaId = chaosReplicaId;
+                        replicaInfo->ClusterName = chaosReplicaInfo.ClusterName;
+                        replicaInfo->ReplicaPath = chaosReplicaInfo.ReplicaPath;
                         registerReplica(replicaInfo);
                     }
                 }

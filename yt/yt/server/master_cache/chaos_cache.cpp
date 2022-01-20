@@ -33,37 +33,20 @@ const auto static& Logger = MasterCacheLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChaosCacheKey::TChaosCacheKey(
-    TString user,
-    TReplicationCardId cardId,
-    bool requestCoordinators,
-    bool requestProgress,
-    bool requestHistory)
-    : User(std::move(user))
-    , CardId(cardId)
-    , RequestCoordinators(requestCoordinators)
-    , RequestProgress(requestProgress)
-    , RequestHistory(requestHistory)
-{ }
-
 TChaosCacheKey::operator size_t() const
 {
     return MultiHash(
         User,
         CardId,
-        RequestCoordinators,
-        RequestProgress,
-        RequestHistory);
+        FetchOptions);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TChaosCacheKey& key, TStringBuf /*format*/)
 {
-    builder->AppendFormat("{User: %v, CardId: %v, Coordinators: %v, Progress: %v, History: %v}",
+    builder->AppendFormat("{User: %v, CardId: %v, FetchOptions: %v}",
         key.User,
         key.CardId,
-        key.RequestCoordinators,
-        key.RequestProgress,
-        key.RequestHistory);
+        key.FetchOptions);
 }
 
 TString ToString(const TChaosCacheKey& key)

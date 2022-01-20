@@ -6,8 +6,9 @@
 
 #include <yt/yt/ytlib/hydra/public.h>
 
+#include <yt/yt/client/chaos_client/public.h>
+
 #include <yt/yt/core/misc/enum.h>
-#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NChaosServer {
 
@@ -17,7 +18,12 @@ using NHydra::TPeerId;
 using NHydra::InvalidPeerId;
 using NHydra::EPeerState;
 
+using NChaosClient::TReplicationCardId;
+using NChaosClient::TReplicaId;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+class TChaosReplicatedTableNode;
 
 DECLARE_REFCOUNTED_CLASS(TAlienCellSynchronizerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChaosManagerConfig)

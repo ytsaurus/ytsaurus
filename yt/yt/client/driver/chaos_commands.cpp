@@ -42,6 +42,8 @@ TGetReplicationCardCommand::TGetReplicationCardCommand()
         .Optional();
     RegisterParameter("include_history", Options.IncludeHistory)
         .Optional();
+    RegisterParameter("bypass_cache", Options.BypassCache)
+        .Optional();
 }
 
 void TGetReplicationCardCommand::DoExecute(ICommandContextPtr context)
@@ -52,7 +54,10 @@ void TGetReplicationCardCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     ProduceOutput(context, [&] (IYsonConsumer* consumer) {
-        Serialize(*replicationCard, consumer);
+        Serialize(
+            *replicationCard,
+            consumer,
+            static_cast<const TReplicationCardFetchOptions&>(Options));
     });
 }
 
