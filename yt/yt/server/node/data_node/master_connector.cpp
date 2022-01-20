@@ -772,14 +772,16 @@ private:
         bool full = !chunkStore->Locations().empty();
 
         for (const auto& location : chunkStore->Locations()) {
-            if (location->IsEnabled()) {
-                totalAvailableSpace += location->GetAvailableSpace();
-                totalLowWatermarkSpace += location->GetLowWatermarkSpace();
-                full &= location->IsFull();
+            if (!location->IsEnabled()) {
+                continue;
             }
 
+            totalAvailableSpace += location->GetAvailableSpace();
+            totalLowWatermarkSpace += location->GetLowWatermarkSpace();
             totalUsedSpace += location->GetUsedSpace();
             totalStoredChunkCount += location->GetChunkCount();
+
+            full &= location->IsFull();
 
             auto mediumIndex = location->GetMediumDescriptor().Index;
             YT_VERIFY(mediumIndex != GenericMediumIndex);
