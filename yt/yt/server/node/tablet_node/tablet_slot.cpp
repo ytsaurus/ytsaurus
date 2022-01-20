@@ -462,7 +462,7 @@ public:
             tablet->GetSettings().HunkReaderConfig,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetHintManager(),
-            TabletNodeProfiler.WithPrefix("/chunk_fragment_reader"));
+            tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"));
     }
 
 private:
