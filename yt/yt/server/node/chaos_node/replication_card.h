@@ -31,12 +31,16 @@ class TReplicationCard
     , public TRefTracked<TReplicationCard>
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NChaosClient::TReplicaInfo>, Replicas);
+    using TReplicas = THashMap<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo>;
+    DEFINE_BYREF_RW_PROPERTY(TReplicas, Replicas);
 
     using TCoordinators = THashMap<NObjectClient::TCellId, TCoordinatorInfo>;
     DEFINE_BYREF_RW_PROPERTY(TCoordinators, Coordinators);
 
     DEFINE_BYVAL_RW_PROPERTY(NChaosClient::TReplicationEra, Era, NChaosClient::InitialReplicationEra);
+
+    NChaosClient::TReplicaInfo* FindReplica(NChaosClient::TReplicaId replicaId);
+    NChaosClient::TReplicaInfo* GetReplicaOrThrow(NChaosClient::TReplicaId replicaId);
 
 public:
     using TObjectBase::TObjectBase;

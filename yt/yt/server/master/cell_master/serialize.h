@@ -85,6 +85,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReplicationCardTokenIsNoMore)                                 (1917))  // babenko
     ((FixObjectSmartPtrLeak)                                        (1918))  // kvk1920
     ((MaxClipTimestampInChunkView)                                  (1919))  // ifsmirnov
+    ((ChaosReplicatedTable)                                         (1920))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

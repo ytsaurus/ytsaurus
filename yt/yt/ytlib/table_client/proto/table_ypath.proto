@@ -1,7 +1,6 @@
 package NYT.NTableClient.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
-import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt/ytlib/hive/proto/cell_directory.proto";
 

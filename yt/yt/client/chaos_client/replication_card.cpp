@@ -27,6 +27,29 @@ bool IsStableReplicaState(EReplicaState state)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReplicationCardFetchOptions::operator size_t() const
+{
+    return MultiHash(
+        IncludeCoordinators,
+        IncludeProgress,
+        IncludeHistory);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TReplicationCardFetchOptions& options, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{IncludeCoordinators: %v, IncludeProgress: %v, IncludeHistory: %v}",
+        options.IncludeCoordinators,
+        options.IncludeProgress,
+        options.IncludeHistory);
+}
+
+TString ToString(const TReplicationCardFetchOptions& options)
+{
+    return ToStringViaBuilder(options);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FormatValue(TStringBuilderBase* builder, const TReplicationProgress& replicationProgress, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{Segments: %v, UpperKey: %v}",
@@ -57,10 +80,9 @@ TString ToString(const TReplicaHistoryItem& replicaHistoryItem)
 
 void FormatValue(TStringBuilderBase* builder, const TReplicaInfo& replicaInfo, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{ReplicaId: %v, Cluster: %v, Path: %v, ContentType: %v, Mode: %v, State: %v, Progress: %v, History: %v}",
-        replicaInfo.ReplicaId,
-        replicaInfo.Cluster,
-        replicaInfo.TablePath,
+    builder->AppendFormat("{ClusterName: %v, ReplicaPath: %v, ContentType: %v, Mode: %v, State: %v, Progress: %v, History: %v}",
+        replicaInfo.ClusterName,
+        replicaInfo.ReplicaPath,
         replicaInfo.ContentType,
         replicaInfo.Mode,
         replicaInfo.State,
@@ -118,8 +140,8 @@ void TReplicaInfo::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
-    Persist(context, Cluster);
-    Persist(context, TablePath);
+    Persist(context, ClusterName);
+    Persist(context, ReplicaPath);
     Persist(context, ContentType);
     Persist(context, Mode);
     Persist(context, State);
@@ -135,7 +157,7 @@ int TReplicaInfo::FindHistoryItemIndex(TTimestamp timestamp)
         History.begin(),
         History.end(),
         timestamp,
-        [] (const TTimestamp& lhs, const TReplicaHistoryItem& rhs) {
+        [] (TTimestamp lhs, const TReplicaHistoryItem& rhs) {
             return lhs < rhs.Timestamp;
         });
     return std::distance(History.begin(), it) - 1;
@@ -143,12 +165,8 @@ int TReplicaInfo::FindHistoryItemIndex(TTimestamp timestamp)
 
 TReplicaInfo* TReplicationCard::FindReplica(TReplicaId replicaId)
 {
-    for (auto& replica : Replicas) {
-        if (replica.ReplicaId == replicaId) {
-            return &replica;
-        }
-    }
-    return nullptr;
+    auto it = Replicas.find(replicaId);
+    return it == Replicas.end() ? nullptr : &it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,7 +3,8 @@
 #include "public.h"
 
 #include <yt/yt/core/misc/hash.h>
-#include <yt/yt/core/yson/consumer.h>
+
+#include <yt/yt/core/yson/public.h>
 
 namespace NYT::NRpc {
 

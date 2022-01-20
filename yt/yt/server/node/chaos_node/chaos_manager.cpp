@@ -332,12 +332,12 @@ private:
             : EReplicaState::Disabling;
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
-        for (const auto& replica : replicationCard->Replicas()) {
-            if (replica.Cluster == newReplica.Cluster && replica.TablePath == newReplica.TablePath) {
+        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+            if (replicaInfo.ClusterName == newReplica.ClusterName && replicaInfo.ReplicaPath == newReplica.ReplicaPath) {
                 THROW_ERROR_EXCEPTION("Replica already exists")
-                    << TErrorAttribute("cluster", replica.Cluster)
-                    << TErrorAttribute("table_path", replica.TablePath)
-                    << TErrorAttribute("replica_id", replica.ReplicaId);
+                    << TErrorAttribute("replica_id", replicaId)
+                    << TErrorAttribute("cluster_name", replicaInfo.ClusterName)
+                    << TErrorAttribute("replica_path", replicaInfo.ReplicaPath);
             }
         }
 
@@ -360,18 +360,18 @@ private:
             });
         }
 
-        newReplica.ReplicaId = Slot_->GenerateId(EObjectType::ReplicationCardTableReplica);
-        ToProto(response->mutable_replica_id(), newReplica.ReplicaId);
+        auto newReplicaId = Slot_->GenerateId(EObjectType::ReplicationCardTableReplica);
+        ToProto(response->mutable_replica_id(), newReplicaId);
 
         if (newReplica.State == EReplicaState::Enabling) {
             RevokeShortcuts(replicationCard);
         }
 
-        replicationCard->Replicas().push_back(std::move(newReplica));
+        EmplaceOrCrash(replicationCard->Replicas(), newReplicaId, std::move(newReplica));
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Created table replica (ReplicationCardId: %v, Replica: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Created table replica (ReplicationCardId: %v, ReplicaId: %v)",
             replicationCardId,
-            newReplica);
+            newReplicaId);
     }
 
     void HydraRemoveTableReplica(NChaosClient::NProto::TReqRemoveTableReplica* request)
@@ -380,18 +380,16 @@ private:
         auto replicaId = FromProto<NChaosClient::TReplicaId>(request->replica_id());
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
-        auto index = GetReplicaIndexOrThrow(replicationCard, replicaId);
-        auto& replica = replicationCard->Replicas()[index];
+        auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
 
-        if (replica.State != EReplicaState::Disabled) {
+        if (replicaInfo->State != EReplicaState::Disabled) {
             THROW_ERROR_EXCEPTION("Could not remove replica since it is not disabled")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("state", replica.State);
+                << TErrorAttribute("state", replicaInfo->State);
         }
 
-        auto& replicas = replicationCard->Replicas();
-        replicas.erase(replicas.begin() + index);
+        EraseOrCrash(replicationCard->Replicas(), replicaId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removed table replica (ReplicationCardId: %v, ReplicaId: %v)",
             replicationCardId,
@@ -421,57 +419,58 @@ private:
         }
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
-        auto* replica = GetReplicaOrThrow(replicationCard, replicaId);
+        auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
 
-        if (!IsStableReplicaMode(replica->Mode) || !IsStableReplicaState(replica->State)) {
+        if (!IsStableReplicaMode(replicaInfo->Mode) || !IsStableReplicaState(replicaInfo->State)) {
             THROW_ERROR_EXCEPTION("Replica is transitioning")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("mode", replica->Mode)
-                << TErrorAttribute("state", replica->State);
+                << TErrorAttribute("mode", replicaInfo->Mode)
+                << TErrorAttribute("state", replicaInfo->State);
         }
 
-        if (path && replica->State != EReplicaState::Disabled) {
+        if (path && replicaInfo->State != EReplicaState::Disabled) {
             THROW_ERROR_EXCEPTION("Could not alter replica table path since it is not disabled")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("state", replica->State);
+                << TErrorAttribute("state", replicaInfo->State);
         }
 
         bool revoke = false;
 
-        if (mode && replica->Mode != *mode) {
-            if (replica->Mode == EReplicaMode::Sync) {
-                replica->Mode = EReplicaMode::SyncToAsync;
+        if (mode && replicaInfo->Mode != *mode) {
+            if (replicaInfo->Mode == EReplicaMode::Sync) {
+                replicaInfo->Mode = EReplicaMode::SyncToAsync;
                 revoke = true;
-            } else if (replica->Mode == EReplicaMode::Async) {
-                replica->Mode = EReplicaMode::AsyncToSync;
+            } else if (replicaInfo->Mode == EReplicaMode::Async) {
+                replicaInfo->Mode = EReplicaMode::AsyncToSync;
                 revoke = true;
             }
         }
 
-        if (state && replica->State != *state) {
-            if (replica->State == EReplicaState::Disabled) {
-                replica->State = EReplicaState::Enabling;
+        if (state && replicaInfo->State != *state) {
+            if (replicaInfo->State == EReplicaState::Disabled) {
+                replicaInfo->State = EReplicaState::Enabling;
                 revoke = true;
-            } else if (replica->State == EReplicaState::Enabled) {
-                replica->State = EReplicaState::Disabling;
+            } else if (replicaInfo->State == EReplicaState::Enabled) {
+                replicaInfo->State = EReplicaState::Disabling;
                 revoke = true;
             }
         }
 
         if (path) {
-            YT_VERIFY(replica->State == EReplicaState::Disabled);
-            replica->TablePath = *path;
+            YT_VERIFY(replicaInfo->State == EReplicaState::Disabled);
+            replicaInfo->ReplicaPath = *path;
         }
 
         if (revoke) {
             RevokeShortcuts(replicationCard);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Altered table replica (ReplicationCardId: %v, Replica: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Altered table replica (ReplicationCardId: %v, ReplicaId: %v, Replica: %v)",
             replicationCardId,
-            replica);
+            replicaId,
+            *replicaInfo);
     }
 
     void HydraRspGrantShortcuts(NChaosNode::NProto::TRspGrantShortcuts* request)
@@ -613,8 +612,8 @@ private:
             return;
         }
 
-        for (const auto& replica : replicationCard->Replicas()) {
-            if (!IsStableReplicaMode(replica.Mode) || !IsStableReplicaState(replica.State)) {
+        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+            if (!IsStableReplicaMode(replicaInfo.Mode) || !IsStableReplicaState(replicaInfo.State)) {
                 Bootstrap_->GetMasterConnection()->GetTimestampProvider()->GenerateTimestamps()
                     .Subscribe(BIND(
                         &TChaosManager::OnNewReplicationEraTimestampGenerated,
@@ -661,7 +660,7 @@ private:
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         if (replicationCard->GetEra() != era) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card era mismatch: expected %v got %v (ReplicationCardId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card era mismatch (ReplicationCardId: %v, ExpectedEra: %v, ActualEra: %v)",
                 era,
                 replicationCard->GetEra(),
                 replicationCardId);
@@ -676,9 +675,9 @@ private:
         YT_VERIFY(HasMutationContext());
 
         auto hasSyncQueue = [&] {
-            for (const auto& replica : replicationCard->Replicas()) {
-                if (replica.ContentType == EReplicaContentType::Queue &&
-                    (replica.Mode == EReplicaMode::Sync || replica.Mode == EReplicaMode::AsyncToSync))
+            for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+                if (replicaInfo.ContentType == EReplicaContentType::Queue &&
+                    (replicaInfo.Mode == EReplicaMode::Sync || replicaInfo.Mode == EReplicaMode::AsyncToSync))
                 {
                     return true;
                 }
@@ -687,7 +686,7 @@ private:
         }();
 
         if (!hasSyncQueue) {
-            YT_LOG_DEBUG("Do not commence new replication era since there would be no sync queue replicas (ReplicationCard: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not commence new replication era since there would be no sync queue replicas (ReplicationCard: %v)",
                 *replicationCard);
             return;
         }
@@ -695,28 +694,28 @@ private:
         auto newEra = replicationCard->GetEra() + 1;
         replicationCard->SetEra(newEra);
 
-        for (auto& replica : replicationCard->Replicas()) {
+        for (auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
             bool updated = false;
 
-            if (replica.Mode == EReplicaMode::SyncToAsync) {
-                replica.Mode = EReplicaMode::Async;
+            if (replicaInfo.Mode == EReplicaMode::SyncToAsync) {
+                replicaInfo.Mode = EReplicaMode::Async;
                 updated = true;
-            } else if (replica.Mode == EReplicaMode::AsyncToSync) {
-                replica.Mode = EReplicaMode::Sync;
+            } else if (replicaInfo.Mode == EReplicaMode::AsyncToSync) {
+                replicaInfo.Mode = EReplicaMode::Sync;
                 updated = true;
             }
 
-            if (replica.State == EReplicaState::Disabling) {
-                replica.State = EReplicaState::Disabled;
+            if (replicaInfo.State == EReplicaState::Disabling) {
+                replicaInfo.State = EReplicaState::Disabled;
                 updated = true;
-            } else if (replica.State == EReplicaState::Enabling) {
-                replica.State = EReplicaState::Enabled;
+            } else if (replicaInfo.State == EReplicaState::Enabling) {
+                replicaInfo.State = EReplicaState::Enabled;
                 updated = true;
             }
 
             if (updated) {
                 // TODO(savrus) Implement history cleanup policy.
-                replica.History.push_back({newEra, timestamp, replica.Mode, replica.State});
+                replicaInfo.History.push_back({newEra, timestamp, replicaInfo.Mode, replicaInfo.State});
             }
         }
 
@@ -805,33 +804,15 @@ private:
         auto newProgress = FromProto<TReplicationProgress>(request->replication_progress());
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
-        auto* replica = GetReplicaOrThrow(replicationCard, replicaId);
-        NChaosClient::UpdateReplicationProgress(&replica->ReplicationProgress, newProgress);
+        auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
+        NChaosClient::UpdateReplicationProgress(&replicaInfo->ReplicationProgress, newProgress);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (ReplicationCardId: %v, ReplicaId: %v, Progress: %v",
             replicationCardId,
             replicaId,
-            replica->ReplicationProgress);
+            replicaInfo->ReplicationProgress);
     }
 
-
-    int GetReplicaIndexOrThrow(TReplicationCard* card, TReplicaId replicaId)
-    {
-        for (int index = 0; index < std::ssize(card->Replicas()); ++index) {
-            if (card->Replicas()[index].ReplicaId == replicaId) {
-                return index;
-            }
-        }
-
-        THROW_ERROR_EXCEPTION("Replica not found")
-            << TErrorAttribute("replication_card_id", card->GetId())
-            << TErrorAttribute("replica_id", replicaId);
-    }
-
-    TReplicaInfo* GetReplicaOrThrow(TReplicationCard* card, TReplicaId replicaId)
-    {
-        return &card->Replicas()[GetReplicaIndexOrThrow(card, replicaId)];
-    }
 
     void InvestigateStalledReplicationCards()
     {
@@ -872,11 +853,10 @@ private:
         BuildYsonFluently(consumer)
             .DoListFor(SuspendedCoordinators_, [] (TFluentList fluent, const auto& suspended) {
                 fluent
-                    .Item()
-                        .BeginMap()
+                    .Item().BeginMap()
                         .Item("coordinator_cell_id").Value(suspended.first)
                         .Item("suspension_time").Value(suspended.second)
-                        .EndMap();
+                    .EndMap();
                 });
     }
 
@@ -884,17 +864,9 @@ private:
     {
         BuildYsonFluently(consumer)
             .BeginMap()
-            .Item("replication_card_id").Value(card->GetId())
-            .Item("replicas")
-                .DoListFor(card->Replicas(), [&] (TFluentList fluent, const auto& replicaInfo) {
-                    fluent
-                        .Item()
-                            .BeginMap()
-                                .Item("cluster").Value(replicaInfo.Cluster)
-                                .Item("table_path").Value(replicaInfo.TablePath)
-                                .Item("content_type").Value(replicaInfo.ContentType)
-                                .Item("mode").Value(replicaInfo.Mode)
-                            .EndMap();
+                .Item("replication_card_id").Value(card->GetId())
+                .Item("replicas").DoListFor(card->Replicas(), [] (TFluentList fluent, const auto& replicaInfo) {
+                    Serialize(replicaInfo, fluent.GetConsumer());
                 })
             .EndMap();
     }

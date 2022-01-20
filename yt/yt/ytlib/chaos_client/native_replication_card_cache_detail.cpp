@@ -95,9 +95,7 @@ public:
         auto proxy = TChaosServiceProxy(channel);
         auto req = proxy.GetReplicationCard();
         ToProto(req->mutable_replication_card_id(), Key_.CardId);
-        req->set_request_coordinators(Key_.RequestCoordinators);
-        req->set_request_replication_progress(Key_.RequestProgress);
-        req->set_request_history(Key_.RequestHistory);
+        ToProto(req->mutable_fetch_options(), Key_.FetchOptions);
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();

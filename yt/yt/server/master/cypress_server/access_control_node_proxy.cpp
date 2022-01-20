@@ -20,20 +20,15 @@ using namespace NYTree;
 
 class TAccessControlNodeProxy
     : public TCypressNodeProxyBase<
-        TNontemplateCypressNodeProxyBase, 
-        IEntityNode, 
+        TNontemplateCypressNodeProxyBase,
+        IEntityNode,
         TAccessControlNode>
 {
-    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Entity);
+public:
+    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Entity)
 
 public:
-    TAccessControlNodeProxy(
-        TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTransaction* transaction,
-        TAccessControlNode* trunkNode)
-        : TBase(bootstrap, metadata, transaction, trunkNode)
-    { }
+    using TCypressNodeProxyBase::TCypressNodeProxyBase;
 
 private:
     using TBase = TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TAccessControlNode>;
@@ -67,9 +62,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ICypressNodeProxyPtr CreateAccessControlNodeProxy(
-    TBootstrap *bootstrap, 
-    TObjectTypeMetadata *metadata, 
-    TTransaction *transaction, 
+    TBootstrap *bootstrap,
+    TObjectTypeMetadata *metadata,
+    TTransaction *transaction,
     TAccessControlNode *trunkNode)
 {
     return New<TAccessControlNodeProxy>(

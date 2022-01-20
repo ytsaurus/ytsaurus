@@ -1993,7 +1993,7 @@ public:
         if (!SourceTableIds_.insert(tableInfo.SourceTableId).second) {
             THROW_ERROR_EXCEPTION("Duplicate table %Qv in backup manifest",
                 tableInfo.SourcePath)
-                << TErrorAttribute("cluster", ClusterName_);
+                << TErrorAttribute("cluster_name", ClusterName_);
         }
 
         auto type = TypeFromId(tableInfo.SourceTableId);
@@ -2002,7 +2002,7 @@ public:
         if (type == EObjectType::ReplicatedTable) {
             THROW_ERROR_EXCEPTION("Table %Qv is replicated",
                 tableInfo.SourcePath)
-                << TErrorAttribute("cluster", ClusterName_);
+                << TErrorAttribute("cluster_name", ClusterName_);
         }
 
         if (type == EObjectType::ReplicationLogTable) {
@@ -2014,13 +2014,13 @@ public:
         if (!tableInfo.Attributes->Get<bool>("sorted")) {
             THROW_ERROR_EXCEPTION("Table %Qv is not sorted",
                 tableInfo.SourcePath)
-                << TErrorAttribute("cluster", ClusterName_);
+                << TErrorAttribute("cluster_name", ClusterName_);
         }
 
         if (!tableInfo.Attributes->Get<bool>("dynamic")) {
             THROW_ERROR_EXCEPTION("Table %Qv is not dynamic",
                 tableInfo.SourcePath)
-                << TErrorAttribute("cluster", ClusterName_);
+                << TErrorAttribute("cluster_name", ClusterName_);
         }
 
         if (CellTagFromId(tableInfo.SourceTableId) !=
@@ -2028,7 +2028,7 @@ public:
         {
             THROW_ERROR_EXCEPTION("Table %Qv is beyond the portal",
                 tableInfo.SourcePath)
-                << TErrorAttribute("cluster", ClusterName_);
+                << TErrorAttribute("cluster_name", ClusterName_);
         }
 
         CellTags_.insert(CellTagFromId(tableInfo.SourceTableId));
@@ -2140,7 +2140,7 @@ public:
             THROW_ERROR_EXCEPTION("Some tables did not confirm backup checkpoint passing within timeout")
                 << TErrorAttribute("remaining_table_count", ssize(unconfirmedTableIndexes))
                 << TErrorAttribute("sample_table_path", Tables_[*unconfirmedTableIndexes.begin()].SourcePath)
-                << TErrorAttribute("cluster", ClusterName_);
+                << TErrorAttribute("cluster_name", ClusterName_);
         }
     }
 
@@ -2177,7 +2177,7 @@ public:
                 THROW_ERROR_EXCEPTION("Cross-cell backups are not supported")
                     << TErrorAttribute("source_path", table.SourcePath)
                     << TErrorAttribute("destination_path", table.DestinationPath)
-                    << TErrorAttribute("cluster", ClusterName_);
+                    << TErrorAttribute("cluster_name", ClusterName_);
             }
 
             const auto& rsp = rspOrError.ValueOrThrow();
@@ -2241,7 +2241,7 @@ public:
                     table.DestinationPath,
                     expectedState,
                     result)
-                    << TErrorAttribute("cluster", ClusterName_);
+                    << TErrorAttribute("cluster_name", ClusterName_);
             }
         };
 
@@ -2991,9 +2991,7 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
         const auto& replicationCardCache = GetReplicationCardCache();
         auto replicationCardFuture = replicationCardCache->GetReplicationCard({
             .CardId = replicationCardId,
-            .RequestCoordinators = options.IncludeCoordinators,
-            .RequestProgress = options.IncludeProgress,
-            .RequestHistory = options.IncludeHistory
+            .FetchOptions = static_cast<const TReplicationCardFetchOptions&>(options)
         });
         return WaitFor(replicationCardFuture)
             .ValueOrThrow();
@@ -3004,9 +3002,7 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
 
     auto req = proxy.GetReplicationCard();
     ToProto(req->mutable_replication_card_id(), replicationCardId);
-    req->set_request_coordinators(options.IncludeCoordinators);
-    req->set_request_replication_progress(options.IncludeProgress);
-    req->set_request_history(options.IncludeHistory);
+    ToProto(req->mutable_fetch_options(), static_cast<const TReplicationCardFetchOptions&>(options));
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();

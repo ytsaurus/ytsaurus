@@ -159,17 +159,7 @@ class TJournalNodeProxy
     : public TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TJournalNode>
 {
 public:
-    TJournalNodeProxy(
-        TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTransaction* transaction,
-        TJournalNode* trunkNode)
-        : TBase(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TCypressNodeProxyBase::TCypressNodeProxyBase;
 
 private:
     using TBase = TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TJournalNode>;

@@ -13,18 +13,14 @@ TReplicationCardCacheKey::operator size_t() const
 {
     return MultiHash(
         CardId,
-        RequestHistory,
-        RequestCoordinators,
-        RequestProgress);
+        FetchOptions);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCardCacheKey& key, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{CardId: %v, History: %v, Progress: %v, Coordinators: %v}",
+    builder->AppendFormat("{CardId: %v, FetchOptions: %v}",
         key.CardId,
-        key.RequestHistory,
-        key.RequestProgress,
-        key.RequestCoordinators);
+        key.FetchOptions);
 }
 
 TString ToString(const TReplicationCardCacheKey& key)

@@ -65,9 +65,8 @@ struct TReplicaHistoryItem
 
 struct TReplicaInfo
 {
-    TReplicaId ReplicaId;
-    TString Cluster;
-    NYPath::TYPath TablePath;
+    TString ClusterName;
+    NYPath::TYPath ReplicaPath;
     EReplicaContentType ContentType;
     EReplicaMode Mode;
     EReplicaState State;
@@ -83,7 +82,7 @@ struct TReplicaInfo
 struct TReplicationCard
     : public TRefCounted
 {
-    std::vector<TReplicaInfo> Replicas;
+    THashMap<TReplicaId, TReplicaInfo> Replicas;
     std::vector<NObjectClient::TCellId> CoordinatorCellIds;
     TReplicationEra Era;
 
@@ -92,6 +91,21 @@ struct TReplicationCard
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationCard)
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TReplicationCardFetchOptions
+{
+    bool IncludeCoordinators = false;
+    bool IncludeProgress = false;
+    bool IncludeHistory = false;
+
+    operator size_t() const;
+    bool operator == (const TReplicationCardFetchOptions& other) const = default;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TReplicationCardFetchOptions& options, TStringBuf /*spec*/);
+TString ToString(const TReplicationCardFetchOptions& options);
 
 ///////////////////////////////////////////////////////////////////////////////
 

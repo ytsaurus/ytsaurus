@@ -315,10 +315,8 @@ struct TCreateReplicationCardOptions
 
 struct TGetReplicationCardOptions
     : public TTimeoutOptions
+    , public NChaosClient::TReplicationCardFetchOptions
 {
-    bool IncludeCoordinators = false;
-    bool IncludeProgress = false;
-    bool IncludeHistory = false;
     bool BypassCache = false;
 };
 

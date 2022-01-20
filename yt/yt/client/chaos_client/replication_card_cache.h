@@ -10,9 +10,7 @@ namespace NYT::NChaosClient {
 struct TReplicationCardCacheKey
 {
     TReplicationCardId CardId;
-    bool RequestHistory = false;
-    bool RequestCoordinators = false;
-    bool RequestProgress = false;
+    TReplicationCardFetchOptions FetchOptions;
 
     operator size_t() const;
     bool operator == (const TReplicationCardCacheKey& other) const = default;

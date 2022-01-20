@@ -26,20 +26,11 @@ using NYPath::ETokenType;
 class TLinkNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TLinkNode>
 {
+public:
     YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Entity)
 
 public:
-    TLinkNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TLinkNode* trunkNode)
-        : TBase(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TCypressNodeProxyBase::TCypressNodeProxyBase;
 
     TResolveResult Resolve(
         const TYPath& path,

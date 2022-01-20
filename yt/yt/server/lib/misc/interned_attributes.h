@@ -98,6 +98,7 @@
     XX(ConsistentReplicaPlacementHash, consistent_replica_placement_hash) \
     XX(ConsistentReplicaPlacementTokenCount, consistent_replica_placement_token_count) \
     XX(ContentRevision, content_revision) \
+    XX(CoordinatorCellIds, coordinator_cell_ids) \
     XX(CountByHealth, count_by_health) \
     XX(CreateEphemeralSubpools, create_ephemeral_subpools) \
     XX(CreationTime, creation_time) \
@@ -142,6 +143,7 @@
     XX(EntranceNodeId, entrance_node_id) \
     XX(EphemeralRefCounter, ephemeral_ref_counter) \
     XX(EphemeralSubpoolConfig, ephemeral_subpool_config) \
+    XX(Era, era) \
     XX(ErasureCodec, erasure_codec) \
     XX(ErasureStatistics, erasure_statistics) \
     XX(Error, error) \

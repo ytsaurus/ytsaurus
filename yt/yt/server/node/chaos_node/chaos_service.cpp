@@ -68,15 +68,11 @@ private:
         SyncWithUpstream();
 
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        bool includeCoordinators = request->request_coordinators();
-        bool includeProgress = request->request_replication_progress();
-        bool includeHistory = request->request_history();
+        auto fetchOptions = FromProto<TReplicationCardFetchOptions>(request->fetch_options());
 
-        context->SetRequestInfo("ReplicationCardId: %v, IncludeCoordinators: %v, IncludeProgress: %v, IncludeHistory: %v",
+        context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
             replicationCardId,
-            includeCoordinators,
-            includeProgress,
-            includeHistory);
+            fetchOptions);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto replicationCard = chaosManager->GetReplicationCard(replicationCardId);
@@ -85,7 +81,7 @@ private:
         protoReplicationCard->set_era(replicationCard->GetEra());
 
         std::vector<TCellId> coordinators;
-        if (includeCoordinators) {
+        if (fetchOptions.IncludeCoordinators) {
             for (const auto& [cellId, info] : replicationCard->Coordinators()) {
                 if (!chaosManager->IsCoordinatorSuspended(cellId)) {
                     coordinators.push_back(cellId);
@@ -94,9 +90,10 @@ private:
             ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), coordinators);
         }
 
-        for (const auto& replica : replicationCard->Replicas()) {
-            auto *protoReplica = protoReplicationCard->add_replicas();
-            ToProto(protoReplica, replica, includeProgress, includeHistory);
+        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+            auto* protoEntry = protoReplicationCard->add_replicas();
+            ToProto(protoEntry->mutable_id(), replicaId);
+            ToProto(protoEntry->mutable_info(), replicaInfo, fetchOptions);
         }
 
         context->SetResponseInfo("ReplicationCardId: %v, CoordinatorCellIds: %v, ReplicationCard: %v",
