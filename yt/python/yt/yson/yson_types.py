@@ -72,7 +72,7 @@ class YsonUnicode(text_type, YsonType):
         return self.to_str(text_type, repr)
 
 
-class NotUnicodeError(YtError):
+class NotUnicodeError(YtError, TypeError):
     pass
 
 
