@@ -13,18 +13,33 @@ using namespace NChunkClient;
 
 void CheckEqual(const TUnversionedValue& expected, const TUnversionedValue& actual)
 {
+    // Fast path.
+    if (AreRowValuesIdentical(expected, actual)) {
+        return;
+    }
+
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
     EXPECT_TRUE(AreRowValuesIdentical(expected, actual));
 }
 
 void CheckEqual(const TVersionedValue& expected, const TVersionedValue& actual)
 {
+    // Fast path.
+    if (AreRowValuesIdentical(expected, actual)) {
+        return;
+    }
+
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
     EXPECT_TRUE(AreRowValuesIdentical(expected, actual));
 }
 
 void ExpectSchemafulRowsEqual(TUnversionedRow expected, TUnversionedRow actual)
 {
+    // Fast path.
+    if (AreRowsIdentical(expected, actual)) {
+        return;
+    }
+
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
 
     ASSERT_EQ(static_cast<bool>(expected), static_cast<bool>(actual));
@@ -41,6 +56,11 @@ void ExpectSchemafulRowsEqual(TUnversionedRow expected, TUnversionedRow actual)
 
 void ExpectSchemalessRowsEqual(TUnversionedRow expected, TUnversionedRow actual, int keyColumnCount)
 {
+    // Fast path.
+    if (AreRowsIdentical(expected, actual)) {
+        return;
+    }
+
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
 
     ASSERT_EQ(static_cast<bool>(expected), static_cast<bool>(actual));
@@ -72,6 +92,11 @@ void ExpectSchemalessRowsEqual(TUnversionedRow expected, TUnversionedRow actual,
 
 void ExpectSchemafulRowsEqual(TVersionedRow expected, TVersionedRow actual)
 {
+    // Fast path.
+    if (AreRowsIdentical(expected, actual)) {
+        return;
+    }
+
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
 
     ASSERT_EQ(static_cast<bool>(expected), static_cast<bool>(actual));

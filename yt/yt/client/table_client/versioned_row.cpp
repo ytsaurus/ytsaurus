@@ -40,13 +40,6 @@ size_t WriteValue(char* output, const TVersionedValue& value)
     return result;
 }
 
-TString ToString(const TVersionedValue& value)
-{
-    return Format("%v@%llx",
-        static_cast<TUnversionedValue>(value),
-        value.Timestamp);
-}
-
 void Save(TStreamSaveContext& context, const TVersionedValue& value)
 {
     NYT::Save(context, value.Timestamp);
@@ -168,57 +161,6 @@ bool AreRowsIdentical(TVersionedRow lhs, TVersionedRow rhs)
     }
 
     return true;
-}
-
-TString ToString(TVersionedRow row)
-{
-    if (!row) {
-        return "<null>";
-    }
-
-    TStringBuilder builder;
-    builder.AppendChar('[');
-    for (int index = 0; index < row.GetKeyCount(); ++index) {
-        if (index > 0) {
-            builder.AppendString(TStringBuf(","));
-        }
-        const auto& value = row.BeginKeys()[index];
-        builder.AppendFormat("%v", value);
-    }
-    builder.AppendChar('|');
-    for (int index = 0; index < row.GetValueCount(); ++index) {
-        if (index > 0) {
-            builder.AppendString(TStringBuf(","));
-        }
-        const auto& value = row.BeginValues()[index];
-        builder.AppendFormat("%v", value);
-    }
-    builder.AppendChar('|');
-    for (int index = 0; index < row.GetWriteTimestampCount(); ++index) {
-        if (index > 0) {
-            builder.AppendString(TStringBuf(","));
-        }
-        builder.AppendFormat("%llx", row.BeginWriteTimestamps()[index]);
-    }
-    builder.AppendChar('|');
-    for (int index = 0; index < row.GetDeleteTimestampCount(); ++index) {
-        if (index > 0) {
-            builder.AppendString(TStringBuf(","));
-        }
-        builder.AppendFormat("%llx", row.BeginDeleteTimestamps()[index]);
-    }
-    builder.AppendChar(']');
-    return builder.Flush();
-}
-
-TString ToString(TMutableVersionedRow row)
-{
-    return ToString(TVersionedRow(row));
-}
-
-TString ToString(const TVersionedOwningRow& row)
-{
-    return ToString(row.Get());
 }
 
 void ValidateClientDataRow(
@@ -566,6 +508,83 @@ TTimestamp GetMaxTimestamp(TVersionedRow row)
         }
     }
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, const TVersionedValue& value, TStringBuf /*format*/)
+{
+    Format(
+        builder,
+        "%v@%llx",
+        static_cast<TUnversionedValue>(value),
+        value.Timestamp);
+}
+
+void FormatValue(TStringBuilderBase* builder, TVersionedRow row, TStringBuf /*format*/)
+{
+    if (!row) {
+        builder->AppendString("<null>");
+        return;
+    }
+
+    builder->AppendChar('[');
+    JoinToString(
+        builder,
+        row.BeginKeys(),
+        row.EndKeys(),
+        [&] (TStringBuilderBase* builder, const TUnversionedValue& value) {
+            FormatValue(builder, value, "k");
+        });
+    builder->AppendString(" | ");
+    JoinToString(builder, row.BeginValues(), row.EndValues(), TDefaultFormatter{});
+    builder->AppendString(" | ");
+    JoinToString(
+        builder,
+        row.BeginWriteTimestamps(),
+        row.EndWriteTimestamps(),
+        [] (TStringBuilderBase* builder, TTimestamp timestamp) {
+            builder->AppendFormat("%llx", timestamp);
+        });
+    builder->AppendString(" | ");
+    JoinToString(
+        builder,
+        row.BeginDeleteTimestamps(),
+        row.EndDeleteTimestamps(),
+        [] (TStringBuilderBase* builder, TTimestamp timestamp) {
+            builder->AppendFormat("%llx", timestamp);
+        });
+    builder->AppendChar(']');
+}
+
+void FormatValue(TStringBuilderBase* builder, TMutableVersionedRow row, TStringBuf /*format*/)
+{
+    FormatValue(builder, TVersionedRow(row), {});
+}
+
+void FormatValue(TStringBuilderBase* builder, TVersionedOwningRow row, TStringBuf /*format*/)
+{
+    FormatValue(builder, TVersionedRow(row), {});
+}
+
+TString ToString(const TVersionedValue& value)
+{
+    return ToStringViaBuilder(value);
+}
+
+TString ToString(TVersionedRow row)
+{
+    return ToStringViaBuilder(row);
+}
+
+TString ToString(TMutableVersionedRow row)
+{
+    return ToString(TVersionedRow(row));
+}
+
+TString ToString(const TVersionedOwningRow& row)
+{
+    return ToString(row.Get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

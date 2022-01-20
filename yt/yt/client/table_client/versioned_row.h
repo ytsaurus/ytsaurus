@@ -100,8 +100,6 @@ size_t GetDataWeight(const TVersionedValue& value);
 size_t ReadValue(const char* input, TVersionedValue* value);
 size_t WriteValue(char* output, const TVersionedValue& value);
 
-TString ToString(const TVersionedValue& value);
-
 void Save(TStreamSaveContext& context, const TVersionedValue& value);
 void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPool* pool);
 
@@ -252,10 +250,6 @@ size_t GetHash(TVersionedRow row);
 //! Compares versioned rows for equality taking aggregate flags into account.
 //! Row values must be canonically sorted.
 bool AreRowsIdentical(TVersionedRow lhs, TVersionedRow rhs);
-
-TString ToString(TVersionedRow row);
-TString ToString(TMutableVersionedRow row);
-TString ToString(const TVersionedOwningRow& row);
 
 //! Checks that #row is a valid client-side versioned data row. Throws on failure.
 /*!
@@ -580,6 +574,18 @@ private:
 
 TTimestamp GetMinTimestamp(TVersionedRow row);
 TTimestamp GetMaxTimestamp(TVersionedRow row);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, const TVersionedValue& value, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, TVersionedRow row, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, TMutableVersionedRow row, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, const TVersionedOwningRow& row, TStringBuf format);
+
+TString ToString(const TVersionedValue& value);
+TString ToString(TVersionedRow row);
+TString ToString(TMutableVersionedRow row);
+TString ToString(const TVersionedOwningRow& row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
