@@ -599,7 +599,7 @@ public:
             .Default(TDuration::Seconds(5));
 
         RegisterParameter("job_proxy_upload_debug_artifact_chunks", JobProxyUploadDebugArtifactChunks)
-            .Default(true);
+            .Default(false);
 
         RegisterParameter("test_root_fs", TestRootFS)
             .Default(false);
