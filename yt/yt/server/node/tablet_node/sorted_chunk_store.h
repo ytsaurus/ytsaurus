@@ -28,6 +28,7 @@ public:
         NChunkClient::TChunkId chunkId,
         const NChunkClient::TLegacyReadRange& readRange,
         TTimestamp overrideTimestamp,
+        TTimestamp maxClipTimestamp,
         TTablet* tablet,
         const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
         NChunkClient::IBlockCachePtr blockCache,
@@ -88,6 +89,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ChunkColumnMappingLock_);
     NTableClient::TChunkColumnMappingPtr ChunkColumnMapping_;
+
+    TTimestamp MaxClipTimestamp_ = NullTimestamp;
 
     TSharedRange<TLegacyKey> FilterKeysByReadRange(
         const TSharedRange<TLegacyKey>& keys,

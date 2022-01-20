@@ -176,6 +176,7 @@ TSortedChunkStore::TSortedChunkStore(
     NChunkClient::TChunkId chunkId,
     const NChunkClient::TLegacyReadRange& readRange,
     TTimestamp overrideTimestamp,
+    TTimestamp maxClipTimestamp,
     TTablet* tablet,
     const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
@@ -199,6 +200,7 @@ TSortedChunkStore::TSortedChunkStore(
         client,
         localDescriptor)
     , KeyComparer_(tablet->GetRowKeyComparer())
+    , MaxClipTimestamp_(maxClipTimestamp)
 {
     TLegacyKey lowerBound;
     TLegacyKey upperBound;
@@ -252,7 +254,8 @@ void TSortedChunkStore::BuildOrchidYson(TFluentMap fluent)
 
     fluent
         .Item("min_key").Value(GetMinKey())
-        .Item("upper_bound_key").Value(GetUpperBoundKey());
+        .Item("upper_bound_key").Value(GetUpperBoundKey())
+        .Item("max_clip_timestamp").Value(MaxClipTimestamp_);
 }
 
 TLegacyOwningKey TSortedChunkStore::GetMinKey() const
@@ -280,6 +283,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     std::optional<EWorkloadCategory> workloadCategory)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (MaxClipTimestamp_) {
+        timestamp = std::min(timestamp, MaxClipTimestamp_);
+    }
 
     ranges = FilterRowRangesByReadRange(ranges);
 
@@ -400,6 +407,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     std::optional<EWorkloadCategory> workloadCategory)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (MaxClipTimestamp_) {
+        timestamp = std::min(timestamp, MaxClipTimestamp_);
+    }
 
     if (OverrideTimestamp_ && OverrideTimestamp_ > timestamp) {
         return CreateEmptyVersionedReader(keys.Size());
@@ -580,6 +591,7 @@ void TSortedChunkStore::Save(TSaveContext& context) const
     Save(context, ChunkId_);
     Save(context, TLegacyOwningKey(ReadRange_[0].first));
     Save(context, TLegacyOwningKey(ReadRange_[0].second));
+    Save(context, MaxClipTimestamp_);
 }
 
 void TSortedChunkStore::Load(TLoadContext& context)
@@ -592,6 +604,11 @@ void TSortedChunkStore::Load(TLoadContext& context)
     auto lowerBound = Load<TLegacyOwningKey>(context);
     auto upperBound = Load<TLegacyOwningKey>(context);
     ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::MaxClipTimestamp) {
+        Load(context, MaxClipTimestamp_);
+    }
 }
 
 IVersionedReaderPtr TSortedChunkStore::MaybeWrapWithTimestampResettingAdapter(

@@ -84,6 +84,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, TabletCountByBackupState);
     Save(context, AggregatedTabletBackupState);
     Save(context, ReplicationCardId);
+    Save(context, BackupCheckpointTimestamp);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -127,6 +128,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, BackupState);
         Load(context, TabletCountByBackupState);
         Load(context, AggregatedTabletBackupState);
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::MaxClipTimestampInChunkView) {
+        Load(context, BackupCheckpointTimestamp);
     }
     // COMPAT(savrus)
     if (context.GetVersion() >= EMasterReign::ChaosDataTransfer &&

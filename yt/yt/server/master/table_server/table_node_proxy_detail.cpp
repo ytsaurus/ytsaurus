@@ -364,6 +364,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::BackupState)
         .SetExternal(isExternal)
         .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::BackupCheckpointTimestamp)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic && table->GetBackupState() != ETableBackupState::None));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletBackupState)
         .SetExternal(isExternal)
         .SetPresent(isDynamic));
@@ -931,6 +934,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
             BuildYsonFluently(consumer)
                 .Value(trunkTable->GetBackupState());
+            return true;
+
+        case EInternedAttributeKey::BackupCheckpointTimestamp:
+            if (!isDynamic || isExternal || table->GetBackupState() == ETableBackupState::None) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(table->GetBackupCheckpointTimestamp());
             return true;
 
         case EInternedAttributeKey::TabletBackupState:

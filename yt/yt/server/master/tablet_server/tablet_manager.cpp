@@ -1979,6 +1979,13 @@ public:
             backupManager->ReleaseBackupCheckpoint(
                 trunkSourceTable,
                 sourceTable->GetTransaction());
+
+            trunkClonedTable->SetBackupCheckpointTimestamp(
+                trunkSourceTable->GetBackupCheckpointTimestamp());
+            trunkSourceTable->SetBackupCheckpointTimestamp(NullTimestamp);
+        } else if (mode != ENodeCloneMode::Restore) {
+            trunkClonedTable->SetBackupCheckpointTimestamp(
+                trunkSourceTable->GetBackupCheckpointTimestamp());
         }
 
         if (sourceTable->IsReplicated()) {
@@ -2431,9 +2438,16 @@ public:
         }
     }
 
-    void WrapWithBackupChunkViews(TTablet* tablet)
+    void WrapWithBackupChunkViews(TTablet* tablet, TTimestamp maxClipTimestamp)
     {
         YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
+
+        if (!maxClipTimestamp) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                "Attempted to clip backup table by null timestamp (TableId: %v, TabletId: %v)",
+                tablet->GetTable()->GetId(),
+                tablet->GetId());
+        }
 
         bool needFlatten = false;
         auto* chunkList = tablet->GetChunkList();
@@ -2455,13 +2469,52 @@ public:
         std::vector<TChunkTree*> storesToAttach;
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
         for (auto* store : chunkList->Children()) {
+            TTimestamp minTimestamp = MinTimestamp;
+            TTimestamp maxTimestamp = MaxTimestamp;
+
+            auto takeTimestampsFromChunk = [&] (const TChunk* chunk) {
+                auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
+                if (miscExt) {
+                    if (miscExt->has_min_timestamp()) {
+                        minTimestamp = miscExt->min_timestamp();
+                    }
+                    if (miscExt->has_max_timestamp()) {
+                        maxTimestamp = miscExt->max_timestamp();
+                    }
+                }
+            };
+
+            if (IsChunkTabletStoreType(store->GetType())) {
+                takeTimestampsFromChunk(store->AsChunk());
+            } else if (store->GetType() == EObjectType::ChunkView) {
+                auto* chunkView = store->AsChunkView();
+
+                if (auto transactionId = chunkView->GetTransactionId()) {
+                    auto overrideTimestamp = transactionManager->GetTimestampHolderTimestamp(transactionId);
+                    minTimestamp = overrideTimestamp;
+                    maxTimestamp = overrideTimestamp;
+                } else {
+                    auto* underlyingTree = chunkView->GetUnderlyingTree();
+                    YT_VERIFY(IsChunkTabletStoreType(underlyingTree->GetType()));
+                    takeTimestampsFromChunk(underlyingTree->AsChunk());
+                }
+            }
+
+            if (maxTimestamp <= maxClipTimestamp) {
+                continue;
+            }
+
             storesToDetach.push_back(store);
-            auto* wrappedStore = chunkManager->CreateChunkView(
-                store,
-                {});
-            storesToAttach.push_back(wrappedStore);
+
+            if (minTimestamp <= maxClipTimestamp) {
+                auto* wrappedStore = chunkManager->CreateChunkView(
+                    store,
+                    TChunkViewModifier().WithMaxClipTimestamp(maxClipTimestamp));
+                storesToAttach.push_back(wrappedStore);
+            }
         }
 
         chunkManager->DetachFromChunkList(chunkList, storesToDetach);
@@ -6818,9 +6871,14 @@ private:
             ToProto(viewDescriptor->mutable_read_range(), chunkView->ReadRange());
 
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            auto timestamp = transactionManager->GetTimestampHolderTimestamp(chunkView->GetTransactionId());
-            if (timestamp) {
-                viewDescriptor->set_timestamp(timestamp);
+            if (auto overrideTimestamp = transactionManager->GetTimestampHolderTimestamp(
+                chunkView->GetTransactionId()))
+            {
+                viewDescriptor->set_override_timestamp(overrideTimestamp);
+            }
+
+            if (auto maxClipTimestamp = chunkView->GetMaxClipTimestamp()) {
+                viewDescriptor->set_max_clip_timestamp(maxClipTimestamp);
             }
         } else {
             chunk = chunkOrView->AsChunk();
@@ -7341,9 +7399,9 @@ void TTabletManager::RecomputeTabletCellStatistics(TCellBase* cellBase)
     return Impl_->RecomputeTabletCellStatistics(cellBase);
 }
 
-void TTabletManager::WrapWithBackupChunkViews(TTablet* tablet)
+void TTabletManager::WrapWithBackupChunkViews(TTablet* tablet, TTimestamp timestamp)
 {
-    Impl_->WrapWithBackupChunkViews(tablet);
+    Impl_->WrapWithBackupChunkViews(tablet, timestamp);
 }
 
 TError TTabletManager::PromoteFlushedDynamicStores(TTablet* tablet)

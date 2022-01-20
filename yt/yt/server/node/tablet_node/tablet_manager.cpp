@@ -3006,6 +3006,7 @@ private:
                 NChunkClient::TLegacyReadRange readRange;
                 TChunkId chunkId;
                 auto overrideTimestamp = NullTimestamp;
+                auto maxClipTimestamp = NullTimestamp;
 
                 if (descriptor) {
                     if (descriptor->has_chunk_view_descriptor()) {
@@ -3013,8 +3014,11 @@ private:
                         if (chunkViewDescriptor.has_read_range()) {
                             readRange = FromProto<NChunkClient::TLegacyReadRange>(chunkViewDescriptor.read_range());
                         }
-                        if (chunkViewDescriptor.has_timestamp()) {
-                            overrideTimestamp = static_cast<TTimestamp>(chunkViewDescriptor.timestamp());
+                        if (chunkViewDescriptor.has_override_timestamp()) {
+                            overrideTimestamp = static_cast<TTimestamp>(chunkViewDescriptor.override_timestamp());
+                        }
+                        if (chunkViewDescriptor.has_max_clip_timestamp()) {
+                            maxClipTimestamp = static_cast<TTimestamp>(chunkViewDescriptor.max_clip_timestamp());
                         }
                         chunkId = FromProto<TChunkId>(chunkViewDescriptor.underlying_chunk_id());
                     } else {
@@ -3031,6 +3035,7 @@ private:
                     chunkId,
                     readRange,
                     overrideTimestamp,
+                    maxClipTimestamp,
                     tablet,
                     descriptor,
                     Bootstrap_->GetBlockCache(),

@@ -5,10 +5,19 @@ import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
-import "yt_proto/yt/client/chunk_client/proto/chunk_view.proto";
+import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
 import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TChunkViewDescriptor
+{
+    required NYT.NProto.TGuid chunk_view_id = 1;
+    required NYT.NProto.TGuid underlying_chunk_id = 2;
+    optional NYT.NChunkClient.NProto.TReadRange read_range = 3;
+    optional uint64 override_timestamp = 4;
+    optional uint64 max_clip_timestamp = 5;
+}
 
 message TAddStoreDescriptor
 {
@@ -17,7 +26,7 @@ message TAddStoreDescriptor
     required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
     optional NYT.NProto.TGuid backing_store_id = 4;
     optional int64 starting_row_index = 5;
-    optional NYT.NChunkClient.NProto.TChunkViewDescriptor chunk_view_descriptor = 6;
+    optional TChunkViewDescriptor chunk_view_descriptor = 6;
 }
 
 message TRemoveStoreDescriptor
