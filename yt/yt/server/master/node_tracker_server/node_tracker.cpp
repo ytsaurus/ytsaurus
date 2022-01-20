@@ -6,6 +6,7 @@
 #include "host.h"
 #include "rack.h"
 #include "data_center.h"
+#include "node_tracker_log.h"
 #include "node_type_handler.h"
 #include "host_type_handler.h"
 #include "rack_type_handler.h"
@@ -161,6 +162,11 @@ public:
             MasterCacheManager_ = New<TNodeDiscoveryManager>(Bootstrap_, ENodeRole::MasterCache);
             TimestampProviderManager_ = New<TNodeDiscoveryManager>(Bootstrap_, ENodeRole::TimestampProvider);
         }
+    }
+
+    void SubscribeToAggregatedNodeStateChanged(TNode* node)
+    {
+        node->SubscribeAggregatedStateChanged(BIND(&TNodeTracker::OnAggregatedNodeStateChanged, Unretained(this)));
     }
 
     void Initialize() override
@@ -966,6 +972,11 @@ private:
 
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
 
+    void OnAggregatedNodeStateChanged(TNode* node)
+    {
+        LogNodeState(Bootstrap_, node);
+    }
+
     TNodeId GenerateNodeId()
     {
         TNodeId id;
@@ -1134,9 +1145,9 @@ private:
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
-        UpdateNodeCounters(node, +1);
+        UpdateNodeCounters(node, -1);
 
-        node->SetLocalState(ENodeState::Registered, Bootstrap_);
+        node->SetLocalState(ENodeState::Registered);
         node->ReportedHeartbeats().clear();
 
         if (leaseTransaction) {
@@ -1408,7 +1419,7 @@ private:
 
             auto newDescriptor = FromProto<TCellNodeDescriptor>(entry.node_descriptor());
             UpdateNodeCounters(node, -1);
-            node->SetCellDescriptor(cellTag, newDescriptor, Bootstrap_);
+            node->SetCellDescriptor(cellTag, newDescriptor);
             UpdateNodeCounters(node, +1);
         }
     }
@@ -1587,6 +1598,7 @@ private:
             }
 
             node->RebuildTags();
+            SubscribeToAggregatedNodeStateChanged(node);
             InitializeNodeStates(node);
             InitializeNodeIOWeights(node);
             InsertToAddressMaps(node);
@@ -1807,7 +1819,7 @@ private:
         auto expectedHeartbeats = GetExpectedHeartbeatsForFlavors(node->Flavors(), multicellManager->IsPrimaryMaster());
         if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == expectedHeartbeats) {
             UpdateNodeCounters(node, -1);
-            node->SetLocalState(ENodeState::Online, Bootstrap_);
+            node->SetLocalState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
 
             NodeOnline_.Fire(node);
@@ -1821,7 +1833,7 @@ private:
     void InitializeNodeStates(TNode* node)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        node->InitializeStates(multicellManager->GetCellTag(), multicellManager->GetSecondaryCellTags(), Bootstrap_);
+        node->InitializeStates(multicellManager->GetCellTag(), multicellManager->GetSecondaryCellTags());
     }
 
     void InitializeNodeIOWeights(TNode* node)
@@ -1899,6 +1911,8 @@ private:
             node->SetForeign();
         }
 
+        SubscribeToAggregatedNodeStateChanged(node);
+
         InitializeNodeStates(node);
 
         node->SetNodeAddresses(nodeAddresses);
@@ -1921,7 +1935,7 @@ private:
             }
 
             UpdateNodeCounters(node, -1);
-            node->SetLocalState(ENodeState::Unregistered, Bootstrap_);
+            node->SetLocalState(ENodeState::Unregistered);
             node->ReportedHeartbeats().clear();
 
             NodeUnregistered_.Fire(node);
@@ -1946,7 +1960,7 @@ private:
     void DisposeNode(TNode* node)
     {
         YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
-            node->SetLocalState(ENodeState::Offline, Bootstrap_);
+            node->SetLocalState(ENodeState::Offline);
             node->ReportedHeartbeats().clear();
             NodeDisposed_.Fire(node);
 
