@@ -21,7 +21,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     TSharedRef block,
     const TBlockMeta& meta,
     TTableSchemaPtr chunkSchema,
-    int chunkKeyColumnCount,
+    int /*chunkKeyColumnCount*/,
     int keyColumnCount,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
     const TKeyComparer& keyComparer,
@@ -31,22 +31,24 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     : Block_(std::move(block))
     , Timestamp_(timestamp)
     , ProduceAllVersions_(produceAllVersions)
-    , ChunkKeyColumnCount_(chunkKeyColumnCount)
+    , ChunkKeyColumnCount_(chunkSchema->GetKeyColumnCount())
+    , ChunkColumnCount_(chunkSchema->GetColumnCount())
     , KeyColumnCount_(keyColumnCount)
     , SchemaIdMapping_(schemaIdMapping)
-    , ChunkSchema_(std::move(chunkSchema))
     , Meta_(meta)
     , VersionedMeta_(Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext))
-    , ColumnHunkFlags_(new bool[ChunkSchema_->GetColumnCount()])
-    , ColumnTypes_(new EValueType[ChunkSchema_->GetColumnCount()])
+    , ColumnHunkFlags_(new bool[ChunkColumnCount_])
+    , ColumnAggregateFlags_(new bool[ChunkColumnCount_])
+    , ColumnTypes_(new EValueType[ChunkColumnCount_])
     , KeyComparer_(keyComparer)
 {
     YT_VERIFY(Meta_.row_count() > 0);
     YT_VERIFY(KeyColumnCount_ >= ChunkKeyColumnCount_);
 
-    for (int id = 0; id < ChunkSchema_->GetColumnCount(); ++id) {
-        const auto& columnSchema = ChunkSchema_->Columns()[id];
+    for (int id = 0; id < ChunkColumnCount_; ++id) {
+        const auto& columnSchema = chunkSchema->Columns()[id];
         ColumnHunkFlags_[id] = columnSchema.MaxInlineHunkSize().operator bool();
+        ColumnAggregateFlags_[id] = columnSchema.Aggregate().operator bool();
         ColumnTypes_[id] = columnSchema.GetWireType();
     }
 
@@ -60,7 +62,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
 
     KeyData_ = TRef(const_cast<char*>(Block_.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
         ChunkKeyColumnCount_,
-        ChunkSchema_->GetColumnCount()) * Meta_.row_count());
+        ChunkColumnCount_) * Meta_.row_count());
 
     ValueData_ = TRef(
         KeyData_.End(),
@@ -76,8 +78,8 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     ValueNullFlags_.Reset(ptr, VersionedMeta_.value_count());
     ptr += AlignUp(ValueNullFlags_.GetByteSize(), SerializationAlignment);
 
-    for (const auto& columnSchema : ChunkSchema_->Columns()) {
-        if (columnSchema.Aggregate()) {
+    for (bool aggregate : MakeRange(ColumnAggregateFlags_.get(), ChunkColumnCount_)) {
+        if (aggregate) {
             ValueAggregateFlags_ = TReadOnlyBitmap(ptr, VersionedMeta_.value_count());
             ptr += AlignUp(ValueAggregateFlags_->GetByteSize(), SerializationAlignment);
             break;
@@ -138,7 +140,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
     RowIndex_ = index;
     KeyDataPtr_ = KeyData_.Begin() + TSimpleVersionedBlockWriter::GetPaddedKeySize(
         ChunkKeyColumnCount_,
-        ChunkSchema_->GetColumnCount()) * RowIndex_;
+        ChunkColumnCount_) * RowIndex_;
 
     for (int id = 0; id < ChunkKeyColumnCount_; ++id) {
         ReadKeyValue(&Key_[id], id);
@@ -195,7 +197,7 @@ TMutableVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemory
     auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
-        GetColumnValueCount(ChunkSchema_->GetColumnCount() - 1), // shrinkable
+        GetColumnValueCount(ChunkColumnCount_ - 1), // shrinkable
         WriteTimestampCount_ - writeTimestampIndex,
         DeleteTimestampCount_ - deleteTimestampIndex);
 
@@ -299,7 +301,7 @@ TMutableVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryP
     auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
-        GetColumnValueCount(ChunkSchema_->GetColumnCount() - 1), // shrinkable
+        GetColumnValueCount(ChunkColumnCount_ - 1), // shrinkable
         1,
         hasDeleteTimestamp ? 1 : 0);
 
@@ -333,7 +335,7 @@ TMutableVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryP
             });
         int valueEndIndex = valueBeginIndex;
 
-        if (ChunkSchema_->Columns()[chunkSchemaId].Aggregate()) {
+        if (ColumnAggregateFlags_[chunkSchemaId]) {
             valueEndIndex = BinarySearch(lowerValueIndex, upperValueIndex, isValueAlive);
         } else if (valueBeginIndex < upperValueIndex && isValueAlive(valueBeginIndex)) {
             valueEndIndex = valueBeginIndex + 1;
@@ -480,49 +482,29 @@ i64 TSimpleVersionedBlockReader::GetRowIndex() const
 THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockReader(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
-    const TTableSchemaPtr& schema,
-    const std::vector<TColumnIdMapping>& idMapping,
+    const std::vector<bool>& compositeColumnFlags,
+    const std::vector<int>& chunkToReaderIdMapping,
     int chunkKeyColumnCount,
     int keyColumnCount,
     TTimestamp timestamp)
-    : UnderlyingReader_(std::make_unique<THorizontalBlockReader>(
+    : THorizontalBlockReader(
         block,
         meta,
-        schema,
-        idMapping,
-        TComparator(std::vector<ESortOrder>(chunkKeyColumnCount, ESortOrder::Ascending)),
-        TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending))))
+        compositeColumnFlags,
+        chunkToReaderIdMapping,
+        chunkKeyColumnCount,
+        TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending)))
     , Timestamp_(timestamp)
 { }
 
-bool THorizontalSchemalessVersionedBlockReader::NextRow()
-{
-    return UnderlyingReader_->NextRow();
-}
-
-bool THorizontalSchemalessVersionedBlockReader::SkipToRowIndex(i64 rowIndex)
-{
-    return UnderlyingReader_->JumpToRowIndex(rowIndex);
-}
-
-bool THorizontalSchemalessVersionedBlockReader::SkipToKey(TLegacyKey key)
-{
-    return UnderlyingReader_->SkipToKey(key);
-}
-
 TLegacyKey THorizontalSchemalessVersionedBlockReader::GetKey() const
 {
-    return UnderlyingReader_->GetLegacyKey();
+    return THorizontalBlockReader::GetLegacyKey();
 }
 
 TMutableVersionedRow THorizontalSchemalessVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
-    return UnderlyingReader_->GetVersionedRow(memoryPool, Timestamp_);
-}
-
-i64 THorizontalSchemalessVersionedBlockReader::GetRowIndex() const
-{
-    return UnderlyingReader_->GetRowIndex();
+    return THorizontalBlockReader::GetVersionedRow(memoryPool, Timestamp_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

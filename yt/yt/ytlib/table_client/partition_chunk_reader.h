@@ -60,7 +60,7 @@ private:
     const int PartitionTag_;
 
     NProto::TBlockMetaExt BlockMetaExt_;
-    std::vector<TColumnIdMapping> IdMapping_;
+    std::vector<int> ChunkToReaderIdMapping_;
 
     int CurrentBlockIndex_ = 0;
     std::vector<std::unique_ptr<THorizontalBlockReader>> BlockReaders_;

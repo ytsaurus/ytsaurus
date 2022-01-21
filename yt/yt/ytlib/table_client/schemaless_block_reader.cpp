@@ -12,22 +12,36 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<bool> GetCompositeColumnFlags(const TTableSchemaPtr& schema)
+{
+    std::vector<bool> compositeColumnFlag;
+    const auto& schemaColumns = schema->Columns();
+    compositeColumnFlag.assign(schemaColumns.size(), false);
+    for (int i = 0; i < std::ssize(schemaColumns); ++i) {
+        compositeColumnFlag[i] = IsV3Composite(schemaColumns[i].LogicalType());
+    }
+    return compositeColumnFlag;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 THorizontalBlockReader::THorizontalBlockReader(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
-    const TTableSchemaPtr& schema,
-    const std::vector<TColumnIdMapping>& idMapping,
-    const TComparator& chunkComparator,
+    const std::vector<bool>& compositeColumnFlags,
+    const std::vector<int>& chunkToReaderIdMapping,
+    int chunkComparatorLength,
     const TComparator& comparator,
     int extraColumnCount)
     : Block_(block)
     , Meta_(meta)
-    , IdMapping_(idMapping)
-    , ChunkComparator_(chunkComparator)
+    , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
+    , CompositeColumnFlags_(compositeColumnFlags)
+    , ChunkComparatorLength_(chunkComparatorLength)
     , Comparator_(comparator)
     , ExtraColumnCount_(extraColumnCount)
 {
-    YT_VERIFY(Comparator_.GetLength() >= ChunkComparator_.GetLength());
+    YT_VERIFY(Comparator_.GetLength() >= ChunkComparatorLength_);
     YT_VERIFY(Meta_.row_count() > 0);
 
     auto keyDataSize = GetUnversionedRowByteSize(Comparator_.GetLength());
@@ -44,12 +58,6 @@ THorizontalBlockReader::THorizontalBlockReader(
 
     Offsets_ = TRef(Block_.Begin(), Block_.Begin() + offsetsLength);
     Data_ = TRef(Offsets_.End(), Block_.End());
-
-    const auto& schemaColumns = schema->Columns();
-    IsCompositeColumn_.assign(schemaColumns.size(), false);
-    for (int i = 0; i < std::ssize(schemaColumns); ++i) {
-        IsCompositeColumn_[i] = IsV3Composite(schemaColumns[i].LogicalType());
-    }
 
     JumpToRowIndex(0);
 }
@@ -103,6 +111,21 @@ TKey THorizontalBlockReader::GetKey() const
     return TKey::FromRowUnchecked(Key_, Comparator_.GetLength());
 }
 
+TUnversionedValue THorizontalBlockReader::TransformAnyValue(TUnversionedValue value)
+{
+    if (value.Type == EValueType::Any) {
+        auto data = value.AsStringBuf();
+        // Try to unpack any value.
+        if (value.Id < CompositeColumnFlags_.size() && CompositeColumnFlags_[value.Id]) {
+            value.Type = EValueType::Composite;
+        } else {
+            value = MakeUnversionedValue(data, value.Id, Lexer_);
+        }
+    }
+
+    return value;
+}
+
 TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
     auto row = TMutableUnversionedRow::Allocate(memoryPool, ValueCount_ + ExtraColumnCount_);
@@ -112,17 +135,9 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
         TUnversionedValue value;
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
-        const auto remappedId = IdMapping_[value.Id].ReaderSchemaIndex;
+        const auto remappedId = ChunkToReaderIdMapping_[value.Id];
         if (remappedId >= 0) {
-            if (value.Type == EValueType::Any) {
-                auto data = value.AsStringBuf();
-                // Try to unpack any value.
-                if (value.Id < IsCompositeColumn_.size() && IsCompositeColumn_[value.Id]) {
-                    value.Type = EValueType::Composite;
-                } else {
-                    value = MakeUnversionedValue(data, value.Id, Lexer_);
-                }
-            }
+            value = TransformAnyValue(value);
             value.Id = remappedId;
             row[valueCount] = value;
             ++valueCount;
@@ -142,7 +157,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         TUnversionedValue value;
         currentPointer += ReadRowValue(currentPointer, &value);
 
-        if (IdMapping_[value.Id].ReaderSchemaIndex >= Comparator_.GetLength()) {
+        if (ChunkToReaderIdMapping_[value.Id] >= Comparator_.GetLength()) {
             ++valueCount;
         }
     }
@@ -163,18 +178,10 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         TUnversionedValue value;
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
-        int id = IdMapping_[value.Id].ReaderSchemaIndex;
+        int id = ChunkToReaderIdMapping_[value.Id];
         if (id >= Comparator_.GetLength()) {
+            value = TransformAnyValue(value);
             value.Id = id;
-            if (value.Type == EValueType::Any) {
-                auto data = value.AsStringBuf();
-                // Try to unpack any value.
-                if (value.Id < IsCompositeColumn_.size() && IsCompositeColumn_[value.Id]) {
-                    value.Type = EValueType::Composite;
-                } else {
-                    value = MakeUnversionedValue(data, value.Id, Lexer_);
-                }
-            }
             *currentValue = MakeVersionedValue(value, timestamp);
             ++currentValue;
         } else if (id >= 0) {
@@ -205,15 +212,15 @@ bool THorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
     CurrentPointer_ = Data_.Begin() + offset;
 
     CurrentPointer_ += ReadVarUint32(CurrentPointer_, &ValueCount_);
-    YT_VERIFY(static_cast<int>(ValueCount_) >= ChunkComparator_.GetLength());
+    YT_VERIFY(static_cast<int>(ValueCount_) >= ChunkComparatorLength_);
 
     const char* ptr = CurrentPointer_;
-    for (int i = 0; i < ChunkComparator_.GetLength(); ++i) {
+    for (int i = 0; i < ChunkComparatorLength_; ++i) {
         auto* currentKeyValue = Key_.Begin() + i;
         ptr += ReadRowValue(ptr, currentKeyValue);
         if (currentKeyValue->Type == EValueType::Any
-            && currentKeyValue->Id < IsCompositeColumn_.size()
-            && IsCompositeColumn_[currentKeyValue->Id])
+            && currentKeyValue->Id < CompositeColumnFlags_.size()
+            && CompositeColumnFlags_[currentKeyValue->Id])
         {
             currentKeyValue->Type = EValueType::Composite;
         }
