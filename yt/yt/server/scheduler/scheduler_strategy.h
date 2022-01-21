@@ -226,11 +226,6 @@ struct ISchedulerStrategy
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 
-    virtual void ApplyScheduledAndPreemptedResourcesDelta(
-        const std::vector<TJobPtr>& startedJobs,
-        const std::vector<TPreemptedJob>& preemptedJobs,
-        const IFairShareTreeSnapshotPtr& snapshot) = 0;
-
     virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) = 0;
 
     virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;

@@ -729,7 +729,7 @@ public:
     void ApplyScheduledAndPreemptedResourcesDelta(
         const std::vector<TJobPtr>& startedJobs,
         const std::vector<TPreemptedJob>& preemptedJobs,
-        const IFairShareTreeSnapshotPtr& snapshot) override
+        const IFairShareTreeSnapshotPtr& snapshot)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
