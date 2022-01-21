@@ -414,11 +414,11 @@ private:
 DECLARE_REFCOUNTED_TYPE(TOperationStrategyHostMock)
 DEFINE_REFCOUNTED_TYPE(TOperationStrategyHostMock)
 
-class TFairShareTreeHostMock
-    : public IFairShareTreeHost
+class TFairShareTreeElementHostMock
+    : public IFairShareTreeElementHost
 {
 public:
-    explicit TFairShareTreeHostMock(const TFairShareStrategyTreeConfigPtr& treeConfig)
+    explicit TFairShareTreeElementHostMock(const TFairShareStrategyTreeConfigPtr& treeConfig)
         : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
     { }
 
@@ -447,7 +447,7 @@ public:
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
-    TIntrusivePtr<TFairShareTreeHostMock> FairShareTreeHostMock_ = New<TFairShareTreeHostMock>(TreeConfig_);
+    TIntrusivePtr<TFairShareTreeElementHostMock> FairShareTreeElementHostMock_ = New<TFairShareTreeElementHostMock>(TreeConfig_);
     TScheduleJobsStage NonPreemptiveSchedulingStage_{
         .Type = EJobSchedulingStage::NonPreemptive,
         .ProfilingCounters = TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/non_preemptive_test_scheduling_stage"})};
@@ -465,21 +465,21 @@ protected:
         return diskQuota;
     }
 
-    TSchedulerRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* host)
+    TSchedulerRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* strategyHost)
     {
         return New<TSchedulerRootElement>(
-            host,
-            FairShareTreeHostMock_.Get(),
+            strategyHost,
+            FairShareTreeElementHostMock_.Get(),
             TreeConfig_,
             "default",
             SchedulerLogger);
     }
 
-    TSchedulerPoolElementPtr CreateTestPool(ISchedulerStrategyHost* host, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
+    TSchedulerPoolElementPtr CreateTestPool(ISchedulerStrategyHost* strategyHost, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
     {
         return New<TSchedulerPoolElement>(
-            host,
-            FairShareTreeHostMock_.Get(),
+            strategyHost,
+            FairShareTreeElementHostMock_.Get(),
             name,
             std::move(config),
             /* defaultConfigured */ true,
@@ -516,13 +516,16 @@ protected:
     }
 
     TSchedulerOperationElementPtr CreateTestOperationElement(
-        ISchedulerStrategyHost* host,
+        ISchedulerStrategyHost* strategyHost,
         IOperationStrategyHost* operation,
         TSchedulerCompositeElement* parent,
         TOperationFairShareTreeRuntimeParametersPtr operationOptions = nullptr,
         TStrategyOperationSpecPtr operationSpec = nullptr)
     {
-        auto operationController = New<TFairShareStrategyOperationController>(operation, SchedulerConfig_, host->GetNodeShardInvokers().size());
+        auto operationController = New<TFairShareStrategyOperationController>(
+            operation,
+            SchedulerConfig_,
+            strategyHost->GetNodeShardInvokers().size());
         if (!operationOptions) {
             operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
             operationOptions->Weight = 1.0;
@@ -536,8 +539,8 @@ protected:
             operationOptions,
             operationController,
             SchedulerConfig_,
-            host,
-            FairShareTreeHostMock_.Get(),
+            strategyHost,
+            FairShareTreeElementHostMock_.Get(),
             operation,
             "default",
             SchedulerLogger);
@@ -549,7 +552,7 @@ protected:
 
     std::pair<TSchedulerOperationElementPtr, TIntrusivePtr<TOperationStrategyHostMock>> CreateOperationWithJobs(
         int jobCount,
-        ISchedulerStrategyHost* host,
+        ISchedulerStrategyHost* strategyHost,
         TSchedulerCompositeElement* parent)
     {
         TJobResourcesWithQuota jobResources;
@@ -558,7 +561,7 @@ protected:
         jobResources.SetMemory(10_MB);
 
         auto operationHost = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
-        auto operationElement = CreateTestOperationElement(host, operationHost.Get(), parent);
+        auto operationElement = CreateTestOperationElement(strategyHost, operationHost.Get(), parent);
         return {operationElement, operationHost};
     }
 
@@ -622,16 +625,16 @@ protected:
         const TSchedulerRootElementPtr& rootElement,
         const TSchedulerOperationElementPtr& operationElement,
         const TExecNodePtr& execNode,
-        const TSchedulerStrategyHostMock* host)
+        const TSchedulerStrategyHostMock* strategyHost)
     {
         auto schedulingContext = CreateSchedulingContext(
             /* nodeShardId */ 0,
             SchedulerConfig_,
             execNode,
             /* runningJobs */ {},
-            host->GetMediumDirectory());
+            strategyHost->GetMediumDirectory());
 
-        DoFairShareUpdate(host, rootElement);
+        DoFairShareUpdate(strategyHost, rootElement);
 
         TScheduleJobsContext context(
             schedulingContext,
@@ -650,14 +653,14 @@ protected:
     }
 
     void DoFairShareUpdate(
-        const ISchedulerStrategyHost* host,
+        const ISchedulerStrategyHost* strategyHost,
         const TSchedulerRootElementPtr& rootElement,
         TInstant now = TInstant(),
         std::optional<TInstant> previousUpdateTime = std::nullopt,
         bool checkForStarvation = false)
     {
 		NVectorHdrf::TFairShareUpdateContext context(
-            /* totalResourceLimits */ host->GetResourceLimits(TreeConfig_->NodesFilter),
+            /* totalResourceLimits */ strategyHost->GetResourceLimits(TreeConfig_->NodesFilter),
             TreeConfig_->MainResource,
             TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod,
             TreeConfig_->IntegralGuarantees->SmoothPeriod,
@@ -750,18 +753,18 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     jobResources.SetCpu(1);
     jobResources.SetMemory(10);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     auto fifoPoolConfig = New<TPoolConfig>();
     fifoPoolConfig->Mode = ESchedulingMode::Fifo;
     fifoPoolConfig->FifoSortParameters = {EFifoSortParameter::Weight};
 
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
-    auto poolC = CreateTestPool(host.Get(), "PoolC", fifoPoolConfig);
-    auto poolD = CreateTestPool(host.Get(), "PoolD", fifoPoolConfig);
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB");
+    auto poolC = CreateTestPool(strategyHost.Get(), "PoolC", fifoPoolConfig);
+    auto poolD = CreateTestPool(strategyHost.Get(), "PoolD", fifoPoolConfig);
 
     poolA->AttachParent(rootElement.Get());
     poolB->AttachParent(rootElement.Get());
@@ -787,11 +790,11 @@ TEST_F(TFairShareTreeTest, TestAttributes)
             operationOptions->Weight = 10.0;
         }
 
-        operationElements[i] = CreateTestOperationElement(host.Get(), operations[i].Get(), parent, operationOptions);
+        operationElements[i] = CreateTestOperationElement(strategyHost.Get(), operations[i].Get(), parent, operationOptions);
     }
 
     {
-        DoFairShareUpdate(host.Get(), rootElement);
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
 
         auto expectedOperationDemand = TResourceVector::FromJobResources(jobResources, nodeResources);
         auto poolExpectedDemand = expectedOperationDemand * (OperationCount / 2.0);
@@ -830,7 +833,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
-        DoFairShareUpdate(host.Get(), rootElement);
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
 
         // Demand increased to 0.2 due to started jobs, so did fair share.
         // usage(0.1) / fair_share(0.2) = 0.5
@@ -860,7 +863,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
-        DoFairShareUpdate(host.Get(), rootElement);
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
 
         // Demand increased to 0.2 due to started jobs, so did fair share.
         // usage(0.1) / fair_share(0.2) = 0.5
@@ -884,18 +887,18 @@ TEST_F(TFairShareTreeTest, TestResourceLimits)
 
     auto totalLimitsShare = TResourceVector::FromJobResources(nodeResources.ToJobResources(), nodeResources.ToJobResources());
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
     poolA->AttachParent(rootElement.Get());
 
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB");
     poolB->AttachParent(poolA.Get());
 
     {
-        DoFairShareUpdate(host.Get(), rootElement);
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
 
         EXPECT_EQ(totalLimitsShare, rootElement->Attributes().LimitsShare);
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetResourceLimits());
@@ -927,7 +930,7 @@ TEST_F(TFairShareTreeTest, TestResourceLimits)
     poolB->SetConfig(poolBConfig);
 
     {
-        DoFairShareUpdate(host.Get(), rootElement);
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
 
         EXPECT_EQ(totalLimitsShare, rootElement->Attributes().LimitsShare);
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetResourceLimits());
@@ -981,32 +984,32 @@ TEST_F(TFairShareTreeTest, TestSchedulingTagFilterResourceLimits)
         execNodes[i] = CreateTestExecNode(nodeResourceLimitsList[i], tagList[i]);
     }
 
-    auto host = New<TSchedulerStrategyHostMock>(execNodes);
+    auto strategyHost = New<TSchedulerStrategyHostMock>(execNodes);
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     auto configA = New<TPoolConfig>();
-    auto poolA = CreateTestPool(host.Get(), "PoolA", configA);
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA", configA);
     poolA->AttachParent(rootElement.Get());
 
     auto configB = New<TPoolConfig>();
     configB->SchedulingTagFilter = MakeBooleanFormula("tag_1");
-    auto poolB = CreateTestPool(host.Get(), "PoolB", configB);
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB", configB);
     poolB->AttachParent(rootElement.Get());
 
     auto configC = New<TPoolConfig>();
     configC->SchedulingTagFilter = MakeBooleanFormula("tag_3") & poolB->GetConfig()->SchedulingTagFilter;
-    auto poolC = CreateTestPool(host.Get(), "PoolC", configC);
+    auto poolC = CreateTestPool(strategyHost.Get(), "PoolC", configC);
     poolC->AttachParent(poolB.Get());
 
     auto configD = New<TPoolConfig>();
     configD->SchedulingTagFilter = MakeBooleanFormula("tag_3");
-    auto poolD = CreateTestPool(host.Get(), "PoolD", configD);
+    auto poolD = CreateTestPool(strategyHost.Get(), "PoolD", configD);
     poolD->AttachParent(poolB.Get());
 
     auto configE = New<TPoolConfig>();
     configE->SchedulingTagFilter = MakeBooleanFormula("tag_2 | (tag_1 & tag_4)");
-    auto poolE = CreateTestPool(host.Get(), "PoolE", configE);
+    auto poolE = CreateTestPool(strategyHost.Get(), "PoolE", configE);
     poolE->AttachParent(rootElement.Get());
 
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
@@ -1020,13 +1023,13 @@ TEST_F(TFairShareTreeTest, TestSchedulingTagFilterResourceLimits)
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
     auto specX = New<TStrategyOperationSpec>();
     specX->SchedulingTagFilter = MakeBooleanFormula("tag_1 | tag_2 | tag_5");
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), rootElement.Get(), operationOptions, specX);
+    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), rootElement.Get(), operationOptions, specX);
 
     auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResources));
-    auto operationElementY = CreateTestOperationElement(host.Get(), operationX.Get(), poolD.Get(), operationOptions);
+    auto operationElementY = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), poolD.Get(), operationOptions);
 
     {
-        DoFairShareUpdate(host.Get(), rootElement);
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
 
         EXPECT_EQ(nodeResources1 + nodeResources2 + nodeResources3 + nodeResources134,
             poolA->GetSchedulingTagFilterResourceLimits());
@@ -1052,11 +1055,11 @@ TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
 
     auto totalLimitsShare = TResourceVector::FromJobResources(nodeResources.ToJobResources(), nodeResources.ToJobResources());
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
     poolA->AttachParent(rootElement.Get());
 
     const double maxShareRatio = 0.99;
@@ -1071,7 +1074,7 @@ TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
     poolResourceLimits.SetMemory(99);
 
     {
-        DoFairShareUpdate(host.Get(), rootElement);
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
 
         EXPECT_EQ(totalLimitsShare, rootElement->Attributes().LimitsShare);
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetResourceLimits());
@@ -1099,12 +1102,12 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), rootElement.Get(), operationOptions);
+    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), rootElement.Get(), operationOptions);
 
     std::vector<TJobId> jobIds;
     for (int i = 0; i < 150; ++i) {
@@ -1116,7 +1119,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
             /* precommitedResources */ {});
     }
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     EXPECT_EQ(1.6, MaxComponent(operationElementX->Attributes().DemandShare));
     EXPECT_EQ(1.0, MaxComponent(operationElementX->Attributes().FairShare.Total));
@@ -1156,14 +1159,14 @@ TEST_F(TFairShareTreeTest, TestBestAllocationShare)
     auto execNodes = CreateTestExecNodeList(2, nodeResourcesA);
     execNodes.push_back(CreateTestExecNode(nodeResourcesB));
 
-    auto host = New<TSchedulerStrategyHostMock>(execNodes);
+    auto strategyHost = New<TSchedulerStrategyHostMock>(execNodes);
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(3, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), rootElement.Get(), operationOptions);
+    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), rootElement.Get(), operationOptions);
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     auto totalResources = nodeResourcesA * 2. + nodeResourcesB;
     auto demandShare = TResourceVector::FromJobResources(jobResources * 3., totalResources);
@@ -1175,12 +1178,12 @@ TEST_F(TFairShareTreeTest, TestBestAllocationShare)
 
 TEST_F(TFairShareTreeTest, TestOperationCountLimits)
 {
-    auto host = New<TSchedulerStrategyHostMock>();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = New<TSchedulerStrategyHostMock>();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     TSchedulerPoolElementPtr pools[3];
     for (int i = 0; i < 3; ++i) {
-        pools[i] = CreateTestPool(host.Get(), "pool" + ToString(i));
+        pools[i] = CreateTestPool(strategyHost.Get(), "pool" + ToString(i));
     }
 
     pools[0]->AttachParent(rootElement.Get());
@@ -1224,9 +1227,9 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
         execNodes[i] = CreateTestExecNode(nodeResources);
     }
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(execNodes.size(), nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(execNodes.size(), nodeResources));
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     // Create an operation with 2 jobs.
     TJobResourcesWithQuota operationJobResources;
@@ -1237,7 +1240,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
-    auto operationElement = CreateTestOperationElement(host.Get(), operation.Get(), rootElement.Get(), operationOptions);
+    auto operationElement = CreateTestOperationElement(strategyHost.Get(), operation.Get(), rootElement.Get(), operationOptions);
 
     // We run operation with 2 jobs and simulate 3 concurrent heartbeats.
     // Two of them must succeed and call controller ScheduleJob,
@@ -1261,7 +1264,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     auto actionQueue = New<NConcurrency::TActionQueue>();
     for (int i = 0; i < 2; ++i) {
         auto future = BIND([&, i]() {
-            DoTestSchedule(rootElement, operationElement, execNodes[i], host.Get());
+            DoTestSchedule(rootElement, operationElement, execNodes[i], strategyHost.Get());
         }).AsyncVia(actionQueue->GetInvoker()).Run();
         futures.push_back(std::move(future));
     }
@@ -1271,7 +1274,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     }
     // Number of expected calls to `operationControllerStrategyHost.ScheduleJob(...)` is set to 2.
     // In this way, the mock object library checks that this heartbeat doesn't get to actual scheduling.
-    DoTestSchedule(rootElement, operationElement, execNodes[2], host.Get());
+    DoTestSchedule(rootElement, operationElement, execNodes[2], strategyHost.Get());
     readyToGo.Set();
 
     EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
@@ -1286,16 +1289,16 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareEmptyTree)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(1000);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
     poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB");
     poolB->AttachParent(rootElement.Get());
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     // Check the values
     EXPECT_EQ(TResourceVector::Zero(), rootElement->GetFairShare());
@@ -1312,13 +1315,13 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareOneLargeOperation)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(1000);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
     poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB");
     poolB->AttachParent(rootElement.Get());
 
     // Create operation with demand larger than the available resources
@@ -1332,9 +1335,9 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareOneLargeOperation)
     operationOptions->Weight = 1.0;
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), poolA.Get(), operationOptions);
+    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), poolA.Get(), operationOptions);
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     // Check the values
     EXPECT_EQ(TResourceVector({0.5, 0.5, 0.0, 1.0, 0.0}), rootElement->GetFairShare());
@@ -1352,13 +1355,13 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareOneSmallOperation)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(1000);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
     poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB");
     poolB->AttachParent(rootElement.Get());
 
     // Create operation with demand smaller than the available resources
@@ -1372,9 +1375,9 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareOneSmallOperation)
     operationOptions->Weight = 1.0;
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), poolA.Get(), operationOptions);
+    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), poolA.Get(), operationOptions);
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     // Check the values
     EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.6, 0.0}), rootElement->GetFairShare());
@@ -1392,13 +1395,13 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareTwoComplementaryOperations)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(1000);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
     poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB");
     poolB->AttachParent(rootElement.Get());
 
     // Create first operation
@@ -1412,7 +1415,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareTwoComplementaryOperations)
     operationOptions1->Weight = 1.0;
 
     auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), poolA.Get(), operationOptions1);
+    auto operationElement1 = CreateTestOperationElement(strategyHost.Get(), operation1.Get(), poolA.Get(), operationOptions1);
 
     // Second operation with symmetric resource demand
     const int jobCount2 = 100;
@@ -1425,9 +1428,9 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareTwoComplementaryOperations)
     operationOptions2->Weight = 1.0;
 
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
+    auto operationElement2 = CreateTestOperationElement(strategyHost.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     // Check the values
     EXPECT_EQ(TResourceVector({2.0 / 3, 1.0, 0.0, 1.0, 0.0}), rootElement->GetFairShare());
@@ -1446,13 +1449,13 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareComplexCase)
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(1000);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
     poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB");
     poolB->AttachParent(rootElement.Get());
 
     // Create an operation with resource demand proportion <1, 2> and small jobCount in PoolA
@@ -1466,7 +1469,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareComplexCase)
     operationOptions1->Weight = 1.0;
 
     auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), poolA.Get(), operationOptions1);
+    auto operationElement1 = CreateTestOperationElement(strategyHost.Get(), operation1.Get(), poolA.Get(), operationOptions1);
 
     // Create an operation with resource demand proportion <3, 1> and large jobCount in PoolA
     const int jobCount2 = 1000;
@@ -1479,7 +1482,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareComplexCase)
     operationOptions2->Weight = 1.0;
 
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
+    auto operationElement2 = CreateTestOperationElement(strategyHost.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
     // Create operation with resource demand proportion <1, 5> and large jobCount in PoolB
     const int jobCount3 = 1000;
@@ -1492,9 +1495,9 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareComplexCase)
     operationOptions3->Weight = 1.0;
 
     auto operation3 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount3, jobResources3));
-    auto operationElement3 = CreateTestOperationElement(host.Get(), operation3.Get(), poolB.Get(), operationOptions3);
+    auto operationElement3 = CreateTestOperationElement(strategyHost.Get(), operation3.Get(), poolB.Get(), operationOptions3);
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     // Check the values
 
@@ -1521,13 +1524,13 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShare)
     nodeResources.SetMemory(100_GB);
     nodeResources.SetNetwork(100);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
     poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB");
     poolB->AttachParent(rootElement.Get());
 
     // Create an operation with resource demand proportion <1, 1, 4>, weight=10, and small jobCount in PoolA
@@ -1542,7 +1545,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShare)
     operationOptions1->Weight = 10.0;
 
     auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), poolA.Get(), operationOptions1);
+    auto operationElement1 = CreateTestOperationElement(strategyHost.Get(), operation1.Get(), poolA.Get(), operationOptions1);
 
     // Create an operation with resource demand proportion <1, 1, 0>, weight=1, and large jobCount in PoolA
     const int jobCount2 = 1000;
@@ -1556,9 +1559,9 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShare)
     operationOptions2->Weight = 1.0;
 
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
+    auto operationElement2 = CreateTestOperationElement(strategyHost.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     // Check the values
 
@@ -1583,16 +1586,16 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShareFunctionIsLe
     nodeResources.SetMemory(100_GB);
     nodeResources.SetNetwork(100);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(nodeCount, nodeResources));
 
     // Create a tree with 2 pools.
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
     // Use fake root to be able to set a CPU limit.
-    auto fakeRootElement = CreateTestPool(host.Get(), "FakeRoot");
+    auto fakeRootElement = CreateTestPool(strategyHost.Get(), "FakeRoot");
     fakeRootElement->AttachParent(rootElement.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
     poolA->AttachParent(fakeRootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB");
     poolB->AttachParent(fakeRootElement.Get());
 
     // Set CPU limit for fake root.
@@ -1612,7 +1615,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShareFunctionIsLe
     operationOptions1->Weight = 10.0;
 
     auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), poolA.Get(), operationOptions1);
+    auto operationElement1 = CreateTestOperationElement(strategyHost.Get(), operation1.Get(), poolA.Get(), operationOptions1);
 
     // Create an operation with resource demand proportion <1, 1, 0>, weight=1, and large jobCount in PoolA.
     const int jobCount2 = 1000;
@@ -1626,9 +1629,9 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShareFunctionIsLe
     operationOptions2->Weight = 1.0;
 
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
+    auto operationElement2 = CreateTestOperationElement(strategyHost.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     // Check the values.
     // 0.4 is a discontinuity point of root's FSBS, so the amount of fair share given to poolA equals to
@@ -1655,13 +1658,13 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
     nodeResources.SetCpu(3);
     nodeResources.SetMemory(8316576848);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     auto poolConfig = New<TPoolConfig>();
     poolConfig->StrongGuaranteeResources->Cpu = 3;
-    auto pool = CreateTestPool(host.Get(), "Pool", poolConfig);
+    auto pool = CreateTestPool(strategyHost.Get(), "Pool", poolConfig);
     pool->AttachParent(rootElement.Get());
 
     TJobResourcesWithQuota jobResourcesA;
@@ -1674,7 +1677,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
     operationOptions->Weight = 1.0;
 
     auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList{});
-    auto operationElementA = CreateTestOperationElement(host.Get(), operationA.Get(), pool.Get(), operationOptions);
+    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), operationA.Get(), pool.Get(), operationOptions);
 
     TJobResourcesWithQuota jobResourcesB;
     jobResourcesB.SetUserSlots(3);
@@ -1682,14 +1685,14 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
     jobResourcesB.SetMemory(1207959552);
 
     auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResourcesB));
-    auto operationElementB = CreateTestOperationElement(host.Get(), operationB.Get(), pool.Get(), operationOptions);
+    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), operationB.Get(), pool.Get(), operationOptions);
 
     operationElementA->OnJobStarted(
         TGuid::Create(),
         jobResourcesA.ToJobResources(),
         /* precommitedResources */ {});
 
-	DoFairShareUpdate(host.Get(), rootElement);
+	DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     EXPECT_FALSE(Dominates(TResourceVector::Ones(), pool->GetFairShare()));
 }
@@ -1705,15 +1708,15 @@ TEST_F(TFairShareTreeTest, TruncateUnsatisfiedChildFairShareInFifoPools)
 
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
     auto poolConfig = New<TPoolConfig>();
     poolConfig->EnableFairShareTruncationInFifoPool = true;
     poolConfig->Mode = ESchedulingMode::Fifo;
 
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "poolA", poolConfig);
-    auto poolB = CreateTestPool(host.Get(), "poolB", poolConfig);
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto poolA = CreateTestPool(strategyHost.Get(), "poolA", poolConfig);
+    auto poolB = CreateTestPool(strategyHost.Get(), "poolB", poolConfig);
     poolA->AttachParent(rootElement.Get());
     poolB->AttachParent(rootElement.Get());
 
@@ -1726,20 +1729,20 @@ TEST_F(TFairShareTreeTest, TruncateUnsatisfiedChildFairShareInFifoPools)
     operationOptions->Weight = 1.0;
 
     auto operationAFirst = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
-    auto operationElementAFirst = CreateTestOperationElement(host.Get(), operationAFirst.Get(), poolA.Get(), operationOptions);
+    auto operationElementAFirst = CreateTestOperationElement(strategyHost.Get(), operationAFirst.Get(), poolA.Get(), operationOptions);
 
     auto gangOperationSpec = New<TStrategyOperationSpec>();
     gangOperationSpec->IsGang = true;
     auto operationASecond = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
-    auto operationElementASecond = CreateTestOperationElement(host.Get(), operationASecond.Get(), poolA.Get(), operationOptions, gangOperationSpec);
+    auto operationElementASecond = CreateTestOperationElement(strategyHost.Get(), operationASecond.Get(), poolA.Get(), operationOptions, gangOperationSpec);
 
     auto operationBFirst = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
-    auto operationElementBFirst = CreateTestOperationElement(host.Get(), operationBFirst.Get(), poolB.Get(), operationOptions);
+    auto operationElementBFirst = CreateTestOperationElement(strategyHost.Get(), operationBFirst.Get(), poolB.Get(), operationOptions);
 
     auto operationBSecond = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
-    auto operationElementBSecond = CreateTestOperationElement(host.Get(), operationBSecond.Get(), poolB.Get(), operationOptions);
+    auto operationElementBSecond = CreateTestOperationElement(strategyHost.Get(), operationBSecond.Get(), poolB.Get(), operationOptions);
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     const TResourceVector unit = {1.0, 1.0, 0.0, 1.0, 0.0};
     EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationElementAFirst->Attributes().DemandShare);
@@ -1766,9 +1769,9 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
 
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     // Create an operation with 4 jobs.
     TJobResourcesWithQuota jobResources;
@@ -1779,7 +1782,7 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({}));
-    auto operationElement = CreateTestOperationElement(host.Get(), operation.Get(), rootElement.Get(), operationOptions);
+    auto operationElement = CreateTestOperationElement(strategyHost.Get(), operation.Get(), rootElement.Get(), operationOptions);
 
     std::vector<TJobId> jobIds;
     for (int i = 0; i < 4; ++i) {
@@ -1791,7 +1794,7 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
             /* precommitedResources */ {});
     }
 
-	DoFairShareUpdate(host.Get(), rootElement);
+	DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().DemandShare);
     EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().FairShare.Total);
@@ -1827,10 +1830,10 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
     nodeResources.SetMemory(300_MB);
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto blockingPool = CreateTestPool(host.Get(), "blocking", CreateSimplePoolConfig(/*strongGuaranteeCpu*/ 10.0));
-    auto guaranteedPool = CreateTestPool(host.Get(), "guaranteed", CreateSimplePoolConfig(/*strongGuaranteeCpu*/ 20.0));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto blockingPool = CreateTestPool(strategyHost.Get(), "blocking", CreateSimplePoolConfig(/*strongGuaranteeCpu*/ 10.0));
+    auto guaranteedPool = CreateTestPool(strategyHost.Get(), "guaranteed", CreateSimplePoolConfig(/*strongGuaranteeCpu*/ 20.0));
 
     blockingPool->AttachParent(rootElement.Get());
     guaranteedPool->AttachParent(rootElement.Get());
@@ -1841,7 +1844,7 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
     jobResources.SetMemory(150_MB);
 
     auto blockingOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto blockingOperationElement = CreateTestOperationElement(host.Get(), blockingOperation.Get(), blockingPool.Get());
+    auto blockingOperationElement = CreateTestOperationElement(strategyHost.Get(), blockingOperation.Get(), blockingPool.Get());
     blockingOperationElement->OnJobStarted(TGuid::Create(), jobResources, /*precommitedResources*/ {});
 
     jobResources.SetUserSlots(1);
@@ -1852,7 +1855,7 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
     auto donorOperationSpec = New<TStrategyOperationSpec>();
     donorOperationSpec->MaxUnpreemptableRunningJobCount = 0;
     auto donorOperationElement = CreateTestOperationElement(
-        host.Get(),
+        strategyHost.Get(),
         donorOperation.Get(),
         guaranteedPool.Get(),
         /*operationOptions*/ nullptr,
@@ -1867,10 +1870,10 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
         donorOperationElement->OnJobStarted(job->GetId(), job->ResourceLimits(), /*precommitedResources*/ {});
     }
 
-    auto [starvingOperationElement, starvingOperation] = CreateOperationWithJobs(10, host.Get(), guaranteedPool.Get());
+    auto [starvingOperationElement, starvingOperation] = CreateOperationWithJobs(10, strategyHost.Get(), guaranteedPool.Get());
 
     {
-        DoFairShareUpdate(host.Get(), rootElement, now, /*previousUpdateTime*/ std::nullopt, /*checkForStarvation*/ true);
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, /*previousUpdateTime*/ std::nullopt, /*checkForStarvation*/ true);
 
         TResourceVector unit = {1.0, 1.0, 0.0, 1.0, 0.0};
         EXPECT_RV_NEAR(unit / 3.0, blockingPool->Attributes().FairShare.Total);
@@ -1898,7 +1901,7 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
     {
         auto timeout = starvingOperationElement->GetEffectiveFairShareStarvationTimeout() + TDuration::MilliSeconds(100);
         now += timeout;
-        DoFairShareUpdate(host.Get(), rootElement, now, now - timeout, /*checkForStarvation*/ true);
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - timeout, /*checkForStarvation*/ true);
 
         EXPECT_EQ(EStarvationStatus::NonStarving, donorOperationElement->GetStarvationStatus());
         EXPECT_EQ(EStarvationStatus::Starving, starvingOperationElement->GetStarvationStatus());
@@ -1918,7 +1921,7 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
         SchedulerConfig_,
         execNode,
         /*runningJobs*/ {},
-        host->GetMediumDirectory());
+        strategyHost->GetMediumDirectory());
 
     TScheduleJobsContext context(
         schedulingContext,
@@ -1987,9 +1990,9 @@ TEST_F(TFairShareTreeTest, TestIncorrectStatusDueToPrecisionError)
     nodeResources.SetGpu(1184);
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto pool = CreateTestPool(host.Get(), "pool", CreateSimplePoolConfig());
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto pool = CreateTestPool(strategyHost.Get(), "pool", CreateSimplePoolConfig());
 
     pool->AttachParent(rootElement.Get());
 
@@ -2001,7 +2004,7 @@ TEST_F(TFairShareTreeTest, TestIncorrectStatusDueToPrecisionError)
     jobResourcesA.SetGpu(1);
 
     auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto operationElementA = CreateTestOperationElement(host.Get(), operationA.Get(), pool.Get());
+    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), operationA.Get(), pool.Get());
     operationElementA->OnJobStarted(TGuid::Create(), jobResourcesA, /*precommitedResources*/ {});
 
     TJobResources jobResourcesB;
@@ -2012,10 +2015,10 @@ TEST_F(TFairShareTreeTest, TestIncorrectStatusDueToPrecisionError)
     jobResourcesB.SetGpu(1);
 
     auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto operationElementB = CreateTestOperationElement(host.Get(), operationB.Get(), pool.Get());
+    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), operationB.Get(), pool.Get());
     operationElementB->OnJobStarted(TGuid::Create(), jobResourcesB, /*precommitedResources*/ {});
 
-    DoFairShareUpdate(host.Get(), rootElement);
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     EXPECT_EQ(pool->Attributes().UsageShare, pool->Attributes().DemandShare);
     EXPECT_TRUE(Dominates(
@@ -2029,19 +2032,19 @@ TEST_F(TFairShareTreeTest, TestIncorrectStatusDueToPrecisionError)
 
 TEST_F(TFairShareTreeTest, TestRelaxedPoolFairShareSimple)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(
         /* flowCpu */ 10,
         /* strongGuaranteeCpu */ 10));
     relaxedPool->AttachParent(rootElement.Get());
 
-    auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), relaxedPool.Get());
+    auto [operationElement, operationHost] = CreateOperationWithJobs(30, strategyHost.Get(), relaxedPool.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 3, operationElement->Attributes().FairShare.WeightProportional);
@@ -2061,25 +2064,25 @@ TEST_F(TFairShareTreeTest, TestRelaxedPoolFairShareSimple)
 
 TEST_F(TFairShareTreeTest, TestRelaxedPoolWithIncreasedMultiplierLimit)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto defaultRelaxedPool = CreateTestPool(host.Get(), "defaultRelaxed", CreateRelaxedPoolConfig(/* flowCpu */ 10));
+    auto defaultRelaxedPool = CreateTestPool(strategyHost.Get(), "defaultRelaxed", CreateRelaxedPoolConfig(/* flowCpu */ 10));
     defaultRelaxedPool->AttachParent(rootElement.Get());
 
     auto increasedLimitConfig = CreateRelaxedPoolConfig(/* flowCpu */ 10);
     increasedLimitConfig->IntegralGuarantees->RelaxedShareMultiplierLimit = 5;
-    auto increasedLimitRelaxedPool = CreateTestPool(host.Get(), "increasedLimitRelaxed", increasedLimitConfig);
+    auto increasedLimitRelaxedPool = CreateTestPool(strategyHost.Get(), "increasedLimitRelaxed", increasedLimitConfig);
     increasedLimitRelaxedPool->AttachParent(rootElement.Get());
 
-    auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, host.Get(), defaultRelaxedPool.Get());
-    auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, host.Get(), increasedLimitRelaxedPool.Get());
+    auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, strategyHost.Get(), defaultRelaxedPool.Get());
+    auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, strategyHost.Get(), increasedLimitRelaxedPool.Get());
 
     defaultRelaxedPool->InitAccumulatedResourceVolume(GetHugeVolume());
     increasedLimitRelaxedPool->InitAccumulatedResourceVolume(GetHugeVolume());
 
     {
-        DoFairShareUpdate(host.Get(), rootElement);
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 3, defaultRelaxedPool->Attributes().FairShare.IntegralGuarantee);  // Default multiplier is 3.
@@ -2089,20 +2092,20 @@ TEST_F(TFairShareTreeTest, TestRelaxedPoolWithIncreasedMultiplierLimit)
 
 TEST_F(TFairShareTreeTest, TestBurstPoolFairShareSimple)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+    auto burstPool = CreateTestPool(strategyHost.Get(), "burst", CreateBurstPoolConfig(
         /* flowCpu */ 10,
         /* burstCpu */ 10,
         /* strongGuaranteeCpu */ 10));
     burstPool->AttachParent(rootElement.Get());
 
-    auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), burstPool.Get());
+    auto [operationElement, operationHost] = CreateOperationWithJobs(30, strategyHost.Get(), burstPool.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 3, operationElement->Attributes().FairShare.WeightProportional);
@@ -2122,28 +2125,28 @@ TEST_F(TFairShareTreeTest, TestBurstPoolFairShareSimple)
 
 TEST_F(TFairShareTreeTest, TestAccumulatedVolumeProvidesMore)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/*flowCpu*/ 10));
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(/*flowCpu*/ 10));
     relaxedPool->AttachParent(rootElement.Get());
 
     auto firstUpdateTime = TInstant::Now();
     {
         // Make first update to accumulate volume
         DoFairShareUpdate(
-			host.Get(),
+			strategyHost.Get(),
 			rootElement,
 			/*now*/ firstUpdateTime,
 			/*previousUpdateTime*/ firstUpdateTime - TDuration::Minutes(1));
     }
 
-    auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), relaxedPool.Get());
+    auto [operationElement, operationHost] = CreateOperationWithJobs(30, strategyHost.Get(), relaxedPool.Get());
     auto secondUpdateTime = firstUpdateTime + TDuration::Minutes(1);
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
         DoFairShareUpdate(
-			host.Get(),
+			strategyHost.Get(),
 			rootElement,
 			/*now*/ secondUpdateTime,
 			/*previousUpdateTime*/ firstUpdateTime);
@@ -2160,23 +2163,23 @@ TEST_F(TFairShareTreeTest, TestAccumulatedVolumeProvidesMore)
 
 TEST_F(TFairShareTreeTest, TestStrongGuaranteePoolVsBurstPool)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+    auto burstPool = CreateTestPool(strategyHost.Get(), "burst", CreateBurstPoolConfig(
         /* flowCpu */ 100,
         /* burstCpu */ 50));
     burstPool->AttachParent(rootElement.Get());
 
-    auto strongPool = CreateTestPool(host.Get(), "strong", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 50));
+    auto strongPool = CreateTestPool(strategyHost.Get(), "strong", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 50));
     strongPool->AttachParent(rootElement.Get());
 
-    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
-    auto [strongOperationElement, strongOperationHost] = CreateOperationWithJobs(100, host.Get(), strongPool.Get());
+    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), burstPool.Get());
+    auto [strongOperationElement, strongOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), strongPool.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 5, strongPool->Attributes().FairShare.StrongGuarantee);
@@ -2195,21 +2198,21 @@ TEST_F(TFairShareTreeTest, TestStrongGuaranteePoolVsBurstPool)
 
 TEST_F(TFairShareTreeTest, TestStrongGuaranteePoolVsRelaxedPool)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto strongPool = CreateTestPool(host.Get(), "strong", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 50));
+    auto strongPool = CreateTestPool(strategyHost.Get(), "strong", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 50));
     strongPool->AttachParent(rootElement.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100, /* strongGuaranteeCpu */ 0));
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100, /* strongGuaranteeCpu */ 0));
     relaxedPool->AttachParent(rootElement.Get());
 
-    auto [strongOperationElement, strongOperationHost] = CreateOperationWithJobs(100, host.Get(), strongPool.Get());
-    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
+    auto [strongOperationElement, strongOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), strongPool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), relaxedPool.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 5, strongPool->Attributes().FairShare.StrongGuarantee);
@@ -2228,23 +2231,23 @@ TEST_F(TFairShareTreeTest, TestStrongGuaranteePoolVsRelaxedPool)
 
 TEST_F(TFairShareTreeTest, TestBurstGetsAll_RelaxedNone)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+    auto burstPool = CreateTestPool(strategyHost.Get(), "burst", CreateBurstPoolConfig(
         /* flowCpu */ 100,
         /* burstCpu */ 100));
     burstPool->AttachParent(rootElement.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
     relaxedPool->AttachParent(rootElement.Get());
 
-    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
-    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
+    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), burstPool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), relaxedPool.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
@@ -2261,23 +2264,23 @@ TEST_F(TFairShareTreeTest, TestBurstGetsAll_RelaxedNone)
 
 TEST_F(TFairShareTreeTest, TestBurstGetsBurstGuaranteeOnly_RelaxedGetsRemaining)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+    auto burstPool = CreateTestPool(strategyHost.Get(), "burst", CreateBurstPoolConfig(
         /* flowCpu */ 100,
         /* burstCpu */ 50));
     burstPool->AttachParent(rootElement.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
     relaxedPool->AttachParent(rootElement.Get());
 
-    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
-    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
+    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), burstPool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), relaxedPool.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
@@ -2296,37 +2299,37 @@ TEST_F(TFairShareTreeTest, TestBurstGetsBurstGuaranteeOnly_RelaxedGetsRemaining)
 
 TEST_F(TFairShareTreeTest, TestAllKindsOfPoolsShareWeightProportionalComponent)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto strongPool = CreateTestPool(host.Get(), "strong", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 10, /* weight */ 1));
+    auto strongPool = CreateTestPool(strategyHost.Get(), "strong", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 10, /* weight */ 1));
     strongPool->AttachParent(rootElement.Get());
 
-    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+    auto burstPool = CreateTestPool(strategyHost.Get(), "burst", CreateBurstPoolConfig(
         /* flowCpu */ 10,
         /* burstCpu */ 10,
         /* strongGuaranteeCpu */ 0,
         /* weight */ 1));
     burstPool->AttachParent(rootElement.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(
         /* flowCpu */ 10,
         /* strongGuaranteeCpu */ 0,
         /* weight */ 2));
     relaxedPool->AttachParent(rootElement.Get());
 
-    auto noGuaranteePool = CreateTestPool(host.Get(), "noguarantee", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 0, /* weight */ 3));
+    auto noGuaranteePool = CreateTestPool(strategyHost.Get(), "noguarantee", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 0, /* weight */ 3));
     noGuaranteePool->AttachParent(rootElement.Get());
 
 
-    auto [strongOperationElement, strongOperationHost] = CreateOperationWithJobs(100, host.Get(), strongPool.Get());
-    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
-    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
-    auto [noGuaranteeElement, noGuaranteeOperationHost] = CreateOperationWithJobs(100, host.Get(), noGuaranteePool.Get());
+    auto [strongOperationElement, strongOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), strongPool.Get());
+    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), burstPool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), relaxedPool.Get());
+    auto [noGuaranteeElement, noGuaranteeOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), noGuaranteePool.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 1, strongPool->Attributes().FairShare.StrongGuarantee);
@@ -2353,17 +2356,17 @@ TEST_F(TFairShareTreeTest, TestAllKindsOfPoolsShareWeightProportionalComponent)
 
 TEST_F(TFairShareTreeTest, TestTwoRelaxedPoolsGetShareRatioProportionalToVolume)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto relaxedPool1 = CreateTestPool(host.Get(), "relaxed1", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    auto relaxedPool1 = CreateTestPool(strategyHost.Get(), "relaxed1", CreateRelaxedPoolConfig(/* flowCpu */ 100));
     relaxedPool1->AttachParent(rootElement.Get());
 
-    auto relaxedPool2 = CreateTestPool(host.Get(), "relaxed2", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    auto relaxedPool2 = CreateTestPool(strategyHost.Get(), "relaxed2", CreateRelaxedPoolConfig(/* flowCpu */ 100));
     relaxedPool2->AttachParent(rootElement.Get());
 
-    auto [relaxedOperationElement1, relaxedOperationHost1] = CreateOperationWithJobs(100, host.Get(), relaxedPool1.Get());
-    auto [relaxedOperationElement2, relaxedOperationHost2] = CreateOperationWithJobs(100, host.Get(), relaxedPool2.Get());
+    auto [relaxedOperationElement1, relaxedOperationHost1] = CreateOperationWithJobs(100, strategyHost.Get(), relaxedPool1.Get());
+    auto [relaxedOperationElement2, relaxedOperationHost2] = CreateOperationWithJobs(100, strategyHost.Get(), relaxedPool2.Get());
 
     TJobResources oneTenthOfCluster;
     oneTenthOfCluster.SetCpu(10);
@@ -2375,7 +2378,7 @@ TEST_F(TFairShareTreeTest, TestTwoRelaxedPoolsGetShareRatioProportionalToVolume)
     relaxedPool1->InitAccumulatedResourceVolume(volume1);
     relaxedPool2->InitAccumulatedResourceVolume(volume2);
     {
-        DoFairShareUpdate(host.Get(), rootElement);
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 0, relaxedPool1->Attributes().FairShare.StrongGuarantee);
@@ -2394,18 +2397,18 @@ TEST_F(TFairShareTreeTest, TestTwoRelaxedPoolsGetShareRatioProportionalToVolume)
 
 TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionSimple)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto ancestor = CreateTestPool(host.Get(), "ancestor", CreateIntegralPoolConfig(
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto ancestor = CreateTestPool(strategyHost.Get(), "ancestor", CreateIntegralPoolConfig(
         EIntegralGuaranteeType::None,
         /*flowCpu*/ 100,
         /*burstCpu*/ 100));
     ancestor->AttachParent(rootElement.Get());
 
-    auto acceptablePool = CreateTestPool(host.Get(), "acceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));  // 1% of cluster.
+    auto acceptablePool = CreateTestPool(strategyHost.Get(), "acceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));  // 1% of cluster.
     acceptablePool->AttachParent(ancestor.Get());
 
-    auto overflowedPool = CreateTestPool(host.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));  // 10% of cluster.
+    auto overflowedPool = CreateTestPool(strategyHost.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));  // 10% of cluster.
     overflowedPool->AttachParent(ancestor.Get());
 
     acceptablePool->InitAccumulatedResourceVolume(TResourceVolume());
@@ -2413,7 +2416,7 @@ TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionSimple)
     {
         auto updateTime = TInstant::Now();
         DoFairShareUpdate(
-            host.Get(),
+            strategyHost.Get(),
             rootElement,
             /*now*/ updateTime,
             /*previousUpdateTime*/ updateTime - TDuration::Seconds(10));
@@ -2427,18 +2430,18 @@ TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionSimple)
 
 TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionWithMinimalVolumeShares)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto ancestor = CreateTestPool(host.Get(), "ancestor", CreateIntegralPoolConfig(
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto ancestor = CreateTestPool(strategyHost.Get(), "ancestor", CreateIntegralPoolConfig(
         EIntegralGuaranteeType::None,
         /*flowCpu*/ 100,
         /*burstCpu*/ 100));
     ancestor->AttachParent(rootElement.Get());
 
-    auto acceptablePool = CreateTestPool(host.Get(), "acceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));  // 1% of cluster.
+    auto acceptablePool = CreateTestPool(strategyHost.Get(), "acceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));  // 1% of cluster.
     acceptablePool->AttachParent(ancestor.Get());
 
-    auto overflowedPool = CreateTestPool(host.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));  // 10% of cluster.
+    auto overflowedPool = CreateTestPool(strategyHost.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));  // 10% of cluster.
     overflowedPool->AttachParent(ancestor.Get());
 
     acceptablePool->InitAccumulatedResourceVolume(TResourceVolume());
@@ -2447,7 +2450,7 @@ TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionWithMinimalVolumeShares
         // Volume overflow will be very small due to 1 millisecond interval.
         auto updateTime = TInstant::Now();
         DoFairShareUpdate(
-            host.Get(),
+            strategyHost.Get(),
             rootElement,
             /*now*/ updateTime,
             /*previousUpdateTime*/ updateTime - TDuration::MilliSeconds(1));
@@ -2467,9 +2470,9 @@ TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionWithMinimalVolumeShares
 
 TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto ancestor = CreateTestPool(host.Get(), "ancestor", CreateIntegralPoolConfig(
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto ancestor = CreateTestPool(strategyHost.Get(), "ancestor", CreateIntegralPoolConfig(
         EIntegralGuaranteeType::None,
         /*flowCpu*/ 100,
         /*burstCpu*/ 100));
@@ -2477,10 +2480,10 @@ TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt)
 
     auto poolConfig = CreateRelaxedPoolConfig(/*flowCpu*/ 1);
     poolConfig->IntegralGuarantees->CanAcceptFreeVolume = false;
-    auto notAcceptablePool = CreateTestPool(host.Get(), "notAcceptablePool", poolConfig);  // 1% of cluster.
+    auto notAcceptablePool = CreateTestPool(strategyHost.Get(), "notAcceptablePool", poolConfig);  // 1% of cluster.
     notAcceptablePool->AttachParent(ancestor.Get());
 
-    auto overflowedPool = CreateTestPool(host.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));  // 10% of cluster.
+    auto overflowedPool = CreateTestPool(strategyHost.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));  // 10% of cluster.
     overflowedPool->AttachParent(ancestor.Get());
 
     notAcceptablePool->InitAccumulatedResourceVolume(TResourceVolume());
@@ -2488,7 +2491,7 @@ TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt)
     {
         auto updateTime = TInstant::Now();
         DoFairShareUpdate(
-            host.Get(),
+            strategyHost.Get(),
             rootElement,
             /*now*/ updateTime,
             /*previousUpdateTime*/ updateTime - TDuration::Seconds(10));
@@ -2500,21 +2503,21 @@ TEST_F(TFairShareTreeTest, TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt)
 
 TEST_F(TFairShareTreeTest, TestVolumeOverflowDisributionWithLimitedAcceptablePool)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto ancestor = CreateTestPool(host.Get(), "ancestor", CreateIntegralPoolConfig(
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto ancestor = CreateTestPool(strategyHost.Get(), "ancestor", CreateIntegralPoolConfig(
         EIntegralGuaranteeType::None,
         /*flowCpu*/ 100,
         /*burstCpu*/ 100));
     ancestor->AttachParent(rootElement.Get());
 
-    auto emptyVolumePool = CreateTestPool(host.Get(), "fullyAcceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));
+    auto emptyVolumePool = CreateTestPool(strategyHost.Get(), "fullyAcceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));
     emptyVolumePool->AttachParent(ancestor.Get());
 
-    auto limitedAcceptablePool = CreateTestPool(host.Get(), "limitedAcceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));
+    auto limitedAcceptablePool = CreateTestPool(strategyHost.Get(), "limitedAcceptablePool", CreateRelaxedPoolConfig(/*flowCpu*/ 1));
     limitedAcceptablePool->AttachParent(ancestor.Get());
 
-    auto overflowedPool = CreateTestPool(host.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));
+    auto overflowedPool = CreateTestPool(strategyHost.Get(), "overflowedPool", CreateRelaxedPoolConfig(/*flowCpu*/ 10));
     overflowedPool->AttachParent(ancestor.Get());
 
     auto smallVolumeUnit = TResourceVolume(OneHundredthOfCluster(), TDuration::Seconds(10));  // 1% of cluster for 10 seconds.
@@ -2529,7 +2532,7 @@ TEST_F(TFairShareTreeTest, TestVolumeOverflowDisributionWithLimitedAcceptablePoo
     {
         auto updateTime = TInstant::Now();
         DoFairShareUpdate(
-            host.Get(),
+            strategyHost.Get(),
             rootElement,
             /*now*/ updateTime,
             /*previousUpdateTime*/ updateTime - TDuration::Seconds(10));
@@ -2545,20 +2548,20 @@ TEST_F(TFairShareTreeTest, TestVolumeOverflowDisributionWithLimitedAcceptablePoo
 
 TEST_F(TFairShareTreeTest, TestStrongGuaranteeAdjustmentToTotalResources)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto strongPool1 = CreateTestPool(host.Get(), "strong1", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 30));
+    auto strongPool1 = CreateTestPool(strategyHost.Get(), "strong1", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 30));
     strongPool1->AttachParent(rootElement.Get());
 
-    auto strongPool2 = CreateTestPool(host.Get(), "strong2", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 90));
+    auto strongPool2 = CreateTestPool(strategyHost.Get(), "strong2", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 90));
     strongPool2->AttachParent(rootElement.Get());
 
-    auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, host.Get(), strongPool1.Get());
-    auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, host.Get(), strongPool2.Get());
+    auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, strategyHost.Get(), strongPool1.Get());
+    auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, strategyHost.Get(), strongPool2.Get());
 
     {
-        DoFairShareUpdate(host.Get(), rootElement);
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 2.5, strongPool1->Attributes().FairShare.StrongGuarantee);
@@ -2573,23 +2576,23 @@ TEST_F(TFairShareTreeTest, TestStrongGuaranteeAdjustmentToTotalResources)
 
 TEST_F(TFairShareTreeTest, TestStrongGuaranteePlusBurstGuaranteeAdjustmentToTotalResources)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto strongPool = CreateTestPool(host.Get(), "strong", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 90));
+    auto strongPool = CreateTestPool(strategyHost.Get(), "strong", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 90));
     strongPool->AttachParent(rootElement.Get());
 
-    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+    auto burstPool = CreateTestPool(strategyHost.Get(), "burst", CreateBurstPoolConfig(
         /* flowCpu */ 60,
         /* burstCpu */ 60));
     burstPool->AttachParent(rootElement.Get());
 
-    auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, host.Get(), strongPool.Get());
-    auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
+    auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, strategyHost.Get(), strongPool.Get());
+    auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, strategyHost.Get(), burstPool.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 6, strongPool->Attributes().FairShare.StrongGuarantee);
@@ -2604,22 +2607,22 @@ TEST_F(TFairShareTreeTest, TestStrongGuaranteePlusBurstGuaranteeAdjustmentToTota
 
 TEST_F(TFairShareTreeTest, TestLimitsLowerThanStrongGuarantee)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     auto parentConfig = CreateSimplePoolConfig(/* strongGuaranteeCpu */ 100);
     parentConfig->ResourceLimits->Cpu = 50;
-    auto strongPoolParent = CreateTestPool(host.Get(), "strongParent", parentConfig);
+    auto strongPoolParent = CreateTestPool(strategyHost.Get(), "strongParent", parentConfig);
     strongPoolParent->AttachParent(rootElement.Get());
 
-    auto strongPoolChild = CreateTestPool(host.Get(), "strongChild", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 100));
+    auto strongPoolChild = CreateTestPool(strategyHost.Get(), "strongChild", CreateSimplePoolConfig(/* strongGuaranteeCpu */ 100));
     strongPoolChild->AttachParent(strongPoolParent.Get());
 
-    auto [opElement, opHost] = CreateOperationWithJobs(100, host.Get(), strongPoolChild.Get());
+    auto [opElement, opHost] = CreateOperationWithJobs(100, strategyHost.Get(), strongPoolChild.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 5, strongPoolParent->Attributes().FairShare.StrongGuarantee);
@@ -2632,25 +2635,25 @@ TEST_F(TFairShareTreeTest, TestLimitsLowerThanStrongGuarantee)
 
 TEST_F(TFairShareTreeTest, TestParentWithoutGuaranteeAndHisLimitsLowerThanChildBurstShare)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     auto parentConfig = CreateSimplePoolConfig(/* strongGuaranteeCpu */ 0);
     parentConfig->ResourceLimits->Cpu = 50;
-    auto limitedParent = CreateTestPool(host.Get(), "limitedParent", parentConfig);
+    auto limitedParent = CreateTestPool(strategyHost.Get(), "limitedParent", parentConfig);
     limitedParent->AttachParent(rootElement.Get());
 
-    auto burstChild = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+    auto burstChild = CreateTestPool(strategyHost.Get(), "burst", CreateBurstPoolConfig(
         /* flowCpu */ 100,
         /* burstCpu */ 100,
         /* strongGuaranteeCpu */ 0));
     burstChild->AttachParent(limitedParent.Get());
 
-    auto [opElement, opHost] = CreateOperationWithJobs(100, host.Get(), burstChild.Get());
+    auto [opElement, opHost] = CreateOperationWithJobs(100, strategyHost.Get(), burstChild.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 5, burstChild->Attributes().FairShare.IntegralGuarantee);
@@ -2660,25 +2663,25 @@ TEST_F(TFairShareTreeTest, TestParentWithoutGuaranteeAndHisLimitsLowerThanChildB
 
 TEST_F(TFairShareTreeTest, TestParentWithStrongGuaranteeAndHisLimitsLowerThanChildBurstShare)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     auto parentConfig = CreateSimplePoolConfig(/* strongGuaranteeCpu */ 50);
     parentConfig->ResourceLimits->Cpu = 50;
-    auto limitedParent = CreateTestPool(host.Get(), "limitedParent", parentConfig);
+    auto limitedParent = CreateTestPool(strategyHost.Get(), "limitedParent", parentConfig);
     limitedParent->AttachParent(rootElement.Get());
 
-    auto burstChild = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+    auto burstChild = CreateTestPool(strategyHost.Get(), "burst", CreateBurstPoolConfig(
         /* flowCpu */ 10,
         /* burstCpu */ 10,
         /* strongGuaranteeCpu */ 0));
     burstChild->AttachParent(limitedParent.Get());
 
-    auto [opElement, opHost] = CreateOperationWithJobs(100, host.Get(), burstChild.Get());
+    auto [opElement, opHost] = CreateOperationWithJobs(100, strategyHost.Get(), burstChild.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 0, burstChild->Attributes().FairShare.StrongGuarantee);
@@ -2689,23 +2692,23 @@ TEST_F(TFairShareTreeTest, TestParentWithStrongGuaranteeAndHisLimitsLowerThanChi
 
 TEST_F(TFairShareTreeTest, TestStrongGuaranteeAndRelaxedPoolVsRelaxedPool)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto strongAndRelaxedPool = CreateTestPool(host.Get(), "min_share_and_relaxed", CreateRelaxedPoolConfig(
+    auto strongAndRelaxedPool = CreateTestPool(strategyHost.Get(), "min_share_and_relaxed", CreateRelaxedPoolConfig(
         /* flowCpu */ 100,
         /* strongGuaranteeCpu */ 40));
     strongAndRelaxedPool->AttachParent(rootElement.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
     relaxedPool->AttachParent(rootElement.Get());
 
-    auto [strongAndRelaxedOperationElement, strongAndRelaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), strongAndRelaxedPool.Get());
-    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
+    auto [strongAndRelaxedOperationElement, strongAndRelaxedOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), strongAndRelaxedPool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), relaxedPool.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 4, strongAndRelaxedPool->Attributes().FairShare.StrongGuarantee);
@@ -2724,26 +2727,26 @@ TEST_F(TFairShareTreeTest, TestStrongGuaranteeAndRelaxedPoolVsRelaxedPool)
 
 TEST_F(TFairShareTreeTest, PromisedFairShareOfIntegralPools)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto burstPoolParent = CreateTestPool(host.Get(), "burstParent", CreateSimplePoolConfig());
+    auto burstPoolParent = CreateTestPool(strategyHost.Get(), "burstParent", CreateSimplePoolConfig());
     burstPoolParent->AttachParent(rootElement.Get());
 
-    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+    auto burstPool = CreateTestPool(strategyHost.Get(), "burst", CreateBurstPoolConfig(
         /* flowCpu */ 30,
         /* burstCpu */ 100));
     burstPool->AttachParent(burstPoolParent.Get());
 
-    auto relaxedPoolParent = CreateTestPool(host.Get(), "relaxedParent", CreateSimplePoolConfig());
+    auto relaxedPoolParent = CreateTestPool(strategyHost.Get(), "relaxedParent", CreateSimplePoolConfig());
     relaxedPoolParent->AttachParent(rootElement.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 70));
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 70));
     relaxedPool->AttachParent(relaxedPoolParent.Get());
 
     {
         auto now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
+        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 3, burstPool->Attributes().PromisedFairShare);
@@ -2764,10 +2767,10 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
 
     // Root element.
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     // 1/10 of all resources.
     TJobResourcesWithQuota operationJobResources;
@@ -2786,7 +2789,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
 
         operations[opIndex] = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
         operationElements[opIndex] = CreateTestOperationElement(
-            host.Get(),
+            strategyHost.Get(),
             operations[opIndex].Get(),
             rootElement.Get(),
             operationOptions);
@@ -2807,14 +2810,14 @@ TEST_F(TFairShareTreeTest, ChildHeap)
             }));
     }
 
-	DoFairShareUpdate(host.Get(), rootElement);
+	DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     auto schedulingContext = CreateSchedulingContext(
         /* nodeShardId */ 0,
         SchedulerConfig_,
         execNode,
         /* runningJobs */ {},
-        host->GetMediumDirectory());
+        strategyHost->GetMediumDirectory());
 
     TScheduleJobsContext context(
         schedulingContext,
@@ -2872,20 +2875,20 @@ TEST_F(TFairShareTreeTest, ChildHeap)
 
 TEST_F(TFairShareTreeTest, TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate)
 {
-    auto host = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(0, TJobResourcesWithQuota()));
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(0, TJobResourcesWithQuota()));
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
     relaxedPool->AttachParent(rootElement.Get());
     EXPECT_EQ(0.0, relaxedPool->GetAccumulatedResourceRatioVolume());
 }
 
 TEST_F(TFairShareTreeTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
     relaxedPool->AttachParent(rootElement.Get());
 
     auto hugeVolume = GetHugeVolume();
@@ -2894,7 +2897,7 @@ TEST_F(TFairShareTreeTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolu
         auto now = TInstant::Now();
         // Enable refill of volume.
         DoFairShareUpdate(
-            host.Get(),
+            strategyHost.Get(),
             rootElement,
             now,
             now - TDuration::Seconds(1));
@@ -2910,30 +2913,30 @@ TEST_F(TFairShareTreeTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolu
 
 TEST_F(TFairShareTreeTest, TestIntegralPoolsWithParent)
 {
-    auto host = CreateHostWith10NodesAnd10Cpu();
-    auto rootElement = CreateTestRootElement(host.Get());
+    auto strategyHost = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto limitedParent = CreateTestPool(host.Get(), "parent", CreateIntegralPoolConfig(
+    auto limitedParent = CreateTestPool(strategyHost.Get(), "parent", CreateIntegralPoolConfig(
         EIntegralGuaranteeType::None,
         /* flowCpu */ 100,
         /* burstCpu */ 100));
     limitedParent->AttachParent(rootElement.Get());
 
-    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+    auto burstPool = CreateTestPool(strategyHost.Get(), "burst", CreateBurstPoolConfig(
         /* flowCpu */ 50,
         /* burstCpu */ 100));
     burstPool->AttachParent(limitedParent.Get());
 
-    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 50));
+    auto relaxedPool = CreateTestPool(strategyHost.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 50));
     relaxedPool->AttachParent(limitedParent.Get());
 
-    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
-    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
+    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), burstPool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, strategyHost.Get(), relaxedPool.Get());
 
     {
         auto now = TInstant::Now();
         DoFairShareUpdate(
-            host.Get(),
+            strategyHost.Get(),
             rootElement,
             now,
             now - TDuration::Minutes(1));

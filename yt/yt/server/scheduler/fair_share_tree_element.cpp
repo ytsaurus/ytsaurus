@@ -344,14 +344,14 @@ void TScheduleJobsContext::LogStageStatistics()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerElementFixedState::TSchedulerElementFixedState(
-    ISchedulerStrategyHost* host,
-    IFairShareTreeHost* treeHost,
+    ISchedulerStrategyHost* strategyHost,
+    IFairShareTreeElementHost* treeElementHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
     TString treeId)
-    : Host_(host)
-    , TreeHost_(treeHost)
+    : StrategyHost_(strategyHost)
+    , TreeElementHost_(treeElementHost)
     , TreeConfig_(std::move(treeConfig))
-    , TotalResourceLimits_(host->GetResourceLimits(TreeConfig_->NodesFilter))
+    , TotalResourceLimits_(strategyHost->GetResourceLimits(TreeConfig_->NodesFilter))
     , TreeId_(std::move(treeId))
 { }
 
@@ -674,20 +674,20 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TSchedule
 
 void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& delta)
 {
-    TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsage(ResourceTreeElement_, delta);
+    TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsage(ResourceTreeElement_, delta);
 }
 
 TSchedulerElement::TSchedulerElement(
-    ISchedulerStrategyHost* host,
-    IFairShareTreeHost* treeHost,
+    ISchedulerStrategyHost* strategyHost,
+    IFairShareTreeElementHost* treeElementHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
     TString treeId,
     TString id,
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
-    : TSchedulerElementFixedState(host, treeHost, std::move(treeConfig), std::move(treeId))
+    : TSchedulerElementFixedState(strategyHost, treeElementHost, std::move(treeConfig), std::move(treeId))
     , ResourceTreeElement_(New<TResourceTreeElement>(
-        TreeHost_->GetResourceTree(),
+        TreeElementHost_->GetResourceTree(),
         id,
         elementKind))
     , Logger(logger)
@@ -711,7 +711,7 @@ ISchedulerStrategyHost* TSchedulerElement::GetHost() const
 {
     YT_VERIFY(Mutable_);
 
-    return Host_;
+    return StrategyHost_;
 }
 
 double TSchedulerElement::ComputeLocalSatisfactionRatio(const TJobResources& resourceUsage) const
@@ -848,7 +848,7 @@ void TSchedulerElement::SetOperationAlert(
     const TError& alert,
     std::optional<TDuration> timeout)
 {
-    Host_->SetOperationAlert(operationId, alertType, alert, timeout);
+    StrategyHost_->SetOperationAlert(operationId, alertType, alert, timeout);
 }
 
 TJobResources TSchedulerElement::ComputeResourceLimits() const
@@ -867,7 +867,7 @@ TJobResources TSchedulerElement::ComputeSchedulingTagFilterResourceLimits() cons
         return TotalResourceLimits_;
     }
 
-    auto connectionTime = InstantToCpuInstant(Host_->GetConnectionTime());
+    auto connectionTime = InstantToCpuInstant(StrategyHost_->GetConnectionTime());
     auto delay = DurationToCpuDuration(TreeConfig_->TotalResourceLimitsConsiderDelay);
     if (GetCpuInstant() < connectionTime + delay) {
         // Return infinity during the cluster startup.
@@ -940,14 +940,14 @@ void TSchedulerElement::UpdateStarvationAttributes(TInstant now, bool enablePool
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerCompositeElement::TSchedulerCompositeElement(
-    ISchedulerStrategyHost* host,
-    IFairShareTreeHost* treeHost,
+    ISchedulerStrategyHost* strategyHost,
+    IFairShareTreeElementHost* treeElementHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
     const TString& treeId,
     const TString& id,
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
-    : TSchedulerElement(host, treeHost, std::move(treeConfig), treeId, id, elementKind, logger)
+    : TSchedulerElement(strategyHost, treeElementHost, std::move(treeConfig), treeId, id, elementKind, logger)
 { }
 
 TSchedulerCompositeElement::TSchedulerCompositeElement(
@@ -1637,8 +1637,8 @@ TSchedulerPoolElementFixedState::TSchedulerPoolElementFixedState(TString id)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerPoolElement::TSchedulerPoolElement(
-    ISchedulerStrategyHost* host,
-    IFairShareTreeHost* treeHost,
+    ISchedulerStrategyHost* strategyHost,
+    IFairShareTreeElementHost* treeElementHost,
     const TString& id,
     TPoolConfigPtr config,
     bool defaultConfigured,
@@ -1646,8 +1646,8 @@ TSchedulerPoolElement::TSchedulerPoolElement(
     const TString& treeId,
     const NLogging::TLogger& logger)
     : TSchedulerCompositeElement(
-        host,
-        treeHost,
+        strategyHost,
+        treeElementHost,
         std::move(treeConfig),
         treeId,
         id,
@@ -1905,7 +1905,7 @@ void TSchedulerPoolElement::AttachParent(TSchedulerCompositeElement* parent)
 
     parent->AddChild(this);
     Parent_ = parent;
-    TreeHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, parent->ResourceTreeElement_);
+    TreeElementHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, parent->ResourceTreeElement_);
 
     YT_LOG_DEBUG("Pool %Qv is attached to pool %Qv",
         Id_,
@@ -1948,12 +1948,12 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
         CollectResourceTreeOperationElements(&descendantOperationElements);
 
-        TreeHost_->GetResourceTree()->ChangeParent(
+        TreeElementHost_->GetResourceTree()->ChangeParent(
             ResourceTreeElement_,
             newParent->ResourceTreeElement_,
             descendantOperationElements);
     } else {
-        TreeHost_->GetResourceTree()->ChangeParent(
+        TreeElementHost_->GetResourceTree()->ChangeParent(
             ResourceTreeElement_,
             newParent->ResourceTreeElement_,
             /*descendantOperationElements*/ std::nullopt);
@@ -1977,7 +1977,7 @@ void TSchedulerPoolElement::DetachParent()
 
     const auto& oldParentId = Parent_->GetId();
     Parent_->RemoveChild(this);
-    TreeHost_->GetResourceTree()->ScheduleDetachParent(ResourceTreeElement_);
+    TreeElementHost_->GetResourceTree()->ScheduleDetachParent(ResourceTreeElement_);
 
     YT_LOG_DEBUG("Pool is detached (Pool: %v, ParentPool: %v)",
         Id_,
@@ -2061,10 +2061,10 @@ TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerOperationElementSharedState::TSchedulerOperationElementSharedState(
-    ISchedulerStrategyHost* host,
+    ISchedulerStrategyHost* strategyHost,
     int updatePreemptableJobsListLoggingPeriod,
     const NLogging::TLogger& logger)
-    : Host_(host)
+    : StrategyHost_(strategyHost)
     , UpdatePreemptableJobsListLoggingPeriod_(updatePreemptableJobsListLoggingPeriod)
     , Logger(logger)
 { }
@@ -2433,7 +2433,7 @@ TEnumIndexedVector<EDeactivationReason, int> TSchedulerOperationElementSharedSta
 void TSchedulerOperationElementSharedState::ResetDeactivationReasonsFromLastNonStarvingTime()
 {
     int index = 0;
-    for (const auto& invoker : Host_->GetNodeShardInvokers()) {
+    for (const auto& invoker : StrategyHost_->GetNodeShardInvokers()) {
         invoker->Invoke(BIND([this, this_=MakeStrong(this), index] {
             auto& shard = StateShards_[index];
             for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
@@ -2452,7 +2452,7 @@ void TSchedulerOperationElementSharedState::UpdateShardState()
         return;
     }
     int index = 0;
-    for (const auto& invoker : Host_->GetNodeShardInvokers()) {
+    for (const auto& invoker : StrategyHost_->GetNodeShardInvokers()) {
         invoker->Invoke(BIND([this, this_=MakeStrong(this), index] {
             auto& shard = StateShards_[index];
             for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
@@ -2543,7 +2543,7 @@ void TSchedulerOperationElement::Disable(bool markAsNonAlive)
     YT_LOG_DEBUG("Operation element disabled in strategy");
 
     OperationElementSharedState_->Disable();
-    TreeHost_->GetResourceTree()->ReleaseResources(ResourceTreeElement_, markAsNonAlive);
+    TreeElementHost_->GetResourceTree()->ReleaseResources(ResourceTreeElement_, markAsNonAlive);
 }
 
 void TSchedulerOperationElement::Enable()
@@ -2677,14 +2677,14 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-    ISchedulerStrategyHost* host,
-    IFairShareTreeHost* treeHost,
+    ISchedulerStrategyHost* strategyHost,
+    IFairShareTreeElementHost* treeElementHost,
     IOperationStrategyHost* operation,
     const TString& treeId,
     const NLogging::TLogger& logger)
     : TSchedulerElement(
-        host,
-        treeHost,
+        strategyHost,
+        treeElementHost,
         std::move(treeConfig),
         treeId,
         ToString(operation->GetId()),
@@ -2694,7 +2694,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     , RuntimeParameters_(std::move(runtimeParameters))
     , Spec_(std::move(spec))
     , OperationElementSharedState_(New<TSchedulerOperationElementSharedState>(
-        host,
+        strategyHost,
         Spec_->UpdatePreemptableJobsListLoggingPeriod,
         Logger))
     , Controller_(std::move(controller))
@@ -3148,7 +3148,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
                 DetailedMinNeededJobResources_,
                 [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
                     builder->AppendFormat("%v",
-                        Host_->FormatResources(resources));
+                        StrategyHost_->FormatResources(resources));
                 }),
             context->SchedulingContext()->GetNodeDescriptor().Address);
 
@@ -3182,7 +3182,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
 
         if (!acceptPacking) {
             recordHeartbeatWithTimer(*heartbeatSnapshot);
-            TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
+            TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
             deactivateOperationElement(EDeactivationReason::BadPacking);
             context->BadPackingOperations().emplace_back(this);
             FinishScheduleJob(context->SchedulingContext());
@@ -3213,7 +3213,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
             scheduleJobResult);
 
         if (OperationElementSharedState_->Enabled()) {
-            TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
+            TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
         }
 
         FinishScheduleJob(context->SchedulingContext());
@@ -3226,7 +3226,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
         Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
         deactivateOperationElement(EDeactivationReason::OperationDisabled);
         if (OperationElementSharedState_->Enabled()) {
-            TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
+            TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
         }
         FinishScheduleJob(context->SchedulingContext());
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
@@ -3255,7 +3255,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
         context->DynamicAttributesFor(this).SatisfactionRatio,
         context->SchedulingContext()->GetNodeDescriptor().Id,
         startDescriptor.Id,
-        Host_->FormatResources(startDescriptor.ResourceLimits));
+        StrategyHost_->FormatResources(startDescriptor.ResourceLimits));
     return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ true);
 }
 
@@ -3491,7 +3491,7 @@ bool TSchedulerOperationElement::OnJobStarted(
     YT_ELEMENT_LOG_DETAILED(this, "Adding job to strategy (JobId: %v)", jobId);
 
     if (OperationElementSharedState_->AddJob(jobId, resourceUsage, force)) {
-        TreeHost_->GetResourceTree()->CommitHierarchicalResourceUsage(ResourceTreeElement_, resourceUsage, precommittedResources);
+        TreeElementHost_->GetResourceTree()->CommitHierarchicalResourceUsage(ResourceTreeElement_, resourceUsage, precommittedResources);
         UpdatePreemptableJobsList();
         return true;
     } else {
@@ -3701,7 +3701,7 @@ EResourceTreeIncreaseResult TSchedulerOperationElement::TryIncreaseHierarchicalR
     const TJobResources& delta,
     TJobResources* availableResourceLimitsOutput)
 {
-    return TreeHost_->GetResourceTree()->TryIncreaseHierarchicalResourceUsagePrecommit(
+    return TreeElementHost_->GetResourceTree()->TryIncreaseHierarchicalResourceUsagePrecommit(
         ResourceTreeElement_,
         delta,
         availableResourceLimitsOutput);
@@ -3714,7 +3714,7 @@ void TSchedulerOperationElement::AttachParent(TSchedulerCompositeElement* newPar
 
     Parent_ = newParent;
     SlotIndex_ = slotIndex;
-    TreeHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, newParent->ResourceTreeElement_);
+    TreeElementHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, newParent->ResourceTreeElement_);
 
     newParent->IncreaseOperationCount(1);
     newParent->AddChild(this, /* enabled */ false);
@@ -3738,7 +3738,7 @@ void TSchedulerOperationElement::ChangeParent(TSchedulerCompositeElement* parent
     Parent_->RemoveChild(this);
 
     Parent_ = parent;
-    TreeHost_->GetResourceTree()->ChangeParent(
+    TreeElementHost_->GetResourceTree()->ChangeParent(
         ResourceTreeElement_,
         parent->ResourceTreeElement_,
         /*descendantOperationElements*/ std::nullopt);
@@ -3765,7 +3765,7 @@ void TSchedulerOperationElement::DetachParent()
     Parent_->RemoveChild(this);
 
     Parent_ = nullptr;
-    TreeHost_->GetResourceTree()->ScheduleDetachParent(ResourceTreeElement_);
+    TreeElementHost_->GetResourceTree()->ScheduleDetachParent(ResourceTreeElement_);
 
     YT_LOG_DEBUG("Operation detached from pool (Pool: %v)", parentId);
 }
@@ -3905,14 +3905,14 @@ void TSchedulerOperationElement::CollectResourceTreeOperationElements(std::vecto
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerRootElement::TSchedulerRootElement(
-    ISchedulerStrategyHost* host,
-    IFairShareTreeHost* treeHost,
+    ISchedulerStrategyHost* strategyHost,
+    IFairShareTreeElementHost* treeElementHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
     const TString& treeId,
     const NLogging::TLogger& logger)
     : TSchedulerCompositeElement(
-        host,
-        treeHost,
+        strategyHost,
+        treeElementHost,
         treeConfig,
         treeId,
         RootPoolName,
@@ -3957,7 +3957,7 @@ void TSchedulerRootElement::PostUpdate(
     TFairSharePostUpdateContext* postUpdateContext,
 	TManageTreeSchedulingSegmentsContext* manageSegmentsContext)
 {
-    VERIFY_INVOKER_AFFINITY(Host_->GetFairShareUpdateInvoker());
+    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetFairShareUpdateInvoker());
 
     YT_VERIFY(Mutable_);
 
@@ -4098,7 +4098,7 @@ void TSchedulerRootElement::BuildResourceMetering(
     TMeteringMap* meteringMap) const
 {
     auto key = TMeteringKey{
-        .AbcId = Host_->GetDefaultAbcId(),
+        .AbcId = StrategyHost_->GetDefaultAbcId(),
         .TreeId = GetTreeId(),
         .PoolId = GetId(),
     };
