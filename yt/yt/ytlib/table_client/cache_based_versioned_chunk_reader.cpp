@@ -164,20 +164,15 @@ protected:
 
     int GetBlockIndex(TLegacyKey key)
     {
-        const auto& blockIndexKeys = ChunkState_->ChunkMeta->LegacyBlockLastKeys();
+        const auto& blockLastKeys = ChunkState_->ChunkMeta->LegacyBlockLastKeys();
 
-        typedef decltype(blockIndexKeys.end()) TIter;
-        auto rbegin = std::reverse_iterator<TIter>(blockIndexKeys.end());
-        auto rend = std::reverse_iterator<TIter>(blockIndexKeys.begin());
-        auto it = std::upper_bound(
-            rbegin,
-            rend,
-            key,
-            [&] (TLegacyKey pivot, TLegacyKey indexKey) {
-                return ChunkState_->KeyComparer(pivot, indexKey) > 0;
-            });
+        return BinarySearch(
+            blockLastKeys.begin(),
+            blockLastKeys.end(),
+            [&] (const TLegacyKey* pivot) {
+                return ChunkState_->KeyComparer(*pivot, key) < 0;
+            }) - blockLastKeys.begin();
 
-        return it == rend ? 0 : std::distance(it, rend);
     }
 
     const TSharedRef& GetUncompressedBlock(int blockIndex)
@@ -425,13 +420,14 @@ private:
     TVersionedRow LookupWithoutHashTable(TLegacyKey key)
     {
         // FIXME(savrus): Use bloom filter here.
-        auto cmpMinKey = this->ChunkState_->KeyComparer(key, this->ChunkState_->ChunkMeta->MinKey());
-        auto cmpMaxKey = this->ChunkState_->KeyComparer(key, this->ChunkState_->ChunkMeta->MaxKey());
-        if (cmpMinKey < 0 || cmpMaxKey > 0) {
+
+        int blockIndex = this->GetBlockIndex(key);
+        auto blockCount = this->ChunkState_->ChunkMeta->BlockMeta()->blocks_size();
+
+        if (blockIndex >= blockCount) {
             return TVersionedRow();
         }
 
-        int blockIndex = this->GetBlockIndex(key);
         const auto& uncompressedBlock = this->GetUncompressedBlock(blockIndex);
         const auto& blockMeta = this->ChunkState_->ChunkMeta->BlockMeta()->blocks(blockIndex);
 
@@ -547,6 +543,7 @@ private:
 
     TSharedRange<TRowRange> ClippingRange_;
 
+    // Returns false if finished.
     bool UpdateLimits()
     {
         if (RangeIndex_ >= Ranges_.Size()) {
@@ -570,12 +567,13 @@ private:
 
         ++RangeIndex_;
 
-        // First read, not initialized yet.
-        if (LowerBound_ > this->ChunkState_->ChunkMeta->MaxKey()) {
+        auto newBlockIndex = this->GetBlockIndex(LowerBound_);
+        auto blockCount = this->ChunkState_->ChunkMeta->BlockMeta()->blocks_size();
+
+        if (newBlockIndex >= blockCount) {
             return false;
         }
 
-        auto newBlockIndex = this->GetBlockIndex(LowerBound_);
         if (newBlockIndex != BlockIndex_) {
             BlockIndex_ = newBlockIndex;
             UpdateBlockReader();
