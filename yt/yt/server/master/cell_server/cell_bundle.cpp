@@ -122,24 +122,35 @@ void TCellBundle::InitializeProfilingCounters()
     ProfilingCounters_.PeerAssignment = profiler.Counter("/tablet_tracker/peer_assignment");
 }
 
-TCounter& TCellBundleProfilingCounters::GetLeaderReassignment(const TString& reason)
+TString TCellBundleProfilingCounters::FormatErrorCode(TErrorCode errorCode)
 {
-    auto it = LeaderReassignment.find(reason);
+    auto enumValue = static_cast<EErrorCode>(static_cast<int>(errorCode));
+    if (TEnumTraits<EErrorCode>::FindLiteralByValue(enumValue) != nullptr) {
+        return Format("%lv", enumValue);
+    }
+    return Format("%lv", NYT::EErrorCode::Generic);
+}
+
+TCounter& TCellBundleProfilingCounters::GetLeaderReassignment(TErrorCode errorCode)
+{
+    auto it = LeaderReassignment.find(errorCode);
     if (it == LeaderReassignment.end()) {
         it = LeaderReassignment.emplace(
-            reason,
-            Profiler.WithTag("reason", reason).Counter("/tablet_tracker/leader_reassignment")).first;
+            errorCode,
+            Profiler.WithTag("error_code", FormatErrorCode(errorCode))
+                .Counter("/tablet_tracker/leader_reassignment")).first;
     }
     return it->second;
 }
 
-TCounter& TCellBundleProfilingCounters::GetPeerRevocation(const TString& reason)
+TCounter& TCellBundleProfilingCounters::GetPeerRevocation(TErrorCode errorCode)
 {
-    auto it = PeerRevocation.find(reason);
+    auto it = PeerRevocation.find(errorCode);
     if (it == PeerRevocation.end()) {
         it = PeerRevocation.emplace(
-            reason,
-            Profiler.WithTag("reason", reason).Counter("/tablet_tracker/peer_revocation")).first;
+            errorCode,
+            Profiler.WithTag("error_code", FormatErrorCode(errorCode))
+                .Counter("/tablet_tracker/peer_revocation")).first;
     }
     return it->second;
 }
