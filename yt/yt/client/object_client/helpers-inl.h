@@ -29,6 +29,11 @@ inline ui64 CounterFromId(TObjectId id)
     return result;
 }
 
+inline ui32 HashFromId(TObjectId id)
+{
+    return id.Parts32[0];
+}
+
 inline EObjectType SchemaTypeFromType(EObjectType type)
 {
     YT_ASSERT(HasSchema(type));

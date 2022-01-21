@@ -34,6 +34,8 @@ public:
     using TReplicas = THashMap<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicas, Replicas);
 
+    DEFINE_BYVAL_RW_PROPERTY(NChaosClient::TReplicaIdIndex, CurrentReplicaIdIndex)
+
     using TCoordinators = THashMap<NObjectClient::TCellId, TCoordinatorInfo>;
     DEFINE_BYREF_RW_PROPERTY(TCoordinators, Coordinators);
 

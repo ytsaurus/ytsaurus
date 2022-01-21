@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/yson/public.h>
 
-#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <yt_proto/yt/client/chaos_client/proto/replication_card.pb.h>
 
@@ -16,11 +16,19 @@ void Serialize(const TReplicationProgress& replicationProgress, NYson::IYsonCons
 void Serialize(const TReplicaHistoryItem& replicaHistoryItem, NYson::IYsonConsumer* consumer);
 void Serialize(
     const TReplicaInfo& replicaInfo,
+    NYTree::TFluentMap fluent,
+    const TReplicationCardFetchOptions& options = {});
+void Serialize(
+    const TReplicaInfo& replicaInfo,
     NYson::IYsonConsumer* consumer,
     const TReplicationCardFetchOptions& options = {});
 void Serialize(
     const TReplicationCard& replicationCard,
     NYson::IYsonConsumer* consumer,
+    const TReplicationCardFetchOptions& options = {});
+void Serialize(
+    const TReplicationCard& replicationCard,
+    NYTree::TFluentMap fluent,
     const TReplicationCardFetchOptions& options = {});
 
 void Deserialize(TReplicationProgress& replicationProgress, NYTree::INodePtr node);

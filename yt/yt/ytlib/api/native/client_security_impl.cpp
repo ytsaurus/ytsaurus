@@ -1,5 +1,7 @@
 #include "client_impl.h"
 
+#include "ypath_helpers.h"
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/security_client/helpers.h>
@@ -31,28 +33,6 @@ using namespace NTabletClient;
 using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-bool TryParseObjectId(const TYPath& path, TObjectId* objectId)
-{
-    NYPath::TTokenizer tokenizer(path);
-    if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
-        return false;
-    }
-
-    auto token = tokenizer.GetToken();
-    if (!token.StartsWith(ObjectIdPathPrefix)) {
-        return false;
-    }
-
-    *objectId = TObjectId::FromString(token.SubString(
-        ObjectIdPathPrefix.length(),
-        token.length() - ObjectIdPathPrefix.length()));
-    return true;
-}
-
-} // namespace
 
 TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     const std::optional<TString>& user,

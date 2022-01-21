@@ -42,17 +42,19 @@ void TReplicationCard::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, Replicas_);
+    Save(context, CurrentReplicaIdIndex_);
     Save(context, Coordinators_);
     Save(context, Era_);
 }
 
 void TReplicationCard::Load(TLoadContext& context)
 {
-   using NYT::Load;
+    using NYT::Load;
 
-   Load(context, Replicas_);
-   Load(context, Coordinators_);
-   Load(context, Era_);
+    Load(context, Replicas_);
+    Load(context, CurrentReplicaIdIndex_);
+    Load(context, Coordinators_);
+    Load(context, Era_);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)

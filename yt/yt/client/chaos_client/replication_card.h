@@ -88,6 +88,7 @@ struct TReplicationCard
 
     //! Returns pointer to replica with a given id, nullptr if none.
     TReplicaInfo* FindReplica(TReplicaId replicaId);
+    TReplicaInfo* GetReplicaOrThrow(TReplicaId replicaId, TReplicationCardId replicationCardId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationCard)

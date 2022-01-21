@@ -538,11 +538,16 @@ public:
 private:
     friend class TTransaction;
     friend class TNodeConcatenator;
+    friend class TReplicatedTableReplicaTypeHandler;
+    friend class TReplicationCardTypeHandler;
+    friend class TDefaultTypeHandler;
 
     const IConnectionPtr Connection_;
     const TClientOptions Options_;
 
     const NLogging::TLogger Logger;
+
+    const std::vector<ITypeHandlerPtr> TypeHandlers_;
 
     TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
@@ -578,7 +583,7 @@ private:
         const TDetailedProfilingInfoPtr& profilingInfo,
         T&& callback) -> decltype(callback());
 
-    static void SetMutationId(
+    void SetMutationId(
         const NRpc::IClientRequestPtr& request,
         const TMutatingOptions& options);
     NTransactionClient::TTransactionId GetTransactionId(
@@ -591,10 +596,9 @@ private:
     void SetPrerequisites(
         const NRpc::IClientRequestPtr& request,
         const TPrerequisiteOptions& options);
-    static void SetSuppressAccessTracking(
+    void SetSuppressAccessTracking(
         const NRpc::IClientRequestPtr& request,
         const TSuppressableAccessTrackingOptions& commandOptions);
-
     void SetCachingHeader(
         const NRpc::IClientRequestPtr& request,
         const TMasterReadOptions& options);

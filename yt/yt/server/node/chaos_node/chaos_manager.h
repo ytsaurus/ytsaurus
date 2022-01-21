@@ -49,6 +49,7 @@ struct IChaosManager
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ReplicationCard, TReplicationCard);
+    virtual TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

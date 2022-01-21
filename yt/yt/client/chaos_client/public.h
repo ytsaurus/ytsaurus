@@ -13,9 +13,12 @@ namespace NYT::NChaosClient {
 using TReplicationCardId = NObjectClient::TObjectId;
 using TReplicaId = NObjectClient::TObjectId;
 using TReplicationEra = ui64;
+using TReplicaIdIndex = ui16;
 
 constexpr TReplicationEra InvalidReplicationEra = static_cast<TReplicationEra>(-1);
 constexpr TReplicationEra InitialReplicationEra = 0;
+
+constexpr int MaxReplicasPerReplicationCard = 128;
 
 DECLARE_REFCOUNTED_STRUCT(TReplicationCard)
 
