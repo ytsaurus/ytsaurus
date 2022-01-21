@@ -74,7 +74,7 @@ struct ITaskHost
     virtual const TControllerAgentConfigPtr& GetConfig() const = 0;
     virtual const TOperationSpecBasePtr& GetSpec() const = 0;
 
-    virtual void OnOperationFailed(const TError& error, bool flush = true) = 0;
+    virtual void OnOperationFailed(const TError& error, bool flush = true, bool abortAllJoblets = true) = 0;
 
     //! If |true| then all jobs started within the operation must
     //! preserve row count. This invariant is checked for each completed job.

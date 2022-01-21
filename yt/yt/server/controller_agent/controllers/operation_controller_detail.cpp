@@ -3165,6 +3165,8 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     TJobFinishedResult taskResult;
 
+    std::vector<TChunkId> failedChunkIds;
+
     {
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -3191,9 +3193,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         if (abortReason == EAbortReason::FailedChunks) {
             const auto& result = jobSummary->Result;
             const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            for (auto chunkId : schedulerResultExt.failed_chunk_ids()) {
-                OnChunkFailed(FromProto<TChunkId>(chunkId));
-            }
+            failedChunkIds = FromProto<std::vector<TChunkId>>(schedulerResultExt.failed_chunk_ids());
         }
 
         taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
@@ -3205,6 +3205,10 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     ProcessJobFinishedResult(taskResult);
+
+    for (auto chunkId : failedChunkIds) {
+        OnChunkFailed(chunkId);
+    }
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart && !IsJobAbsenceGuaranteed(abortReason))
@@ -5104,7 +5108,7 @@ void TOperationControllerBase::OnOperationCompleted(bool /*interrupted*/)
     Host->OnOperationCompleted();
 }
 
-void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
+void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush, bool abortAllJoblets)
 {
     VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
 
@@ -5117,7 +5121,9 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
         }
         State = EControllerState::Failed;
 
-        AbortAllJoblets(EAbortReason::OperationFailed);
+        if (abortAllJoblets) {
+            AbortAllJoblets(EAbortReason::OperationFailed);
+            }
 
         for (const auto& task : Tasks) {
             task->StopTiming();
@@ -5203,7 +5209,12 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
 
     if (hasJobsToFail) {
         TDelayedExecutor::MakeDelayed(Spec_->TimeLimitJobFailTimeout)
-            .Apply(BIND(&TOperationControllerBase::OnOperationFailed, MakeWeak(this), error, /* flush */ true)
+            .Apply(BIND(
+                &TOperationControllerBase::OnOperationFailed,
+                MakeWeak(this),
+                error,
+                /*flush*/ true,
+                /*abortAllJoblets*/ true)
             .Via(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default)));
     } else {
         OnOperationFailed(error, /* flush */ true);
@@ -5264,7 +5275,7 @@ void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
 
     YT_LOG_ERROR(error);
 
-    OnOperationFailed(error);
+    OnOperationFailed(error, /*flush*/ false, /*abortAllJoblets*/ false);
 }
 
 void TOperationControllerBase::ProcessSafeException(const TAssertionFailedException& ex)
@@ -5281,7 +5292,7 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
 
     YT_LOG_ERROR(error);
 
-    OnOperationFailed(error);
+    OnOperationFailed(error, /*flush*/ false, /*abortAllJoblets*/ false);
 }
 
 void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summary, bool retainJob)
@@ -10204,7 +10215,8 @@ void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
             &TOperationControllerBase::OnOperationFailed,
             MakeWeak(this),
             TError("Test operation failure"),
-            /*flush*/ false));
+            /*flush*/ false,
+            /*abortAllJoblets*/ false));
         YT_LOG_INFO("Making test cancelation (CancelationStage: %v)", cancelationStage);
         Cancel();
     }
@@ -10302,7 +10314,12 @@ void TOperationControllerBase::OnMemoryLimitExceeded(const TError& error)
 
     MemoryLimitExceeded_ = true;
 
-    GetInvoker()->Invoke(BIND(&TOperationControllerBase::OnOperationFailed, MakeWeak(this), error, /*flush*/ true));
+    GetInvoker()->Invoke(BIND(
+        &TOperationControllerBase::OnOperationFailed,
+        MakeWeak(this),
+        error,
+        /*flush*/ true,
+        /*abortAllJoblets*/ true));
 }
 
 bool TOperationControllerBase::IsMemoryLimitExceeded() const
