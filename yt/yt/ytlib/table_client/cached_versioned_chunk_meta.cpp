@@ -83,12 +83,6 @@ void TCachedVersionedChunkMeta::Init(
     ValidateChunkMeta();
     ValidateSchema(*schema);
 
-    auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
-    if (boundaryKeysExt) {
-        MinKey_ = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt->min()), GetKeyColumnCount());
-        MaxKey_ = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt->max()), GetKeyColumnCount());
-    }
-
     if (auto optionalHunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkMeta.extensions())) {
         HunkChunkRefsExt_ = std::move(*optionalHunkChunkRefsExt);
     }
@@ -178,8 +172,6 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
 {
     return TColumnarChunkMeta::GetMemoryUsage()
-        + MinKey_.GetSpaceUsed()
-        + MaxKey_.GetSpaceUsed()
         + PreparedMetaSize_;
 }
 
