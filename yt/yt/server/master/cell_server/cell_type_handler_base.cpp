@@ -22,28 +22,28 @@ namespace NYT::NCellServer {
 using namespace NHydra;
 using namespace NObjectServer;
 using namespace NTransactionServer;
-using namespace NYTree;
 using namespace NCellMaster;
 using namespace NCellarAgent;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>
-NObjectServer::ETypeFlags TCellTypeHandlerBase<TImpl>::GetFlags() const
+ETypeFlags TCellTypeHandlerBase<TImpl>::GetFlags() const
 {
     return
-        NObjectServer::ETypeFlags::ReplicateCreate |
-        NObjectServer::ETypeFlags::ReplicateDestroy |
-        NObjectServer::ETypeFlags::ReplicateAttributes |
-        NObjectServer::ETypeFlags::Creatable |
+        ETypeFlags::ReplicateCreate |
+        ETypeFlags::ReplicateDestroy |
+        ETypeFlags::ReplicateAttributes |
+        ETypeFlags::Creatable |
         // XXX(babenko): two phase
-        NObjectServer::ETypeFlags::Removable;
+        ETypeFlags::Removable;
 }
 
 template <class TImpl>
-NObjectServer::TObject* TCellTypeHandlerBase<TImpl>::DoCreateObject(
-    std::unique_ptr<TCellBase> holder,
-    NYTree::IAttributeDictionary* attributes)
+TImpl* TCellTypeHandlerBase<TImpl>::DoCreateObject(
+    TObjectId id,
+    IAttributeDictionary* attributes)
 {
     auto cellBundleName = attributes->FindAndRemove<TString>("cell_bundle");
     auto tabletCellBundleName = attributes->FindAndRemove<TString>("tablet_cell_bundle");
@@ -54,24 +54,29 @@ NObjectServer::TObject* TCellTypeHandlerBase<TImpl>::DoCreateObject(
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
     auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(
         cellBundleName.value_or(tabletCellBundleName.value_or(DefaultCellBundleName)),
-        GetCellarTypeFromCellId(holder->GetId()),
+        GetCellarTypeFromCellId(id),
         /*activeLifeStageOnly*/ true);
 
     auto areaName = attributes->GetAndRemove<TString>("area", DefaultAreaName);
     auto* area = cellBundle->GetAreaOrThrow(areaName);
 
-    return cellManager->CreateCell(cellBundle, area, std::move(holder));
+    auto cellHolder = TPoolAllocator::New<TImpl>(id);
+    auto* cell = cellHolder.get();
+
+    cellManager->CreateCell(cellBundle, area, std::move(cellHolder));
+
+    return cell;
 }
 
 template <class TImpl>
-NObjectServer::TObject* TCellTypeHandlerBase<TImpl>::FindObject(NObjectClient::TObjectId id)
+TObject* TCellTypeHandlerBase<TImpl>::FindObject(TObjectId id)
 {
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
     return cellManager->FindCell(id);
 }
 
 template <class TImpl>
-NObjectClient::TCellTagList TCellTypeHandlerBase<TImpl>::DoGetReplicationCellTags(const TImpl* /*cell*/)
+TCellTagList TCellTypeHandlerBase<TImpl>::DoGetReplicationCellTags(const TImpl* /*cell*/)
 {
     return TBase::AllSecondaryCellTags();
 }

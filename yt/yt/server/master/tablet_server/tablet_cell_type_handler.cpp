@@ -25,9 +25,7 @@ class TTabletCellTypeHandler
     : public TCellTypeHandlerBase<TTabletCell>
 {
 public:
-    explicit TTabletCellTypeHandler(TBootstrap* bootstrap)
-        : TBase(bootstrap)
-    { }
+    using TCellTypeHandlerBase::TCellTypeHandlerBase;
 
     EObjectType GetType() const override
     {
@@ -40,9 +38,11 @@ public:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCell, hintId);
-        auto holder = TPoolAllocator::New<TTabletCell>(id);
-        holder->GossipStatistics().Initialize(Bootstrap_);
-        return DoCreateObject(std::move(holder), attributes);
+
+        auto* cell = DoCreateObject(id, attributes);
+        cell->GossipStatistics().Initialize(Bootstrap_);
+
+        return cell;
     }
 
 private:
