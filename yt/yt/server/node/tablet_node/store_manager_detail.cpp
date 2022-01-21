@@ -7,6 +7,7 @@
 #include "structured_logger.h"
 #include "in_memory_manager.h"
 #include "transaction.h"
+#include "serialize.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -17,6 +18,8 @@
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/core/utilex/random.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NTabletNode {
 
@@ -216,6 +219,12 @@ void TStoreManagerBase::DiscardAllStores()
 
     for (const auto& store : storesToRemove) {
         RemoveStore(store);
+    }
+
+    // COMPAT(ifsmirnov)
+    const auto* context = GetCurrentMutationContext();
+    if (context->Request().Reign >= ToUnderlying(ETabletReign::DiscardStoresRevision)) {
+        Tablet_->SetLastDiscardStoresRevision(context->GetVersion().ToRevision());
     }
 }
 

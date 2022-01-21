@@ -66,6 +66,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp, NullTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, PrepareRevision, NHydra::NullRevision);
 
     DEFINE_BYREF_RW_PROPERTY(TRingQueue<TSortedDynamicRowRef>, PrelockedRows);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSortedDynamicRowRef>, LockedRows);

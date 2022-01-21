@@ -93,6 +93,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, StartTimestamp_);
     Save(context, GetPersistentPrepareTimestamp());
     Save(context, CommitTimestamp_);
+    Save(context, PrepareRevision_);
     Save(context, PersistentSignature_);
     Save(context, PersistentGeneration_);
     Save(context, RowsPrepared_);
@@ -113,6 +114,10 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
     Load(context, CommitTimestamp_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::DiscardStoresRevision) {
+        Load(context, PrepareRevision_);
+    }
     Load(context, PersistentSignature_);
     TransientSignature_ = PersistentSignature_;
     // COMPAT(max42)
