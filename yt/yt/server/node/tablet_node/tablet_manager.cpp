@@ -1500,6 +1500,28 @@ private:
             updateReason);
     }
 
+    void BackoffStoreRemoval(TTablet* tablet, const IStorePtr& store)
+    {
+        switch (store->GetType()) {
+            case EStoreType::SortedDynamic:
+            case EStoreType::OrderedDynamic:
+                store->SetStoreState(EStoreState::PassiveDynamic);
+                break;
+            case EStoreType::SortedChunk:
+            case EStoreType::OrderedChunk:
+                store->SetStoreState(EStoreState::Persistent);
+                break;
+            default:
+                YT_ABORT();
+        }
+
+        tablet->GetStructuredLogger()->OnStoreStateChanged(store);
+
+        if (IsLeader()) {
+            tablet->GetStoreManager()->BackoffStoreRemoval(store);
+        }
+    }
+
     void HydraAbortUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -1512,8 +1534,6 @@ private:
         if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
-
-        const auto& structuredLogger = tablet->GetStructuredLogger();
 
         THashSet<TChunkId> hunkChunkIdsToAdd;
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
@@ -1537,31 +1557,10 @@ private:
             }
         }
 
-        const auto& storeManager = tablet->GetStoreManager();
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
-            auto store = tablet->FindStore(storeId);
-            if (!store) {
-                continue;
-            }
-
-            switch (store->GetType()) {
-                case EStoreType::SortedDynamic:
-                case EStoreType::OrderedDynamic:
-                    store->SetStoreState(EStoreState::PassiveDynamic);
-                    break;
-                case EStoreType::SortedChunk:
-                case EStoreType::OrderedChunk:
-                    store->SetStoreState(EStoreState::Persistent);
-                    break;
-                default:
-                    YT_ABORT();
-            }
-
-            structuredLogger->OnStoreStateChanged(store);
-
-            if (IsLeader()) {
-                storeManager->BackoffStoreRemoval(store);
+            if (auto store = tablet->FindStore(storeId)) {
+                BackoffStoreRemoval(tablet, store);
             }
         }
 
@@ -1601,6 +1600,41 @@ private:
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
+        }
+
+        if (auto discardStoresRevision = tablet->GetLastDiscardStoresRevision()) {
+            auto prepareRevision = transaction->GetPrepareRevision();
+            if (prepareRevision < discardStoresRevision) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Tablet stores update commit interrupted by stores discard, ignored "
+                    "(%v, TransactionId: %v, DiscardStoresRevision: %llx, "
+                    "PrepareUpdateTabletStoresRevision: %llx)",
+                    tablet->GetLoggingTag(),
+                    transaction->GetId(),
+                    discardStoresRevision,
+                    prepareRevision);
+
+                // Validate that all prepared-for-removal stores were indeed discarded.
+                for (const auto& descriptor : request->stores_to_remove()) {
+                    auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                    if (const auto& store = tablet->FindStore(storeId)) {
+                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                            "Store prepared for removal was not discarded while tablet "
+                            "stores update commit was interrupted by the discard "
+                            "(%v, StoreId: %v, TransactionId: %v, DiscardStoresRevision: %llx, "
+                            "PrepareUpdateTabletStoresRevision: %llx)",
+                            tablet->GetLoggingTag(),
+                            storeId,
+                            transaction->GetId(),
+                            discardStoresRevision,
+                            prepareRevision);
+
+                        BackoffStoreRemoval(tablet, store);
+                    }
+                }
+
+                return;
+            }
         }
 
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());

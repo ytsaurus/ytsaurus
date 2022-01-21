@@ -352,6 +352,14 @@ public:
                 signature);
         }
 
+        if (persistent) {
+            const auto* context = GetCurrentMutationContext();
+            // COMPAT(ifsmirnov)
+            if (context->Request().Reign >= ToUnderlying(ETabletReign::DiscardStoresRevision)) {
+                transaction->SetPrepareRevision(context->GetVersion().ToRevision());
+            }
+        }
+
         if (state == ETransactionState::Active) {
             YT_VERIFY(transaction->GetPrepareTimestamp() == NullTimestamp);
             transaction->SetPrepareTimestamp(prepareTimestamp);

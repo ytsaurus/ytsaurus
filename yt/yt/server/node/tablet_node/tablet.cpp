@@ -636,6 +636,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, ChaosData_->CurrentReplicationRowIndexes);
     Save(context, BackupCheckpointTimestamp_);
     Save(context, BackupStage_);
+    Save(context, LastDiscardStoresRevision_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -763,6 +764,11 @@ void TTablet::Load(TLoadContext& context)
     if (context.GetVersion() >= ETabletReign::BackupsSorted) {
         Load(context, BackupCheckpointTimestamp_);
         Load(context, BackupStage_);
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::DiscardStoresRevision) {
+        Load(context, LastDiscardStoresRevision_);
     }
 
     UpdateOverlappingStoreCount();

@@ -32,6 +32,7 @@ DEFINE_ENUM(ETabletReign,
     ((VersionedWriteToOrderedTablet)      (100205)) // gritukan
     // 21.3 starts here.
     ((WriteGenerations)                   (100301)) // max42
+    ((DiscardStoresRevision)              (100302)) // ifsmirnov
     // 22.1 starts here.
     ((NewLockMasks)                       (100400)) // gritukan
     ((Chaos)                              (100401)) // savrus

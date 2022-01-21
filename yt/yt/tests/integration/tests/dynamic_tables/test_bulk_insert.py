@@ -1242,6 +1242,29 @@ class TestBulkInsert(DynamicTablesBase):
         _check(rows, ts_after)
         _check(rows, None)
 
+    def test_overwrite_interferes_with_compaction(self):
+        if self.ENABLE_TMP_PORTAL:
+            pytest.skip("No reason to run this rather long test with portals")
+        sync_create_cells(1)
+
+        pivot_keys = [[]] + [[i] for i in range(1, 10)]
+
+        self._create_simple_dynamic_table(
+            "//tmp/t_output",
+            pivot_keys=pivot_keys,
+            auto_compaction_period=0)
+        sync_mount_table("//tmp/t_output")
+
+        create("table", "//tmp/t_input", schema=get("//tmp/t_output/@schema"))
+
+        for attempt in range(10):
+            rows = [{"key": attempt * 1000 + i, "value": str(i)} for i in range(10)]
+            write_table("//tmp/t_input", rows)
+
+            merge(in_="//tmp/t_input", out="//tmp/t_output", mode="ordered")
+            assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+            assert read_table("//tmp/t_output") == rows
+
 ##################################################################
 
 
