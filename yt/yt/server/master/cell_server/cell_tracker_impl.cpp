@@ -338,7 +338,7 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell)
 
     cell->GetCellBundle()
         ->ProfilingCounters()
-        .GetLeaderReassignment(error.GetMessage())
+        .GetLeaderReassignment(error.GetCode())
         .Increment();
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
@@ -442,7 +442,7 @@ void TCellTrackerImpl::SchedulePeerRevocation(
 
             cell->GetCellBundle()
                 ->ProfilingCounters()
-                .GetPeerRevocation(error.GetMessage())
+                .GetPeerRevocation(error.GetCode())
                 .Increment();
         }
     }

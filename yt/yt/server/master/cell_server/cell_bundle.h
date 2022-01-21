@@ -37,13 +37,15 @@ struct TCellBundleProfilingCounters
 
     NProfiling::TProfiler Profiler;
 
-    THashMap<TString, NProfiling::TCounter> LeaderReassignment;
+    static TString FormatErrorCode(TErrorCode errorCode);
 
-    NProfiling::TCounter& GetLeaderReassignment(const TString& reason);
+    THashMap<TErrorCode, NProfiling::TCounter> LeaderReassignment;
 
-    THashMap<TString, NProfiling::TCounter> PeerRevocation;
+    NProfiling::TCounter& GetLeaderReassignment(TErrorCode errorCode);
 
-    NProfiling::TCounter& GetPeerRevocation(const TString& reason);
+    THashMap<TErrorCode, NProfiling::TCounter> PeerRevocation;
+
+    NProfiling::TCounter& GetPeerRevocation(TErrorCode errorCode);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
