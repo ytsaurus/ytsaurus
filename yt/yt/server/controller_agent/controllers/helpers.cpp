@@ -76,15 +76,42 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
     return dataSourceDirectory;
 }
 
+NChunkClient::TDataSink BuildDataSinkFromOutputTable(const TOutputTablePtr& outputTable)
+{
+    TDataSink dataSink;
+    dataSink.SetPath(outputTable->GetPath());
+    dataSink.SetObjectId(outputTable->ObjectId);
+    dataSink.SetAccount(outputTable->Account);
+    return dataSink;
+}
+
 TDataSinkDirectoryPtr BuildDataSinkDirectoryFromOutputTables(const std::vector<TOutputTablePtr>& outputTables)
 {
     auto dataSinkDirectory = New<TDataSinkDirectory>();
     dataSinkDirectory->DataSinks().reserve(outputTables.size());
     for (const auto& outputTable : outputTables) {
-        auto& dataSink = dataSinkDirectory->DataSinks().emplace_back();
-        dataSink.SetPath(outputTable->GetPath());
-        dataSink.SetObjectId(outputTable->ObjectId);
-        dataSink.SetAccount(outputTable->Account);
+        dataSinkDirectory->DataSinks().push_back(BuildDataSinkFromOutputTable(outputTable));
+    }
+    return dataSinkDirectory;
+}
+
+NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryWithAutoMerge(
+    const std::vector<TOutputTablePtr>& outputTables,
+    const std::vector<bool>& autoMergeEnabled,
+    const std::optional<TString>& intermediateAccountName)
+{
+    auto dataSinkDirectory = New<TDataSinkDirectory>();
+    dataSinkDirectory->DataSinks().reserve(outputTables.size());
+    YT_VERIFY(ssize(outputTables) == ssize(autoMergeEnabled));
+    for (int index = 0; index < ssize(outputTables); ++index) {
+        const auto& outputTable = outputTables[index];
+        if (autoMergeEnabled[index]) {
+            auto& dataSink = dataSinkDirectory->DataSinks().emplace_back();
+            dataSink.SetPath(GetIntermediatePath(index));
+            dataSink.SetAccount(intermediateAccountName ? intermediateAccountName : outputTable->Account);
+        } else {
+            dataSinkDirectory->DataSinks().push_back(BuildDataSinkFromOutputTable(outputTable));
+        }
     }
     return dataSinkDirectory;
 }

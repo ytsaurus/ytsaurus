@@ -988,6 +988,211 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert read_table("//tmp/table") == table_output_data
 
     @authors("gepardo")
+    @pytest.mark.parametrize("merge_type", ["shallow", "deep"])
+    def test_auto_merge_simple(self, merge_type):
+        row_count = 4
+        table_data = [{"a": i} for i in range(row_count)]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        write_table("//tmp/table_in", table_data)
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = yt_commands.map(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            command="cat",
+            reduce_by=["a"],
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "max_intermediate_chunk_count": 100,
+                    "chunk_count_per_merge_job": 4,
+                    "enable_shallow_merge": merge_type == "shallow",
+                },
+                "data_size_per_job": 1,
+            },
+        )
+        raw_events, _ = self.wait_for_events(raw_count=13, from_barrier=from_barrier)
+
+        merge_job_type = "ShallowMerge" if merge_type == "shallow" else "UnorderedMerge"
+        read_event_count = 0
+        write_event_count = 0
+        map_event_count = 0
+        auto_merge_event_count = 0
+
+        for event in raw_events:
+            assert event["pool_tree@"] == "default"
+            assert event["operation_id"] == op.id
+            assert event["operation_type@"] == "Map"
+            assert "job_id" in event
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
+            assert event["user@"] == "job:root"
+            assert event["data_node_method@"] in {"GetBlockSet", "GetBlockRange", "FinishChunk"}
+            assert event["task_name@"] in ["Map + AutoMergeableOutputMixin", "AutoMerge"]
+            assert event["account@"] == "tmp"
+
+            is_read = event["data_node_method@"] in {"GetBlockSet", "GetBlockRange"}
+            is_auto_merge = event["task_name@"] == "AutoMerge"
+            is_intermediate = (is_read and is_auto_merge) or (not is_read and not is_auto_merge)
+
+            if is_auto_merge:
+                auto_merge_event_count += 1
+                assert event["job_type@"] == merge_job_type
+            else:
+                map_event_count += 1
+                assert event["job_type@"] == "Map"
+
+            if is_read:
+                read_event_count += 1
+            else:
+                write_event_count += 1
+
+            if is_intermediate:
+                assert "object_id" not in event
+                assert event["object_path"] == "<intermediate_0>"
+            else:
+                assert "object_id" in event
+                assert event["object_path"] in ["//tmp/table_in", "//tmp/table_out"]
+
+        assert read_event_count == 8
+        assert write_event_count == 5
+        assert map_event_count == 8
+        assert auto_merge_event_count == 5
+
+    @authors("gepardo")
+    @pytest.mark.parametrize("merge_type", ["shallow", "deep"])
+    @pytest.mark.parametrize("op_type", ["map", "reduce"])
+    def test_auto_merge_two_tables(self, merge_type, op_type):
+        create_account("gepardo")
+
+        row_count = 12
+        table_data = [{"a": i} for i in range(row_count)]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in",
+               attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/table_out1",
+               attributes={"schema": [{"name": "a", "type": "int64"}]})
+        create("table", "//tmp/table_out2",
+               attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table(
+            "//tmp/table_in",
+            table_data,
+            max_row_buffer_size=1,
+            table_writer={"desired_chunk_size": 1})
+        raw_events, _ = self.wait_for_events(raw_count=12, from_barrier=from_barrier)
+        chunk_ids = get("//tmp/table_in/@chunk_ids")
+        assert len(chunk_ids) == 12
+        for event in raw_events:
+            assert event["data_node_method@"] == "FinishChunk"
+            assert event["chunk_id"] in chunk_ids
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        run_op = yt_commands.map if op_type == "map" else reduce
+        table_format = "<columns=[a];enable_string_to_all_conversion=%true;>schemaful_dsv"
+        op = run_op(
+            in_="//tmp/table_in",
+            out=["//tmp/table_out1", "//tmp/table_out2"],
+            command="read x; echo $x >&$(($x % 2 * 3 + 1))",
+            reduce_by=["a"],  # ignored for maps
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "max_intermediate_chunk_count": 100,
+                    "chunk_count_per_merge_job": 3,
+                    "use_intermediate_data_account": True,
+                    "enable_shallow_merge": merge_type == "shallow",
+                },
+                "mapper": {"format": yson.loads(table_format)},
+                "reducer": {"format": yson.loads(table_format)},
+                "data_size_per_job": 1,
+                "intermediate_data_account": "gepardo",
+            },
+        )
+        raw_events, _ = self.wait_for_events(raw_count=40, from_barrier=from_barrier)
+
+        read_events = []
+        read_auto_merge_events = []
+        write_events = []
+        write_auto_merge_events = []
+        read_event_count = 0
+        write_event_count = 0
+        operation_type = "Map" if op_type == "map" else "Reduce"
+        job_type = "Map" if op_type == "map" else "SortedReduce"
+        merge_job_type = "ShallowMerge" if merge_type == "shallow" else "UnorderedMerge"
+        task_name = "Map + AutoMergeableOutputMixin" if op_type == "map" else "SortedReduce + AutoMergeableOutputMixin"
+        for event in raw_events:
+            assert event["pool_tree@"] == "default"
+            assert event["operation_id"] == op.id
+            assert event["operation_type@"] == operation_type
+            assert "job_id" in event
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
+            assert event["user@"] == "job:root"
+            assert event["data_node_method@"] in {"GetBlockSet", "GetBlockRange", "FinishChunk"}
+            assert event["task_name@"] in [task_name, "AutoMerge"]
+            is_auto_merge = event["task_name@"] == "AutoMerge"
+            if is_auto_merge:
+                assert event["job_type@"] == merge_job_type
+            else:
+                assert event["job_type@"] == job_type
+            if event["data_node_method@"] in {"GetBlockSet", "GetBlockRange"}:
+                read_event_count += 1
+                if is_auto_merge:
+                    read_auto_merge_events.append(event)
+                else:
+                    read_events.append(event)
+            else:
+                write_event_count += 1
+                if is_auto_merge:
+                    write_auto_merge_events.append(event)
+                else:
+                    write_events.append(event)
+
+        assert read_event_count == 24
+        assert len(read_events) == 12
+        assert len(read_auto_merge_events) == 12
+        assert write_event_count == 16
+        assert len(write_events) == 12
+        assert len(write_auto_merge_events) == 4
+
+        intermediate_reads = set()
+        intermediate_writes = set()
+
+        for event in read_events:
+            assert "object_id" in event
+            assert event["account@"] == "tmp"
+            assert event["object_path"] == "//tmp/table_in"
+
+        for event in read_auto_merge_events:
+            assert "object_id" not in event
+            assert event["account@"] == "gepardo"
+            assert event["object_path"].startswith("<intermediate")
+            intermediate_reads.add(event["object_path"])
+
+        for event in write_events:
+            assert "object_id" not in event
+            assert event["account@"] == "gepardo"
+            assert event["object_path"].startswith("<intermediate")
+            intermediate_writes.add(event["object_path"])
+
+        for event in write_auto_merge_events:
+            assert "object_id" in event
+            assert event["account@"] == "tmp"
+            assert event["object_path"] in ["//tmp/table_out1", "//tmp/table_out2"]
+
+        assert intermediate_reads == intermediate_writes
+        assert intermediate_reads == {"<intermediate_0>", "<intermediate_1>"}
+
+        output_data = read_table("//tmp/table_out1") + read_table("//tmp/table_out2")
+        assert sorted(output_data) == sorted(table_data)
+
+    @authors("gepardo")
     def test_map_reduce(self):
         table_data = [
             {"id": 1, "name": "cat"},

@@ -495,13 +495,14 @@ protected:
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             schedulerJobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
-
-        // TODO(gepardo): Build data sinks when auto-merge is enabled.
-        if (!AutoMergeTask_) {
-            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
-                schedulerJobSpecExt->mutable_extensions(),
-                BuildDataSinkDirectoryFromOutputTables(OutputTables_));
-        }
+        SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            BuildDataSinkDirectoryWithAutoMerge(
+                OutputTables_,
+                AutoMergeEnabled_,
+                GetSpec()->AutoMerge->UseIntermediateDataAccount
+                    ? std::make_optional(GetSpec()->IntermediateDataAccount)
+                    : std::nullopt));
 
         if (Spec->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);

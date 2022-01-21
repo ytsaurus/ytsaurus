@@ -24,6 +24,13 @@ NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
 NChunkClient::TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vector<TInputTablePtr>& inputTables);
 NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryFromOutputTables(const std::vector<TOutputTablePtr>& outputTables);
 
+NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryWithAutoMerge(
+    const std::vector<TOutputTablePtr>& outputTables,
+    const std::vector<bool>& autoMergeEnabled,
+    const std::optional<TString>& intermediateAccountName);
+
+NChunkClient::TDataSink BuildDataSinkFromOutputTable(const TOutputTablePtr& outputTable);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerFeatures
