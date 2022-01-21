@@ -156,10 +156,20 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
         const auto& blockMeta = chunkMeta->BlockMeta()->blocks(blockIndex);
 
-        std::unique_ptr<IVersionedBlockReader> blockReader;
+        auto fillHashTable = [&] (auto&& blockReader) {
+            // Verify that row index fits into 32 bits.
+            YT_VERIFY(sizeof(blockMeta.row_count()) <= sizeof(ui32));
+
+            for (int rowIndex = 0; rowIndex < blockMeta.row_count(); ++rowIndex) {
+                auto key = blockReader.GetKey();
+                hashTable->Insert(key, std::make_pair<ui16, ui32>(blockIndex, rowIndex));
+                blockReader.NextRow();
+            }
+        };
+
         switch (chunkMeta->GetChunkFormat()) {
-            case EChunkFormat::TableVersionedSimple:
-                blockReader = std::make_unique<TSimpleVersionedBlockReader>(
+            case EChunkFormat::TableVersionedSimple: {
+                TSimpleVersionedBlockReader blockReader(
                     uncompressedBlock.Data,
                     blockMeta,
                     chunkMeta->GetChunkSchema(),
@@ -171,31 +181,28 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     AllCommittedTimestamp,
                     true,
                     true);
-                break;
 
-            case EChunkFormat::TableSchemalessHorizontal:
-                blockReader = std::make_unique<THorizontalSchemalessVersionedBlockReader>(
+                fillHashTable(blockReader);
+                break;
+            }
+
+            case EChunkFormat::TableSchemalessHorizontal: {
+                THorizontalSchemalessVersionedBlockReader blockReader(
                     uncompressedBlock.Data,
                     blockMeta,
-                    chunkMeta->GetChunkSchema(),
+                    GetCompositeColumnFlags(chunkMeta->GetChunkSchema()),
                     TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
                         .BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter()),
                     chunkMeta->GetChunkKeyColumnCount(),
                     chunkMeta->GetKeyColumnCount(),
                     chunkMeta->Misc().min_timestamp());
+
+                fillHashTable(blockReader);
                 break;
+            }
 
             default:
                 YT_ABORT();
-        }
-
-        // Verify that row index fits into 32 bits.
-        YT_VERIFY(sizeof(blockMeta.row_count()) <= sizeof(ui32));
-
-        for (int rowIndex = 0; rowIndex < blockMeta.row_count(); ++rowIndex) {
-            auto key = blockReader->GetKey();
-            hashTable->Insert(key, std::make_pair<ui16, ui32>(blockIndex, rowIndex));
-            blockReader->NextRow();
         }
     }
 

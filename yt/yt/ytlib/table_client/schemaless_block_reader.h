@@ -13,22 +13,26 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<bool> GetCompositeColumnFlags(const TTableSchemaPtr& schema);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THorizontalBlockReader
     : public TNonCopyable
 {
 public:
     /*!
      *  For schemaless blocks id mapping must be of the chunk name table size.
-     *  Reader ids are stored in ReadSchemaIndex of column mapping.
-     *  If ReadSchemaIndex < 0, a column must be omitted.
+     *  It maps chunk ids to reader ids.
+     *  Column is omitted if reader id < 0.
      */
 
     THorizontalBlockReader(
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
-        const TTableSchemaPtr& schema,
-        const std::vector<TColumnIdMapping>& idMapping,
-        const TComparator& chunkComparator,
+        const std::vector<bool>& compositeColumnFlags,
+        const std::vector<int>& chunkToReaderIdMapping,
+        int chunkComparatorLength,
         const TComparator& comparator,
         int extraColumnCount = 0);
 
@@ -52,13 +56,13 @@ private:
     const NProto::TBlockMeta Meta_;
 
     // Maps chunk name table ids to client name table ids.
-    std::vector<TColumnIdMapping> IdMapping_;
+    std::vector<int> ChunkToReaderIdMapping_;
 
-    std::vector<bool> IsCompositeColumn_;
+    std::vector<bool> CompositeColumnFlags_;
 
     // If chunk key column count is smaller than key column count, key is extended with Nulls.
     // If chunk key column count is larger than key column count, key is trimmed.
-    const TComparator ChunkComparator_;
+    const int ChunkComparatorLength_;
     const TComparator Comparator_;
 
     // Count of extra row values, that are allocated and reserved
@@ -78,6 +82,8 @@ private:
     TMutableUnversionedRow Key_;
 
     NYson::TStatelessLexer Lexer_;
+
+    TUnversionedValue TransformAnyValue(TUnversionedValue value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

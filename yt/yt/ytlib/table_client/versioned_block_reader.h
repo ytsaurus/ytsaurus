@@ -16,25 +16,7 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IVersionedBlockReader
-{
-    virtual ~IVersionedBlockReader() = default;
-
-    virtual bool NextRow() = 0;
-
-    virtual bool SkipToRowIndex(i64 rowIndex) = 0;
-    virtual bool SkipToKey(TLegacyKey key) = 0;
-
-    virtual TLegacyKey GetKey() const = 0;
-    virtual TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool) = 0;
-
-    virtual i64 GetRowIndex() const = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSimpleVersionedBlockReader
-    : public IVersionedBlockReader
 {
 public:
     TSimpleVersionedBlockReader(
@@ -49,15 +31,15 @@ public:
         bool produceAllVersions,
         bool initialize);
 
-    bool NextRow() override;
+    bool NextRow();
 
-    bool SkipToRowIndex(i64 rowIndex) override;
-    bool SkipToKey(TLegacyKey key) override;
+    bool SkipToRowIndex(i64 rowIndex);
+    bool SkipToKey(TLegacyKey key);
 
-    TLegacyKey GetKey() const override;
-    TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
+    TLegacyKey GetKey() const;
+    TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
-    i64 GetRowIndex() const override;
+    i64 GetRowIndex() const;
 
 private:
     const TSharedRef Block_;
@@ -65,15 +47,17 @@ private:
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const int ChunkKeyColumnCount_;
+    const int ChunkColumnCount_;
     const int KeyColumnCount_;
 
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
-    const TTableSchemaPtr ChunkSchema_;
 
     const NProto::TBlockMeta& Meta_;
     const NProto::TSimpleVersionedBlockMeta& VersionedMeta_;
 
+
     const std::unique_ptr<bool[]> ColumnHunkFlags_;
+    const std::unique_ptr<bool[]> ColumnAggregateFlags_;
     const std::unique_ptr<EValueType[]> ColumnTypes_;
 
     // NB: chunk reader holds the comparer.
@@ -121,30 +105,22 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class THorizontalSchemalessVersionedBlockReader
-    : public IVersionedBlockReader
+    : public THorizontalBlockReader
 {
 public:
     THorizontalSchemalessVersionedBlockReader(
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
-        const TTableSchemaPtr& schema,
-        const std::vector<TColumnIdMapping>& idMapping,
+        const std::vector<bool>& compositeColumnFlags,
+        const std::vector<int>& chunkToReaderIdMapping,
         int chunkKeyColumnCount,
         int keyColumnCount,
         TTimestamp timestamp);
 
-    bool NextRow() override;
-
-    bool SkipToRowIndex(i64 rowIndex) override;
-    bool SkipToKey(TLegacyKey key) override;
-
-    TLegacyKey GetKey() const override;
-    TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
-
-    i64 GetRowIndex() const override;
+    TLegacyKey GetKey() const;
+    TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
 private:
-    std::unique_ptr<THorizontalBlockReader> UnderlyingReader_;
     TTimestamp Timestamp_;
 };
 

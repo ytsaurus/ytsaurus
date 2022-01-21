@@ -101,9 +101,9 @@ public:
         const TColumnFilter& columnFilter,
         const std::vector<TString>& omittedInaccessibleColumns,
         std::optional<i64> virtualRowIndex = std::nullopt)
-        : ChunkState_(chunkState)
-        , ChunkSpec_(ChunkState_->ChunkSpec)
-        , DataSliceDescriptor_(ChunkState_->ChunkSpec, virtualRowIndex)
+        : VirtualValueDirectory_(chunkState->VirtualValueDirectory)
+        , ChunkSpec_(chunkState->ChunkSpec)
+        , DataSliceDescriptor_(chunkState->ChunkSpec, virtualRowIndex)
         , Config_(config)
         , Options_(options)
         , NameTable_(nameTable)
@@ -150,7 +150,7 @@ public:
     }
 
 protected:
-    const TChunkStatePtr ChunkState_;
+    const TVirtualValueDirectoryPtr VirtualValueDirectory_;
     const TChunkSpec ChunkSpec_;
     const TDataSliceDescriptor DataSliceDescriptor_;
 
@@ -214,7 +214,7 @@ protected:
                 ++VirtualColumnCount_;
             }
 
-            if (const auto& virtualValueDirectory = ChunkState_->VirtualValueDirectory) {
+            if (const auto& virtualValueDirectory = VirtualValueDirectory_) {
                 const auto& virtualRowIndex = DataSliceDescriptor_.VirtualRowIndex;
                 YT_VERIFY(virtualRowIndex);
                 YT_VERIFY(virtualRowIndex < virtualValueDirectory->Rows.size());
@@ -385,7 +385,7 @@ protected:
 
     // Maps chunk name table ids into client id.
     // For filtered out columns maps id to -1.
-    std::vector<TColumnIdMapping> IdMapping_;
+    std::vector<int> IdMapping_;
 
     std::unique_ptr<THorizontalBlockReader> BlockReader_;
 
@@ -489,10 +489,7 @@ void THorizontalSchemalessChunkReaderBase::InitializeIdMapping()
     BlockMetaExt_ = ChunkMeta_->BlockMeta();
 
     const auto& chunkNameTable = ChunkMeta_->ChunkNameTable();
-    IdMapping_.reserve(chunkNameTable->GetSize());
-    for (int chunkSchemaId = 0; chunkSchemaId < chunkNameTable->GetSize(); ++chunkSchemaId) {
-        IdMapping_.push_back({chunkSchemaId, -1});
-    }
+    IdMapping_.resize(chunkNameTable->GetSize(), -1);
 
     try {
         if (ColumnFilter_.IsUniversal()) {
@@ -502,7 +499,7 @@ void THorizontalSchemalessChunkReaderBase::InitializeIdMapping()
                     continue;
                 }
                 auto readerSchemaId = NameTable_->GetIdOrRegisterName(name);
-                IdMapping_[chunkSchemaId].ReaderSchemaIndex = readerSchemaId;
+                IdMapping_[chunkSchemaId] = readerSchemaId;
             }
         } else {
             for (auto readerSchemaId : ColumnFilter_.GetIndexes()) {
@@ -514,7 +511,7 @@ void THorizontalSchemalessChunkReaderBase::InitializeIdMapping()
                 if (!chunkSchemaId) {
                     continue;
                 }
-                IdMapping_[*chunkSchemaId].ReaderSchemaIndex = readerSchemaId;
+                IdMapping_[*chunkSchemaId] = readerSchemaId;
             }
         }
     } catch (const std::exception& ex) {
@@ -711,9 +708,9 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
-        ChunkMeta_->GetChunkSchema(),
+        GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
         IdMapping_,
-        ChunkComparator_,
+        ChunkComparator_.GetLength(),
         Comparator_,
         VirtualColumnCount_));
 
@@ -1053,9 +1050,9 @@ void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
     BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
-        ChunkMeta_->GetChunkSchema(),
+        GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
         IdMapping_,
-        ChunkComparator_,
+        ChunkComparator_.GetLength(),
         Comparator_,
         VirtualColumnCount_));
 }

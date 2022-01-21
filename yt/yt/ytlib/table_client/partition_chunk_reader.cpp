@@ -120,13 +120,14 @@ void TPartitionChunkReader::InitFirstBlock()
 
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
     auto schema = GetTableSchema(*ChunkMeta_);
+    auto comparator = schema->ToComparator();
     BlockReader_ = new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         BlockMetaExt_.blocks(CurrentBlockIndex_),
-        schema,
-        IdMapping_,
-        schema->ToComparator(),
-        schema->ToComparator());
+        GetCompositeColumnFlags(schema),
+        ChunkToReaderIdMapping_,
+        comparator.GetLength(),
+        comparator);
 
     BlockReaders_.emplace_back(BlockReader_);
 }
@@ -139,13 +140,13 @@ void TPartitionChunkReader::InitNextBlock()
 
 void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
 {
-    IdMapping_.reserve(chunkNameTable->GetSize());
+    ChunkToReaderIdMapping_.reserve(chunkNameTable->GetSize());
 
     try {
         for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
             auto name = chunkNameTable->GetName(chunkNameId);
             auto id = NameTable_->GetIdOrRegisterName(name);
-            IdMapping_.push_back({chunkNameId, id});
+            ChunkToReaderIdMapping_.push_back(id);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to add column to name table for partition chunk reader") << ex;

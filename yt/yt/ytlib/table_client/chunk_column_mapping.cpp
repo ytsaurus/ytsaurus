@@ -10,11 +10,11 @@ namespace NYT::NTableClient {
 DEFINE_REFCOUNTED_TYPE(TChunkColumnMapping);
 
 TChunkColumnMapping::TChunkColumnMapping(const TTableSchemaPtr& tableSchema, const TTableSchemaPtr& chunkSchema)
-    : SchemaKeyColumnCount_(tableSchema->GetKeyColumnCount())
+    : TableKeyColumnCount_(tableSchema->GetKeyColumnCount())
     , ChunkKeyColumnCount_(chunkSchema->GetKeyColumnCount())
     , ChunkColumnCount_(chunkSchema->GetColumnCount())
 {
-    Mapping_.resize(tableSchema->GetColumnCount() - SchemaKeyColumnCount_, -1);
+    ValueIdMapping_.resize(tableSchema->GetColumnCount() - TableKeyColumnCount_, -1);
 
     THashMap<TStringBuf, int> chunkValueColumnNames;
     for (int index = chunkSchema->GetKeyColumnCount(); index < chunkSchema->GetColumnCount(); ++index) {
@@ -22,7 +22,7 @@ TChunkColumnMapping::TChunkColumnMapping(const TTableSchemaPtr& tableSchema, con
         chunkValueColumnNames.emplace(column.Name(), index);
     }
 
-    for (int index = SchemaKeyColumnCount_; index < tableSchema->GetColumnCount(); ++index) {
+    for (int index = TableKeyColumnCount_; index < tableSchema->GetColumnCount(); ++index) {
         auto& column = tableSchema->Columns()[index];
 
         auto it = chunkValueColumnNames.find(column.Name());
@@ -32,7 +32,7 @@ TChunkColumnMapping::TChunkColumnMapping(const TTableSchemaPtr& tableSchema, con
         }
 
         auto chunkIndex = it->second;
-        Mapping_[index - SchemaKeyColumnCount_] = chunkIndex;
+        ValueIdMapping_[index - TableKeyColumnCount_] = chunkIndex;
     }
 }
 
@@ -42,24 +42,24 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
     std::vector<TColumnIdMapping> valueIdMapping;
 
     if (columnFilter.IsUniversal()) {
-        for (int schemaValueIndex = 0; schemaValueIndex < std::ssize(Mapping_); ++schemaValueIndex) {
-            auto chunkIndex = Mapping_[schemaValueIndex];
+        for (int schemaValueIndex = 0; schemaValueIndex < std::ssize(ValueIdMapping_); ++schemaValueIndex) {
+            auto chunkIndex = ValueIdMapping_[schemaValueIndex];
             if (chunkIndex == -1) {
                 continue;
             }
 
             TColumnIdMapping mapping;
             mapping.ChunkSchemaIndex = chunkIndex;
-            mapping.ReaderSchemaIndex = schemaValueIndex + SchemaKeyColumnCount_;
+            mapping.ReaderSchemaIndex = schemaValueIndex + TableKeyColumnCount_;
             valueIdMapping.push_back(mapping);
         }
     } else {
         for (auto index : columnFilter.GetIndexes()) {
-            if (index < SchemaKeyColumnCount_) {
+            if (index < TableKeyColumnCount_) {
                 continue;
             }
 
-            auto chunkIndex = Mapping_[index - SchemaKeyColumnCount_];
+            auto chunkIndex = ValueIdMapping_[index - TableKeyColumnCount_];
             if (chunkIndex == -1) {
                 continue;
             }
@@ -74,47 +74,45 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
     return valueIdMapping;
 }
 
-std::vector<TColumnIdMapping> TChunkColumnMapping::BuildSchemalessHorizontalSchemaIdMapping(
+std::vector<int> TChunkColumnMapping::BuildSchemalessHorizontalSchemaIdMapping(
     const TColumnFilter& columnFilter) const
 {
-    std::vector<TColumnIdMapping> idMapping(
-        ChunkColumnCount_,
-        TColumnIdMapping{-1,-1});
+    std::vector<int> chunkToReaderIdMapping(ChunkColumnCount_, -1);
 
     int chunkKeyColumnCount = ChunkKeyColumnCount_;
     for (int index = 0; index < chunkKeyColumnCount; ++index) {
-        idMapping[index].ReaderSchemaIndex = index;
+        chunkToReaderIdMapping[index] = index;
     }
 
     if (columnFilter.IsUniversal()) {
-        for (int schemaValueIndex = 0; schemaValueIndex < std::ssize(Mapping_); ++schemaValueIndex) {
-            auto chunkIndex = Mapping_[schemaValueIndex];
+        for (int schemaValueIndex = 0; schemaValueIndex < std::ssize(ValueIdMapping_); ++schemaValueIndex) {
+            auto chunkIndex = ValueIdMapping_[schemaValueIndex];
             if (chunkIndex == -1) {
                 continue;
             }
 
-            YT_VERIFY(chunkIndex < std::ssize(idMapping));
+            YT_VERIFY(chunkIndex < std::ssize(chunkToReaderIdMapping));
             YT_VERIFY(chunkIndex >= chunkKeyColumnCount);
-            idMapping[chunkIndex].ReaderSchemaIndex = schemaValueIndex + SchemaKeyColumnCount_;
+            chunkToReaderIdMapping[chunkIndex] = schemaValueIndex + TableKeyColumnCount_;
         }
     } else {
         for (auto index : columnFilter.GetIndexes()) {
-            if (index < SchemaKeyColumnCount_) {
+            if (index < TableKeyColumnCount_) {
                 continue;
             }
 
-            auto chunkIndex = Mapping_[index - SchemaKeyColumnCount_];
+            auto chunkIndex = ValueIdMapping_[index - TableKeyColumnCount_];
             if (chunkIndex == -1) {
                 continue;
             }
 
-            YT_VERIFY(chunkIndex < std::ssize(idMapping));
+            YT_VERIFY(chunkIndex < std::ssize(chunkToReaderIdMapping));
             YT_VERIFY(chunkIndex >= chunkKeyColumnCount);
-            idMapping[chunkIndex].ReaderSchemaIndex = index;
+            chunkToReaderIdMapping[chunkIndex] = index;
         }
     }
 
-    return idMapping;
+    return chunkToReaderIdMapping;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

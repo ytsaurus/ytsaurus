@@ -14,14 +14,16 @@ public:
     std::vector<TColumnIdMapping> BuildVersionedSimpleSchemaIdMapping(
         const TColumnFilter& columnFilter) const;
 
-    std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
+    std::vector<int> BuildSchemalessHorizontalSchemaIdMapping(
         const TColumnFilter& columnFilter) const;
 
 private:
-    int SchemaKeyColumnCount_;
+    int TableKeyColumnCount_;
     int ChunkKeyColumnCount_;
     int ChunkColumnCount_;
-    std::vector<int> Mapping_;
+    // Mapping from table schema value index to chunk schema value id.
+    // Schema value index is value id minus keyColumnCount.
+    std::vector<int> ValueIdMapping_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

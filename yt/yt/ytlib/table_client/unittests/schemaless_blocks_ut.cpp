@@ -67,8 +67,8 @@ protected:
     template <EValueType WriterType, EValueType ReaderType>
     void TestComplexAnyCompatibility()
     {
-        std::vector<TColumnIdMapping> idMapping = {
-            {0, 0},
+        std::vector<int> idMapping = {
+            0,
         };
 
         auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 1);
@@ -86,17 +86,17 @@ protected:
         auto expectedRow = TMutableUnversionedRow::Allocate(&MemoryPool, 1);
         expectedRow[0] = MakeUnversionedStringLikeValue(ReaderType, "[]", 0);
 
-        std::vector<TColumnSchema> columns;
+        std::vector<bool> compositeColumnFlags;
         if constexpr (ReaderType == EValueType::Composite) {
-            columns.push_back(TColumnSchema("foo", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))));
+            compositeColumnFlags.push_back(true);
         }
 
         THorizontalBlockReader blockReader(
             Data,
             Meta,
-            New<TTableSchema>(columns),
+            compositeColumnFlags,
             idMapping,
-            TComparator(),
+            TComparator().GetLength(),
             TComparator());
 
         CheckResult(blockReader, std::vector<TUnversionedRow>{expectedRow});
@@ -116,15 +116,15 @@ TEST_F(TSchemalessBlocksTestOneRow, AnyWriter_ComplexReader_Compatibility)
 TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
 {
     // Reorder value columns in reading schema.
-    std::vector<TColumnIdMapping> idMapping = {
-        {0, -1},
-        {1, -1},
-        {2,  0},
-        {3, -1},
-        {4, -1},
-        {5, -1},
-        {6, -1},
-        {7,  1}};
+    std::vector<int> idMapping = {
+        -1,
+        -1,
+        0,
+        -1,
+        -1,
+        -1,
+        -1,
+        1};
 
     auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 2);
     row[0] = MakeUnversionedDoubleValue(1.5, 0);
@@ -136,9 +136,9 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
     THorizontalBlockReader blockReader(
         Data,
         Meta,
-        New<TTableSchema>(),
+        std::vector<bool>{},
         idMapping,
-        TComparator(),
+        TComparator().GetLength(),
         TComparator());
 
     CheckResult(blockReader, rows);
@@ -147,23 +147,23 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
 TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
 {
     // Reorder value columns in reading schema.
-    std::vector<TColumnIdMapping> idMapping = {
-        {0, 0},
-        {1, 1},
-        {2, 2},
-        {3, 3},
-        {4, 4},
-        {5, 5},
-        {6, 6},
-        {7, 7}};
+    std::vector<int> idMapping = {
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7};
 
     TComparator comparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
     THorizontalBlockReader blockReader(
         Data,
         Meta,
-        New<TTableSchema>(),
+        std::vector<bool>{},
         idMapping,
-        comparator,
+        comparator.GetLength(),
         comparator);
 
     {
@@ -224,15 +224,15 @@ protected:
 TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
 {
     // Reorder value columns in reading schema.
-    std::vector<TColumnIdMapping> idMapping = {{0, 0}, {1, 1}};
+    std::vector<int> idMapping = {0, 1};
 
     TComparator comparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
     THorizontalBlockReader blockReader(
         Data,
         Meta,
-        New<TTableSchema>(),
+        std::vector<bool>{},
         idMapping,
-        comparator,
+        comparator.GetLength(),
         comparator);
 
     TUnversionedOwningRowBuilder builder;
@@ -245,16 +245,16 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
 TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
 {
     // Reorder value columns in reading schema.
-    std::vector<TColumnIdMapping> idMapping = {{0, 0}, {1, 1}};
+    std::vector<int> idMapping = {0, 1};
 
     TComparator chunkComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
     TComparator tableComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
     THorizontalBlockReader blockReader(
         Data,
         Meta,
-        New<TTableSchema>(),
+        std::vector<bool>{},
         idMapping,
-        chunkComparator,
+        chunkComparator.GetLength(),
         tableComparator);
 
     TUnversionedOwningRowBuilder builder;
