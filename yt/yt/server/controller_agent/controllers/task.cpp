@@ -1472,7 +1472,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
             &ITaskHost::OnOperationFailed,
             MakeWeak(TaskHost_),
             error,
-            /* flush */ true));
+            /* flush */ true,
+            /* abortAllJoblets */ true));
         THROW_ERROR(error);
     }
 
