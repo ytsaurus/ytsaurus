@@ -847,15 +847,15 @@ private:
                     }),
                     ArriveInstant_ + *timeout);
 
-                replySent.Subscribe(BIND([timeoutCookie] (const TError& ) {
+                replySent.Subscribe(BIND([timeoutCookie] (const TError& /*error*/) {
                     TDelayedExecutor::Cancel(timeoutCookie);
                 }));
             }
 
             Service_->RegisterQueuedReply(RequestId_, replySent);
-            replySent.Subscribe(BIND([service=MakeWeak(Service_), requestId=RequestId_] (const TError& ) {
-                if (auto p = service.Lock()) {
-                    p->UnregisterQueuedReply(requestId);
+            replySent.Subscribe(BIND([weakService=MakeWeak(Service_), requestId=RequestId_] (const TError& /*error*/) {
+                if (auto service = weakService.Lock()) {
+                    service->UnregisterQueuedReply(requestId);
                 }
             }));
         }
