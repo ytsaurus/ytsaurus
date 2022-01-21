@@ -10180,7 +10180,8 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
         i64 usage = 0;
         for (const auto& stat : usageStatistics) {
             for (const auto& jobState : jobStates) {
-                usage += AggregatedFinishedJobStatistics_.GetSumByJobStateAndType(stat, jobState, taskName);
+                const auto& aggregatedStatistics = (jobState == EJobState::Running) ? AggregatedRunningJobStatistics_ : AggregatedFinishedJobStatistics_;
+                usage += aggregatedStatistics.GetSumByJobStateAndType(stat, jobState, taskName);
             }
         }
 
