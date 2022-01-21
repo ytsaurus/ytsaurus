@@ -48,6 +48,9 @@ TCellTag CellTagFromId(TObjectId id);
 //! Extracts the counter component from #id.
 ui64 CounterFromId(TObjectId id);
 
+//! Extracts the hash component from #id.
+ui32 HashFromId(TObjectId id);
+
 //! Returns |true| iff a given #type denotes a schema.
 bool IsSchemaType(EObjectType type);
 

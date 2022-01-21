@@ -6,7 +6,6 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
-#include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NChaosClient {
@@ -205,23 +204,34 @@ void Serialize(const TReplicaHistoryItem& replicaHistoryItem, NYson::IYsonConsum
 
 void Serialize(
     const TReplicaInfo& replicaInfo,
+    TFluentMap fluent,
+    const TReplicationCardFetchOptions& options)
+{
+    fluent
+        .Item("cluster_name").Value(replicaInfo.ClusterName)
+        .Item("replica_path").Value(replicaInfo.ReplicaPath)
+        .Item("content_type").Value(replicaInfo.ContentType)
+        .Item("mode").Value(replicaInfo.Mode)
+        .Item("state").Value(replicaInfo.State)
+        .DoIf(options.IncludeProgress, [&] (auto fluent) {
+            fluent
+                .Item("replication_progress").Value(replicaInfo.ReplicationProgress);
+        })
+        .DoIf(options.IncludeHistory, [&] (auto fluent) {
+            fluent
+                .Item("history").Value(replicaInfo.History);
+        });
+}
+
+void Serialize(
+    const TReplicaInfo& replicaInfo,
     IYsonConsumer* consumer,
     const TReplicationCardFetchOptions& options)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("cluster_name").Value(replicaInfo.ClusterName)
-            .Item("replica_path").Value(replicaInfo.ReplicaPath)
-            .Item("content_type").Value(replicaInfo.ContentType)
-            .Item("mode").Value(replicaInfo.Mode)
-            .Item("state").Value(replicaInfo.State)
-            .DoIf(options.IncludeProgress, [&] (auto fluent) {
-                fluent
-                    .Item("replication_progress").Value(replicaInfo.ReplicationProgress);
-            })
-            .DoIf(options.IncludeHistory, [&] (auto fluent) {
-                fluent
-                    .Item("history").Value(replicaInfo.History);
+            .Do([&] (auto fluent) {
+                Serialize(replicaInfo, fluent, options);
             })
         .EndMap();
 }
@@ -233,18 +243,29 @@ void Serialize(
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("replicas").DoMapFor(replicationCard.Replicas, [&] (auto fluent, const auto& pair) {
-                fluent
-                    .Item(ToString(pair.first)).Do([&] (auto fluent) {
-                        Serialize(pair.second, fluent.GetConsumer(), options);
-                    });
+            .Do([&] (auto fluent) {
+                Serialize(replicationCard, fluent, options);
             })
-            .DoIf(options.IncludeCoordinators, [&] (auto fluent) {
-                fluent
-                    .Item("coordinator_cell_ids").Value(replicationCard.CoordinatorCellIds);
-            })
-            .Item("era").Value(replicationCard.Era)
         .EndMap();
+}
+
+void Serialize(
+    const TReplicationCard& replicationCard,
+    TFluentMap fluent,
+    const TReplicationCardFetchOptions& options)
+{
+    fluent
+        .Item("replicas").DoMapFor(replicationCard.Replicas, [&] (auto fluent, const auto& pair) {
+            fluent
+                .Item(ToString(pair.first)).Do([&] (auto fluent) {
+                    Serialize(pair.second, fluent.GetConsumer(), options);
+                });
+        })
+        .DoIf(options.IncludeCoordinators, [&] (auto fluent) {
+            fluent
+                .Item("coordinator_cell_ids").Value(replicationCard.CoordinatorCellIds);
+        })
+        .Item("era").Value(replicationCard.Era);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

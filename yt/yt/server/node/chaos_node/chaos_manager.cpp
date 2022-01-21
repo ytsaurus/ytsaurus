@@ -22,6 +22,7 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -153,6 +154,18 @@ public:
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ReplicationCard, TReplicationCard);
+
+    TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId) override
+    {
+        auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
+        if (!replicationCard) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No such replication card")
+                << TErrorAttribute("replication_card_id", replicationCardId);
+        }
+        return replicationCard;
+    }
 
 private:
     class TReplicationCardOrchidService
@@ -290,23 +303,12 @@ private:
     }
 
 
-    TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId)
-    {
-        auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
-        if (!replicationCard) {
-            THROW_ERROR_EXCEPTION("Replication card not found")
-                << TErrorAttribute("replication_card_id", replicationCardId);
-        }
-        return replicationCard;
-    }
-
-
     void HydraCreateReplicationCard(
         const TCreateReplicationCardContextPtr& /*context*/,
         NChaosClient::NProto::TReqCreateReplicationCard* /*request*/,
         NChaosClient::NProto::TRspCreateReplicationCard* response)
     {
-        auto replicationCardId = Slot_->GenerateId(EObjectType::ReplicationCard);
+        auto replicationCardId = GenerateNewReplicationCardId();
         auto replicationCardHolder = std::make_unique<TReplicationCard>(replicationCardId);
         auto* replicationCard = replicationCardHolder.get();
         ReplicationCardMap_.Insert(replicationCardId, std::move(replicationCardHolder));
@@ -326,12 +328,23 @@ private:
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto newReplica = FromProto<TReplicaInfo>(request->replica_info());
 
-        YT_VERIFY(IsStableReplicaState(newReplica.State));
+        if (!IsStableReplicaState(newReplica.State)) {
+            THROW_ERROR_EXCEPTION("Invalid replica state")
+                << TErrorAttribute("replica_state", newReplica.State);
+        }
+
         newReplica.State = newReplica.State == EReplicaState::Enabled
             ? EReplicaState::Enabling
             : EReplicaState::Disabling;
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
+
+        if (std::ssize(replicationCard->Replicas()) >= MaxReplicasPerReplicationCard) {
+            THROW_ERROR_EXCEPTION("Replication card already has too many replicas")
+                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("limit", MaxReplicasPerReplicationCard);
+        }
+
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
             if (replicaInfo.ClusterName == newReplica.ClusterName && replicaInfo.ReplicaPath == newReplica.ReplicaPath) {
                 THROW_ERROR_EXCEPTION("Replica already exists")
@@ -360,7 +373,7 @@ private:
             });
         }
 
-        auto newReplicaId = Slot_->GenerateId(EObjectType::ReplicationCardTableReplica);
+        auto newReplicaId = GenerateNewReplicaId(replicationCard);
         ToProto(response->mutable_replica_id(), newReplicaId);
 
         if (newReplica.State == EReplicaState::Enabling) {
@@ -820,6 +833,26 @@ private:
             ScheduleNewEraIfReplicationCardIsReady(replicationCard);
         }
     }
+
+
+    TReplicationCardId GenerateNewReplicationCardId()
+    {
+        return MakeReplicationCardId(Slot_->GenerateId(EObjectType::ReplicationCard));
+    }
+
+    TReplicaId GenerateNewReplicaId(TReplicationCard* replicationCard)
+    {
+        while (true) {
+            auto index = replicationCard->GetCurrentReplicaIdIndex();
+            // NB: Wrap-around is possible.
+            replicationCard->SetCurrentReplicaIdIndex(index + 1);
+            auto replicaId = MakeReplicaId(replicationCard->GetId(), index);
+            if (!replicationCard->Replicas().contains(replicaId)) {
+                return replicaId;
+            }
+        }
+    }
+
 
     TCompositeMapServicePtr CreateOrchidService()
     {

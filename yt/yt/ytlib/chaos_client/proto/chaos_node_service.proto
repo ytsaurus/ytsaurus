@@ -13,6 +13,8 @@ message TRspCreateReplicationCard
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetReplicationCard
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
@@ -23,6 +25,8 @@ message TRspGetReplicationCard
 {
     required TReplicationCard replication_card = 1;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqCreateTableReplica
 {
@@ -35,6 +39,8 @@ message TRspCreateTableReplica
     required NYT.NProto.TGuid replica_id = 1; // NChaosClient::TReplicaId
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqRemoveTableReplica
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
@@ -43,6 +49,8 @@ message TReqRemoveTableReplica
 
 message TRspRemoveTableReplica
 { }
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqAlterTableReplica
 {
@@ -55,6 +63,8 @@ message TReqAlterTableReplica
 
 message TRspAlterTableReplica
 { }
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqUpdateReplicationProgress
 {

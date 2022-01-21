@@ -75,19 +75,19 @@ private:
             fetchOptions);
 
         const auto& chaosManager = Slot_->GetChaosManager();
-        auto replicationCard = chaosManager->GetReplicationCard(replicationCardId);
+        auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
 
         auto* protoReplicationCard = response->mutable_replication_card();
         protoReplicationCard->set_era(replicationCard->GetEra());
 
-        std::vector<TCellId> coordinators;
+        std::vector<TCellId> coordinatorCellIds;
         if (fetchOptions.IncludeCoordinators) {
             for (const auto& [cellId, info] : replicationCard->Coordinators()) {
                 if (!chaosManager->IsCoordinatorSuspended(cellId)) {
-                    coordinators.push_back(cellId);
+                    coordinatorCellIds.push_back(cellId);
                 }
             }
-            ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), coordinators);
+            ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), coordinatorCellIds);
         }
 
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
@@ -98,7 +98,7 @@ private:
 
         context->SetResponseInfo("ReplicationCardId: %v, CoordinatorCellIds: %v, ReplicationCard: %v",
             replicationCardId,
-            coordinators,
+            coordinatorCellIds,
             *replicationCard);
 
         context->Reply();

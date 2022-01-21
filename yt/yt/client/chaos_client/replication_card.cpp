@@ -4,6 +4,8 @@
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 #include <util/digest/multi.h>
 
 #include <algorithm>
@@ -167,6 +169,19 @@ TReplicaInfo* TReplicationCard::FindReplica(TReplicaId replicaId)
 {
     auto it = Replicas.find(replicaId);
     return it == Replicas.end() ? nullptr : &it->second;
+}
+
+TReplicaInfo* TReplicationCard::GetReplicaOrThrow(TReplicaId replicaId, TReplicationCardId replicationCardId)
+{
+    auto* replicaInfo = FindReplica(replicaId);
+    if (!replicaInfo) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "Replication card %v does not contain replica %v",
+            replicationCardId,
+            replicaId);
+    }
+    return replicaInfo;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

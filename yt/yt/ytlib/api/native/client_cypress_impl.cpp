@@ -1,7 +1,9 @@
 #include "client_impl.h"
+
 #include "config.h"
 #include "connection.h"
 #include "transaction.h"
+#include "type_handler.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_fetcher.h>
@@ -664,35 +666,12 @@ TYsonString TClient::DoGetNode(
     const TYPath& path,
     const TGetNodeOptions& options)
 {
-    MaybeValidateExternalObjectPermission(path, EPermission::Read);
-
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
-    auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
-    SetPrerequisites(batchReq, options);
-    SetBalancingHeader(batchReq, options);
-
-    auto req = TYPathProxy::Get(path);
-    SetTransactionId(req, options, true);
-    SetSuppressAccessTracking(req, options);
-    SetCachingHeader(req, options);
-    if (options.Attributes) {
-        ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
+    for (const auto& handler : TypeHandlers_) {
+        if (auto result = handler->GetNode(path, options)) {
+            return *result;
+        }
     }
-    if (options.MaxSize) {
-        req->set_limit(*options.MaxSize);
-    }
-    if (options.Options) {
-        ToProto(req->mutable_options(), *options.Options);
-    }
-    batchReq->AddRequest(req);
-
-    auto batchRsp = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
-    auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0)
-        .ValueOrThrow();
-
-    return TYsonString(rsp->value());
+    YT_ABORT();
 }
 
 void TClient::DoSetNode(
@@ -790,32 +769,12 @@ TYsonString TClient::DoListNode(
     const TYPath& path,
     const TListNodeOptions& options)
 {
-    MaybeValidateExternalObjectPermission(path, EPermission::Read);
-
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
-    auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
-    SetPrerequisites(batchReq, options);
-    SetBalancingHeader(batchReq, options);
-
-    auto req = TYPathProxy::List(path);
-    SetTransactionId(req, options, true);
-    SetSuppressAccessTracking(req, options);
-    SetCachingHeader(req, options);
-    if (options.Attributes) {
-        ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
+    for (const auto& handler : TypeHandlers_) {
+        if (auto result = handler->ListNode(path, options)) {
+            return *result;
+        }
     }
-    if (options.MaxSize) {
-        req->set_limit(*options.MaxSize);
-    }
-    batchReq->AddRequest(req);
-
-    auto batchRsp = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
-    auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>(0)
-        .ValueOrThrow();
-
-    return TYsonString(rsp->value());
+    YT_ABORT();
 }
 
 TNodeId TClient::DoCreateNode(

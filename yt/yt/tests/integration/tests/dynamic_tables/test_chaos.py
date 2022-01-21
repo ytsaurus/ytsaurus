@@ -266,10 +266,34 @@ class TestChaos(DynamicTablesBase):
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "replica_path": "//tmp/r0"},
             {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "replica_path": "//tmp/r1"}
         ]
-        self._create_replication_card_replicas(card_id, replicas)
+        replica_ids = self._create_replication_card_replicas(card_id, replicas)
+
         card = get_replication_card(card_id)
         card_replicas = [{key: r[key] for key in replicas[0].keys()} for r in card["replicas"].itervalues()]
         assert_items_equal(card_replicas, replicas)
+
+        card = get("#{0}/@".format(card_id))
+        assert card["id"] == card_id
+        assert card["type"] == "replication_card"
+        card_replicas = [{key: r[key] for key in replicas[0].keys()} for r in card["replicas"].itervalues()]
+        assert_items_equal(card_replicas, replicas)
+
+        assert get("#{0}/@id".format(card_id)) == card_id
+        assert get("#{0}/@type".format(card_id)) == "replication_card"
+
+        card_attributes = ls("#{0}/@".format(card_id))
+        assert "id" in card_attributes
+        assert "type" in card_attributes
+        assert "era" in card_attributes
+        assert "replicas" in card_attributes
+        assert "coordinator_cell_ids" in card_attributes
+
+        for replica_index, replica_id in enumerate(replica_ids):
+            replica = get("#{0}/@".format(replica_id))
+            assert replica["id"] == replica_id
+            assert replica["type"] == "replication_card_replica"
+            assert replica["cluster_name"] == replicas[replica_index]["cluster_name"]
+            assert replica["replica_path"] == replicas[replica_index]["replica_path"]
 
     def _create_queue_table(self, path, **attributes):
         attributes.update({"dynamic": True})

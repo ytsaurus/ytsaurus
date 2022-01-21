@@ -6,6 +6,10 @@
 #include "private.h"
 #include "rpc_helpers.h"
 #include "transaction.h"
+#include "default_type_handler.h"
+#include "replicated_table_replica_type_handler.h"
+#include "replication_card_type_handler.h"
+#include "replication_card_replica_type_handler.h"
 
 #include <yt/yt/client/tablet_client/public.h>
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -87,6 +91,12 @@ TClient::TClient(
     : Connection_(std::move(connection))
     , Options_(options)
     , Logger(ApiLogger.WithTag("ClientId: %v", TGuid::Create()))
+    , TypeHandlers_{
+        CreateReplicatedTableReplicaTypeHandler(this),
+        CreateReplicationCardTypeHandler(this),
+        CreateReplicationCardReplicaTypeHandler(this),
+        CreateDefaultTypeHandler(this)
+    }
     , FunctionImplCache_(BIND(CreateFunctionImplCache,
         Connection_->GetConfig()->FunctionImplCache,
         MakeWeak(this)))
