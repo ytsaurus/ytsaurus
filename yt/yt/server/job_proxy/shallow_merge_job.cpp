@@ -12,8 +12,12 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/meta_aggregating_writer.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
@@ -34,6 +38,7 @@ using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NConcurrency;
 using namespace NTableClient::NProto;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +56,8 @@ public:
         , ShallowMergeJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TShallowMergeJobSpecExt::shallow_merge_job_spec_ext))
         , ReaderConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader)
         , WriterConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter)
+        , OutputTraceContext_(NTracing::CreateTraceContextFromCurrent("TableWriter"))
+        , OutputFinishGuard_(OutputTraceContext_)
     {
         YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
     }
@@ -66,6 +73,7 @@ public:
         ReaderOptions_ = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
             SchedulerJobSpecExt_.table_reader_options()));
 
+        PackBaggages();
         CreateChunkWriters();
         BuildInputChunkStates();
         CalculateTotalBlocksSize();
@@ -151,6 +159,7 @@ private:
         i64 DataWeight;
         i64 RowCount;
         int BlockCount;
+        int InputSpecIndex;
         bool IsErasureChunk;
     };
 
@@ -175,6 +184,34 @@ private:
     std::vector<TChunkId> FailedChunkIds_;
     TDataStatistics InputDataStatistics_;
     TDataStatistics OutputDataStatistics_;
+
+    std::vector<TTraceContextPtr> InputTraceContexts_;
+    std::vector<TTraceContextFinishGuard> InputFinishGuards_;
+    TTraceContextPtr OutputTraceContext_;
+    TTraceContextFinishGuard OutputFinishGuard_;
+
+    void PackBaggages()
+    {
+        auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt);
+
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+            auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
+            YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
+            PackBaggageFromDataSink(OutputTraceContext_, dataSinkDirectory->DataSinks()[0]);
+        }
+
+        for (int inputSpecIndex = 0; inputSpecIndex < SchedulerJobSpecExt_.input_table_specs_size(); ++inputSpecIndex) {
+            const auto& tableSpec = SchedulerJobSpecExt_.input_table_specs()[inputSpecIndex];
+            const auto& traceContext = InputTraceContexts_.emplace_back(
+                CreateTraceContextFromCurrent(Format("TableReader.%v", inputSpecIndex)));
+            InputFinishGuards_.emplace_back(traceContext);
+            if (tableSpec.chunk_specs_size() != 0) {
+                int tableIndex = tableSpec.chunk_specs()[0].table_index();
+                PackBaggageFromDataSource(traceContext, dataSourceDirectory->DataSources()[tableIndex]);
+            }
+        }
+    }
 
     void CreateChunkWriters()
     {
@@ -241,7 +278,7 @@ private:
         return deferredChunkMeta;
     }
 
-    TInputChunkState BuildInputChunkStateFromSpec(const TChunkSpec& chunkSpec)
+    TInputChunkState BuildInputChunkStateFromSpec(const TChunkSpec& chunkSpec, int inputSpecIndex)
     {
         YT_LOG_DEBUG("Building chunk state (ChunkId: %v)", chunkSpec.chunk_id());
 
@@ -264,6 +301,7 @@ private:
                 miscExt.data_weight(),
                 miscExt.row_count(),
                 blockCount,
+                inputSpecIndex,
                 isErasureChunk
             };
         } catch (const std::exception& ex) {
@@ -276,9 +314,14 @@ private:
     void BuildInputChunkStates()
     {
         std::vector<TFuture<TInputChunkState>> asyncResults;
-        for (const auto& tableSpec : SchedulerJobSpecExt_.input_table_specs()) {
+        for (int inputSpecIndex = 0; inputSpecIndex < SchedulerJobSpecExt_.input_table_specs_size(); ++inputSpecIndex) {
+            const auto& tableSpec = SchedulerJobSpecExt_.input_table_specs()[inputSpecIndex];
+
             for (const auto& chunkSpec : tableSpec.chunk_specs()) {
-                auto asyncResult = BIND(&TShallowMergeJob::BuildInputChunkStateFromSpec, MakeStrong(this), chunkSpec)
+                auto asyncResult = BIND(&TShallowMergeJob::BuildInputChunkStateFromSpec,
+                        MakeStrong(this),
+                        chunkSpec,
+                        inputSpecIndex)
                     .AsyncVia(GetCurrentInvoker())
                     .Run();
                 asyncResults.push_back(std::move(asyncResult));
@@ -353,12 +396,15 @@ private:
     {
         YT_LOG_DEBUG("Merging input chunk (ChunkId: %v)", chunkState.ChunkId);
 
+        TCurrentTraceContextGuard outputGuard(OutputTraceContext_);
+
         auto blockSizes = GetBlockSizes(chunkState);
         int chunkBlockCount = chunkState.BlockCount;
         int currentBlockCount = 0;
         while (currentBlockCount < chunkBlockCount) {
             std::vector<TBlock> blocks;
             try {
+                TCurrentTraceContextGuard inputGuard(InputTraceContexts_[chunkState.InputSpecIndex]);
                 auto asyncBlocks = chunkState.Reader->ReadBlocks(
                     ChunkReadOptions_,
                     currentBlockCount,
@@ -404,6 +450,8 @@ private:
 
     void MergeInputChunks()
     {
+        TCurrentTraceContextGuard outputGuard(OutputTraceContext_);
+
         WaitFor(Writer_->Open())
             .ThrowOnError();
         for (const auto& chunkState : InputChunkStates_) {

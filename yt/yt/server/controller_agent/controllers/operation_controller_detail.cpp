@@ -1634,6 +1634,8 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
 
 bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
 {
+    AutoMergeEnabled_.resize(OutputTables_.size(), false);
+
     const auto& autoMergeSpec = Spec_->AutoMerge;
     auto mode = autoMergeSpec->Mode;
 
@@ -1706,7 +1708,6 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
 
     std::vector<TStreamDescriptor> streamDescriptors;
     streamDescriptors.reserve(OutputTables_.size());
-    AutoMergeEnabled_.resize(OutputTables_.size(), false);
     for (int index = 0; index < std::ssize(OutputTables_); ++index) {
         const auto& outputTable = OutputTables_[index];
         if (outputTable->Path.GetAutoMerge()) {
@@ -9785,6 +9786,11 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     // fields to be already initialized.
     if (context.IsLoad()) {
         InitUpdatingTables();
+    }
+
+    // COMPAT(gepardo)
+    if (context.IsSave() && AutoMergeEnabled_.empty()) {
+        AutoMergeEnabled_.resize(OutputTables_.size(), false);
     }
 }
 
