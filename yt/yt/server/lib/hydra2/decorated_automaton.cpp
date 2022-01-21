@@ -966,23 +966,32 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(int snapshotId
 
     // TODO(aleksandra-zh): this should be considered a success.
     if (LastSuccessfulSnapshotId_ >= snapshotId) {
-        THROW_ERROR_EXCEPTION("Cannot build a snapshot %v because last built snapshot id %v is greater",
+        TError error("Cannot build a snapshot %v because last built snapshot id %v is greater",
             snapshotId,
             LastSuccessfulSnapshotId_.load());
+        YT_LOG_INFO(error, "Error building snapshot");
+        return MakeFuture<TRemoteSnapshotParams>(error);
     }
 
     if (SequenceNumber_ > sequenceNumber) {
-        THROW_ERROR_EXCEPTION("Cannot build a snapshot %v from sequence number %v because automaton sequence number is greater %v",
+        TError error("Cannot build a snapshot %v from sequence number %v because automaton sequence number is greater %v",
             snapshotId,
             sequenceNumber,
             SequenceNumber_.load());
+        YT_LOG_INFO(error, "Error building snapshot");
+        return MakeFuture<TRemoteSnapshotParams>(error);
     }
 
+    // We are already building this snapshot.
     if (NextSnapshotId_ == snapshotId) {
+        YT_LOG_INFO("We are already building this snapshot (SnapshotId: %v)", NextSnapshotId_);
         return SnapshotParamsPromise_;
     }
 
     YT_VERIFY(NextSnapshotId_ < snapshotId);
+
+    YT_LOG_INFO("Started building snapshot (SnapshotId: %v)",
+        snapshotId);
 
     SnapshotSequenceNumber_ = sequenceNumber;
     NextSnapshotId_ = snapshotId;

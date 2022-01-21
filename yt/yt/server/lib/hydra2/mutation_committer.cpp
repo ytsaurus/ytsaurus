@@ -280,7 +280,7 @@ void TLeaderCommitter::Flush()
         request->set_committed_segment_id(CommittedState_.SegmentId);
         request->set_term(EpochContext_->Term);
 
-        if (LastSnapshotInfo_) {
+        if (LastSnapshotInfo_ && LastSnapshotInfo_->SequenceNumber != -1) {
             auto* snapshotRequest = request->mutable_snapshot_request();
             snapshotRequest->set_snapshot_id(LastSnapshotInfo_->SnapshotId);
             snapshotRequest->set_sequence_number(LastSnapshotInfo_->SequenceNumber);
@@ -314,6 +314,12 @@ void TLeaderCommitter::OnSnapshotReply(int peerId)
     if (LastSnapshotInfo_->HasReply[peerId]) {
         return;
     }
+
+    YT_LOG_INFO("Received a new snapshot reply (PeerId: %v, SnaphotId: %v)",
+        peerId,
+        LastSnapshotInfo_->SnapshotId);
+
+    LastSnapshotInfo_->HasReply[peerId] = true;
     ++LastSnapshotInfo_->ReplyCount;
     if (LastSnapshotInfo_->ReplyCount == std::ssize(LastSnapshotInfo_->HasReply)) {
         OnSnapshotsComplete();
@@ -343,6 +349,10 @@ void TLeaderCommitter::OnRemoteFlush(
 
         auto snapshotId = snapshotResult.snapshot_id();
         auto checksum = snapshotResult.checksum();
+
+        YT_LOG_DEBUG("Snaphot reply received (SnapshotId: %v, FollowerId: %v)",
+            snapshotId,
+            followerId);
 
         // We could have received an unsuccessfull reply before, so we can mark it as success now, but we
         // won't count it again (because of HasReply).
@@ -381,7 +391,6 @@ void TLeaderCommitter::MaybePromoteCommitedSequenceNumber()
     }
     YT_VERIFY(std::ssize(loggedNumbers) == CellManager_->GetVotingPeerCount());
 
-    YT_LOG_DEBUG("loggedNumbers %v", loggedNumbers);
     std::sort(loggedNumbers.begin(), loggedNumbers.end(), std::greater<>());
 
     auto committedSequenceNumber = loggedNumbers[CellManager_->GetQuorumPeerCount() - 1];
@@ -512,7 +521,8 @@ void TLeaderCommitter::OnSnapshotsComplete()
         }
     }
 
-    YT_LOG_INFO("Distributed snapshot creation finished (SuccessCount: %v)",
+    YT_LOG_INFO("Distributed snapshot creation finished (SnapshotId: %v, SuccessCount: %v)",
+        LastSnapshotInfo_->SnapshotId,
         successCount);
 
     if (checksumMismatch) {
@@ -583,8 +593,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& result)
     AqcuiringChangelog_ = false;
     if (!result.IsOK()) {
         if (LastSnapshotInfo_) {
-            // TODO: double set
-            LastSnapshotInfo_->Promise.Set(result);
+            LastSnapshotInfo_->Promise.TrySet(result);
             LastSnapshotInfo_ = std::nullopt;
         }
         // restart or retry
@@ -622,7 +631,9 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& result)
     BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
         .AsyncVia(EpochContext_->EpochUserAutomatonInvoker)
         .Run(ChangelogId_, selfState.LastLoggedSequenceNumber)
-        .Apply(BIND(&TLeaderCommitter::OnLocalSnapshotBuilt, MakeStrong(this), ChangelogId_));
+        .Apply(
+            BIND(&TLeaderCommitter::OnLocalSnapshotBuilt, MakeStrong(this), ChangelogId_)
+            .AsyncVia(EpochContext_->EpochControlInvoker));
 }
 
 void TLeaderCommitter::LogMutation(TMutationDraft&& mutationDraft)
