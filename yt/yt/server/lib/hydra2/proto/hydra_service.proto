@@ -75,7 +75,6 @@ message TReqAcceptMutations
     {
         required int32 snapshot_id = 1;
         required int64 sequence_number = 2;
-        optional bool set_read_only = 3 [default = false];
     }
 
     // May be useless

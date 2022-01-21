@@ -1041,6 +1041,12 @@ private:
         auto committedSegmentId = request->committed_segment_id();
         auto term = request->term();
 
+        auto epochContext = GetControlEpochContext(epochId);
+        // TODO(aleksandra-zh): I hate that.
+        SwitchTo(epochContext->EpochControlInvoker);
+
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto mutationCount = request->Attachments().size();
         context->SetRequestInfo("StartSequenceNumber: %v, CommittedSequenceNumber: %v, CommittedSegmentId: %v, EpochId: %v, MutationCount: %v",
             startSequenceNumber,
@@ -1056,8 +1062,6 @@ private:
                 "Cannot accept mutations in %Qlv state",
                 controlState);
         }
-
-        auto epochContext = GetControlEpochContext(epochId);
 
         if (term < epochContext->Term) {
             THROW_ERROR_EXCEPTION(
@@ -1090,7 +1094,7 @@ private:
                 << TErrorAttribute("self_term", epochContext->Term)
                 << TErrorAttribute("leader_term", term);
             ScheduleRestart(epochContext, error);
-            // TODO: Maybe replace restart with:
+            // TODO(aleksandra-zh): Maybe replace restart with:
             // epochContext->Term = term;
             THROW_ERROR(error);
         }
@@ -1121,9 +1125,11 @@ private:
             if (SnapshotFuture_ && SnapshotFuture_.IsSet()) {
                 auto* snapshotResponse = response->mutable_snapshot_response();
                 const auto& valueOrError = SnapshotFuture_.Get();
+                // TODO (aleksandra-zh): error is actually useful.
                 snapshotResponse->set_ok(valueOrError.IsOK());
                 if (valueOrError.IsOK()) {
                     auto value = valueOrError.Value();
+
                     snapshotResponse->set_snapshot_id(value.SnapshotId);
                     snapshotResponse->set_checksum(value.Checksum);
                 }
@@ -1590,15 +1596,6 @@ private:
             .ValueOrThrow();
     }
 
-    void OnCommitFailed(const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto wrappedError = TError("Error committing mutation")
-            << error;
-        ScheduleRestart(ControlEpochContext_, wrappedError);
-    }
-
     void OnLoggingFailed(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1735,8 +1732,6 @@ private:
                 epochContext.Get(),
                 Logger,
                 Profiler_);
-            epochContext->LeaderCommitter->SubscribeCommitFailed(
-                BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this)));
             epochContext->LeaderCommitter->SubscribeLoggingFailed(
                 BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
 
@@ -2170,8 +2165,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("StopEpoch");
-
         ResetControlEpochContext();
 
         LeaderRecovered_ = false;
@@ -2191,6 +2184,12 @@ private:
     TEpochContextPtr GetControlEpochContext(TEpochId epochId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!ControlEpochContext_) {
+            THROW_ERROR_EXCEPTION(
+                NHydra2::EErrorCode::InvalidEpoch,
+                "No control epoch context");
+        }
 
         auto currentEpochId = ControlEpochContext_->EpochId;
         if (epochId != currentEpochId) {
