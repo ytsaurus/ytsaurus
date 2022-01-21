@@ -27,8 +27,8 @@ public:
     NObjectServer::TObject* FindObject(NObjectClient::TObjectId id) override;
 
 protected:
-    NObjectServer::TObject* DoCreateObject(
-        std::unique_ptr<TCellBase> holder,
+    TImpl* DoCreateObject(
+        NObjectClient::TObjectId id,
         NYTree::IAttributeDictionary* attributes);
 
     NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cell*/) override;

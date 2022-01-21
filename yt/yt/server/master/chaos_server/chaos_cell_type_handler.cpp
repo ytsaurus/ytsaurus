@@ -68,8 +68,7 @@ public:
                 id);
         }
 
-        auto holder = TPoolAllocator::New<TChaosCell>(id);
-        return DoCreateObject(std::move(holder), attributes);
+        return DoCreateObject(id, attributes);
     }
 
 private:
