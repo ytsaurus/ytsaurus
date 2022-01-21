@@ -2980,7 +2980,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     ProcessJobFinishedResult(taskResult);
 
     UpdateTask(joblet->Task);
-
     LogProgress();
 
     if (IsCompleted()) {
@@ -4241,7 +4240,7 @@ void TOperationControllerBase::AnalyzeJobsCpuUsage()
             EOperationAlertType::LowCpuUsage,
             alertMessage);
     }
-        
+
     {
         auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
             return jobSpec->CpuLimit;
@@ -5124,7 +5123,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
         if (abortAllJoblets) {
             AbortAllJoblets(EAbortReason::OperationFailed);
-            }
+        }
 
         for (const auto& task : Tasks) {
             task->StopTiming();
@@ -10164,7 +10163,7 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
 
         i64 totalExecutionTime = 0;
         i64 jobCount = 0;
-        
+
         double limit = getLimit(userJobSpecPtr);
         if (limit == 0) {
             continue;

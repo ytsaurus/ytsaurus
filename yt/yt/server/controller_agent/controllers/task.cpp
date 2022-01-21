@@ -1052,8 +1052,12 @@ void TTask::OnStripeRegistrationFailed(
     const TChunkStripePtr& /* stripe */,
     const TStreamDescriptor& /* streamDescriptor */)
 {
+    // NB: This method can be called during processing OnJob* event,
+    // aborting all joblets are unsafe in this situation.
     TaskHost_->OnOperationFailed(error
-        << TErrorAttribute("task_title", GetTitle()));
+        << TErrorAttribute("task_title", GetTitle()),
+        /*flush*/ false,
+        /*abortAllJoblets*/ false);
 }
 
 void TTask::OnTaskCompleted()
