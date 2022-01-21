@@ -115,6 +115,7 @@ void TServiceContextBase::ReplyEpilogue()
         YT_ASSERT(!ResponseMessage_);
         ResponseMessage_ = responseMessage;
         asyncResponseMessage = AsyncResponseMessage_;
+        Replied_.store(true);
     }
 
     DoReply();
@@ -128,8 +129,6 @@ void TServiceContextBase::ReplyEpilogue()
     if (asyncResponseMessage) {
         asyncResponseMessage.Set(std::move(responseMessage));
     }
-
-    Replied_.store(true);
 }
 
 void TServiceContextBase::SetComplete()
