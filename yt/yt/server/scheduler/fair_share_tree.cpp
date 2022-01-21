@@ -118,7 +118,7 @@ using TPreemptiveScheduleJobsStageList = TCompactVector<TPreemptiveScheduleJobsS
 //!     More details can be find at #TResourceTree.
 class TFairShareTree
     : public ISchedulerTree
-    , public IFairShareTreeHost
+    , public IFairShareTreeElementHost
 {
 public:
     using TFairShareTreePtr = TIntrusivePtr<TFairShareTree>;

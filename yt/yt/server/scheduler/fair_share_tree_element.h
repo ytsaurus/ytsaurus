@@ -61,6 +61,16 @@ DEFINE_ENUM(EStarvationStatus,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IFairShareTreeElementHost
+    : public virtual TRefCounted
+{
+    virtual TResourceTree* GetResourceTree() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IFairShareTreeElementHost)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Attributes that are kept between fair share updates.
 struct TPersistentAttributes
 {
@@ -377,13 +387,13 @@ public:
 
 protected:
     TSchedulerElementFixedState(
-        ISchedulerStrategyHost* host,
-        IFairShareTreeHost* treeHost,
+        ISchedulerStrategyHost* strategyHost,
+        IFairShareTreeElementHost* treeElementHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         TString treeId);
 
-    ISchedulerStrategyHost* const Host_;
-    IFairShareTreeHost* const TreeHost_;
+    ISchedulerStrategyHost* const StrategyHost_;
+    IFairShareTreeElementHost* const TreeElementHost_;
 
     TFairShareStrategyTreeConfigPtr TreeConfig_;
 
@@ -539,8 +549,8 @@ protected:
     NLogging::TLogger Logger;
 
     TSchedulerElement(
-        ISchedulerStrategyHost* host,
-        IFairShareTreeHost* treeHost,
+        ISchedulerStrategyHost* strategyHost,
+        IFairShareTreeElementHost* treeElementHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         TString treeId,
         TString id,
@@ -654,8 +664,8 @@ class TSchedulerCompositeElement
 {
 public:
     TSchedulerCompositeElement(
-        ISchedulerStrategyHost* host,
-        IFairShareTreeHost* treeHost,
+        ISchedulerStrategyHost* strategyHost,
+        IFairShareTreeElementHost* treeElementHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         const TString& treeId,
         const TString& id,
@@ -835,8 +845,8 @@ class TSchedulerPoolElement
 {
 public:
     TSchedulerPoolElement(
-        ISchedulerStrategyHost* host,
-        IFairShareTreeHost* treeHost,
+        ISchedulerStrategyHost* strategyHost,
+        IFairShareTreeElementHost* treeElementHost,
         const TString& id,
         TPoolConfigPtr config,
         bool defaultConfigured,
@@ -1005,7 +1015,7 @@ class TSchedulerOperationElementSharedState
 {
 public:
     TSchedulerOperationElementSharedState(
-        ISchedulerStrategyHost* host,
+        ISchedulerStrategyHost* strategyHost,
         int updatePreemptableJobsListLoggingPeriod,
         const NLogging::TLogger& logger);
 
@@ -1068,7 +1078,7 @@ public:
         const TFairShareStrategyPackingConfigPtr& config);
 
 private:
-    const ISchedulerStrategyHost* Host_;
+    const ISchedulerStrategyHost* StrategyHost_;
 
     // TODO(eshcherbin): Use TEnumIndexedVector<EJobPreemptionStatus, TJobIdList> here and below.
     using TJobIdList = std::list<TJobId>;
@@ -1156,8 +1166,8 @@ public:
         TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
         TFairShareStrategyOperationControllerPtr controller,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-        ISchedulerStrategyHost* host,
-        IFairShareTreeHost* treeHost,
+        ISchedulerStrategyHost* strategyHost,
+        IFairShareTreeElementHost* treeElementHost,
         IOperationStrategyHost* operation,
         const TString& treeId,
         const NLogging::TLogger& logger);
@@ -1389,8 +1399,8 @@ class TSchedulerRootElement
 {
 public:
     TSchedulerRootElement(
-        ISchedulerStrategyHost* host,
-        IFairShareTreeHost* treeHost,
+        ISchedulerStrategyHost* strategyHost,
+        IFairShareTreeElementHost* treeElementHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         const TString& treeId,
         const NLogging::TLogger& logger);

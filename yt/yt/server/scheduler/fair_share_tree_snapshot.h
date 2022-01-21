@@ -58,15 +58,4 @@ DEFINE_REFCOUNTED_TYPE(IFairShareTreeSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This interface must be thread-safe.
-struct IFairShareTreeHost
-    : public virtual TRefCounted
-{
-    virtual TResourceTree* GetResourceTree() = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IFairShareTreeHost)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NScheduler
