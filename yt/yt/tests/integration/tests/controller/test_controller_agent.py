@@ -147,8 +147,8 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         small_usage_path = op_small.get_path() + "/controller_orchid/memory_usage"
         wait(lambda: exists(small_usage_path))
-        wait(lambda: get(small_usage_path) < 640 * 1024)
-        wait(lambda: check("1", op_small, 0, 640 * 1024))
+        wait(lambda: get(small_usage_path) < 10 * 1024 * 1024)
+        wait(lambda: check("1", op_small, 0, 10 * 1024 * 1024))
 
         op_small.abort()
 
