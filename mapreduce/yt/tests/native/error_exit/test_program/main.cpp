@@ -1,5 +1,6 @@
 #include <mapreduce/yt/interface/client.h>
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/logger.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 #include <mapreduce/yt/common/config.h>
 
 #include <util/system/env.h>
@@ -35,7 +36,7 @@ class TFailingAndDeadlockingLogger
     : public ILogger
 {
 public:
-    void Log(ELevel, const TSourceLocation&, const char*, va_list) override
+    void Log(ELevel, const ::TSourceLocation&, const char*, va_list) override
     {
         Mutex_.Acquire();
         ythrow yexception() << "OOPS";
@@ -75,8 +76,8 @@ int main(int argc, const char** argv) {
     if (failAndDeadlockLogger) {
         TFailingAndDeadlockingLogger logger;
         SetLogger(&logger);
-        LOG_DEBUG("Not so fast");
-        Y_FAIL("LOG_DEBUG should have never returned");
+        YT_LOG_DEBUG("Not so fast");
+        Y_FAIL("YT_LOG_DEBUG should have never returned");
     } else {
         client->Map(
             TMapOperationSpec()

@@ -100,8 +100,8 @@ Y_UNIT_TEST_SUITE(Common)
         UNIT_ASSERT_VALUES_EQUAL(SaveLoad(descending), descending);
         UNIT_ASSERT_VALUES_UNEQUAL(SaveToString(descending), SaveToString("a"));
 
-        UNIT_ASSERT_VALUES_EQUAL(::ToString(TSortColumn("blah")), "blah");
-        UNIT_ASSERT_VALUES_EQUAL(::ToString(TSortColumn("blah", ESortOrder::SO_DESCENDING)), "{\"name\"=\"blah\";\"sort_order\"=\"descending\"}");
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TSortColumn("blah")), "blah");
+        UNIT_ASSERT_VALUES_EQUAL(ToString(TSortColumn("blah", ESortOrder::SO_DESCENDING)), "{\"name\"=\"blah\";\"sort_order\"=\"descending\"}");
     }
 
     Y_UNIT_TEST(SortColumns)

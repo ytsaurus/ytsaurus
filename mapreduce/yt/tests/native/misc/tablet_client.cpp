@@ -137,7 +137,7 @@ Y_UNIT_TEST_SUITE(TabletClient) {
 
         client->ReshardTable(tablePath, pivotKeys);
 
-        const auto& tabletList = client->Get(TStringBuilder() << tablePath << "/@tablets");
+        const auto& tabletList = client->Get(::TStringBuilder() << tablePath << "/@tablets");
         UNIT_ASSERT_VALUES_EQUAL(tabletList.AsList().size(), 4);
 
         client->UnmountTable(tablePath);

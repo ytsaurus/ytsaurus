@@ -5,7 +5,8 @@
 #include <mapreduce/yt/interface/init.h>
 #include <mapreduce/yt/interface/operation.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/logger.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/io/job_reader.h>
 
@@ -35,7 +36,8 @@ namespace {
 
 void WriteVersionToLog()
 {
-    LOG_INFO("Wrapper version: %s", TProcessState::Get()->ClientVersion.data());
+    YT_LOG_INFO("Wrapper version: %v",
+        TProcessState::Get()->ClientVersion);
 }
 
 static TNode SecureVaultContents; // safe
@@ -92,7 +94,8 @@ private:
         const TString& logMessage)
     {
         std::function<void()> threadFun = [=] {
-            LOG_INFO("%s", logMessage.data());
+            YT_LOG_INFO("%v",
+                logMessage);
             NDetail::TAbortableRegistry::Get()->AbortAllAndBlockForever();
         };
         TThread thread(TThread::TParams(Invoke, &threadFun).SetName("aborter"));
@@ -108,7 +111,7 @@ private:
         TerminateWithTimeout(
             TDuration::Seconds(5),
             std::bind(_exit, -signalNumber),
-            TStringBuilder() << "Signal " << signalNumber << " received, aborting transactions. Waiting 5 seconds...");
+            ::TStringBuilder() << "Signal " << signalNumber << " received, aborting transactions. Waiting 5 seconds...");
     }
 
     static void TerminateHandler()
@@ -122,7 +125,7 @@ private:
                     abort();
                 }
             },
-            TStringBuilder() << "Terminate called, aborting transactions. Waiting 5 seconds...");
+            ::TStringBuilder() << "Terminate called, aborting transactions. Waiting 5 seconds...");
     }
 
 private:

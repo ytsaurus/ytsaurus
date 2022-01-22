@@ -168,7 +168,7 @@ private:
         const TString& command,
         TNode parameters,
         TMaybe<TNode> input,
-        TIntrusivePtr<TResponseParser> parser);
+        ::TIntrusivePtr<TResponseParser> parser);
 
     void AddRequest(TBatchItem batchItem);
 

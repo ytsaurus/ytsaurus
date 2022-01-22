@@ -7,7 +7,7 @@
 
 #include <mapreduce/yt/http/retry_request.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/yson/node/node.h>
 #include <library/cpp/yson/node/serialize.h>

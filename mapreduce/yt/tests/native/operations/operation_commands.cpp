@@ -841,7 +841,7 @@ Y_UNIT_TEST_SUITE(JobCommands)
                 return false;
             }
             const auto& job = jobs.front();
-            TString path = TStringBuilder()
+            TString path = ::TStringBuilder()
                 << "//sys/cluster_nodes/" << *job.Address
                 << "/orchid/job_controller/active_jobs/scheduler/" << *job.Id << "/job_phase";
             if (!client->Exists(path)) {

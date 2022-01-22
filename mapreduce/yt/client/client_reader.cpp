@@ -7,7 +7,7 @@
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/io/helpers.h>
 #include <mapreduce/yt/io/yamr_table_reader.h>
@@ -26,6 +26,8 @@
 #include <util/string/cast.h>
 
 namespace NYT {
+
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,7 +81,9 @@ bool TClientReader::Retry(
         CreateRequest(rangeIndex, rowIndex);
         return true;
     } catch (const std::exception& ex) {
-        LOG_ERROR("Client reader retry failed: %s", ex.what());
+        YT_LOG_ERROR("Client reader retry failed: %v",
+            ex.what());
+
         return false;
     }
 }
@@ -166,7 +170,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
 
             Input_ = Request_->GetResponseStream();
 
-            LOG_DEBUG("RSP %s - table stream", Request_->GetRequestId().data());
+            YT_LOG_DEBUG("RSP %v - table stream", Request_->GetRequestId());
 
             return;
         } catch (const TErrorResponse& e) {

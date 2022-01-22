@@ -9,7 +9,7 @@
 
 #include <mapreduce/yt/http/retry_request.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 namespace NYT {
 namespace NDetail {
@@ -72,7 +72,7 @@ void TYtPoller::WatchLoop()
         try {
             ExecuteBatch(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, rawBatchRequest);
         } catch (const yexception& ex) {
-            LOG_ERROR("Exception while executing batch request: %s", ex.what());
+            YT_LOG_ERROR("Exception while executing batch request: %v", ex.what());
         }
 
         for (auto it = InProgress_.begin(); it != InProgress_.end();) {

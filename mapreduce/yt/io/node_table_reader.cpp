@@ -3,7 +3,7 @@
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/yson/parser.h>
 
@@ -285,7 +285,7 @@ void TNodeTableReader::Next()
     try {
         NextImpl();
     } catch (const yexception& ex) {
-        LOG_ERROR("TNodeTableReader::Next failed: %s", ex.what());
+        YT_LOG_ERROR("TNodeTableReader::Next failed: %v", ex.what());
         throw;
     }
 }
@@ -415,7 +415,7 @@ void TNodeTableReader::PrepareParsing()
 
 void TNodeTableReader::OnStreamError()
 {
-    LOG_ERROR("Read error: %s", Exception_.what());
+    YT_LOG_ERROR("Read error: %v", Exception_.what());
     if (Input_.Retry(RangeIndex_, RowIndex_))
     {
         RowIndex_.Clear();

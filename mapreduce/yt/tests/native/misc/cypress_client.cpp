@@ -53,7 +53,7 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         };
 
         for (const auto nodeType : nodeTypeList) {
-            auto nodeTypeStr = ::ToString(nodeType);
+            auto nodeTypeStr = ToString(nodeType);
             const TString nodePath = workingDir + "/" + nodeTypeStr;
             const TString nodeTypePath = nodePath + "/@type";
             const TString nodeIdPath = nodePath + "/@id";

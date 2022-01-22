@@ -6,12 +6,14 @@
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
 
 namespace NYT {
+
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,8 +48,8 @@ void RetryHeavyWriteRequest(
             request.FinishRequest();
             request.GetResponse();
         } catch (TErrorResponse& e) {
-            LOG_ERROR("RSP %s - attempt %d failed",
-                requestId.data(),
+            YT_LOG_ERROR("RSP %v - attempt %v failed",
+                requestId,
                 attempt);
 
             if (!IsRetriable(e) || attempt + 1 == retryCount) {
@@ -57,8 +59,8 @@ void RetryHeavyWriteRequest(
             continue;
 
         } catch (yexception& e) {
-            LOG_ERROR("RSP %s - %s - attempt %d failed",
-                requestId.data(),
+            YT_LOG_ERROR("RSP %v - %v - attempt %v failed",
+                requestId,
                 e.what(),
                 attempt);
 

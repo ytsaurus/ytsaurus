@@ -14,7 +14,8 @@
 #include <mapreduce/yt/raw_client/raw_requests.h>
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/digest/md5/md5.h>
 
@@ -60,10 +61,12 @@ public:
                 *attributes.State != "initializing";
             return operationHasLockedFiles ? EStatus::PollBreak : EStatus::PollContinue;
         } catch (const TErrorResponse& e) {
-            LOG_ERROR("get_operation request %s failed: %s", e.GetRequestId().data(), e.GetError().GetMessage().data());
+            YT_LOG_ERROR("get_operation request failed: %v (RequestId: %v)",
+                e.GetError().GetMessage(),
+                e.GetRequestId());
             return IsRetriable(e) ? PollContinue : PollBreak;
         } catch (const yexception& e) {
-            LOG_ERROR("%s", e.what());
+            YT_LOG_ERROR("%v", e.what());
             return PollBreak;
         }
     }
@@ -129,14 +132,14 @@ TOperationId TOperationPreparer::StartOperation(
         header,
         ysonSpec);
     TOperationId operationId = ParseGuidFromResponse(responseInfo.Response);
-    LOG_DEBUG("Operation started (OperationId: %s; PreparationId: %s)",
-        GetGuidAsString(operationId).c_str(),
-        GetPreparationId().c_str());
+    YT_LOG_DEBUG("Operation started (OperationId: %v; PreparationId: %v)",
+        operationId,
+        GetPreparationId());
 
-    LOG_INFO("Operation %s started (%s): %s",
-        GetGuidAsString(operationId).data(),
-        operationType.data(),
-        GetOperationWebInterfaceUrl(GetAuth().ServerName, operationId).data());
+    YT_LOG_INFO("Operation %v started (%v): %v",
+        operationId,
+        operationType,
+        GetOperationWebInterfaceUrl(GetAuth().ServerName, operationId));
 
     TOperationExecutionTimeTracker::Get()->Start(operationId);
 
@@ -168,7 +171,7 @@ void TOperationPreparer::LockFiles(TVector<TRichYPath>* paths)
     for (const auto& lockIdFuture : lockIdFutures) {
         nodeIdFutures.push_back(getNodeIdRequest.Get(
             FileTransaction_->GetId(),
-            TStringBuilder() << '#' << GetGuidAsString(lockIdFuture.GetValue()) << "/@node_id",
+            ::TStringBuilder() << '#' << GetGuidAsString(lockIdFuture.GetValue()) << "/@node_id",
             TGetOptions()));
     }
     ExecuteBatch(ClientRetryPolicy_->CreatePolicyForGenericRequest(), GetAuth(), getNodeIdRequest);
@@ -177,7 +180,9 @@ void TOperationPreparer::LockFiles(TVector<TRichYPath>* paths)
         auto& richPath = (*paths)[i];
         richPath.OriginalPath(richPath.Path_);
         richPath.Path("#" + nodeIdFutures[i].GetValue().AsString());
-        LOG_DEBUG("Locked file %s, new path is %s", richPath.OriginalPath_->data(), richPath.Path_.data());
+        YT_LOG_DEBUG("Locked file %v, new path is %v",
+            *richPath.OriginalPath_,
+            richPath.Path_);
     }
 }
 
@@ -385,7 +390,7 @@ TString TJobPreparer::GetFileStorage() const
 
 TYPath TJobPreparer::GetCachePath() const
 {
-    return AddPathPrefix(TStringBuilder() << GetFileStorage() << "/new_cache");
+    return AddPathPrefix(::TStringBuilder() << GetFileStorage() << "/new_cache");
 }
 
 void TJobPreparer::CreateStorage() const
@@ -412,11 +417,11 @@ int TJobPreparer::GetFileCacheReplicationFactor() const
 
 TString TJobPreparer::UploadToRandomPath(const IItemToUpload& itemToUpload) const
 {
-    TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
-    LOG_INFO("Uploading file to random cypress path (FileName: %s; CypressPath: %s; PreparationId: %s)",
-        itemToUpload.GetDescription().c_str(),
-        uniquePath.c_str(),
-        OperationPreparer_.GetPreparationId().c_str());
+    TString uniquePath = AddPathPrefix(::TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
+    YT_LOG_INFO("Uploading file to random cypress path (FileName: %v; CypressPath: %v; PreparationId: %v)",
+        itemToUpload.GetDescription(),
+        uniquePath,
+        OperationPreparer_.GetPreparationId());
 
     Create(
         OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
@@ -456,17 +461,17 @@ TString TJobPreparer::UploadToCacheUsingApi(const IItemToUpload& itemToUpload) c
         GetCachePath(),
         TGetFileFromCacheOptions());
     if (maybePath) {
-        LOG_DEBUG("File is already in cache (FileName: %s)",
-            itemToUpload.GetDescription().c_str(),
-            maybePath->c_str());
+        YT_LOG_DEBUG("File is already in cache (FileName: %v)",
+            itemToUpload.GetDescription(),
+            *maybePath);
         return *maybePath;
     }
 
-    TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
-    LOG_INFO("File not found in cache; uploading to cypress (FileName: %s; CypressPath: %s; PreparationId: %s)",
-        itemToUpload.GetDescription().c_str(),
-        uniquePath.c_str(),
-        OperationPreparer_.GetPreparationId().c_str());
+    TString uniquePath = AddPathPrefix(::TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
+    YT_LOG_INFO("File not found in cache; uploading to cypress (FileName: %v; CypressPath: %v; PreparationId: %v)",
+        itemToUpload.GetDescription(),
+        uniquePath,
+        OperationPreparer_.GetPreparationId());
 
     Create(
         OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
@@ -513,9 +518,9 @@ TString TJobPreparer::UploadToCacheUsingApi(const IItemToUpload& itemToUpload) c
 
 TString TJobPreparer::UploadToCache(const IItemToUpload& itemToUpload) const
 {
-    LOG_INFO("Uploading file (FileName: %s; PreparationId: %s)",
-        itemToUpload.GetDescription().c_str(),
-        OperationPreparer_.GetPreparationId().c_str());
+    YT_LOG_INFO("Uploading file (FileName: %v; PreparationId: %v)",
+        itemToUpload.GetDescription(),
+        OperationPreparer_.GetPreparationId());
 
     TString result;
     switch (Options_.FileCacheMode_) {
@@ -531,9 +536,9 @@ TString TJobPreparer::UploadToCache(const IItemToUpload& itemToUpload) const
             Y_FAIL("Unknown file cache mode: %d", static_cast<int>(Options_.FileCacheMode_));
     }
 
-    LOG_INFO("Complete uploading file (FileName: %s; PreparationId: %s)",
-        itemToUpload.GetDescription().c_str(),
-        OperationPreparer_.GetPreparationId().c_str());
+    YT_LOG_INFO("Complete uploading file (FileName: %v; PreparationId: %v)",
+        itemToUpload.GetDescription(),
+        OperationPreparer_.GetPreparationId());
 
     return result;
 }
@@ -613,7 +618,7 @@ void TJobPreparer::UploadBinary(const TJobBinaryConfig& jobBinary)
         }
         UseFileInCypress(ytPath.FileName("cppbinary").Executable(true));
     } else {
-        Y_FAIL("%s", (TStringBuilder() << "Unexpected jobBinary tag: " << jobBinary.index()).data());
+        Y_FAIL("%s", (::TStringBuilder() << "Unexpected jobBinary tag: " << jobBinary.index()).data());
     }
 }
 
@@ -676,7 +681,7 @@ void TJobPreparer::PrepareJobBinary(const IJob& job, int outputTableCount, bool 
     }
 
     ClassName_ = TJobFactory::Get()->GetJobName(&job);
-    Command_ = TStringBuilder() <<
+    Command_ = ::TStringBuilder() <<
         jobCommandPrefix <<
         (TConfig::Get()->UseClientProtobuf ? "YT_USE_CLIENT_PROTOBUF=1" : "YT_USE_CLIENT_PROTOBUF=0") << " " <<
         binaryPathInsideJob << " " <<

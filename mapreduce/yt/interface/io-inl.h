@@ -170,8 +170,8 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// We don't include <mapreduce/yt/interface/logging/log.h> in this file
-// to avoid macro name clashes (specifically LOG_DEBUG)
+// We don't include <mapreduce/yt/interface/logging/yt_log.h> in this file
+// to avoid macro name clashes (specifically YT_LOG_DEBUG)
 void LogTableReaderStatistics(ui64 rowCount, TMaybe<size_t> byteCount);
 
 template <class T>

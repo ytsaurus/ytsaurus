@@ -11,7 +11,7 @@
 #include <mapreduce/yt/tests/native/ydl_lib/all_types.ydl.h>
 
 #include <mapreduce/yt/interface/logging/logger.h>
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/serialize.h>

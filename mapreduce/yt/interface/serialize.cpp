@@ -36,7 +36,7 @@ void Serialize(const TSortColumn& sortColumn, NYson::IYsonConsumer* consumer)
     } else {
         BuildYsonFluently(consumer).BeginMap()
             .Item("name").Value(sortColumn.Name())
-            .Item("sort_order").Value(::ToString(sortColumn.SortOrder()))
+            .Item("sort_order").Value(ToString(sortColumn.SortOrder()))
         .EndMap();
     }
 }
@@ -245,7 +245,7 @@ void Serialize(const TColumnSchema& columnSchema, NYson::IYsonConsumer* consumer
             }
         })
         .DoIf(columnSchema.SortOrder().Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("sort_order").Value(::ToString(*columnSchema.SortOrder()));
+            fluent.Item("sort_order").Value(ToString(*columnSchema.SortOrder()));
         })
         .DoIf(columnSchema.Lock().Defined(), [&] (TFluentMap fluent) {
             fluent.Item("lock").Value(*columnSchema.Lock());
@@ -309,7 +309,7 @@ void Deserialize(TTableSchema& tableSchema, const TNode& node)
 void Serialize(const TKeyBound& keyBound, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginList()
-        .Item().Value(::ToString(keyBound.Relation()))
+        .Item().Value(ToString(keyBound.Relation()))
         .Item().Value(keyBound.Key())
     .EndList();
 }
@@ -444,10 +444,10 @@ void Serialize(const TRichYPath& path, NYson::IYsonConsumer* consumer)
             fluent.Item("compression_codec").Value(*path.CompressionCodec_);
         })
         .DoIf(path.ErasureCodec_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("erasure_codec").Value(::ToString(*path.ErasureCodec_));
+            fluent.Item("erasure_codec").Value(ToString(*path.ErasureCodec_));
         })
         .DoIf(path.OptimizeFor_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("optimize_for").Value(::ToString(*path.OptimizeFor_));
+            fluent.Item("optimize_for").Value(ToString(*path.OptimizeFor_));
         })
         .DoIf(path.TransactionId_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("transaction_id").Value(GetGuidAsString(*path.TransactionId_));

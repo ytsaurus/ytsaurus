@@ -8,7 +8,8 @@
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/json/json_writer.h>
 #include <library/cpp/string_utils/base64/base64.h>
@@ -434,9 +435,9 @@ TAddressCache::TAddressPtr TAddressCache::Resolve(const TString& hostName)
             break;
         }
         retryPolicy->NotifyNewAttempt();
-        LOG_DEBUG("Failed to resolve address of required version for host %s, retrying: %s",
-            hostName.c_str(),
-            retryPolicy->GetAttemptDescription().c_str());
+        YT_LOG_DEBUG("Failed to resolve address of required version for host %v, retrying: %v",
+            hostName,
+            retryPolicy->GetAttemptDescription());
         if (auto backoffDuration = retryPolicy->OnGenericError(error)) {
             NDetail::TWaitProxy::Get()->Sleep(*backoffDuration);
         } else {
@@ -461,14 +462,14 @@ TAddressCache::TAddressPtr TAddressCache::FindAddress(const TString& hostName) c
     }
 
     if (TInstant::Now() > entry.ExpirationTime) {
-        LOG_DEBUG("Address resolution cache entry for host %s is expired, will retry resolution",
-            hostName.c_str());
+        YT_LOG_DEBUG("Address resolution cache entry for host %v is expired, will retry resolution",
+            hostName);
         return nullptr;
     }
 
     if (!ContainsAddressOfRequiredVersion(entry.Address)) {
-        LOG_DEBUG("Address of required version not found for host %s, will retry resolution",
-            hostName.c_str());
+        YT_LOG_DEBUG("Address of required version not found for host %v, will retry resolution",
+            hostName);
         return nullptr;
     }
 
@@ -542,8 +543,8 @@ TConnectionPtr TConnectionPool::Connect(
         Connections_.insert({hostName, connection});
     }
 
-    LOG_DEBUG("New connection to %s #%u opened",
-        hostName.c_str(),
+    YT_LOG_DEBUG("New connection to %v #%v opened",
+        hostName,
         connection->Id);
 
     return connection;
@@ -573,7 +574,7 @@ void TConnectionPool::Invalidate(
     auto range = Connections_.equal_range(hostName);
     for (auto it = range.first; it != range.second; ++it) {
         if (it->second == connection) {
-            LOG_DEBUG("Closing connection #%u",
+            YT_LOG_DEBUG("Closing connection #%v",
                 connection->Id);
             Connections_.erase(it);
             return;
@@ -611,7 +612,7 @@ void TConnectionPool::Refresh()
 
         if (removeCount > 0) {
             Connections_.erase(mapIterator);
-            LOG_DEBUG("Closing connection #%u (too many opened connections)",
+            YT_LOG_DEBUG("Closing connection #%v (too many opened connections)",
                 connection->Id);
             --removeCount;
             continue;
@@ -619,7 +620,7 @@ void TConnectionPool::Refresh()
 
         if (connection->DeadLine < now) {
             Connections_.erase(mapIterator);
-            LOG_DEBUG("Closing connection #%u (timeout)",
+            YT_LOG_DEBUG("Closing connection #%v (timeout)",
                 connection->Id);
         }
     }
@@ -702,8 +703,8 @@ THttpResponse::THttpResponse(
     ErrorResponse_ = TErrorResponse(HttpCode_, RequestId_);
 
     auto logAndSetError = [&] (const TString& rawError) {
-        LOG_ERROR("RSP %s - HTTP %d - %s",
-            RequestId_.data(),
+        YT_LOG_ERROR("RSP %v - HTTP %v - %v",
+            RequestId_,
             HttpCode_,
             rawError.data());
         ErrorResponse_->SetRawError(rawError);
@@ -715,7 +716,7 @@ THttpResponse::THttpResponse(
             break;
 
         case 500:
-            logAndSetError(TStringBuilder() << "internal error in proxy " << HostName_);
+            logAndSetError(::TStringBuilder() << "internal error in proxy " << HostName_);
             break;
 
         default: {
@@ -731,7 +732,8 @@ THttpResponse::THttpResponse(
                 HttpCode_,
                 httpHeaders.Str().data());
 
-            LOG_ERROR("%s", errorString.data());
+            YT_LOG_ERROR("%v",
+                errorString.data());
 
             if (auto parsedResponse = ParseError(HttpInput_.Headers())) {
                 ErrorResponse_ = parsedResponse.GetRef();
@@ -823,8 +825,8 @@ void THttpResponse::CheckTrailers(const THttpHeaders& trailers)
 {
     if (auto errorResponse = ParseError(trailers)) {
         errorResponse->SetIsFromTrailers(true);
-        LOG_ERROR("RSP %s - %s",
-            RequestId_.data(),
+        YT_LOG_ERROR("RSP %v - %v",
+            RequestId_,
             errorResponse.GetRef().what());
         ythrow errorResponse.GetRef();
     }
@@ -860,15 +862,15 @@ TString THttpRequest::GetRequestId() const
 void THttpRequest::Connect(TString hostName, TDuration socketTimeout)
 {
     HostName = std::move(hostName);
-    LOG_DEBUG("REQ %s - requesting connection to %s from connection pool",
-        RequestId.data(),
-        HostName.data());
+    YT_LOG_DEBUG("REQ %v - requesting connection to %v from connection pool",
+        RequestId,
+        HostName);
 
     StartTime_ = TInstant::Now();
     Connection = TConnectionPool::Get()->Connect(HostName, socketTimeout);
 
-    LOG_DEBUG("REQ %s - connection #%u",
-        RequestId.data(),
+    YT_LOG_DEBUG("REQ %v - connection #%v",
+        RequestId,
         Connection->Id);
 }
 
@@ -894,10 +896,10 @@ IOutputStream* THttpRequest::StartRequestImpl(const THttpHeader& header, bool in
             << "X-YT-Parameters (sent in " << (includeParameters ? "header" : "body") << "): " << TruncateForLogs(parametersDebugString, sizeLimit);
         return out.Str();
     };
-    LOG_DEBUG("REQ %s - sending request (HostName: %s; %s)",
-        RequestId.data(),
-        HostName.c_str(),
-        getLoggedAttributes(Max<size_t>()).c_str());
+    YT_LOG_DEBUG("REQ %v - sending request (HostName: %v; %v)",
+        RequestId,
+        HostName,
+        getLoggedAttributes(Max<size_t>()));
 
     LoggedAttributes_ = getLoggedAttributes(128);
 
@@ -970,15 +972,15 @@ TString THttpRequest::GetResponse()
 
     if (LogResponse) {
         constexpr auto sizeLimit = 1 << 7;
-        LOG_DEBUG("RSP %s - received response (Response: '%s'; %s)",
-            RequestId.c_str(),
-            TruncateForLogs(result, sizeLimit).c_str(),
-            loggedAttributes.Str().c_str());
+        YT_LOG_DEBUG("RSP %v - received response (Response: '%v'; %v)",
+            RequestId,
+            TruncateForLogs(result, sizeLimit),
+            loggedAttributes.Str());
     } else {
-        LOG_DEBUG("RSP %s - received response of %" PRISZT " bytes (%s)",
-            RequestId.data(),
+        YT_LOG_DEBUG("RSP %v - received response of %v bytes (%v)",
+            RequestId,
             result.size(),
-            loggedAttributes.Str().c_str());
+            loggedAttributes.Str());
     }
     return result;
 }
@@ -1024,9 +1026,9 @@ void TraceRequest(const THttpRequest& request)
     Y_VERIFY(TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Error ||
              TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Always);
     auto httpRequestTrace = request.GetTracedHttpRequest();
-    LOG_DEBUG("Dump of request %s:\n%s\n",
-        request.GetRequestId().data(),
-        httpRequestTrace.data()
+    YT_LOG_DEBUG("Dump of request %v:\n%v\n",
+        request.GetRequestId(),
+        httpRequestTrace
     );
 }
 

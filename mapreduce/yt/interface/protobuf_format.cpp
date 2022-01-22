@@ -33,6 +33,8 @@ using ::google::protobuf::FileOptions;
 using ::google::protobuf::OneofOptions;
 using ::google::protobuf::MessageOptions;
 
+using ::ToString;
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -551,11 +553,11 @@ TString DeduceProtobufType(
 {
     if (options.Type) {
         ValidateProtobufType(*fieldDescriptor, *options.Type);
-        return ::ToString(*options.Type);
+        return ToString(*options.Type);
     }
     switch (fieldDescriptor->type()) {
         case FieldDescriptor::TYPE_ENUM:
-            return ::ToString(EProtobufType::EnumString);
+            return ToString(EProtobufType::EnumString);
         case FieldDescriptor::TYPE_MESSAGE:
             switch (options.SerializationMode) {
                 case EProtobufSerializationMode::Protobuf:

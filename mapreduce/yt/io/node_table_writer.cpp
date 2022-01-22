@@ -4,7 +4,7 @@
 
 #include <mapreduce/yt/common/node_visitor.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/yson/writer.h>
 

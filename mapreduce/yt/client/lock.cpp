@@ -79,7 +79,7 @@ const TLockId& TLock::GetId() const
 TNodeId TLock::GetLockedNodeId() const
 {
     auto nodeIdNode = Client_->Get(
-        TStringBuilder() << '#' << GetGuidAsString(LockId_) << "/@node_id",
+        ::TStringBuilder() << '#' << GetGuidAsString(LockId_) << "/@node_id",
         TGetOptions());
     return GetGuid(nodeIdNode.AsString());
 }

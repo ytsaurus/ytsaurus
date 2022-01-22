@@ -24,7 +24,7 @@ public:
     static TWaitProxy* Get();
 
     // NB: Non thread-safe, should be called only in initialization code.
-    void SetProxy(TIntrusivePtr<IWaitProxy> proxy);
+    void SetProxy(::TIntrusivePtr<IWaitProxy> proxy);
 
     bool WaitFuture(const NThreading::TFuture<void>& future);
     bool WaitFuture(const NThreading::TFuture<void>& future, TInstant deadLine);
@@ -44,7 +44,7 @@ public:
     void SleepUntil(TInstant instant);
 
 private:
-    TIntrusivePtr<IWaitProxy> Proxy_;
+    ::TIntrusivePtr<IWaitProxy> Proxy_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
