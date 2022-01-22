@@ -351,7 +351,7 @@ public:
         }
     }
 
-    static TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TSortColumns& reduceColumns) {
+    static ::TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TSortColumns& reduceColumns) {
         if constexpr(std::is_same<TBuf, W>::value) {
             return new TLambdaReducer<R, W>(reducer, reduceColumns);
         }
@@ -409,7 +409,7 @@ public:
         }
     }
 
-    static TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TSortColumns&) {
+    static ::TIntrusivePtr<IReducerBase> SameWithoutFinalizer(TReduce reducer, const TSortColumns&) {
         if constexpr(std::is_same<R, W>::value) {
             return new TAdditiveReducer<W>(reducer);
         }

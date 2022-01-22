@@ -10,7 +10,7 @@
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/interface/mpl.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/threading/blocking_queue/blocking_queue.h>
 

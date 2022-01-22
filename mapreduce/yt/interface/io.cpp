@@ -1,6 +1,6 @@
 #include "io.h"
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <util/string/cast.h>
 
@@ -35,9 +35,9 @@ namespace NDetail {
 void LogTableReaderStatistics(ui64 rowCount, TMaybe<size_t> byteCount)
 {
     TString byteCountStr = (byteCount ? ::ToString(*byteCount) : "<unknown>");
-    LOG_DEBUG("Table reader has read %" PRIu64 " rows, %s bytes",
+    YT_LOG_DEBUG("Table reader has read %v rows, %v bytes",
         rowCount,
-        byteCountStr.data());
+        byteCountStr);
 }
 
 } // namespace NDetail

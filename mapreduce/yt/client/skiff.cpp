@@ -1,7 +1,7 @@
 #include "skiff.h"
 
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/http/retry_request.h>
 #include <mapreduce/yt/http/requests.h>
@@ -29,6 +29,8 @@ namespace NYT {
 namespace NDetail {
 
 using namespace NRawClient;
+
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,7 +164,7 @@ void Serialize(const NSkiff::TSkiffSchemaPtr& schema, NYson::IYsonConsumer* cons
         consumer->OnStringScalar(schema->GetName());
     }
     consumer->OnKeyedItem("wire_type");
-    consumer->OnStringScalar(::ToString(schema->GetWireType()));
+    consumer->OnStringScalar(ToString(schema->GetWireType()));
     if (schema->GetChildren().size() > 0) {
         consumer->OnKeyedItem("children");
         consumer->OnBeginList();
@@ -243,7 +245,7 @@ TFormat CreateSkiffFormat(const NSkiff::TSkiffSchemaPtr& schema) {
         } else {
             currentIndex = iter->second;
         }
-        config.Attributes()["table_skiff_schemas"].Add("$" + ::ToString(currentIndex));
+        config.Attributes()["table_skiff_schemas"].Add("$" + ToString(currentIndex));
     }
 
     config.Attributes()["skiff_schema_registry"] = TNode::CreateMap();
@@ -252,7 +254,7 @@ TFormat CreateSkiffFormat(const NSkiff::TSkiffSchemaPtr& schema) {
         TNode node;
         TNodeBuilder nodeBuilder(&node);
         Serialize(tableSchema, &nodeBuilder);
-        config.Attributes()["skiff_schema_registry"][::ToString(index)] = std::move(node);
+        config.Attributes()["skiff_schema_registry"][ToString(index)] = std::move(node);
     }
 
     return TFormat(config);
@@ -315,8 +317,8 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
                 break;
             case ENodeReaderFormat::Auto:
                 if (dynamic || !strict) {
-                    LOG_DEBUG("Cannot use skiff format for table '%s' as it is dynamic or has non-strict schema",
-                        tablePath.data());
+                    YT_LOG_DEBUG("Cannot use skiff format for table '%v' as it is dynamic or has non-strict schema",
+                        tablePath);
                     return nullptr;
                 }
                 break;

@@ -7,7 +7,7 @@
 #include <mapreduce/yt/common/wait_proxy.h>
 #include <mapreduce/yt/common/retry_lib.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 namespace NYT::NDetail {
 
@@ -35,8 +35,10 @@ TResult RetryTransactionWithPolicy(
                 return result;
             }
         } catch (const TErrorResponse& e) {
-            LOG_ERROR("Retry failed %s - %s", e.GetError().GetMessage().data(),
-                retryPolicy->GetAttemptDescription().data());
+            YT_LOG_ERROR("Retry failed %v - %v",
+                e.GetError().GetMessage(),
+                retryPolicy->GetAttemptDescription());
+
             if (!IsRetriable(e)) {
                 throw;
             }
@@ -48,7 +50,10 @@ TResult RetryTransactionWithPolicy(
                 throw;
             }
         } catch (const yexception& e) {
-            LOG_ERROR("Retry failed %s - %s", e.what(), retryPolicy->GetAttemptDescription().data());
+            YT_LOG_ERROR("Retry failed %v - %v",
+                e.what(),
+                retryPolicy->GetAttemptDescription());
+
             if (!IsRetriable(e)) {
                 throw;
             }

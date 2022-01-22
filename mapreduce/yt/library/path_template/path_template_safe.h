@@ -58,8 +58,8 @@ namespace NYtPathTemplate {
     }
 
     /// @brief Creates child node of TPathTemplateEmptyNodesCount
-    /// TParentType - TIntrusivePtr on parent's node
-    /// Fails on parent = TIntrusivePtr<TParentType>(nullptr)
+    /// TParentType - ::TIntrusivePtr on parent's node
+    /// Fails on parent = ::TIntrusivePtr<TParentType>(nullptr)
     template <class TParentType>
     auto MakeSafeChildNode(TParentType parent, NYT::TCypressPath path) {
         Y_VERIFY(parent.Get());
@@ -68,8 +68,8 @@ namespace NYtPathTemplate {
     }
 
     /// @brief Creates child node of TPathTemplateEmptyNodesCount
-    /// TParentType - TIntrusivePtr on parent's node
-    /// Fails on parent = TIntrusivePtr<TParentType>(nullptr)
+    /// TParentType - ::TIntrusivePtr on parent's node
+    /// Fails on parent = ::TIntrusivePtr<TParentType>(nullptr)
     template <class TParentType>
     auto MakeSafeChildNode(TParentType parent) {
         Y_VERIFY(parent.Get());

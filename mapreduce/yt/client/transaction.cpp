@@ -206,7 +206,7 @@ TYPath Snapshot(
         clientRetryPolicy->CreatePolicyForGenericRequest(),
         auth,
         transactionId,
-        TStringBuilder() << '#' << GetGuidAsString(lockId) << "/@node_id");
+        ::TStringBuilder() << '#' << GetGuidAsString(lockId) << "/@node_id");
     return "#" + lockedNodeId.AsString();
 }
 

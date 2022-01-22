@@ -7,6 +7,8 @@
 
 namespace NYT::NDetail {
 
+using ::ToString;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static void ApplyEnableTypeConversion(TFormat* format, const TFormatHints& formatHints)
@@ -50,7 +52,7 @@ void ApplyFormatHints<TNode>(TFormat* format, const TMaybe<TFormatHints>& format
             format->Config.AsString() == "yson",
             TApiUsageError() << "ComplexTypeMode option must be used with yson format, actual format: "
                 << format->Config.AsString());
-        format->Config.Attributes()["complex_type_mode"] = ::ToString(*formatHints->ComplexTypeMode_);
+        format->Config.Attributes()["complex_type_mode"] = ToString(*formatHints->ComplexTypeMode_);
     }
 }
 

@@ -5,7 +5,8 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/error_codes.h>
-#include <mapreduce/yt/interface/logging/log.h>
+
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <util/stream/printf.h>
 
@@ -176,7 +177,7 @@ TTestFixture::TTestFixture(const TCreateClientOptions& options)
 
 TTestFixture::~TTestFixture()
 {
-    LOG_INFO("Completing test and aborting all operations");
+    YT_LOG_INFO("Completing test and aborting all operations");
     while (true) {
         auto result = Client_->ListOperations(
             TListOperationsOptions()
@@ -188,8 +189,8 @@ TTestFixture::~TTestFixture()
                 Client_->AttachOperation(*op.Id)->AbortOperation();
             } catch (const TErrorResponse& ex) {
                 if (ex.GetError().ContainsErrorCode(NClusterErrorCodes::NScheduler::NoSuchOperation)) {
-                    LOG_ERROR("Error aborting operation %s: %s",
-                        GetGuidAsString(*op.Id).data(),
+                    YT_LOG_ERROR("Error aborting operation %v: %v",
+                        *op.Id,
                         ex.what());
                 } else {
                     Y_FAIL("Unexpected error: %s", ex.what());
@@ -296,7 +297,7 @@ TStreamTeeLogger::TStreamTeeLogger(ELevel cutLevel, IOutputStream* stream, ILogg
     , Level_(cutLevel)
 { }
 
-void TStreamTeeLogger::Log(ELevel level, const TSourceLocation& sourceLocation, const char* format, va_list args)
+void TStreamTeeLogger::Log(ELevel level, const ::TSourceLocation& sourceLocation, const char* format, va_list args)
 {
     OldLogger_->Log(level, sourceLocation, format, args);
     if (level <= Level_) {

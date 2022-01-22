@@ -6,7 +6,7 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/errors.h>
@@ -31,7 +31,7 @@ using NThreading::NewPromise;
 
 static TString RequestInfo(const TNode& request)
 {
-    return TStringBuilder()
+    return ::TStringBuilder()
         << request["command"].AsString() << ' ' << NodeToYsonString(request["parameters"]);
 }
 
@@ -293,7 +293,7 @@ typename TResponseParser::TFutureResult TRawBatchRequest::AddRequest(
     const TString& command,
     TNode parameters,
     TMaybe<TNode> input,
-    TIntrusivePtr<TResponseParser> parser)
+    ::TIntrusivePtr<TResponseParser> parser)
 {
     Y_ENSURE(!Executed_, "Cannot add request: batch request is already executed");
     TNode request;
@@ -565,7 +565,9 @@ void TRawBatchRequest::FillParameterList(size_t maxSize, TNode* result, TInstant
     maxSize = Min(maxSize, BatchItemList_.size());
     *result = TNode::CreateList();
     for (size_t i = 0; i < maxSize; ++i) {
-        LOG_DEBUG("ExecuteBatch preparing: %s", RequestInfo(BatchItemList_[i].Parameters).data());
+        YT_LOG_DEBUG("ExecuteBatch preparing: %v",
+            RequestInfo(BatchItemList_[i].Parameters));
+
         result->Add(BatchItemList_[i].Parameters);
         if (BatchItemList_[i].NextTry > *nextTry) {
             *nextTry = BatchItemList_[i].NextTry;
@@ -615,15 +617,15 @@ void TRawBatchRequest::ParseResponse(
                     TErrorResponse error(400, requestId);
                     error.SetError(TYtError(errorIt->second));
                     if (auto curInterval = IsRetriable(error) ? retryPolicy->OnRetriableError(error) : Nothing()) {
-                        LOG_INFO(
+                        YT_LOG_INFO(
                             "Batch subrequest (%s) failed, will retry, error: %s",
-                            RequestInfo(BatchItemList_[i].Parameters).data(),
+                            RequestInfo(BatchItemList_[i].Parameters),
                             error.what());
                         retryBatch->AddRequest(TBatchItem(BatchItemList_[i], now + *curInterval));
                     } else {
-                        LOG_ERROR(
+                        YT_LOG_ERROR(
                             "Batch subrequest (%s) failed, error: %s",
-                            RequestInfo(BatchItemList_[i].Parameters).data(),
+                            RequestInfo(BatchItemList_[i].Parameters),
                             error.what());
                         BatchItemList_[i].ResponseParser->SetException(std::make_exception_ptr(error));
                     }

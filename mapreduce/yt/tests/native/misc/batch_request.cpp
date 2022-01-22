@@ -730,7 +730,7 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         {
             auto batchRequest = client->CreateBatchRequest();
             for (size_t i = 0; i < 100; ++i) {
-                TStringBuilder path;
+                ::TStringBuilder path;
                 path << workingDir + "/foo" << i;
                 batchRequest->Set(path, i);
             }
@@ -740,7 +740,7 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         TVector<NThreading::TFuture<TNode>> results;
         auto batchRequest = client->CreateBatchRequest();
         for (size_t i = 0; i < 100; ++i) {
-            TStringBuilder path;
+            ::TStringBuilder path;
             path << workingDir + "/foo" << i;
             results.push_back(batchRequest->Get(path));
         }

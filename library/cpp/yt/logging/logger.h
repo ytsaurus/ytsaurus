@@ -6,7 +6,7 @@
 
 #include <library/cpp/yt/memory/ref.h>
 
-#include <library/cpp/yt/cpu_clock/clock.h>
+#include <library/cpp/yt/cpu_clock/public.h>
 
 #include <library/cpp/yt/yson_string/string.h>
 

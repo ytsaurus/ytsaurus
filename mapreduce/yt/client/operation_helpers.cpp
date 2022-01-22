@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/common/config.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
@@ -51,9 +51,9 @@ bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& cl
     if (!fqdnNode.IsUndefined()) {
         auto fqdn = fqdnNode.AsString();
         isLocalMode = (fqdn == TProcessState::Get()->FqdnHostName);
-        LOG_DEBUG("Checking local mode; LocalModeFqdn: %s FqdnHostName: %s IsLocalMode: %s",
-            fqdn.c_str(),
-            TProcessState::Get()->FqdnHostName.c_str(),
+        YT_LOG_DEBUG("Checking local mode; LocalModeFqdn: %v FqdnHostName: %v IsLocalMode: %v",
+            fqdn,
+            TProcessState::Get()->FqdnHostName,
             isLocalMode ? "true" : "false");
     }
 
@@ -69,7 +69,7 @@ TString GetOperationWebInterfaceUrl(TStringBuf serverName, TOperationId operatio
 {
     serverName.ChopSuffix(".yt.yandex-team.ru");
     serverName.ChopSuffix(".yt.yandex.net");
-    return TStringBuilder() << "https://yt.yandex-team.ru/" << serverName <<
+    return ::TStringBuilder() << "https://yt.yandex-team.ru/" << serverName <<
         "/operations/" << GetGuidAsString(operationId);
 }
 

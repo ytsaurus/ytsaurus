@@ -8,7 +8,7 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
@@ -109,12 +109,12 @@ void LogRequestError(
     const TString& message,
     const TString& attemptDescription)
 {
-    LOG_ERROR("RSP %s - %s - %s - %s - X-YT-Parameters: %s",
-        request.GetRequestId().data(),
-        header.GetUrl().data(),
-        message.data(),
-        attemptDescription.data(),
-        NodeToYsonString(header.GetParameters()).data());
+    YT_LOG_ERROR("RSP %v - %v - %v - %v - X-YT-Parameters: %v",
+        request.GetRequestId(),
+        header.GetUrl(),
+        message,
+        attemptDescription,
+        NodeToYsonString(header.GetParameters()));
     if (TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Error) {
         TraceRequest(request);
     }

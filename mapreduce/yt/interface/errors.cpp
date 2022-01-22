@@ -75,7 +75,7 @@ static void SerializeError(const TYtError& error, NYson::IYsonConsumer* consumer
 
 static TString DumpJobInfoForException(const TOperationId& operationId, const TVector<TFailedJobInfo>& failedJobInfoList)
 {
-    TStringBuilder output;
+    ::TStringBuilder output;
     // Exceptions have limit to contain 65508 bytes of text, so we also limit stderr text
     constexpr size_t MAX_SIZE = 65508 / 2;
 

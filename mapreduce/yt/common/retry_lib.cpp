@@ -42,7 +42,7 @@ void TAttemptLimitedRetryPolicy::OnIgnoredError(const TErrorResponse& /*e*/)
 
 TString TAttemptLimitedRetryPolicy::GetAttemptDescription() const
 {
-    return TStringBuilder() << "attempt " << Attempt_ << " of " << AttemptLimit_;
+    return ::TStringBuilder() << "attempt " << Attempt_ << " of " << AttemptLimit_;
 }
 
 bool TAttemptLimitedRetryPolicy::IsAttemptLimitExceeded() const

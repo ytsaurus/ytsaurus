@@ -41,7 +41,7 @@ static TTaskName JobTypeToTaskName(EJobType jobType)
         case EJobType::Partition:
             return ETaskName::Partition0;
         default:
-            return ::ToString(jobType);
+            return ToString(jobType);
     }
 }
 

@@ -42,7 +42,7 @@ TWaitProxy* TWaitProxy::Get()
     return Singleton<TWaitProxy>();
 }
 
-void TWaitProxy::SetProxy(TIntrusivePtr<IWaitProxy> proxy)
+void TWaitProxy::SetProxy(::TIntrusivePtr<IWaitProxy> proxy)
 {
     Proxy_ = std::move(proxy);
 }

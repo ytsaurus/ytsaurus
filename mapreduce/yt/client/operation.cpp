@@ -21,7 +21,8 @@
 #include <mapreduce/yt/interface/job_statistics.h>
 #include <mapreduce/yt/interface/protobuf_format.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
@@ -56,6 +57,8 @@ namespace NYT {
 namespace NDetail {
 
 using namespace NRawClient;
+
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -362,9 +365,9 @@ TString GetJobStderrWithRetriesAndIgnoreErrors(
             jobId,
             options);
     } catch (const TErrorResponse& e) {
-        LOG_ERROR("Cannot get job stderr OperationId: %s JobId: %s Error: %s",
-                  GetGuidAsString(operationId).c_str(),
-                  GetGuidAsString(jobId).c_str(),
+        YT_LOG_ERROR("Cannot get job stderr (OperationId: %v, JobId: %v, Error: %v)",
+                  operationId,
+                  jobId,
                   e.what());
     }
     if (jobStderr.size() > stderrTailSize) {
@@ -551,10 +554,10 @@ EOperationBriefState CheckOperation(
     if (*attributes.BriefState == EOperationBriefState::Completed) {
         return EOperationBriefState::Completed;
     } else if (*attributes.BriefState == EOperationBriefState::Aborted || *attributes.BriefState == EOperationBriefState::Failed) {
-        LOG_ERROR("Operation %s %s (%s)",
-            GetGuidAsString(operationId).data(),
-            ::ToString(*attributes.BriefState).data(),
-            ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)).data());
+        YT_LOG_ERROR("Operation %v %v (%v)",
+            operationId,
+            ToString(*attributes.BriefState),
+            ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
 
         auto failedJobInfoList = GetFailedJobInfo(
             clientRetryPolicy,
@@ -587,9 +590,9 @@ void WaitForOperation(
     while (true) {
         auto status = CheckOperation(clientRetryPolicy, auth, operationId);
         if (status == EOperationBriefState::Completed) {
-            LOG_INFO("Operation %s completed (%s)",
-                GetGuidAsString(operationId).data(),
-                ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)).data());
+            YT_LOG_INFO("Operation %v completed (%v)",
+                operationId,
+                TOperationExecutionTimeTracker::Get()->Finish(operationId));
             break;
         }
         TWaitProxy::Get()->Sleep(checkOperationStateInterval);
@@ -604,7 +607,7 @@ TNode BuildAutoMergeSpec(const TAutoMergeSpec& options)
 {
     TNode result;
     if (options.Mode_) {
-        result["mode"] = ::ToString(*options.Mode_);
+        result["mode"] = ToString(*options.Mode_);
     }
     if (options.MaxIntermediateChunkCount_) {
         result["max_intermediate_chunk_count"] = *options.MaxIntermediateChunkCount_;
@@ -878,23 +881,30 @@ void CheckInputTablesExist(
 void LogJob(const TOperationId& opId, const IJob* job, const char* type)
 {
     if (job) {
-        LOG_INFO("Operation %s; %s = %s",
-            GetGuidAsString(opId).data(), type, TJobFactory::Get()->GetJobName(job).data());
+        YT_LOG_INFO("Operation %v; %v = %v",
+            opId,
+            type,
+            TJobFactory::Get()->GetJobName(job));
     }
 }
 
 void LogYPaths(const TOperationId& opId, const TVector<TRichYPath>& paths, const char* type)
 {
     for (size_t i = 0; i < paths.size(); ++i) {
-        LOG_INFO("Operation %s; %s[%" PRISZT "] = %s",
-            GetGuidAsString(opId).data(), type, i, paths[i].Path_.data());
+        YT_LOG_INFO("Operation %v; %v[%v] = %v",
+            opId,
+            type,
+            i,
+            paths[i].Path_);
     }
 }
 
 void LogYPath(const TOperationId& opId, const TRichYPath& path, const char* type)
 {
-    LOG_INFO("Operation %s; %s = %s",
-        GetGuidAsString(opId).data(), type, path.Path_.data());
+    YT_LOG_INFO("Operation %v; %v = %v",
+        opId,
+        type,
+        path.Path_);
 }
 
 TString AddModeToTitleIfDebug(const TString& title) {
@@ -981,8 +991,8 @@ TOperationId ExecuteMap(
     const IStructuredJob& mapper,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting map operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting map operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     return DoExecuteMap(
         preparer,
         CreateSimpleOperationIo(mapper, preparer, spec, options, /* allowSkiff = */ true),
@@ -997,8 +1007,8 @@ TOperationId ExecuteRawMap(
     const IRawJob& mapper,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting raw map operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting raw map operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     return DoExecuteMap(
         preparer,
         CreateSimpleOperationIo(mapper, preparer, spec),
@@ -1090,8 +1100,8 @@ TOperationId ExecuteReduce(
     const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting reduce operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting reduce operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     return DoExecuteReduce(
         preparer,
         CreateSimpleOperationIo(reducer, preparer, spec, options, /* allowSkiff = */ false),
@@ -1106,8 +1116,8 @@ TOperationId ExecuteRawReduce(
     const IRawJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting raw reduce operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting raw reduce operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     return DoExecuteReduce(
         preparer,
         CreateSimpleOperationIo(reducer, preparer, spec),
@@ -1189,8 +1199,8 @@ TOperationId ExecuteJoinReduce(
     const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting join reduce operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting join reduce operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     return DoExecuteJoinReduce(
         preparer,
         CreateSimpleOperationIo(reducer, preparer, spec, options, /* allowSkiff = */ false),
@@ -1205,8 +1215,8 @@ TOperationId ExecuteRawJoinReduce(
     const IRawJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting raw join reduce operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting raw join reduce operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     return DoExecuteJoinReduce(
         preparer,
         CreateSimpleOperationIo(reducer, preparer, spec),
@@ -1375,8 +1385,8 @@ TOperationId ExecuteMapReduce(
     const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting map-reduce operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting map-reduce operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     TMapReduceOperationSpec spec = spec_;
 
     TMapReduceOperationIo operationIo;
@@ -1640,8 +1650,8 @@ TOperationId ExecuteRawMapReduce(
     const IRawJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting raw map-reduce operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting raw map-reduce operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     TMapReduceOperationIo operationIo;
     operationIo.Inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetInputs());
     operationIo.MapOutputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetMapOutputs());
@@ -1688,8 +1698,8 @@ TOperationId ExecuteSort(
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting sort operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting sort operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.Inputs_);
     auto output = CanonizeYPath(nullptr, preparer.GetAuth(), spec.Output_);
 
@@ -1704,7 +1714,7 @@ TOperationId ExecuteSort(
         .Item("output_table_path").Value(output)
         .Item("sort_by").Value(spec.SortBy_)
         .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
+            fluent.Item("schema_inference_mode").Value(ToString(*spec.SchemaInferenceMode_));
         })
         .Do(std::bind(BuildCommonOperationPart<TSortOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
@@ -1728,8 +1738,8 @@ TOperationId ExecuteMerge(
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting merge operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting merge operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.Inputs_);
     auto output = CanonizeYPath(nullptr, preparer.GetAuth(), spec.Output_);
 
@@ -1742,12 +1752,12 @@ TOperationId ExecuteMerge(
     .BeginMap().Item("spec").BeginMap()
         .Item("input_table_paths").List(inputs)
         .Item("output_table_path").Value(output)
-        .Item("mode").Value(::ToString(spec.Mode_))
+        .Item("mode").Value(ToString(spec.Mode_))
         .Item("combine_chunks").Value(spec.CombineChunks_)
         .Item("force_transform").Value(spec.ForceTransform_)
         .Item("merge_by").Value(spec.MergeBy_)
         .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
+            fluent.Item("schema_inference_mode").Value(ToString(*spec.SchemaInferenceMode_));
         })
         .Do(std::bind(BuildCommonOperationPart<TMergeOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
@@ -1769,8 +1779,8 @@ TOperationId ExecuteErase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting erase operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting erase operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     auto tablePath = CanonizeYPath(nullptr, preparer.GetAuth(), spec.TablePath_);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1778,7 +1788,7 @@ TOperationId ExecuteErase(
         .Item("table_path").Value(tablePath)
         .Item("combine_chunks").Value(spec.CombineChunks_)
         .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
+            fluent.Item("schema_inference_mode").Value(ToString(*spec.SchemaInferenceMode_));
         })
         .Do(std::bind(BuildCommonOperationPart<TEraseOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
@@ -1797,8 +1807,8 @@ TOperationId ExecuteRemoteCopy(
     const TRemoteCopyOperationSpec& spec,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting remote copy operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting remote copy operation (PreparationId: %v)",
+        preparer.GetPreparationId());
     auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.Inputs_);
     auto output = CanonizeYPath(nullptr, preparer.GetAuth(), spec.Output_);
 
@@ -1817,7 +1827,7 @@ TOperationId ExecuteRemoteCopy(
             fluent.Item("network_name").Value(*spec.NetworkName_);
         })
         .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
+            fluent.Item("schema_inference_mode").Value(ToString(*spec.SchemaInferenceMode_));
         })
         .Item("copy_attributes").Value(spec.CopyAttributes_)
         .DoIf(!spec.AttributeKeys_.empty(), [&] (TFluentMap fluent) {
@@ -1844,8 +1854,8 @@ TOperationId ExecuteVanilla(
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting vanilla operation (PreparationId: %s)",
-        preparer.GetPreparationId().c_str());
+    YT_LOG_DEBUG("Starting vanilla operation (PreparationId: %v)",
+        preparer.GetPreparationId());
 
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
         Y_VERIFY(task.Job_.Get());
@@ -2168,7 +2178,7 @@ void TOperation::TOperationImpl::AnalyzeUnrecognizedSpec(TNode unrecognizedSpec)
     }
 
     if (!unrecognizedSpec.Empty()) {
-        LOG_INFO(
+        YT_LOG_INFO(
             "WARNING! Unrecognized spec for operation %s is not empty "
             "(fields added by the YT API library are excluded): %s",
             GetGuidAsString(Id_).Data(),
@@ -2302,8 +2312,11 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
     } else if (*attributes.BriefState == EOperationBriefState::Aborted || *attributes.BriefState == EOperationBriefState::Failed) {
         Y_VERIFY(attributes.Result && attributes.Result->Error);
         const auto& error = *attributes.Result->Error;
-        LOG_ERROR("Operation %s is `%s' with error: %s",
-            GetGuidAsString(Id_).data(), ::ToString(*attributes.BriefState).data(), error.FullDescription().data());
+        YT_LOG_ERROR("Operation %v is `%v' with error: %v",
+            Id_,
+            ToString(*attributes.BriefState),
+            error.FullDescription());
+
         TString additionalExceptionText;
         TVector<TFailedJobInfo> failedJobStderrInfo;
         if (*attributes.BriefState == EOperationBriefState::Failed) {

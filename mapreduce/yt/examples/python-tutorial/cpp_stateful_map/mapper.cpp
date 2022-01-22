@@ -17,7 +17,7 @@ public:
     // YSON-serializable объекта в питоне.
     // Инициализация объекта произойдет локально, на сервере будут восстановлены
     // только переменные из Y_SAVELOAD_JOB (Pattern_ и MaxDistance_).
-    static TIntrusivePtr<IMapper> FromNode(const TNode& node)
+    static ::TIntrusivePtr<IMapper> FromNode(const TNode& node)
     {
         auto result = MakeIntrusive<TFilterMapper>();
         if (node.HasKey("pattern")) {

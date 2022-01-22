@@ -1,6 +1,6 @@
 #include "skiff_table_reader.h"
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/yson/node/node_io.h>
 
@@ -97,7 +97,7 @@ void TSkiffTableReader::Next()
     try {
         ReadRow();
     } catch (const yexception& exception) {
-        LOG_ERROR("Read error: %s", exception.what());
+        YT_LOG_ERROR("Read error: %v", exception.what());
         if (Input_.Retry(RangeIndex_, RowIndex_)) {
             RangeIndex_.Clear();
             RowIndex_.Clear();

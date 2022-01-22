@@ -1,6 +1,6 @@
 #include "job_reader.h"
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <util/generic/yexception.h>
 

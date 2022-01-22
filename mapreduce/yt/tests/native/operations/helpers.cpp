@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/interface/operation.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
@@ -11,6 +11,8 @@
 #include <util/string/builder.h>
 
 namespace NYT::NTesting {
+
+using ::TStringBuilder;
 
 void WaitOperationPredicate(
     const IOperationPtr& operation,
@@ -32,9 +34,9 @@ void WaitOperationHasState(const IOperationPtr& operation, const TString& state)
     WaitOperationPredicate(
         operation,
         [&] (const TOperationAttributes& attrs) {
-            LOG_DEBUG("Operation %s state is %s",
+            YT_LOG_DEBUG("Operation %s state is %s",
                 GetGuidAsString(operation->GetId()).c_str(),
-                ::ToString(attrs.State).c_str());
+                ToString(attrs.State).c_str());
             return attrs.State == state;
         },
         "state should become \"" + state + "\"");
@@ -66,7 +68,7 @@ void EmulateOperationArchivation(IClientPtr& client, const TOperationId& operati
 {
     auto idStr = GetGuidAsString(operationId);
     auto lastTwoDigits = idStr.substr(idStr.size() - 2, 2);
-    TString path = TStringBuilder() << "//sys/operations/" << lastTwoDigits << "/" << idStr;
+    TString path = ::TStringBuilder() << "//sys/operations/" << lastTwoDigits << "/" << idStr;
     client->Remove(path, TRemoveOptions().Recursive(true));
 }
 

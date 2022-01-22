@@ -6,7 +6,7 @@
 #include <mapreduce/yt/common/wait_proxy.h>
 #include <mapreduce/yt/common/retry_lib.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/yson/node/node_io.h>
 

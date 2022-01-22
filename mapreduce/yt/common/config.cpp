@@ -2,7 +2,7 @@
 
 #include "helpers.h"
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 #include <mapreduce/yt/interface/operation.h>
 
 #include <library/cpp/json/json_reader.h>
@@ -255,7 +255,7 @@ TProcessState::TProcessState()
     Pid = static_cast<int>(getpid());
 
     if (!ClientVersion) {
-        ClientVersion = TStringBuilder() << "YT C++ native " << GetProgramCommitId();
+        ClientVersion = ::TStringBuilder() << "YT C++ native " << GetProgramCommitId();
     }
 }
 

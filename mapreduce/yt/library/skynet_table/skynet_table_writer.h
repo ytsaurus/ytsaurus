@@ -37,7 +37,7 @@ public:
     virtual void Finish() = 0;
 };
 
-using ISkynetTableWriterPtr = TIntrusivePtr<ISkynetTableWriter>;
+using ISkynetTableWriterPtr = ::TIntrusivePtr<ISkynetTableWriter>;
 
 //
 // Creates skynet table with proper schema and attributes.

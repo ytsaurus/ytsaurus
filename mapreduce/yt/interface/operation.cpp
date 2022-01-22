@@ -21,7 +21,7 @@ TTaskName::TTaskName(const char* taskName)
 { }
 
 TTaskName::TTaskName(ETaskName taskName)
-    : TaskName_(::ToString(taskName))
+    : TaskName_(ToString(taskName))
 { }
 
 const TString& TTaskName::Get() const

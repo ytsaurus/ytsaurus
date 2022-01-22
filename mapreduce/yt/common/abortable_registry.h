@@ -22,7 +22,7 @@ public:
     virtual TString GetType() const = 0;
 };
 
-using IAbortablePtr = TIntrusivePtr<IAbortable>;
+using IAbortablePtr = ::TIntrusivePtr<IAbortable>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

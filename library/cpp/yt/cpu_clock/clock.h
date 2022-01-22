@@ -1,13 +1,12 @@
 #pragma once
 
+#include "public.h"
+
 #include <util/datetime/base.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using TCpuInstant = i64;
-using TCpuDuration = i64;
 
 //! Returns the current processor clock (rdtsc).
 TCpuInstant GetCpuInstant();

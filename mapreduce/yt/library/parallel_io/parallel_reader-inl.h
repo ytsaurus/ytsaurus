@@ -11,7 +11,7 @@
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/interface/mpl.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/threading/blocking_queue/blocking_queue.h>
 
@@ -393,7 +393,7 @@ private:
                 }
             }
         } catch (const yexception& exception) {
-            LOG_ERROR("Exception in parallel reader thread: %s",
+            YT_LOG_ERROR("Exception in parallel reader thread: %v",
                 exception.what());
             TGuard<TMutex> guard(Lock_);
             Exception_ = std::current_exception();
@@ -405,7 +405,7 @@ private:
                 DoStop();
             }
             --RunningThreadCount_;
-            LOG_DEBUG("%d/%d parallel reader threads finished",
+            YT_LOG_DEBUG("%v/%v parallel reader threads finished",
                 static_cast<int>(Threads_.size()) - RunningThreadCount_,
                 Threads_.size());
         }
@@ -620,7 +620,7 @@ private:
 
     void DoStop() override
     {
-        LOG_DEBUG("Finishing ordered parallel read manager; total wait time is %f seconds",
+        YT_LOG_DEBUG("Finishing ordered parallel read manager; total wait time is %v seconds",
             WaitTime_.SecondsFloat());
         FilledBuffers_.Stop();
         for (auto& queue : EmptyBuffers_) {
@@ -837,7 +837,7 @@ THolder<TReadManagerBase<TRow>> CreateReadManager(
         config.ThreadCount = options.ThreadCount_;
         config.BatchSize = batchSize;
         config.BatchCount = batchCount;
-        LOG_DEBUG("Starting unordered processing parallel reader: "
+        YT_LOG_DEBUG("Starting unordered processing parallel reader: "
             "ThreadCount = %d, BatchSize = %d, BatchCount = %d",
             config.ThreadCount,
             config.BatchSize,
@@ -857,7 +857,7 @@ THolder<TReadManagerBase<TRow>> CreateReadManager(
         config.BatchSize = batchSize;
         config.BatchCount = batchCount;
         config.RangeCount = options.RangeCount_;
-        LOG_DEBUG("Starting ordered parallel reader: "
+        YT_LOG_DEBUG("Starting ordered parallel reader: "
             "ThreadCount = %d, BatchSize = %d, BatchCount = %d, RangeCount = %d",
             config.ThreadCount,
             config.BatchSize,
@@ -873,7 +873,7 @@ THolder<TReadManagerBase<TRow>> CreateReadManager(
         config.ThreadCount = options.ThreadCount_;
         config.BatchSize = batchSize;
         config.BatchCount = batchCount;
-        LOG_DEBUG("Starting unordered parallel reader: "
+        YT_LOG_DEBUG("Starting unordered parallel reader: "
             "ThreadCount = %d, BatchSize = %d, BatchCount = %d",
             config.ThreadCount,
             config.BatchSize,

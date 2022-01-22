@@ -10,6 +10,8 @@
 namespace NYT {
 namespace NDetail {
 
+using ::ToString;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TParallelFileWriter {
@@ -88,10 +90,10 @@ TParallelFileWriter::TParallelFileWriter(
             .Start = begin,
             .Length = end - begin,
         });
-        TempPaths_.emplace_back(Path_.Path_ + "__ParallelFileWriter__" + ::ToString(i));
+        TempPaths_.emplace_back(Path_.Path_ + "__ParallelFileWriter__" + ToString(i));
         Threads_.push_back(::MakeHolder<TThread>(
             TThread::TParams(ThreadWrite, &Params_.back())
-                .SetName("ParallelFW " + ::ToString(i))));
+                .SetName("ParallelFW " + ToString(i))));
     }
     for (auto& thread : Threads_) {
         thread->Start();

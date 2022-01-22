@@ -8,6 +8,7 @@
 #include <util/stream/str.h>
 
 #include <util/system/mutex.h>
+#include <util/system/rwlock.h>
 #include <util/system/thread.h>
 
 namespace NYT {
@@ -154,6 +155,7 @@ ILoggerPtr CreateBufferedFileLogger(ILogger::ELevel cutLevel, const TString& pat
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TRWMutex LoggerMutex;
 static ILoggerPtr Logger;
 
 struct TLoggerInitializer
@@ -166,6 +168,7 @@ struct TLoggerInitializer
 
 void SetLogger(ILoggerPtr logger)
 {
+    auto guard = TWriteGuard(LoggerMutex);
     if (logger) {
         Logger = logger;
     } else {
@@ -175,6 +178,7 @@ void SetLogger(ILoggerPtr logger)
 
 ILoggerPtr GetLogger()
 {
+    auto guard = TReadGuard(LoggerMutex);
     return Logger;
 }
 

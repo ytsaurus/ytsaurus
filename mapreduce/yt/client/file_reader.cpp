@@ -7,7 +7,7 @@
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/io/helpers.h>
 
@@ -18,6 +18,8 @@
 
 namespace NYT {
 namespace NDetail {
+
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,13 +75,23 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
             CurrentOffset_ += read;
             return read;
         } catch (TErrorResponse& e) {
-            LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", GetActiveRequestId().data(), e.what(), attempt, retryCount);
+            YT_LOG_ERROR("RSP %v - failed: %v (attempt %v of %v)",
+                GetActiveRequestId(),
+                e.what(),
+                attempt,
+                retryCount);
+
             if (!IsRetriable(e) || attempt == retryCount) {
                 throw;
             }
             NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
         } catch (yexception& e) {
-            LOG_ERROR("RSP %s - failed: %s (attempt %d of %d)", GetActiveRequestId().data(), e.what(), attempt, retryCount);
+            YT_LOG_ERROR("RSP %v - failed: %v (attempt %v of %v)",
+                GetActiveRequestId(),
+                e.what(),
+                attempt,
+                retryCount);
+
             if (Request_) {
                 Request_->InvalidateConnection();
             }
@@ -127,7 +139,7 @@ THolder<THttpRequest> TFileReader::CreateRequest(const TAuth& auth, const TTrans
     FileReaderOptions_.Offset(currentOffset);
     header.MergeParameters(FormIORequestParameters(Path_, FileReaderOptions_));
 
-    header.SetResponseCompression(::ToString(TConfig::Get()->AcceptEncoding));
+    header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
 
     auto request = MakeHolder<THttpRequest>();
     try {
@@ -139,7 +151,8 @@ THolder<THttpRequest> TFileReader::CreateRequest(const TAuth& auth, const TTrans
         throw;
     }
 
-    LOG_DEBUG("RSP %s - file stream", request->GetRequestId().data());
+    YT_LOG_DEBUG("RSP %v - file stream",
+        request->GetRequestId());
 
     return request;
 }
@@ -189,7 +202,7 @@ THolder<THttpRequest> TBlobTableReader::CreateRequest(const TAuth& auth, const T
     }
     params["part_size"] = Options_.PartSize_;
     header.MergeParameters(params);
-    header.SetResponseCompression(::ToString(TConfig::Get()->AcceptEncoding));
+    header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
 
     auto request = MakeHolder<THttpRequest>();
     try {
@@ -201,7 +214,8 @@ THolder<THttpRequest> TBlobTableReader::CreateRequest(const TAuth& auth, const T
         throw;
     }
 
-    LOG_DEBUG("RSP %s - blob table stream", request->GetRequestId().data());
+    YT_LOG_DEBUG("RSP %v - blob table stream",
+        request->GetRequestId());
     return request;
 }
 

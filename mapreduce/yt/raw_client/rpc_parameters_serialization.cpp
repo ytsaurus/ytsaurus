@@ -16,6 +16,8 @@
 
 namespace NYT::NDetail::NRawClient {
 
+using ::ToString;
+
 ////////////////////////////////////////////////////////////////////
 
 static void SetTransactionIdParam(TNode* node, const TTransactionId& transactionId)
@@ -48,7 +50,7 @@ static TNode SerializeAttributeFilter(const TOperationAttributeFilter& attribute
 {
     TNode result = TNode::CreateList();
     for (const auto& attribute : attributeFilter.Attributes_) {
-        result.Add(::ToString(attribute));
+        result.Add(ToString(attribute));
     }
     return result;
 }
@@ -88,7 +90,7 @@ template <typename T>
 void SerializeMasterReadOptions(TNode* node, const TMasterReadOptions<T>& options)
 {
     if (options.ReadFrom_) {
-        (*node)["read_from"] = ::ToString(*options.ReadFrom_);
+        (*node)["read_from"] = ToString(*options.ReadFrom_);
     }
 }
 
@@ -104,7 +106,7 @@ TNode SerializeParamsForCreate(
     SetTransactionIdParam(&result, transactionId);
     SetPathParam(&result, path);
     result["recursive"] = options.Recursive_;
-    result["type"] = ::ToString(type);
+    result["type"] = ToString(type);
     result["ignore_existing"] = options.IgnoreExisting_;
     result["force"] = options.Force_;
     if (options.Attributes_) {
@@ -266,7 +268,7 @@ TNode SerializeParamsForLock(
     TNode result;
     SetTransactionIdParam(&result, transactionId);
     SetPathParam(&result, path);
-    result["mode"] = ::ToString(mode);
+    result["mode"] = ToString(mode);
     result["waitable"] = options.Waitable_;
     if (options.AttributeKey_) {
         result["attribute_key"] = *options.AttributeKey_;
@@ -327,16 +329,16 @@ TNode SerializeParamsForListOperations(
 {
     TNode result;
     if (options.FromTime_) {
-        result["from_time"] = ::ToString(*options.FromTime_);
+        result["from_time"] = ToString(*options.FromTime_);
     }
     if (options.ToTime_) {
-        result["to_time"] = ::ToString(*options.ToTime_);
+        result["to_time"] = ToString(*options.ToTime_);
     }
     if (options.CursorTime_) {
-        result["cursor_time"] = ::ToString(*options.CursorTime_);
+        result["cursor_time"] = ToString(*options.CursorTime_);
     }
     if (options.CursorDirection_) {
-        result["cursor_direction"] = ::ToString(*options.CursorDirection_);
+        result["cursor_direction"] = ToString(*options.CursorDirection_);
     }
     if (options.Pool_) {
         result["pool"] = *options.Pool_;
@@ -351,7 +353,7 @@ TNode SerializeParamsForListOperations(
         result["state"] = *options.State_;
     }
     if (options.Type_) {
-        result["type"] = ::ToString(*options.Type_);
+        result["type"] = ToString(*options.Type_);
     }
     if (options.WithFailedJobs_) {
         result["with_failed_jobs"] = *options.WithFailedJobs_;
@@ -488,10 +490,10 @@ TNode SerializeParamsForListJobs(
     SetOperationIdParam(&result, operationId);
 
     if (options.Type_) {
-        result["type"] = ::ToString(*options.Type_);
+        result["type"] = ToString(*options.Type_);
     }
     if (options.State_) {
-        result["state"] = ::ToString(*options.State_);
+        result["state"] = ToString(*options.State_);
     }
     if (options.Address_) {
         result["address"] = *options.Address_;
@@ -507,10 +509,10 @@ TNode SerializeParamsForListJobs(
     }
 
     if (options.SortField_) {
-        result["sort_field"] = ::ToString(*options.SortField_);
+        result["sort_field"] = ToString(*options.SortField_);
     }
     if (options.SortOrder_) {
-        result["sort_order"] = ::ToString(*options.SortOrder_);
+        result["sort_order"] = ToString(*options.SortOrder_);
     }
 
     if (options.Offset_) {
@@ -545,10 +547,10 @@ TNode SerializeParametersForInsertRows(
         result["update"] = *options.Update_;
     }
     if (options.Atomicity_) {
-        result["atomicity"] = ::ToString(*options.Atomicity_);
+        result["atomicity"] = ToString(*options.Atomicity_);
     }
     if (options.Durability_) {
-        result["durability"] = ::ToString(*options.Durability_);
+        result["durability"] = ToString(*options.Durability_);
     }
     if (options.RequireSyncReplica_) {
       result["require_sync_replica"] = *options.RequireSyncReplica_;
@@ -563,10 +565,10 @@ TNode SerializeParametersForDeleteRows(
     TNode result;
     SetPathParam(&result, path);
     if (options.Atomicity_) {
-        result["atomicity"] = ::ToString(*options.Atomicity_);
+        result["atomicity"] = ToString(*options.Atomicity_);
     }
     if (options.Durability_) {
-        result["durability"] = ::ToString(*options.Durability_);
+        result["durability"] = ToString(*options.Durability_);
     }
     if (options.RequireSyncReplica_) {
         result["require_sync_replica"] = *options.RequireSyncReplica_;
@@ -614,7 +616,7 @@ TNode SerializeParamsForAlterTableReplica(const TReplicaId& replicaId, const TAl
         result["enabled"] = *options.Enabled_;
     }
     if (options.Mode_) {
-        result["mode"] = ::ToString(*options.Mode_);
+        result["mode"] = ToString(*options.Mode_);
     }
     return result;
 }
@@ -675,7 +677,7 @@ TNode SerializeParamsForGetTableColumnarStatistics(
         result["paths"].Add(PathToNode(path));
     }
     if (options.FetcherMode_) {
-        result["fetcher_mode"] = ::ToString(*options.FetcherMode_);
+        result["fetcher_mode"] = ToString(*options.FetcherMode_);
     }
     return result;
 }
@@ -754,7 +756,7 @@ TNode SerializeParamsForCheckPermission(
     SetPathParam(&result, path);
     result["path"] = path;
     result["user"] = user;
-    result["permission"] = ::ToString(permission);
+    result["permission"] = ToString(permission);
     if (!options.Columns_.empty()) {
         result["columns"] = TNode::CreateList();
         result["columns"].AsList().assign(options.Columns_.begin(), options.Columns_.end());
@@ -798,7 +800,7 @@ TNode SerializeParamsForStartTransaction(
     SetTransactionIdParam(&result, parentTransactionId);
     result["timeout"] = static_cast<i64>((options.Timeout_.GetOrElse(TConfig::Get()->TxTimeout).MilliSeconds()));
     if (options.Deadline_) {
-        result["deadline"] = ::ToString(options.Deadline_);
+        result["deadline"] = ToString(options.Deadline_);
     }
 
     if (options.PingAncestors_) {

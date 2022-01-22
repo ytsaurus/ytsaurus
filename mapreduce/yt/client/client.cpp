@@ -17,7 +17,7 @@
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/fluent.h>
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/config.h>

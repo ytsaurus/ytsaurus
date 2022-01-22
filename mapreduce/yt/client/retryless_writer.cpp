@@ -1,6 +1,6 @@
 #include "retryless_writer.h"
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 namespace NYT {
 

@@ -22,7 +22,7 @@ public:
             CompletedOperationPromiseList_.emplace_back(NewPromise<IOperationPtr>());
         }
 
-        TIntrusivePtr<TImpl> pThis = this;
+        ::TIntrusivePtr<TImpl> pThis = this;
         operationCompleteFuture.Subscribe(
             [pThis=pThis, operation=operation] (const TFuture<void>&) {
                 auto g = Guard(pThis->Lock_);

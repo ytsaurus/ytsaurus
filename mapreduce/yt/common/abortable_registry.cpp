@@ -2,7 +2,8 @@
 
 #include "mapreduce/yt/client/operation.h"
 
-#include <mapreduce/yt/interface/logging/log.h>
+#include <mapreduce/yt/interface/common.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <util/generic/singleton.h>
 
@@ -59,10 +60,10 @@ void TAbortableRegistry::AbortAllAndBlockForever()
         try {
             abortable->Abort();
         } catch (yexception& ex) {
-            LOG_ERROR("Exception while aborting %s %s: %s",
-                      abortable->GetType().data(),
-                      GetGuidAsString(id).data(),
-                      ex.what());
+            YT_LOG_ERROR("Exception while aborting %v %v: %v",
+                abortable->GetType(),
+                id,
+                ex.what());
         }
     }
 
