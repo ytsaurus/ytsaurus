@@ -496,7 +496,7 @@ private:
 
         return AllocateWriteTargets(
             Client_,
-            SessionId_,
+            TSessionId(DecodeChunkId(SessionId_.ChunkId).Id, SessionId_.MediumIndex),
             /*desiredTargetCount*/ UploadReplicationFactor_ - activeTargets,
             /*minTargetCount*/ std::max(MinUploadReplicationFactor_ - activeTargets, 1),
             /*maxReplicasPerRack*/ std::max(UploadReplicationFactor_ - 1, 1),
