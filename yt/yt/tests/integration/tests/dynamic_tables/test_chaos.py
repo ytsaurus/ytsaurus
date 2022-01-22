@@ -78,7 +78,7 @@ class TestChaos(DynamicTablesBase):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
             create_table = self._create_queue_table if replica["content_type"] == "queue" else self._create_sorted_table
-            create_table(path, driver=driver, replication_card_id=replication_card_id)
+            create_table(path, driver=driver, upstream_replica_id=replica_id)
             alter_table(path, upstream_replica_id=replica_id, driver=driver)
             if create_tablet_cells:
                 sync_create_cells(1, driver=driver)

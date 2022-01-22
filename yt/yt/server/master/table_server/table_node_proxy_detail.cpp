@@ -1140,18 +1140,6 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             return true;
         }
 
-        case EInternedAttributeKey::ReplicationCardId: {
-            ValidateNoTransaction();
-
-            auto* lockedTable = LockThisImpl();
-            if (!lockedTable->IsDynamic() || !lockedTable->IsSorted() || lockedTable->IsReplicated()) {
-                THROW_ERROR_EXCEPTION("Replication card can only be set for sorted dynamic tables");
-            }
-            lockedTable->ValidateAllTabletsUnmounted("Cannot change upstream replication card");
-            lockedTable->SetReplicationCardId({});
-            return true;
-        }
-
         default:
             break;
     }
@@ -1381,27 +1369,6 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             tableManager->AddTableToCollocation(
                 lockedTable,
                 collocation);
-            return true;
-        }
-
-        case EInternedAttributeKey::ReplicationCardId: {
-            if (!table->IsDynamic()) {
-                break;
-            }
-            ValidateNoTransaction();
-
-            auto replicationCardId = ConvertTo<TReplicationCardId>(value);
-            if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
-                THROW_ERROR_EXCEPTION("Malformed replication card id %v",
-                    replicationCardId);
-            }
-
-            auto* lockedTable = LockThisImpl();
-            if (!lockedTable->IsDynamic() || !lockedTable->IsSorted()) {
-                THROW_ERROR_EXCEPTION("Replication card can only be set for sorted dynamic tables");
-            }
-            lockedTable->ValidateAllTabletsUnmounted("Cannot change upstream replication card");
-            lockedTable->SetReplicationCardId(replicationCardId);
             return true;
         }
 
