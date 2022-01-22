@@ -11,7 +11,7 @@ message TReqAlterTableReplica
 {
     required NYT.NProto.TGuid replication_card_id = 1;
     required NYT.NProto.TGuid replica_table_id = 2;
-    required int32 mode = 3; // NChaosClient::EReplicaMode
+    required int32 mode = 3; // NTableChaosClient::ETableReplicaMode
 }
 
 ////////////////////////////////////////////////////////////////////////////////

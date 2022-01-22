@@ -103,8 +103,6 @@ TAlterReplicationCardReplicaCommand::TAlterReplicationCardReplicaCommand()
         .Optional();
     RegisterParameter("enabled", Options.Enabled)
         .Optional();
-    RegisterParameter("table_path", Options.TablePath)
-        .Optional();
 }
 
 void TAlterReplicationCardReplicaCommand::DoExecute(ICommandContextPtr context)

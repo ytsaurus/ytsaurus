@@ -78,8 +78,11 @@
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
+
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -2004,15 +2007,23 @@ private:
             return;
         }
 
-        auto enabled = request->has_enabled() ? std::make_optional(request->enabled()) : std::nullopt;
-        auto mode = request->has_mode() ? std::make_optional(ETableReplicaMode(request->mode())) : std::nullopt;
+        auto enabled = request->has_enabled()
+            ? std::make_optional(request->enabled())
+            : std::nullopt;
+
+        auto mode = request->has_mode()
+            ? std::make_optional(ETableReplicaMode(request->mode()))
+            : std::nullopt;
+        if (mode && !IsStableReplicaMode(*mode)) {
+            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
+        }
+
         auto atomicity = request->has_atomicity()
             ? std::make_optional(NTransactionClient::EAtomicity(request->atomicity()))
             : std::nullopt;
         auto preserveTimestamps = request->has_preserve_timestamps()
             ? std::make_optional(request->preserve_timestamps())
             : std::nullopt;
-
 
         if (enabled) {
             if (*enabled) {

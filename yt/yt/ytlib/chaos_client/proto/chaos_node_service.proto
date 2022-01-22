@@ -56,9 +56,8 @@ message TReqAlterTableReplica
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
     required NYT.NProto.TGuid replica_id = 2; // NChaosClient::TReplicaId
-    optional int32 mode = 3; // NChaosClient::EReplicaMode
-    optional int32 state = 4; // NChaosClient::EReplicaState
-    optional string table_path = 5;
+    optional int32 mode = 3; // NTabletClient::ETableReplicaMode
+    optional bool enabled = 4;
 }
 
 message TRspAlterTableReplica

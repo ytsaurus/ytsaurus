@@ -6,7 +6,7 @@
 #include "serialize.h"
 #include "slot_manager.h"
 #include "chaos_manager.h"
-#include "chaos_service.h"
+#include "chaos_node_service.h"
 #include "coordinator_manager.h"
 #include "coordinator_service.h"
 #include "transaction_manager.h"
@@ -214,7 +214,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ChaosService_ = CreateChaosService(this);
+        ChaosNodeService_ = CreateChaosNodeService(this);
         CoordinatorService_ = CreateCoordinatorService(this);
 
         ChaosManager_->Initialize();
@@ -224,7 +224,7 @@ public:
     void RegisterRpcServices() override
     {
         const auto& rpcServer = Bootstrap_->GetRpcServer();
-        rpcServer->RegisterService(ChaosService_);
+        rpcServer->RegisterService(ChaosNodeService_);
         rpcServer->RegisterService(CoordinatorService_);
     }
 
@@ -244,11 +244,11 @@ public:
 
         TransactionManager_.Reset();
 
-        if (ChaosService_) {
+        if (ChaosNodeService_) {
             const auto& rpcServer = Bootstrap_->GetRpcServer();
-            rpcServer->UnregisterService(ChaosService_);
+            rpcServer->UnregisterService(ChaosNodeService_);
         }
-        ChaosService_.Reset();
+        ChaosNodeService_.Reset();
 
         if (CoordinatorService_) {
             const auto& rpcServer = Bootstrap_->GetRpcServer();
@@ -321,7 +321,7 @@ private:
 
     ITransactionManagerPtr TransactionManager_;
 
-    NRpc::IServicePtr ChaosService_;
+    NRpc::IServicePtr ChaosNodeService_;
     NRpc::IServicePtr CoordinatorService_;
 
     IYPathServicePtr OrchidService_;

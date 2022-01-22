@@ -12,28 +12,6 @@ namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EReplicaContentType,
-    ((Data)     (0))
-    ((Queue)    (1))
-    ((External) (2))
-);
-
-DEFINE_ENUM(EReplicaMode,
-    ((Sync)           (0))
-    ((Async)          (1))
-    ((AsyncToSync)    (2))
-    ((SyncToAsync)    (3))
-);
-
-DEFINE_ENUM(EReplicaState,
-    ((Disabled)             (0))
-    ((Enabled)              (1))
-    ((Disabling)            (2))
-    ((Enabling)             (3))
-);
-
-bool IsStableReplicaMode(EReplicaMode mode);
-bool IsStableReplicaState(EReplicaState state);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -57,8 +35,8 @@ struct TReplicaHistoryItem
 {
     NChaosClient::TReplicationEra Era;
     NTransactionClient::TTimestamp Timestamp;
-    NChaosClient::EReplicaMode Mode;
-    NChaosClient::EReplicaState State;
+    NTabletClient::ETableReplicaMode Mode;
+    NTabletClient::ETableReplicaState State;
 
     void Persist(const TStreamPersistenceContext& context);
 };
@@ -67,9 +45,9 @@ struct TReplicaInfo
 {
     TString ClusterName;
     NYPath::TYPath ReplicaPath;
-    EReplicaContentType ContentType;
-    EReplicaMode Mode;
-    EReplicaState State;
+    NTabletClient::ETableReplicaContentType ContentType;
+    NTabletClient::ETableReplicaMode Mode;
+    NTabletClient::ETableReplicaState State;
     TReplicationProgress ReplicationProgress;
     std::vector<TReplicaHistoryItem> History;
 
@@ -124,7 +102,7 @@ TString ToString(const TReplicationCard& replicationCard);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsReplicaReallySync(EReplicaMode mode, EReplicaState state);
+bool IsReplicaReallySync(NTabletClient::ETableReplicaMode mode, NTabletClient::ETableReplicaState state);
 
 void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicationProgress& update);
 

@@ -90,6 +90,8 @@
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/tablet_client/helpers.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -375,7 +377,7 @@ public:
         const TYPath& replicaPath,
         ETableReplicaMode mode,
         bool preserveTimestamps,
-        NTransactionClient::EAtomicity atomicity,
+        EAtomicity atomicity,
         TTimestamp startReplicationTimestamp,
         const std::optional<std::vector<i64>>& startReplicationRowIndexes)
     {
@@ -393,7 +395,7 @@ public:
             }
         }
 
-        if (!preserveTimestamps && atomicity == NTransactionClient::EAtomicity::None) {
+        if (!preserveTimestamps && atomicity == EAtomicity::None) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::InvalidTabletState,
                 "Cannot create replica table: incompatible atomicity and preserve_timestamps")
@@ -487,10 +489,14 @@ public:
         TTableReplica* replica,
         std::optional<bool> enabled,
         std::optional<ETableReplicaMode> mode,
-        std::optional<NTransactionClient::EAtomicity> atomicity,
+        std::optional<EAtomicity> atomicity,
         std::optional<bool> preserveTimestamps)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (mode && !IsStableReplicaMode(*mode)) {
+            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
+        }
 
         auto* table = replica->GetTable();
         auto state = replica->GetState();
@@ -531,7 +537,7 @@ public:
             }
         }
 
-        if (!preserveTimestamps && atomicity == NTransactionClient::EAtomicity::None) {
+        if (!preserveTimestamps && atomicity == EAtomicity::None) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::InvalidTabletState,
                 "Cannot set atomicity %v with preserveTimestamps %v",
@@ -2057,7 +2063,7 @@ public:
         auto chunks = EnumerateChunksInChunkTree(oldRootChunkList);
 
         // Compute last commit timestamp.
-        auto lastCommitTimestamp = NTransactionClient::MinTimestamp;
+        auto lastCommitTimestamp = MinTimestamp;
         for (auto* chunk : chunks) {
             auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
             if (miscExt && miscExt->has_max_timestamp()) {
@@ -7308,7 +7314,7 @@ TTableReplica* TTabletManager::CreateTableReplica(
     const TYPath& replicaPath,
     ETableReplicaMode mode,
     bool preserveTimestamps,
-    NTransactionClient::EAtomicity atomicity,
+    EAtomicity atomicity,
     TTimestamp startReplicationTimestamp,
     const  std::optional<std::vector<i64>>& startReplicationRowIndexes)
 {
@@ -7332,7 +7338,7 @@ void TTabletManager::AlterTableReplica(
     TTableReplica* replica,
     std::optional<bool> enabled,
     std::optional<ETableReplicaMode> mode,
-    std::optional<NTransactionClient::EAtomicity> atomicity,
+    std::optional<EAtomicity> atomicity,
     std::optional<bool> preserveTimestamps)
 {
     Impl_->AlterTableReplica(
