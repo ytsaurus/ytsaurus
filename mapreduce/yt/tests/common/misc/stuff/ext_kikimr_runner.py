@@ -3,6 +3,7 @@ import re
 import hashlib
 
 import pytest
+import yatest.common
 
 import yql_utils
 from libs.harness.kikimr_runner import KiKiMR
@@ -50,7 +51,7 @@ class MRInterfaceWrapper(object):
         self.table_prefix = ''
 
     def replace_prefix(self, s):
-        md5 = hashlib.md5(pytest.config.current_test_name).hexdigest()
+        md5 = hashlib.md5(yatest.common.context.test_name).hexdigest()
         return s.replace(
             'yql_test_root',
             'yql_test_root_' + md5

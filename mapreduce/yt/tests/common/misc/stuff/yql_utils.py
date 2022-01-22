@@ -543,4 +543,4 @@ def get_udfs_path():
 
 
 def get_test_prefix():
-    return 'yql_tmp_' + hashlib.md5(pytest.config.current_test_name).hexdigest()
+    return 'yql_tmp_' + hashlib.md5(yatest.common.context.test_name).hexdigest()
