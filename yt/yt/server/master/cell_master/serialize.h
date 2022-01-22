@@ -86,6 +86,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixObjectSmartPtrLeak)                                        (1918))  // kvk1920
     ((MaxClipTimestampInChunkView)                                  (1919))  // ifsmirnov
     ((ChaosReplicatedTable)                                         (1920))  // babenko
+    ((ImplicitReplicationCardId)                                    (1921))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

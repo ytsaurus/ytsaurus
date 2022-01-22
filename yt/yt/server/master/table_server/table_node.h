@@ -145,7 +145,6 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, AggregatedTabletBackupState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupCheckpointTimestamp);
     DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(DynamicTableAttributes, TabletStatistics);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ReplicationCardId);
 
     // COMPAT(ifsmirnov)
     DECLARE_BYVAL_RW_PROPERTY(std::optional<bool>, EnableTabletBalancer);
@@ -191,6 +190,8 @@ public:
     bool IsReplicated() const;
     bool IsPhysicallyLog() const;
     bool IsPhysicallySorted() const;
+
+    NChaosClient::TReplicationCardId GetReplicationCardId() const;
 
     NTabletClient::ETabletState GetTabletState() const;
 

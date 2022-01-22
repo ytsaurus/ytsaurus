@@ -11,6 +11,10 @@
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
+#include <yt/yt/client/chaos_client/helpers.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -22,6 +26,8 @@ using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NChaosClient;
+using namespace NObjectClient;
 using namespace NTabletServer;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
@@ -83,7 +89,6 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, BackupState);
     Save(context, TabletCountByBackupState);
     Save(context, AggregatedTabletBackupState);
-    Save(context, ReplicationCardId);
     Save(context, BackupCheckpointTimestamp);
 }
 
@@ -140,8 +145,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         YT_VERIFY(!Load<bool>(context));
     }
     // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::ReplicationCardTokenIsNoMore) {
-        Load(context, ReplicationCardId);
+    if (context.GetVersion() >= EMasterReign::ReplicationCardTokenIsNoMore &&
+        context.GetVersion() < EMasterReign::ImplicitReplicationCardId)
+    {
+        Load<NChaosClient::TReplicationCardId>(context);
     }
 }
 
@@ -311,6 +318,13 @@ bool TTableNode::IsPhysicallyLog() const
 bool TTableNode::IsPhysicallySorted() const
 {
     return IsSorted() && !IsReplicated();
+}
+
+TReplicationCardId TTableNode::GetReplicationCardId() const
+{
+    return TypeFromId(GetUpstreamReplicaId()) == EObjectType::ReplicationCardReplica
+        ? ReplicationCardIdFromReplicaId(GetUpstreamReplicaId())
+        : TReplicationCardId();
 }
 
 ETabletState TTableNode::GetTabletState() const

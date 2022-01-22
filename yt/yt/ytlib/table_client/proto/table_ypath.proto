@@ -134,7 +134,7 @@ message TRspGetMountInfo
     required NYT.NProto.TGuid upstream_replica_id = 6;
     repeated TReplicaInfo replicas = 7;
     optional bool enable_detailed_profiling = 8;
-    required NYT.NProto.TGuid replication_card_id = 9; // NChaosClient::TReplicationCardId
+    optional NYT.NProto.TGuid replication_card_id = 9; // NChaosClient::TReplicationCardId
 }
 
 ////////////////////////////////////////////////////////////////////////////////
