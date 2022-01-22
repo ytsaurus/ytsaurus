@@ -334,9 +334,8 @@ struct TAlterReplicationCardReplicaOptions
     : public TTimeoutOptions
     , public TMutatingOptions
 {
-    std::optional<NChaosClient::EReplicaMode> Mode;
+    std::optional<NTabletClient::ETableReplicaMode> Mode;
     std::optional<bool> Enabled;
-    std::optional<NYTree::TYPath> TablePath;
 };
 
 struct TUpdateReplicationProgressOptions

@@ -14,18 +14,7 @@ namespace NYT::NChaosClient {
 
 using namespace NTransactionClient;
 using namespace NTableClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsStableReplicaMode(EReplicaMode mode)
-{
-    return mode == EReplicaMode::Sync || mode == EReplicaMode::Async;
-}
-
-bool IsStableReplicaState(EReplicaState state)
-{
-    return state == EReplicaState::Enabled || state == EReplicaState::Disabled;
-}
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,9 +175,11 @@ TReplicaInfo* TReplicationCard::GetReplicaOrThrow(TReplicaId replicaId, TReplica
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsReplicaReallySync(EReplicaMode mode, EReplicaState state)
+bool IsReplicaReallySync(ETableReplicaMode mode, ETableReplicaState state)
 {
-    return mode == EReplicaMode::Sync && state == EReplicaState::Enabled;
+    return
+        mode == ETableReplicaMode::Sync &&
+        state == ETableReplicaState::Enabled;
 }
 
 void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicationProgress& update)

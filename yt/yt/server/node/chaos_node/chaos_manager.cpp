@@ -25,6 +25,8 @@
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/tablet_client/helpers.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -41,6 +43,7 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NChaosClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -329,13 +332,12 @@ private:
         auto newReplica = FromProto<TReplicaInfo>(request->replica_info());
 
         if (!IsStableReplicaState(newReplica.State)) {
-            THROW_ERROR_EXCEPTION("Invalid replica state")
-                << TErrorAttribute("replica_state", newReplica.State);
+            THROW_ERROR_EXCEPTION("Invalid replica state %Qlv", newReplica.State);
         }
 
-        newReplica.State = newReplica.State == EReplicaState::Enabled
-            ? EReplicaState::Enabling
-            : EReplicaState::Disabling;
+        newReplica.State = newReplica.State == ETableReplicaState::Enabled
+            ? ETableReplicaState::Enabling
+            : ETableReplicaState::Disabling;
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
 
@@ -369,14 +371,14 @@ private:
                 .Era = InitialReplicationEra,
                 .Timestamp = MinTimestamp,
                 .Mode = newReplica.Mode,
-                .State = EReplicaState::Disabled
+                .State = ETableReplicaState::Disabled
             });
         }
 
         auto newReplicaId = GenerateNewReplicaId(replicationCard);
         ToProto(response->mutable_replica_id(), newReplicaId);
 
-        if (newReplica.State == EReplicaState::Enabling) {
+        if (newReplica.State == ETableReplicaState::Enabling) {
             RevokeShortcuts(replicationCard);
         }
 
@@ -395,7 +397,7 @@ private:
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
 
-        if (replicaInfo->State != EReplicaState::Disabled) {
+        if (replicaInfo->State != ETableReplicaState::Disabled) {
             THROW_ERROR_EXCEPTION("Could not remove replica since it is not disabled")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("replica_id", replicaId)
@@ -414,22 +416,17 @@ private:
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<NTableClient::TTableId>(request->replica_id());
 
-        std::optional<EReplicaMode> mode;
+        std::optional<ETableReplicaMode> mode;
         if (request->has_mode()) {
-            mode = FromProto<EReplicaMode>(request->mode());
-            YT_VERIFY(IsStableReplicaMode(*mode));
+            mode = FromProto<ETableReplicaMode>(request->mode());
+            if (!IsStableReplicaMode(*mode)) {
+                THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
+            }
         }
 
-        std::optional<EReplicaState> state;
-        if (request->has_state()) {
-            state = FromProto<EReplicaState>(request->state());
-            YT_VERIFY(IsStableReplicaState(*state));
-        }
-
-        std::optional<NYTree::TYPath> path;
-        if (request->has_table_path()) {
-            path = request->table_path();
-        }
+        auto enabled = request->has_enabled()
+            ? std::make_optional(request->enabled())
+            : std::nullopt;
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
@@ -442,38 +439,27 @@ private:
                 << TErrorAttribute("state", replicaInfo->State);
         }
 
-        if (path && replicaInfo->State != EReplicaState::Disabled) {
-            THROW_ERROR_EXCEPTION("Could not alter replica table path since it is not disabled")
-                << TErrorAttribute("replication_card_id", replicationCardId)
-                << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("state", replicaInfo->State);
-        }
-
         bool revoke = false;
 
         if (mode && replicaInfo->Mode != *mode) {
-            if (replicaInfo->Mode == EReplicaMode::Sync) {
-                replicaInfo->Mode = EReplicaMode::SyncToAsync;
+            if (replicaInfo->Mode == ETableReplicaMode::Sync) {
+                replicaInfo->Mode = ETableReplicaMode::SyncToAsync;
                 revoke = true;
-            } else if (replicaInfo->Mode == EReplicaMode::Async) {
-                replicaInfo->Mode = EReplicaMode::AsyncToSync;
-                revoke = true;
-            }
-        }
-
-        if (state && replicaInfo->State != *state) {
-            if (replicaInfo->State == EReplicaState::Disabled) {
-                replicaInfo->State = EReplicaState::Enabling;
-                revoke = true;
-            } else if (replicaInfo->State == EReplicaState::Enabled) {
-                replicaInfo->State = EReplicaState::Disabling;
+            } else if (replicaInfo->Mode == ETableReplicaMode::Async) {
+                replicaInfo->Mode = ETableReplicaMode::AsyncToSync;
                 revoke = true;
             }
         }
 
-        if (path) {
-            YT_VERIFY(replicaInfo->State == EReplicaState::Disabled);
-            replicaInfo->ReplicaPath = *path;
+        bool currentlyEnabled = replicaInfo->State == ETableReplicaState::Enabled;
+        if (enabled && *enabled != currentlyEnabled) {
+            if (replicaInfo->State == ETableReplicaState::Disabled) {
+                replicaInfo->State = ETableReplicaState::Enabling;
+                revoke = true;
+            } else if (replicaInfo->State == ETableReplicaState::Enabled) {
+                replicaInfo->State = ETableReplicaState::Disabling;
+                revoke = true;
+            }
         }
 
         if (revoke) {
@@ -689,8 +675,8 @@ private:
 
         auto hasSyncQueue = [&] {
             for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
-                if (replicaInfo.ContentType == EReplicaContentType::Queue &&
-                    (replicaInfo.Mode == EReplicaMode::Sync || replicaInfo.Mode == EReplicaMode::AsyncToSync))
+                if (replicaInfo.ContentType == ETableReplicaContentType::Queue &&
+                    (replicaInfo.Mode == ETableReplicaMode::Sync || replicaInfo.Mode == ETableReplicaMode::AsyncToSync))
                 {
                     return true;
                 }
@@ -710,19 +696,19 @@ private:
         for (auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
             bool updated = false;
 
-            if (replicaInfo.Mode == EReplicaMode::SyncToAsync) {
-                replicaInfo.Mode = EReplicaMode::Async;
+            if (replicaInfo.Mode == ETableReplicaMode::SyncToAsync) {
+                replicaInfo.Mode = ETableReplicaMode::Async;
                 updated = true;
-            } else if (replicaInfo.Mode == EReplicaMode::AsyncToSync) {
-                replicaInfo.Mode = EReplicaMode::Sync;
+            } else if (replicaInfo.Mode == ETableReplicaMode::AsyncToSync) {
+                replicaInfo.Mode = ETableReplicaMode::Sync;
                 updated = true;
             }
 
-            if (replicaInfo.State == EReplicaState::Disabling) {
-                replicaInfo.State = EReplicaState::Disabled;
+            if (replicaInfo.State == ETableReplicaState::Disabling) {
+                replicaInfo.State = ETableReplicaState::Disabled;
                 updated = true;
-            } else if (replicaInfo.State == EReplicaState::Enabling) {
-                replicaInfo.State = EReplicaState::Enabled;
+            } else if (replicaInfo.State == ETableReplicaState::Enabling) {
+                replicaInfo.State = ETableReplicaState::Enabled;
                 updated = true;
             }
 

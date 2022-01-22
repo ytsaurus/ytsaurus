@@ -72,6 +72,8 @@
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/tablet_client/helpers.h>
+
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -702,7 +704,7 @@ TRowset TClient::DoLookupRowsOnce(
         return WaitFor(replicaFallbackHandler(replicaFallbackInfo))
             .ValueOrThrow();
     } else if (tableInfo->IsReplicationLog()) {
-        // TODO(savrus) Add after YT-16090 
+        // TODO(savrus) Add after YT-16090
         THROW_ERROR_EXCEPTION("Lookup from queue replica is not supported");
     }
 
@@ -1527,7 +1529,7 @@ std::vector<TLegacyOwningKey> TClient::PickUniformPivotKeys(
         case ESimpleLogicalValueType::Int16:
             return buildPivotKeys(std::numeric_limits<i16>::min(), std::numeric_limits<i16>::max(), true);
         case ESimpleLogicalValueType::Int32:
-            return buildPivotKeys(std::numeric_limits<i32>::min(), std::numeric_limits<i32>::max(), true);
+            return buildPivotKeys(std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), true);
         case ESimpleLogicalValueType::Int64:
             return buildPivotKeys(std::numeric_limits<i64>::min(), std::numeric_limits<i64>::max(), true);
 
@@ -1698,7 +1700,7 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
         auto expectedTabletSize = DivCeil<i64>(limitedChunksDataWeight + unlimitedChunksDataWeight, tabletCount);
         YT_LOG_DEBUG("Replacing resharding with slicing expected tablet size"
             " (LimitedChunksDataWeight: %v, UnlimitedChunksDataWeight: %v, ExpectedTabletSize: %v)",
-            limitedChunksDataWeight, 
+            limitedChunksDataWeight,
             unlimitedChunksDataWeight,
             expectedTabletSize);
 
@@ -1908,6 +1910,9 @@ void TClient::DoAlterTableReplica(
         req->set_enabled(*options.Enabled);
     }
     if (options.Mode) {
+        if (!IsStableReplicaMode(*options.Mode)) {
+            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *options.Mode);
+        }
         req->set_mode(static_cast<int>(*options.Mode));
     }
     if (options.PreserveTimestamps) {
@@ -3067,15 +3072,12 @@ void TClient::DoAlterReplicationCardReplica(
     ToProto(req->mutable_replica_id(), replicaId);
     if (options.Mode) {
         if (!IsStableReplicaMode(*options.Mode)) {
-            THROW_ERROR_EXCEPTION("Invalid mode %Qlv", *options.Mode);
+            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *options.Mode);
         }
-        req->set_mode(ToProto<i32>(*options.Mode));
+        req->set_mode(ToProto<int>(*options.Mode));
     }
     if (options.Enabled) {
-        req->set_state(ToProto<i32>(*options.Enabled));
-    }
-    if (options.TablePath) {
-        req->set_table_path(*options.TablePath);
+        req->set_enabled(*options.Enabled);
     }
 
     WaitFor(req->Invoke())

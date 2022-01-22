@@ -50,6 +50,8 @@ enum ETableReplicaMode
 {
     TRM_SYNC = 0;
     TRM_ASYNC = 1;
+    TRM_ASYNC_TO_SYNC = 2;
+    TRM_SYNC_TO_SYNC = 3;
 }
 
 enum EMasterReadKind

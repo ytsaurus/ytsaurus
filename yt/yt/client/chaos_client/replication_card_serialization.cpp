@@ -12,6 +12,7 @@ namespace NYT::NChaosClient {
 
 using namespace NTransactionClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -63,9 +64,9 @@ struct TSerializableReplicaInfo
 {
     TString ClusterName;
     NYPath::TYPath ReplicaPath;
-    EReplicaContentType ContentType;
-    EReplicaMode Mode;
-    EReplicaState State;
+    NTabletClient::ETableReplicaContentType ContentType;
+    NTabletClient::ETableReplicaMode Mode;
+    NTabletClient::ETableReplicaState State;
     TReplicationProgress ReplicationProgress;
 
     TSerializableReplicaInfo()
@@ -76,9 +77,9 @@ struct TSerializableReplicaInfo
             .NonEmpty();
         RegisterParameter("content_type", ContentType);
         RegisterParameter("mode", Mode)
-            .Default(EReplicaMode::Async);
+            .Default(ETableReplicaMode::Async);
         RegisterParameter("state", State)
-            .Default(EReplicaState::Disabled);
+            .Default(ETableReplicaState::Disabled);
         RegisterParameter("replication_progress", ReplicationProgress)
             .Default();
     }
@@ -306,8 +307,8 @@ void FromProto(TReplicaHistoryItem* historyItem, const NChaosClient::NProto::TRe
 {
     historyItem->Era = protoHistoryItem.era();
     historyItem->Timestamp = FromProto<TTimestamp>(protoHistoryItem.timestamp());
-    historyItem->Mode = FromProto<EReplicaMode>(protoHistoryItem.mode());
-    historyItem->State = FromProto<EReplicaState>(protoHistoryItem.state());
+    historyItem->Mode = FromProto<ETableReplicaMode>(protoHistoryItem.mode());
+    historyItem->State = FromProto<ETableReplicaState>(protoHistoryItem.state());
 }
 
 void ToProto(
@@ -332,9 +333,9 @@ void FromProto(TReplicaInfo* replicaInfo, const NChaosClient::NProto::TReplicaIn
 {
     replicaInfo->ClusterName = protoReplicaInfo.cluster_name();
     replicaInfo->ReplicaPath = protoReplicaInfo.replica_path();
-    replicaInfo->ContentType = FromProto<EReplicaContentType>(protoReplicaInfo.content_type());
-    replicaInfo->Mode = FromProto<EReplicaMode>(protoReplicaInfo.mode());
-    replicaInfo->State = FromProto<EReplicaState>(protoReplicaInfo.state());
+    replicaInfo->ContentType = FromProto<ETableReplicaContentType>(protoReplicaInfo.content_type());
+    replicaInfo->Mode = FromProto<ETableReplicaMode>(protoReplicaInfo.mode());
+    replicaInfo->State = FromProto<ETableReplicaState>(protoReplicaInfo.state());
     if (protoReplicaInfo.has_progress()) {
         FromProto(&replicaInfo->ReplicationProgress, protoReplicaInfo.progress());
     }

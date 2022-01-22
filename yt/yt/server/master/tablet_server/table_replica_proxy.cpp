@@ -14,9 +14,11 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h>
+#include <yt/yt/client/tablet_client/helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -29,6 +31,8 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NTransactionClient;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -225,10 +229,21 @@ private:
 
         DeclareMutating();
 
-        auto enabled = request->has_enabled() ? std::make_optional(request->enabled()) : std::nullopt;
-        auto mode = request->has_mode() ? std::make_optional(ETableReplicaMode(request->mode())) : std::nullopt;
-        auto atomicity = request->has_atomicity() ? std::make_optional(NTransactionClient::EAtomicity(request->atomicity())) : std::nullopt;
-        auto preserveTimestamps = request->has_preserve_timestamps() ? std::make_optional(request->preserve_timestamps()) : std::nullopt;
+        auto enabled = request->has_enabled()
+            ? std::make_optional(request->enabled())
+            : std::nullopt;
+
+        auto mode = request->has_mode()
+            ? std::make_optional(FromProto<ETableReplicaMode>(request->mode()))
+            : std::nullopt;
+
+        auto atomicity = request->has_atomicity()
+            ? std::make_optional(FromProto<EAtomicity>(request->atomicity()))
+            : std::nullopt;
+
+        auto preserveTimestamps = request->has_preserve_timestamps()
+            ? std::make_optional(request->preserve_timestamps())
+            : std::nullopt;
 
         context->SetRequestInfo("Enabled: %v, Mode: %v",
             enabled,

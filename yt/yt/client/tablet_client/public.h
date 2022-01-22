@@ -32,8 +32,16 @@ constexpr ETabletState MaxValidTabletState = ETabletState::FrozenMounting;
 
 // Keep in sync with NRpcProxy::NProto::ETableReplicaMode.
 DEFINE_ENUM(ETableReplicaMode,
-    ((Sync)     (0))
-    ((Async)    (1))
+    ((Sync)           (0))
+    ((Async)          (1))
+    ((AsyncToSync)    (2))
+    ((SyncToAsync)    (3))
+);
+
+DEFINE_ENUM(ETableReplicaContentType,
+    ((Data)     (0))
+    ((Queue)    (1))
+    ((External) (2))
 );
 
 DEFINE_ENUM(EErrorCode,

@@ -195,7 +195,7 @@ private:
                 options.StartReplicationRowIndexes = tabletSnapshot->TabletChaosData->CurrentReplicationRowIndexes;
                 options.UpperTimestamp = upperTimestamp;
                 options.UpstreamReplicaId = queueReplicaId;
-                options.OrderRowsByTimestamp = selfReplicaInfo->ContentType == EReplicaContentType::Queue;
+                options.OrderRowsByTimestamp = selfReplicaInfo->ContentType == ETableReplicaContentType::Queue;
 
                 YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %llx)",
                     clusterName,
@@ -302,8 +302,8 @@ private:
 
         auto findFreshQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
             for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-                if (replicaInfo.ContentType == EReplicaContentType::Queue &&
-                    replicaInfo.State == EReplicaState::Enabled &&
+                if (replicaInfo.ContentType == ETableReplicaContentType::Queue &&
+                    replicaInfo.State == ETableReplicaState::Enabled &&
                     !IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress))
                 {
                     return {replicaId, &replicaInfo};
@@ -314,7 +314,7 @@ private:
 
         auto findSyncQueueReplica = [&] (auto* selfReplicaInfo, auto timestamp) -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> {
             for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-                if (replicaInfo.ContentType != EReplicaContentType::Queue || replicaInfo.State != EReplicaState::Enabled) {
+                if (replicaInfo.ContentType != ETableReplicaContentType::Queue || replicaInfo.State != ETableReplicaState::Enabled) {
                     continue;
                 }
 
@@ -347,7 +347,7 @@ private:
             return {};
         }
 
-        if (selfReplicaInfo->State != EReplicaState::Enabled) {
+        if (selfReplicaInfo->State != ETableReplicaState::Enabled) {
             YT_LOG_DEBUG("Will not pull rows since replica is not enabled (ReplicaState: %v)",
                 selfReplicaInfo->State);
             return {};
@@ -371,7 +371,7 @@ private:
             return {};
         }
 
-        if (selfReplicaInfo->Mode != EReplicaMode::Async) {
+        if (selfReplicaInfo->Mode != ETableReplicaMode::Async) {
             YT_LOG_DEBUG("Pulling rows while replica is not async (ReplicaMode: %v)",
                 selfReplicaInfo->Mode);
             // NB: Allow this since sync replica could be catching up.
