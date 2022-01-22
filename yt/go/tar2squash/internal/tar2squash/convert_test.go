@@ -1,0 +1,114 @@
+package tar2squash
+
+import (
+	"archive/tar"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"a.yandex-team.ru/yt/go/tar2squash/internal/squashfs"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
+)
+
+func runTest(t *testing.T, setup func(t *testing.T, dir string)) {
+	t.Helper()
+
+	_, err := exec.LookPath("tar")
+	if err != nil {
+		t.Skipf("tar binary not found: %v", err)
+	}
+
+	_, err = exec.LookPath("unsquashfs")
+	if err != nil {
+		t.Skipf("unsquashfs binary not found: %v", err)
+	}
+
+	tempDir := func(name string) string {
+		t.Helper()
+
+		tmpDir, err := ioutil.TempDir("", "")
+		require.NoError(t, err)
+
+		fmt.Fprintln(os.Stderr, name, tmpDir)
+		return tmpDir
+	}
+
+	fsDir := tempDir("fsDir")
+	setup(t, fsDir)
+
+	tmpDir := tempDir("tmpDir")
+	tarPath := filepath.Join(tmpDir, "test.tgz")
+	squashPath := filepath.Join(tmpDir, "image.squashfs")
+
+	tarCreate := exec.Command("tar", "-cvf", tarPath, ".")
+	tarCreate.Dir = fsDir
+	tarCreate.Stderr = os.Stderr
+	require.NoError(t, tarCreate.Run())
+
+	tarList := exec.Command("tar", "-tvf", tarPath)
+	tarList.Stderr = os.Stderr
+	tarList.Stdout = os.Stderr
+	require.NoError(t, tarList.Run())
+
+	squashFile, err := os.Create(squashPath)
+	require.NoError(t, err)
+	defer squashFile.Close()
+
+	squashWriter, err := squashfs.NewWriter(squashFile, time.Now())
+	require.NoError(t, err)
+
+	tarFile, err := os.Open(tarPath)
+	require.NoError(t, err)
+	defer tarFile.Close()
+
+	tarReader := tar.NewReader(tarFile)
+	require.NoError(t, Convert(squashWriter, tarReader))
+	require.NoError(t, squashFile.Close())
+
+	squashList := exec.Command("unsquashfs", "-ll", squashPath)
+	squashList.Stderr = os.Stderr
+	squashList.Stdout = os.Stderr
+	require.NoError(t, squashList.Run())
+
+	unsquashDir := tempDir("unsquashDir")
+	unsquash := exec.Command("unsquashfs", "-f", "-d", unsquashDir, squashPath)
+	unsquash.Stderr = os.Stderr
+	require.NoError(t, unsquash.Run())
+}
+
+func TestSingleFile(t *testing.T) {
+	runTest(t, func(t *testing.T, dir string) {
+		require.NoError(t, ioutil.WriteFile(filepath.Join(dir, "f.txt"), []byte("Hello"), 0666))
+	})
+}
+
+func TestSingleFileInDir(t *testing.T) {
+	runTest(t, func(t *testing.T, dir string) {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "a/b"), 0777))
+		require.NoError(t, ioutil.WriteFile(filepath.Join(dir, "a/b/f.txt"), []byte("Hello"), 0666))
+	})
+}
+
+func TestSymlink(t *testing.T) {
+	runTest(t, func(t *testing.T, dir string) {
+		require.NoError(t, os.Symlink("./target", filepath.Join(dir, "link")))
+	})
+}
+
+func TestHardLink(t *testing.T) {
+	runTest(t, func(t *testing.T, dir string) {
+		require.NoError(t, ioutil.WriteFile(filepath.Join(dir, "f.txt"), []byte("Hello"), 0666))
+		require.NoError(t, os.Link(filepath.Join(dir, "f.txt"), filepath.Join(dir, "copy.txt")))
+	})
+}
+
+func TestCharDevice(t *testing.T) {
+	runTest(t, func(t *testing.T, dir string) {
+		require.NoError(t, unix.Mknod(filepath.Join(dir, "dummy"), uint32(0666|os.ModeCharDevice), 0))
+	})
+}
