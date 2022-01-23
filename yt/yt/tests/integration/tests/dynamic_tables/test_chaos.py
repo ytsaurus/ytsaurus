@@ -17,30 +17,26 @@ import __builtin__
 ##################################################################
 
 
-class TestChaos(DynamicTablesBase):
-    NUM_REMOTE_CLUSTERS = 2
+class ChaosTestBase(DynamicTablesBase):
     NUM_CLOCKS = 1
-    NUM_MASTER_CACHES=1
+    NUM_MASTER_CACHES = 1
     NUM_NODES = 5
     NUM_CHAOS_NODES = 1
-    NUM_TEST_PARTITIONS = 2
-
-    DELTA_MASTER_CONFIG = {
-        "tablet_manager": {
-            "peer_revocation_timeout": 10000,
-        },
-    }
 
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
 
-    def _create_chaos_cell_bundle(self, name="c"):
-        return create_chaos_cell_bundle(name, self.get_cluster_names())
+    def _create_chaos_cell_bundle(self, name="c", peer_cluster_names=None, meta_cluster_names=[]):
+        if peer_cluster_names is None:
+            peer_cluster_names = self.get_cluster_names()
+        return create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=meta_cluster_names)
 
-    def _sync_create_chaos_bundle_and_cell(self):
-        self._create_chaos_cell_bundle()
+    def _sync_create_chaos_bundle_and_cell(self, peer_cluster_names=None, meta_cluster_names=[]):
+        if peer_cluster_names is None:
+            peer_cluster_names = self.get_cluster_names()
+        self._create_chaos_cell_bundle(peer_cluster_names=peer_cluster_names, meta_cluster_names=meta_cluster_names)
         cell_id = generate_chaos_cell_id()
-        sync_create_chaos_cell("c", cell_id, self.get_cluster_names())
+        sync_create_chaos_cell("c", cell_id, peer_cluster_names, meta_cluster_names=meta_cluster_names)
         return cell_id
 
     def _list_chaos_nodes(self, driver=None):
@@ -147,7 +143,7 @@ class TestChaos(DynamicTablesBase):
         wait(_check_sync)
 
     def setup_method(self, method):
-        super(TestChaos, self).setup_method(method)
+        super(ChaosTestBase, self).setup_method(method)
 
         # TODO(babenko): consider moving to yt_env_setup.py
         for driver in self._get_drivers():
@@ -167,6 +163,14 @@ class TestChaos(DynamicTablesBase):
             chaos_nodes = self._list_chaos_nodes(driver)
             for chaos_node in chaos_nodes:
                 set("//sys/cluster_nodes/{0}/@user_tags/end".format(chaos_node), "chaos_cache", driver=driver)
+
+
+##################################################################
+
+
+class TestChaos(ChaosTestBase):
+    NUM_REMOTE_CLUSTERS = 2
+    NUM_TEST_PARTITIONS = 2
 
     @authors("savrus")
     def test_virtual_maps(self):
@@ -256,9 +260,6 @@ class TestChaos(DynamicTablesBase):
     @authors("savrus")
     def test_replication_card(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
-
-        chaos_node = get("#{0}/@peers/0/address".format(cell_id))
-        set("//sys/cluster_nodes/{0}/@user_tags/end".format(chaos_node), "chaos_node")
 
         card_id = create_replication_card(chaos_cell_id=cell_id)
         replicas = [
@@ -696,3 +697,32 @@ class TestChaos(DynamicTablesBase):
 
         for replica_id in replica_ids:
             assert card["replicas"][replica_id] == crt_replicas[replica_id]
+
+
+##################################################################
+
+
+class TestChaosMetaCluster(ChaosTestBase):
+    NUM_REMOTE_CLUSTERS = 3
+
+    @authors("savrus")
+    def test_meta_cluster(self):
+        cluster_names = self.get_cluster_names()
+
+        peer_cluster_names = cluster_names[1:]
+        meta_cluster_names = [cluster_names[0]]
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(peer_cluster_names=peer_cluster_names, meta_cluster_names=meta_cluster_names)
+
+        card_id = create_replication_card(chaos_cell_id=cell_id)
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "replica_path": "//tmp/r1"},
+            {"cluster_name": "remote_2", "content_type": "data", "mode": "async", "replica_path": "//tmp/r2"}
+        ]
+        self._create_replication_card_replicas(card_id, replicas)
+
+        card = get_replication_card(card_id)
+        assert len(card["replicas"]) == 3
+
+        assert get("#{0}/@id".format(card_id)) == card_id

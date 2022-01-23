@@ -473,6 +473,10 @@ public:
         }
 
         int peerCount = cellBundle->GetOptions()->PeerCount;
+        if (peerCount <= 0) {
+            THROW_ERROR_EXCEPTION("Peer count must be positive");
+        }
+
         holder->Peers().resize(peerCount);
         holder->SetCellBundle(cellBundle);
         YT_VERIFY(cellBundle->Cells().insert(holder.get()).second);
@@ -484,19 +488,19 @@ public:
         holder->SetArea(area);
         YT_VERIFY(area->Cells().insert(holder.get()).second);
 
-        auto* cell = CellMap_.Insert(cellId, std::move(holder));
-
-        if (cell->IsIndependent()) {
-            cell->SetLeadingPeerId(InvalidPeerId);
+        if (!holder->IsIndependent()) {
+            holder->SetLeadingPeerId(0);
         }
+
+        holder->GossipStatus().Initialize(Bootstrap_);
+
+        auto* cell = CellMap_.Insert(cellId, std::move(holder));
 
         MaybeRegisterGlobalCell(cell);
         ReconfigureCell(cell);
 
         // Make the fake reference.
         YT_VERIFY(cell->RefObject() == 1);
-
-        cell->GossipStatus().Initialize(Bootstrap_);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->CreateMailbox(cellId);

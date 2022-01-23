@@ -71,7 +71,7 @@ public:
 
     using TPeerList = TCompactVector<TPeer, TypicalPeerCount>;
     DEFINE_BYREF_RW_PROPERTY(TPeerList, Peers);
-    DEFINE_BYVAL_RW_PROPERTY(int, LeadingPeerId);
+    DEFINE_BYVAL_RW_PROPERTY(int, LeadingPeerId, NElection::InvalidPeerId);
 
     DEFINE_BYVAL_RW_PROPERTY(int, ConfigVersion);
 
