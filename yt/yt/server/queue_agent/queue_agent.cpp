@@ -102,6 +102,14 @@ void TQueueAgent::BuildOrchid(IYsonConsumer* consumer) const
     auto queuesCopy = Queues_;
     auto consumersCopy = Consumers_;
 
+    auto buildErrorYson = [&] (TError error, TFluentMap fluent) {
+        fluent
+            .Item("status").BeginMap()
+                .Item("error").Value(error)
+            .EndMap()
+            .Item("partitions").BeginList().EndList();
+    };
+
     BuildYsonFluently(consumer).BeginMap()
         .Item("active").Value(Active_.load())
         .Item("queues").DoMapFor(queuesCopy, [&] (TFluentMap fluent, auto pair) {
@@ -109,44 +117,39 @@ void TQueueAgent::BuildOrchid(IYsonConsumer* consumer) const
             auto queue = pair.second;
             fluent
                 .Item(ToString(queueRef)).BeginMap()
-                    .Do([&] (TFluentMap fluent) {
-                        if (queue.Error.IsOK()) {
-                            YT_VERIFY(queue.Controller);
-                            auto error = WaitFor(
-                                BIND(&IQueueController::BuildOrchid, queue.Controller, fluent)
-                                    .AsyncVia(queue.Controller->GetInvoker())
-                                    .Run());
-                            YT_VERIFY(error.IsOK());
-                        } else {
-                            fluent
-                                .Item("error").Value(queue.Error);
-                        }
-                    })
                     .Item("row_revision").Value(queue.RowRevision)
+                    .Do([&] (TFluentMap fluent) {
+                        if (!queue.Error.IsOK()) {
+                            buildErrorYson(queue.Error, fluent);
+                            return;
+                        }
+
+                        YT_VERIFY(queue.Controller);
+
+                        auto error = WaitFor(
+                            BIND(&IQueueController::BuildOrchid, queue.Controller, fluent)
+                                .AsyncVia(queue.Controller->GetInvoker())
+                                .Run());
+                        YT_VERIFY(error.IsOK());
+                    })
                 .EndMap();
         })
         .Item("consumers").DoMapFor(consumersCopy, [&] (TFluentMap fluent, auto pair) {
             auto consumerRef = pair.first;
             auto consumer = pair.second;
+
             fluent
                 .Item(ToString(consumerRef)).BeginMap()
-                    .DoIf(!consumer.Error.IsOK(), [&] (TFluentMap fluent) {
-                        fluent
-                            .Item("error").Value(consumer.Error);
-                    })
-                    .OptionalItem("target", consumer.Target)
+                    .Item("row_revision").Value(consumer.RowRevision)
                     .Do([&] (TFluentMap fluent) {
-                        if (!consumer.Target) {
+                        if (!consumer.Error.IsOK()) {
+                            buildErrorYson(consumer.Error, fluent);
                             return;
                         }
-                        auto it = queuesCopy.find(*consumer.Target);
-                        if (it == queuesCopy.end()) {
-                            return;
-                        }
-                        const auto& queue = it->second;
-                        if (!queue.Controller) {
-                            return;
-                        }
+                        YT_VERIFY(consumer.Target);
+                        auto queue = GetOrCrash(queuesCopy, *consumer.Target);
+                        YT_VERIFY(queue.Controller);
+
                         auto error = WaitFor(
                             BIND(&IQueueController::BuildConsumerOrchid, queue.Controller, consumerRef, fluent)
                                 .AsyncVia(queue.Controller->GetInvoker())
@@ -222,11 +225,11 @@ void TQueueAgent::Poll()
 
         auto logFinally = Finally([&] {
             YT_LOG_TRACE(
-                "Fresh queue prepared (Queue: %Qv, Error: %v, RowRevision: %v, QueueType: %v)",
+                "Fresh queue prepared (Queue: %Qv, Error: %v, RowRevision: %v, QueueFamily: %v)",
                 row.Queue,
                 freshQueue.Error,
                 freshQueue.RowRevision,
-                freshQueue.QueueType);
+                freshQueue.QueueFamily);
         });
 
         if (!row.RowRevision || !row.ObjectType) {
@@ -236,10 +239,10 @@ void TQueueAgent::Poll()
 
         freshQueue.RowRevision = *row.RowRevision;
 
-        if (auto queueTypeOrError = DeduceQueueType(row); queueTypeOrError.IsOK()) {
-            freshQueue.QueueType = queueTypeOrError.Value();
+        if (auto queueFamilyOrError = DeduceQueueFamily(row); queueFamilyOrError.IsOK()) {
+            freshQueue.QueueFamily = queueFamilyOrError.Value();
         } else {
-            freshQueue.Error = static_cast<TError>(queueTypeOrError);
+            freshQueue.Error = static_cast<TError>(queueFamilyOrError);
         }
     }
 
@@ -344,7 +347,7 @@ void TQueueAgent::Poll()
                 Config_->Controller,
                 ClusterDirectory_,
                 queueRef,
-                queue.QueueType,
+                queue.QueueFamily,
                 GetOrCrash(queueRefToRow, queueRef),
                 std::move(consumerRowMap),
                 CreateSerializedInvoker(ControllerThreadPool_->GetInvoker()));

@@ -1,5 +1,7 @@
 #include "queue_controller.h"
 
+#include "snapshot.h"
+#include "snapshot_representation.h"
 #include "config.h"
 #include "helpers.h"
 
@@ -21,114 +23,11 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYson;
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TQueuePartitionStatus
-{
-    TError Error;
-    i64 TotalRowCount = -1;
-    i64 TrimmedRowCount = -1;
-    std::optional<TInstant> LastRowInstant;
-};
-
-void Serialize(const TQueuePartitionStatus& status, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer).BeginMap()
-        .Do([&] (TFluentMap fluent) {
-            if (!status.Error.IsOK()) {
-                fluent
-                    .Item("error").Value(status.Error);
-            } else {
-                fluent
-                    .Item("total_row_count").Value(status.TotalRowCount)
-                    .Item("trimmed_row_count").Value(status.TrimmedRowCount)
-                    .OptionalItem("last_row_instant", status.LastRowInstant);
-            }
-        })
-        .EndMap();
-}
+using namespace std::placeholders;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TQueueStatus);
-
-struct TQueueStatus
-    : public TRefCounted
-{
-    TQueueTableRow Row;
-
-    TError Error;
-
-    int PartitionCount = -1;
-    std::vector<TQueuePartitionStatus> PartitionStatuses;
-
-    static TQueueStatusPtr FromRow(TQueueTableRow row);
-};
-
-DEFINE_REFCOUNTED_TYPE(TQueueStatus);
-
-TQueueStatusPtr TQueueStatus::FromRow(TQueueTableRow row)
-{
-    auto status = New<TQueueStatus>();
-    status->Row = std::move(row);
-    return status;
-}
-
-// NB: serializes as YSON map fragment.
-void Serialize(const TQueueStatusPtr& status, IYsonConsumer* consumer)
-{
-    BuildYsonMapFragmentFluently(consumer)
-        .Item("row").Value(status->Row)
-        .Do([&] (TFluentMap fluent) {
-            if (!status->Error.IsOK()) {
-                fluent
-                    .Item("error").Value(status->Error);
-            } else {
-                fluent
-                    .Item("partition_count").Value(status->PartitionCount)
-                    .Item("partition_statuses").Value(status->PartitionStatuses);
-            }
-        });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TConsumerPartitionStatus
-{
-    i64 OffsetRowIndex = -1;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(TConsumerStatus);
-
-using TConsumerStatusMap = THashMap<TCrossClusterReference, TConsumerStatusPtr>;
-
-struct TConsumerStatus
-    : public TRefCounted
-{
-    TConsumerTableRow Row;
-    TError Error;
-    bool Vital = false;
-
-    std::vector<TConsumerPartitionStatus> PartitionStatuses;
-
-    static TConsumerStatusMap MapFromRowMap(TConsumerRowMap consumerRowMap);
-};
-
-DEFINE_REFCOUNTED_TYPE(TConsumerStatus);
-
-TConsumerStatusMap TConsumerStatus::MapFromRowMap(TConsumerRowMap consumerRowMap)
-{
-    TConsumerStatusMap statusMap;
-    for (auto& [ref, row] : consumerRowMap) {
-        auto status = New<TConsumerStatus>();
-        status->Row = std::move(row);
-        status->Error = TError("Consumer is not processed yet");
-        statusMap.emplace(std::move(ref), std::move(status));
-    }
-    return statusMap;
-}
+using TConsumerSnapshotMap = THashMap<TCrossClusterReference, TConsumerSnapshotPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,8 +45,6 @@ public:
         : Config_(std::move(config))
         , ClusterDirectory_(std::move(clusterDirectory))
         , QueueRef_(std::move(queueRef))
-        , QueueStatus_(TQueueStatus::FromRow(std::move(queueRow)))
-        , ConsumerStatuses_(TConsumerStatus::MapFromRowMap(std::move(consumerRowMap)))
         , Invoker_(std::move(invoker))
         , Logger(QueueAgentLogger.WithTag("Queue: %Qv", QueueRef_))
         , LoopExecutor_(New<TPeriodicExecutor>(
@@ -155,39 +52,47 @@ public:
             BIND(&TOrderedDynamicTableController::Loop, MakeWeak(this)),
             Config_->LoopPeriod))
     {
-        QueueStatus_->Error = TError("Queue is not processed yet");
-        for (const auto& consumerStatus : GetValues(ConsumerStatuses_)) {
-            consumerStatus->Error = TError("Consumer is not processed yet");
+        QueueSnapshot_ = New<TQueueSnapshot>();
+        QueueSnapshot_->Row = std::move(queueRow);
+        QueueSnapshot_->Error = TError("Queue is not processed yet");
+
+        for (auto& [ref, row] : consumerRowMap) {
+            auto snapshot = New<TConsumerSnapshot>();
+            snapshot->Row = std::move(row);
+            snapshot->Error = TError("Consumer is not processed yet");
+            ConsumerSnapshots_.emplace(std::move(ref), std::move(snapshot));
         }
     }
 
-    EQueueType GetQueueType() const override
+    EQueueFamily GetQueueFamily() const override
     {
-        return EQueueType::OrderedDynamicTable;
+        return EQueueFamily::OrderedDynamicTable;
     }
 
     void BuildOrchid(TFluentMap fluent) const override
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        if (!Config_->LoopPeriod) {
-            // Sync mode.
-            const_cast<TOrderedDynamicTableController&>(*this).UpdateQueueStatus();
-        }
-
         fluent
-            .Item("type").Value(GetQueueType())
             .Item("loop_index").Value(LoopIndex_)
             .Item("loop_instant").Value(LoopInstant_)
-            .Do([&] (TFluentMap fluent) {
-                Serialize(QueueStatus_, fluent.GetConsumer());
-            });
+            .Item("row").Value(QueueSnapshot_->Row)
+            .Item("status").Do(std::bind(BuildQueueStatusYson, QueueSnapshot_, _1))
+            .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, QueueSnapshot_, _1));
     }
 
     void BuildConsumerOrchid(const TCrossClusterReference& consumerRef, TFluentMap fluent) const override
     {
         Y_UNUSED(consumerRef);
-        Y_UNUSED(fluent);
+
+        const auto& consumerSnapshot = GetOrCrash(ConsumerSnapshots_, consumerRef);
+
+        fluent
+            .Item("loop_index").Value(LoopIndex_)
+            .Item("loop_instant").Value(LoopInstant_)
+            .Item("row").Value(consumerSnapshot->Row)
+            .Item("status").Do(std::bind(BuildConsumerStatusYson, consumerSnapshot, _1))
+            .Item("partitions").Do(std::bind(BuildConsumerPartitionListYson, consumerSnapshot, _1));
     }
 
     void Start() override
@@ -220,11 +125,8 @@ private:
     const TClusterDirectoryPtr ClusterDirectory_;
     const TCrossClusterReference QueueRef_;
 
-    TQueueStatusPtr QueueStatus_;
-    TConsumerStatusMap ConsumerStatuses_;
-
-    TQueueStatusPtr NextQueueStatus_;
-    TConsumerStatusMap NextConsumerStatuses_;
+    TQueueSnapshotPtr QueueSnapshot_;
+    TConsumerSnapshotMap ConsumerSnapshots_;
 
     const IInvokerPtr Invoker_;
 
@@ -249,41 +151,55 @@ private:
             YT_LOG_INFO("Controller loop finished (LoopIndex: %v)", LoopIndex_);
         });
 
-        std::vector<TFuture<void>> statusUpdateFutures;
-        statusUpdateFutures.reserve(ConsumerStatuses_.size() + 1);
-        statusUpdateFutures.emplace_back(
-            BIND(&TOrderedDynamicTableController::UpdateQueueStatus, MakeWeak(this))
-                .AsyncVia(Invoker_)
-                .Run());
-        for (const auto& consumerRef : GetKeys(ConsumerStatuses_)) {
-            statusUpdateFutures.emplace_back(
-                BIND(&TOrderedDynamicTableController::UpdateConsumerStatus, MakeWeak(this), consumerRef)
-                    .AsyncVia(Invoker_)
-                    .Run());
+        // First, update queue snapshot.
+        {
+            auto nextQueueSnapshot = New<TQueueSnapshot>();
+            nextQueueSnapshot->Row = std::move(QueueSnapshot_->Row);
+            GuardedUpdateQueueSnapshot(nextQueueSnapshot);
+            QueueSnapshot_ = std::move(nextQueueSnapshot);
         }
 
-        // None of status update methods may throw.
-        YT_VERIFY(WaitFor(AllSucceeded(statusUpdateFutures)).IsOK());
+        // Second, update consumer snapshots.
+
+        {
+            std::vector<TFuture<void>> consumerSnapshotUpdateFutures;
+            TConsumerSnapshotMap nextConsumerSnapshots;
+
+            auto consumerCount = ConsumerSnapshots_.size();
+            consumerSnapshotUpdateFutures.reserve(consumerCount);
+            nextConsumerSnapshots.reserve(consumerCount);
+
+            for (const auto& [consumerRef, consumerSnapshot] : ConsumerSnapshots_) {
+                auto& nextConsumerSnapshot = nextConsumerSnapshots[consumerRef];
+                nextConsumerSnapshot = New<TConsumerSnapshot>();
+                nextConsumerSnapshot->Row = std::move(consumerSnapshot->Row);
+                consumerSnapshotUpdateFutures.emplace_back(
+                    BIND(&TOrderedDynamicTableController::GuardedUpdateConsumerSnapshot, MakeWeak(this), consumerRef, nextConsumerSnapshot)
+                        .AsyncVia(Invoker_)
+                        .Run());
+            }
+
+            // None of snapshot update methods may throw.
+            YT_VERIFY(WaitFor(AllSucceeded(consumerSnapshotUpdateFutures)).IsOK());
+
+            ConsumerSnapshots_.swap(nextConsumerSnapshots);
+        }
     }
 
-    void UpdateQueueStatus()
+    void GuardedUpdateQueueSnapshot(const TQueueSnapshotPtr& snapshot)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        NextQueueStatus_ = TQueueStatus::FromRow(QueueStatus_->Row);
-
         try {
-            UpdateQueueStatusGuarded();
+            UpdateQueueSnapshot(snapshot);
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            YT_LOG_DEBUG(error, "Error updating queue status");
-            NextQueueStatus_->Error = std::move(error);
+            YT_LOG_DEBUG(error, "Error updating queue snapshot");
+            snapshot->Error = std::move(error);
         }
-
-        QueueStatus_ = std::move(NextQueueStatus_);
     }
 
-    void UpdateQueueStatusGuarded()
+    void UpdateQueueSnapshot(const TQueueSnapshotPtr& snapshot)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
@@ -295,11 +211,14 @@ private:
         const auto& tableInfo = WaitFor(tableMountCache->GetTableInfo(QueueRef_.Path))
             .ValueOrThrow();
 
-        auto& partitionCount = NextQueueStatus_->PartitionCount;
+        auto& partitionCount = snapshot->PartitionCount;
         partitionCount = tableInfo->Tablets.size();
 
-        auto& partitionStatuses = NextQueueStatus_->PartitionStatuses;
-        partitionStatuses.resize(partitionCount);
+        auto& partitionSnapshots = snapshot->PartitionSnapshots;
+        partitionSnapshots.resize(partitionCount);
+        for (auto& partitionSnapshot : partitionSnapshots) {
+            partitionSnapshot = New<TQueuePartitionSnapshot>();
+        }
 
         // Fetch tablet infos.
 
@@ -308,37 +227,53 @@ private:
         for (int index = 0; index < partitionCount; ++index) {
             const auto& tabletInfo = tableInfo->Tablets[index];
             if (tabletInfo->State != ETabletState::Mounted) {
-                partitionStatuses[index].Error = TError("Tablet %v is not mounted", tabletInfo->TabletId)
+                partitionSnapshots[index]->Error = TError("Tablet %v is not mounted", tabletInfo->TabletId)
                     << TErrorAttribute("state", tabletInfo->State);
             } else {
                 tabletIndexes.push_back(index);
             }
         }
 
-        // TODO(max42): timeout.
         auto tabletInfos = WaitFor(client->GetTabletInfos(QueueRef_.Path, tabletIndexes))
             .ValueOrThrow();
 
         YT_VERIFY(std::ssize(tabletInfos) == std::ssize(tabletIndexes));
 
-        // Fill partition statuses from tablet infos
+        // Fill partition snapshots from tablet infos
 
         for (int index = 0; index < std::ssize(tabletInfos); ++index) {
-            auto& partitionStatus = partitionStatuses[tabletIndexes[index]];
+            const auto& partitionSnapshot = partitionSnapshots[tabletIndexes[index]];
             const auto& tabletInfo = tabletInfos[index];
-            partitionStatus.TotalRowCount = tabletInfo.TotalRowCount;
-            partitionStatus.TrimmedRowCount = tabletInfo.TrimmedRowCount;
-            partitionStatus.LastRowInstant = TimestampToInstant(tabletInfo.LastWriteTimestamp).first;
+            partitionSnapshot->UpperRowIndex = tabletInfo.TotalRowCount;
+            partitionSnapshot->LowerRowIndex = tabletInfo.TrimmedRowCount;
+            partitionSnapshot->AvailableRowCount = partitionSnapshot->UpperRowIndex - partitionSnapshot->LowerRowIndex;
+            partitionSnapshot->LastRowCommitTime = TimestampToInstant(tabletInfo.LastWriteTimestamp).first;
         }
     }
 
-    void UpdateConsumerStatus(TCrossClusterReference consumerRef)
+    void GuardedUpdateConsumerSnapshot(const TCrossClusterReference& consumerRef, const TConsumerSnapshotPtr& snapshot)
     {
-        Y_UNUSED(consumerRef);
-
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        // TODO(max42).
+        snapshot->TargetQueue = QueueRef_;
+        // TODO(max42): extend model.
+        // snapshot->Vital = snapshot->Row->Vital;
+
+        try {
+            UpdateConsumerSnapshot(consumerRef, snapshot);
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            YT_LOG_DEBUG(error, "Error updating consumer snapshot (Consumer: %Qv)", consumerRef);
+            snapshot->Error = std::move(error);
+        }
+    }
+
+    void UpdateConsumerSnapshot(const TCrossClusterReference& consumerRef, const TConsumerSnapshotPtr& snapshot)
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        Y_UNUSED(consumerRef);
+        Y_UNUSED(snapshot);
     }
 };
 
@@ -350,13 +285,13 @@ IQueueControllerPtr CreateQueueController(
     TQueueControllerConfigPtr config,
     NHiveClient::TClusterDirectoryPtr clusterDirectory,
     TCrossClusterReference queueRef,
-    EQueueType queueType,
+    EQueueFamily queueFamily,
     TQueueTableRow queueRow,
     THashMap<TCrossClusterReference, TConsumerTableRow> consumerRefToRow,
     IInvokerPtr invoker)
 {
-    switch (queueType) {
-        case EQueueType::OrderedDynamicTable:
+    switch (queueFamily) {
+        case EQueueFamily::OrderedDynamicTable:
             return New<TOrderedDynamicTableController>(
                 std::move(config),
                 std::move(clusterDirectory),

@@ -51,7 +51,7 @@ private:
         IQueueControllerPtr Controller;
 
         //! If #Error.IsOK(), contains the deduced type of a queue.
-        EQueueType QueueType = EQueueType::Null;
+        EQueueFamily QueueFamily = EQueueFamily::Null;
 
         //! Revisions of the consumer rows, for which the controller was created.
         THashMap<TCrossClusterReference, TRowRevision> ConsumerRowRevisions;

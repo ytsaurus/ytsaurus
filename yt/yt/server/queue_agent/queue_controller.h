@@ -18,7 +18,7 @@ public:
     /*!
      *  \note Thread affinity: any.
      */
-    virtual EQueueType GetQueueType() const = 0;
+    virtual EQueueFamily GetQueueFamily() const = 0;
 
     /*!
      *  \note Thread affinity: any.
@@ -52,7 +52,7 @@ IQueueControllerPtr CreateQueueController(
     TQueueControllerConfigPtr config,
     NHiveClient::TClusterDirectoryPtr clusterDirectory,
     TCrossClusterReference queueRef,
-    EQueueType queueType,
+    EQueueFamily queueFamily,
     TQueueTableRow queueRow,
     TConsumerRowMap consumerRefToRow,
     IInvokerPtr invoker);

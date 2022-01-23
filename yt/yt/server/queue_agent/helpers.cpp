@@ -16,12 +16,12 @@ using namespace NHiveClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErrorOr<EQueueType> DeduceQueueType(const TQueueTableRow& row)
+TErrorOr<EQueueFamily> DeduceQueueFamily(const TQueueTableRow& row)
 {
     if (row.ObjectType == EObjectType::Table) {
         // NB: Dynamic and Sorted or optionals.
         if (row.Dynamic == true && row.Sorted == false) {
-            return EQueueType::OrderedDynamicTable;
+            return EQueueFamily::OrderedDynamicTable;
         }
         return TError("Only ordered dynamic tables are supported as queues");
     }

@@ -95,15 +95,15 @@ class TestQueueAgent(YTEnvSetup):
         self._wait_fresh_poll()
         return get(self._queue_agent_orchid_path() + "/queue_agent/consumers")
 
-    def _get_queue(self, queue_id):
+    def _get_queue_status(self, queue_id):
         queues = self._get_queues()
         assert queue_id in queues
-        return queues[queue_id]
+        return queues[queue_id]["status"]
 
-    def _get_consumer(self, consumer_id):
+    def _get_consumer_status(self, consumer_id):
         consumers = self._get_consumers()
         assert consumer_id in consumers
-        return consumers[consumer_id]
+        return consumers[consumer_id]["status"]
 
     def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
         sync_create_cells(1)
@@ -149,7 +149,7 @@ class TestQueueAgent(YTEnvSetup):
         # Missing row revision.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q"}])
-        queue = self._get_queue("primary://tmp/q")
+        queue = self._get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(queue["error"]), "Queue is not in-sync yet")
         assert "type" not in queue
 
@@ -157,7 +157,7 @@ class TestQueueAgent(YTEnvSetup):
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(1234)}],
                     update=True)
-        queue = self._get_queue("primary://tmp/q")
+        queue = self._get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(queue["error"]), "Queue is not in-sync yet")
         assert "type" not in queue
 
@@ -166,7 +166,7 @@ class TestQueueAgent(YTEnvSetup):
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(2345),
                       "object_type": "map_node"}],
                     update=True)
-        queue = self._get_queue("primary://tmp/q")
+        queue = self._get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(queue["error"]), 'Invalid queue object type "map_node"')
 
         # Sorted dynamic table.
@@ -174,7 +174,7 @@ class TestQueueAgent(YTEnvSetup):
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(3456),
                       "object_type": "table", "dynamic": True, "sorted": True}],
                     update=True)
-        queue = self._get_queue("primary://tmp/q")
+        queue = self._get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(queue["error"]), "Only ordered dynamic tables are supported as queues")
 
         # Proper ordered dynamic table.
@@ -182,19 +182,18 @@ class TestQueueAgent(YTEnvSetup):
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
                       "dynamic": True, "sorted": False}],
                     update=True)
-        queue = self._get_queue("primary://tmp/q")
-        # This error means that controller is intantiated and works properly.
+        queue = self._get_queue_status("primary://tmp/q")
+        # This error means that controller is instantiated and works properly.
         assert_yt_error(YtError.from_dict(queue["error"]), code=yt_error_codes.ResolveErrorCode)
-        assert queue["type"] == "ordered_dynamic_table"
 
         # Switch back to sorted dynamic table.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(5678), "object_type": "table",
                       "dynamic": False, "sorted": False}],
                     update=True)
-        queue = self._get_queue("primary://tmp/q")
+        queue = self._get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(queue["error"]), "Only ordered dynamic tables are supported as queues")
-        assert "type" not in queue
+        assert "family" not in queue
 
         # Remove row; queue should be unregistered.
         delete_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
@@ -215,7 +214,7 @@ class TestQueueAgent(YTEnvSetup):
         # Missing row revision.
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": "//tmp/c"}])
-        consumer = self._get_consumer("primary://tmp/c")
+        consumer = self._get_consumer_status("primary://tmp/c")
         assert_yt_error(YtError.from_dict(consumer["error"]), "Consumer is not in-sync yet")
         assert "target" not in consumer
 
@@ -223,7 +222,7 @@ class TestQueueAgent(YTEnvSetup):
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(1234)}],
                     update=True)
-        consumer = self._get_consumer("primary://tmp/c")
+        consumer = self._get_consumer_status("primary://tmp/c")
         assert_yt_error(YtError.from_dict(consumer["error"]), "Consumer is missing target")
         assert "target" not in consumer
 
@@ -232,7 +231,7 @@ class TestQueueAgent(YTEnvSetup):
                     [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(2345),
                       "target_cluster": "primary", "target_path": "//tmp/q"}],
                     update=True)
-        consumer = self._get_consumer("primary://tmp/c")
+        consumer = self._get_consumer_status("primary://tmp/c")
         assert_yt_error(YtError.from_dict(consumer["error"]), 'Target queue "primary://tmp/q" is not registered')
 
         # Register target queue.
@@ -240,11 +239,10 @@ class TestQueueAgent(YTEnvSetup):
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
                       "dynamic": True, "sorted": False}],
                     update=True)
-        queue = self._get_queue("primary://tmp/q")
+        queue = self._get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(queue["error"]), code=yt_error_codes.ResolveErrorCode)
-        assert queue["type"] == "ordered_dynamic_table"
 
-        consumer = self._get_consumer("primary://tmp/c")
+        consumer = self._get_consumer_status("primary://tmp/c")
         # TODO(max42): uncomment this in future.
         # assert_yt_error(YtError.from_dict(consumer["error"]), code=yt_error_codes.ResolveErrorCode)
 
