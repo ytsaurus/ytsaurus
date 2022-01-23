@@ -39,7 +39,7 @@ DECLARE_REFCOUNTED_STRUCT(IQueueController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EQueueType,
+DEFINE_ENUM(EQueueFamily,
     //! Sentinel value that does not correspond to any valid queue type.
     ((Null)                       (0))
     //! Regular ordered dynamic table.
@@ -53,6 +53,13 @@ struct TQueueTableRow;
 struct TConsumerTableRow;
 
 using TConsumerRowMap = THashMap<TCrossClusterReference, TConsumerTableRow>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TQueueSnapshot);
+DECLARE_REFCOUNTED_STRUCT(TQueuePartitionSnapshot);
+DECLARE_REFCOUNTED_STRUCT(TConsumerSnapshot);
+DECLARE_REFCOUNTED_STRUCT(TConsumerPartitionSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 

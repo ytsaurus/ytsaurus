@@ -22,12 +22,7 @@ class TQueueControllerConfig
 public:
     //! Loop period. Defines the period of monitoring information exporting, automatic
     //! trimming and the maximum age of cached Orchid state.
-    //!
-    //! Null stands for "no internal update loop"; in this mode no information is
-    //! exported to monitoring and automatic trimming does not work. Orchid read requests
-    //! are still handled synchronously as opposite to being served from cache when
-    //! #LoopPeriod is non-null.
-    std::optional<TDuration> LoopPeriod;
+    TDuration LoopPeriod;
 
     REGISTER_YSON_STRUCT(TQueueControllerConfig)
 
