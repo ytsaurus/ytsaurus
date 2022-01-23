@@ -2370,30 +2370,25 @@ def sync_create_cells(cell_count, driver=None, **attributes):
     return cell_ids
 
 
-def create_chaos_cell(cell_bundle, cell_id, cluster_names):
-    drivers = [get_driver(cluster=cluster_name) for cluster_name in cluster_names]
-
-    params = {
+def create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names=[]):
+    params_pattern = {
         "type": "chaos_cell",
         "attributes": {
             "id": cell_id,
             "cell_bundle": cell_bundle,
-        },
-        "driver": drivers[0],
+        }
     }
 
-    result = execute_command("create", params)
-    result_cell_id = yson.loads(result)["object_id"]
-    assert cell_id == result_cell_id
-
-    for driver in drivers[1:]:
-        params["driver"] = driver
-        execute_command("create", params)
+    for cluster_name in peer_cluster_names + meta_cluster_names:
+        params = pycopy.deepcopy(params_pattern)
+        params["driver"] = get_driver(cluster=cluster_name)
+        result = execute_command("create", params)
+        assert yson.loads(result)["object_id"] == cell_id
 
 
-def wait_for_chaos_cell(cell_id, cluster_names):
+def wait_for_chaos_cell(cell_id, peer_cluster_names):
     def check():
-        for cluster_name in cluster_names:
+        for cluster_name in peer_cluster_names:
             driver = get_driver(cluster=cluster_name)
             if get("#{0}/@health".format(cell_id), driver=driver) != "good":
                 return False
@@ -2401,35 +2396,40 @@ def wait_for_chaos_cell(cell_id, cluster_names):
     wait(check)
 
 
-def sync_create_chaos_cell(cell_bundle, cell_id, cluster_names):
-    create_chaos_cell(cell_bundle, cell_id, cluster_names)
-    wait_for_chaos_cell(cell_id, cluster_names)
+def sync_create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names=[]):
+    create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names)
+    wait_for_chaos_cell(cell_id, peer_cluster_names)
 
 
-def create_chaos_cell_bundle(name, cluster_names):
-    drivers = [get_driver(cluster=cluster_name) for cluster_name in cluster_names]
-
+def create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=[]):
     params_pattern = {
         "type": "chaos_cell_bundle",
         "attributes": {
             "name": name,
             "chaos_options": {
-                "peers": [{"remote": True, "alien_cluster": cluster_name} for cluster_name in cluster_names],
+                "peers": [{"alien_cluster": cluster_name} for cluster_name in peer_cluster_names],
             },
             "options": {
                 "changelog_account": "sys",
                 "snapshot_account": "sys",
-                "peer_count": len(cluster_names),
+                "peer_count": len(peer_cluster_names),
                 "independent_peers": True,
             }
         }
     }
 
     bundle_ids = []
-    for peer_id, driver in enumerate(drivers):
+
+    for peer_id, cluster_name in enumerate(peer_cluster_names):
         params = pycopy.deepcopy(params_pattern)
-        params["attributes"]["chaos_options"]["peers"][peer_id] = {}
-        params["driver"] = driver
+        del params["attributes"]["chaos_options"]["peers"][peer_id]["alien_cluster"]
+        params["driver"] = get_driver(cluster=cluster_name)
+        result = execute_command("create", params)
+        bundle_ids.append(yson.loads(result)["object_id"])
+
+    for cluster_name in meta_cluster_names:
+        params = pycopy.deepcopy(params_pattern)
+        params["driver"] = get_driver(cluster=cluster_name)
         result = execute_command("create", params)
         bundle_ids.append(yson.loads(result)["object_id"])
 
