@@ -79,6 +79,10 @@ package object yt {
       writer.option(OptimizeFor, optimizeMode.name)
     }
 
+    def transaction(id: String): DataFrameWriter[T] = {
+      writer.option(WriteTransaction, id)
+    }
+
     def optimizeFor(optimizeMode: String): DataFrameWriter[T] = {
       optimizeFor(OptimizeMode.fromName(optimizeMode))
     }

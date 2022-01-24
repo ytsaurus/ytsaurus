@@ -28,7 +28,9 @@ class YtOutputCommitter(jobId: String,
   override def setupJob(jobContext: JobContext): Unit = {
     val conf = jobContext.getConfiguration
     implicit val ytClient: CompoundClient = yt(conf)
-    withTransaction(createTransaction(conf, GlobalTransaction, None))({ transaction =>
+    val externalTransaction = jobContext.getConfiguration.getYtConf(WriteTransaction)
+
+    withTransaction(createTransaction(conf, GlobalTransaction, externalTransaction))({ transaction =>
       GlobalTableSettings.setTransaction(path, transaction)
       deletedDirectories.get().foreach(p => YtWrapper.remove(p.toUri.getPath, Some(transaction)))
       deletedDirectories.set(Nil)

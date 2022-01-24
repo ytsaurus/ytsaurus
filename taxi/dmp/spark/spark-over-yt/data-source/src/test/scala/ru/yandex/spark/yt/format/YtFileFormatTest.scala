@@ -17,6 +17,7 @@ import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.WriteTransaction
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.YtTableFileSystem
 import ru.yandex.spark.yt.serializers.YtLogicalType
@@ -33,6 +34,7 @@ import ru.yandex.yt.ytclient.wire.{UnversionedRow, UnversionedValue}
 import java.nio.charset.StandardCharsets
 import java.sql.{Date, Timestamp}
 import java.time.LocalDate
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -317,6 +319,26 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     Seq(1, 2, 3).toDF.coalesce(1).write.optimizeFor(OptimizeMode.Scan).yt(tmpPath)
 
     YtWrapper.attribute(tmpPath, "optimize_for").stringValue() shouldEqual "scan"
+  }
+
+  it should "use external transaction in writing" in {
+    Seq(("a", 1L), ("b", 2L), ("c", 3L)).toDF("c1", "c2").write.yt(tmpPath)
+
+    val transaction = YtWrapper.createTransaction(None, 1 minute)
+
+    Seq(("d", 4L)).toDF("c1", "c2").write
+      .mode(SaveMode.Append).transaction(transaction.getId.toString).yt(tmpPath)
+    val resultBeforeCommit = spark.read.yt(tmpPath)
+    resultBeforeCommit.collect() should contain theSameElementsAs Seq(
+      Row("a", 1L), Row("b", 2L), Row("c", 3L)
+    )
+
+    transaction.commit().get(10, TimeUnit.SECONDS)
+
+    val resultAfterCommit = spark.read.yt(tmpPath)
+    resultAfterCommit.collect() should contain theSameElementsAs Seq(
+      Row("a", 1L), Row("b", 2L), Row("c", 3L), Row("d", 4L)
+    )
   }
 
   it should "kill transaction when failed because of timeout" in {
