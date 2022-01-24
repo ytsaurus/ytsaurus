@@ -1718,6 +1718,16 @@ class TestEphemeralPools(YTEnvSetup):
         for op in ops:
             op.track()
 
+    @authors("eshcherbin")
+    def test_move_last_operation_from_ephemeral_pool(self):
+        create_pool("real")
+
+        op = run_sleeping_vanilla(spec={"pool": "ephemeral"})
+        wait(lambda: exists(scheduler_orchid_pool_path("ephemeral")))
+
+        update_op_parameters(op.id, parameters={"pool": "real"})
+        wait(lambda: not exists(scheduler_orchid_pool_path("ephemeral")))
+
 
 class TestSchedulerPoolsCommon(YTEnvSetup):
     NUM_MASTERS = 1

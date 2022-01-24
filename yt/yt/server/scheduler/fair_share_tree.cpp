@@ -312,6 +312,7 @@ public:
         operationElement->Disable(/* markAsNonAlive */ true);
         operationElement->DetachParent();
 
+        ReleaseOperationSlotIndex(state, pool->GetId());
         OnOperationRemovedFromPool(state, operationElement, pool);
 
         UnregisterSchedulingTagFilter(operationElement->GetSchedulingTagFilterIndex());
@@ -360,12 +361,12 @@ public:
         auto oldParent = element->GetMutableParent();
         auto newParent = GetOrCreatePool(newPool, state->GetHost()->GetAuthenticatedUser());
 
-        OnOperationRemovedFromPool(state, element, oldParent);
-
         int newSlotIndex = AllocateOperationSlotIndex(state, newParent->GetId());
+        ReleaseOperationSlotIndex(state, oldParent->GetId());
         element->ChangeParent(newParent.Get(), newSlotIndex);
         state->GetHost()->SetSlotIndex(TreeId_, newSlotIndex);
 
+        OnOperationRemovedFromPool(state, element, oldParent);
         YT_VERIFY(OnOperationAddedToPool(state, element));
 
         if (!operationWasRunning) {
@@ -2332,8 +2333,6 @@ private:
         const TSchedulerCompositeElementPtr& parent)
     {
         auto operationId = state->GetHost()->GetId();
-        ReleaseOperationSlotIndex(state, parent->GetId());
-
         if (element->IsOperationRunningInPool()) {
             CheckOperationsPendingByPool(parent.Get());
         } else if (auto blockedPoolName = element->PendingByPool()) {
