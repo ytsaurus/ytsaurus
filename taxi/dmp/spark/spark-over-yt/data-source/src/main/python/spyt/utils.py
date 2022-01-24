@@ -5,11 +5,13 @@ import re
 import subprocess
 
 from yt.wrapper import YPath
+from yt.wrapper.client_impl import YtClient
 from yt.wrapper.cypress_commands import list as yt_list, create, exists
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.http_helpers import get_proxy_url, get_user_name
 from yt.wrapper.operation_commands import get_operation_url
-from .conf import is_supported_cluster_minor_version
+from yt.yson.convert import yson_to_json
+from spyt.conf import is_supported_cluster_minor_version
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -118,6 +120,52 @@ class SparkDiscovery(object):
 
     def master_wrapper(self):
         return self.discovery().join("master_wrapper")
+
+
+class ClusterInfo(object):
+    def __init__(self, master, shs, workers, operation, workers_operation, multiop_mode, max_workers_count, user_slots):
+        self.master = master
+        self.shs = shs
+        self.workers = workers
+        self.operation = operation
+        self.workers_operation = workers_operation
+        self.multiop_mode = multiop_mode
+        self.max_workers_count = max_workers_count
+        self.user_slots = user_slots
+
+    def workers_count(self):
+        return len(self.workers)
+
+
+def cluster_info(yt_client: YtClient, discovery_path, spark_id=None):
+    discovery = SparkDiscovery(discovery_path, spark_id)
+    master = SparkDiscovery.getOption(discovery.master_spark())
+    shs = SparkDiscovery.getOption(discovery.shs())
+    operation = SparkDiscovery.getOption(discovery.operation())
+    children = SparkDiscovery.getOptions(discovery.children_operations())
+    if not children:
+        worker_operation = operation
+        multiop_mode = False
+    else:
+        worker_operation = children[0]
+        multiop_mode = True
+    yson_jobs = yt_client.list_jobs(worker_operation, job_state="running")
+    jobs = yson_to_json(yson_jobs)['jobs']
+    op = yson_to_json(yt_client.get_operation(worker_operation))
+    resource_limits = op['runtime_parameters']['scheduling_options_per_pool_tree']['physical']['resource_limits']
+    if 'user_slots' in resource_limits:
+        user_slots = resource_limits['user_slots']
+    else:
+        user_slots = -1
+    max_job_count = op['spec']['tasks']['workers']['job_count']
+
+    def host(addr):
+        h, _ = addr.split(':')
+        return h
+
+    workers = [j['address'] for j in jobs
+               if 'address' in j and host(j['address']) != host(master) and host(j['address']) != host(shs)]
+    return ClusterInfo(master, shs, workers, operation, worker_operation, multiop_mode, max_job_count, user_slots)
 
 
 def parse_memory(memory):

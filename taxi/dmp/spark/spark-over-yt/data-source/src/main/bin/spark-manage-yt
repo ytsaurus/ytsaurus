@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+import logging
+from yt.wrapper import YtClient
+from spyt import utils as spark_utils
+
+
+def main():
+    parser = spark_utils.get_default_arg_parser(description="Spark over YT")
+    subparser = parser.add_subparsers(dest="command")
+    info_parser = subparser.add_parser('info')
+    set_workers_count_parser = subparser.add_parser('set_workers_count')
+    set_workers_count_parser.add_argument('count', type=int)
+
+    args, unknown_args = spark_utils.parse_args(parser)
+
+    if args.command:
+        yt_client = YtClient(args.proxy, spark_utils.default_token())
+        if args.command == 'info':
+            info(yt_client, args.discovery_path, args.id)
+        elif args.command == 'set_workers_count':
+            set_workers_count(yt_client, args.discovery_path,
+                              args.id, args.count)
+    else:
+        parser.print_help()
+
+
+def info(yt_client, discovery_path, spark_id):
+    info = spark_utils.cluster_info(yt_client, discovery_path, spark_id)
+    print("Cluster information:")
+    print("  master=%s" % info.master)
+    print("  shs=%s" % info.shs)
+    print("  operation=%s" % info.operation)
+    print("  multiop_mode=%s" % info.multiop_mode)
+    print("  workers_count=%i" % info.workers_count())
+    print("  max_workers_count=%i" % info.max_workers_count)
+    print("  user_slots=%i" % info.user_slots)
+
+
+def set_workers_count(yt_client: YtClient, discovery_path, spark_id, workers_count):
+    info = spark_utils.cluster_info(yt_client, discovery_path, spark_id)
+    if workers_count > info.max_workers_count:
+        logging.warning('Maximum available workers count: %i',
+                        info.max_workers_count)
+        workers_count = info.max_workers_count
+    logging.info('Setting workers count: %i' % workers_count)
+    if info.multiop_mode:
+        target_count = workers_count
+    else:
+        target_count = workers_count + 2
+        logging.warning(
+            "Running in single operation mode, using of tool is not recommended")
+    params = {
+        "scheduling_options_per_pool_tree": {
+            "physical": {
+                "resource_limits": {
+                    "user_slots": target_count
+                }
+            }
+        }
+    }
+    yt_client.update_operation_parameters(info.workers_operation, params)
+
+
+main()
