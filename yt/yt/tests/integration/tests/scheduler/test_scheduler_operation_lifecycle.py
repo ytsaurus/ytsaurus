@@ -567,7 +567,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="sleep 3 ; cat",
+            command="sleep 10 ; cat",
             spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}},
         )
 
