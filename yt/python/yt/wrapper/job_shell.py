@@ -7,7 +7,7 @@ from .config import get_backend_type
 from .driver import get_api_version
 from .http_helpers import get_proxy_url, get_token, make_request_with_retries
 
-from yt.packages.six import b
+from yt.packages.six import b, PY3
 
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
 from yt.packages import PackagesImporter
@@ -179,7 +179,10 @@ class JobShell(object):
         self.current_proxy = None
         if type(err) is HTTPError and hasattr(err, "response") and err.response:
             if "X-Yt-Error" in err.response.headers:
-                error = json.loads(err.response.headers["X-Yt-Error"], encoding=None)
+                if PY3 and sys.version_info.minor <= 5:
+                    error = json.loads(err.response.headers["X-Yt-Error"], encoding=None)
+                else:
+                    error = json.loads(err.response.headers["X-Yt-Error"])
                 yt_error = YtResponseError(error)
                 if self.interactive:
                     if yt_error.is_shell_exited():
