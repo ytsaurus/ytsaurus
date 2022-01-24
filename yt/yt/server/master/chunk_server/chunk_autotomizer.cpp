@@ -3,6 +3,7 @@
 #include "chunk.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
+#include "config.h"
 #include "helpers.h"
 #include "job.h"
 #include "job_registry.h"

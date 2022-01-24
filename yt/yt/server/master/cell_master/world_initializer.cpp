@@ -18,12 +18,15 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/transaction_client/config.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 

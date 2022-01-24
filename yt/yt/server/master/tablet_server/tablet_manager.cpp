@@ -32,6 +32,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_view.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_tree_traverser.h>
+#include <yt/yt/server/master/chunk_server/config.h>
 #include <yt/yt/server/master/chunk_server/dynamic_store.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
 #include <yt/yt/server/master/chunk_server/medium.h>

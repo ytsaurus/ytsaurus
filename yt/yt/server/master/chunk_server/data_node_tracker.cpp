@@ -4,6 +4,7 @@
 #include "chunk_manager.h"
 #include "chunk_location.h"
 #include "chunk_location_type_handler.h"
+#include "config.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>

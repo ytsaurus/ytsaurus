@@ -19,6 +19,7 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/server/master/tablet_server/backup_manager.h>
+#include <yt/yt/server/master/tablet_server/config.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
 #include <yt/yt/server/master/tablet_server/table_replica.h>
@@ -27,11 +28,11 @@
 #include <yt/yt/server/master/security_server/access_log.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/yt/server/lib/misc/interned_attributes.h>
-
 #include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/yt/client/chunk_client/read_limit.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -46,7 +47,7 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/yt/library/erasure/impl/codec.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/string.h>
@@ -58,6 +59,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/yson/async_consumer.h>
+
+#include <yt/yt/library/erasure/impl/codec.h>
 
 namespace NYT::NTableServer {
 

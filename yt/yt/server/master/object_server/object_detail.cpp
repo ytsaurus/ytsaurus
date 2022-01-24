@@ -1,4 +1,5 @@
 #include "object_detail.h"
+#include "config.h"
 #include "private.h"
 #include "attribute_set.h"
 #include "object_manager.h"
@@ -17,6 +18,7 @@
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/cypress_server/config.h>
 #include <yt/yt/server/master/cypress_server/virtual.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>

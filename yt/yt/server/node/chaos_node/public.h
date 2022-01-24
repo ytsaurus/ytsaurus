@@ -1,6 +1,10 @@
 #pragma once
 
-#include <yt/yt/server/lib/chaos_node/config.h>
+#include <yt/yt/server/lib/chaos_node/public.h>
+
+#include <yt/yt/server/lib/hive/public.h>
+
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/client/transaction_client/public.h>
 

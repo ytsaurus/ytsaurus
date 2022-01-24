@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_owner_type_handler.h>
 
+#include <yt/yt/server/master/cypress_server/config.h>
+
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/core/crypto/crypto.h>

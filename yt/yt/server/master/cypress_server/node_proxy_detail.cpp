@@ -12,6 +12,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
+#include <yt/yt/server/master/chunk_server/config.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
 
 #include <yt/yt/server/master/object_server/yson_intern_registry.h>
@@ -20,6 +21,7 @@
 
 #include <yt/yt/server/master/security_server/access_log.h>
 #include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/config.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 

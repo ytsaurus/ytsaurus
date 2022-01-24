@@ -10,6 +10,8 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/yt/server/master/node_tracker_server/config.h>
+
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 namespace NYT::NNodeTrackerServer {

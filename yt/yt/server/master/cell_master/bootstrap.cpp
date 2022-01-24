@@ -74,6 +74,7 @@
 
 #include <yt/yt/server/master/orchid/cypress_integration.h>
 
+#include <yt/yt/server/master/security_server/config.h>
 #include <yt/yt/server/master/security_server/cypress_integration.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
@@ -109,6 +110,7 @@
 #include <yt/yt/ytlib/program/build_attributes.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
+#include <yt/yt/ytlib/election/config.h>
 #include <yt/yt/ytlib/election/cell_manager.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>

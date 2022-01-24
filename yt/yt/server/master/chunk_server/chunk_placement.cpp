@@ -2,6 +2,7 @@
 #include "private.h"
 #include "chunk.h"
 #include "chunk_manager.h"
+#include "config.h"
 #include "job.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
