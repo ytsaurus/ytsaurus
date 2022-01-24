@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -343,21 +344,21 @@ public class WireProtocolTest {
                         .forClass(RowSampleAllObject.class);
         try {
             add0.accept(ColumnValueType.ANY, object.getSimpleMapObject(),
-                    serializer.getField("simpleMapObject").getOrThrow("simpleMapObject").serializer);
+                    serializer.getField("simpleMapObject").orElseThrow(() -> new NoSuchElementException("simpleMapObject")).serializer);
             add0.accept(ColumnValueType.ANY, object.getComplexMapObject(),
-                    serializer.getField("complexMapObject").getOrThrow("complexMapObject").serializer);
+                    serializer.getField("complexMapObject").orElseThrow(() -> new NoSuchElementException("complexMapObject")).serializer);
             add0.accept(ColumnValueType.ANY, object.getSimpleListObject(),
-                    serializer.getField("simpleListObject").getOrThrow("simpleListObject").serializer);
+                    serializer.getField("simpleListObject").orElseThrow(() -> new NoSuchElementException("simpleListObject")).serializer);
             add0.accept(ColumnValueType.ANY, object.getComplexListObject(),
-                    serializer.getField("complexListObject").getOrThrow("complexListObject").serializer);
+                    serializer.getField("complexListObject").orElseThrow(() -> new NoSuchElementException("complexListObject")).serializer);
             add.accept(ColumnValueType.ANY, object.getSimpleArrayObject());
             add0.accept(ColumnValueType.ANY, object.getComplexArrayObject(),
-                    serializer.getField("complexArrayObject").getOrThrow("complexArrayObject").serializer);
+                    serializer.getField("complexArrayObject").orElseThrow(() -> new NoSuchElementException("complexArrayObject")).serializer);
             add.accept(ColumnValueType.ANY, object.getPrimitiveArrayObject());
             add0.accept(ColumnValueType.ANY, object.getSimpleSetObjects(),
-                    serializer.getField("simpleSetObjects").getOrThrow("simpleSetObjects").serializer);
+                    serializer.getField("simpleSetObjects").orElseThrow(() -> new NoSuchElementException("simpleSetObjects")).serializer);
             add0.accept(ColumnValueType.ANY, object.getComplexSetObjects(),
-                    serializer.getField("complexSetObjects").getOrThrow("complexSetObjects").serializer);
+                    serializer.getField("complexSetObjects").orElseThrow(() -> new NoSuchElementException("complexSetObjects")).serializer);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
