@@ -3,16 +3,21 @@
 #include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <util/string/split.h>
+
 namespace NYT::NQueueAgent {
 
+using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NYPath;
@@ -29,6 +34,15 @@ static const auto& Logger = QueueAgentLogger;
 bool TCrossClusterReference::operator==(const TCrossClusterReference& other) const
 {
     return Cluster == other.Cluster && Path == other.Path;
+}
+
+TCrossClusterReference TCrossClusterReference::FromString(const TString& path)
+{
+    TCrossClusterReference result;
+    if (!StringSplitter(path).Split(':').Limit(2).TryCollectInto(&result.Cluster, &result.Path)) {
+        THROW_ERROR_EXCEPTION("Ill-formed cross-cluster reference %Qv", path);
+    }
+    return result;
 }
 
 TString ToString(const TCrossClusterReference& queueRef)
@@ -58,11 +72,23 @@ TFuture<std::vector<TRow>> TTableBase<TRow>::Select(TStringBuf columns, TStringB
         "Invoking select query (Query: %Qv)",
         query);
 
-    return Client_->SelectRows(query).Apply(BIND([&] (const TSelectRowsResult& result) {
-        const auto& rowset = result.Rowset;
-        return TRow::ParseRowRange(rowset->GetRows(), rowset->GetNameTable(), rowset->GetSchema());
+    return Client_->SelectRows(query)
+        .Apply(BIND([&] (const TSelectRowsResult& result) {
+            const auto& rowset = result.Rowset;
+            return TRow::ParseRowRange(rowset->GetRows(), rowset->GetNameTable(), rowset->GetSchema());
+        }));
+}
+
+template <class TRow>
+TFuture<TTransactionCommitResult> TTableBase<TRow>::Insert(std::vector<TRow> rows) const
+{
+    return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet).Apply(BIND([rows = std::move(rows), path = Path_] (const ITransactionPtr& transaction) {
+        // TODO(achulkov2): Move all transaction interactions out of InsertRowRange.
+        TRow::InsertRowRange(path, rows, transaction);
+        return transaction->Commit();
     }));
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,6 +163,56 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(TRange<TUnversionedRow
 
     return typedRows;
 }
+
+void TQueueTableRow::InsertRowRange(
+    const TYPath& path,
+    TRange<TQueueTableRow> rows,
+    const NApi::ITransactionPtr& transaction)
+{
+    auto nameTable = TNameTable::FromSchema(*TQueueTableDescriptor::Schema);
+
+    TUnversionedRowsBuilder rowsBuilder;
+    for (const auto& row : rows) {
+        TUnversionedOwningRowBuilder rowBuilder;
+        rowBuilder.AddValue(MakeUnversionedStringValue(row.Queue.Cluster, nameTable->GetIdOrThrow("cluster")));
+        rowBuilder.AddValue(MakeUnversionedStringValue(row.Queue.Path, nameTable->GetIdOrThrow("path")));
+        if (row.RowRevision) {
+            rowBuilder.AddValue(MakeUnversionedUint64Value(*row.RowRevision, nameTable->GetIdOrThrow("row_revision")));
+        }
+        if (row.Revision) {
+            rowBuilder.AddValue(MakeUnversionedUint64Value(*row.Revision, nameTable->GetIdOrThrow("revision")));
+        }
+        if (row.ObjectType) {
+            rowBuilder.AddValue(MakeUnversionedStringValue(FormatEnum<EObjectType>(*row.ObjectType), nameTable->GetIdOrThrow("object_type")));
+        }
+        if (row.Dynamic) {
+            rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.Dynamic, nameTable->GetIdOrThrow("dynamic")));
+        }
+        if (row.Sorted) {
+            rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.Sorted, nameTable->GetIdOrThrow("sorted")));
+        }
+        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
+    }
+
+    transaction->WriteRows(path, nameTable, rowsBuilder.Build());
+}
+
+std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
+{
+    return {"revision", "type", "dynamic", "sorted"};
+}
+
+TQueueTableRow::TQueueTableRow(
+    TCrossClusterReference queue,
+    std::optional<TRowRevision> rowRevision,
+    const IAttributeDictionaryPtr& cypressAttributes)
+    : Queue(std::move(queue))
+    , RowRevision(rowRevision)
+    , Revision(cypressAttributes->Find<NHydra::TRevision>("revision"))
+    , ObjectType(cypressAttributes->Find<EObjectType>("type"))
+    , Dynamic(cypressAttributes->Find<bool>("dynamic"))
+    , Sorted(cypressAttributes->Find<bool>("sorted"))
+{ }
 
 void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
 {
@@ -238,6 +314,59 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversio
     }
 
     return typedRows;
+}
+
+void TConsumerTableRow::InsertRowRange(
+    const TYPath& path,
+    TRange<TConsumerTableRow> rows,
+    const NApi::ITransactionPtr& transaction)
+{
+    auto nameTable = TNameTable::FromSchema(*TConsumerTableDescriptor::Schema);
+
+    TUnversionedRowsBuilder rowsBuilder;
+    for (const auto& row : rows) {
+        TUnversionedOwningRowBuilder rowBuilder;
+        rowBuilder.AddValue(MakeUnversionedStringValue(row.Consumer.Cluster, nameTable->GetIdOrThrow("cluster")));
+        rowBuilder.AddValue(MakeUnversionedStringValue(row.Consumer.Path, nameTable->GetIdOrThrow("path")));
+        if (row.RowRevision) {
+            rowBuilder.AddValue(MakeUnversionedUint64Value(*row.RowRevision, nameTable->GetIdOrThrow("row_revision")));
+        }
+        if (row.Revision) {
+            rowBuilder.AddValue(MakeUnversionedUint64Value(*row.Revision, nameTable->GetIdOrThrow("revision")));
+        }
+        if (row.Target) {
+            rowBuilder.AddValue(MakeUnversionedStringValue(row.Target->Cluster, nameTable->GetIdOrThrow("target_cluster")));
+            rowBuilder.AddValue(MakeUnversionedStringValue(row.Target->Path, nameTable->GetIdOrThrow("target_path")));
+        }
+        if (row.ObjectType) {
+            rowBuilder.AddValue(MakeUnversionedStringValue(FormatEnum(*row.ObjectType), nameTable->GetIdOrThrow("object_type")));
+        }
+        if (row.TreatAsConsumer) {
+            rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.TreatAsConsumer, nameTable->GetIdOrThrow("treat_as_consumer")));
+        }
+        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
+    }
+
+    transaction->WriteRows(path, nameTable, rowsBuilder.Build());
+}
+
+std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
+{
+    return {"target", "revision", "type", "treat_as_consumer"};
+}
+
+TConsumerTableRow::TConsumerTableRow(
+    TCrossClusterReference consumer,
+    std::optional<TRowRevision> rowRevision,
+    const IAttributeDictionaryPtr& cypressAttributes)
+    : Consumer(std::move(consumer))
+    , RowRevision(rowRevision)
+    , Revision(cypressAttributes->Find<NHydra::TRevision>("revision"))
+    , ObjectType(cypressAttributes->Find<EObjectType>("type"))
+    , TreatAsConsumer(cypressAttributes->Find<bool>("treat_as_consumer"))
+{
+    auto optionalTarget = cypressAttributes->Find<TString>("target");
+    Target = (optionalTarget ? std::make_optional(TCrossClusterReference::FromString(*optionalTarget)) : std::nullopt);
 }
 
 void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
