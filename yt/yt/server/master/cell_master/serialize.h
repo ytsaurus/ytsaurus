@@ -87,6 +87,7 @@ DEFINE_ENUM(EMasterReign,
     ((MaxClipTimestampInChunkView)                                  (1919))  // ifsmirnov
     ((ChaosReplicatedTable)                                         (1920))  // babenko
     ((ImplicitReplicationCardId)                                    (1921))  // babenko
+    ((AlterReplicatedTables)                                        (1922))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
