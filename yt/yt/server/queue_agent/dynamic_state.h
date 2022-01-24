@@ -22,6 +22,8 @@ struct TCrossClusterReference
     NYPath::TYPath Path;
 
     bool operator ==(const TCrossClusterReference& other) const;
+
+    static TCrossClusterReference FromString(const TString& path);
 };
 
 TString ToString(const TCrossClusterReference& queueRef);
@@ -40,6 +42,8 @@ public:
 
     TFuture<std::vector<TRow>> Select(TStringBuf columns = "*", TStringBuf where = "1 = 1") const;
 
+    TFuture<NApi::TTransactionCommitResult> Insert(std::vector<TRow> rows) const;
+
 private:
     NYPath::TYPath Path_;
     NApi::IClientPtr Client_;
@@ -47,7 +51,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Keep in-sync with #TQueueTableDescriptor, #TQueueTableRow::ParseRowRange and #Serialize.
+// Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TQueueTableRow
 {
     TCrossClusterReference Queue;
@@ -63,6 +67,19 @@ struct TQueueTableRow
         TRange<NTableClient::TUnversionedRow> rows,
         NTableClient::TNameTablePtr nameTable,
         const NTableClient::TTableSchema& schema);
+
+    static void InsertRowRange(
+        const NYPath::TYPath& path,
+        TRange<TQueueTableRow> rows,
+        const NApi::ITransactionPtr& transaction);
+
+    static std::vector<TString> GetCypressAttributeNames();
+
+    TQueueTableRow() = default;
+    TQueueTableRow(
+        TCrossClusterReference queue,
+        std::optional<TRowRevision> rowRevision,
+        const NYTree::IAttributeDictionaryPtr& attributeDictionary);
 };
 
 void Serialize(const TQueueTableRow& row, NYson::IYsonConsumer* consumer);
@@ -80,7 +97,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Keep in-sync with #TConsumerTableDescriptor, #TConsumerTableRow::ParseRowRange and #Serialize.
+// Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TConsumerTableRow
 {
     TCrossClusterReference Consumer;
@@ -96,6 +113,19 @@ struct TConsumerTableRow
         TRange<NTableClient::TUnversionedRow> rows,
         NTableClient::TNameTablePtr nameTable,
         const NTableClient::TTableSchema& schema);
+
+    static void InsertRowRange(
+        const NYPath::TYPath& path,
+        TRange<TConsumerTableRow> rows,
+        const NApi::ITransactionPtr& transaction);
+
+    static std::vector<TString> GetCypressAttributeNames();
+
+    TConsumerTableRow() = default;
+    TConsumerTableRow(
+        TCrossClusterReference consumer,
+        std::optional<TRowRevision> rowRevision,
+        const NYTree::IAttributeDictionaryPtr& attributeDictionary);
 };
 
 void Serialize(const TConsumerTableRow& row, NYson::IYsonConsumer* consumer);
