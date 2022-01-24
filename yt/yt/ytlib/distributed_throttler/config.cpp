@@ -32,6 +32,12 @@ TDistributedThrottlerConfig::TDistributedThrottlerConfig()
         .Default(0.1);
     RegisterParameter("ema_alpha", EmaAlpha)
         .Default(0.1);
+
+    RegisterParameter("heartbeat_throttler_count_limit", HeartbeatThrottlerCountLimit)
+        .Default(100);
+    
+    RegisterParameter("skip_unused_throttlers_count_limit", SkipUnusedThrottlersCountLimit)
+        .Default(50);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

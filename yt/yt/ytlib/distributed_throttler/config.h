@@ -36,6 +36,9 @@ public:
     double ExtraLimitRatio;
     double EmaAlpha;
 
+    int HeartbeatThrottlerCountLimit;
+    int SkipUnusedThrottlersCountLimit;
+
     TDistributedThrottlerConfig();
 };
 
