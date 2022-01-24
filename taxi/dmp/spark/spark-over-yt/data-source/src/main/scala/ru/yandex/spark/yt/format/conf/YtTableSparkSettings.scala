@@ -51,6 +51,8 @@ object YtTableSparkSettings {
 
   case object Schema extends StructTypeConfigEntry("schema")
 
+  case object WriteTransaction extends StringConfigEntry("write_transaction")
+
   case object WriteTypeV3 extends BooleanConfigEntry("write_type_v3", Some(false))
 
   case object OptimizeFor extends StringConfigEntry("optimize_for")
