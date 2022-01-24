@@ -15,9 +15,10 @@ namespace NYT::NCypressElection {
 struct TCypressElectionManagerOptions
     : public TRefCounted
 {
-    TString Name;
+    TString GroupName;
+    TString MemberName;
     //! Additional attributes for the lock transaction.
-    NYTree::IAttributeDictionaryPtr TransactionAttributes = nullptr;
+    NYTree::IAttributeDictionaryPtr TransactionAttributes;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressElectionManagerOptions)
@@ -32,20 +33,22 @@ struct ICypressElectionManager
     //! Stops participating in leader election.
     //! If instance is a leader prior to this call
     //! leading is stopped.
-    virtual void Stop() = 0;
+    virtual TFuture<void> Stop() = 0;
 
     //! Immediately stops leading.
-    virtual void StopLeading() = 0;
+    virtual TFuture<void> StopLeading() = 0;
 
     //! Returns id of a prerequisite transaction for current epoch.
     //! If instance is not leader now, returns |NullTransactionId|.
-    virtual NTransactionClient::TTransactionId GetPrerequistiveTransactionId() const = 0;
+    virtual NTransactionClient::TTransactionId GetPrerequisiteTransactionId() const = 0;
 
     virtual bool IsLeader() const = 0;
 
     //! Fired when instance became leader.
+    //! NB: Signal handler should not throw or make context switches.
     DECLARE_INTERFACE_SIGNAL(void(), LeadingStarted);
     //! Fired when instance leading ends.
+    //! NB: Signal handler should not throw or make context switches.
     DECLARE_INTERFACE_SIGNAL(void(), LeadingEnded);
 };
 

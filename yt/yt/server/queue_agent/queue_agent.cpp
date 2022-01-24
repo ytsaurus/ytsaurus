@@ -59,9 +59,7 @@ void TQueueAgent::Stop()
 
     YT_LOG_INFO("Stopping queue agent");
 
-    YT_VERIFY(WaitFor(BIND(&TQueueAgent::DoStop, MakeWeak(this))
-        .AsyncVia(ControlInvoker_)
-        .Run()).IsOK());
+    ControlInvoker_->Invoke(BIND(&TQueueAgent::DoStop, MakeWeak(this)));
 
     Active_ = false;
 }

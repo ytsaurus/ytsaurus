@@ -178,7 +178,8 @@ void TBootstrap::DoRun()
 
     {
         TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
-        options->Name = AgentId_;
+        options->GroupName = "QueueAgent";
+        options->MemberName = AgentId_;
         options->TransactionAttributes = CreateEphemeralAttributes();
         options->TransactionAttributes->Set("host", AgentId_);
         ElectionManager_ = CreateCypressElectionManager(NativeClient_, ControlInvoker_, Config_->ElectionManager, std::move(options));
@@ -228,19 +229,6 @@ void TBootstrap::UpdateCypressNode()
             .ThrowOnError();
 
         YT_LOG_INFO("Orchid node created");
-    }
-    {
-        TCreateNodeOptions options;
-        options.IgnoreExisting = true;
-
-        auto lockPath = Config_->ElectionManager->LockPath;
-
-        YT_LOG_INFO("Creating lock node (Path: %Qv)", lockPath);
-
-        WaitFor(NativeClient_->CreateNode(lockPath, EObjectType::MapNode, options))
-            .ThrowOnError();
-
-        YT_LOG_INFO("Lock node created");
     }
 }
 

@@ -28,6 +28,8 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/net/local_address.h>
+
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/server.h>
 
@@ -157,7 +159,8 @@ private:
         }
 
         TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
-        options->Name = "CellBalancer";
+        options->GroupName = "CellBalancer";
+        options->MemberName = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
         ElectionManager_ = CreateCypressElectionManager(
             Client_,
             GetControlInvoker(),

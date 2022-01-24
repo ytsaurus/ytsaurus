@@ -303,8 +303,12 @@ class TestMultipleAgents(YTEnvSetup):
         # Check that leader host is set in lock transaction attributes.
 
         locks = get("//sys/queue_agents/leader_lock/@locks")
-        assert len(locks) == 1
-        tx_id = locks[0]["transaction_id"]
+        assert len(locks) == 5
+        tx_id = None
+        for lock in locks:
+            if lock["state"] == "acquired":
+                assert not tx_id
+                tx_id = lock["transaction_id"]
         leader_from_tx_attrs = get("#" + tx_id + "/@host")
 
         assert leader == leader_from_tx_attrs

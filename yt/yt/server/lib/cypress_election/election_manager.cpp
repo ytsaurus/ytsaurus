@@ -8,6 +8,8 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
+
 namespace NYT::NCypressElection {
 
 using namespace NApi;
@@ -15,6 +17,7 @@ using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NLogging;
+using namespace NObjectClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,10 +35,10 @@ public:
         , Options_(std::move(options))
         , Client_(std::move(client))
         , Invoker_(CreateSerializedInvoker(std::move(invoker)))
-        , Logger(CypressElectionLogger.WithTag("Name: %v, Path: %v", Options_->Name, Config_->LockPath))
+        , Logger(CypressElectionLogger.WithTag("GroupName: %v, Path: %v", Options_->GroupName, Config_->LockPath))
         , LockAquisitionExecutor_(New<TPeriodicExecutor>(
             Invoker_,
-            BIND(&TCypressElectionManager::AcquireLock, MakeWeak(this)),
+            BIND(&TCypressElectionManager::TryAcquireLock, MakeWeak(this)),
             Config_->LockAcquisitionPeriod))
     { }
 
@@ -43,49 +46,45 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Starting cypress election manager", Config_->LockPath);
+        YT_LOG_DEBUG("Starting cypress election manager");
+
         LockAquisitionExecutor_->Start();
     }
 
-    void Stop() override
+    TFuture<void> Stop() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Cypress election manager stopping");
+        YT_LOG_DEBUG("Stopping cypress election manager");
 
-        WaitFor(BIND(&TCypressElectionManager::DoStop, MakeWeak(this))
+        return BIND(&TCypressElectionManager::DoStop, MakeWeak(this))
             .AsyncVia(Invoker_)
-            .Run())
-            .ThrowOnError();
+            .Run();
     }
 
-    void StopLeading() override
+    TFuture<void> StopLeading() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Stopping leading");
 
-        // NB: Aborts the transaction.
-        Invoker_->Invoke(BIND(&TCypressElectionManager::OnLeadingEnded, MakeWeak(this)));
+        return BIND(&TCypressElectionManager::DoStopLeading, MakeWeak(this))
+            .AsyncVia(Invoker_)
+            .Run();
     }
 
-    TTransactionId GetPrerequistiveTransactionId() const override
+    TTransactionId GetPrerequisiteTransactionId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(TransactionLock_);
-
-        if (IsLeading_) {
-            YT_VERIFY(Transaction_);
-            return Transaction_->GetId();
-        } else {
-            return NullTransactionId;
-        }
+        return PrerequisiteTransactionId_.Load();
     }
 
     bool IsLeader() const override
     {
-        return IsLeading_;
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return GetPrerequisiteTransactionId() != NullTransactionId;
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(), LeadingStarted);
@@ -100,108 +99,249 @@ private:
 
     const TPeriodicExecutorPtr LockAquisitionExecutor_;
 
-    std::atomic<bool> IsLeading_ = false;
-    ITransactionPtr Transaction_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TransactionLock_);
+    TObjectId LockNodeId_ = NullObjectId;
 
-    void AcquireLock()
+    TAtomicObject<TTransactionId> PrerequisiteTransactionId_ = NullTransactionId;
+
+    ITransactionPtr Transaction_;
+    TObjectId LockId_ = NullObjectId;
+
+    void TryAcquireLock()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        YT_VERIFY(!IsLeading_);
-
-        YT_LOG_DEBUG("Trying acquire lock");
+        if (IsLeader()) {
+            return;
+        }
 
         try {
+            if (!LockNodeId_) {
+                YT_LOG_DEBUG("Creating lock node");
+
+                CreateLockNode();
+
+                YT_LOG_DEBUG("Lock node created (LockNodeId: %v)",
+                    LockNodeId_);
+            }
+
             if (!Transaction_) {
-                auto attributes = Options_->TransactionAttributes
-                    ? Options_->TransactionAttributes->Clone()
-                    : CreateEphemeralAttributes();
-                attributes->Set("title", Format("Lock transaction for %v", Options_->Name));
-                TTransactionStartOptions options {
-                    .PingPeriod = Config_->TransactionPingPeriod,
-                    .Timeout = Config_->TransactionTimeout,
-                    .Attributes = std::move(attributes),
-                };
-                Transaction_ = WaitFor(
-                    Client_->StartTransaction(ETransactionType::Master, std::move(options)))
-                    .ValueOrThrow();
-                YT_LOG_DEBUG("Lock transaction started (TransactionId: %v)", Transaction_->GetId());
+                YT_LOG_DEBUG("Starting transaction");
+
+                StartTransaction();
+
+                YT_LOG_DEBUG("Transaction started (TransactionId: %v)",
+                    Transaction_->GetId());
             }
-            auto result = WaitFor(Transaction_->LockNode(Config_->LockPath, ELockMode::Exclusive));
-            if (result.IsOK()) {
-                YT_LOG_DEBUG(
-                    "Lock acquisition succeeded (TransactionId: %v, LockId: %v)",
+
+            if (!LockId_) {
+                YT_LOG_DEBUG("Creating lock (TransactionId: %v)",
+                    Transaction_->GetId());
+
+                CreateLock();
+
+                YT_LOG_DEBUG("Lock created (TransactionId: %v, LockId: %v)",
                     Transaction_->GetId(),
-                    result.Value().LockId);
-                OnLeadingStarted();
-            } else if (result.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                Transaction_.Reset();
+                    LockId_);
             }
-            result.ThrowOnError();
+
+            if (CheckLockAcquired()) {
+                YT_LOG_DEBUG("Lock is acquired, starting leading (LockId: %v)",
+                    LockId_);
+
+                OnLeadingStarted();
+            } else {
+                YT_LOG_DEBUG("Lock is not acquired yet, skipping (LockId: %v)",
+                    LockId_);
+            }
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Lock acquisition failed");
-            return;
+            YT_LOG_INFO(ex, "Lock acquisition iteration failed");
         }
     }
 
-    void OnTransactionAborted(const TError& /*error*/)
+    void StartTransaction()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_VERIFY(!Transaction_);
+        YT_VERIFY(!IsLeader());
+
+        auto attributes = Options_->TransactionAttributes
+            ? Options_->TransactionAttributes->Clone()
+            : CreateEphemeralAttributes();
+        auto title = Format("Lock tranaction for %v:%v",
+            Options_->GroupName,
+            Options_->MemberName);
+        attributes->Set("title", std::move(title));
+        TTransactionStartOptions options {
+            .PingPeriod = Config_->TransactionPingPeriod,
+            .Timeout = Config_->TransactionTimeout,
+            .Attributes = std::move(attributes),
+        };
+        Transaction_ = WaitFor(
+            Client_->StartTransaction(ETransactionType::Master, std::move(options)))
+            .ValueOrThrow();
+
+        auto transactionId = Transaction_->GetId();
+        Transaction_->SubscribeAborted(
+            BIND(&TCypressElectionManager::OnTransactionAborted, MakeWeak(this), transactionId)
+                .Via(Invoker_));
+        Transaction_->SubscribeCommitted(
+            BIND(&TCypressElectionManager::OnTransactionCommitted, MakeWeak(this), transactionId)
+                .Via(Invoker_));
+    }
+
+    void CreateLock()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_VERIFY(!LockId_);
+        YT_VERIFY(!IsLeader());
+
+        TLockNodeOptions options;
+        options.TransactionId = Transaction_->GetId(),
+        options.Waitable = true;
+        auto rspOrError = WaitFor(
+            Client_->LockNode(FromObjectId(LockNodeId_), ELockMode::Exclusive, std::move(options)));
+        if (rspOrError.IsOK()) {
+            LockId_ = rspOrError.Value().LockId;
+        } else {
+            // NB: If transaction has created lock, but response was lost creating a new lock
+            // will end up with a conflict, so it's safer to create a new transaction in case
+            // of any errors.
+            YT_LOG_DEBUG(rspOrError, "Failed to create lock (TransactionId: %v)",
+                Transaction_->GetId());
+            LockNodeId_ = NullObjectId;
+            Transaction_.Reset();
+            rspOrError.ThrowOnError();
+        }
+    }
+
+    bool CheckLockAcquired()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_VERIFY(!IsLeader());
+
+        TGetNodeOptions options{
+            .Attributes = std::vector<TString>({"state"})
+        };
+        auto rspOrError = WaitFor(Client_->GetNode(FromObjectId(LockId_), std::move(options)));
+        if (rspOrError.IsOK()) {
+            auto response = ConvertTo<INodePtr>(rspOrError.Value());
+            auto lockState = response->Attributes().Get<ELockState>("state");
+            return lockState == ELockState::Acquired;
+        } else if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            YT_LOG_DEBUG(rspOrError, "Lock does not exist (LockId: %v)",
+                LockId_);
+            Transaction_.Reset();
+            LockId_ = NullObjectId;
+            return false;
+        } else {
+            rspOrError.ThrowOnError();
+        }
+
+        YT_ABORT();
+    }
+
+    void OnTransactionAborted(TTransactionId transactionId, const TError& error)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        OnLeadingEnded();
+        YT_LOG_DEBUG(error, "Transaction aborted (TransactionId: %v)",
+            transactionId);
+
+        OnTransactionFinished(transactionId);
+    }
+
+    void OnTransactionCommitted(TTransactionId transactionId)
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        YT_LOG_DEBUG("Transacton committed (TransactionId: %v)",
+            transactionId);
+
+        OnTransactionFinished(transactionId);
+    }
+
+    void OnTransactionFinished(TTransactionId transactionId)
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        // NB: Stale callbacks are possible.
+        if (!Transaction_ || Transaction_->GetId() != transactionId) {
+            return;
+        }
+
+        Reset();
     }
 
     void OnLeadingStarted()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_VERIFY(!IsLeader());
 
-        IsLeading_ = true;
+        PrerequisiteTransactionId_.Store(Transaction_->GetId());
 
-        LockAquisitionExecutor_->Stop();
+        YT_LOG_DEBUG("Leading started");
 
-        YT_LOG_DEBUG("Leading is started");
-
-        LeadingStarted_.Fire();
-
-        Transaction_->SubscribeAborted(
-            BIND(&TCypressElectionManager::OnTransactionAborted, MakeWeak(this)).Via(Invoker_));
-        Transaction_->SubscribeCommitted(
-            BIND(&TCypressElectionManager::OnLeadingEnded, MakeWeak(this)).Via(Invoker_));
-
-        // In case transaction has aborted before subscription on abort.
-        if (!WaitFor(Transaction_->Ping()).IsOK()) {
-            OnLeadingEnded();
+        try {
+            TForbidContextSwitchGuard guard;
+            LeadingStarted_.Fire();
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Unexpected error occured during leading start");
         }
-    }
-
-    void OnLeadingEnded()
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        if (!IsLeading_) {
-            return;
-        }
-
-        {
-            auto guard = Guard(TransactionLock_);
-            Transaction_.Reset();
-            IsLeading_ = false;
-        }
-
-        YT_LOG_DEBUG("Leading ended");
-
-        LockAquisitionExecutor_->Start();
-
-        LeadingEnded_.Fire();
     }
 
     void DoStop()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        OnLeadingEnded();
-        LockAquisitionExecutor_->Stop();
+        WaitFor(LockAquisitionExecutor_->Stop())
+            .ThrowOnError();
+
+        Reset();
+
+        YT_LOG_DEBUG("Election manager stopped");
+    }
+
+    void DoStopLeading()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        if (IsLeader()) {
+            Reset();
+        }
+    }
+
+    void Reset()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        if (IsLeader()) {
+            YT_LOG_DEBUG("Leading ended");
+
+            PrerequisiteTransactionId_.Store(NullTransactionId);
+
+            try {
+                TForbidContextSwitchGuard guard;
+                LeadingEnded_.Fire();
+            } catch (const std::exception& ex) {
+                YT_LOG_ALERT(ex, "Unexpected error occured during leading end");
+            }
+        }
+
+        Transaction_.Reset();
+        LockId_ = NullObjectId;
+    }
+
+    void CreateLockNode()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_VERIFY(!LockNodeId_);
+
+        TCreateNodeOptions options;
+        options.IgnoreExisting = true;
+        options.IgnoreTypeMismatch = true;
+        LockNodeId_ = WaitFor(
+            Client_->CreateNode(Config_->LockPath, EObjectType::MapNode, std::move(options)))
+            .ValueOrThrow();
     }
 };
 
