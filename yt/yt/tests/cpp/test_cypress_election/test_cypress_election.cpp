@@ -64,7 +64,7 @@ protected:
         TCypressElectionManagerConfigPtr config = nullptr)
     {
         auto options = New<TCypressElectionManagerOptions>();
-        options->Name = name;
+        options->GroupName = name;
         if (!config) {
             config = Config_;
         }
@@ -83,12 +83,6 @@ protected:
             ++StartCount_;
         }));
         return electionManager;
-    }
-
-    void SetUp() override
-    {
-        WaitFor(Client_->CreateNode(GetLockPath(), EObjectType::MapNode))
-            .ThrowOnError();
     }
 
     void TearDown() override
@@ -115,24 +109,24 @@ TEST_F(TCypressElectionManagerTest, TestElectionManager)
 {
     auto electionManager = CreateElectionManager("electionManager");
     electionManager->Start();
-    WaitForPredicate([&] () {
-        return IsActive(electionManager->GetPrerequistiveTransactionId());
+    WaitForPredicate([&] {
+        return IsActive(electionManager->GetPrerequisiteTransactionId());
     });
-    auto transaction1 = electionManager->GetPrerequistiveTransactionId();
+    auto transaction1 = electionManager->GetPrerequisiteTransactionId();
     EXPECT_TRUE(IsActive(transaction1));
 
     EXPECT_EQ(StartCount_, 1);
     EXPECT_EQ(EndCount_, 0);
 
     electionManager->StopLeading();
-    WaitForPredicate([&] () {
+    WaitForPredicate([&] {
         return !IsActive(transaction1);
     });
     EXPECT_FALSE(IsActive(transaction1));
-    WaitForPredicate([&] () {
-        return IsActive(electionManager->GetPrerequistiveTransactionId());
+    WaitForPredicate([&] {
+        return IsActive(electionManager->GetPrerequisiteTransactionId());
     });
-    auto transaction2 = electionManager->GetPrerequistiveTransactionId();
+    auto transaction2 = electionManager->GetPrerequisiteTransactionId();
     EXPECT_TRUE(IsActive(transaction2));
 
     EXPECT_EQ(StartCount_, 2);
@@ -159,14 +153,14 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     auto countLeaders = [&] {
         int count = 0;
         for (int i = 0; i < 3; ++i) {
-            count += IsActive(electionManagers[i]->GetPrerequistiveTransactionId());
+            count += IsActive(electionManagers[i]->GetPrerequisiteTransactionId());
         }
         return count;
     };
 
     auto findLeader = [&] () -> ICypressElectionManagerPtr {
         for (int i = 0; i < 3; ++i) {
-            if (IsActive(electionManagers[i]->GetPrerequistiveTransactionId())) {
+            if (IsActive(electionManagers[i]->GetPrerequisiteTransactionId())) {
                 return electionManagers[i];
             }
         }
@@ -175,7 +169,7 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     };
 
     Sleep(TDuration::MilliSeconds(200));
-    WaitForPredicate([&] () {
+    WaitForPredicate([&] {
         return countLeaders() == 1;
     });
 
@@ -184,10 +178,10 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
 
     EXPECT_EQ(countLeaders(), 1);
     auto leader = findLeader();
-    auto transaction1 = leader->GetPrerequistiveTransactionId();
+    auto transaction1 = leader->GetPrerequisiteTransactionId();
 
     for (int i = 0; i < 3; ++i) {
-        if (!IsActive(electionManagers[i]->GetPrerequistiveTransactionId())) {
+        if (!IsActive(electionManagers[i]->GetPrerequisiteTransactionId())) {
             electionManagers[i]->StopLeading();
         }
     }
@@ -200,11 +194,11 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     EXPECT_EQ(EndCount_, 0);
 
     leader->StopLeading();
-    WaitForPredicate([&] () {
+    WaitForPredicate([&] {
         return !IsActive(transaction1);
     });
     Sleep(TDuration::MilliSeconds(200));
-    WaitForPredicate([&] () {
+    WaitForPredicate([&] {
         return countLeaders() == 1;
     });
     EXPECT_EQ(countLeaders(), 1);
@@ -214,14 +208,14 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     EXPECT_EQ(EndCount_, 1);
 
     leader = findLeader();
-    auto transaction2 = leader->GetPrerequistiveTransactionId();
+    auto transaction2 = leader->GetPrerequisiteTransactionId();
 
     leader->Stop();
-    WaitForPredicate([&] () {
+    WaitForPredicate([&] {
         return !IsActive(transaction2);
     });
     Sleep(TDuration::MilliSeconds(200));
-    WaitForPredicate([&] () {
+    WaitForPredicate([&] {
         return countLeaders() == 1;
     });
     EXPECT_EQ(countLeaders(), 1);
@@ -241,14 +235,15 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     EXPECT_EQ(EndCount_, 2);
 
     leader = findLeader();
-    auto transaction3 = leader->GetPrerequistiveTransactionId();
+    auto transaction3 = leader->GetPrerequisiteTransactionId();
 
     ICypressElectionManagerPtr stopedManager;
 
     for (int i = 0; i < 3; ++i) {
-        if (!IsActive(electionManagers[i]->GetPrerequistiveTransactionId())) {
+        if (!IsActive(electionManagers[i]->GetPrerequisiteTransactionId())) {
             stopedManager = electionManagers[i];
-            stopedManager->Stop();
+            WaitFor(stopedManager->Stop())
+                .ThrowOnError();
             break;
         }
     }
@@ -263,18 +258,18 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     EXPECT_EQ(EndCount_, 2);
 
     leader->StopLeading();
-    WaitForPredicate([&] () {
+    WaitForPredicate([&] {
         return !IsActive(transaction3);
     });
     Sleep(TDuration::MilliSeconds(200));
-    WaitForPredicate([&] () {
+    WaitForPredicate([&] {
         return countLeaders() == 1;
     });
     EXPECT_EQ(countLeaders(), 1);
     EXPECT_FALSE(IsActive(transaction1));
     EXPECT_FALSE(IsActive(transaction2));
     EXPECT_FALSE(IsActive(transaction3));
-    EXPECT_EQ(stopedManager->GetPrerequistiveTransactionId(), NullTransactionId);
+    EXPECT_EQ(stopedManager->GetPrerequisiteTransactionId(), NullTransactionId);
 
     EXPECT_EQ(StartCount_, 4);
     EXPECT_EQ(EndCount_, 3);
@@ -290,7 +285,8 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     EXPECT_EQ(EndCount_, 3);
 
     for (int i = 0; i < 3; ++i) {
-        electionManagers[i]->Stop();
+        WaitFor(electionManagers[i]->Stop())
+            .ThrowOnError();
     }
 
     EXPECT_EQ(StartCount_, 4);
@@ -304,9 +300,9 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransaction)
         auto electionManager = CreateElectionManager("electionManager");
         electionManager->Start();
         WaitForPredicate([&] () {
-            return IsActive(electionManager->GetPrerequistiveTransactionId());
+            return IsActive(electionManager->GetPrerequisiteTransactionId());
         });
-        auto transactionId = electionManager->GetPrerequistiveTransactionId();
+        auto transactionId = electionManager->GetPrerequisiteTransactionId();
         EXPECT_TRUE(IsActive(transactionId));
 
         EXPECT_EQ(StartCount_, 1);
@@ -320,16 +316,17 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransaction)
         }
         EXPECT_FALSE(IsActive(transactionId));
 
-        WaitForPredicate([&] () {
-            return IsActive(electionManager->GetPrerequistiveTransactionId());
+        WaitForPredicate([&] {
+            return IsActive(electionManager->GetPrerequisiteTransactionId());
         });
 
         EXPECT_EQ(StartCount_, 2);
         EXPECT_EQ(EndCount_, 1);
 
-        EXPECT_TRUE(IsActive(electionManager->GetPrerequistiveTransactionId()));
+        EXPECT_TRUE(IsActive(electionManager->GetPrerequisiteTransactionId()));
 
-        electionManager->Stop();
+        WaitFor(electionManager->Stop())
+            .ThrowOnError();
 
         EXPECT_EQ(StartCount_, 2);
         EXPECT_EQ(EndCount_, 2);
@@ -345,10 +342,10 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransactionAndChangeLeader)
         config->TransactionPingPeriod = TDuration::Seconds(10);
         auto electionManager1 = CreateElectionManager("electionManager1", actionQueue1, config);
         electionManager1->Start();
-        WaitForPredicate([&] () {
-            return IsActive(electionManager1->GetPrerequistiveTransactionId());
+        WaitForPredicate([&] {
+            return IsActive(electionManager1->GetPrerequisiteTransactionId());
         });
-        auto transactionId = electionManager1->GetPrerequistiveTransactionId();
+        auto transactionId = electionManager1->GetPrerequisiteTransactionId();
         EXPECT_TRUE(IsActive(transactionId));
 
         EXPECT_EQ(StartCount_, 1);
@@ -364,31 +361,34 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransactionAndChangeLeader)
             WaitFor(transaction->Commit()).ThrowOnError();
         }
         EXPECT_FALSE(IsActive(transactionId));
-        EXPECT_EQ(electionManager1->GetPrerequistiveTransactionId(), transactionId);
+        EXPECT_EQ(electionManager1->GetPrerequisiteTransactionId(), transactionId);
 
-        WaitForPredicate([&] () {
-            return IsActive(electionManager2->GetPrerequistiveTransactionId());
+        WaitForPredicate([&] {
+            return IsActive(electionManager2->GetPrerequisiteTransactionId());
         });
-        EXPECT_TRUE(IsActive(electionManager2->GetPrerequistiveTransactionId()));
-        EXPECT_EQ(electionManager1->GetPrerequistiveTransactionId(), transactionId);
+        EXPECT_TRUE(IsActive(electionManager2->GetPrerequisiteTransactionId()));
+        EXPECT_EQ(electionManager1->GetPrerequisiteTransactionId(), transactionId);
 
         EXPECT_EQ(StartCount_, 2);
         EXPECT_EQ(EndCount_, 0);
 
-        electionManager1->StopLeading();
+        WaitFor(electionManager1->StopLeading())
+            .ThrowOnError();
 
-        WaitForPredicate([&] () {
-            return electionManager1->GetPrerequistiveTransactionId() == NullTransactionId;
+        WaitForPredicate([&] {
+            return electionManager1->GetPrerequisiteTransactionId() == NullTransactionId;
         });
 
-        EXPECT_TRUE(IsActive(electionManager2->GetPrerequistiveTransactionId()));
-        EXPECT_EQ(electionManager1->GetPrerequistiveTransactionId(), NullTransactionId);
+        EXPECT_TRUE(IsActive(electionManager2->GetPrerequisiteTransactionId()));
+        EXPECT_EQ(electionManager1->GetPrerequisiteTransactionId(), NullTransactionId);
 
         EXPECT_EQ(StartCount_, 2);
         EXPECT_EQ(EndCount_, 1);
 
-        electionManager2->Stop();
-        electionManager1->Stop();
+        WaitFor(electionManager2->Stop())
+            .ThrowOnError();
+        WaitFor(electionManager1->Stop())
+            .ThrowOnError();
 
         EXPECT_EQ(StartCount_, 2);
         EXPECT_EQ(EndCount_, 2);

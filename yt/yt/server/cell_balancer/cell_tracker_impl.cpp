@@ -144,7 +144,7 @@ void TCellTrackerImpl::ScanCells()
     auto* prerequisitesExt = mutationRequest->Header().MutableExtension(
         NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
 
-    auto transactionId = Bootstrap_->GetElectionManager()->GetPrerequistiveTransactionId();
+    auto transactionId = Bootstrap_->GetElectionManager()->GetPrerequisiteTransactionId();
     if (transactionId == NTransactionClient::NullTransactionId) {
         YT_LOG_DEBUG("Cell balancer is not leading");
         return;
