@@ -84,14 +84,21 @@ void FromProto(TOperationInfo* operationInfo, const NProto::TOperationInfo& oper
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TAgentHeartbeatRequestPtr, class TAgentHeartbeatResponsePtr>
+template <class TCtxHeartbeatPtr>
 void ProcessScheduleJobMailboxes(
+    TCtxHeartbeatPtr context,
     const TControllerAgentPtr& agent,
     const TSchedulerPtr& scheduler,
-    const TAgentHeartbeatRequestPtr& request,
-    const TAgentHeartbeatResponsePtr& response,
     std::vector<std::vector<const NProto::TScheduleJobResponse*>>& groupedScheduleJobResponses)
 {
+    auto* request = &context->Request();
+    auto* response = &context->Response();
+
+    const auto Logger = SchedulerLogger
+        .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
+
+    YT_LOG_DEBUG("Processing schedule job mailboxes");
+
     agent->GetScheduleJobResponsesInbox()->HandleIncoming(
         request->mutable_agent_to_scheduler_schedule_job_responses(),
         [&] (auto* protoEvent) {
@@ -109,6 +116,8 @@ void ProcessScheduleJobMailboxes(
         [] (auto* protoRequest, const auto& request) {
             ToProto(protoRequest, *request);
         });
+
+    YT_LOG_DEBUG("Schedule job mailboxes processed");
 }
 
 template <class TCtxHeartbeatPtr>
@@ -118,12 +127,18 @@ void ProcessScheduleJobResponses(
     const std::vector<IInvokerPtr>& nodeShardInvokers,
     std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses)
 {
+    auto Logger = SchedulerLogger
+        .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
+
+    YT_LOG_DEBUG("Processing schedule job responses");
+
     for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
         nodeShardInvokers[shardId]->Invoke(
             BIND([
                 context,
                 nodeShard = nodeShards[shardId],
-                protoResponses = std::move(groupedScheduleJobResponses[shardId])
+                protoResponses = std::move(groupedScheduleJobResponses[shardId]),
+                Logger = SchedulerLogger
             ] {
                 for (const auto* protoResponse : protoResponses) {
                     auto operationId = FromProto<TOperationId>(protoResponse->operation_id());
@@ -150,7 +165,7 @@ void ProcessScheduleJobResponses(
                 }
             }));
     }
-    
+
     YT_LOG_DEBUG("Schedule job responses are processed");
 }
 
@@ -546,7 +561,7 @@ public:
             if (operationInfo.SuspiciousJobsYson) {
                 operation->SetSuspiciousJobs(operationInfo.SuspiciousJobsYson);
             }
-    
+
             auto controllerRuntimeDataError = CheckControllerRuntimeData(operationInfo.ControllerRuntimeData);
             if (controllerRuntimeDataError.IsOK()) {
                 operation->GetController()->SetControllerRuntimeData(operationInfo.ControllerRuntimeData);
@@ -617,7 +632,7 @@ public:
                     ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                 });
 
-            ProcessScheduleJobMailboxes(agent, scheduler, request, response, groupedScheduleJobResponses);
+            ProcessScheduleJobMailboxes(context, agent, scheduler, groupedScheduleJobResponses);
         });
 
         agent->GetOperationEventsInbox()->HandleIncoming(
@@ -752,6 +767,9 @@ public:
 
         if (request->exec_nodes_requested()) {
             RunInMessageOffloadInvoker(agent, [&] {
+                const auto Logger = SchedulerLogger
+                    .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
+                YT_LOG_DEBUG("Filling exec node descriptors");
                 auto descriptors = scheduler->GetCachedExecNodeDescriptors();
                 for (const auto& [_, descriptor] : *descriptors) {
                     ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descriptor);
@@ -767,12 +785,17 @@ public:
             groupedJobEvents = std::move(groupedJobEvents),
             groupedScheduleJobResponses = std::move(groupedScheduleJobResponses)
         ] {
+            const auto Logger = SchedulerLogger
+                .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
+            
+            YT_LOG_DEBUG("Processing job events");
             for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
                 nodeShardInvokers[shardId]->Invoke(
                     BIND([
                         context,
                         nodeShard = nodeShards[shardId],
-                        protoEvents = std::move(groupedJobEvents[shardId])
+                        protoEvents = std::move(groupedJobEvents[shardId]),
+                        Logger = SchedulerLogger
                     ] {
                         for (const auto* protoEvent : protoEvents) {
                             auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
@@ -824,6 +847,8 @@ public:
         response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());
         response->set_enable_job_reporter(Bootstrap_->GetScheduler()->IsJobReporterEnabled());
 
+        context->SetResponseInfo("IncarnationId: %v", incarnationId);
+
         context->Reply();
     }
 
@@ -836,8 +861,6 @@ public:
         scheduler->ValidateConnected();
 
         auto* request = &context->Request();
-        auto* response = &context->Response();
-
         const auto& agentId = request->agent_id();
         auto incarnationId = FromProto<NControllerAgent::TIncarnationId>(request->incarnation_id());
 
@@ -870,16 +893,16 @@ public:
         RunInMessageOffloadInvoker(agent, [
             context,
             agent,
-            request,
-            response,
             scheduler,
             nodeShards = std::move(nodeShards),
             nodeShardInvokers = scheduler->GetNodeShardInvokers()
         ] {
             std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
-            ProcessScheduleJobMailboxes(agent, scheduler, request, response, groupedScheduleJobResponses);
+            ProcessScheduleJobMailboxes(context, agent, scheduler, groupedScheduleJobResponses);
             ProcessScheduleJobResponses(context, nodeShards, nodeShardInvokers, std::move(groupedScheduleJobResponses));
         });
+
+        context->SetResponseInfo("IncarnationId: %v", incarnationId);
 
         context->Reply();
     }
@@ -897,7 +920,7 @@ private:
     bool AgentTagsFetched_{};
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    
+
     template <class F>
     void RunInMessageOffloadInvoker(const TControllerAgentPtr& agent, F func)
     {
@@ -1109,7 +1132,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         DoCleanup();
-        
+
         YT_LOG_INFO("Master connected for controller agent tracker");
     }
 
@@ -1118,7 +1141,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         DoCleanup();
-        
+
         YT_LOG_INFO("Master disconnected for controller agent tracker");
     }
 
