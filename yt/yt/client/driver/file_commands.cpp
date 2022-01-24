@@ -35,6 +35,8 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->FileReader,
         FileReader);
 
+    PutMethodInfoInTraceContext("read_file");
+
     auto reader = WaitFor(context->GetClient()->CreateFileReader(Path.GetPath(), Options))
         .ValueOrThrow();
 
@@ -95,6 +97,8 @@ void TWriteFileCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->FileWriter,
         FileWriter);
     Options.ComputeMD5 = ComputeMD5;
+
+    PutMethodInfoInTraceContext("write_file");
 
     auto writer = context->GetClient()->CreateFileWriter(Path, Options);
 

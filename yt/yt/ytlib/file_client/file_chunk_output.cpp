@@ -45,6 +45,7 @@ TFileChunkOutput::TFileChunkOutput(
     TMultiChunkWriterOptionsPtr options,
     NNative::IClientPtr client,
     TTransactionId transactionId,
+    NChunkClient::TDataSink dataSink,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     i64 sizeLimit)
@@ -53,6 +54,7 @@ TFileChunkOutput::TFileChunkOutput(
     , Options_(std::move(options))
     , Client_(std::move(client))
     , TransactionId_(transactionId)
+    , DataSink_(std::move(dataSink))
     , TrafficMeter_(std::move(trafficMeter))
     , Throttler_(std::move(throttler))
     , SizeLimit_(sizeLimit)
@@ -122,7 +124,8 @@ void TFileChunkOutput::EnsureOpen()
     FileChunkWriter_ = CreateFileChunkWriter(
         Config_,
         New<TEncodingWriterOptions>(),
-        ConfirmingChunkWriter_);
+        ConfirmingChunkWriter_,
+        DataSink_);
 
     YT_LOG_INFO("File chunk output opened (Account: %v, ReplicationFactor: %v, MediumName: %v, CellTag: %v)",
         Options_->Account,

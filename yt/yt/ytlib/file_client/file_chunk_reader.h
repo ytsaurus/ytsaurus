@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/client/chunk_client/reader_base.h>
 
@@ -40,6 +41,7 @@ IFileReaderPtr CreateFileChunkReader(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     i64 startOffset,
     i64 endOffset,
+    const NChunkClient::TDataSource& dataSource,
     NChunkClient::TChunkReaderMemoryManagerPtr chunkReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +57,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+    const NChunkClient::TDataSource& dataSource,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),

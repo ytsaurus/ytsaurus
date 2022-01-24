@@ -3,10 +3,10 @@ from yt_env_setup import YTEnvSetup
 import yt_commands
 
 from yt_commands import (
-    alter_table, authors, create, get, read_journal, wait, read_table, write_journal, create_account,
+    alter_table, authors, create, get, read_journal, wait, read_table, write_file, write_journal, create_account,
     write_table, update_nodes_dynamic_config, get_singular_chunk_id, set_node_banned,
     sync_create_cells, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table,
-    reduce, map_reduce, merge, erase)
+    reduce, map_reduce, merge, erase, read_file)
 
 from yt_helpers import read_structured_log, write_log_barrier
 from yt_driver_bindings import Driver
@@ -528,6 +528,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
 
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
+            "default_file_replication_factor": 1,
             "default_table_replication_factor": 1,
             "default_journal_read_quorum": 1,
             "default_journal_write_quorum": 1,
@@ -739,6 +740,38 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
             assert event["proxy_kind@"] == self._get_proxy_kind()
             assert event["account@"] == "gepardo"
             assert "object_id" in event
+
+    @authors("gepardo")
+    def test_files(self):
+        create("file", "//tmp/file")
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        write_file("//tmp/file", "Soon we will see how this file is being read ;)")
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier, check_event_count=False,
+                                             filter=lambda event: event.get("data_node_method@") == "FinishChunk")
+
+        write_event = raw_events[0]
+        assert write_event["bytes"] > 0
+        assert write_event["io_requests"] > 0
+        assert write_event["object_path"] == "//tmp/file"
+        assert write_event["api_method@"] == "write_file"
+        assert write_event["proxy_kind@"] == self._get_proxy_kind()
+        assert write_event["account@"] == "tmp"
+        assert "object_id" in write_event
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        assert read_file("//tmp/file") == "Soon we will see how this file is being read ;)"
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier, check_event_count=False,
+                                             filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
+
+        read_event = raw_events[0]
+        assert read_event["bytes"] > 0
+        assert read_event["io_requests"] > 0
+        assert read_event["object_path"] == "//tmp/file"
+        assert read_event["api_method@"] == "read_file"
+        assert read_event["proxy_kind@"] == self._get_proxy_kind()
+        assert read_event["account@"] == "tmp"
+        assert "object_id" in read_event
 
 
 class TestClientRpcProxyIOTracking(TestClientIOTracking):

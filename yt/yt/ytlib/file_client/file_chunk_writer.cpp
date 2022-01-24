@@ -13,6 +13,8 @@
 #include <yt/yt/ytlib/chunk_client/multi_chunk_writer_base.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 
+#include <yt/yt/ytlib/table_client/helpers.h>
+
 #include <yt/yt/core/misc/blob.h>
 
 namespace NYT::NFileClient {
@@ -25,6 +27,8 @@ using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NTracing;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +43,7 @@ public:
         TFileChunkWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
+        const NChunkClient::TDataSink& dataSink,
         NChunkClient::IBlockCachePtr blockCache);
 
     bool Write(TRef data) override;
@@ -70,6 +75,9 @@ private:
     TBlocksExt BlocksExt_;
     i64 BlocksExtSize_ = 0;
 
+    TTraceContextPtr TraceContext_;
+    TTraceContextFinishGuard FinishGuard_;
+
     void FlushBlock();
 };
 
@@ -81,6 +89,7 @@ TFileChunkWriter::TFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
+    const NChunkClient::TDataSink& dataSink,
     IBlockCachePtr blockCache)
     : Logger(FileClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
     , Config_(config)
@@ -90,7 +99,11 @@ TFileChunkWriter::TFileChunkWriter(
         chunkWriter,
         blockCache,
         Logger))
-{ }
+    , TraceContext_(CreateTraceContextFromCurrent("FileChunkWriter"))
+    , FinishGuard_(TraceContext_)
+{
+    PackBaggageFromDataSink(TraceContext_, dataSink);
+}
 
 bool TFileChunkWriter::Write(TRef data)
 {
@@ -99,6 +112,8 @@ bool TFileChunkWriter::Write(TRef data)
     if (data.Empty()) {
         return true;
     }
+
+    TCurrentTraceContextGuard guard(TraceContext_);
 
     if (Buffer_.IsEmpty()) {
         Buffer_.Reserve(static_cast<size_t>(Config_->BlockSize));
@@ -130,6 +145,8 @@ TFuture<void> TFileChunkWriter::GetReadyEvent()
 
 void TFileChunkWriter::FlushBlock()
 {
+    TCurrentTraceContextGuard guard(TraceContext_);
+
     YT_VERIFY(!Buffer_.IsEmpty());
     YT_LOG_DEBUG("Flushing block (BlockSize: %v)", Buffer_.Size());
 
@@ -143,6 +160,8 @@ void TFileChunkWriter::FlushBlock()
 
 TFuture<void> TFileChunkWriter::Close()
 {
+    TCurrentTraceContextGuard guard(TraceContext_);
+
     if (!Buffer_.IsEmpty()) {
         FlushBlock();
     }
@@ -203,12 +222,14 @@ IFileChunkWriterPtr CreateFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
+    const NChunkClient::TDataSink& dataSink,
     IBlockCachePtr blockCache)
 {
     return New<TFileChunkWriter>(
         config,
         options,
         chunkWriter,
+        dataSink,
         blockCache);
 }
 
@@ -219,6 +240,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     TCellTag cellTag,
     TTransactionId transactionId,
     TChunkListId parentChunkListId,
+    const NChunkClient::TDataSink& dataSink,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -232,7 +254,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
          return CreateFileChunkWriter(
             config,
             options,
-            chunkWriter);
+            chunkWriter,
+            dataSink);
     };
 
     auto writer = New<TFileMultiChunkWriter>(

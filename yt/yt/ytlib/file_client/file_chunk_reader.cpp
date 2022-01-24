@@ -17,6 +17,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
+#include <yt/yt/ytlib/table_client/helpers.h>
+
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
@@ -39,6 +41,7 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
+using namespace NTracing;
 
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
@@ -58,6 +61,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         i64 startOffset,
         i64 endOffset,
+        const NChunkClient::TDataSource& dataSource,
         TChunkReaderMemoryManagerPtr chunkReaderMemoryManager)
         : Config_(std::move(config))
         , ChunkReader_(std::move(chunkReader))
@@ -66,7 +70,13 @@ public:
         , ChunkReadOptions_(chunkReadOptions)
         , StartOffset_(startOffset)
         , EndOffset_(endOffset)
+        , TraceContext_(CreateTraceContextFromCurrent("FileChunkReader"))
+        , FinishGuard_(TraceContext_)
     {
+        PackBaggageFromDataSource(TraceContext_, dataSource);
+
+        TCurrentTraceContextGuard guard(TraceContext_);
+
         if (chunkReaderMemoryManager) {
             MemoryManager_ = chunkReaderMemoryManager;
         } else {
@@ -94,6 +104,8 @@ public:
 
     bool ReadBlock(TBlock* block) override
     {
+        TCurrentTraceContextGuard guard(TraceContext_);
+
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
         }
@@ -172,6 +184,9 @@ private:
     NLogging::TLogger Logger = FileClientLogger;
 
     TFuture<TBlock> CurrentBlock_;
+
+    TTraceContextPtr TraceContext_;
+    TTraceContextFinishGuard FinishGuard_;
 
     void DoOpen()
     {
@@ -296,6 +311,7 @@ IFileReaderPtr CreateFileChunkReader(
     const TClientChunkReadOptions& chunkReadOptions,
     i64 startOffset,
     i64 endOffset,
+    const NChunkClient::TDataSource& dataSource,
     TChunkReaderMemoryManagerPtr chunkReaderMemoryManager)
 {
     return New<TFileChunkReader>(
@@ -306,6 +322,7 @@ IFileReaderPtr CreateFileChunkReader(
         chunkReadOptions,
         startOffset,
         endOffset,
+        dataSource,
         std::move(chunkReaderMemoryManager));
 }
 
@@ -401,6 +418,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const TClientChunkReadOptions& chunkReadOptions,
     const std::vector<TChunkSpec>& chunkSpecs,
+    const NChunkClient::TDataSource& dataSource,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
@@ -455,6 +473,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 chunkReadOptions,
                 startOffset,
                 endOffset,
+                dataSource,
                 multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
         });
 

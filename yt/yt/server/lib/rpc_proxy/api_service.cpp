@@ -3801,6 +3801,8 @@ private:
             options.Offset,
             options.Length);
 
+        PutMethodInfoInTraceContext("read_file");
+
         auto fileReader = WaitFor(client->CreateFileReader(path, options))
             .ValueOrThrow();
 
@@ -3840,6 +3842,8 @@ private:
             "Path: %v, ComputeMD5: %v",
             path,
             options.ComputeMD5);
+
+        PutMethodInfoInTraceContext("write_file");
 
         auto fileWriter = client->CreateFileWriter(path, options);
         WaitFor(fileWriter->Open())

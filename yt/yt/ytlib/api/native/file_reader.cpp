@@ -163,7 +163,8 @@ private:
 
             auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-                "revision"
+                "account",
+                "revision",
             });
             AddCellTagToSyncWith(req, userObject.ObjectId);
             SetTransactionId(req, userObject.ExternalTransactionId);
@@ -177,6 +178,7 @@ private:
 
             auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
             Revision_ = attributes->Get<NHydra::TRevision>("revision", NHydra::NullRevision);
+            userObject.Account = attributes->Get<TString>("account");
         }
 
         auto nodeDirectory = New<TNodeDirectory>();
@@ -234,6 +236,10 @@ private:
                 &chunkSpecs);
         }
 
+        auto dataSource = MakeFileDataSource(userObject.Path.GetPath());
+        dataSource.SetObjectId(userObject.ObjectId);
+        dataSource.SetAccount(userObject.Account);
+
         Reader_ = CreateFileMultiChunkReader(
             Config_,
             New<TMultiChunkReaderOptions>(),
@@ -244,7 +250,8 @@ private:
             Client_->GetNativeConnection()->GetChunkMetaCache(),
             nodeDirectory,
             ChunkReadOptions_,
-            std::move(chunkSpecs));
+            std::move(chunkSpecs),
+            dataSource);
 
         if (Transaction_) {
             StartListenTransaction(Transaction_);
