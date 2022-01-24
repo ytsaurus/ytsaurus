@@ -2,8 +2,11 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
+
 namespace NYT::NJobProxy {
 
+using namespace NChunkClient;
 using namespace NFileClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,11 +102,14 @@ void TStderrWriter::Upload(
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
     try {
+        // NB. We use empty data sink here, so the details like object path and account are not present in IO tags.
+        // That's because this code is legacy anyway and not worth covering with IO tags.
         TFileChunkOutput fileChunkOutput(
             config,
             options,
             client,
             transactionId,
+            TDataSink(),
             trafficMeter,
             throttler);
         SaveCurrentDataTo(&fileChunkOutput);

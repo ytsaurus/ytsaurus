@@ -818,11 +818,14 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
         for (int index = 0; index < std::ssize(contexts); ++index) {
+            // NB. We use empty data sink here, so the details like object path and account are not present in IO tags.
+            // That's because this code is legacy anyway and not worth covering with IO tags.
             TFileChunkOutput contextOutput(
                 JobIOConfig_->ErrorFileWriter,
                 CreateFileOptions(),
                 Host_->GetClient(),
                 transactionId,
+                NChunkClient::TDataSink(),
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler());
 

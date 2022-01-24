@@ -9,6 +9,7 @@
 #include <yt/yt/client/api/file_writer.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -299,13 +300,19 @@ private:
                 chunkListId);
         }
 
+        NChunkClient::TDataSink dataSink;
+        dataSink.SetPath(Path_.GetPath());
+        dataSink.SetObjectId(userObject.ObjectId);
+        dataSink.SetAccount(writerOptions->Account);
+
         Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
             Client_,
             ExternalCellTag_,
             UploadTransaction_->GetId(),
-            chunkListId);
+            chunkListId,
+            dataSink);
 
         YT_LOG_INFO("File opened");
     }

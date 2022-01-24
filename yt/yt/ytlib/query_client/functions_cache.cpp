@@ -551,6 +551,7 @@ public:
             key,
             chunkReadOptions.ReadSessionId);
 
+        // TODO(gepardo): pass correct data source here. See YT-16305 for details.
         auto reader = NFileClient::CreateFileMultiChunkReader(
             New<NApi::TFileReaderConfig>(),
             New<NChunkClient::TMultiChunkReaderOptions>(),
@@ -561,7 +562,8 @@ public:
             client->GetNativeConnection()->GetChunkMetaCache(),
             std::move(nodeDirectory),
             chunkReadOptions,
-            std::move(chunks));
+            std::move(chunks),
+            MakeFileDataSource(std::nullopt));
 
         std::vector<TSharedRef> blocks;
         while (true) {

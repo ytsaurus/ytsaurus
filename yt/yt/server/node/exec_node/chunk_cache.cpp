@@ -1087,6 +1087,7 @@ private:
             nodeDirectory,
             chunkReadOptions,
             chunkSpecs,
+            FromProto<NChunkClient::TDataSource>(key.data_source()),
             trafficMeter,
             Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
             Bootstrap_->GetReadRpsOutThrottler());
