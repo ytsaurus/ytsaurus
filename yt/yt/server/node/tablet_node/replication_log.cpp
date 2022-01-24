@@ -367,10 +367,19 @@ private:
         switch (changeType) {
             case ERowModificationType::Write: {
                 YT_ASSERT(static_cast<int>(logRow.GetCount()) >= keyColumnCount + 4);
+
+                auto getFlags = [&] (int logValueIndex) {
+                    const auto& value = logRow[logValueIndex * 2 + keyColumnCount + 5];
+                    YT_ASSERT(value.Type == EValueType::Null || value.Type == EValueType::Uint64);
+
+                    return value.Type == EValueType::Null
+                        ? EReplicationLogDataFlags::Missing
+                        : static_cast<EReplicationLogDataFlags>(value.Data.Uint64);
+                };
+
                 int replicationValueCount = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
-                    const auto& value = logRow[logValueIndex * 2 + keyColumnCount + 5];
-                    auto flags = FromUnversionedValue<EReplicationLogDataFlags>(value);
+                    auto flags = getFlags(logValueIndex);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         ++replicationValueCount;
                     }
@@ -385,9 +394,7 @@ private:
                 }
                 int replicationValueIndex = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
-                    const auto& flagsValue = logRow[logValueIndex * 2 + keyColumnCount + 5];
-                    YT_ASSERT(flagsValue.Type == EValueType::Uint64);
-                    auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
+                    auto flags = getFlags(logValueIndex);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         TVersionedValue value{};
                         static_cast<TUnversionedValue&>(value) = rowBuffer->CaptureValue(logRow[logValueIndex * 2 + keyColumnCount + 4]);

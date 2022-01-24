@@ -9,7 +9,7 @@ from yt_commands import (
     make_ace, start_transaction, abort_transaction, commit_transaction, lock, insert_rows, select_rows, lookup_rows,
     delete_rows, lock_rows,
     reshard_table, generate_timestamp, get_tablet_infos, get_tablet_leader_address, sync_create_cells,
-    sync_mount_table, sync_unmount_table, sync_freeze_table,
+    sync_mount_table, sync_unmount_table, sync_freeze_table, alter_table,
     sync_unfreeze_table, sync_flush_table, sync_enable_table_replica, sync_disable_table_replica,
     remove_table_replica, alter_table_replica, get_in_sync_replicas, sync_alter_table_replica_mode,
     get_driver, SyncLastCommittedTimestamp, raises_yt_error, get_singular_chunk_id)
@@ -23,6 +23,10 @@ from flaky import flaky
 import pytest
 
 from time import sleep
+from copy import deepcopy
+
+import __builtin__
+
 
 ##################################################################
 
@@ -2698,6 +2702,129 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         with raises_yt_error():
             self._create_replicated_table("//tmp/t", atomicity="none")
+
+    @authors("ifsmirnov")
+    def test_alter_change_schema(self):
+        def _make_schema(key_columns, value_columns):
+            columns = []
+            for name in key_columns:
+                columns.append({"name": name, "type": "string", "sort_order": "ascending"})
+            for name in value_columns:
+                columns.append({"name": name, "type": "string"})
+            return columns
+
+        def _make_row(schema, suffix):
+            return {c["name"]: c["name"] + suffix for c in schema}
+
+        key_columns = ["k1", "k2"]
+        value_columns = ["v2", "v4"]
+        schema = _make_schema(key_columns, value_columns)
+
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=schema)
+
+        replica1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
+        sync_enable_table_replica(replica1)
+        replica2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
+        sync_enable_table_replica(replica2)
+        replica3 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r3", attributes={"mode": "async"})
+        sync_enable_table_replica(replica3)
+
+        self._create_replica_table("//tmp/r1", replica1, schema=schema)
+        self._create_replica_table("//tmp/r2", replica2, schema=schema)
+        self._create_replica_table("//tmp/r3", replica3, schema=schema, mount=False)
+
+        rows = []
+
+        def _update_rows_to_schema():
+            for row in rows:
+                for value in __builtin__.set(c["name"] for c in schema) - __builtin__.set(row):
+                    row[value] = yson.YsonEntity()
+
+        def _get_rows(replica_path):
+            return select_rows("* from [{}]".format(replica_path), driver=self.replica_driver)
+
+        def _alter_table(path, mount=True, driver=None):
+            sync_unmount_table(path, driver=driver)
+            alter_table(path, schema=schema, driver=driver)
+            if mount:
+                sync_mount_table(path, driver=driver)
+
+        row = _make_row(schema, "_AAAAA")
+        rows.append(row)
+        insert_rows("//tmp/t", [row])
+        assert_items_equal(_get_rows("//tmp/r1"), rows)
+        wait(lambda: are_items_equal(_get_rows("//tmp/r2"), rows))
+        # Third replica cannot yet be written.
+        wait(lambda: get("//tmp/t/@tablets/0/replication_error_count") == 1)
+
+        key_columns = ["k1", "k2", "k3"]
+        value_columns = ["v1", "v2", "v4"]
+        schema = _make_schema(key_columns, value_columns)
+        _update_rows_to_schema()
+        _alter_table("//tmp/t")
+
+        row = _make_row(schema, "_BBBBB")
+        rows.append(row)
+
+        # Cannot write since sync replica has fewer key columns.
+        with raises_yt_error():
+            insert_rows("//tmp/t", [row])
+
+        _alter_table("//tmp/r1", driver=self.replica_driver)
+        insert_rows("//tmp/t", [row])
+        assert_items_equal(_get_rows("//tmp/r1"), rows)
+
+        # Async replica cannot be written for same reasons.
+        wait(lambda: get("//tmp/t/@tablets/0/replication_error_count") == 2)
+
+        _alter_table("//tmp/r2", driver=self.replica_driver)
+        wait(lambda: are_items_equal(_get_rows("//tmp/r2"), rows))
+
+        key_columns = ["k1", "k2", "k3"]
+        value_columns = ["v1", "v2", "v3", "v4"]
+        schema = _make_schema(key_columns, value_columns)
+        _update_rows_to_schema()
+        _alter_table("//tmp/t")
+        _alter_table("//tmp/r1", driver=self.replica_driver)
+        _alter_table("//tmp/r2", driver=self.replica_driver)
+        _alter_table("//tmp/r3", driver=self.replica_driver, mount=False)
+
+        row = _make_row(schema, "_CCCCC")
+        rows.append(row)
+
+        insert_rows("//tmp/t", [row])
+        assert_items_equal(_get_rows("//tmp/r1"), rows)
+        wait(lambda: are_items_equal(_get_rows("//tmp/r2"), rows))
+        sync_mount_table("//tmp/r3", driver=self.replica_driver)
+        wait(lambda: are_items_equal(_get_rows("//tmp/r3"), rows))
+
+    @authors("ifsmirnov")
+    def test_alter_fails(self):
+        self._create_cells()
+
+        schema = self.SIMPLE_SCHEMA_SORTED
+        self._create_replicated_table("//tmp/t", schema=schema, mount=False)
+
+        # Even empty table cannot be altered.
+        bad_schema = deepcopy(schema)
+        bad_schema[0]["type"] = "string"
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+            alter_table("//tmp/t", schema=bad_schema)
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1234}])
+        sync_unmount_table("//tmp/t")
+
+        bad_schema = deepcopy(schema)
+        bad_schema[1]["sort_order"] = "ascending"
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+            alter_table("//tmp/t", schema=bad_schema)
+
+        with raises_yt_error():
+            alter_table("//tmp/t", dynamic=False)
+        with raises_yt_error():
+            alter_table("//tmp/t", schema_modification="unversioned_update")
 
 
 ##################################################################

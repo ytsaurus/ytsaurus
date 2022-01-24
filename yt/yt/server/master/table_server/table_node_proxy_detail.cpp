@@ -1638,7 +1638,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
 
         if (table->IsPhysicallyLog()) {
-            if (options.Schema || options.SchemaModification || options.Dynamic) {
+            if (options.Schema && table->GetType() != EObjectType::ReplicatedTable) {
+                THROW_ERROR_EXCEPTION("Cannot change schema of a table of type %Qlv",
+                    table->GetType());
+            }
+            if (options.SchemaModification || options.Dynamic) {
                 THROW_ERROR_EXCEPTION("Cannot alter table of type %Qlv",
                     table->GetType());
             }
