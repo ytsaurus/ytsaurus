@@ -57,6 +57,7 @@ public:
 
     void SetDistributedThrottlerConfig(TDistributedThrottlerConfigPtr config)
     {
+        auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateParameters(THistoricUsageAggregationParameters(
             EHistoricUsageAggregationMode::ExponentialMovingAverage,
             config->EmaAlpha
@@ -66,6 +67,7 @@ public:
 
     double GetUsageRate()
     {
+        auto guard = Guard(HistoricUsageAggregatorLock_);
         return HistoricUsageAggregator_.GetHistoricUsage();
     }
 
@@ -79,20 +81,17 @@ public:
         auto config = Config_.Load();
 
         if (config->Mode == EDistributedThrottlerMode::Precise) {
-            auto leaderChannel = LeaderChannel_.Load();
-            // Either we are leader or we dont know the leader yet.
-            if (!leaderChannel) {
-                return Underlying_->Throttle(count);
+            if (auto leaderChannel = LeaderChannel_.Load()) {
+                TDistributedThrottlerProxy proxy(leaderChannel);
+
+                auto req = proxy.Throttle();
+                req->SetTimeout(ThrottleRpcTimeout_);
+                req->set_throttler_id(ThrottlerId_);
+                req->set_count(count);
+
+                return req->Invoke().As<void>();
             }
-
-            TDistributedThrottlerProxy proxy(leaderChannel);
-
-            auto req = proxy.Throttle();
-            req->SetTimeout(ThrottleRpcTimeout_);
-            req->set_throttler_id(ThrottlerId_);
-            req->set_count(count);
-
-            return req->Invoke().As<void>();
+            // Either we are leader or we dont know the leader yet.
         }
 
         auto future = Underlying_->Throttle(count);
@@ -245,6 +244,7 @@ public:
         , MemberShards_(ShardCount_)
         , ThrottlerShards_(ShardCount_)
     {
+        YT_VERIFY(ShardCount_ > 0);
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Throttle)
             .SetCancelable(true)
@@ -264,15 +264,15 @@ public:
         RpcServer_->UnregisterService(this);
     }
 
-    void Reconfigure(TDistributedThrottlerConfigPtr config)
+    void Reconfigure(const TDistributedThrottlerConfigPtr& config)
     {
         auto oldConfig = Config_.Load();
 
         if (oldConfig->LimitUpdatePeriod != config->LimitUpdatePeriod) {
+            auto guard = Guard(ReconfigurationLock_);
+            Config_.Store(config);
             UpdatePeriodicExecutor_->SetPeriod(config->LimitUpdatePeriod);
         }
-
-        Config_.Store(config);
     }
 
     void SetTotalLimit(const TString& throttlerId, std::optional<double> limit)
@@ -309,7 +309,11 @@ public:
             auto* shard = GetMemberShard(memberId);
 
             auto guard = WriterGuard(shard->UsageRatesLock);
-            shard->MemberIdToUsageRate[memberId].swap(throttlerIdToUsageRate);
+
+            auto& memberUsageRate = shard->MemberIdToUsageRate[memberId];
+            for (const auto& [throttlerId, usageRate] : throttlerIdToUsageRate) {
+                memberUsageRate[throttlerId] = usageRate;
+            }
         }
     }
 
@@ -383,6 +387,7 @@ private:
     const NLogging::TLogger Logger;
     const int ShardCount_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigurationLock_);
     TAtomicObject<TDistributedThrottlerConfigPtr> Config_;
 
     struct TMemberShard
@@ -426,6 +431,7 @@ private:
             request->throttlers().size());
 
         THashMap<TString, double> throttlerIdToUsageRate;
+        throttlerIdToUsageRate.reserve(request->throttlers().size());
         for (const auto& throttler : request->throttlers()) {
             const auto& throttlerId = throttler.id();
             auto usageRate = throttler.usage_rate();
@@ -776,6 +782,8 @@ public:
             }
         }
 
+        TWrappedThrottlerPtr wrappedThrottler;
+
         {
             auto guard = WriterGuard(Throttlers_->Lock);
             if (auto throttler = findThrottler(throttlerId)) {
@@ -784,7 +792,7 @@ public:
 
             DistributedThrottlerService_->SetTotalLimit(throttlerId, throttlerConfig->Limit);
 
-            auto wrappedThrottler = New<TWrappedThrottler>(
+            wrappedThrottler = New<TWrappedThrottler>(
                 throttlerId,
                 Config_.Load(),
                 std::move(throttlerConfig),
@@ -794,10 +802,15 @@ public:
                 // NB: Could be null.
                 wrappedThrottler->SetLeaderChannel(LeaderChannel_);
             }
-            Throttlers_->Throttlers[throttlerId] = wrappedThrottler;
+            EmplaceOrCrash(Throttlers_->Throttlers, throttlerId, wrappedThrottler);
 
             YT_LOG_DEBUG("Distributed throttler created (ThrottlerId: %v)", throttlerId);
             return wrappedThrottler;
+        }
+        
+        {
+            auto queueGuard = Guard(UpdateQueueLock_);
+            UpdateQueue_.emplace(throttlerId, MakeWeak(wrappedThrottler));
         }
     }
 
@@ -882,6 +895,9 @@ private:
     std::optional<TMemberId> LeaderId_;
     IChannelPtr LeaderChannel_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, UpdateQueueLock_);
+    TRingQueue<std::pair<TString, TWeakPtr<TWrappedThrottler>>> UpdateQueue_;
+
     void UpdateLimits()
     {
         auto config = Config_.Load();
@@ -904,13 +920,31 @@ private:
 
         THashMap<TString, TWrappedThrottlerPtr> throttlers;
         std::vector<TString> deadThrottlerIds;
+        std::vector<std::pair<TString, TWrappedThrottlerPtr>> skippedThrottlers;
+
+        int heartbeatThrottlerCountLimit = config->HeartbeatThrottlerCountLimit;
+        int skipUnusedThrottlersCountLimit = config->SkipUnusedThrottlersCountLimit;
+
         {
-            auto guard = ReaderGuard(Throttlers_->Lock);
-            for (const auto& [throttlerId, throttler] : Throttlers_->Throttlers) {
-                if (auto throttlerPtr = throttler.Lock()) {
-                    YT_VERIFY(throttlers.emplace(throttlerId, throttlerPtr).second);
+            auto guard = Guard(UpdateQueueLock_);
+            while (std::ssize(throttlers) < heartbeatThrottlerCountLimit &&
+                   std::ssize(skippedThrottlers) < skipUnusedThrottlersCountLimit)
+            {
+                if (UpdateQueue_.empty()) {
+                    break;
+                }
+                
+                auto [throttlerId, weakThrottler] = std::move(UpdateQueue_.front());
+                UpdateQueue_.pop();
+                
+                if (auto throttler = weakThrottler.Lock()) {
+                    if (throttler->GetUsageRate() > 0) {
+                        throttlers.emplace(std::move(throttlerId), std::move(throttler));
+                    } else {
+                        skippedThrottlers.emplace_back(std::move(throttlerId), std::move(throttler));
+                    }
                 } else {
-                    deadThrottlerIds.push_back(throttlerId);
+                    deadThrottlerIds.push_back(std::move(throttlerId));
                 }
             }
         }
@@ -923,13 +957,24 @@ private:
         }
 
         if (leaderId == MemberId_) {
-            UpdateLimitsAtLeader(std::move(throttlers));
+            UpdateLimitsAtLeader(throttlers);
         } else {
-            UpdateLimitsAtFollower(std::move(leaderId), std::move(leaderChannel), std::move(throttlers));
+            UpdateLimitsAtFollower(std::move(leaderId), std::move(leaderChannel), throttlers);
+        }
+
+        {
+            auto guard = Guard(UpdateQueueLock_);
+            for (auto& [throttlerId, throttler] : throttlers) {
+                UpdateQueue_.emplace(std::move(throttlerId), std::move(throttler));
+            }
+
+            for (auto& [throttlerId, throttler] : skippedThrottlers) {
+                UpdateQueue_.emplace(std::move(throttlerId), std::move(throttler));
+            }
         }
     }
 
-    void UpdateLimitsAtLeader(THashMap<TString, TWrappedThrottlerPtr> throttlers)
+    void UpdateLimitsAtLeader(const THashMap<TString, TWrappedThrottlerPtr>& throttlers)
     {
         THashMap<TString, double> throttlerIdToUsageRate;
         for (const auto& [throttlerId, throttler] : throttlers) {
@@ -954,7 +999,7 @@ private:
     void UpdateLimitsAtFollower(
         TString leaderId,
         IChannelPtr leaderChannel,
-        THashMap<TString, TWrappedThrottlerPtr> throttlers)
+        const THashMap<TString, TWrappedThrottlerPtr>& throttlers)
     {
         auto config = Config_.Load();
 
