@@ -83,6 +83,7 @@ object SpytSnapshot {
 
       branchName match {
         case p(q, n) => Some(q.toLowerCase + n)
+        case "develop" => Some("develop")
         case _ => None
       }
     }
