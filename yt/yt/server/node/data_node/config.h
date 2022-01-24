@@ -16,9 +16,10 @@
 
 #include <yt/yt/ytlib/table_client/config.h>
 
+#include <yt/yt/client/api/config.h>
+
 #include <yt/yt/core/concurrency/config.h>
 
-#include <yt/yt/core/misc/config.h>
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/library/re2/re2.h>

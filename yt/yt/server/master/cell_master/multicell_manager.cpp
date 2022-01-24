@@ -40,6 +40,8 @@
 
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/yt/ytlib/election/config.h>
+
 #include <util/generic/algorithm.h>
 
 namespace NYT::NCellMaster {

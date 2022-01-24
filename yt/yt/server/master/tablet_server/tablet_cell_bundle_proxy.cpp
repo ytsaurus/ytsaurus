@@ -28,6 +28,8 @@
 
 #include <yt/yt/server/master/table_server/public.h>
 
+#include <yt/yt/server/master/security_server/config.h>
+
 #include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>

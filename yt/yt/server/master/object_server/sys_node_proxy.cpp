@@ -17,6 +17,8 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 namespace NYT::NObjectServer {
 
 using namespace NYson;

@@ -1,5 +1,6 @@
 #include "node_tracker_log.h"
 
+#include "config.h"
 #include "node.h"
 #include "private.h"
 
@@ -21,7 +22,6 @@ void LogNodeState(
     TBootstrap* bootstrap,
     TNode* node)
 {
-    
     const auto& hydraManager = bootstrap->GetHydraFacade()->GetHydraManager();
     if (!bootstrap->GetConfigManager()->GetConfig()->NodeTracker->EnableStructuredLog ||
         hydraManager->IsLeader() ||

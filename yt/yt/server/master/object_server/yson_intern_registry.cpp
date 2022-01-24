@@ -1,5 +1,6 @@
 #include "yson_intern_registry.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
 

@@ -6,6 +6,7 @@
 #include "chunk_placement.h"
 #include "chunk_tree_traverser.h"
 #include "chunk_view.h"
+#include "config.h"
 #include "job.h"
 #include "job_registry.h"
 #include "chunk_scanner.h"

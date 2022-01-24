@@ -1,5 +1,6 @@
 #include "account_proxy.h"
 #include "account.h"
+#include "config.h"
 #include "helpers.h"
 #include "security_manager.h"
 

@@ -2,6 +2,7 @@
 
 #include "node_detail.h"
 #include "node_proxy.h"
+#include "config.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 
