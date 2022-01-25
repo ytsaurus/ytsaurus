@@ -314,7 +314,7 @@ private:
                 })
                 .DoIf(error.IsOK() && Descriptor_.OutputType == EDataType::Structured, [&] (TFluentMap fluent) {
                     fluent
-                        .Item("output").Value(TYsonString(Output_));
+                        .Item("output").Value(TYsonStringBuf(Output_));
                 })
             .EndMap();
     }
