@@ -361,8 +361,9 @@ public:
         auto oldParent = element->GetMutableParent();
         auto newParent = GetOrCreatePool(newPool, state->GetHost()->GetAuthenticatedUser());
 
-        int newSlotIndex = AllocateOperationSlotIndex(state, newParent->GetId());
         ReleaseOperationSlotIndex(state, oldParent->GetId());
+
+        int newSlotIndex = AllocateOperationSlotIndex(state, newParent->GetId());
         element->ChangeParent(newParent.Get(), newSlotIndex);
         state->GetHost()->SetSlotIndex(TreeId_, newSlotIndex);
 
