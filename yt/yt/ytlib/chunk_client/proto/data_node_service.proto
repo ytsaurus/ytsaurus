@@ -213,6 +213,7 @@ message TReqGetBlockSet
     optional int32 peer_node_id = 9;
 
     repeated TP2PBarrier wait_barriers = 11;
+    optional NYT.NProto.TGuid read_session_id = 12;
 
     reserved 3;
 }

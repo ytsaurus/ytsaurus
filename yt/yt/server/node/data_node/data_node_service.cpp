@@ -750,6 +750,9 @@ private:
         bool fetchFromCache = request->fetch_from_cache();
         bool fetchFromDisk = request->fetch_from_disk();
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto readSessionId = request->has_read_session_id()
+            ? FromProto<TReadSessionId>(request->read_session_id())
+            : TReadSessionId{};
 
         context->SetRequestInfo("BlockIds: %v:%v, PopulateCache: %v, FetchFromCache: %v, "
             "FetchFromDisk: %v, Workload: %v",
@@ -815,6 +818,7 @@ private:
             options.FetchFromCache = fetchFromCache && !netThrottling;
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
             options.ChunkReaderStatistics = chunkReaderStatistics;
+            options.ReadSessionId = readSessionId;
             if (context->GetTimeout() && context->GetStartTime()) {
                 options.Deadline = *context->GetStartTime() + *context->GetTimeout() * Config_->BlockReadTimeoutFraction;
             }
