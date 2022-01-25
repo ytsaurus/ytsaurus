@@ -426,6 +426,15 @@ INSTANTIATE_TEST_SUITE_P(Test,
         // Chunk layout:          --- --- ---
         // Tablet pivot keys:    |-----------|
         std::make_tuple(/*tabletCount*/ 1, /*chunkCount*/ 3, /*forSlicingCount*/ 0, /*overlapping*/ false),
+        // Chunk layout:          --- --- --- ---
+        // Tablet pivot keys:    |-------|-------|
+        std::make_tuple(/*tabletCount*/ 4, /*chunkCount*/ 2, /*forSlicingCount*/ 2, /*overlapping*/ false),
+        // Chunk layout:          --- --- --- --- --- ---
+        // Tablet pivot keys:    |-------|-------|-------|
+        std::make_tuple(/*tabletCount*/ 6, /*chunkCount*/ 3, /*forSlicingCount*/ 3, /*overlapping*/ false),
+        // Chunk layout:          -- -- -- -- -- -- -- -- --
+        // Tablet pivot keys:    |--------|--------|--------|
+        std::make_tuple(/*tabletCount*/ 9, /*chunkCount*/ 3, /*forSlicingCount*/ 3, /*overlapping*/ false),
         // Chunk layout:          --- --- ---
         // Tablet pivot keys:    |-----|-----|
         std::make_tuple(/*tabletCount*/ 2, /*chunkCount*/ 3, /*forSlicingCount*/ 1, /*overlapping*/ false),

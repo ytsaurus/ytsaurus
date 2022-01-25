@@ -127,6 +127,7 @@ void TReshardPivotKeysBuilder::ComputeChunksForSlicing()
             } else {
                 YT_VERIFY(State_.CurrentStartedChunksSize > UpperPivotZone(tabletIndex));
                 ++tabletIndex;
+                State_.ChunkForSlicingToSize[boundaryIt->GetChunk()] = boundaryIt->GetDataWeight();
                 State_.ChunkForSlicingToSize.insert(
                     State_.CurrentChunkToSize.begin(),
                     State_.CurrentChunkToSize.end());
@@ -317,8 +318,8 @@ TReshardPivotKeysBuilder::TBoundaryKeyIterator TReshardPivotKeysBuilder::AddChun
     TBoundaryKeyIterator boundaryIt,
     i64 tabletIndex)
 {
-    THashMap<TInputChunkPtr, i64> chunkForSlicingToSize;
-    THashMap<TInputChunkPtr, i64> currentChunkToSize(State_.CurrentChunkToSize);
+    THashMap<TInputChunkPtr, i64> chunkForSlicingToSize(State_.CurrentChunkToSize);
+    chunkForSlicingToSize[boundaryIt->GetChunk()] = boundaryIt->GetDataWeight();
 
     while (State_.CurrentFinishedChunksSize <= UpperPivotZone(tabletIndex) &&
            ++boundaryIt < ChunkBoundaryKeys_.end())
@@ -343,7 +344,6 @@ TReshardPivotKeysBuilder::TBoundaryKeyIterator TReshardPivotKeysBuilder::AddChun
 
     if (!Pivots_[tabletIndex].Key) {
         State_.ChunkForSlicingToSize.insert(chunkForSlicingToSize.begin(), chunkForSlicingToSize.end());
-        State_.ChunkForSlicingToSize.insert(currentChunkToSize.begin(), currentChunkToSize.end());
     }
 
     return boundaryIt;

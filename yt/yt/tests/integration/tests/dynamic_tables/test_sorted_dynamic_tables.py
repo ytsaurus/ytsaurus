@@ -2461,3 +2461,33 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
         sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
         assert(get("//tmp/t/@tablet_count") == tablet_count)
         assert(self._get_pivot_keys("//tmp/t") == expected)
+
+    @authors("alexelexa")
+    def test_reshard_with_slicing_multi(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@chunk_writer", {"block_size": 5})
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        def reshard_and_check(tablet_count):
+            sync_unmount_table("//tmp/t")
+            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
+            assert(get("//tmp/t/@tablet_count") == tablet_count)
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in range(150)]
+        insert_rows("//tmp/t", rows)
+
+        sync_flush_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(150, 300)]
+        insert_rows("//tmp/t", rows)
+
+        tablet_count = 4
+        reshard_and_check(tablet_count)
+        reshard_and_check(tablet_count)
+
+        set("//tmp/t/@enable_compaction_and_partitioning", True)
+        sync_compact_table("//tmp/t")
+
+        reshard_and_check(tablet_count)
