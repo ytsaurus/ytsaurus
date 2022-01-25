@@ -1849,6 +1849,8 @@ private:
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
+        ToProto(req->mutable_read_session_id(), SessionOptions_.ReadSessionId);
+
         if (ReaderOptions_->EnableP2P && reader->LocalNodeId_) {
             req->set_peer_node_id(*reader->LocalNodeId_);
             auto expirationDeadline = TInstant::Now() + ReaderConfig_->PeerExpirationTimeout;
