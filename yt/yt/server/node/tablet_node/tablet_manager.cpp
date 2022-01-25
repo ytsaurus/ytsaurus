@@ -257,11 +257,11 @@ public:
         return tablet;
     }
 
-    std::vector<TTabletMemoryStats> GetMemoryStats()
+    std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        std::vector<TTabletMemoryStats> results;
+        std::vector<TTabletMemoryStatistics> results;
         results.reserve(Tablets().size());
 
         for (const auto& [tabletId, tablet] : Tablets()) {
@@ -269,77 +269,68 @@ public:
             tabletMemory.TabletId = tabletId;
             tabletMemory.TablePath = tablet->GetTablePath();
 
-            auto& stats = tabletMemory.Stats;
+            auto& statistics = tabletMemory.Statistics;
 
             if (tablet->IsPhysicallySorted()) {
                 for (const auto& store : tablet->GetEden()->Stores()) {
-                    CountStoreMemoryStats(&stats, *store);
+                    CountStoreMemoryStatistics(&statistics, store);
                 }
 
                 for (const auto& partition : tablet->PartitionList()) {
                     for (const auto& store : partition->Stores()) {
-                        CountStoreMemoryStats(&stats, *store);
+                        CountStoreMemoryStatistics(&statistics, store);
                     }
                 }
             } else if (tablet->IsPhysicallyOrdered()) {
                 for (const auto& [_, store] : tablet->StoreIdMap()) {
-                    CountStoreMemoryStats(&stats, *store);
+                    CountStoreMemoryStatistics(&statistics, store);
                 }
             }
 
-            auto error = GetPreloadError(tablet);
+            auto error = tablet->RuntimeData()->Errors[ETabletBackgroundActivity::Preload].Load();
             if (!error.IsOK()) {
-                stats.PreloadErrors.push_back(error);
+                statistics.PreloadErrors.push_back(error);
             }
 
             if (auto rowCache = tablet->GetRowCache()) {
-                stats.RowCache.Usage = rowCache->GetUsedBytesCount();
+                statistics.RowCache.Usage = rowCache->GetUsedBytesCount();
             }
         }
 
         return results;
     }
 
-    TError GetPreloadError(TTablet* tablet)
+    void CountStoreMemoryStatistics(TMemoryStatistics* statistics, const IStorePtr& store) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
-        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
-        if (tabletSnapshot) {
-            return tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Preload].Load();
-        }
-        return {};
-    }
-
-    void CountStoreMemoryStats(TMemoryStats* stats, IStore& store)
-    {
-        if (store.IsDynamic()) {
-            auto dynamic = store.AsDynamic();
-            stats->Dynamic.Usage += dynamic->GetPoolCapacity();
-        } else if (store.IsChunk()) {
-            auto chunk = store.AsChunk();
+        if (store->IsDynamic()) {
+            auto usage = store->GetDynamicMemoryUsage();
+            if (store->GetStoreState() == EStoreState::ActiveDynamic) {
+                statistics->DynamicActive += usage;
+            } else if (store->GetStoreState() == EStoreState::PassiveDynamic) {
+                statistics->DynamicPassive += usage;
+            }
+        } else if (store->IsChunk()) {
+            auto chunk = store->AsChunk();
 
             if (auto backing = chunk->GetBackingStore()) {
-                stats->Dynamic.Usage += backing->GetPoolCapacity();
-                stats->DynamicBacking.Usage += backing->GetPoolCapacity();
+                statistics->DynamicBacking += backing->GetDynamicMemoryUsage();
             }
 
             auto countChunkStoreMemory = [&] (i64 bytes) {
-                stats->PreloadStoreCount += 1;
+                statistics->PreloadStoreCount += 1;
                 switch (chunk->GetPreloadState()) {
                     case EStorePreloadState::Scheduled:
                     case EStorePreloadState::Running:
-                        stats->PendingStoreCount += 1;
-                        stats->PendingStoreBytes += bytes;
+                        statistics->PreloadPendingStoreCount += 1;
+                        statistics->PreloadPendingBytes += bytes;
                         break;
 
                     case EStorePreloadState::Complete:
-                        stats->Static.Usage += bytes;
+                        statistics->Static.Usage += bytes;
                         break;
 
                     case EStorePreloadState::Failed:
-                        stats->PreloadStoreFailedCount += 1;
+                        statistics->PreloadFailedStoreCount += 1;
                         break;
 
                     case EStorePreloadState::None:
@@ -3470,9 +3461,9 @@ ITabletCellWriteManagerHostPtr TTabletManager::GetTabletCellWriteManagerHost()
     return Impl_;
 }
 
-std::vector<TTabletMemoryStats> TTabletManager::GetMemoryStats()
+std::vector<TTabletMemoryStatistics> TTabletManager::GetMemoryStatistics() const
 {
-    return Impl_->GetMemoryStats();
+    return Impl_->GetMemoryStatistics();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)

@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/node/tablet_node/tablet_memory_stats.h>
+#include <yt/yt/server/node/tablet_node/tablet_memory_statistics.h>
 
 #include <yt/yt/server/lib/cellar_agent/occupier.h>
 
@@ -82,7 +82,7 @@ struct ITabletSlot
     virtual NTransactionClient::TTimestamp GetLatestTimestamp() = 0;
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
 
-    virtual TFuture<TTabletCellMemoryStats> GetMemoryStats() = 0;
+    virtual TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletSlot)
