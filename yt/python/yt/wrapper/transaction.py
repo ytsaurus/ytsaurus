@@ -372,7 +372,7 @@ class PingTransaction(Thread):
         self.failed = True
         if self.interrupt_on_failed:
             ping_failed_mode = _get_ping_failed_mode(self._client)
-            logger.exception("Ping failed (ping_failed_mode: %s)", ping_failed_mode)
+            logger.exception("Ping failed (ping_failed_mode: %s, is_running: %s)", ping_failed_mode, self.is_running)
             if ping_failed_mode == "send_signal":
                 os.kill(os.getpid(), signal.SIGUSR1)
             elif ping_failed_mode == "interrupt_main":
