@@ -19,6 +19,15 @@ public:
     std::optional<NYson::TYsonString> ListNode(
         const NYPath::TYPath& path,
         const TListNodeOptions& options) override;
+    std::optional<bool> NodeExists(
+        const NYPath::TYPath& path,
+        const TNodeExistsOptions& options) override;
+    std::optional<std::monostate> RemoveNode(
+        const NYPath::TYPath& path,
+        const TRemoveNodeOptions& options) override;
+    std::optional<std::monostate> AlterTableReplica(
+        NTabletClient::TTableReplicaId replicaId,
+        const TAlterTableReplicaOptions& options) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,11 +45,18 @@ public:
     std::optional<NYson::TYsonString> ListNode(
         const NYPath::TYPath& path,
         const TListNodeOptions& options) override;
+    std::optional<bool> NodeExists(
+        const NYPath::TYPath& path,
+        const TNodeExistsOptions& options) override;
+    std::optional<std::monostate> RemoveNode(
+        const NYPath::TYPath& path,
+        const TRemoveNodeOptions& options) override;
 
 protected:
     virtual NObjectClient::EObjectType GetSupportedObjectType() = 0;
     virtual NYson::TYsonString GetObjectYson(NObjectClient::TObjectId objectId) = 0;
     virtual std::optional<NObjectClient::TObjectId> TryCreateObject(const TCreateObjectOptions& options);
+    virtual void RemoveObject(NObjectClient::TObjectId objectId) = 0;
 
 private:
     std::optional<NYson::TYsonString> TryGetObjectYson(

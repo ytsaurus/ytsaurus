@@ -745,24 +745,12 @@ void TClient::DoRemoveNode(
     const TYPath& path,
     const TRemoveNodeOptions& options)
 {
-    MaybeValidateExternalObjectPermission(path, EPermission::Write);
-
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-    auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
-    SetPrerequisites(batchReq, options);
-
-    auto req = TYPathProxy::Remove(path);
-    SetTransactionId(req, options, true);
-    SetMutationId(req, options);
-    req->set_recursive(options.Recursive);
-    req->set_force(options.Force);
-    batchReq->AddRequest(req);
-
-    auto batchRsp = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
-    batchRsp->GetResponse<TYPathProxy::TRspRemove>(0)
-        .ThrowOnError();
+    for (const auto& handler : TypeHandlers_) {
+        if (auto result = handler->RemoveNode(path, options)) {
+            return;
+        }
+    }
+    YT_ABORT();
 }
 
 TYsonString TClient::DoListNode(
@@ -1856,24 +1844,12 @@ bool TClient::DoNodeExists(
     const TYPath& path,
     const TNodeExistsOptions& options)
 {
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
-    auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
-    SetPrerequisites(batchReq, options);
-    SetBalancingHeader(batchReq, options);
-
-    auto req = TYPathProxy::Exists(path);
-    SetTransactionId(req, options, true);
-    SetSuppressAccessTracking(req, options);
-    SetCachingHeader(req, options);
-    batchReq->AddRequest(req);
-
-    auto batchRsp = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
-    auto rsp = batchRsp->GetResponse<TYPathProxy::TRspExists>(0)
-        .ValueOrThrow();
-
-    return rsp->value();
+    for (const auto& handler : TypeHandlers_) {
+        if (auto result = handler->NodeExists(path, options)) {
+            return *result;
+        }
+    }
+    YT_ABORT();
 }
 
 void TClient::DoExternalizeNode(

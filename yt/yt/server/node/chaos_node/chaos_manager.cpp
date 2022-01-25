@@ -433,11 +433,17 @@ private:
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
 
-        if (!IsStableReplicaMode(replicaInfo->Mode) || !IsStableReplicaState(replicaInfo->State)) {
-            THROW_ERROR_EXCEPTION("Replica is transitioning")
+        if (!IsStableReplicaMode(replicaInfo->Mode)) {
+            THROW_ERROR_EXCEPTION("Replica mode is transitioning")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("mode", replicaInfo->Mode)
+                << TErrorAttribute("mode", replicaInfo->Mode);
+        }
+
+        if (!IsStableReplicaState(replicaInfo->State)) {
+            THROW_ERROR_EXCEPTION("Replica state is transitioning")
+                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("replica_id", replicaId)
                 << TErrorAttribute("state", replicaInfo->State);
         }
 
@@ -540,7 +546,7 @@ private:
             }
 
             replicationCardIds.push_back(replicationCardId);
-            YT_VERIFY(replicationCard->Coordinators().erase(coordinatorCellId) > 0);
+            EraseOrCrash(replicationCard->Coordinators(), coordinatorCellId);
             ScheduleNewEraIfReplicationCardIsReady(replicationCard);
         }
 
@@ -591,7 +597,7 @@ private:
         for (auto cellId : coordinatorCellIds) {
             // TODO(savrus) This could happen in case if coordinator cell id has been removed from CoordinatorCellIds_ and then added.
             // Need to make a better protocol.
-            YT_VERIFY(!replicationCard->Coordinators().find(cellId));
+            YT_VERIFY(!replicationCard->Coordinators().contains(cellId));
 
             replicationCard->Coordinators().insert(std::make_pair(cellId, TCoordinatorInfo{EShortcutState::Granting}));
             auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);

@@ -995,6 +995,7 @@ private:
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = {});
+    // XXX
     void MaybeValidateExternalObjectPermission(
         const NYPath::TYPath& path,
         NYTree::EPermission permission,

@@ -1,10 +1,12 @@
-#include "default_type_handler.h"
+#include "replicated_table_replica_type_handler.h"
 
-#include "type_handler.h"
+#include "type_handler_detail.h"
 #include "client_impl.h"
 #include "ypath_helpers.h"
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/tablet_client/helpers.h>
 
 namespace NYT::NApi::NNative {
 
@@ -19,7 +21,7 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableReplicaTypeHandler
-    : public ITypeHandler
+    : public TNullTypeHandler
 {
 public:
     explicit TReplicatedTableReplicaTypeHandler(TClient* client)
@@ -66,7 +68,7 @@ public:
         const TYPath& path,
         const TGetNodeOptions& /*options*/) override
     {
-        MaybeValidatePermission(path);
+        MaybeValidatePermission(path, EPermission::Read);
         return {};
     }
 
@@ -74,22 +76,79 @@ public:
         const TYPath& path,
         const TListNodeOptions& /*options*/) override
     {
-        MaybeValidatePermission(path);
+        MaybeValidatePermission(path, EPermission::Read);
         return {};
+    }
+
+    std::optional<bool> NodeExists(
+        const TYPath& path,
+        const TNodeExistsOptions& /*options*/) override
+    {
+        try {
+            MaybeValidatePermission(path, EPermission::Read);
+        } catch (const std::exception& ex) {
+            if (!TError(ex).FindMatching(NYTree::EErrorCode::ResolveError)) {
+                throw;
+            }
+        }
+        return {};
+    }
+
+    std::optional<std::monostate> RemoveNode(
+        const TYPath& path,
+        const TRemoveNodeOptions& /*options*/) override
+    {
+        MaybeValidatePermission(path, EPermission::Write);
+        return {};
+    }
+
+    std::optional<std::monostate> AlterTableReplica(
+        TTableReplicaId replicaId,
+        const TAlterTableReplicaOptions& options) override
+    {
+        if (TypeFromId(replicaId) != EObjectType::TableReplica) {
+            return {};
+        }
+
+        Client_->ValidateTableReplicaPermission(replicaId, EPermission::Write);
+
+        auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
+        if (options.Enabled) {
+            req->set_enabled(*options.Enabled);
+        }
+        if (options.Mode) {
+            if (!IsStableReplicaMode(*options.Mode)) {
+                THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *options.Mode);
+            }
+            req->set_mode(static_cast<int>(*options.Mode));
+        }
+        if (options.PreserveTimestamps) {
+            req->set_preserve_timestamps(*options.PreserveTimestamps);
+        }
+        if (options.Atomicity) {
+            req->set_atomicity(static_cast<int>(*options.Atomicity));
+        }
+
+        auto cellTag = CellTagFromId(replicaId);
+        auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>(cellTag);
+        WaitFor(proxy->Execute(req))
+            .ThrowOnError();
+
+        return std::monostate();
     }
 
 private:
     TClient* const Client_;
 
 
-    void MaybeValidatePermission(const TYPath& path)
+    void MaybeValidatePermission(const TYPath& path, EPermission permission)
     {
         TObjectId objectId;
         if (!TryParseObjectId(path, &objectId) || TypeFromId(objectId) != EObjectType::TableReplica) {
             return;
         }
 
-        Client_->ValidateTableReplicaPermission(objectId, EPermission::Read, /*options*/ {});
+        Client_->ValidateTableReplicaPermission(objectId, permission, /*options*/ {});
     }
 };
 

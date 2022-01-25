@@ -1,6 +1,6 @@
 #include "default_type_handler.h"
 
-#include "type_handler.h"
+#include "type_handler_detail.h"
 #include "client_impl.h"
 #include "rpc_helpers.h"
 
@@ -17,6 +17,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NRpc;
 using namespace NObjectClient;
+using namespace NTabletClient;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NConcurrency;
@@ -24,7 +25,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDefaultTypeHandler
-    : public ITypeHandler
+    : public TNullTypeHandler
 {
 public:
     explicit TDefaultTypeHandler(TClient* client)
@@ -104,6 +105,54 @@ public:
             .ValueOrThrow();
 
         return TYsonString(rsp->value());
+    }
+
+    std::optional<bool> NodeExists(
+        const NYPath::TYPath& path,
+        const TNodeExistsOptions& options) override
+    {
+        auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(options);
+        auto batchReq = proxy->ExecuteBatch();
+        batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+        SetPrerequisites(batchReq, options);
+        Client_->SetBalancingHeader(batchReq, options);
+
+        auto req = TYPathProxy::Exists(path);
+        Client_->SetTransactionId(req, options, true);
+        Client_->SetSuppressAccessTracking(req, options);
+        Client_->SetCachingHeader(req, options);
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspExists>(0)
+            .ValueOrThrow();
+
+        return rsp->value();
+    }
+
+    std::optional<std::monostate> RemoveNode(
+        const TYPath& path,
+        const TRemoveNodeOptions& options) override
+    {
+        auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>();
+        auto batchReq = proxy->ExecuteBatch();
+        batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+        SetPrerequisites(batchReq, options);
+
+        auto req = TYPathProxy::Remove(path);
+        Client_->SetTransactionId(req, options, true);
+        Client_->SetMutationId(req, options);
+        req->set_recursive(options.Recursive);
+        req->set_force(options.Force);
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        batchRsp->GetResponse<TYPathProxy::TRspRemove>(0)
+            .ThrowOnError();
+
+        return std::monostate();
     }
 
 private:

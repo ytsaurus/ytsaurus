@@ -15,10 +15,11 @@ namespace NYT::NApi::NNative {
 using namespace NYson;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NChaosClient;
-using namespace NConcurrency;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +30,33 @@ public:
     explicit TReplicationCardReplicaTypeHandler(TClient* client)
         : Client_(client)
     { }
+
+    std::optional<std::monostate> AlterTableReplica(
+        TTableReplicaId replicaId,
+        const TAlterTableReplicaOptions& options) override
+    {
+        if (TypeFromId(replicaId) != EObjectType::ReplicationCardReplica) {
+            return {};
+        }
+
+        if (options.Atomicity) {
+            THROW_ERROR_EXCEPTION("Cannot alter \"atomicity\" for chaos replica");
+        }
+        if (options.PreserveTimestamps) {
+            THROW_ERROR_EXCEPTION("Cannot alter \"preserve_timestamps\" for chaos replica");
+        }
+
+        auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
+
+        TAlterReplicationCardReplicaOptions chaosOptions;
+        chaosOptions.Mode = options.Mode;
+        chaosOptions.Enabled = options.Enabled;
+
+        WaitFor(Client_->AlterReplicationCardReplica(replicationCardId, replicaId, chaosOptions))
+            .ThrowOnError();
+
+        return std::monostate();
+    }
 
 private:
     TClient* const Client_;
@@ -55,6 +83,7 @@ private:
             .BeginAttributes()
                 .Item("id").Value(replicaId)
                 .Item("type").Value(EObjectType::ReplicationCardReplica)
+                .Item("replication_card_id").Value(replicationCardId)
                 .Do([&] (auto fluent) {
                     Serialize(
                         *replicaInfo,
@@ -92,6 +121,14 @@ private:
             .ValueOrThrow();
 
         return FromProto<TReplicaId>(rsp->replica_id());
+    }
+
+    void RemoveObject(TReplicaId replicaId) override
+    {
+        auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
+
+        WaitFor(Client_->RemoveReplicationCardReplica(replicationCardId, replicaId))
+            .ThrowOnError();
     }
 };
 

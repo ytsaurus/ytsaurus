@@ -1,10 +1,10 @@
 from test_dynamic_tables import DynamicTablesBase
 
 from yt_commands import (
-    authors, wait, execute_command, get_driver, get, set, ls, create,
+    authors, wait, execute_command, get_driver, get, set, ls, create, exists,
     sync_create_cells, sync_mount_table, sync_unmount_table, reshard_table, alter_table,
     insert_rows, delete_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
-    create_replication_card, get_replication_card, create_replication_card_replica, alter_replication_card_replica,
+    create_replication_card, create_replication_card_replica, alter_table_replica,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id)
 
 from yt.environment.helpers import assert_items_equal
@@ -61,10 +61,10 @@ class ChaosTestBase(DynamicTablesBase):
 
     def _sync_replication_card(self, card_id):
         def _check():
-            card = get_replication_card(card_id)
-            return all(replica["state"] in ["enabled", "disabled"] for replica in card["replicas"].itervalues())
+            card_replicas = get("#{0}/@replicas".format(card_id))
+            return all(replica["state"] in ["enabled", "disabled"] for replica in card_replicas.itervalues())
         wait(_check)
-        return get_replication_card(card_id)
+        return get("#{0}/@".format(card_id))
 
     def _create_replication_card_replica(self, card_id, replica):
         attributes = {
@@ -105,9 +105,9 @@ class ChaosTestBase(DynamicTablesBase):
             self._sync_replication_era(card_id, replicas)
         return card_id, replica_ids
 
-    def _sync_alter_replication_card_replica(self, card_id, replicas, replica_ids, replica_index, **kwargs):
+    def _sync_alter_replica(self, card_id, replicas, replica_ids, replica_index, **kwargs):
         replica_id = replica_ids[replica_index]
-        alter_replication_card_replica(card_id, replica_id, **kwargs)
+        alter_table_replica(replica_id, **kwargs)
 
         enabled = kwargs.get("enabled", None)
         mode = kwargs.get("mode", None)
@@ -134,9 +134,9 @@ class ChaosTestBase(DynamicTablesBase):
         wait(_check)
         era = self._get_table_orchids("//tmp/t")[0]["replication_card"]["era"]
 
-        # Include coordinators to use same replication card cache key as insert_rows does.
-        wait(lambda: get_replication_card(card_id, include_coordinators=True)["era"] == era)
-        replication_card = get_replication_card(card_id, include_coordinators=True)
+        # These request also includes coordinators to use same replication card cache key as insert_rows does.
+        wait(lambda: get("#{0}/@era".format(card_id)) == era)
+        replication_card = get("#{0}/@".format(card_id))
         assert replication_card["era"] == era
 
         def _check_sync():
@@ -277,11 +277,9 @@ class TestChaos(ChaosTestBase):
         ]
         replica_ids = self._create_replication_card_replicas(card_id, replicas)
 
-        card = get_replication_card(card_id)
+        card = get("#{0}/@".format(card_id))
         card_replicas = [{key: r[key] for key in replicas[0].keys()} for r in card["replicas"].itervalues()]
         assert_items_equal(card_replicas, replicas)
-
-        card = get("#{0}/@".format(card_id))
         assert card["id"] == card_id
         assert card["type"] == "replication_card"
         card_replicas = [{key: r[key] for key in replicas[0].keys()} for r in card["replicas"].itervalues()]
@@ -301,8 +299,14 @@ class TestChaos(ChaosTestBase):
             replica = get("#{0}/@".format(replica_id))
             assert replica["id"] == replica_id
             assert replica["type"] == "replication_card_replica"
+            assert replica["replication_card_id"] == card_id
             assert replica["cluster_name"] == replicas[replica_index]["cluster_name"]
             assert replica["replica_path"] == replicas[replica_index]["replica_path"]
+
+        assert exists("#{0}".format(card_id))
+        assert exists("#{0}".format(replica_id))
+        assert exists("#{0}/@id".format(replica_id))
+        assert not exists("#{0}/@nonexisting".format(replica_id))
 
     def _create_queue_table(self, path, **attributes):
         attributes.update({"dynamic": True})
@@ -447,7 +451,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values)
 
         assert lookup_rows("//tmp/t", [{"key": 0}]) == []
-        alter_replication_card_replica(card_id, replica_ids[0], enabled=True)
+        alter_table_replica(replica_ids[0], enabled=True)
 
         wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
         orchid = self._get_table_orchids("//tmp/t")[0]
@@ -475,7 +479,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values)
         wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
 
-        self._sync_alter_replication_card_replica(card_id, replicas, replica_ids, 0, enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
 
         values = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values)
@@ -517,7 +521,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values[:1])
 
         _check_lookup([{"key": 0}], values[:1], old_mode)
-        self._sync_alter_replication_card_replica(card_id, replicas, replica_ids, 0, mode=new_mode)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode=new_mode)
 
         def _insistent_insert_rows():
             try:
@@ -550,7 +554,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values)
         wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
 
-        self._sync_alter_replication_card_replica(card_id, replicas, replica_ids, 0, enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
 
         orchid = get("#{0}/orchid".format(tablet_id))
         progress = orchid["replication_progress"]
@@ -624,7 +628,7 @@ class TestChaos(ChaosTestBase):
         wait(lambda: _pull_rows(1) == values0)
         wait(lambda: _pull_rows(0) == values0)
 
-        self._sync_alter_replication_card_replica(card_id, replicas, replica_ids, 0, enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
 
         values1 = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values1)
@@ -632,7 +636,7 @@ class TestChaos(ChaosTestBase):
         wait(lambda: _pull_rows(1) == values0 + values1)
         assert _pull_rows(0) == values0
 
-        self._sync_alter_replication_card_replica(card_id, replicas, replica_ids, 0, enabled=True)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
 
         wait(lambda: _pull_rows(0) == values0 + values1)
 
@@ -694,9 +698,9 @@ class TestChaos(ChaosTestBase):
         replica_ids = self._create_replication_card_replicas(card_id, replicas)
         assert len(replica_ids) == 2
 
-        wait(lambda: get_replication_card(card_id, bypass_cache=True)["era"] == 1)
+        wait(lambda: get("#{0}/@era".format(card_id)) == 1)
 
-        card = get_replication_card(card_id, include_coordinators=True, bypass_cache=True)
+        card = get("#{0}/@".format(card_id))
         assert get("//tmp/crt/@era") == card["era"]
         assert get("//tmp/crt/@coordinator_cell_ids") == card["coordinator_cell_ids"]
 
@@ -704,7 +708,10 @@ class TestChaos(ChaosTestBase):
         assert len(crt_replicas) == 2
 
         for replica_id in replica_ids:
-            assert card["replicas"][replica_id] == crt_replicas[replica_id]
+            replica = card["replicas"][replica_id]
+            del replica["history"]
+            del replica["replication_progress"]
+            assert replica == crt_replicas[replica_id]
 
 
 ##################################################################
@@ -730,7 +737,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         ]
         self._create_replication_card_replicas(card_id, replicas)
 
-        card = get_replication_card(card_id)
+        card = get("#{0}/@".format(card_id))
+        assert card["type"] == "replication_card"
+        assert card["id"] == card_id
         assert len(card["replicas"]) == 3
-
-        assert get("#{0}/@id".format(card_id)) == card_id

@@ -231,9 +231,7 @@ public:
         REGISTER_ALL(TBalanceTabletCellsCommand,           "balance_tablet_cells",            Null,       Structured, true,  false);
 
         REGISTER    (TCreateReplicationCardCommand,        "create_replication_card",         Null,       Structured, false, false, ApiVersion4);
-        REGISTER    (TGetReplicationCardCommand,           "get_replication_card",            Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TRemoveReplicationCardReplicaCommand, "remove_replication_card_replica", Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TAlterReplicationCardReplicaCommand,  "alter_replication_card_replica",  Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TUpdateReplicationProgressCommand,    "update_replication_progress",     Null,       Structured, false, false, ApiVersion4);
 
         REGISTER    (TMergeCommand,                        "merge",                           Null,       Structured, true,  false, ApiVersion3);
         REGISTER    (TEraseCommand,                        "erase",                           Null,       Structured, true,  false, ApiVersion3);
