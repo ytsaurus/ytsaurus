@@ -2945,69 +2945,86 @@ class TestTabletOrchid(DynamicTablesBase):
         }
     }
 
-    def _get_tablet(self, table_path):
-        return get("//tmp/t/@tablets/0")
-
-    def _get_tablet_node_address(self, tablet):
-        return get("#{0}/@peers/0/address".format(tablet["cell_id"]))
-
     @authors("capone212")
     def test_at_tablet_snapshot(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 0, "value": "test"}])
-        tablet_info = self._get_tablet("//tmp/t")
-        node_address = self._get_tablet_node_address(tablet_info)
-        tablet_id = tablet_info["tablet_id"]
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        node_address = get_tablet_leader_address(tablet_id)
         snapshot_tablet_ids = ls("//sys/cluster_nodes/" + node_address + "/orchid/tablet_snapshot_store")
         assert tablet_id in snapshot_tablet_ids
         tablet_snapshots = get("//sys/cluster_nodes/" + node_address + "/orchid/tablet_snapshot_store/" + tablet_id)
         assert len(tablet_snapshots) != 0
-        # ensure orchid returns something sane for tablet snapshot
+        # Ensure orchid returns something sane for tablet snapshot.
         assert tablet_snapshots[0]["table_path"] == "//tmp/t"
 
     @authors("capone212")
     def test_memory_usage_statistics(self):
         sync_create_cells(1)
-        self._create_sorted_table("//tmp/t", lookup_cache_rows_per_tablet=50, replication_factor=1, in_memory_mode="uncompressed")
+        self._create_sorted_table(
+            "//tmp/t",
+            lookup_cache_rows_per_tablet=50,
+            replication_factor=1,
+            in_memory_mode="uncompressed",
+            dynamic_store_auto_flush_period=yson.YsonEntity(),
+            dynamic_store_flush_period_splay=0)
         sync_mount_table("//tmp/t")
 
-        # create table and flush rows to disk.
+        # Get tablet memory detailed statistics.
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        node_address = get_tablet_leader_address(tablet_id)
+        def get_stats():
+            return get("//sys/cluster_nodes/" + node_address + "/orchid/tablet_slot_manager/memory_usage_statistics")
+
+        # Create table and populate dynamic store.
         rows = [{"key": i, "value": str(i)} for i in xrange(0, 300, 2)]
         insert_rows("//tmp/t", rows)
-        sync_flush_table("//tmp/t")
         wait(lambda: get("//tmp/t/@preload_state") == "complete")
 
-        #  exec lookup to triger row cache usage.
+        stats = get_stats()
+        assert stats["total"]["tablet_dynamic"]["usage"] > 0
+        assert stats["total"]["tablet_dynamic"]["active"] > 0
+
+        # Flush table without freezing it to keep the backing store.
+        set("//tmp/t/@dynamic_store_auto_flush_period", 1)
+        remount_table("//tmp/t")
+        # Insert something to trigger rotation (see YT-16320).
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) > 0)
+
+        # Execute lookup to triger row cache usage.
         expected = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2)]
         actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
-        # get tablet memory detailed stats.
-        tablet_info = self._get_tablet("//tmp/t")
-        node_address = self._get_tablet_node_address(tablet_info)
-        memory_stats = get("//sys/cluster_nodes/" + node_address + "/orchid/tablet_slot_manager/memory_usage_stats")
+        memory_stats = get_stats()
+        total = memory_stats["total"]
+        assert total["tablet_dynamic"]["usage"] > 0
+        assert total["tablet_dynamic"]["active"] == 0
+        assert total["tablet_dynamic"]["backing"] > 0
+        assert total["tablet_dynamic"]["passive"] == 0
+        assert total["tablet_dynamic"]["limit"] > 0
+        assert total["tablet_static"]["usage"] > 0
+        assert total["tablet_static"]["limit"] > 0
+        assert total["row_cache"]["usage"] > 0
+        assert total["row_cache"]["limit"] > 0
 
-        overall = memory_stats['overall']
-        assert overall['tablet_dynamic']['usage'] != 0
-        assert overall['tablet_dynamic']['limit'] != 0
-        assert overall['tablet_static']['usage'] != 0
-        assert overall['tablet_static']['limit'] != 0
-        assert overall['row_cache']['usage'] != 0
-        assert overall['row_cache']['limit'] != 0
+        assert len(memory_stats["bundles"]) > 0
+        default_bundle = memory_stats["bundles"]["default"]
+        assert default_bundle["total"]["tablet_dynamic"]["usage"] > 0
+        assert default_bundle["total"]["tablet_dynamic"]["backing"] > 0
+        assert default_bundle["total"]["tablet_dynamic"]["limit"] > 0
+        assert default_bundle["total"]["tablet_static"]["usage"] > 0
+        assert "limit" not in default_bundle["total"]["tablet_static"]
 
-        assert len(memory_stats['bundles']) != 0
-        default_bundle = memory_stats['bundles']["default"]
-        assert default_bundle["overall"]['tablet_dynamic']['usage'] != 0
-        assert default_bundle["overall"]['tablet_dynamic']['limit'] != 0
-        assert default_bundle["overall"]['tablet_static']['usage'] != 0
-        assert default_bundle["overall"]['tablet_static']['limit'] != 0
-
-        table_stat = memory_stats['tables']["//tmp/t"]
-        assert table_stat['tablet_dynamic']['usage'] != 0
-        assert table_stat['tablet_static']['usage'] != 0
-        assert table_stat['row_cache']['usage'] != 0
+        table_stat = memory_stats["tables"]["//tmp/t"]
+        assert "limit" not in table_stat["tablet_dynamic"]
+        assert "usage" not in table_stat["tablet_dynamic"]
+        assert table_stat["tablet_dynamic"]["backing"] > 0
+        assert table_stat["tablet_static"]["usage"] > 0
+        assert table_stat["row_cache"]["usage"] > 0
 
 
 ##################################################################

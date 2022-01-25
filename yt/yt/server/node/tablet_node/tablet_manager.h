@@ -1,8 +1,7 @@
 #pragma once
 
 #include "public.h"
-
-#include <yt/yt/server/node/tablet_node/tablet_memory_stats.h>
+#include "tablet_memory_statistics.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
@@ -64,7 +63,7 @@ public:
 
     ITabletCellWriteManagerHostPtr GetTabletCellWriteManagerHost();
 
-    std::vector<TTabletMemoryStats> GetMemoryStats();
+    std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const;
 
 private:
     class TImpl;

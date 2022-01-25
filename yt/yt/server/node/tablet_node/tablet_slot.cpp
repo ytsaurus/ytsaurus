@@ -290,23 +290,23 @@ public:
         return Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag();
     }
 
-    TFuture<TTabletCellMemoryStats> GetMemoryStats() override
+    TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&TTabletSlot::DoGetMemoryStats, MakeStrong(this))
+        return BIND(&TTabletSlot::DoGetMemoryStatistics, MakeStrong(this))
             .AsyncVia(GetAutomatonInvoker())
             .Run();
     }
 
-    TTabletCellMemoryStats DoGetMemoryStats()
+    TTabletCellMemoryStatistics DoGetMemoryStatistics()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return TTabletCellMemoryStats{
+        return TTabletCellMemoryStatistics{
             .CellId = GetCellId(),
             .BundleName = GetTabletCellBundleName(),
-            .Tablets = TabletManager_->GetMemoryStats()
+            .Tablets = TabletManager_->GetMemoryStatistics()
         };
     }
 
