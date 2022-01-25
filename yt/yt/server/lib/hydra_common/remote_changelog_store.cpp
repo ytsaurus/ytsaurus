@@ -562,14 +562,13 @@ private:
             .ThrowOnError();
     }
 
-    TVersion ComputeReachableVersion()
+    void ListChangelogs(
+        const std::vector<TString>& attributes,
+        std::function<void(const INodePtr&, int id)> functor)
     {
         YT_LOG_DEBUG("Requesting changelog list from remote store");
         TListNodeOptions options{
-            .Attributes = std::vector<TString>{
-                "sealed",
-                "quorum_row_count"
-            }
+            .Attributes = attributes
         };
         auto result = WaitFor(MasterClient_->ListNode(Path_, options))
             .ValueOrThrow();
@@ -577,8 +576,6 @@ private:
 
         auto items = ConvertTo<IListNodePtr>(result);
 
-        int latestId = -1;
-        int latestRowCount = -1;
         for (const auto& item : items->GetChildren()) {
             auto key = item->GetValue<TString>();
             int id;
@@ -587,16 +584,35 @@ private:
                     key,
                     Path_);
             }
+            functor(item, id);
+        }
+    }
+
+    void ValidateChangelogsSealed()
+    {
+        ListChangelogs({"sealed"}, [&] (const INodePtr& item, int id) {
             if (!item->Attributes().Get<bool>("sealed", false)) {
-                THROW_ERROR_EXCEPTION("Changelog %Qv in changelog store %v is not sealed",
-                    key,
+                THROW_ERROR_EXCEPTION("Changelog %v in changelog store %v is not sealed",
+                    id,
                     Path_);
             }
+        });
+
+        YT_LOG_DEBUG("No unsealed changelogs in store");
+    }
+
+    TVersion ComputeReachableVersion()
+    {
+        ValidateChangelogsSealed();
+
+        int latestId = -1;
+        int latestRowCount = -1;
+        ListChangelogs({"quorum_row_count"}, [&] (const INodePtr& item, int id) {
             if (id > latestId) {
                 latestId = id;
                 latestRowCount = item->Attributes().Get<i64>("quorum_row_count");
             }
-        }
+        });
 
         if (latestId < 0) {
             return TVersion();
@@ -607,36 +623,10 @@ private:
 
     TElectionPriority ComputeElectionPriority()
     {
+        ValidateChangelogsSealed();
+
         TElectionPriority priority(0, 0, 0, 0);
-        YT_LOG_DEBUG("Requesting changelog list from remote store");
-        TListNodeOptions options{
-            .Attributes = std::vector<TString>{
-                "sealed",
-                "quorum_row_count",
-                "sequence_number",
-                "term"
-            }
-        };
-        auto result = WaitFor(MasterClient_->ListNode(Path_, options))
-            .ValueOrThrow();
-        YT_LOG_DEBUG("Changelog list received");
-
-        auto items = ConvertTo<IListNodePtr>(result);
-
-        for (const auto& item : items->GetChildren()) {
-            auto key = item->GetValue<TString>();
-            int id;
-            if (!TryFromString(key, id)) {
-                THROW_ERROR_EXCEPTION("Unrecognized item %Qv in changelog store %v",
-                    key,
-                    Path_);
-            }
-            if (!item->Attributes().Get<bool>("sealed", false)) {
-                THROW_ERROR_EXCEPTION("Changelog %Qv in changelog store %v is not sealed",
-                    key,
-                    Path_);
-            }
-
+        ListChangelogs({"quorum_row_count", "sequence_number", "term"}, [&] (const INodePtr& item, int id) {
             auto term = item->Attributes().Get<int>("term", 0);
             // This is always reachable at largest changelog id, looks ok.
             priority.Term = std::max(term, priority.Term);
@@ -652,7 +642,7 @@ private:
                     priority.LastMutationTerm = term;
                 }
             }
-        }
+        });
 
         return priority;
     }
