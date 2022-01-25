@@ -223,11 +223,6 @@ public:
         NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options = {}),
         (replicationCardId, options))
-    IMPLEMENT_METHOD(NChaosClient::TReplicaId, CreateReplicationCardReplica, (
-        NChaosClient::TReplicationCardId replicationCardId,
-        const NChaosClient::TReplicaInfo& replica,
-        const TCreateReplicationCardReplicaOptions& options = {}),
-        (replicationCardId, replica, options))
     IMPLEMENT_METHOD(void, RemoveReplicationCardReplica, (
         NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
@@ -540,6 +535,9 @@ private:
     friend class TNodeConcatenator;
     friend class TReplicatedTableReplicaTypeHandler;
     friend class TReplicationCardTypeHandler;
+    friend class TReplicationCardReplicaTypeHandler;
+    friend class TTableCollocationTypeHandler;
+    friend class TTabletActionTypeHandler;
     friend class TDefaultTypeHandler;
 
     const IConnectionPtr Connection_;
@@ -619,6 +617,12 @@ private:
     std::vector<TString> GetCellAddressesOrThrow(NObjectClient::TCellId cellId);
 
     void ValidateSuperuserPermissions();
+
+    NObjectClient::TObjectId CreateObjectImpl(
+        NObjectClient::EObjectType type,
+        NObjectClient::TCellTag cellTag,
+        const NYTree::IAttributeDictionary& attributes,
+        const TCreateObjectOptions& options);
 
     IUnversionedRowsetPtr DoLookupRows(
         const NYPath::TYPath& path,
@@ -725,13 +729,17 @@ private:
         const std::vector<NYPath::TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options);
 
+    //
+    // Journals
+    //
+
     void DoTruncateJournal(
         const NYPath::TYPath& path,
         i64 rowCount,
         const TTruncateJournalOptions& options);
 
     //
-    // Dynamic tables.
+    // Dynamic tables
     //
 
     std::vector<TTabletInfo> DoGetTabletInfos(
@@ -828,18 +836,15 @@ private:
         const TBalanceTabletCellsOptions& options);
 
     //
-    // Chaos.
+    // Chaos
     //
+
     NChaosClient::TReplicationCardId DoCreateReplicationCard(
         NObjectClient::TCellId chaosCellId,
         const TCreateReplicationCardOptions& options);
     NChaosClient::TReplicationCardPtr DoGetReplicationCard(
         NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options);
-    NChaosClient::TReplicaId DoCreateReplicationCardReplica(
-        NChaosClient::TReplicationCardId replicationCardId,
-        const NChaosClient::TReplicaInfo& replica,
-        const TCreateReplicationCardReplicaOptions& options);
     void DoRemoveReplicationCardReplica(
         NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,
@@ -869,8 +874,9 @@ private:
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
     //
-    // Cypress.
+    // Cypress
     //
+
     NYson::TYsonString DoGetNode(
         const NYPath::TYPath& path,
         const TGetNodeOptions& options);
@@ -939,7 +945,7 @@ private:
         const TCreateObjectOptions& options);
 
     //
-    // File cache.
+    // File cache
     //
 
     void SetTouchedAttribute(
@@ -981,11 +987,11 @@ private:
         NYTree::EPermission permission,
         const NYTree::INodePtr& acl,
         const TCheckPermissionByAclOptions& options);
-        TCheckPermissionResult InternalCheckPermission(
+        TCheckPermissionResult CheckPermissionImpl(
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = {});
-    void InternalValidatePermission(
+    void ValidatePermissionImpl(
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = {});
@@ -1006,8 +1012,9 @@ private:
         const TTransferAccountResourcesOptions& options);
 
     //
-    // Pools.
+    // Pools
     //
+
     void DoTransferPoolResources(
         const TString& srcPool,
         const TString& dstPool,
@@ -1016,7 +1023,7 @@ private:
         const TTransferPoolResourcesOptions& options);
 
     //
-    // Operations.
+    // Operations
     //
 
     NScheduler::TOperationId DoStartOperation(
@@ -1041,7 +1048,7 @@ private:
         const TUpdateOperationParametersOptions& options);
 
     //
-    // Operation info.
+    // Operation info
     //
 
     bool DoesOperationsArchiveExist();
@@ -1103,7 +1110,7 @@ private:
     TListOperationsResult DoListOperations(const TListOperationsOptions& options);
 
     //
-    // Jobs.
+    // Jobs
     //
 
     void DoAbandonJob(
@@ -1119,7 +1126,7 @@ private:
         const TAbortJobOptions& options);
 
     //
-    // Job artifacts and info.
+    // Job artifacts and info
     //
 
     void DoDumpJobContext(
@@ -1258,7 +1265,10 @@ private:
         NScheduler::TJobId jobId,
         const TGetJobOptions& options);
 
-    // Misc.
+    //
+    // Misc
+    //
+
     TClusterMeta DoGetClusterMeta(
         const TGetClusterMetaOptions& options);
     void DoCheckClusterLiveness(
@@ -1267,7 +1277,10 @@ private:
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options);
 
-    // Administration.
+    //
+    // Administration
+    //
+
     int DoBuildSnapshot(
         const TBuildSnapshotOptions& options);
     TCellIdToSnapshotIdMap DoBuildMasterSnapshots(

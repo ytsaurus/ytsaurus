@@ -1936,10 +1936,14 @@ def get_replication_card(replication_card_id, **kwargs):
     return execute_command("get_replication_card", kwargs, parse_yson=True)
 
 
-def create_replication_card_replica(replication_card_id, replica_info, **kwargs):
-    kwargs["replication_card_id"] = replication_card_id
-    kwargs["replica_info"] = replica_info
-    return execute_command("create_replication_card_replica", kwargs, parse_yson=True)
+def create_replication_card_replica(replication_card_id, cluster_name, replica_path, **kwargs):
+    kwargs["type"] = "replication_card_replica"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["replication_card_id"] = replication_card_id
+    kwargs["attributes"]["cluster_name"] = cluster_name
+    kwargs["attributes"]["replica_path"] = replica_path
+    return execute_command("create", kwargs, parse_yson=True)
 
 
 def remove_replication_card_replica(replication_card_id, replica_id, **kwargs):

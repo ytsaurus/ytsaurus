@@ -329,15 +329,15 @@ private:
         NChaosClient::NProto::TRspCreateTableReplica* response)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto newReplica = FromProto<TReplicaInfo>(request->replica_info());
+        const auto& clusterName = request->cluster_name();
+        const auto& replicaPath = request->replica_path();
+        auto contentType = FromProto<ETableReplicaContentType>(request->content_type());
+        auto mode = FromProto<ETableReplicaMode>(request->mode());
+        auto enabled = request->enabled();
 
-        if (!IsStableReplicaState(newReplica.State)) {
-            THROW_ERROR_EXCEPTION("Invalid replica state %Qlv", newReplica.State);
+        if (!IsStableReplicaMode(mode)) {
+            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", mode);
         }
-
-        newReplica.State = newReplica.State == ETableReplicaState::Enabled
-            ? ETableReplicaState::Enabling
-            : ETableReplicaState::Disabling;
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
 
@@ -348,7 +348,7 @@ private:
         }
 
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
-            if (replicaInfo.ClusterName == newReplica.ClusterName && replicaInfo.ReplicaPath == newReplica.ReplicaPath) {
+            if (replicaInfo.ClusterName == clusterName && replicaInfo.ReplicaPath == replicaPath) {
                 THROW_ERROR_EXCEPTION("Replica already exists")
                     << TErrorAttribute("replica_id", replicaId)
                     << TErrorAttribute("cluster_name", replicaInfo.ClusterName)
@@ -361,28 +361,30 @@ private:
         // One way to do that is to split removing process: a) first update progress at the replication card
         // and b) remove only data that is older than replication card progress says (e.g. data 'invisible' to other replicas)
 
-        if (newReplica.ReplicationProgress.Segments.empty()) {
-            newReplica.ReplicationProgress.Segments.push_back({EmptyKey(), MinTimestamp});
-            newReplica.ReplicationProgress.UpperKey = MaxKey();
-        }
-
-        if (newReplica.History.empty()) {
-            newReplica.History.push_back({
-                .Era = InitialReplicationEra,
-                .Timestamp = MinTimestamp,
-                .Mode = newReplica.Mode,
-                .State = ETableReplicaState::Disabled
-            });
-        }
-
         auto newReplicaId = GenerateNewReplicaId(replicationCard);
-        ToProto(response->mutable_replica_id(), newReplicaId);
 
-        if (newReplica.State == ETableReplicaState::Enabling) {
+        auto& replicaInfo = EmplaceOrCrash(replicationCard->Replicas(), newReplicaId, TReplicaInfo())->second;
+        replicaInfo.ClusterName = clusterName;
+        replicaInfo.ReplicaPath = replicaPath;
+        replicaInfo.ContentType = contentType;
+        replicaInfo.State = enabled ? ETableReplicaState::Enabling : ETableReplicaState::Disabling;
+        replicaInfo.Mode = mode;
+        replicaInfo.ReplicationProgress = {
+            .Segments = {{EmptyKey(), MinTimestamp}},
+            .UpperKey = MaxKey()
+        };
+        replicaInfo.History.push_back({
+            .Era = InitialReplicationEra,
+            .Timestamp = MinTimestamp,
+            .Mode = mode,
+            .State = ETableReplicaState::Disabled
+        });
+
+        if (replicaInfo.State == ETableReplicaState::Enabling) {
             RevokeShortcuts(replicationCard);
         }
 
-        EmplaceOrCrash(replicationCard->Replicas(), newReplicaId, std::move(newReplica));
+        ToProto(response->mutable_replica_id(), newReplicaId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Created table replica (ReplicationCardId: %v, ReplicaId: %v)",
             replicationCardId,

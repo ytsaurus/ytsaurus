@@ -1695,11 +1695,6 @@ struct IClient
         const NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options = {}) = 0;
 
-    virtual TFuture<NChaosClient::TReplicaId> CreateReplicationCardReplica(
-        NChaosClient::TReplicationCardId replicationCardId,
-        const NChaosClient::TReplicaInfo& replica,
-        const TCreateReplicationCardReplicaOptions& options = {}) = 0;
-
     virtual TFuture<void> RemoveReplicationCardReplica(
         NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,

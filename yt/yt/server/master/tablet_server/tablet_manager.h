@@ -209,6 +209,7 @@ private:
         ETableReplicaMode mode,
         bool preserveTimestamps,
         NTransactionClient::EAtomicity atomicity,
+        bool enabled,
         NTransactionClient::TTimestamp startReplicationTimestamp,
         const std::optional<std::vector<i64>>& startReplicationRowIndexes);
     void DestroyTableReplica(TTableReplica* replica);

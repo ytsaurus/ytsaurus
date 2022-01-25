@@ -109,19 +109,13 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, CreateTableReplica)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto replica = FromProto<TReplicaInfo>(request->replica_info());
+        const auto& clusterName = request->cluster_name();
+        const auto& replicaPath = request->replica_path();
 
-        context->SetRequestInfo("ReplicationCardId: %v, Replica: %v",
+        context->SetRequestInfo("ReplicationCardId: %v, ClusterName: %v, ReplicaPath: %v",
             replicationCardId,
-            replica);
-
-        if (!IsStableReplicaMode(replica.Mode)) {
-            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", replica.Mode);
-        }
-
-        if (!IsStableReplicaState(replica.State)) {
-            THROW_ERROR_EXCEPTION("Invalid replica state %Qlv", replica.State);
-        }
+            clusterName,
+            replicaPath);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->CreateTableReplica(std::move(context));

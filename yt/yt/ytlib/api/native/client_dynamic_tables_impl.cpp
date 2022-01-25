@@ -1824,7 +1824,7 @@ std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(
     }
 
     auto bundle = attributes->Get<TString>("tablet_cell_bundle");
-    InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Use);
+    ValidatePermissionImpl("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Use);
 
     auto req = TTableYPathProxy::ReshardAutomatic(FromObjectId(tableId));
     SetMutationId(req, options);
@@ -1910,9 +1910,6 @@ void TClient::DoAlterTableReplica(
         req->set_enabled(*options.Enabled);
     }
     if (options.Mode) {
-        if (!IsStableReplicaMode(*options.Mode)) {
-            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *options.Mode);
-        }
         req->set_mode(static_cast<int>(*options.Mode));
     }
     if (options.PreserveTimestamps) {
@@ -2510,7 +2507,7 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
     const std::vector<TYPath>& movableTables,
     const TBalanceTabletCellsOptions& options)
 {
-    InternalValidatePermission("//sys/tablet_cell_bundles/" + ToYPathLiteral(tabletCellBundle), EPermission::Use);
+    ValidatePermissionImpl("//sys/tablet_cell_bundles/" + ToYPathLiteral(tabletCellBundle), EPermission::Use);
 
     std::vector<TFuture<TTabletCellBundleYPathProxy::TRspBalanceTabletCellsPtr>> cellResponses;
 
@@ -3022,25 +3019,6 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
     return replicationCard;
 }
 
-NChaosClient::TReplicaId TClient::DoCreateReplicationCardReplica(
-    TReplicationCardId replicationCardId,
-    const TReplicaInfo& replicaInfo,
-    const TCreateReplicationCardReplicaOptions& options)
-{
-    auto channel = GetChaosChannelByCardId(replicationCardId);
-    auto proxy = TChaosServiceProxy(std::move(channel));
-
-    auto req = proxy.CreateTableReplica();
-    SetMutationId(req, options);
-    ToProto(req->mutable_replication_card_id(), replicationCardId);
-    ToProto(req->mutable_replica_info(), replicaInfo);
-
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
-
-    return FromProto<TReplicaId>(rsp->replica_id());
-}
-
 void TClient::DoRemoveReplicationCardReplica(
     TReplicationCardId replicationCardId,
     TReplicaId replicaId,
@@ -3071,9 +3049,6 @@ void TClient::DoAlterReplicationCardReplica(
     ToProto(req->mutable_replication_card_id(), replicationCardId);
     ToProto(req->mutable_replica_id(), replicaId);
     if (options.Mode) {
-        if (!IsStableReplicaMode(*options.Mode)) {
-            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *options.Mode);
-        }
         req->set_mode(ToProto<int>(*options.Mode));
     }
     if (options.Enabled) {

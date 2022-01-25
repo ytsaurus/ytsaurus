@@ -605,14 +605,6 @@ TFuture<NChaosClient::TReplicationCardPtr> TClient::GetReplicationCard(
     YT_UNIMPLEMENTED();
 }
 
-TFuture<TReplicaId> TClient::CreateReplicationCardReplica(
-    NChaosClient::TReplicationCardId /*replicationCardId*/,
-    const NChaosClient::TReplicaInfo& /*replica*/,
-    const TCreateReplicationCardReplicaOptions& /*options*/)
-{
-    YT_UNIMPLEMENTED();
-}
-
 TFuture<void> TClient::RemoveReplicationCardReplica(
     NChaosClient::TReplicationCardId /*replicationCardId*/,
     NChaosClient::TReplicaId /*replicaId*/,

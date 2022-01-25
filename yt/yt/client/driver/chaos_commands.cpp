@@ -63,22 +63,6 @@ void TGetReplicationCardCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCreateReplicationCardReplicaCommand::TCreateReplicationCardReplicaCommand()
-{
-    RegisterParameter("replica_info", ReplicaInfo);
-}
-
-void TCreateReplicationCardReplicaCommand::DoExecute(ICommandContextPtr context)
-{
-    auto client = context->GetClient();
-    auto replicaIdFuture = client->CreateReplicationCardReplica(ReplicationCardId, ReplicaInfo, Options);
-    auto replicaId = WaitFor(replicaIdFuture)
-        .ValueOrThrow();
-    ProduceSingleOutputValue(context, "replica_id", replicaId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TRemoveReplicationCardReplicaCommand::TRemoveReplicationCardReplicaCommand()
 {
     RegisterParameter("replica_id", ReplicaId);

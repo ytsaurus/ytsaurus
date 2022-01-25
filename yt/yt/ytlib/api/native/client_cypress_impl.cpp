@@ -1906,94 +1906,12 @@ TObjectId TClient::DoCreateObject(
     EObjectType type,
     const TCreateObjectOptions& options)
 {
-    auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
-    auto cellTag = PrimaryMasterCellTagSentinel;
-    switch (type) {
-        case EObjectType::TableReplica: {
-            {
-                auto path = attributes->Get<TString>("table_path");
-                InternalValidatePermission(path, EPermission::Write);
-
-                TTableId tableId;
-                ResolveExternalTable(path, &tableId, &cellTag);
-
-                attributes->Set("table_path", FromObjectId(tableId));
-            }
-            {
-                auto clusterName = attributes->Get<TString>("cluster_name");
-                auto result = WaitFor(NodeExists(GetCypressClusterPath(clusterName), {}));
-                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking replica cluster existence");
-                if (!result.Value()) {
-                    THROW_ERROR_EXCEPTION("Replica cluster %Qv does not exist", clusterName);
-                }
-            }
-            break;
+    for (const auto& handler : TypeHandlers_) {
+        if (auto result = handler->CreateObject(type, options)) {
+            return *result;
         }
-
-        case EObjectType::TabletAction: {
-            auto tabletIds = attributes->Get<std::vector<TTabletId>>("tablet_ids");
-            if (tabletIds.empty()) {
-                THROW_ERROR_EXCEPTION("\"tablet_ids\" are empty");
-            }
-
-            cellTag = CellTagFromId(tabletIds[0]);
-            break;
-        }
-
-        case EObjectType::TableCollocation: {
-            if (attributes->Contains("table_paths")) {
-                if (attributes->Contains("table_ids")) {
-                    THROW_ERROR_EXCEPTION("Cannot specify both \"table_ids\" and \"table_paths\"");
-                }
-
-                auto tablePaths = attributes->GetAndRemove<std::vector<TYPath>>("table_paths");
-
-                auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
-                auto batchReq = proxy->ExecuteBatch();
-                for (const auto& tablePath : tablePaths) {
-                    auto req = TCypressYPathProxy::Get(tablePath + "/@id");
-                    batchReq->AddRequest(req);
-                }
-                auto batchRsp = WaitFor(batchReq->Invoke())
-                    .ValueOrThrow();
-
-                std::vector<TTableId> tableIds;
-                tableIds.reserve(tablePaths.size());
-                for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspGet>()) {
-                    const auto& rsp = rspOrError.ValueOrThrow();
-                    tableIds.push_back(ConvertTo<TTableId>(TYsonString(rsp->value())));
-                }
-
-                attributes->Set("table_ids", tableIds);
-            }
-
-            break;
-        }
-
-        default:
-            break;
     }
-
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
-    auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(true);
-    SetPrerequisites(batchReq, options);
-
-    auto req = TMasterYPathProxy::CreateObject();
-    SetMutationId(req, options);
-    req->set_type(static_cast<int>(type));
-    req->set_ignore_existing(options.IgnoreExisting);
-    if (attributes) {
-        ToProto(req->mutable_object_attributes(), *attributes);
-    }
-    batchReq->AddRequest(req);
-
-    auto batchRsp = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
-    auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>(0)
-        .ValueOrThrow();
-
-    return FromProto<TObjectId>(rsp->object_id());
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
