@@ -1656,13 +1656,20 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
         auto chunkDataWeight = GetChunkDataWeight(chunkSpec);
         maxBlockSize = std::max(maxBlockSize, inputChunk->GetMaxBlockSize());
 
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        if (!IsBlobChunkId(chunkId)) {
+            THROW_ERROR_EXCEPTION("Unexpected chunk store type. Possible tablet is not unmounted")
+                << TErrorAttribute("path", path)
+                << TErrorAttribute("chunk_id", chunkId)
+                << TErrorAttribute("tablet_count", tabletCount);
+        }
+
         if ((chunkSpec.has_lower_limit() || chunkSpec.has_upper_limit()) &&
             chunkDataWeight > minSliceSize) {
 
             splittedChunks.push_back(inputChunk);
         } else {
             reshardBuilder.AddChunk(chunkSpec);
-            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             if (!chunkIds.contains(chunkId)) {
                 unlimitedChunksDataWeight += chunkDataWeight;
                 chunkIds.insert(chunkId);
