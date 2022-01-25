@@ -120,11 +120,6 @@ public:
         NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options = {}) override;
 
-    TFuture<NChaosClient::TReplicaId> CreateReplicationCardReplica(
-        NChaosClient::TReplicationCardId replicationCardId,
-        const NChaosClient::TReplicaInfo& replica,
-        const TCreateReplicationCardReplicaOptions& options = {}) override;
-
     TFuture<void> RemoveReplicationCardReplica(
         NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,

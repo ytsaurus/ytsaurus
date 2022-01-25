@@ -10,6 +10,8 @@
 #include "replicated_table_replica_type_handler.h"
 #include "replication_card_type_handler.h"
 #include "replication_card_replica_type_handler.h"
+#include "table_collocation_type_handler.h"
+#include "tablet_action_type_handler.h"
 
 #include <yt/yt/client/tablet_client/public.h>
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -95,6 +97,8 @@ TClient::TClient(
         CreateReplicatedTableReplicaTypeHandler(this),
         CreateReplicationCardTypeHandler(this),
         CreateReplicationCardReplicaTypeHandler(this),
+        CreateTableCollocationTypeHandler(this),
+        CreateTabletActionTypeHandler(this),
         CreateDefaultTypeHandler(this)
     }
     , FunctionImplCache_(BIND(CreateFunctionImplCache,
@@ -480,6 +484,32 @@ void TClient::ValidateSuperuserPermissions()
     if (!groups.contains(NSecurityClient::SuperusersGroupName)) {
         THROW_ERROR_EXCEPTION("Superuser permissions required");
     }
+}
+
+TObjectId TClient::CreateObjectImpl(
+    EObjectType type,
+    TCellTag cellTag,
+    const IAttributeDictionary& attributes,
+    const TCreateObjectOptions& options)
+{
+    auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
+    auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(true);
+    SetPrerequisites(batchReq, options);
+
+    auto req = TMasterYPathProxy::CreateObject();
+    SetMutationId(req, options);
+    req->set_type(ToProto<int>(type));
+    req->set_ignore_existing(options.IgnoreExisting);
+    ToProto(req->mutable_object_attributes(), attributes);
+    batchReq->AddRequest(req);
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+    auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>(0)
+        .ValueOrThrow();
+
+    return FromProto<TObjectId>(rsp->object_id());
 }
 
 TClusterMeta TClient::DoGetClusterMeta(

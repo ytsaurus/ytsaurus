@@ -31,7 +31,11 @@ message TRspGetReplicationCard
 message TReqCreateTableReplica
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
-    required TReplicaInfo replica_info = 2;
+    required string cluster_name = 2;
+    required string replica_path = 3;
+    required int32 content_type = 4; // NTabletClient::ETableReplicaContentType
+    required int32 mode = 5; // NTabletClient::ETableReplicaMode
+    optional bool enabled = 6;
 }
 
 message TRspCreateTableReplica

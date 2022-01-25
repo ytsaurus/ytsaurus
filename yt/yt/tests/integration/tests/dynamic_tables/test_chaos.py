@@ -66,8 +66,16 @@ class ChaosTestBase(DynamicTablesBase):
         wait(_check)
         return get_replication_card(card_id)
 
+    def _create_replication_card_replica(self, card_id, replica):
+        attributes = {
+            "content_type": replica["content_type"],
+            "mode": replica["mode"],
+            "enabled": replica.get("enabled", False)
+        }
+        return create_replication_card_replica(card_id, replica["cluster_name"], replica["replica_path"], attributes=attributes)
+
     def _create_replication_card_replicas(self, card_id, replicas):
-        return [create_replication_card_replica(card_id, replica) for replica in replicas]
+        return [self._create_replication_card_replica(card_id, replica) for replica in replicas]
 
     def _create_replica_tables(self, replication_card_id, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
         for replica, replica_id in zip(replicas, replica_ids):
@@ -86,7 +94,7 @@ class ChaosTestBase(DynamicTablesBase):
         for replica in replicas:
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
-            check_write = replica["mode"] == "sync" and replica["state"] == "enabled"
+            check_write = replica["mode"] == "sync" and replica["enabled"]
             self._wait_for_era(path, era=repliation_card["era"], check_write=check_write, driver=driver)
 
     def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_tablet_cells=True, mount_tables=True):
@@ -312,9 +320,9 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "state": "enabled", "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/r0"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "state": "enabled", "replica_path": "//tmp/r1"}
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
         ]
         self._create_chaos_tables(cell_id, replicas)
         _, remote_driver0, remote_driver1 = self._get_drivers()
@@ -330,7 +338,7 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/q"}
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
@@ -369,7 +377,7 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/q"}
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
         reshard_table("//tmp/q", [[], [1], [2], [3], [4]])
@@ -402,8 +410,8 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "async", "state": "enabled", "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/r0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
@@ -425,8 +433,8 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": mode, "state": "disabled", "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/r0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": mode, "enabled": False, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
@@ -453,8 +461,8 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": mode, "state": "enabled", "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/r0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
@@ -495,8 +503,8 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": old_mode, "state": "enabled", "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/r0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": old_mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
@@ -532,8 +540,8 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "async", "state": "enabled", "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/r0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -568,8 +576,8 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "state": "enabled", "replica_path": "//tmp/q"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/r0"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
@@ -598,8 +606,8 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "queue", "mode": mode, "state": "enabled", "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/r0"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
@@ -640,8 +648,8 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "async", "state": "enabled", "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/q"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
 
@@ -680,8 +688,8 @@ class TestChaos(ChaosTestBase):
         assert get("//tmp/crt/@replication_card_id") == card_id
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "async", "state": "enabled", "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "state": "enabled", "replica_path": "//tmp/q"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
         ]
         replica_ids = self._create_replication_card_replicas(card_id, replicas)
         assert len(replica_ids) == 2

@@ -17,6 +17,9 @@ namespace NYT::NApi::NNative {
 struct ITypeHandler
     : public virtual TRefCounted
 {
+    virtual std::optional<NObjectClient::TObjectId> CreateObject(
+        NObjectClient::EObjectType type,
+        const TCreateObjectOptions& options) = 0;
     virtual std::optional<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
         const TGetNodeOptions& options) = 0;

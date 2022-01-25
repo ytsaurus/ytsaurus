@@ -49,21 +49,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCreateReplicationCardReplicaCommand
-    : public TTypedCommand<NApi::TCreateReplicationCardReplicaOptions>
-    , public TReplicationCardCommandBase
-{
-public:
-    TCreateReplicationCardReplicaCommand();
-
-private:
-    NChaosClient::TReplicaInfo ReplicaInfo;
-
-    void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TRemoveReplicationCardReplicaCommand
     : public TTypedCommand<NApi::TRemoveReplicationCardReplicaOptions>
     , public TReplicationCardCommandBase

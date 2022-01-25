@@ -88,6 +88,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChaosReplicatedTable)                                         (1920))  // babenko
     ((ImplicitReplicationCardId)                                    (1921))  // babenko
     ((AlterReplicatedTables)                                        (1922))  // ifsmirnov
+    ((UnifiedReplicaMetadata)                                       (1923))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

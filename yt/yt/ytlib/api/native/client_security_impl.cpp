@@ -160,7 +160,7 @@ TCheckPermissionResponse TClient::DoCheckPermission(
     return response;
 }
 
-TCheckPermissionResult TClient::InternalCheckPermission(
+TCheckPermissionResult TClient::CheckPermissionImpl(
     const TYPath& path,
     EPermission permission,
     const TCheckPermissionOptions& options)
@@ -170,7 +170,7 @@ TCheckPermissionResult TClient::InternalCheckPermission(
     return DoCheckPermission(user, path, permission, options);
 }
 
-void TClient::InternalValidatePermission(
+void TClient::ValidatePermissionImpl(
     const TYPath& path,
     EPermission permission,
     const TCheckPermissionOptions& options)
@@ -228,7 +228,7 @@ void TClient::ValidateTableReplicaPermission(
 {
     // TODO(babenko): consider passing proper timeout
     auto tablePath = GetReplicaTablePath(replicaId);
-    InternalValidatePermission(tablePath, permission, options);
+    ValidatePermissionImpl(tablePath, permission, options);
 }
 
 void TClient::DoTransferAccountResources(

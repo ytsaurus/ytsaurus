@@ -305,11 +305,6 @@ public:
         NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options), (override));
 
-    MOCK_METHOD(TFuture<NChaosClient::TReplicaId>, CreateReplicationCardReplica, (
-        NChaosClient::TReplicationCardId replicationCardId,
-        const NChaosClient::TReplicaInfo& replica,
-        const TCreateReplicationCardReplicaOptions& options), (override));
-
     MOCK_METHOD(TFuture<void>, RemoveReplicationCardReplica, (
         NChaosClient::TReplicationCardId replicationCardId,
         NChaosClient::TReplicaId replicaId,

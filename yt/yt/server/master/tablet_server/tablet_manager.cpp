@@ -379,6 +379,7 @@ public:
         ETableReplicaMode mode,
         bool preserveTimestamps,
         EAtomicity atomicity,
+        bool enabled,
         TTimestamp startReplicationTimestamp,
         const std::optional<std::vector<i64>>& startReplicationRowIndexes)
     {
@@ -418,7 +419,7 @@ public:
         replicaHolder->SetPreserveTimestamps(preserveTimestamps);
         replicaHolder->SetAtomicity(atomicity);
         replicaHolder->SetStartReplicationTimestamp(startReplicationTimestamp);
-        replicaHolder->SetState(ETableReplicaState::Disabled);
+        replicaHolder->SetState(enabled ? ETableReplicaState::Enabled : ETableReplicaState::Disabled);
 
         auto* replica = TableReplicaMap_.Insert(id, std::move(replicaHolder));
         objectManager->RefObject(replica);
@@ -2018,6 +2019,7 @@ public:
                     replica->GetMode(),
                     replica->GetPreserveTimestamps(),
                     replica->GetAtomicity(),
+                    /*enabled*/ false,
                     replica->GetStartReplicationTimestamp(),
                     currentReplicationRowIndexes);
             }
@@ -7316,6 +7318,7 @@ TTableReplica* TTabletManager::CreateTableReplica(
     ETableReplicaMode mode,
     bool preserveTimestamps,
     EAtomicity atomicity,
+    bool enabled,
     TTimestamp startReplicationTimestamp,
     const  std::optional<std::vector<i64>>& startReplicationRowIndexes)
 {
@@ -7326,6 +7329,7 @@ TTableReplica* TTabletManager::CreateTableReplica(
         mode,
         preserveTimestamps,
         atomicity,
+        enabled,
         startReplicationTimestamp,
         startReplicationRowIndexes);
 }

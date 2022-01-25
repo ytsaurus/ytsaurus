@@ -176,11 +176,11 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
         TCheckPermissionOptions checkPermissionOptions;
         checkPermissionOptions.TransactionId = transaction->GetId();
 
-        InternalValidatePermission(objectIdPath, EPermission::Read, checkPermissionOptions);
-        InternalValidatePermission(objectIdPath, EPermission::Remove, checkPermissionOptions);
+        ValidatePermissionImpl(objectIdPath, EPermission::Read, checkPermissionOptions);
+        ValidatePermissionImpl(objectIdPath, EPermission::Remove, checkPermissionOptions);
 
-        auto usePermissionResult = InternalCheckPermission(options.CachePath, EPermission::Use, checkPermissionOptions);
-        auto writePermissionResult = InternalCheckPermission(options.CachePath, EPermission::Write, checkPermissionOptions);
+        auto usePermissionResult = CheckPermissionImpl(options.CachePath, EPermission::Use, checkPermissionOptions);
+        auto writePermissionResult = CheckPermissionImpl(options.CachePath, EPermission::Write, checkPermissionOptions);
         if (usePermissionResult.Action == ESecurityAction::Deny && writePermissionResult.Action == ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION("You need %Qlv or %Qlv permission to use file cache",
                 EPermission::Use,

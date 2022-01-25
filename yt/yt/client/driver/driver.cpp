@@ -232,7 +232,6 @@ public:
 
         REGISTER    (TCreateReplicationCardCommand,        "create_replication_card",         Null,       Structured, false, false, ApiVersion4);
         REGISTER    (TGetReplicationCardCommand,           "get_replication_card",            Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TCreateReplicationCardReplicaCommand, "create_replication_card_replica", Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TRemoveReplicationCardReplicaCommand, "remove_replication_card_replica", Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TAlterReplicationCardReplicaCommand,  "alter_replication_card_replica",  Null,       Structured, true,  false, ApiVersion4);
 

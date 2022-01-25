@@ -31,6 +31,18 @@ public:
         : Client_(client)
     { }
 
+    std::optional<TObjectId> CreateObject(
+        EObjectType type,
+        const TCreateObjectOptions& options) override
+    {
+        auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
+        return Client_->CreateObjectImpl(
+            type,
+            PrimaryMasterCellTagSentinel,
+            *attributes,
+            options);
+    }
+
     std::optional<TYsonString> GetNode(
         const TYPath& path,
         const TGetNodeOptions& options) override

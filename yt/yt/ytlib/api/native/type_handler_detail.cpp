@@ -17,6 +17,13 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<TObjectId> TNullTypeHandler::CreateObject(
+    EObjectType /*type*/,
+    const TCreateObjectOptions& /*options*/)
+{
+    return {};
+}
+
 std::optional<NYson::TYsonString> TNullTypeHandler::GetNode(
     const TYPath& /*path*/,
     const TGetNodeOptions& /*options*/)
@@ -32,6 +39,16 @@ std::optional<NYson::TYsonString> TNullTypeHandler::ListNode(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TObjectId> TVirtualTypeHandler::CreateObject(
+    EObjectType type,
+    const TCreateObjectOptions& options)
+{
+    if (type != GetSupportedObjectType()) {
+        return {};
+    }
+    return TryCreateObject(options);
+}
 
 std::optional<NYson::TYsonString> TVirtualTypeHandler::GetNode(
     const TYPath& path,
@@ -76,6 +93,11 @@ std::optional<TYsonString> TVirtualTypeHandler::TryGetObjectYson(
     }
 
     return GetObjectYson(objectId);
+}
+
+std::optional<TObjectId> TVirtualTypeHandler::TryCreateObject(const TCreateObjectOptions& /*options*/)
+{
+    return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
