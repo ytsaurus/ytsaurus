@@ -98,8 +98,6 @@ private:
     };
 
 public:
-    TMasterTableSchema* Schema_ = nullptr;
-
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);
@@ -223,6 +221,8 @@ public:
     void RemoveDynamicTableLock(NTransactionClient::TTransactionId transactionId);
 
 private:
+    TMasterTableSchema* Schema_ = nullptr;
+
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
