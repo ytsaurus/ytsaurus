@@ -355,7 +355,8 @@ public:
     {
         return BIND(&TFileChangelogDispatcher::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(ActionQueue_->GetInvoker())
-            .Run(path, meta, config);
+            .Run(path, meta, config)
+            .ToUncancelable();
     }
 
     TFuture<IChangelogPtr> OpenChangelog(
@@ -364,14 +365,16 @@ public:
     {
         return BIND(&TFileChangelogDispatcher::DoOpenChangelog, MakeStrong(this))
             .AsyncVia(ActionQueue_->GetInvoker())
-            .Run(path, config);
+            .Run(path, config)
+            .ToUncancelable();
     }
 
     TFuture<void> FlushChangelogs() override
     {
         return BIND(&TFileChangelogDispatcher::DoFlushChangelogs, MakeStrong(this))
             .AsyncVia(ActionQueue_->GetInvoker())
-            .Run();
+            .Run()
+            .ToUncancelable();
     }
 
 
