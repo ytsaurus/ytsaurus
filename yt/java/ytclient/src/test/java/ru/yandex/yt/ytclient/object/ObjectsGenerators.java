@@ -140,7 +140,7 @@ public class ObjectsGenerators {
                 return new YTreeMapGenerator(
                         generator(((YTreeSerializerForMaps<?>) serializer).getComponent(), flatten));
             } else if (serializer instanceof YTreeStringEnumSerializer) {
-                return new YTreeStringEnumGenerator(((YTreeStringEnumSerializer<?>) serializer).getResolver());
+                return new YTreeStringEnumGenerator((StringEnumResolver<?>) ((YTreeStringEnumSerializer<?>) serializer).getResolver());
             } else if (serializer instanceof YTreeEnumSerializer) {
                 return new YTreeEnumGenerator(((YTreeEnumSerializer<?>) serializer).getClazz());
             } else if (serializer instanceof YTreeBooleanSerializer) {
@@ -148,7 +148,7 @@ public class ObjectsGenerators {
             } else if (serializer instanceof YTreeLocalDateTimeSerializer) {
                 return new YTreeLocalDateTimeGenerator();
             } else if (serializer instanceof YTreeIntEnumSerializer) {
-                return new YTreeIntEnumGenerator(((YTreeIntEnumSerializer<?>) serializer).getResolver());
+                return new YTreeIntEnumGenerator((IntEnumResolver<?>) ((YTreeIntEnumSerializer<?>) serializer).getResolver());
             } else if (serializer instanceof YTreeObjectSerializer) {
                 return new YTreeObjectGenerator((YTreeObjectSerializer<?>) serializer, flatten);
             } else if (serializer instanceof YTreeStringSerializer) {
