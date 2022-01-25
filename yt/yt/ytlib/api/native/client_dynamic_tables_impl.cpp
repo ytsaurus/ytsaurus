@@ -3,6 +3,7 @@
 #include "connection.h"
 #include "transaction.h"
 #include "tablet_helpers.h"
+#include "type_handler_detail.h"
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -1910,26 +1911,13 @@ void TClient::DoAlterTableReplica(
     TTableReplicaId replicaId,
     const TAlterTableReplicaOptions& options)
 {
-    ValidateTableReplicaPermission(replicaId, EPermission::Write);
-
-    auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
-    if (options.Enabled) {
-        req->set_enabled(*options.Enabled);
-    }
-    if (options.Mode) {
-        req->set_mode(static_cast<int>(*options.Mode));
-    }
-    if (options.PreserveTimestamps) {
-        req->set_preserve_timestamps(*options.PreserveTimestamps);
-    }
-    if (options.Atomicity) {
-        req->set_atomicity(static_cast<int>(*options.Atomicity));
+    for (const auto& handler : TypeHandlers_) {
+        if (auto result = handler->AlterTableReplica(replicaId, options)) {
+            return;
+        }
     }
 
-    auto cellTag = CellTagFromId(replicaId);
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
-    WaitFor(proxy->Execute(req))
-        .ThrowOnError();
+    THROW_ERROR_EXCEPTION("Unsupported object type %Qlv", TypeFromId(replicaId));
 }
 
 TYsonString TClient::DoGetTablePivotKeys(

@@ -14,6 +14,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,16 +25,37 @@ std::optional<TObjectId> TNullTypeHandler::CreateObject(
     return {};
 }
 
-std::optional<NYson::TYsonString> TNullTypeHandler::GetNode(
+std::optional<TYsonString> TNullTypeHandler::GetNode(
     const TYPath& /*path*/,
     const TGetNodeOptions& /*options*/)
 {
     return {};
 }
 
-std::optional<NYson::TYsonString> TNullTypeHandler::ListNode(
+std::optional<TYsonString> TNullTypeHandler::ListNode(
     const TYPath& /*path*/,
     const TListNodeOptions& /*options*/)
+{
+    return {};
+}
+
+std::optional<bool> TNullTypeHandler::NodeExists(
+    const TYPath& /*path*/,
+    const TNodeExistsOptions& /*options*/)
+{
+    return {};
+}
+
+std::optional<std::monostate> TNullTypeHandler::RemoveNode(
+    const TYPath& /*path*/,
+    const TRemoveNodeOptions& /*options*/)
+{
+    return {};
+}
+
+std::optional<std::monostate> TNullTypeHandler::AlterTableReplica(
+    TTableReplicaId /*replicaId*/,
+    const TAlterTableReplicaOptions& /*options*/)
 {
     return {};
 }
@@ -50,7 +72,7 @@ std::optional<TObjectId> TVirtualTypeHandler::CreateObject(
     return TryCreateObject(options);
 }
 
-std::optional<NYson::TYsonString> TVirtualTypeHandler::GetNode(
+std::optional<TYsonString> TVirtualTypeHandler::GetNode(
     const TYPath& path,
     const TGetNodeOptions& options)
 {
@@ -65,7 +87,7 @@ std::optional<NYson::TYsonString> TVirtualTypeHandler::GetNode(
     return {};
 }
 
-std::optional<NYson::TYsonString> TVirtualTypeHandler::ListNode(
+std::optional<TYsonString> TVirtualTypeHandler::ListNode(
     const TYPath& path,
     const TListNodeOptions& /*options*/)
 {
@@ -77,6 +99,48 @@ std::optional<NYson::TYsonString> TVirtualTypeHandler::ListNode(
     }
 
     return {};
+}
+
+std::optional<bool> TVirtualTypeHandler::NodeExists(
+    const TYPath& path,
+    const TNodeExistsOptions& /*options*/)
+{
+    try {
+        TYPath pathSuffix;
+        if (auto optionalYson = TryGetObjectYson(path, &pathSuffix)) {
+            return SyncYPathExists(
+                ConvertToNode(*optionalYson),
+                pathSuffix);
+        }
+    } catch (const std::exception& ex) {
+        if (TError(ex).FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return false;
+        }
+        throw;
+    }
+
+    return {};
+}
+
+std::optional<std::monostate> TVirtualTypeHandler::RemoveNode(
+    const TYPath& path,
+    const TRemoveNodeOptions& /*options*/)
+{
+    TObjectId objectId;
+    TYPath pathSuffix;
+    if (!TryParseObjectId(path, &objectId, &pathSuffix)) {
+        return {};
+    }
+    if (TypeFromId(objectId) != GetSupportedObjectType()) {
+        return {};
+    }
+    if (!pathSuffix.empty()) {
+        THROW_ERROR_EXCEPTION("Can only remove object as a whole");
+    }
+
+    RemoveObject(objectId);
+
+    return std::monostate();
 }
 
 std::optional<TYsonString> TVirtualTypeHandler::TryGetObjectYson(

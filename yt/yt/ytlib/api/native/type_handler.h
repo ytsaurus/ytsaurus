@@ -26,6 +26,15 @@ struct ITypeHandler
     virtual std::optional<NYson::TYsonString> ListNode(
         const NYPath::TYPath& path,
         const TListNodeOptions& options) = 0;
+    virtual std::optional<bool> NodeExists(
+        const NYPath::TYPath& path,
+        const TNodeExistsOptions& options) = 0;
+    virtual std::optional<std::monostate> RemoveNode(
+        const NYPath::TYPath& path,
+        const TRemoveNodeOptions& options) = 0;
+    virtual std::optional<std::monostate> AlterTableReplica(
+        NTabletClient::TTableReplicaId replicaId,
+        const TAlterTableReplicaOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITypeHandler)

@@ -1931,11 +1931,6 @@ def create_replication_card(**kwargs):
     return execute_command("create_replication_card", kwargs, parse_yson=True)
 
 
-def get_replication_card(replication_card_id, **kwargs):
-    kwargs["replication_card_id"] = replication_card_id
-    return execute_command("get_replication_card", kwargs, parse_yson=True)
-
-
 def create_replication_card_replica(replication_card_id, cluster_name, replica_path, **kwargs):
     kwargs["type"] = "replication_card_replica"
     if "attributes" not in kwargs:
@@ -1945,17 +1940,6 @@ def create_replication_card_replica(replication_card_id, cluster_name, replica_p
     kwargs["attributes"]["replica_path"] = replica_path
     return execute_command("create", kwargs, parse_yson=True)
 
-
-def remove_replication_card_replica(replication_card_id, replica_id, **kwargs):
-    kwargs["replication_card_id"] = replication_card_id
-    kwargs["replica_id"] = replica_id
-    return execute_command("remove_replication_card_replica", kwargs, parse_yson=True)
-
-
-def alter_replication_card_replica(replication_card_id, replica_id, **kwargs):
-    kwargs["replication_card_id"] = replication_card_id
-    kwargs["replica_id"] = replica_id
-    return execute_command("alter_replication_card_replica", kwargs, parse_yson=True)
 
 #########################################
 # Helpers:

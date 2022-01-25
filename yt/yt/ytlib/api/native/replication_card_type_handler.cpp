@@ -58,6 +58,11 @@ private:
             .EndAttributes()
             .Entity();
     }
+
+    void RemoveObject(TReplicationCardId /*replicationCardId*/) override
+    {
+        THROW_ERROR_EXCEPTION("Unsupported");
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

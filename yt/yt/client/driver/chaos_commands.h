@@ -36,49 +36,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGetReplicationCardCommand
-    : public TTypedCommand<NApi::TGetReplicationCardOptions>
-    , public TReplicationCardCommandBase
-{
-public:
-    TGetReplicationCardCommand();
-
-private:
-    void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRemoveReplicationCardReplicaCommand
-    : public TTypedCommand<NApi::TRemoveReplicationCardReplicaOptions>
-    , public TReplicationCardCommandBase
-{
-public:
-    TRemoveReplicationCardReplicaCommand();
-
-private:
-    NChaosClient::TReplicaId ReplicaId;
-
-    void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAlterReplicationCardReplicaCommand
-    : public TTypedCommand<NApi::TAlterReplicationCardReplicaOptions>
-    , public TReplicationCardCommandBase
-{
-public:
-    TAlterReplicationCardReplicaCommand();
-
-private:
-    NChaosClient::TReplicaId ReplicaId;
-
-    void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TUpdateReplicationProgressCommand
     : public TTypedCommand<NApi::TUpdateReplicationProgressOptions>
     , public TReplicationCardCommandBase
