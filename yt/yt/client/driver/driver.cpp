@@ -446,6 +446,11 @@ private:
     {
         const auto& request = context->Request();
 
+        auto Logger = DriverLogger;
+        if (request.LoggingTags) {
+            Logger.WithRawTag(*request.LoggingTags);
+        }
+
         NTracing::TChildTraceContextGuard commandSpan(ConcatToString(TStringBuf("Driver:"), request.CommandName));
         NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("user", request.AuthenticatedUser);

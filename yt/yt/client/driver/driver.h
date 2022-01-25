@@ -57,6 +57,9 @@ struct TDriverRequest
     //! User token.
     std::optional<TString> UserToken;
 
+    //! Additional logging tags.
+    std::optional<TString> LoggingTags;
+
     //! Provides means to return arbitrary structured data from any command.
     //! Must be filled before writing data to output stream.
     NYson::IYsonConsumer* ResponseParametersConsumer;

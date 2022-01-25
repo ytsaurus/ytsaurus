@@ -222,10 +222,12 @@ class TExecuteBatchCommand::TRequestExecutor
 public:
     TRequestExecutor(
         ICommandContextPtr context,
+        int requestIndex,
         TRequestPtr request,
         NRpc::TMutationId mutationId,
         bool retry)
         : Context_(std::move(context))
+        , RequestIndex_(requestIndex)
         , Request_(std::move(request))
         , MutationId_(mutationId)
         , Retry_(retry)
@@ -283,6 +285,7 @@ public:
         }
         driverRequest.Parameters = parameters->ToMap();
         driverRequest.AuthenticatedUser = Context_->Request().AuthenticatedUser;
+        driverRequest.LoggingTags = Format("SubrequestIndex: %v", RequestIndex_);
 
         return driver->Execute(driverRequest).Apply(
             BIND(&TRequestExecutor::OnResponse, MakeStrong(this)));
@@ -290,6 +293,7 @@ public:
 
 private:
     const ICommandContextPtr Context_;
+    const int RequestIndex_;
     const TRequestPtr Request_;
     const NRpc::TMutationId MutationId_;
     const bool Retry_;
@@ -333,10 +337,11 @@ void TExecuteBatchCommand::DoExecute(ICommandContextPtr context)
     auto mutationId = Options.GetOrGenerateMutationId();
 
     std::vector<TCallback<TFuture<TYsonString>()>> callbacks;
-    for (const auto& request : Requests) {
+    for (int requestIndex = 0; requestIndex < std::ssize(Requests); ++requestIndex) {
         auto executor = New<TRequestExecutor>(
             context,
-            request,
+            requestIndex,
+            Requests[requestIndex],
             mutationId,
             Options.Retry);
         mutationId = NRpc::GenerateNextBatchMutationId(mutationId);
