@@ -805,13 +805,14 @@ public:
             EmplaceOrCrash(Throttlers_->Throttlers, throttlerId, wrappedThrottler);
 
             YT_LOG_DEBUG("Distributed throttler created (ThrottlerId: %v)", throttlerId);
-            return wrappedThrottler;
         }
         
         {
             auto queueGuard = Guard(UpdateQueueLock_);
             UpdateQueue_.emplace(throttlerId, MakeWeak(wrappedThrottler));
         }
+
+        return wrappedThrottler;
     }
 
     void Reconfigure(TDistributedThrottlerConfigPtr config) override
