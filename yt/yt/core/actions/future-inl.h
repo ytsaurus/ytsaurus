@@ -32,10 +32,7 @@ TCallback<void(const TError&)> GetCurrentFiberCanceler();
 
 //! Thrown when a fiber is being terminated by an external event.
 class TFiberCanceledException
-{
-public:
-    int dummy_;
-};
+{ };
 
 } // namespace NConcurrency
 
