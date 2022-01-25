@@ -5,7 +5,6 @@ import re
 import subprocess
 
 from yt.wrapper import YPath
-from yt.wrapper.client_impl import YtClient
 from yt.wrapper.cypress_commands import list as yt_list, create, exists
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.http_helpers import get_proxy_url, get_user_name
@@ -137,7 +136,7 @@ class ClusterInfo(object):
         return len(self.workers)
 
 
-def cluster_info(yt_client: YtClient, discovery_path, spark_id=None):
+def cluster_info(yt_client, discovery_path, spark_id=None):
     discovery = SparkDiscovery(discovery_path, spark_id)
     master = SparkDiscovery.getOption(discovery.master_spark())
     shs = SparkDiscovery.getOption(discovery.shs())
