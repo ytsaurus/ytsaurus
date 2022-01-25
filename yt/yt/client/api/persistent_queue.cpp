@@ -197,6 +197,13 @@ private:
             return Rows_;
         }
 
+        TSharedRange<TUnversionedRow> GetSharedRange() const override
+        {
+            return Batch_.Rowset->GetSharedRange().Slice(
+                Batch_.BeginRowIndex - Batch_.RowsetStartRowIndex,
+                Batch_.EndRowIndex - Batch_.RowsetStartRowIndex);
+        }
+
         TFuture<void> Confirm(const ITransactionPtr& transaction) override
         {
             transaction->SubscribeCommitted(BIND(&TPolledRowset::OnCommitted, MakeStrong(this)));

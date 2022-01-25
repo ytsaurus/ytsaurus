@@ -83,8 +83,8 @@ template <class TRow>
 TFuture<TTransactionCommitResult> TTableBase<TRow>::Insert(std::vector<TRow> rows) const
 {
     return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet).Apply(BIND([rows = std::move(rows), path = Path_] (const ITransactionPtr& transaction) {
-        // TODO(achulkov2): Move all transaction interactions out of InsertRowRange.
-        TRow::InsertRowRange(path, rows, transaction);
+        auto rowset = TRow::InsertRowRange(rows);
+        transaction->WriteRows(path, rowset->GetNameTable(), rowset->GetSharedRange());
         return transaction->Commit();
     }));
 }
@@ -164,10 +164,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(TRange<TUnversionedRow
     return typedRows;
 }
 
-void TQueueTableRow::InsertRowRange(
-    const TYPath& path,
-    TRange<TQueueTableRow> rows,
-    const NApi::ITransactionPtr& transaction)
+IUnversionedRowsetPtr TQueueTableRow::InsertRowRange(TRange<TQueueTableRow> rows)
 {
     auto nameTable = TNameTable::FromSchema(*TQueueTableDescriptor::Schema);
 
@@ -194,7 +191,7 @@ void TQueueTableRow::InsertRowRange(
         rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
     }
 
-    transaction->WriteRows(path, nameTable, rowsBuilder.Build());
+    return CreateRowset(TQueueTableDescriptor::Schema, rowsBuilder.Build());
 }
 
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
@@ -316,10 +313,7 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversio
     return typedRows;
 }
 
-void TConsumerTableRow::InsertRowRange(
-    const TYPath& path,
-    TRange<TConsumerTableRow> rows,
-    const NApi::ITransactionPtr& transaction)
+IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow> rows)
 {
     auto nameTable = TNameTable::FromSchema(*TConsumerTableDescriptor::Schema);
 
@@ -347,7 +341,7 @@ void TConsumerTableRow::InsertRowRange(
         rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
     }
 
-    transaction->WriteRows(path, nameTable, rowsBuilder.Build());
+    return CreateRowset(TConsumerTableDescriptor::Schema, rowsBuilder.Build());
 }
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()

@@ -87,6 +87,11 @@ public:
         return Rows_;
     }
 
+    TSharedRange<TRow> GetSharedRange() const override
+    {
+        return Rows_;
+    }
+
 private:
     const TSharedRange<TRow> Rows_;
 };
@@ -140,6 +145,11 @@ public:
     TRange<TUnversionedRow> GetRows() const override
     {
         return MakeRange(Rows_);
+    }
+
+    TSharedRange<TUnversionedRow> GetSharedRange() const override
+    {
+        return MakeSharedRange(Rows_, RowBuffer_);
     }
 
     TFuture<IUnversionedRowsetPtr> GetResult() const
