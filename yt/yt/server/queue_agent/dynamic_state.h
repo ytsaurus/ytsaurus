@@ -68,10 +68,7 @@ struct TQueueTableRow
         NTableClient::TNameTablePtr nameTable,
         const NTableClient::TTableSchema& schema);
 
-    static void InsertRowRange(
-        const NYPath::TYPath& path,
-        TRange<TQueueTableRow> rows,
-        const NApi::ITransactionPtr& transaction);
+    static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TQueueTableRow> rows);
 
     static std::vector<TString> GetCypressAttributeNames();
 
@@ -114,10 +111,7 @@ struct TConsumerTableRow
         NTableClient::TNameTablePtr nameTable,
         const NTableClient::TTableSchema& schema);
 
-    static void InsertRowRange(
-        const NYPath::TYPath& path,
-        TRange<TConsumerTableRow> rows,
-        const NApi::ITransactionPtr& transaction);
+    static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TConsumerTableRow> rows);
 
     static std::vector<TString> GetCypressAttributeNames();
 
