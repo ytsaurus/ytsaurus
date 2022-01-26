@@ -6,7 +6,6 @@
 #include "pools_config_parser.h"
 #include "resource_tree.h"
 #include "scheduler_strategy.h"
-#include "scheduler_tree.h"
 #include "scheduling_context.h"
 #include "scheduling_segment_manager.h"
 #include "serialize.h"
@@ -117,7 +116,7 @@ using TPreemptiveScheduleJobsStageList = TCompactVector<TPreemptiveScheduleJobsS
 //!   * Resource tree, it is thread safe tree that maintain shared attributes of tree elements.
 //!     More details can be find at #TResourceTree.
 class TFairShareTree
-    : public ISchedulerTree
+    : public IFairShareTree
     , public IFairShareTreeElementHost
 {
 public:
@@ -156,9 +155,23 @@ public:
         YT_LOG_INFO("Fair share tree created");
     }
 
+
     TFairShareStrategyTreeConfigPtr GetConfig() const override
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         return Config_;
+    }
+
+    TFairShareStrategyTreeConfigPtr GetSnapshottedConfig() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        return treeSnapshotImpl->TreeConfig();
     }
 
     bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) override
@@ -202,7 +215,7 @@ public:
     }
 
     // NB: This function is public for scheduler simulator.
-    TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>> OnFairShareUpdateAt(TInstant now) override
+    TFuture<std::pair<IFairShareTreePtr, TError>> OnFairShareUpdateAt(TInstant now) override
     {
         return BIND(&TFairShareTree::DoFairShareUpdateAt, MakeStrong(this), now)
             .AsyncVia(GetCurrentInvoker())
@@ -224,6 +237,8 @@ public:
 
     bool HasOperation(TOperationId operationId) const override
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         return static_cast<bool>(FindOperationElement(operationId));
     }
 
@@ -521,6 +536,8 @@ public:
 
     void ProcessActivatableOperations() override
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         while (!ActivatableOperationIds_.empty()) {
             auto operationId = ActivatableOperationIds_.back();
             ActivatableOperationIds_.pop_back();
@@ -666,6 +683,8 @@ public:
 
     TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         if (!Config_->UseUserDefaultParentPoolMap) {
             return TError();
         }
@@ -726,6 +745,8 @@ public:
 
     void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState) override
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         for (const auto& [poolName, poolState] : persistentTreeState->PoolStates) {
             auto poolIt = Pools_.find(poolName);
             if (poolIt != Pools_.end()) {
@@ -869,7 +890,7 @@ public:
 
         dynamicOrchidService->AddChild("operations_by_pool", New<TOperationsByPoolOrchidService>(MakeStrong(this))
             ->Via(StrategyHost_->GetOrchidWorkerInvoker()));
-        
+
         dynamicOrchidService->AddChild("operations", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshotImpl = GetTreeSnapshotImpl();
 
@@ -942,11 +963,15 @@ public:
 
     TResourceTree* GetResourceTree() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return ResourceTree_.Get();
     }
 
     TFairShareTreeProfileManager* GetProfiler()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return TreeProfiler_.Get();
     }
 
@@ -1082,7 +1107,7 @@ private:
                         }
                     })
                 .EndMap();
-            
+
             auto producer = TYsonProducer(BIND([yson = std::move(operationsYson)] (IYsonConsumer* consumer) {
                 consumer->OnRaw(yson);
             }));
@@ -1095,231 +1120,6 @@ private:
     };
 
     friend class TOperationsByPoolOrchidService;
-
-    class TFairShareTreeSnapshot
-        : public IFairShareTreeSnapshot
-    {
-    public:
-        TFairShareTreeSnapshot(
-            TFairShareTreePtr tree,
-            TFairShareTreeSnapshotImplPtr treeSnapshotImpl,
-            TSchedulingTagFilter nodesFilter,
-            const NLogging::TLogger& logger)
-            : Tree_(std::move(tree))
-            , TreeSnapshotImpl_(std::move(treeSnapshotImpl))
-            , NodesFilter_(std::move(nodesFilter))
-            , Logger(logger)
-        { }
-
-        TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
-        {
-            return BIND(&TFairShareTree::DoScheduleJobs,
-                Tree_,
-                schedulingContext,
-                TreeSnapshotImpl_)
-                .AsyncVia(GetCurrentInvoker())
-                .Run();
-        }
-
-        void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
-        {
-            Tree_->DoPreemptJobsGracefully(schedulingContext, TreeSnapshotImpl_);
-        }
-
-        void ProcessUpdatedJob(
-            TOperationId operationId,
-            TJobId jobId,
-            const TJobResources& jobResources,
-            const std::optional<TString>& jobDataCenter,
-            const std::optional<TString>& jobInfinibandCluster,
-            bool* shouldAbortJob) override
-        {
-            // NB: Should be filtered out on large clusters.
-            YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v, Resources: %v)", operationId, jobId, jobResources);
-
-            *shouldAbortJob = false;
-
-            auto* operationElement = TreeSnapshotImpl_->FindEnabledOperationElement(operationId);
-            if (operationElement) {
-                operationElement->SetJobResourceUsage(jobId, jobResources);
-
-                const auto& operationSchedulingSegment = operationElement->SchedulingSegment();
-                if (operationSchedulingSegment && IsModuleAwareSchedulingSegment(*operationSchedulingSegment)) {
-                    const auto& operationModule = operationElement->PersistentAttributes().SchedulingSegmentModule;
-                    const auto& jobModule = TNodeSchedulingSegmentManager::GetNodeModule(
-                        jobDataCenter,
-                        jobInfinibandCluster,
-                        TreeSnapshotImpl_->TreeConfig()->SchedulingSegments->ModuleType);
-                    bool jobIsRunningInTheRightModule = operationModule && (operationModule == jobModule);
-                    if (!jobIsRunningInTheRightModule) {
-                        *shouldAbortJob = true;
-
-                        YT_LOG_DEBUG(
-                            "Requested to abort job because it is running in a wrong module "
-                            "(OperationId: %v, JobId: %v, OperationModule: %v, JobModule: %v)",
-                            operationId,
-                            jobId,
-                            operationModule,
-                            jobModule);
-                    }
-                }
-            }
-        }
-
-        void ProcessFinishedJob(TOperationId operationId, TJobId jobId) override
-        {
-            // NB: Should be filtered out on large clusters.
-            YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
-            auto* operationElement = TreeSnapshotImpl_->FindEnabledOperationElement(operationId);
-            if (operationElement) {
-                operationElement->OnJobFinished(jobId);
-            }
-        }
-
-        bool HasOperation(TOperationId operationId) const override
-        {
-            return HasEnabledOperation(operationId) || HasDisabledOperation(operationId);
-        }
-
-        bool HasEnabledOperation(TOperationId operationId) const override
-        {
-            return TreeSnapshotImpl_->EnabledOperationMap().contains(operationId);
-        }
-
-        bool HasDisabledOperation(TOperationId operationId) const override
-        {
-            return TreeSnapshotImpl_->DisabledOperationMap().contains(operationId);
-        }
-
-        bool IsOperationRunningInTree(TOperationId operationId) const override
-        {
-            if (auto* element = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
-                return element->IsOperationRunningInPool();
-            }
-
-            if (auto* element = TreeSnapshotImpl_->FindDisabledOperationElement(operationId)) {
-                return element->IsOperationRunningInPool();
-            }
-
-            return false;
-        }
-
-        void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) override
-        {
-            Tree_->GetProfiler()->ApplyJobMetricsDelta(TreeSnapshotImpl_, jobMetricsPerOperation);
-        }
-
-        void ApplyScheduledAndPreemptedResourcesDelta(
-            const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& scheduledJobResources,
-            const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
-            const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes) override
-        {
-            Tree_->GetProfiler()->ApplyScheduledAndPreemptedResourcesDelta(
-                TreeSnapshotImpl_,
-                scheduledJobResources,
-                preemptedJobResources,
-                preemptedJobResourceTimes);
-        }
-
-        const TFairShareStrategyTreeConfigPtr& GetConfig() const override
-        {
-            return TreeSnapshotImpl_->TreeConfig();
-        }
-
-        const TSchedulingTagFilter& GetNodesFilter() const override
-        {
-            return NodesFilter_;
-        }
-
-        TJobResources GetTotalResourceLimits() const override
-        {
-            return TreeSnapshotImpl_->ResourceLimits();
-        }
-
-        std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override
-        {
-            if (auto* element = TreeSnapshotImpl_->FindPool(poolId)) {
-                return TSchedulerElementStateSnapshot{
-                    element->Attributes().DemandShare,
-                    element->Attributes().PromisedFairShare};
-            }
-
-            return std::nullopt;
-        }
-
-        void BuildResourceMetering(TMeteringMap* meteringMap) const override
-        {
-            auto rootElement = TreeSnapshotImpl_->RootElement();
-            rootElement->BuildResourceMetering(/* parentKey */ std::nullopt, meteringMap);
-        }
-
-        TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const override
-        {
-            return TreeSnapshotImpl_->CachedJobPreemptionStatuses();
-        }
-
-        void ProfileFairShare() const override
-        {
-            Tree_->DoProfileFairShare(TreeSnapshotImpl_);
-        }
-
-        void LogFairShareAt(TInstant now) const override
-        {
-            Tree_->DoLogFairShareAt(TreeSnapshotImpl_, now);
-        }
-
-        void EssentialLogFairShareAt(TInstant now) const override
-        {
-            Tree_->DoEssentialLogFairShareAt(TreeSnapshotImpl_, now);
-        }
-
-        void UpdateResourceUsageSnapshot() override
-        {
-            if (!GetConfig()->EnableResourceUsageSnapshot) {
-                Tree_->SetResourceUsageSnapshot(nullptr);
-
-                YT_LOG_DEBUG("Resource usage snapshot is disabled; skipping update");
-                return;
-            }
-
-            auto resourceUsageMap = THashMap<TOperationId, TJobResources>(TreeSnapshotImpl_->EnabledOperationMap().size());
-            for (const auto& [operationId, element] : TreeSnapshotImpl_->EnabledOperationMap()) {
-                if (element->IsAlive()) {
-                   resourceUsageMap[operationId] = element->GetInstantResourceUsage();
-                }
-            }
-
-            auto resourceUsageSnapshot = New<TResourceUsageSnapshot>();
-            resourceUsageSnapshot->OperationIdToResourceUsage = std::move(resourceUsageMap);
-
-            Tree_->SetResourceUsageSnapshot(resourceUsageSnapshot);
-
-            UpdateDynamicAttributesSnapshot(resourceUsageSnapshot);
-
-            YT_LOG_DEBUG("Resource usage snapshot updated");
-        }
-
-        void UpdateDynamicAttributesSnapshot(const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
-        {
-            if (!resourceUsageSnapshot) {
-                TreeSnapshotImpl_->SetDynamicAttributesListSnapshot(nullptr);
-                return;
-            }
-            auto attributesSnapshot = New<TDynamicAttributesListSnapshot>();
-            attributesSnapshot->Value.InitializeResourceUsage(
-                TreeSnapshotImpl_->RootElement().Get(),
-                resourceUsageSnapshot,
-                NProfiling::GetCpuInstant());
-            TreeSnapshotImpl_->SetDynamicAttributesListSnapshot(attributesSnapshot);
-        }
-
-    private:
-        const TIntrusivePtr<TFairShareTree> Tree_;
-        const TFairShareTreeSnapshotImplPtr TreeSnapshotImpl_;
-        const TSchedulingTagFilter NodesFilter_;
-        const TJobResources TotalResourceLimits_;
-        const NLogging::TLogger Logger;
-    };
 
     TFairShareTreeSnapshotImplPtr TreeSnapshotImpl_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TreeSnapshotImplLock_);
@@ -1359,7 +1159,7 @@ private:
         }
     }
 
-    std::pair<IFairShareTreeSnapshotPtr, TError> DoFairShareUpdateAt(TInstant now)
+    std::pair<IFairShareTreePtr, TError> DoFairShareUpdateAt(TInstant now)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1468,14 +1268,8 @@ private:
             resourceUsage,
             resourceLimits);
 
-        auto treeSnapshot = New<TFairShareTreeSnapshot>(
-            this,
-            treeSnapshotImpl,
-            GetNodesFilter(),
-            Logger);
-
         if (Config_->EnableResourceUsageSnapshot) {
-            treeSnapshot->UpdateDynamicAttributesSnapshot(ResourceUsageSnapshot_.Acquire());
+            treeSnapshotImpl->UpdateDynamicAttributesSnapshot(ResourceUsageSnapshot_.Acquire());
         }
 
         YT_LOG_DEBUG("Fair share tree snapshot created (TreeSnapshotId: %v)", treeSnapshotId);
@@ -1483,7 +1277,7 @@ private:
         TreeSnapshotImplPrecommit_ = std::move(treeSnapshotImpl);
         LastFairShareUpdateTime_ = now;
 
-        return std::make_pair(treeSnapshot, error);
+        return std::make_pair(MakeStrong(this), error);
     }
 
     void DoScheduleJobs(
@@ -2051,24 +1845,6 @@ private:
         }
     }
 
-    void DoPreemptJobsGracefully(
-        const ISchedulingContextPtr& schedulingContext,
-        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl)
-    {
-        const auto& treeConfig = treeSnapshotImpl->TreeConfig();
-
-        YT_LOG_TRACE("Looking for gracefully preemptable jobs");
-        const auto jobInfos = CollectJobsWithPreemptionInfo(schedulingContext, treeSnapshotImpl);
-        for (const auto& [job, preemptionStatus, operationElement] : jobInfos) {
-            bool shouldPreemptJobGracefully = (job->GetPreemptionMode() == EPreemptionMode::Graceful) &&
-                !job->GetPreempted() &&
-                (preemptionStatus == EJobPreemptionStatus::Preemptable);
-            if (shouldPreemptJobGracefully) {
-                schedulingContext->PreemptJob(job, treeConfig->JobGracefulInterruptTimeout, EJobPreemptionReason::GracefulPreemption);
-            }
-        }
-    }
-
     void PreemptJob(
         const TJobPtr& job,
         const TSchedulerOperationElementPtr& operationElement,
@@ -2085,8 +1861,11 @@ private:
         schedulingContext->PreemptJob(job, treeConfig->JobInterruptTimeout, preemptionReason);
     }
 
+
     void DoRegisterPool(const TSchedulerPoolElementPtr& pool)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         int index = RegisterSchedulingTagFilter(pool->GetSchedulingTagFilter());
         pool->SetSchedulingTagFilterIndex(index);
         YT_VERIFY(Pools_.emplace(pool->GetId(), pool).second);
@@ -2097,6 +1876,8 @@ private:
 
     void RegisterPool(const TSchedulerPoolElementPtr& pool, const TSchedulerCompositeElementPtr& parent)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         DoRegisterPool(pool);
 
         pool->AttachParent(parent.Get());
@@ -2108,6 +1889,8 @@ private:
 
     void ReconfigurePool(const TSchedulerPoolElementPtr& pool, const TPoolConfigPtr& config)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto oldSchedulingTagFilter = pool->GetSchedulingTagFilter();
         pool->SetConfig(config);
         auto newSchedulingTagFilter = pool->GetSchedulingTagFilter();
@@ -2151,6 +1934,8 @@ private:
 
     TSchedulerPoolElementPtr GetOrCreatePool(const TPoolName& poolName, TString userName)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto pool = FindPool(poolName.GetPool());
         if (pool) {
             return pool;
@@ -2192,6 +1977,8 @@ private:
 
     bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto& minUnusedIndex = GetOrCrash(PoolToMinUnusedSlotIndex_, poolName);
         auto& spareSlotIndices = PoolToSpareSlotIndices_[poolName];
 
@@ -2211,6 +1998,8 @@ private:
 
     int AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         if (auto currentSlotIndex = state->GetHost()->FindSlotIndex(TreeId_)) {
             // Revive case
             if (TryAllocatePoolSlotIndex(poolName, *currentSlotIndex)) {
@@ -2247,6 +2036,8 @@ private:
 
     void ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto slotIndex = state->GetHost()->FindSlotIndex(TreeId_);
         YT_VERIFY(slotIndex);
         state->GetHost()->ReleaseSlotIndex(TreeId_);
@@ -2266,6 +2057,8 @@ private:
 
     int RegisterSchedulingTagFilter(const TSchedulingTagFilter& filter)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         if (filter.IsEmpty()) {
             return EmptySchedulingTagFilterIndex;
         }
@@ -2296,6 +2089,8 @@ private:
 
     void UnregisterSchedulingTagFilter(int index)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         if (index == EmptySchedulingTagFilterIndex) {
             return;
         }
@@ -2311,6 +2106,8 @@ private:
 
     void UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         if (filter.IsEmpty()) {
             return;
         }
@@ -2333,6 +2130,8 @@ private:
         const TSchedulerOperationElementPtr& element,
         const TSchedulerCompositeElementPtr& parent)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto operationId = state->GetHost()->GetId();
         if (element->IsOperationRunningInPool()) {
             CheckOperationsPendingByPool(parent.Get());
@@ -2351,6 +2150,8 @@ private:
         const TFairShareStrategyOperationStatePtr& state,
         const TSchedulerOperationElementPtr& operationElement)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto violatedPool = FindPoolViolatingMaxRunningOperationCount(operationElement->GetMutableParent());
         if (!violatedPool) {
             operationElement->MarkOperationRunningInPool();
@@ -2372,6 +2173,8 @@ private:
 
     void RemoveEmptyEphemeralPoolsRecursive(TSchedulerCompositeElement* compositeElement)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         if (!compositeElement->IsRoot() && compositeElement->IsEmpty()) {
             TSchedulerPoolElementPtr parentPool = static_cast<TSchedulerPoolElement*>(compositeElement);
             if (parentPool->IsDefaultConfigured()) {
@@ -2383,6 +2186,8 @@ private:
 
     void CheckOperationsPendingByPool(TSchedulerCompositeElement* pool)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto* current = pool;
         while (current) {
             int availableOperationCount = current->GetAvailableRunningOperationCount();
@@ -2424,6 +2229,8 @@ private:
 
     const TSchedulerCompositeElement* FindPoolWithViolatedOperationCountLimit(const TSchedulerCompositeElementPtr& element) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         const TSchedulerCompositeElement* current = element.Get();
         while (current) {
             if (current->OperationCount() >= current->GetMaxOperationCount()) {
@@ -2437,6 +2244,8 @@ private:
     // Finds the lowest ancestor of |element| whose resource limits are too small to satisfy |neededResources|.
     const TSchedulerElement* FindAncestorWithInsufficientSpecifiedResourceLimits(const TSchedulerElement* element, const TJobResources& neededResources) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         const TSchedulerElement* current = element;
         while (current) {
             // NB(eshcherbin): We expect that |GetSpecifiedResourcesLimits| return infinite limits when no limits were specified.
@@ -2451,6 +2260,8 @@ private:
 
     TYPath GetPoolPath(const TSchedulerCompositeElementPtr& element) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         std::vector<TString> tokens;
         const auto* current = element.Get();
         while (!current->IsRoot()) {
@@ -2472,6 +2283,8 @@ private:
 
     TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const TString& userName) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         if (Config_->UseUserDefaultParentPoolMap) {
             const auto& userToDefaultPoolMap = StrategyHost_->GetUserDefaultParentPoolMap();
             auto it = userToDefaultPoolMap.find(userName);
@@ -2502,6 +2315,8 @@ private:
 
     void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         for (const auto& [_, ephemeralPools] : UserToEphemeralPoolsInDefaultPool_) {
             for (const auto& poolName : ephemeralPools) {
                 auto ephemeralPool = GetOrCrash(Pools_, poolName);
@@ -2531,6 +2346,8 @@ private:
 
     TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName, const TString& userName) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         TSchedulerCompositeElementPtr pool = FindPool(poolName.GetPool());
         if (pool) {
             return pool;
@@ -2547,6 +2364,8 @@ private:
 
     void ValidateAllOperationsCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         for (const auto* currentPool : GetPoolsToValidateOperationCountsOnPoolChange(operationId, newPoolName)) {
             if (currentPool->OperationCount() >= currentPool->GetMaxOperationCount()) {
                 THROW_ERROR_EXCEPTION("Max operation count of pool %Qv violated", currentPool->GetId());
@@ -2559,6 +2378,8 @@ private:
 
     std::vector<const TSchedulerCompositeElement*> GetPoolsToValidateOperationCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto operationElement = GetOperationElement(operationId);
 
         std::vector<const TSchedulerCompositeElement*> poolsToValidate;
@@ -2591,6 +2412,8 @@ private:
 
     void ValidateOperationCountLimit(const TPoolName& poolName, const TString& userName) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(GetPoolOrParent(poolName, userName));
         if (poolWithViolatedLimit) {
             THROW_ERROR_EXCEPTION(
@@ -2604,6 +2427,8 @@ private:
 
     void ValidateEphemeralPoolLimit(const IOperationStrategyHost* operation, const TPoolName& poolName) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto pool = FindPool(poolName.GetPool());
         if (pool) {
             return;
@@ -2631,6 +2456,8 @@ private:
         const TSchedulerCompositeElementPtr& pool,
         const TJobResourcesConfigPtr& requiredResourceLimits) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         // TODO(egor-gutrov): remove after fixing test_user_slots_validation
         YT_LOG_DEBUG("Validating resource limits (RequiredResourceLimits.UserSlots: %v)", requiredResourceLimits->UserSlots);
         auto requiredLimits = ToJobResources(requiredResourceLimits, TJobResources::Infinite());
@@ -2656,6 +2483,8 @@ private:
 
     void DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         TSchedulerCompositeElementPtr pool = FindPool(poolName.GetPool());
         // NB: Check is not performed if operation is started in default or unknown pool.
         if (pool && pool->AreImmediateOperationsForbidden()) {
@@ -2674,17 +2503,23 @@ private:
 
     int GetPoolCount() const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         return Pools_.size();
     }
 
     TSchedulerPoolElementPtr FindPool(const TString& id) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto it = Pools_.find(id);
         return it == Pools_.end() ? nullptr : it->second;
     }
 
     TSchedulerPoolElementPtr GetPool(const TString& id) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto pool = FindPool(id);
         YT_VERIFY(pool);
         return pool;
@@ -2692,12 +2527,16 @@ private:
 
     TSchedulerOperationElementPtr FindOperationElement(TOperationId operationId) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto it = OperationIdToElement_.find(operationId);
         return it == OperationIdToElement_.end() ? nullptr : it->second;
     }
 
     TSchedulerOperationElementPtr GetOperationElement(TOperationId operationId) const
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto element = FindOperationElement(operationId);
         YT_VERIFY(element);
         return element;
@@ -2705,8 +2544,9 @@ private:
 
     TSchedulerOperationElement* FindOperationElementInSnapshot(TOperationId operationId) const
     {
-        if (TreeSnapshotImpl_) {
-            if (auto element = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+        if (treeSnapshotImpl) {
+            if (auto element = treeSnapshotImpl->FindEnabledOperationElement(operationId)) {
                 return element;
             }
         }
@@ -2722,13 +2562,216 @@ private:
         context->BadPackingOperations().clear();
     }
 
-    void DoProfileFairShare(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl) const
+
+    TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
     {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        return BIND(
+            &TFairShareTree::DoScheduleJobs,
+            MakeStrong(this),
+            schedulingContext,
+            treeSnapshotImpl)
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
+    }
+
+    void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        const auto& treeConfig = treeSnapshotImpl->TreeConfig();
+
+        YT_LOG_TRACE("Looking for gracefully preemptable jobs");
+        const auto jobInfos = CollectJobsWithPreemptionInfo(schedulingContext, treeSnapshotImpl);
+        for (const auto& [job, preemptionStatus, operationElement] : jobInfos) {
+            bool shouldPreemptJobGracefully = (job->GetPreemptionMode() == EPreemptionMode::Graceful) &&
+                !job->GetPreempted() &&
+                (preemptionStatus == EJobPreemptionStatus::Preemptable);
+            if (shouldPreemptJobGracefully) {
+                schedulingContext->PreemptJob(job, treeConfig->JobGracefulInterruptTimeout, EJobPreemptionReason::GracefulPreemption);
+            }
+        }
+    }
+
+    void ProcessUpdatedJob(
+        TOperationId operationId,
+        TJobId jobId,
+        const TJobResources& jobResources,
+        const std::optional<TString>& jobDataCenter,
+        const std::optional<TString>& jobInfinibandCluster,
+        bool* shouldAbortJob) override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        // NB: Should be filtered out on large clusters.
+        YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v, Resources: %v)", operationId, jobId, jobResources);
+
+        *shouldAbortJob = false;
+
+        auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(operationId);
+        if (operationElement) {
+            operationElement->SetJobResourceUsage(jobId, jobResources);
+
+            const auto& operationSchedulingSegment = operationElement->SchedulingSegment();
+            if (operationSchedulingSegment && IsModuleAwareSchedulingSegment(*operationSchedulingSegment)) {
+                const auto& operationModule = operationElement->PersistentAttributes().SchedulingSegmentModule;
+                const auto& jobModule = TNodeSchedulingSegmentManager::GetNodeModule(
+                    jobDataCenter,
+                    jobInfinibandCluster,
+                    treeSnapshotImpl->TreeConfig()->SchedulingSegments->ModuleType);
+                bool jobIsRunningInTheRightModule = operationModule && (operationModule == jobModule);
+                if (!jobIsRunningInTheRightModule) {
+                    *shouldAbortJob = true;
+
+                    YT_LOG_DEBUG(
+                        "Requested to abort job because it is running in a wrong module "
+                        "(OperationId: %v, JobId: %v, OperationModule: %v, JobModule: %v)",
+                        operationId,
+                        jobId,
+                        operationModule,
+                        jobModule);
+                }
+            }
+        }
+    }
+
+    bool ProcessFinishedJob(TOperationId operationId, TJobId jobId) override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        // NB: Should be filtered out on large clusters.
+        YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
+        auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(operationId);
+        if (operationElement) {
+            operationElement->OnJobFinished(jobId);
+            return true;
+        }
+        return false;
+    }
+
+    bool HasSnapshottedOperation(TOperationId operationId) const override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        return treeSnapshotImpl->EnabledOperationMap().contains(operationId) ||
+            treeSnapshotImpl->DisabledOperationMap().contains(operationId);
+    }
+
+    bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        if (auto* element = treeSnapshotImpl->FindEnabledOperationElement(operationId)) {
+            return element->IsOperationRunningInPool();
+        }
+
+        if (auto* element = treeSnapshotImpl->FindDisabledOperationElement(operationId)) {
+            return element->IsOperationRunningInPool();
+        }
+
+        return false;
+    }
+
+    void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        TreeProfiler_->ApplyJobMetricsDelta(treeSnapshotImpl, jobMetricsPerOperation);
+    }
+
+    void ApplyScheduledAndPreemptedResourcesDelta(
+        const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& scheduledJobResources,
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes) override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        TreeProfiler_->ApplyScheduledAndPreemptedResourcesDelta(
+            treeSnapshotImpl,
+            scheduledJobResources,
+            preemptedJobResources,
+            preemptedJobResourceTimes);
+    }
+
+    TJobResources GetSnapshottedTotalResourceLimits() const override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        return treeSnapshotImpl->ResourceLimits();
+    }
+
+    std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        if (auto* element = treeSnapshotImpl->FindPool(poolId)) {
+            return TSchedulerElementStateSnapshot{
+                element->Attributes().DemandShare,
+                element->Attributes().PromisedFairShare};
+        }
+
+        return std::nullopt;
+    }
+
+    void BuildResourceMetering(
+        TMeteringMap* meteringMap,
+        THashMap<TString, TString>* customMeteringTags) const override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        auto rootElement = treeSnapshotImpl->RootElement();
+        rootElement->BuildResourceMetering(/* parentKey */ std::nullopt, meteringMap);
+
+        *customMeteringTags = treeSnapshotImpl->TreeConfig()->MeteringTags;
+    }
+
+    TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        return treeSnapshotImpl->CachedJobPreemptionStatuses();
+    }
+
+    void ProfileFairShare() const override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
         TreeProfiler_->ProfileElements(treeSnapshotImpl);
     }
 
-    void DoLogFairShareAt(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TInstant now) const
+    void LogFairShareAt(TInstant now) const override
     {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
         auto treeSnapshotId = treeSnapshotImpl->GetId();
         if (treeSnapshotId == LastLoggedTreeSnapshotId_) {
             YT_LOG_DEBUG("Skipping fair share tree logging since the tree snapshot is the same as before (TreeSnapshotId: %v)",
@@ -2773,8 +2816,12 @@ private:
         }
     }
 
-    void DoEssentialLogFairShareAt(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TInstant now) const
+    void EssentialLogFairShareAt(TInstant now) const override
     {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
         {
             TEventTimerGuard timer(FairShareFluentLogTimer_);
             StrategyHost_->LogFairShareEventFluently(now)
@@ -2789,6 +2836,37 @@ private:
             LogOperationsInfo(treeSnapshotImpl);
         }
     }
+
+    void UpdateResourceUsageSnapshot() override
+    {
+        auto treeSnapshotImpl = GetTreeSnapshotImpl();
+
+        YT_VERIFY(treeSnapshotImpl);
+
+        if (!treeSnapshotImpl->TreeConfig()->EnableResourceUsageSnapshot) {
+            SetResourceUsageSnapshot(nullptr);
+
+            YT_LOG_DEBUG("Resource usage snapshot is disabled; skipping update");
+            return;
+        }
+
+        auto resourceUsageMap = THashMap<TOperationId, TJobResources>(treeSnapshotImpl->EnabledOperationMap().size());
+        for (const auto& [operationId, element] : treeSnapshotImpl->EnabledOperationMap()) {
+            if (element->IsAlive()) {
+               resourceUsageMap[operationId] = element->GetInstantResourceUsage();
+            }
+        }
+
+        auto resourceUsageSnapshot = New<TResourceUsageSnapshot>();
+        resourceUsageSnapshot->OperationIdToResourceUsage = std::move(resourceUsageMap);
+
+        SetResourceUsageSnapshot(resourceUsageSnapshot);
+
+        treeSnapshotImpl->UpdateDynamicAttributesSnapshot(resourceUsageSnapshot);
+
+        YT_LOG_DEBUG("Resource usage snapshot updated");
+    }
+
 
     void LogOperationsInfo(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl) const
     {
@@ -2853,7 +2931,7 @@ private:
 
         TSerializedFairShareInfo fairShareInfo;
         fairShareInfo.PoolsInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Item("pool_count").Value(GetPoolCount())
+            .Item("pool_count").Value(treeSnapshotImpl->PoolMap().size())
             .Item("pools").BeginMap()
                 .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), treeSnapshotImpl))
             .EndMap()
@@ -3135,7 +3213,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchedulerTreePtr CreateFairShareTree(
+IFairShareTreePtr CreateFairShareTree(
     TFairShareStrategyTreeConfigPtr config,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* strategyHost,

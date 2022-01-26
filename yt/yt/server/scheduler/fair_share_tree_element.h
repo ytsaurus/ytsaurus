@@ -9,7 +9,6 @@
 #include "scheduling_context.h"
 #include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
-#include "fair_share_tree_snapshot.h"
 #include "packing.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>

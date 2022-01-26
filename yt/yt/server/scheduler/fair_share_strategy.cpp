@@ -4,7 +4,6 @@
 #include "persistent_scheduler_state.h"
 #include "public.h"
 #include "scheduler_strategy.h"
-#include "scheduler_tree.h"
 #include "scheduling_context.h"
 #include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
@@ -92,9 +91,9 @@ public:
 
     void OnUpdateResourceUsageSnapshot()
     {
-        auto treeSnapshots = TreeIdToSnapshot_.Load();
-        for (const auto& [_, snapshot] : treeSnapshots) {
-            snapshot->UpdateResourceUsageSnapshot();
+        auto idToTree = SnapshottedIdToTree_.Load();
+        for (const auto& [_, tree] : idToTree) {
+            tree->UpdateResourceUsageSnapshot();
         }
     }
 
@@ -130,7 +129,7 @@ public:
         IdToTree_.clear();
         Initialized_ = false;
         DefaultTreeId_.reset();
-        TreeIdToSnapshot_.Store(THashMap<TString, IFairShareTreeSnapshotPtr>());
+        SnapshottedIdToTree_.Store(THashMap<TString, IFairShareTreePtr>());
     }
 
     void OnFairShareProfiling()
@@ -169,16 +168,16 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& nodeDescriptor = schedulingContext->GetNodeDescriptor();
-        auto snapshot = FindTreeSnapshotForNode(nodeDescriptor.Address, nodeDescriptor.Tags);
-        if (!snapshot) {
+        auto tree = FindTreeForNode(nodeDescriptor.Address, nodeDescriptor.Tags);
+        if (!tree) {
             return VoidFuture;
         }
 
-        return snapshot->ScheduleJobs(schedulingContext).Apply(BIND([=, this_ = MakeStrong(this)] {
+        return tree->ScheduleJobs(schedulingContext).Apply(BIND([=, this_ = MakeStrong(this)] {
             this_->ApplyScheduledAndPreemptedResourcesDelta(
                 schedulingContext->StartedJobs(),
                 schedulingContext->PreemptedJobs(),
-                snapshot);
+                tree);
         }));
     }
 
@@ -187,9 +186,9 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& nodeDescriptor = schedulingContext->GetNodeDescriptor();
-        auto snapshot = FindTreeSnapshotForNode(nodeDescriptor.Address, nodeDescriptor.Tags);
-        if (snapshot) {
-            snapshot->PreemptJobsGracefully(schedulingContext);
+        auto tree = FindTreeForNode(nodeDescriptor.Address, nodeDescriptor.Tags);
+        if (tree) {
+            tree->PreemptJobsGracefully(schedulingContext);
         }
     }
 
@@ -380,7 +379,7 @@ public:
                             const auto& treeId = value.first;
                             const auto& tree = value.second;
                             fluent
-                                .Item(treeId).Do(BIND(&ISchedulerTree::BuildStaticPoolsInformation, tree));
+                                .Item(treeId).Do(BIND(&IFairShareTree::BuildStaticPoolsInformation, tree));
                         });
                 }
                 YT_LOG_INFO("Pool trees updated");
@@ -447,7 +446,7 @@ public:
             return;
         }
 
-        DoBuildOperationProgress(&ISchedulerTree::BuildOperationProgress, operationId, fluent);
+        DoBuildOperationProgress(&IFairShareTree::BuildOperationProgress, operationId, fluent);
     }
 
     void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) override
@@ -458,7 +457,7 @@ public:
             return;
         }
 
-        DoBuildOperationProgress(&ISchedulerTree::BuildBriefOperationProgress, operationId, fluent);
+        DoBuildOperationProgress(&IFairShareTree::BuildBriefOperationProgress, operationId, fluent);
     }
 
     std::vector<std::pair<TOperationId, TError>> GetHungOperations() override
@@ -695,24 +694,25 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        auto snapshots = TreeIdToSnapshot_.Load();
+        auto idToTree = SnapshottedIdToTree_.Load();
 
         THashMap<TString, THashMap<TOperationId, TJobMetrics>> treeIdToJobMetricDeltas;
 
         for (auto& [operationId, metricsPerTree] : operationIdToOperationJobMetrics) {
             for (auto& metrics : metricsPerTree) {
-                auto snapshotIt = snapshots.find(metrics.TreeId);
-                if (snapshotIt == snapshots.end()) {
+                auto treeIt = idToTree.find(metrics.TreeId);
+                if (treeIt == idToTree.end()) {
                     continue;
                 }
-                const auto& snapshot = snapshotIt->second;
+                const auto& tree = treeIt->second;
 
                 const auto& state = GetOperationState(operationId);
                 if (state->GetHost()->IsTreeErased(metrics.TreeId)) {
                     continue;
                 }
 
-                YT_VERIFY(snapshot->HasOperation(operationId));
+                // XXX: remove this check?
+                YT_VERIFY(tree->HasSnapshottedOperation(operationId));
 
                 treeIdToJobMetricDeltas[metrics.TreeId].emplace(operationId, std::move(metrics.Metrics));
             }
@@ -720,8 +720,8 @@ public:
 
         for (auto& [treeId, jobMetricsPerOperation] : treeIdToJobMetricDeltas) {
             Host->GetFairShareProfilingInvoker()->Invoke(BIND(
-                &IFairShareTreeSnapshot::ApplyJobMetricsDelta,
-                GetOrCrash(snapshots, treeId),
+                &IFairShareTree::ApplyJobMetricsDelta,
+                GetOrCrash(idToTree, treeId),
                 Passed(std::move(jobMetricsPerOperation))));
         }
     }
@@ -729,7 +729,7 @@ public:
     void ApplyScheduledAndPreemptedResourcesDelta(
         const std::vector<TJobPtr>& startedJobs,
         const std::vector<TPreemptedJob>& preemptedJobs,
-        const IFairShareTreeSnapshotPtr& snapshot)
+        const IFairShareTreePtr& tree)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -756,8 +756,8 @@ public:
         }
 
         Host->GetFairShareProfilingInvoker()->Invoke(BIND(
-            &IFairShareTreeSnapshot::ApplyScheduledAndPreemptedResourcesDelta,
-            snapshot,
+            &IFairShareTree::ApplyScheduledAndPreemptedResourcesDelta,
+            tree,
             Passed(std::move(scheduledJobResources)),
             Passed(std::move(preemptedJobResources)),
             Passed(std::move(preemptedJobResourceTimes))));
@@ -810,9 +810,9 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        auto snapshots = TreeIdToSnapshot_.Load();
-        for (const auto& [treeId, treeSnapshot] : snapshots) {
-            treeSnapshot->ProfileFairShare();
+        auto idToTree = SnapshottedIdToTree_.Load();
+        for (const auto& [treeId, tree] : idToTree) {
+            tree->ProfileFairShare();
         }
     }
 
@@ -823,7 +823,7 @@ public:
 
         YT_LOG_INFO("Starting fair share update");
 
-        std::vector<std::pair<TString, ISchedulerTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
+        std::vector<std::pair<TString, IFairShareTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
         std::sort(
             idToTree.begin(),
             idToTree.end(),
@@ -831,11 +831,11 @@ public:
                 return lhs.second->GetOperationCount() > rhs.second->GetOperationCount();
             });
 
-        std::vector<TFuture<std::tuple<TString, TError, IFairShareTreeSnapshotPtr>>> futures;
+        std::vector<TFuture<std::tuple<TString, TError, IFairShareTreePtr>>> futures;
         for (const auto& [treeId, tree] : idToTree) {
-            futures.push_back(tree->OnFairShareUpdateAt(now).Apply(BIND([treeId = treeId] (const std::pair<IFairShareTreeSnapshotPtr, TError>& pair) {
-                const auto& [snapshot, error] = pair;
-                return std::make_tuple(treeId, error, snapshot);
+            futures.push_back(tree->OnFairShareUpdateAt(now).Apply(BIND([treeId = treeId] (const std::pair<IFairShareTreePtr, TError>& pair) {
+                const auto& [updatedTree, error] = pair;
+                return std::make_tuple(treeId, error, updatedTree);
             })));
         }
 
@@ -849,23 +849,23 @@ public:
             TDelayedExecutor::WaitForDuration(*delay);
         }
 
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
+        THashMap<TString, IFairShareTreePtr> snapshottedIdToTree;
         std::vector<TError> errors;
 
         const auto& results = resultsOrError.Value();
-        for (const auto& [treeId, error, snapshot] : results) {
-            snapshots.emplace(treeId, snapshot);
+        for (const auto& [treeId, error, updatedTree] : results) {
+            snapshottedIdToTree.emplace(treeId, updatedTree);
             if (!error.IsOK()) {
                 errors.push_back(error);
             }
         }
 
         {
-            // NB(eshcherbin): Make sure that snapshots in strategy and snapshots in trees are updated atomically.
+            // NB(eshcherbin): Make sure that snapshotted mapping in strategy and snapshots in trees are updated atomically.
             // This is necessary to maintain consistency between strategy and trees.
             TForbidContextSwitchGuard guard;
 
-            TreeIdToSnapshot_.Exchange(std::move(snapshots));
+            SnapshottedIdToTree_.Exchange(std::move(snapshottedIdToTree));
             for (const auto& [_, tree] : idToTree) {
                 tree->FinishFairShareUpdate();
             }
@@ -890,9 +890,9 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        auto snapshots = TreeIdToSnapshot_.Load();
-        for (const auto& [_, treeSnapshot] : snapshots) {
-            treeSnapshot->EssentialLogFairShareAt(now);
+        auto idToTree = SnapshottedIdToTree_.Load();
+        for (const auto& [_, tree] : idToTree) {
+            tree->EssentialLogFairShareAt(now);
         }
     }
 
@@ -902,9 +902,9 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        auto snapshots = TreeIdToSnapshot_.Load();
-        for (const auto& [_, treeSnapshot] : snapshots) {
-            treeSnapshot->LogFairShareAt(now);
+        auto idToTree = SnapshottedIdToTree_.Load();
+        for (const auto& [_, tree] : idToTree) {
+            tree->LogFairShareAt(now);
         }
     }
 
@@ -920,22 +920,22 @@ public:
         YT_LOG_DEBUG("Processing job updates in strategy (UpdateCount: %v)",
             jobUpdates.size());
 
-        auto snapshots = TreeIdToSnapshot_.Load();
+        auto idToTree = SnapshottedIdToTree_.Load();
 
         THashSet<TJobId> jobsToPostpone;
 
         for (const auto& job : jobUpdates) {
+            auto treeIt = idToTree.find(job.TreeId);
             switch (job.Status) {
                 case EJobUpdateStatus::Running: {
-                    auto snapshotIt = snapshots.find(job.TreeId);
-                    if (snapshotIt == snapshots.end()) {
+                    if (treeIt == idToTree.end()) {
                         // Job is orphaned (does not belong to any tree), aborting it.
                         jobsToAbort->push_back(job.JobId);
                     } else {
-                        const auto& snapshot = snapshotIt->second;
+                        const auto& tree = treeIt->second;
 
                         bool shouldAbortJob = false;
-                        snapshot->ProcessUpdatedJob(
+                        tree->ProcessUpdatedJob(
                             job.OperationId,
                             job.JobId,
                             job.JobResources,
@@ -950,18 +950,15 @@ public:
                     break;
                 }
                 case EJobUpdateStatus::Finished: {
-                    auto snapshotIt = snapshots.find(job.TreeId);
-                    if (snapshotIt == snapshots.end()) {
+                    if (treeIt == idToTree.end()) {
                         // Job is finished but tree does not exist, nothing to do.
                         YT_LOG_DEBUG("Dropping job update since pool tree is missing (OperationId: %v, JobId: %v)",
                             job.OperationId,
                             job.JobId);
                         continue;
                     }
-                    const auto& snapshot = snapshotIt->second;
-                    if (snapshot->HasEnabledOperation(job.OperationId)) {
-                        snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
-                    } else {
+                    const auto& tree = treeIt->second;
+                    if (!tree->ProcessFinishedJob(job.OperationId, job.JobId)) {
                         YT_LOG_DEBUG("Postpone job update since operation is disabled or missing in snapshot (OperationId: %v, JobId: %v)",
                             job.OperationId,
                             job.JobId);
@@ -1039,7 +1036,7 @@ public:
 
     TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
     {
-        auto snapshots = TreeIdToSnapshot_.Load();
+        auto idToTree = SnapshottedIdToTree_.Load();
 
         // NB(eshcherbin):
         // First, we ignore all trees in which the new operation is not marked running.
@@ -1052,24 +1049,24 @@ public:
         auto bestReserveRatio = std::numeric_limits<double>::lowest();
         std::vector<TString> emptyTrees;
         for (const auto& [treeId, poolName] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
-            YT_VERIFY(snapshots.contains(treeId));
-            auto snapshot = snapshots[treeId];
+            YT_VERIFY(idToTree.contains(treeId));
+            auto tree = idToTree[treeId];
 
-            if (!snapshot->IsOperationRunningInTree(operationId)) {
+            if (!tree->IsSnapshottedOperationRunningInTree(operationId)) {
                 continue;
             }
 
-            auto totalResourceLimits = snapshot->GetTotalResourceLimits();
+            auto totalResourceLimits = tree->GetSnapshottedTotalResourceLimits();
             if (totalResourceLimits == TJobResources()) {
                 emptyTrees.push_back(treeId);
                 continue;
             }
 
-            // If pool is not present in the snapshot (e.g. due to poor timings or if it is an ephemeral pool),
+            // If pool is not present in the tree (e.g. due to poor timings or if it is an ephemeral pool),
             // then its demand and guaranteed resources ratio are considered to be zero.
             TResourceVector currentDemandShare;
             TResourceVector promisedFairShare;
-            if (auto poolStateSnapshot = snapshot->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
+            if (auto poolStateSnapshot = tree->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
                 currentDemandShare = poolStateSnapshot->DemandShare;
                 promisedFairShare = poolStateSnapshot->PromisedFairShare;
             }
@@ -1219,8 +1216,8 @@ public:
         const TString& nodeAddress,
         const TBooleanFormulaTags& nodeTags) const override
     {
-        if (auto snapshot = FindTreeSnapshotForNode(nodeAddress, nodeTags)) {
-            return snapshot->GetCachedJobPreemptionStatuses();
+        if (auto tree = FindTreeForNode(nodeAddress, nodeTags)) {
+            return tree->GetCachedJobPreemptionStatuses();
         }
         return {};
     }
@@ -1247,16 +1244,16 @@ private:
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
-    using TFairShareTreeMap = THashMap<TString, ISchedulerTreePtr>;
+    using TFairShareTreeMap = THashMap<TString, IFairShareTreePtr>;
     TFairShareTreeMap IdToTree_;
     bool Initialized_ = false;
 
     std::optional<TString> DefaultTreeId_;
 
-    // NB(eshcherbin): Note that these fair share tree snapshots are only *snapshots*.
+    // NB(eshcherbin): Note that these fair share tree mapping are only *snapshot* of actual mapping.
     // We should not expect that the set of trees or their structure in the snapshot are the same as
     // in the current |IdToTree_| map. Snapshots could be a little bit behind.
-    TAtomicObject<THashMap<TString, IFairShareTreeSnapshotPtr>> TreeIdToSnapshot_;
+    TAtomicObject<THashMap<TString, IFairShareTreePtr>> SnapshottedIdToTree_;
 
     TInstant LastMeteringStatisticsUpdateTime_;
     TMeteringMap MeteringStatistics_;
@@ -1344,30 +1341,30 @@ private:
         return result;
     }
 
-    IFairShareTreeSnapshotPtr FindTreeSnapshotForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const
+    IFairShareTreePtr FindTreeForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const
     {
-        IFairShareTreeSnapshotPtr matchingSnapshot;
+        IFairShareTreePtr matchingTree;
 
-        auto snapshots = TreeIdToSnapshot_.Load();
-        for (const auto& [treeId, snapshot] : snapshots) {
-            if (snapshot->GetNodesFilter().CanSchedule(nodeTags)) {
-                if (matchingSnapshot) {
-                    // Found second matching snapshot, skip scheduling.
+        auto idToTree = SnapshottedIdToTree_.Load();
+        for (const auto& [treeId, tree] : idToTree) {
+            if (tree->GetSnapshottedConfig()->NodesFilter.CanSchedule(nodeTags)) {
+                if (matchingTree) {
+                    // Found second matching tree, skip scheduling.
                     YT_LOG_INFO("Node belong to multiple fair-share trees (Address: %v)",
                         nodeAddress);
                     return nullptr;
                 }
-                matchingSnapshot = snapshot;
+                matchingTree = tree;
             }
         }
 
-        if (!matchingSnapshot) {
+        if (!matchingTree) {
             YT_LOG_INFO("Node does not belong to any fair-share tree (Address: %v)",
                 nodeAddress);
             return nullptr;
         }
 
-        return matchingSnapshot;
+        return matchingTree;
     }
 
     TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TOperationRuntimeParametersPtr& runtimeParameters)
@@ -1413,13 +1410,13 @@ private:
         return GetOrCrash(OperationIdToOperationState_, operationId);
     }
 
-    ISchedulerTreePtr FindTree(const TString& id) const
+    IFairShareTreePtr FindTree(const TString& id) const
     {
         auto treeIt = IdToTree_.find(id);
         return treeIt != IdToTree_.end() ? treeIt->second : nullptr;
     }
 
-    ISchedulerTreePtr GetTree(const TString& id) const
+    IFairShareTreePtr GetTree(const TString& id) const
     {
         auto tree = FindTree(id);
         YT_VERIFY(tree);
@@ -1427,7 +1424,7 @@ private:
     }
 
     void DoBuildOperationProgress(
-        void (ISchedulerTree::*method)(TOperationId operationId, TFluentMap fluent) const,
+        void (IFairShareTree::*method)(TOperationId operationId, TFluentMap fluent) const,
         TOperationId operationId,
         TFluentMap fluent)
     {
@@ -1447,7 +1444,7 @@ private:
                 });
     }
 
-    void OnOperationRunningInTree(ISchedulerTree* tree, TOperationId operationId) const
+    void OnOperationRunningInTree(IFairShareTree* tree, TOperationId operationId) const
     {
         YT_VERIFY(tree->HasRunningOperation(operationId));
 
@@ -1739,7 +1736,7 @@ private:
     }
 
     void BuildTreeOrchid(
-        const ISchedulerTreePtr& tree,
+        const IFairShareTreePtr& tree,
         const std::vector<TExecNodeDescriptor>& descriptors,
         TFluentMap fluent)
     {
@@ -1749,7 +1746,7 @@ private:
         }
 
         fluent
-            .Item("user_to_ephemeral_pools").Do(BIND(&ISchedulerTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
+            .Item("user_to_ephemeral_pools").Do(BIND(&IFairShareTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
             .Item("config").Value(tree->GetConfig())
             .Item("resource_limits").Value(resourceLimits)
             .Item("resource_usage").Value(Host->GetResourceUsage(tree->GetNodesFilter()))
@@ -1762,7 +1759,7 @@ private:
             .EndList()
             // This part is asynchronous.
             .Item("fair_share_info").BeginMap()
-                .Do(BIND(&ISchedulerTree::BuildFairShareInfo, tree))
+                .Do(BIND(&IFairShareTree::BuildFairShareInfo, tree))
             .EndMap();
     }
 
@@ -1772,15 +1769,16 @@ private:
 
         TMeteringMap newStatistics;
 
-        auto snapshots = TreeIdToSnapshot_.Load();
-        if (snapshots.empty()) {
-            // It usually means that snapshots are not build yet.
+        auto idToTree = SnapshottedIdToTree_.Load();
+        if (idToTree.empty()) {
+            // It usually means that scheduler just started and snapshotted mapping are not build yet.
             return;
         }
 
-        for (const auto& [_, snapshot] : snapshots) {
+        for (const auto& [_, tree] : idToTree) {
             TMeteringMap newStatisticsPerTree;
-            snapshot->BuildResourceMetering(&newStatisticsPerTree);
+            THashMap<TString, TString> customMeteringTags;
+            tree->BuildResourceMetering(&newStatisticsPerTree, &customMeteringTags);
 
             for (auto& [key, value] : newStatisticsPerTree) {
                 auto it = MeteringStatistics_.find(key);
@@ -1794,14 +1792,14 @@ private:
                     Host->LogResourceMetering(
                         key,
                         delta,
-                        snapshot->GetConfig()->MeteringTags,
+                        customMeteringTags,
                         LastMeteringStatisticsUpdateTime_,
                         now);
                 } else {
                     Host->LogResourceMetering(
                         key,
                         value,
-                        snapshot->GetConfig()->MeteringTags,
+                        customMeteringTags,
                         LastMeteringStatisticsUpdateTime_,
                         now);
                 }

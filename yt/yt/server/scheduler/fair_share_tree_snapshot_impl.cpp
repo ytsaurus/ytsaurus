@@ -46,6 +46,21 @@ TSchedulerOperationElement* TFairShareTreeSnapshotImpl::FindDisabledOperationEle
     auto it = DisabledOperationMap_.find(operationId);
     return it != DisabledOperationMap_.end() ? it->second : nullptr;
 }
+    
+void TFairShareTreeSnapshotImpl::UpdateDynamicAttributesSnapshot(const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
+{
+    if (!resourceUsageSnapshot) {
+        SetDynamicAttributesListSnapshot(nullptr);
+        return;
+    }
+
+    auto attributesSnapshot = New<TDynamicAttributesListSnapshot>();
+    attributesSnapshot->Value.InitializeResourceUsage(
+        RootElement_.Get(),
+        resourceUsageSnapshot,
+        NProfiling::GetCpuInstant());
+    SetDynamicAttributesListSnapshot(attributesSnapshot);
+}
 
 TDynamicAttributesListSnapshotPtr TFairShareTreeSnapshotImpl::GetDynamicAttributesListSnapshot() const
 {
