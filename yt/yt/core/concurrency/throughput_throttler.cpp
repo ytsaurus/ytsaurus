@@ -564,7 +564,7 @@ public:
             totalQueueSize += std::max<i64>(throttler->GetQueueTotalCount() - SelfQueueSize_.load(), 0);
         }
 
-        return SelfQueueSize_;
+        return totalQueueSize;
     }
 
     TDuration GetEstimatedOverdraftDuration() const override

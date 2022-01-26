@@ -983,7 +983,7 @@ private:
             DistributedThrottlerService_->SetTotalLimit(throttlerId, config->Limit);
 
             auto usageRate = throttler->GetUsageRate();
-            YT_VERIFY(throttlerIdToUsageRate.emplace(throttlerId, usageRate).second);
+            EmplaceOrCrash(throttlerIdToUsageRate, throttlerId, usageRate);
         }
 
         auto limits = DistributedThrottlerService_->GetMemberLimits(MemberId_, GetKeys(throttlerIdToUsageRate));
