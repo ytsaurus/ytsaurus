@@ -22,7 +22,7 @@ class TLocalSnapshotService
 public:
     TLocalSnapshotService(
         TCellId cellId,
-        TFileSnapshotStorePtr fileStore)
+        IFileSnapshotStorePtr fileStore)
         : TServiceBase(
             GetHydraIOInvoker(),
             TSnapshotServiceProxy::GetDescriptor(),
@@ -36,7 +36,7 @@ public:
     }
 
 private:
-    const TFileSnapshotStorePtr FileStore_;
+    const IFileSnapshotStorePtr FileStore_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
     {
@@ -111,7 +111,7 @@ private:
 
 IServicePtr CreateLocalSnapshotService(
     TCellId cellId,
-    TFileSnapshotStorePtr fileStore)
+    IFileSnapshotStorePtr fileStore)
 {
     return New<TLocalSnapshotService>(
         cellId,

@@ -12,7 +12,7 @@ namespace NYT::NHydra {
 
 NRpc::IServicePtr CreateLocalSnapshotService(
     NElection::TCellId cellId,
-    TFileSnapshotStorePtr fileStore);
+    IFileSnapshotStorePtr fileStore);
 
 ////////////////////////////////////////////////////////////////////////////////
 
