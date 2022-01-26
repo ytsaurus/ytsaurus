@@ -55,8 +55,8 @@ public:
 protected:
     virtual NObjectClient::EObjectType GetSupportedObjectType() = 0;
     virtual NYson::TYsonString GetObjectYson(NObjectClient::TObjectId objectId) = 0;
-    virtual std::optional<NObjectClient::TObjectId> TryCreateObject(const TCreateObjectOptions& options);
-    virtual void RemoveObject(NObjectClient::TObjectId objectId) = 0;
+    virtual std::optional<NObjectClient::TObjectId> DoCreateObject(const TCreateObjectOptions& options);
+    virtual void DoRemoveObject(NObjectClient::TObjectId objectId) = 0;
 
 private:
     std::optional<NYson::TYsonString> TryGetObjectYson(

@@ -59,7 +59,17 @@ private:
             .Entity();
     }
 
-    void RemoveObject(TReplicationCardId /*replicationCardId*/) override
+    std::optional<TObjectId> DoCreateObject(const TCreateObjectOptions& options) override
+    {
+        auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
+
+        auto chaosCellId = attributes->Get<TCellId>("chaos_cell_id");
+
+        return WaitFor(Client_->CreateReplicationCard(chaosCellId, {}))
+            .ValueOrThrow();
+    }
+
+    void DoRemoveObject(TReplicationCardId /*replicationCardId*/) override
     {
         THROW_ERROR_EXCEPTION("Unsupported");
     }

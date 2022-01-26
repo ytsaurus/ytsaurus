@@ -94,7 +94,7 @@ private:
             .Entity();
     }
 
-    std::optional<TObjectId> TryCreateObject(const TCreateObjectOptions& options) override
+    std::optional<TObjectId> DoCreateObject(const TCreateObjectOptions& options) override
     {
         auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
 
@@ -123,7 +123,7 @@ private:
         return FromProto<TReplicaId>(rsp->replica_id());
     }
 
-    void RemoveObject(TReplicaId replicaId) override
+    void DoRemoveObject(TReplicaId replicaId) override
     {
         auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
 

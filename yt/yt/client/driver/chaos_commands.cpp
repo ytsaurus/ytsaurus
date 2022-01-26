@@ -18,22 +18,6 @@ TReplicationCardCommandBase::TReplicationCardCommandBase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCreateReplicationCardCommand::TCreateReplicationCardCommand()
-{
-    RegisterParameter("chaos_cell_id", ChaosCellId);
-}
-
-void TCreateReplicationCardCommand::DoExecute(ICommandContextPtr context)
-{
-    auto client = context->GetClient();
-    auto replicationCardIdFuture = client->CreateReplicationCard(ChaosCellId, Options);
-    auto replicationCardId = WaitFor(replicationCardIdFuture)
-        .ValueOrThrow();
-    ProduceSingleOutputValue(context, "replication_card_id", replicationCardId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TUpdateReplicationProgressCommand::TUpdateReplicationProgressCommand()
 {
     RegisterParameter("replica_id", ReplicaId);

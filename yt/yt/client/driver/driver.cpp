@@ -230,7 +230,6 @@ public:
         REGISTER_ALL(TReshardTableAutomaticCommand,        "reshard_table_automatic",         Null,       Structured, true,  false);
         REGISTER_ALL(TBalanceTabletCellsCommand,           "balance_tablet_cells",            Null,       Structured, true,  false);
 
-        REGISTER    (TCreateReplicationCardCommand,        "create_replication_card",         Null,       Structured, false, false, ApiVersion4);
         REGISTER    (TUpdateReplicationProgressCommand,    "update_replication_progress",     Null,       Structured, false, false, ApiVersion4);
 
         REGISTER    (TMergeCommand,                        "merge",                           Null,       Structured, true,  false, ApiVersion3);
