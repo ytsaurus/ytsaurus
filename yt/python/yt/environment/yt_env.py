@@ -863,7 +863,7 @@ class YTInstance(object):
                 name_with_number = "{0}-{1}".format(name, number)
 
             if self._service_processes[name][index] is not None:
-                logger.debug("Process %s already running", name_with_number, self._service_processes[name][index].pid)
+                logger.debug("Process %s is already running (pid: %s)", name_with_number, self._service_processes[name][index].pid)
                 return
 
             stderr_path = os.path.join(self.stderrs_path, "stderr.{0}".format(name_with_number))
