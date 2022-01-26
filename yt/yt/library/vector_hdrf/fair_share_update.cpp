@@ -655,9 +655,10 @@ bool TCompositeElement::ShouldTruncateChildSuggestionFifo(const TChildSuggestion
     // NB(eshcherbin, YT-15061): This truncation is only used in GPU-trees to enable preemption of jobs of gang operations
     // which fair share is less than demand.
     auto* childOperation = SortedChildren_[childIndex]->AsOperation();
-    return childSuggestions[childIndex] < 1.0 - RatioComparisonPrecision &&
+    return (childSuggestions[childIndex] < 1.0 - RatioComparisonPrecision) &&
         IsFairShareTruncationInFifoPoolEnabled() &&
-        (childOperation && childOperation->IsGang());
+        childOperation &&
+        childOperation->IsGang();
 }
 
 // Returns a vector of suggestions for children from |EnabledChildren_| based on the given fit factor.
@@ -751,7 +752,7 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
     auto childSuggestions = getEnabledChildSuggestions(fitFactor);
     YT_VERIFY(childSuggestions.size() == children.size());
 
-    bool hasTruncatedChildFairShare = false;
+    HasTruncatedChildFairShare_ = false;
     TResourceVector usedFairShare;
     for (int childIndex = 0; childIndex < std::ssize(children); ++childIndex) {
         const auto& child = children[childIndex];
@@ -759,8 +760,11 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
 
         if (!shouldTruncateChildSuggestion(childSuggestions, childIndex)) {
             usedFairShare += child->DoUpdateFairShare(childSuggestion, context);
+            if (auto* poolChild = child->AsPool()) {
+                HasTruncatedChildFairShare_ |= poolChild->HasTruncatedChildFairShare();
+            }
         } else {
-            hasTruncatedChildFairShare = true;
+            HasTruncatedChildFairShare_ = true;
         }
     }
 
@@ -770,7 +774,7 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
     bool usedShareNearSuggestedShare =
         TResourceVector::Near(usedFairShare, suggestedFairShare, 1e-4 * MaxComponent(usedFairShare));
     YT_LOG_WARNING_UNLESS(
-        (usedShareNearSuggestedShare && suggestedShareNearlyDominatesUsedShare) || hasTruncatedChildFairShare,
+        (usedShareNearSuggestedShare && suggestedShareNearlyDominatesUsedShare) || HasTruncatedChildFairShare_,
         "Fair share significantly differs from predicted in pool ("
         "Mode: %v, "
         "Suggestion: %.20v, "
@@ -990,6 +994,11 @@ void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
         integralResourcesState.AccumulatedVolume,
         attributes.VolumeOverflow,
         attributes.AcceptableVolume);
+}
+
+bool TCompositeElement::HasTruncatedChildFairShare() const
+{
+    return HasTruncatedChildFairShare_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
