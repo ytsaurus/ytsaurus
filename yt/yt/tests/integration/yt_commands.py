@@ -1927,8 +1927,12 @@ def create_medium(name, **kwargs):
     execute_command("create", kwargs)
 
 
-def create_replication_card(**kwargs):
-    return execute_command("create_replication_card", kwargs, parse_yson=True)
+def create_replication_card(chaos_cell_id, **kwargs):
+    kwargs["type"] = "replication_card"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["chaos_cell_id"] = chaos_cell_id
+    return execute_command("create", kwargs, parse_yson=True)
 
 
 def create_chaos_table_replica(replication_card_id, cluster_name, replica_path, **kwargs):

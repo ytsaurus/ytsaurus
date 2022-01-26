@@ -69,7 +69,7 @@ std::optional<TObjectId> TVirtualTypeHandler::CreateObject(
     if (type != GetSupportedObjectType()) {
         return {};
     }
-    return TryCreateObject(options);
+    return DoCreateObject(options);
 }
 
 std::optional<TYsonString> TVirtualTypeHandler::GetNode(
@@ -138,7 +138,7 @@ std::optional<std::monostate> TVirtualTypeHandler::RemoveNode(
         THROW_ERROR_EXCEPTION("Can only remove object as a whole");
     }
 
-    RemoveObject(objectId);
+    DoRemoveObject(objectId);
 
     return std::monostate();
 }
@@ -159,7 +159,7 @@ std::optional<TYsonString> TVirtualTypeHandler::TryGetObjectYson(
     return GetObjectYson(objectId);
 }
 
-std::optional<TObjectId> TVirtualTypeHandler::TryCreateObject(const TCreateObjectOptions& /*options*/)
+std::optional<TObjectId> TVirtualTypeHandler::DoCreateObject(const TCreateObjectOptions& /*options*/)
 {
     return {};
 }

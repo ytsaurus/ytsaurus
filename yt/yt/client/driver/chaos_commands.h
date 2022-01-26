@@ -22,20 +22,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCreateReplicationCardCommand
-    : public TTypedCommand<NApi::TCreateReplicationCardOptions>
-{
-public:
-    TCreateReplicationCardCommand();
-
-private:
-    NObjectClient::TCellId ChaosCellId;
-
-    void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TUpdateReplicationProgressCommand
     : public TTypedCommand<NApi::TUpdateReplicationProgressOptions>
     , public TReplicationCardCommandBase
