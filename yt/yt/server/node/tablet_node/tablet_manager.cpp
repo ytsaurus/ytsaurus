@@ -2889,8 +2889,15 @@ private:
         // COMPAT(babenko)
         if (request->has_table_settings()) {
             const auto& tableSettings = request->table_settings();
+            auto extraMountConfigAttributes = tableSettings.has_extra_mount_config_attributes()
+                ? ConvertTo<IMapNodePtr>(TYsonString(tableSettings.extra_mount_config_attributes()))
+                : nullptr;
+
             return {
-                .MountConfig = DeserializeTableMountConfig(TYsonString(tableSettings.mount_config()), tabletId),
+                .MountConfig = DeserializeTableMountConfig(
+                    TYsonString(tableSettings.mount_config()),
+                    extraMountConfigAttributes,
+                    tabletId),
                 .StoreReaderConfig = DeserializeTabletStoreReaderConfig(TYsonString(tableSettings.store_reader_config()), tabletId),
                 .HunkReaderConfig = DeserializeTabletHunkReaderConfig(TYsonString(tableSettings.hunk_reader_config()), tabletId),
                 .StoreWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(tableSettings.store_writer_config()), tabletId),
@@ -2899,7 +2906,7 @@ private:
                 .HunkWriterOptions = DeserializeTabletHunkWriterOptions(TYsonString(tableSettings.hunk_writer_options()), tabletId)
             };
         } else {
-            auto mountConfig = DeserializeTableMountConfig(TYsonString(request->mount_config()), tabletId);
+            auto mountConfig = DeserializeTableMountConfig(TYsonString(request->mount_config()), nullptr, tabletId);
             auto storeReaderConfig = DeserializeTabletStoreReaderConfig(TYsonString(request->store_reader_config()), tabletId);
             auto storeWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(request->store_writer_config()), tabletId);
             auto storeWriterOptions = DeserializeTabletStoreWriterOptions(TYsonString(request->store_writer_options()), tabletId);
@@ -2915,10 +2922,27 @@ private:
         }
     }
 
-    TTableMountConfigPtr DeserializeTableMountConfig(const TYsonString& str, TTabletId tabletId)
+    TTableMountConfigPtr DeserializeTableMountConfig(
+        const TYsonString& str,
+        const IMapNodePtr& extraAttributes,
+        TTabletId tabletId)
     {
         try {
-            return ConvertTo<TTableMountConfigPtr>(str);
+            if (!extraAttributes) {
+                return ConvertTo<TTableMountConfigPtr>(str);
+            }
+
+            auto mountConfigMap = ConvertTo<IMapNodePtr>(str);
+            auto patchedMountConfigMap = PatchNode(mountConfigMap, extraAttributes);
+
+            try {
+                return ConvertTo<TTableMountConfigPtr>(patchedMountConfigMap);
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex,
+                    "Error deserializing tablet mount config with extra attributes patch (TabletId: %v)",
+                     tabletId);
+                return ConvertTo<TTableMountConfigPtr>(mountConfigMap);
+            }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing tablet mount config (TabletId: %v)",
                  tabletId);

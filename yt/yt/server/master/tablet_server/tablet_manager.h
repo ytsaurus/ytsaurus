@@ -41,6 +41,8 @@ public:
 
     void Initialize();
 
+    NYTree::IYPathServicePtr GetOrchidService();
+
     TTabletStatistics GetTabletStatistics(const TTablet* tablet);
 
     void PrepareMountTable(
@@ -166,6 +168,8 @@ public:
     void ZombifyTabletCell(TTabletCell* cell);
 
     NNodeTrackerServer::TNode* FindTabletLeaderNode(const TTablet* tablet) const;
+
+    void UpdateExtraMountConfigKeys(std::vector<TString> keys);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     TTablet* GetTabletOrThrow(TTabletId id);

@@ -39,6 +39,7 @@
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -1143,6 +1144,10 @@ private:
             node->SetVersion(request->build_version());
         }
 
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
+        tabletManager->UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
+
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
         UpdateNodeCounters(node, -1);
@@ -1174,7 +1179,7 @@ private:
         CheckNodeOnline(node);
 
         if (multicellManager->IsPrimaryMaster()) {
-            PostRegisterNodeMutation(node);
+            PostRegisterNodeMutation(node, request);
         }
 
         response->set_node_id(node->GetId());
@@ -2055,7 +2060,7 @@ private:
     }
 
 
-    void PostRegisterNodeMutation(TNode* node)
+    void PostRegisterNodeMutation(TNode* node, const TReqRegisterNode* originalRequest)
     {
         TReqRegisterNode request;
         request.set_node_id(node->GetId());
@@ -2077,6 +2082,8 @@ private:
         if (GetDynamicConfig()->ReplicateHostNameDuringRegistration) {
             request.set_host_name(node->GetHost()->GetName());
         }
+
+        request.mutable_table_mount_config_keys()->CopyFrom(originalRequest->table_mount_config_keys());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);

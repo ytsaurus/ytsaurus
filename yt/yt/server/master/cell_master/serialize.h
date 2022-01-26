@@ -32,7 +32,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMasterReign,
-    // 21.2 starts here.
     ((TableCollocation)                                             (1667))  // akozhikhov
     ((CollocationTypeAttribute)                                     (1668))  // gritukan
     ((RecomputeUnrecognizedDynamicConfigOptions)                    (1669))  // shakurov
@@ -89,6 +88,7 @@ DEFINE_ENUM(EMasterReign,
     ((ImplicitReplicationCardId)                                    (1921))  // babenko
     ((AlterReplicatedTables)                                        (1922))  // ifsmirnov
     ((UnifiedReplicaMetadata)                                       (1923))  // babenko
+    ((ExtraMountConfigKeys)                                         (1924))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
