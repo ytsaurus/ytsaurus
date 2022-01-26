@@ -270,7 +270,7 @@ DEFINE_ENUM(EObjectType,
     ((ChaosCellMap)                 (1202))
     ((ChaosCellBundleMap)           (1203))
     ((ReplicationCard)              (1204))
-    ((ReplicationCardReplica)       (1205))
+    ((ChaosTableReplica)            (1205))
     ((ChaosReplicatedTable)         (1206))
 );
 

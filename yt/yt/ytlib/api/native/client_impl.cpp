@@ -9,7 +9,7 @@
 #include "default_type_handler.h"
 #include "replicated_table_replica_type_handler.h"
 #include "replication_card_type_handler.h"
-#include "replication_card_replica_type_handler.h"
+#include "chaos_table_replica_type_handler.h"
 #include "table_collocation_type_handler.h"
 #include "tablet_action_type_handler.h"
 
@@ -96,7 +96,7 @@ TClient::TClient(
     , TypeHandlers_{
         CreateReplicatedTableReplicaTypeHandler(this),
         CreateReplicationCardTypeHandler(this),
-        CreateReplicationCardReplicaTypeHandler(this),
+        CreateChaosTableReplicaTypeHandler(this),
         CreateTableCollocationTypeHandler(this),
         CreateTabletActionTypeHandler(this),
         CreateDefaultTypeHandler(this)

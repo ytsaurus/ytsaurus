@@ -535,7 +535,7 @@ private:
     friend class TNodeConcatenator;
     friend class TReplicatedTableReplicaTypeHandler;
     friend class TReplicationCardTypeHandler;
-    friend class TReplicationCardReplicaTypeHandler;
+    friend class TChaosTableReplicaTypeHandler;
     friend class TTableCollocationTypeHandler;
     friend class TTabletActionTypeHandler;
     friend class TDefaultTypeHandler;

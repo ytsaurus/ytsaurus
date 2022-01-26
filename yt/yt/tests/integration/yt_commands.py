@@ -1931,8 +1931,8 @@ def create_replication_card(**kwargs):
     return execute_command("create_replication_card", kwargs, parse_yson=True)
 
 
-def create_replication_card_replica(replication_card_id, cluster_name, replica_path, **kwargs):
-    kwargs["type"] = "replication_card_replica"
+def create_chaos_table_replica(replication_card_id, cluster_name, replica_path, **kwargs):
+    kwargs["type"] = "chaos_table_replica"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["replication_card_id"] = replication_card_id
