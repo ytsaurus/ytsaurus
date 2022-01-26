@@ -183,6 +183,8 @@ private:
 
     std::vector<TElement*> SortedChildren_;
 
+    bool HasTruncatedChildFairShare_ = false;
+
     void PrepareFairShareFunctions(TFairShareUpdateContext* context) override;
     void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
     void PrepareFairShareByFitFactorFifo(TFairShareUpdateContext* context);
@@ -214,6 +216,8 @@ private:
     bool ShouldTruncateChildSuggestionFifo(const TChildSuggestions& childSuggestions, int childIndex) const;
     TChildSuggestions GetChildSuggestionsNormal(double fitFactor);
     bool ShouldTruncateChildSuggestionNormal(const TChildSuggestions& childSuggestions, int childIndex) const;
+
+    bool HasTruncatedChildFairShare() const;
 
     friend class TPool;
     friend class TRootElement;
