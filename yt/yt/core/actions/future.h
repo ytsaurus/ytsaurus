@@ -695,9 +695,16 @@ TFuture<std::vector<TErrorOr<T>>> AnyNSet(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(akozhikhov): Drop this version in favor of the one below.
 //! Executes given #callbacks, allowing up to #concurrencyLimit simultaneous invocations.
 template <class T>
 TFuture<std::vector<TErrorOr<T>>> RunWithBoundedConcurrency(
+    std::vector<TCallback<TFuture<T>()>> callbacks,
+    int concurrencyLimit);
+
+//! Same as above but supports cancelation.
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> CancelableRunWithBoundedConcurrency(
     std::vector<TCallback<TFuture<T>()>> callbacks,
     int concurrencyLimit);
 

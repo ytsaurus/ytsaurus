@@ -2303,6 +2303,122 @@ TFuture<std::vector<TErrorOr<T>>> AnyNSet(
 namespace NDetail {
 
 template <class T>
+class TCancelableBoundedConcurrencyRunner
+    : public TRefCounted
+{
+public:
+    TCancelableBoundedConcurrencyRunner(
+        std::vector<TCallback<TFuture<T>()>> callbacks,
+        int concurrencyLimit)
+        : Callbacks_(std::move(callbacks))
+        , ConcurrencyLimit_(concurrencyLimit)
+        , Futures_(Callbacks_.size(), VoidFuture)
+        , Results_(Callbacks_.size())
+        , CurrentIndex_(std::min(ConcurrencyLimit_, ssize(Callbacks_)))
+    { }
+
+    TFuture<std::vector<TErrorOr<T>>> Run()
+    {
+        if (Callbacks_.empty()) {
+            return MakeFuture(std::vector<TErrorOr<T>>());
+        }
+
+        // No need to acquire SpinLock here.
+        auto startImmediatelyCount = CurrentIndex_;
+
+        for (int index = 0; index < startImmediatelyCount; ++index) {
+            RunCallback(index);
+        }
+
+        Promise_.OnCanceled(BIND(&TCancelableBoundedConcurrencyRunner::OnCanceled, MakeWeak(this)));
+
+        return Promise_;
+    }
+
+private:
+    const std::vector<TCallback<TFuture<T>()>> Callbacks_;
+    const i64 ConcurrencyLimit_;
+    const TPromise<std::vector<TErrorOr<T>>> Promise_ = NewPromise<std::vector<TErrorOr<T>>>();
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    std::optional<TError> CancelationError_;
+    std::vector<TFuture<void>> Futures_;
+    std::vector<TErrorOr<T>> Results_;
+    int CurrentIndex_;
+    int FinishedCount_ = 0;
+
+
+    void RunCallback(int index)
+    {
+        auto future = Callbacks_[index]();
+
+        if (future.IsSet()) {
+            OnResult(index, std::move(future.Get()));
+            return;
+        }
+
+        {
+            auto guard = Guard(SpinLock_);
+            if (CancelationError_) {
+                guard.Release();
+                future.Cancel(*CancelationError_);
+                return;
+            }
+
+            Futures_[index] = future.template As<void>();
+        }
+
+        future.Subscribe(
+            BIND(&TCancelableBoundedConcurrencyRunner::OnResult, MakeStrong(this), index));
+    }
+
+    void OnResult(int index, const TErrorOr<T>& result)
+    {
+        int newIndex;
+        int finishedCount;
+        {
+            auto guard = Guard(SpinLock_);
+            if (CancelationError_) {
+                return;
+            }
+
+            newIndex = CurrentIndex_++;
+            finishedCount = ++FinishedCount_;
+            Results_[index] = result;
+        }
+
+        if (finishedCount == ssize(Callbacks_)) {
+            Promise_.TrySet(Results_);
+        }
+
+        if (newIndex < ssize(Callbacks_)) {
+            RunCallback(newIndex);
+        }
+    }
+
+    void OnCanceled(const TError& error)
+    {
+        auto wrappedError = TError(NYT::EErrorCode::Canceled, "Canceled")
+            << error;
+
+        {
+            auto guard = Guard(SpinLock_);
+            if (CancelationError_) {
+                return;
+            }
+            CancelationError_ = wrappedError;
+        }
+
+        // NB: Setting of CancelationError_ disallows modification of CurrentIndex_ and Futures_.
+        for (int index = 0; index < CurrentIndex_; ++index) {
+            Futures_[index].Cancel(wrappedError);
+        }
+
+        Promise_.TrySet(wrappedError);
+    }
+};
+
+template <class T>
 class TBoundedConcurrencyRunner
     : public TRefCounted
 {
@@ -2336,7 +2452,6 @@ private:
     std::vector<TErrorOr<T>> Results_;
     std::atomic<int> CurrentIndex_;
     std::atomic<int> FinishedCount_ = 0;
-
 
     void RunCallback(int index)
     {
@@ -2373,6 +2488,16 @@ TFuture<std::vector<TErrorOr<T>>> RunWithBoundedConcurrency(
 {
     YT_VERIFY(concurrencyLimit >= 0);
     return New<NDetail::TBoundedConcurrencyRunner<T>>(std::move(callbacks), concurrencyLimit)
+        ->Run();
+}
+
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> CancelableRunWithBoundedConcurrency(
+    std::vector<TCallback<TFuture<T>()>> callbacks,
+    int concurrencyLimit)
+{
+    YT_VERIFY(concurrencyLimit >= 0);
+    return New<NDetail::TCancelableBoundedConcurrencyRunner<T>>(std::move(callbacks), concurrencyLimit)
         ->Run();
 }
 

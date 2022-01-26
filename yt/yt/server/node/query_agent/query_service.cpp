@@ -756,19 +756,13 @@ private:
                     .AsyncVia(Bootstrap_->GetTabletLookupPoolInvoker()));
         }
 
-        RunWithBoundedConcurrency(std::move(subrequestCallbacks), Config_->MaxSubqueries)
-            .Subscribe(
-                BIND([=, session = std::move(session)] (const TErrorOr<std::vector<TErrorOr<TSharedRef>>>& resultsOrError) {
-                    try {
-                        const auto& results = resultsOrError.ValueOrThrow();
-                        for (const auto& result : results) {
-                            addResult(request, response, result);
-                        }
-                        context->Reply();
-                    } catch (const std::exception& ex) {
-                        context->Reply(ex);
-                    }
-                }));
+        context->ReplyFrom(
+            CancelableRunWithBoundedConcurrency(std::move(subrequestCallbacks), Config_->MaxSubqueries)
+            .Apply(BIND([=, session = std::move(session)] (const std::vector<TErrorOr<TSharedRef>>& results) {
+                for (const auto& result : results) {
+                    addResult(request, response, result);
+                }
+            })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, PullRows)
