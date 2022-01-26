@@ -1,4 +1,4 @@
-#include "replication_card_replica_type_handler.h"
+#include "chaos_table_replica_type_handler.h"
 
 #include "type_handler_detail.h"
 #include "client_impl.h"
@@ -23,11 +23,11 @@ using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardReplicaTypeHandler
+class TChaosTableReplicaTypeHandler
     : public TVirtualTypeHandler
 {
 public:
-    explicit TReplicationCardReplicaTypeHandler(TClient* client)
+    explicit TChaosTableReplicaTypeHandler(TClient* client)
         : Client_(client)
     { }
 
@@ -35,7 +35,7 @@ public:
         TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options) override
     {
-        if (TypeFromId(replicaId) != EObjectType::ReplicationCardReplica) {
+        if (TypeFromId(replicaId) != EObjectType::ChaosTableReplica) {
             return {};
         }
 
@@ -64,7 +64,7 @@ private:
 
     EObjectType GetSupportedObjectType() override
     {
-        return EObjectType::ReplicationCardReplica;
+        return EObjectType::ChaosTableReplica;
     }
 
     TYsonString GetObjectYson(TReplicaId replicaId) override
@@ -82,7 +82,7 @@ private:
         return BuildYsonStringFluently()
             .BeginAttributes()
                 .Item("id").Value(replicaId)
-                .Item("type").Value(EObjectType::ReplicationCardReplica)
+                .Item("type").Value(EObjectType::ChaosTableReplica)
                 .Item("replication_card_id").Value(replicationCardId)
                 .Do([&] (auto fluent) {
                     Serialize(
@@ -134,9 +134,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITypeHandlerPtr CreateReplicationCardReplicaTypeHandler(TClient* client)
+ITypeHandlerPtr CreateChaosTableReplicaTypeHandler(TClient* client)
 {
-    return New<TReplicationCardReplicaTypeHandler>(client);
+    return New<TChaosTableReplicaTypeHandler>(client);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, execute_command, get_driver, get, set, ls, create, exists,
     sync_create_cells, sync_mount_table, sync_unmount_table, reshard_table, alter_table,
     insert_rows, delete_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
-    create_replication_card, create_replication_card_replica, alter_table_replica,
+    create_replication_card, create_chaos_table_replica, alter_table_replica,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id)
 
 from yt.environment.helpers import assert_items_equal
@@ -66,16 +66,16 @@ class ChaosTestBase(DynamicTablesBase):
         wait(_check)
         return get("#{0}/@".format(card_id))
 
-    def _create_replication_card_replica(self, card_id, replica):
+    def _create_chaos_table_replica(self, card_id, replica):
         attributes = {
             "content_type": replica["content_type"],
             "mode": replica["mode"],
             "enabled": replica.get("enabled", False)
         }
-        return create_replication_card_replica(card_id, replica["cluster_name"], replica["replica_path"], attributes=attributes)
+        return create_chaos_table_replica(card_id, replica["cluster_name"], replica["replica_path"], attributes=attributes)
 
-    def _create_replication_card_replicas(self, card_id, replicas):
-        return [self._create_replication_card_replica(card_id, replica) for replica in replicas]
+    def _create_chaos_table_replicas(self, card_id, replicas):
+        return [self._create_chaos_table_replica(card_id, replica) for replica in replicas]
 
     def _create_replica_tables(self, replication_card_id, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
         for replica, replica_id in zip(replicas, replica_ids):
@@ -99,7 +99,7 @@ class ChaosTestBase(DynamicTablesBase):
 
     def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_tablet_cells=True, mount_tables=True):
         card_id = create_replication_card(chaos_cell_id=cell_id)
-        replica_ids = self._create_replication_card_replicas(card_id, replicas)
+        replica_ids = self._create_chaos_table_replicas(card_id, replicas)
         self._create_replica_tables(card_id, replicas, replica_ids, create_tablet_cells, mount_tables)
         if sync_replication_era:
             self._sync_replication_era(card_id, replicas)
@@ -275,7 +275,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "replica_path": "//tmp/r0"},
             {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "replica_path": "//tmp/r1"}
         ]
-        replica_ids = self._create_replication_card_replicas(card_id, replicas)
+        replica_ids = self._create_chaos_table_replicas(card_id, replicas)
 
         card = get("#{0}/@".format(card_id))
         card_replicas = [{key: r[key] for key in replicas[0].keys()} for r in card["replicas"].itervalues()]
@@ -298,7 +298,7 @@ class TestChaos(ChaosTestBase):
         for replica_index, replica_id in enumerate(replica_ids):
             replica = get("#{0}/@".format(replica_id))
             assert replica["id"] == replica_id
-            assert replica["type"] == "replication_card_replica"
+            assert replica["type"] == "chaos_table_replica"
             assert replica["replication_card_id"] == card_id
             assert replica["cluster_name"] == replicas[replica_index]["cluster_name"]
             assert replica["replica_path"] == replicas[replica_index]["replica_path"]
@@ -695,7 +695,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
         ]
-        replica_ids = self._create_replication_card_replicas(card_id, replicas)
+        replica_ids = self._create_chaos_table_replicas(card_id, replicas)
         assert len(replica_ids) == 2
 
         wait(lambda: get("#{0}/@era".format(card_id)) == 1)
@@ -735,7 +735,7 @@ class TestChaosMetaCluster(ChaosTestBase):
             {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "replica_path": "//tmp/r1"},
             {"cluster_name": "remote_2", "content_type": "data", "mode": "async", "replica_path": "//tmp/r2"}
         ]
-        self._create_replication_card_replicas(card_id, replicas)
+        self._create_chaos_table_replicas(card_id, replicas)
 
         card = get("#{0}/@".format(card_id))
         assert card["type"] == "replication_card"

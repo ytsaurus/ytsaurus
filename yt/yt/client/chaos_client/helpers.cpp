@@ -22,7 +22,7 @@ TReplicationCardId MakeReplicationCardId(TObjectId randomId)
 TReplicaId MakeReplicaId(TReplicationCardId replicationCardId, TReplicaIdIndex index)
 {
     return MakeId(
-        EObjectType::ReplicationCardReplica,
+        EObjectType::ChaosTableReplica,
         CellTagFromId(replicationCardId),
         CounterFromId(replicationCardId),
         HashFromId(replicationCardId) | index);

@@ -322,7 +322,7 @@ bool TTableNode::IsPhysicallySorted() const
 
 TReplicationCardId TTableNode::GetReplicationCardId() const
 {
-    return TypeFromId(GetUpstreamReplicaId()) == EObjectType::ReplicationCardReplica
+    return TypeFromId(GetUpstreamReplicaId()) == EObjectType::ChaosTableReplica
         ? ReplicationCardIdFromReplicaId(GetUpstreamReplicaId())
         : TReplicationCardId();
 }
