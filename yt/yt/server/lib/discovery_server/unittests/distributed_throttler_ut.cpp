@@ -49,8 +49,8 @@ public:
 
         auto serverConfig = New<TDiscoveryServerConfig>();
         serverConfig->ServerAddresses = Addresses_;
-        serverConfig->AttributesUpdatePeriod = TDuration::MilliSeconds(300);
-        serverConfig->GossipPeriod = TDuration::MilliSeconds(200);
+        serverConfig->AttributesUpdatePeriod = TDuration::MilliSeconds(500);
+        serverConfig->GossipPeriod = TDuration::MilliSeconds(400);
 
         for (int i = 0; i < std::ssize(Addresses_); ++i) {
             DiscoveryServers_.push_back(CreateDiscoveryServer(serverConfig, i));
@@ -71,10 +71,11 @@ public:
         auto config = New<TDistributedThrottlerConfig>();
         config->MemberClient->ServerAddresses = Addresses_;
         config->MemberClient->AttributeUpdatePeriod = TDuration::MilliSeconds(300);
-        config->MemberClient->HeartbeatPeriod = TDuration::MilliSeconds(100);
+        config->MemberClient->HeartbeatPeriod = TDuration::MilliSeconds(200);
         config->DiscoveryClient->ServerAddresses = Addresses_;
-        config->LimitUpdatePeriod = TDuration::MilliSeconds(300);
-        config->LeaderUpdatePeriod = TDuration::MilliSeconds(500);
+        config->LimitUpdatePeriod = TDuration::MilliSeconds(100);
+        config->LeaderUpdatePeriod = TDuration::MilliSeconds(1500);
+        config->HeartbeatThrottlerCountLimit = 2;
         return config;
     }
 
@@ -169,7 +170,17 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
     Sleep(TDuration::Seconds(1));
 
     // Wait for leader to update limits.
-    while (throttlers.back()->TryAcquireAvailable(10) < 2) {
+    while (true) {
+        bool stop = true;
+        for (const auto& throttler : throttlers) {
+            if (throttler->TryAcquireAvailable(10) < 2) {
+                stop = false;
+                break;
+            }
+        }
+        if (stop) {
+            break;
+        }
         Sleep(TDuration::Seconds(1));
     }
 
@@ -256,7 +267,17 @@ TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitAdaptive)
     Sleep(TDuration::Seconds(1));
 
     // Wait for leader to update limits.
-    while (throttlers.back()->TryAcquireAvailable(10) < 2) {
+    while (true) {
+        bool stop = true;
+        for (const auto& throttler : throttlers) {
+            if (throttler->TryAcquireAvailable(10) < 2) {
+                stop = false;
+                break;
+            }
+        }
+        if (stop) {
+            break;
+        }
         Sleep(TDuration::Seconds(1));
     }
 
