@@ -25,7 +25,7 @@ from yql.config import config
 from yt_runner import YT_TOKEN, YT_SERVER_HOST, YT_SERVER_PORT
 
 from google.protobuf import text_format
-import yql.providers.common.proto.gateways_config_pb2 as gateways_config_pb2
+import ydb.library.yql.providers.common.proto.gateways_config_pb2 as gateways_config_pb2
 
 YQLAPI_PATH = yql_utils.yql_binary_path('yql/api')
 YT_MRJOB_PATH = yql_utils.yql_binary_path('yql/tools/mrjob/mrjob')
