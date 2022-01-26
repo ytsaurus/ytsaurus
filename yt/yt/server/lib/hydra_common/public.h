@@ -23,6 +23,7 @@ DECLARE_REFCOUNTED_STRUCT(IChangelog)
 DECLARE_REFCOUNTED_STRUCT(IChangelogStore)
 DECLARE_REFCOUNTED_STRUCT(IChangelogStoreFactory)
 DECLARE_REFCOUNTED_STRUCT(IFileChangelogDispatcher)
+DECLARE_REFCOUNTED_STRUCT(IFileSnapshotStore)
 
 struct TSnapshotParams;
 DECLARE_REFCOUNTED_STRUCT(ISnapshotReader)
@@ -32,7 +33,6 @@ DECLARE_REFCOUNTED_STRUCT(ISnapshotStore)
 DECLARE_REFCOUNTED_CLASS(TSnapshotStoreThunk)
 DECLARE_REFCOUNTED_CLASS(TChangelogStoreFactoryThunk)
 DECLARE_REFCOUNTED_CLASS(TLocalHydraJanitor)
-DECLARE_REFCOUNTED_CLASS(TFileSnapshotStore)
 
 struct TDistributedHydraManagerOptions;
 

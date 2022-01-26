@@ -13,7 +13,7 @@ namespace NYT::NHydra {
 ISnapshotStorePtr CreateLocalSnapshotStore(
     TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
-    TFileSnapshotStorePtr fileStore);
+    IFileSnapshotStorePtr fileStore);
 
 ////////////////////////////////////////////////////////////////////////////////
 

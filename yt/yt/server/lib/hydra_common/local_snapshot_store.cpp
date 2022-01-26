@@ -27,7 +27,7 @@ public:
     TLocalSnapshotReader(
         TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
-        TFileSnapshotStorePtr fileStore,
+        IFileSnapshotStorePtr fileStore,
         int snapshotId)
         : Config_(config)
         , CellManager_(cellManager)
@@ -55,7 +55,7 @@ public:
 private:
     const TDistributedHydraManagerConfigPtr Config_;
     const TCellManagerPtr CellManager_;
-    const TFileSnapshotStorePtr FileStore_;
+    const IFileSnapshotStorePtr FileStore_;
     const int SnapshotId_;
 
     ISnapshotReaderPtr UnderlyingReader_;
@@ -90,7 +90,7 @@ public:
     TLocalSnapshotStore(
         TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
-        TFileSnapshotStorePtr fileStore)
+        IFileSnapshotStorePtr fileStore)
         : Config_(config)
         , CellManager_(cellManager)
         , FileStore_(fileStore)
@@ -120,7 +120,7 @@ public:
 private:
     const TDistributedHydraManagerConfigPtr Config_;
     const TCellManagerPtr CellManager_;
-    const TFileSnapshotStorePtr FileStore_;
+    const IFileSnapshotStorePtr FileStore_;
 
 
     int DoGetLatestSnapshotId(int maxSnapshotId)
@@ -140,7 +140,7 @@ private:
 ISnapshotStorePtr CreateLocalSnapshotStore(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
-    TFileSnapshotStorePtr fileStore)
+    IFileSnapshotStorePtr fileStore)
 {
     return New<TLocalSnapshotStore>(
         config,

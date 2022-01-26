@@ -18,27 +18,30 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = HydraLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 void DoDownloadSnapshot(
-    TDistributedHydraManagerConfigPtr config,
-    TCellManagerPtr cellManager,
-    TFileSnapshotStorePtr fileStore,
+    const TDistributedHydraManagerConfigPtr& config,
+    const TCellManagerPtr& cellManager,
+    const IFileSnapshotStorePtr& fileStore,
     int snapshotId)
 {
+    auto Logger = HydraLogger.WithTag("SnapshotId: %v, CellId: %v, SelfPeerId: %v",
+        snapshotId,
+        cellManager->GetCellId(),
+        cellManager->GetSelfPeerId());
+
     try {
+        YT_LOG_INFO("Will download snapshot from peers");
+
         auto params = WaitFor(DiscoverSnapshot(config, cellManager, snapshotId))
             .ValueOrThrow();
-        auto writer = fileStore->CreateRawWriter(snapshotId);
 
+        auto writer = fileStore->CreateRawWriter(snapshotId);
         WaitFor(writer->Open())
             .ThrowOnError();
 
-        YT_LOG_INFO("Downloading %v bytes from peer %v",
+        YT_LOG_INFO("Downloading snapshot from peer (CompressedLength: %v, PeerId: %v)",
             params.CompressedLength,
             params.PeerId);
 
@@ -88,12 +91,12 @@ void DoDownloadSnapshot(
 TFuture<void> DownloadSnapshot(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
-    TFileSnapshotStorePtr fileStore,
+    IFileSnapshotStorePtr fileStore,
     int snapshotId)
 {
     return BIND(DoDownloadSnapshot)
         .AsyncVia(GetCurrentInvoker())
-        .Run(config, cellManager, fileStore, snapshotId);
+        .Run(std::move(config), std::move(cellManager), std::move(fileStore), snapshotId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

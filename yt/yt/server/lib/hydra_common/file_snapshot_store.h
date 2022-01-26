@@ -4,37 +4,28 @@
 
 #include <yt/yt/core/compression/public.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileSnapshotStore
-    : public TRefCounted
+struct IFileSnapshotStore
+    : public virtual TRefCounted
 {
-public:
-    explicit TFileSnapshotStore(TLocalSnapshotStoreConfigPtr config);
-    void Initialize();
+    virtual void Initialize() = 0;
 
-    ~TFileSnapshotStore();
+    virtual bool CheckSnapshotExists(int snapshotId) = 0;
+    virtual int GetLatestSnapshotId(int maxSnapshotId) = 0;
 
-    bool CheckSnapshotExists(int snapshotId);
-    int GetLatestSnapshotId(int maxSnapshotId);
+    virtual ISnapshotReaderPtr CreateReader(int snapshotId) = 0;
+    virtual ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset) = 0;
 
-    ISnapshotReaderPtr CreateReader(int snapshotId);
-    ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset);
-
-    ISnapshotWriterPtr CreateWriter(int snapshotId, const NProto::TSnapshotMeta& meta);
-    ISnapshotWriterPtr CreateRawWriter(int snapshotId);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const NProto::TSnapshotMeta& meta) = 0;
+    virtual ISnapshotWriterPtr CreateRawWriter(int snapshotId) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TFileSnapshotStore)
+DEFINE_REFCOUNTED_TYPE(IFileSnapshotStore)
+
+IFileSnapshotStorePtr CreateFileSnapshotStore(TLocalSnapshotStoreConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +33,7 @@ ISnapshotReaderPtr CreateFileSnapshotReader(
     const TString& fileName,
     int snapshotId,
     bool raw,
-    std::optional<i64> offset = std::nullopt,
+    std::optional<i64> offset = {},
     bool skipHeader = false);
 
 ISnapshotWriterPtr CreateFileSnapshotWriter(

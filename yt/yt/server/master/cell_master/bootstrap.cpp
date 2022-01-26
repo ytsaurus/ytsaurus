@@ -679,7 +679,7 @@ void TBootstrap::DoInitialize()
         "ChangelogFlush",
         NProfiling::TProfiler("/changelogs"));
 
-    auto fileSnapshotStore = New<TFileSnapshotStore>(
+    auto fileSnapshotStore = CreateFileSnapshotStore(
         Config_->Snapshots);
 
     SnapshotStore_ = CreateLocalSnapshotStore(
