@@ -16,6 +16,16 @@ class TStaticServiceDispatcher
     , public virtual TSupportsList
 {
 protected:
+    //! Register #service under #key.
+    /*! Note that services are instantiated for each request invocation, thus #serviceFactory
+     *  must be thread-safe enough.
+     *
+     *  Also, be careful not to introduce circular reference, i.e. #serviceFactory must
+     *  not hold MakeStrong(this). It is guaranteed that this remains valid during #serviceFactory
+     *  execution, so binding to a raw this pointer is OK.
+     *
+     *  Finally, note that IYPathService returned from #serviceFactory _may_ outlive this.
+     */
     void RegisterService(TStringBuf key, TCallback<IYPathServicePtr()> serviceFactory);
 
 private:

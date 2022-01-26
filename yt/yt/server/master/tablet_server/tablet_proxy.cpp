@@ -14,14 +14,16 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/yt/server/master/orchid/manifest.h>
-#include <yt/yt/server/master/orchid/orchid_holder_base.h>
+#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
+
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/static_service_dispatcher.h>
 
 namespace NYT::NTabletServer {
 
@@ -36,7 +38,7 @@ using namespace NOrchid;
 
 class TTabletProxy
     : public TNonversionedObjectProxyBase<TTablet>
-    , public TOrchidHolderBase
+    , public virtual TStaticServiceDispatcher
 {
 public:
     TTabletProxy(
@@ -44,15 +46,16 @@ public:
         TObjectTypeMetadata* metadata,
         TTablet* tablet)
         : TBase(bootstrap, metadata, tablet)
-        , TOrchidHolderBase(
-            Bootstrap_->GetNodeChannelFactory(),
-            BIND(&TTabletProxy::CreateOrchidManifest, Unretained(this)))
-    { }
+    {
+        RegisterService(
+            "orchid",
+            BIND(&TTabletProxy::CreateOrchidService, Unretained(this)));
+    }
 
 private:
     using TBase = TNonversionedObjectProxyBase<TTablet>;
 
-    TOrchidManifestPtr CreateOrchidManifest()
+    IYPathServicePtr CreateOrchidService()
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
@@ -65,11 +68,16 @@ private:
 
         auto cellId = tablet->GetCell()->GetId();
 
-        auto manifest = New<TOrchidManifest>();
-        manifest->RemoteAddresses = ConvertTo<INodePtr>(
-            node->GetAddressesOrThrow(NNodeTrackerClient::EAddressType::InternalRpc));
-        manifest->RemoteRoot = Format("//tablet_cells/%v/tablets/%v", cellId, tablet->GetId());
-        return manifest;
+        auto nodeAddresses = node->GetAddressesOrThrow(NNodeTrackerClient::EAddressType::InternalRpc);
+
+        // TODO(max42): make customizable.
+        constexpr TDuration timeout = TDuration::Seconds(60);
+
+        return CreateOrchidYPathService(TOrchidOptions{
+            .Channel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(nodeAddresses),
+            .RemoteRoot = Format("//tablet_cells/%v/tablets/%v", cellId, tablet->GetId()),
+            .Timeout = timeout,
+        });
     }
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override

@@ -50,6 +50,9 @@ public:
         const std::optional<std::vector<TString>>& attributeKeys,
         bool stable) override;
 
+    // This method is made public for orchid nodes, which obtain their manifests
+    // from owning node's custom attributes.
+    NYTree::IAttributeDictionary* GetCustomAttributes() override;
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     TObjectTypeMetadata* const Metadata_;
@@ -101,7 +104,6 @@ protected:
 
     void ReplicateAttributeUpdate(const NRpc::IServiceContextPtr& context);
 
-    NYTree::IAttributeDictionary* GetCustomAttributes() override;
     NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     // NYTree::ISystemAttributeProvider members
