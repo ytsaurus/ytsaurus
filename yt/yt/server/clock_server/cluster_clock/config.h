@@ -35,10 +35,6 @@ public:
     {
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
-
-        RegisterPreprocessor([&] {
-            CloseChangelogs = false;
-        });
     }
 };
 
