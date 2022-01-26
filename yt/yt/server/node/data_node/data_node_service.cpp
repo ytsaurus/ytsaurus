@@ -98,7 +98,12 @@ using TRefCountedColumnarStatisticsSubresponsePtr = TIntrusivePtr<TRefCountedCol
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TString> MakeWriteIOTags(TString method, const ISessionPtr& session, const IServiceContextPtr& context)
+namespace {
+
+THashMap<TString, TString> MakeWriteIOTags(
+    TString method,
+    const ISessionPtr& session,
+    const IServiceContextPtr& context)
 {
     auto& location = session->GetStoreLocation();
     return {
@@ -136,6 +141,8 @@ THashMap<TString, TString> MakeReadIOTags(
     }
     return result;
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -324,7 +331,7 @@ private:
 
         session->Ping();
 
-        response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
+        response->set_close_demanded(IsCloseDemanded(location));
 
         context->Reply();
     }
@@ -359,7 +366,7 @@ private:
 
         TWallTimer timer;
 
-        response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
+        response->set_close_demanded(IsCloseDemanded(location));
 
         // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
@@ -2127,6 +2134,12 @@ private:
         context->Reply();
     }
 
+
+    bool IsCloseDemanded(const TStoreLocationPtr& location)
+    {
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        return location->IsSick() || sessionManager->GetDisableWriteSessions();
+    }
 
     void ValidateOnline()
     {

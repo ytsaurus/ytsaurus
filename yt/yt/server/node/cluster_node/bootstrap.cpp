@@ -526,7 +526,7 @@ public:
         return false;
     }
 
-    bool Decommissioned() const override
+    bool IsDecommissioned() const override
     {
         return Decommissioned_;
     }
@@ -1469,9 +1469,9 @@ bool TBootstrapBase::IsReadOnly() const
     return Bootstrap_->IsReadOnly();
 }
 
-bool TBootstrapBase::Decommissioned() const
+bool TBootstrapBase::IsDecommissioned() const
 {
-    return Bootstrap_->Decommissioned();
+    return Bootstrap_->IsDecommissioned();
 }
 
 TNetworkStatistics& TBootstrapBase::GetNetworkStatistics() const
