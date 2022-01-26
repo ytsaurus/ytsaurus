@@ -58,7 +58,7 @@ public:
     }
 
 private:
-    std::atomic<ui64> CurrentEpoch_ = {0};
+    std::atomic<ui64> CurrentEpoch_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreLock)
@@ -95,6 +95,9 @@ public:
 
     TFuture<void> Append(TRange<TSharedRef> records) override
     {
+        if (auto future = CheckOpen()) {
+            return future;
+        }
         if (auto future = CheckLock()) {
             return future;
         }
@@ -103,6 +106,9 @@ public:
 
     TFuture<void> Flush() override
     {
+        if (auto future = CheckOpen()) {
+            return future;
+        }
         if (auto future = CheckLock()) {
             return future;
         }
@@ -114,11 +120,17 @@ public:
         int maxRecords,
         i64 maxBytes) const override
     {
+        if (auto future = CheckOpen<std::vector<TSharedRef>>()) {
+            return future;
+        }
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Truncate(int recordCount) override
     {
+        if (auto future = CheckOpen()) {
+            return future;
+        }
         if (auto future = CheckLock()) {
             return future;
         }
@@ -130,7 +142,8 @@ public:
         if (auto future = CheckLock()) {
             return future;
         }
-        return UnderlyingChangelog_->Close();
+        Open_ = false;
+        return Flush();
     }
 
 private:
@@ -138,11 +151,26 @@ private:
     const TLocalChangelogStoreLockPtr Lock_;
     const IChangelogPtr UnderlyingChangelog_;
 
-    TFuture<void> CheckLock()
+    bool Open_ = true;
+
+
+    template <class T = void>
+    TFuture<T> CheckOpen() const
     {
-        return Lock_->IsAcquired(Epoch_)
-            ? std::nullopt
-            : MakeFuture<void>(TError("Changelog store lock expired"));
+        if (!Open_) {
+            return MakeFuture<T>(TError(
+                NHydra::EErrorCode::InvalidChangelogState,
+                "Changelog is not open"));
+        }
+        return {};
+    }
+
+    TFuture<void> CheckLock() const
+    {
+        if (!Lock_->IsAcquired(Epoch_)) {
+            return MakeFuture<void>(TError("Changelog store lock expired"));
+        }
+        return {};
     }
 };
 
@@ -202,7 +230,8 @@ public:
 
     TFuture<void> Close() override
     {
-        return UnderlyingChangelog_->Close();
+        // TEpochBoundChangelog never propagates Close below.
+        YT_ABORT();
     }
 
 private:
@@ -330,6 +359,7 @@ private:
 
         auto cachedChangelog = WaitFor(cookie.GetValue())
             .ValueOrThrow();
+
         return New<TEpochBoundLocalChangelog>(epoch, Lock_, std::move(cachedChangelog));
     }
 

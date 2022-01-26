@@ -239,6 +239,7 @@ public:
     bool PreallocateChangelogs;
 
     //! If true, changelogs are gracefully closed on segment rotation and epoch end.
+    // COMPAT(babenko): drop this once changelog discarder becomes compatible with local changelog store.
     bool CloseChangelogs;
 
     //! Interval between automatic "heartbeat" mutations commit.
