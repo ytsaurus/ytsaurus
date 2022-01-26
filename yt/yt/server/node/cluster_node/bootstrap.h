@@ -131,7 +131,7 @@ struct IBootstrapBase
 
     // Global node state.
     virtual bool IsReadOnly() const = 0;
-    virtual bool Decommissioned() const = 0;
+    virtual bool IsDecommissioned() const = 0;
 
     // Alerts.
     DECLARE_INTERFACE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
@@ -259,7 +259,7 @@ public:
     const NYTree::IMapNodePtr& GetOrchidRoot() const override;
 
     bool IsReadOnly() const override;
-    bool Decommissioned() const override;
+    bool IsDecommissioned() const override;
 
     NDataNode::TNetworkStatistics& GetNetworkStatistics() const override;
 
