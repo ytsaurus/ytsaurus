@@ -206,6 +206,8 @@ class JobShell(object):
                 self._on_http_error(rsp.error)
             return
         rsp = yson.loads(rsp.body, encoding=None)
+        if get_api_version(self.yt_client) == "v4":
+            rsp = rsp[b"result"]
         if rsp and b"shell_id" in rsp:
             self.shell_id = rsp[b"shell_id"]
         self._poll_shell()
@@ -216,6 +218,8 @@ class JobShell(object):
                 self._on_http_error(rsp.error)
             return
         rsp = yson.loads(rsp.body, encoding=None)
+        if get_api_version(self.yt_client) == "v4":
+            rsp = rsp[b"result"]
         if b"consumed_offset" in rsp:
             consumed_offset = rsp[b"consumed_offset"]
             if self.input_offset < consumed_offset <= self.input_offset + len(self.key_buffer):
@@ -229,6 +233,8 @@ class JobShell(object):
                 self._poll_shell()
             return
         rsp = yson.loads(rsp.body, encoding=None)
+        if get_api_version(self.yt_client) == "v4":
+            rsp = rsp[b"result"]
         written = 0
         while written < len(rsp[b"output"]):
             chars = self.output.write(rsp[b"output"][written:])
