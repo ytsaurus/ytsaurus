@@ -4,7 +4,7 @@ from pyspark.sql.types import StringType, ArrayType
 
 test_name = "link_eda_user_appsession_request_id"
 input_path = "//home/spark/e2e/{}/input".format(test_name)
-output_path = "//home/spark/e2e/{}/output".format(test_name)
+output_path = "//home/spark/e2e/{}_python2/output".format(test_name)
 print(test_name)
 with spark_session() as spark:
     eda_user_appsession = (spark.read
