@@ -18,14 +18,14 @@
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
-#include <yt/yt/server/master/orchid/manifest.h>
-#include <yt/yt/server/master/orchid/orchid_holder_base.h>
-
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
 
 #include <yt/yt/client/chunk_client/public.h>
 
@@ -35,6 +35,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/static_service_dispatcher.h>
 
 namespace NYT::NNodeTrackerServer {
 
@@ -53,7 +54,7 @@ using NYT::FromProto;
 
 class TClusterNodeProxy
     : public TNonversionedObjectProxyBase<TNode>
-    , public TOrchidHolderBase
+    , public virtual TStaticServiceDispatcher
 {
 public:
     TClusterNodeProxy(
@@ -61,10 +62,11 @@ public:
         TObjectTypeMetadata* metadata,
         TNode* node)
         : TNonversionedObjectProxyBase(bootstrap, metadata, node)
-        , TOrchidHolderBase(
-            Bootstrap_->GetNodeChannelFactory(),
-            BIND(&TClusterNodeProxy::CreateOrchidManifest, Unretained(this)))
-    { }
+    {
+        RegisterService(
+            "orchid",
+            BIND(&TClusterNodeProxy::CreateOrchidService, Unretained(this)));
+    }
 
 private:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
@@ -641,16 +643,22 @@ private:
         }
     }
 
-    TOrchidManifestPtr CreateOrchidManifest()
+    IYPathServicePtr CreateOrchidService()
     {
         auto* node = GetThisImpl<TNode>();
         if (!IsObjectAlive(node)) {
             THROW_ERROR_EXCEPTION("Node is not alive");
         }
 
-        auto manifest = New<TOrchidManifest>();
-        manifest->RemoteAddresses = ConvertTo<INodePtr>(node->GetAddressesOrThrow(EAddressType::InternalRpc));
-        return manifest;
+        auto nodeAddresses = node->GetAddressesOrThrow(EAddressType::InternalRpc);
+
+        // TODO(max42): make customizable.
+        constexpr TDuration timeout = TDuration::Seconds(60);
+
+        return CreateOrchidYPathService(TOrchidOptions{
+            .Channel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(std::move(nodeAddresses)),
+            .Timeout = timeout,
+        });
     }
 
     static void BuildYsonCellar(const TNode::TCellar& cellar, TFluentAny fluent)

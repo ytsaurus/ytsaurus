@@ -72,7 +72,7 @@
 #include <yt/yt/server/master/scheduler_pool_server/scheduler_pool.h>
 #include <yt/yt/server/master/scheduler_pool_server/scheduler_pool_manager.h>
 
-#include <yt/yt/server/master/orchid/cypress_integration.h>
+#include <yt/yt/server/master/orchid_server/cypress_integration.h>
 
 #include <yt/yt/server/master/security_server/config.h>
 #include <yt/yt/server/master/security_server/cypress_integration.h>
@@ -191,6 +191,7 @@ using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSchedulerPoolServer;
+using namespace NOrchidServer;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;

@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, get, ls, set, sync_create_cells
+from yt_commands import authors, get, ls, set, sync_create_cells, create, raises_yt_error, exists
 
 from yt.common import YtError
 import yt.yson as yson
@@ -58,6 +58,27 @@ class TestOrchid(YTEnvSetup):
     def test_master_reign(self):
         peer = ls("//sys/primary_masters")[0]
         assert type(get("//sys/primary_masters/{}/orchid/reign".format(peer))) == yson.YsonInt64
+
+    @authors("max42")
+    def test_invalid_orchid(self):
+        # Missing remote_addresses attribute.
+        create("orchid", "//tmp/orchid")
+
+        # These requests should work fine.
+        assert "orchid" in ls("//tmp")
+        assert get("//tmp")["orchid"] == yson.YsonEntity()
+        assert get("//tmp", attributes=["type"])["orchid"].attributes["type"] == "orchid"
+
+        # TODO(max42): somehow this does not work.
+        # assert exists("//tmp/orchid")
+
+        # These must trigger error.
+        with raises_yt_error("Missing required parameter /remote_addresses"):
+            ls("//tmp/orchid")
+        with raises_yt_error("Missing required parameter /remote_addresses"):
+            get("//tmp/orchid")
+        with raises_yt_error("Missing required parameter /remote_addresses"):
+            exists("//tmp/orchid/foo")
 
 
 ##################################################################
