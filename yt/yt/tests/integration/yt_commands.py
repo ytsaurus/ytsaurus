@@ -2660,14 +2660,18 @@ def update_scheduler_config(path, value):
     wait(lambda: get(orchid_path) == value)
 
 
-def update_pool_tree_config_option(pool_tree, option, value):
-    set("//sys/pool_trees/{}/@config/{}".format(pool_tree, option), value)
-    wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/config/{}".format(pool_tree, option)) == value)
+def update_pool_tree_config_option(tree, option, value, wait_for_orchid=True):
+    set("//sys/pool_trees/{}/@config/{}".format(tree, option), value)
+    if wait_for_orchid:
+        wait(lambda: get(yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option)) == value)
 
 
-def update_pool_tree_config(pool_tree, config):
-    for option, value in list(iteritems(config)):
-        update_pool_tree_config_option(pool_tree, option, value)
+def update_pool_tree_config(tree, config, wait_for_orchid=True):
+    for option, value in iteritems(config):
+        update_pool_tree_config_option(tree, option, value, wait_for_orchid=False)
+    if wait_for_orchid:
+        for option, value in iteritems(config):
+            wait(lambda: get(yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option)) == value)
 
 
 def get_nodes_with_flavor(flavor):

@@ -5,7 +5,7 @@ from yt_commands import (
     events_on_fs, reset_events_on_fs,
     create, ls, get, set, remove, exists, create_pool, read_table, write_table,
     map, run_test_vanilla, run_sleeping_vanilla, get_job,
-    sync_create_cells, update_controller_agent_config, update_pool_tree_config_option,
+    sync_create_cells, update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option,
     update_op_parameters, create_test_tables, retry)
 
 from yt_scheduler_helpers import (
@@ -93,13 +93,14 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestSchedulerPreemption, self).setup_method(method)
-        set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.99)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.8)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 1000)
-        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
-        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/job_graceful_interrupt_timeout", 10000)
-        time.sleep(0.5)
+        update_pool_tree_config("default", {
+            "preemption_satisfaction_threshold": 0.99,
+            "fair_share_starvation_tolerance": 0.8,
+            "fair_share_starvation_timeout": 1000,
+            "max_unpreemptable_running_job_count": 0,
+            "preemptive_scheduling_backoff": 0,
+            "job_graceful_interrupt_timeout": 10000,
+        })
 
     @authors("ignat")
     def test_preemption(self):
@@ -821,16 +822,16 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestSchedulerAggressivePreemption, self).setup_method(method)
-        set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.2)
-        set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 1.0)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.9)
-        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
-        set("//sys/pool_trees/default/@config/fair_share_aggressive_starvation_timeout", 200)
-        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 5)
-        time.sleep(0.5)
+        update_pool_tree_config("default", {
+            "aggressive_preemption_satisfaction_threshold": 0.2,
+            "preemption_satisfaction_threshold": 1.0,
+            "fair_share_starvation_tolerance": 0.9,
+            "max_unpreemptable_running_job_count": 0,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_aggressive_starvation_timeout": 200,
+            "preemptive_scheduling_backoff": 0,
+            "max_ephemeral_pools_per_user": 5,
+        })
 
         nodes = ls("//sys/cluster_nodes")
         for i, node in enumerate(nodes):
@@ -989,14 +990,15 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestSchedulerAggressivePreemption2, self).setup_method(method)
-        set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.2)
-        set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.75)
-        set("//sys/pool_trees/default/@config/preemption_check_starvation", False)
-        set("//sys/pool_trees/default/@config/preemption_check_satisfaction", False)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
-        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 2)
-        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        time.sleep(0.5)
+        update_pool_tree_config("default", {
+            "aggressive_preemption_satisfaction_threshold": 0.2,
+            "preemption_satisfaction_threshold": 0.75,
+            "preemption_check_starvation": False,
+            "preemption_check_satisfaction": False,
+            "fair_share_starvation_timeout": 100,
+            "max_unpreemptable_running_job_count": 2,
+            "preemptive_scheduling_backoff": 0,
+        })
 
     @classmethod
     def modify_node_config(cls, config):
