@@ -82,13 +82,28 @@ object CheckUtils {
     Some(res.cache()).filter(_.count() > 0)
   }
 
+  private def formatFieldDiscrepancy(actual: StructField, expected: StructField): String = {
+    val builder = Seq.newBuilder[String]
+    if (actual.dataType != expected.dataType) {
+      builder += s"expected data type ${expected.dataType}, but actual data type was ${actual.dataType}"
+    }
+    if (actual.nullable != expected.nullable) {
+      builder += s"expected nullable ${expected.nullable}, but actual nullable was ${actual.dataType}"
+    }
+    if (actual.metadata != expected.metadata) {
+      builder += s"expected metadata ${expected.metadata}, but actual metadata was ${actual.metadata}"
+    }
+
+    builder.result().mkString(", ")
+  }
+
   def checkSchema(actual: StructType, expected: StructType): Map[String, String] = {
-    val actualMap = actual.map(f => f.name -> f.dataType).toMap
-    val expectedMap = expected.map(f => f.name -> f.dataType).toMap
-    actualMap.flatMap { case (name, actualDt) =>
+    val actualMap = actual.map(f => f.name -> f).toMap
+    val expectedMap = expected.map(f => f.name -> f).toMap
+    actualMap.flatMap { case (name, actualField) =>
       expectedMap.get(name) match {
-        case Some(expectedDt) if expectedDt == actualDt => None
-        case Some(expectedDt) => Some(name -> s"expected type: ${expectedDt.typeName}, actual type: ${actualDt.typeName}")
+        case Some(expectedField) if expectedField == actualField => None
+        case Some(expectedField) => Some(name -> formatFieldDiscrepancy(actualField, expectedField))
         case None => Some(name -> "unexpected field")
       }
     } ++ expectedMap.flatMap { case (name, _) =>

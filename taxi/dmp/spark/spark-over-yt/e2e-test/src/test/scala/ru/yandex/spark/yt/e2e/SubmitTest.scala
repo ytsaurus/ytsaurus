@@ -18,6 +18,8 @@ class SubmitTest extends FlatSpec with Matchers with HumeYtClient {
 
   val jobs = Seq(
     E2ETestCase("link_eda_user_appsession_request_id", Seq("appsession_id")),
+    E2ETestCase("link_eda_user_appsession_request_id_python2", Seq("appsession_id"))
+      .withConf("spark.pyspark.python" , "python2.7"),
     E2ETestCase("fct_extreme_user_order_act", Seq("phone_pd_id"))
       .withConf("spark.sql.mapKeyDedupPolicy", "LAST_WIN"),
     E2ETestCase("yt_cdm_agg_ca_adjust_event_sfo", Seq("moscow_dt", "brand", "platform")),
