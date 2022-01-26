@@ -1,7 +1,10 @@
 #pragma once
 
 #include "private.h"
-#include "scheduler_tree.h"
+#include "scheduler_tree_structs.h"
+#include "scheduler_strategy.h"
+
+#include <yt/yt/server/lib/scheduler/resource_metering.h>
 
 namespace NYT::NScheduler {
 
@@ -43,17 +46,62 @@ struct TPoolsUpdateResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISchedulerTree
+struct TSchedulerElementStateSnapshot
+{
+    TResourceVector DemandShare;
+    TResourceVector PromisedFairShare;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IFairShareTree
     : public virtual TRefCounted
 {
+    //! Methods below rely on presence of snapshot.
+    virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
+    virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
+    virtual void ProcessUpdatedJob(
+        TOperationId operationId,
+        TJobId jobId,
+        const TJobResources& jobResources,
+        const std::optional<TString>& jobDataCenter,
+        const std::optional<TString>& jobInfinibandCluster,
+        bool* shouldAbortJob) = 0;
+    virtual bool ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
+
+    virtual bool HasSnapshottedOperation(TOperationId operationId) const = 0;
+    virtual bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const = 0;
+
+    virtual TFairShareStrategyTreeConfigPtr GetSnapshottedConfig() const = 0;
+    virtual TJobResources GetSnapshottedTotalResourceLimits() const = 0;
+    virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
+    virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const = 0;
+
+    virtual void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) = 0;
+    virtual void ApplyScheduledAndPreemptedResourcesDelta(
+        const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& scheduledJobResources,
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
+        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes) = 0;
+
+    virtual void BuildResourceMetering(
+        TMeteringMap* meteringMap,
+        THashMap<TString, TString>* customMeteringTags) const = 0;
+
+    virtual void ProfileFairShare() const = 0;
+    virtual void LogFairShareAt(TInstant now) const = 0;
+    virtual void EssentialLogFairShareAt(TInstant now) const = 0;
+    virtual void UpdateResourceUsageSnapshot() = 0;
+
+    //! Updates fair share attributes of tree elements and saves it as tree snapshot.
+    virtual TFuture<std::pair<IFairShareTreePtr, TError>> OnFairShareUpdateAt(TInstant now) = 0;
+    virtual void FinishFairShareUpdate() = 0;
+
+    //! Methods below manipute directly with tree structure and fields, it should be used in serialized manner.
     virtual TFairShareStrategyTreeConfigPtr GetConfig() const = 0;
     virtual bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) = 0;
     virtual void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) = 0;
 
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
-
-    virtual TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>> OnFairShareUpdateAt(TInstant now) = 0;
-    virtual void FinishFairShareUpdate() = 0;
 
     virtual bool HasOperation(TOperationId operationId) const = 0;
     virtual bool HasRunningOperation(TOperationId operationId) const = 0;
@@ -98,6 +146,8 @@ struct ISchedulerTree
     virtual void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName) const = 0;
     virtual TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const = 0;
 
+    virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
+
     virtual TPersistentTreeStatePtr BuildPersistentTreeState() const = 0;
     virtual void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState) = 0;
 
@@ -114,19 +164,17 @@ struct ISchedulerTree
 
     virtual void BuildFairShareInfo(NYTree::TFluentMap fluent) const = 0;
 
-    virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
-
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 
     //! Raised when operation considered running in tree.
     DECLARE_INTERFACE_SIGNAL(void(TOperationId), OperationRunning);
 };
 
-DEFINE_REFCOUNTED_TYPE(ISchedulerTree)
+DEFINE_REFCOUNTED_TYPE(IFairShareTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchedulerTreePtr CreateFairShareTree(
+IFairShareTreePtr CreateFairShareTree(
     TFairShareStrategyTreeConfigPtr config,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* strategyHost,

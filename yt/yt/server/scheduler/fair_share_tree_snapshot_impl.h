@@ -50,6 +50,8 @@ public:
     TDynamicAttributesListSnapshotPtr GetDynamicAttributesListSnapshot() const;
     void SetDynamicAttributesListSnapshot(TDynamicAttributesListSnapshotPtr value);
 
+    void UpdateDynamicAttributesSnapshot(const TResourceUsageSnapshotPtr& resourceUsageSnapshot);
+
 private:
     TAtomicPtr<TDynamicAttributesListSnapshot> DynamicAttributesListSnapshot_;
 };

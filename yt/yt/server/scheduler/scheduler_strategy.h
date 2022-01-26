@@ -5,7 +5,7 @@
 #include "job_resource_helpers.h"
 #include "master_connector.h"
 #include "job.h"
-#include "scheduler_tree.h"
+#include "scheduler_tree_structs.h"
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>

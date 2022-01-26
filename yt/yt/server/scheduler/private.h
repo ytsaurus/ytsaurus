@@ -15,6 +15,9 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IFairShareTree)
+DECLARE_REFCOUNTED_STRUCT(IFairShareTreeElementHost)
+
 DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TSchedulerOperationElement)
 DECLARE_REFCOUNTED_CLASS(TSchedulerOperationElementSharedState)
@@ -24,10 +27,8 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerRootElement)
 
 DECLARE_REFCOUNTED_CLASS(TResourceTree)
 DECLARE_REFCOUNTED_CLASS(TResourceTreeElement)
-DECLARE_REFCOUNTED_STRUCT(IFairShareTreeElementHost)
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationController)
-DECLARE_REFCOUNTED_STRUCT(IFairShareTreeSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSnapshotImpl);
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeProfileManager)
 
