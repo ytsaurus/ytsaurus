@@ -1007,6 +1007,10 @@ void TBootstrap::DoRun()
         CreateVirtualNode(ObjectService_->GetCache()->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
+        "/tablet_manager",
+        CreateVirtualNode(TabletManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
         "/reign",
         ConvertTo<INodePtr>(GetCurrentReign()));
     SetBuildAttributes(

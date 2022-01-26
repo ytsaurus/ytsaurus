@@ -21,6 +21,8 @@
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
+#include <yt/yt/server/lib/tablet_node/config.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -513,6 +515,9 @@ private:
                 }
             }
         }
+
+        auto tableMountConfig = New<NTabletNode::TTableMountConfig>();
+        ToProto(req->mutable_table_mount_config_keys(), tableMountConfig->GetRegisteredKeys());
 
         YT_LOG_INFO("Registering at primary master");
 

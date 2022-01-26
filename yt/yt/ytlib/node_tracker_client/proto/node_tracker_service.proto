@@ -27,6 +27,7 @@ message TReqRegisterNode
     repeated int32 flavors = 8; // ENodeFlavor
     repeated NYT.NProto.TGuid chunk_location_uuids = 9;
     optional string host_name = 10;
+    repeated string table_mount_config_keys = 11;
 
     reserved 2;
 }

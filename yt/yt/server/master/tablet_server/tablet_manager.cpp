@@ -268,6 +268,14 @@ public:
         TabletService_->Initialize();
     }
 
+    IYPathServicePtr GetOrchidService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromMethod(&TImpl::BuildOrchidYson, MakeWeak(this))
+            ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::TabletManager));
+    }
+
     void OnTabletCellBundleDestroyed(TCellBundle* cellBundle)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -2596,6 +2604,18 @@ public:
         return {};
     }
 
+    void UpdateExtraMountConfigKeys(std::vector<TString> keys)
+    {
+        for (auto&& key : keys) {
+            auto [it, inserted] = MountConfigKeysFromNodes_.insert(std::move(key));
+            if (inserted) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Registered new mount config key (Key: %v)",
+                    *it);
+            }
+        }
+    }
+
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
@@ -2618,6 +2638,38 @@ private:
 
     TTimeCounter TabletNodeHeartbeatCounter_ = TabletServerProfiler.TimeCounter("/tablet_node_heartbeat");
     THashMap<TProfilerKey, TProfilingCounters> Counters_;
+
+    // Mount config keys received from nodes. Persisted.
+    THashSet<TString> MountConfigKeysFromNodes_;
+    // Mount config keys known to the binary (by the moment of most recent reign change). Persisted.
+    THashSet<TString> LocalMountConfigKeys_;
+
+    INodePtr BuildOrchidYson() const
+    {
+        std::vector<TString> extraMountConfigKeys;
+        for (const auto& key : MountConfigKeysFromNodes_) {
+            if (!LocalMountConfigKeys_.contains(key)) {
+                extraMountConfigKeys.push_back(key);
+            }
+        }
+
+        // NB: Orchid node is materialized explicitly because |opaque| is not applied
+        // if BuildYsonFluently(consumer) is used, and we want to save some screen space.
+        return BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("extra_mount_config_keys").Value(extraMountConfigKeys)
+                .Item("local_mount_config_keys")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(LocalMountConfigKeys_)
+                .Item("mount_config_keys_from_nodes")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(MountConfigKeysFromNodes_)
+            .EndMap();
+    }
 
     TProfilingCounters* GetCounters(std::optional<ETabletStoresUpdateReason> reason, TTableNode* table)
     {
@@ -2658,6 +2710,9 @@ private:
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
+
+    // Not a compat, actually.
+    bool FillMountConfigKeys_ = false;
 
     // COMPAT(ifsmirnov)
     bool RecomputeAggregateTabletStatistics_ = false;
@@ -3356,6 +3411,7 @@ private:
     struct TTableSettings
     {
         TTableMountConfigPtr MountConfig;
+        IMapNodePtr ExtraMountConfigAttributes;
         NTabletNode::TTabletStoreReaderConfigPtr StoreReaderConfig;
         NTabletNode::TTabletHunkReaderConfigPtr HunkReaderConfig;
         NTabletNode::TTabletStoreWriterConfigPtr StoreWriterConfig;
@@ -3382,6 +3438,23 @@ private:
             result.MountConfig->EnableDynamicStoreRead = IsDynamicStoreReadEnabled(table);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
+                << ex;
+        }
+
+        // Prepare extra mount config attributes.
+        try {
+            for (const auto& [key, value] : tableAttributes.ListPairs()) {
+                if (MountConfigKeysFromNodes_.contains(key) && !LocalMountConfigKeys_.contains(key)) {
+                    if (!result.ExtraMountConfigAttributes) {
+                        result.ExtraMountConfigAttributes = CreateEphemeralNodeFactory()->CreateMap();
+                    }
+                    result.ExtraMountConfigAttributes->AddChild(key, ConvertToNode(value));
+                }
+            }
+        } catch (const std::exception& ex) {
+            // NB: No actual parsing happens here so error should not occur.
+            // Handling for the sake of symmetry.
+            THROW_ERROR_EXCEPTION("Error parsing extra table mount configuration")
                 << ex;
         }
 
@@ -3470,6 +3543,7 @@ private:
     struct TSerializedTableSettings
     {
         TYsonString MountConfig;
+        TYsonString ExtraMountConfigAttributes;
         TYsonString StoreReaderConfig;
         TYsonString HunkReaderConfig;
         TYsonString StoreWriterConfig;
@@ -3482,6 +3556,9 @@ private:
     {
         return {
             .MountConfig = ConvertToYsonString(tableSettings.MountConfig),
+            .ExtraMountConfigAttributes = tableSettings.ExtraMountConfigAttributes
+                ? ConvertToYsonString(tableSettings.ExtraMountConfigAttributes)
+                : TYsonString{},
             .StoreReaderConfig = ConvertToYsonString(tableSettings.StoreReaderConfig),
             .HunkReaderConfig = ConvertToYsonString(tableSettings.HunkReaderConfig),
             .StoreWriterConfig = ConvertToYsonString(tableSettings.StoreWriterConfig),
@@ -3496,6 +3573,10 @@ private:
     {
         auto* tableSettings = request->mutable_table_settings();
         tableSettings->set_mount_config(serializedTableSettings.MountConfig.ToString());
+        if (serializedTableSettings.ExtraMountConfigAttributes) {
+            tableSettings->set_extra_mount_config_attributes(
+                serializedTableSettings.ExtraMountConfigAttributes.ToString());
+        }
         tableSettings->set_store_reader_config(serializedTableSettings.StoreReaderConfig.ToString());
         tableSettings->set_hunk_reader_config(serializedTableSettings.HunkReaderConfig.ToString());
         tableSettings->set_store_writer_config(serializedTableSettings.StoreWriterConfig.ToString());
@@ -4461,6 +4542,9 @@ private:
         TabletMap_.SaveValues(context);
         TableReplicaMap_.SaveValues(context);
         TabletActionMap_.SaveValues(context);
+
+        Save(context, MountConfigKeysFromNodes_);
+        Save(context, LocalMountConfigKeys_);
     }
 
 
@@ -4482,7 +4566,16 @@ private:
         TabletActionMap_.LoadValues(context);
 
         // COMPAT(ifsmirnov)
+        if (context.GetVersion() >= EMasterReign::ExtraMountConfigKeys) {
+            Load(context, MountConfigKeysFromNodes_);
+            Load(context, LocalMountConfigKeys_);
+        }
+
+        // COMPAT(ifsmirnov)
         RecomputeRefsFromTabletsToDynamicStores_ = context.GetVersion() < EMasterReign::RefFromTabletToDynamicStore;
+
+        // Update mount config keys whenever the reign changes.
+        FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(GetCurrentReign());
     }
 
     void RecomputeHunkResourceUsage()
@@ -4538,6 +4631,7 @@ private:
         RecomputeAggregateTabletStatistics_ = false;
         RecomputeHunkResourceUsage_ = false;
         RecomputeRefsFromTabletsToDynamicStores_ = false;
+        FillMountConfigKeys_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -4585,6 +4679,11 @@ private:
             YT_LOG_INFO("Fixed relations between tablets and dynamic stores "
                 "(RelationCount: %v)",
                 relationCount);
+        }
+
+        if (FillMountConfigKeys_) {
+            auto mountConfig = New<NTabletNode::TTableMountConfig>();
+            LocalMountConfigKeys_ = mountConfig->GetRegisteredKeys();
         }
     }
 
@@ -4637,6 +4736,9 @@ private:
     void SetZeroState() override
     {
         InitBuiltins();
+
+        auto mountConfig = New<NTabletNode::TTableMountConfig>();
+        LocalMountConfigKeys_ = mountConfig->GetRegisteredKeys();
     }
 
     template <class T>
@@ -7022,6 +7124,11 @@ void TTabletManager::Initialize()
     return Impl_->Initialize();
 }
 
+IYPathServicePtr TTabletManager::GetOrchidService()
+{
+    return Impl_->GetOrchidService();
+}
+
 TTabletStatistics TTabletManager::GetTabletStatistics(const TTablet* tablet)
 {
     return Impl_->GetTabletStatistics(tablet);
@@ -7309,6 +7416,11 @@ void TTabletManager::ZombifyTabletCell(TTabletCell* cell)
 TNode* TTabletManager::FindTabletLeaderNode(const TTablet* tablet) const
 {
     return Impl_->FindTabletLeaderNode(tablet);
+}
+
+void TTabletManager::UpdateExtraMountConfigKeys(std::vector<TString> keys)
+{
+    Impl_->UpdateExtraMountConfigKeys(std::move(keys));
 }
 
 TTableReplica* TTabletManager::CreateTableReplica(
