@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "fair_share_tree_snapshot_impl.h"
+#include "fair_share_tree_snapshot.h"
 
 namespace NYT::NScheduler {
 
@@ -29,16 +29,16 @@ public:
     void UnregisterPool(const TSchedulerCompositeElementPtr& element);
 
     // Thread affinity: Profiler thread.
-    void ProfileElements(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
+    void ProfileElements(const TFairShareTreeSnapshotPtr& treeSnapshot);
 
     // Thread affinity: Profiler thread.
     void ApplyJobMetricsDelta(
-        const TFairShareTreeSnapshotImplPtr& treeSnapshot,
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
         const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation);
 
     // Thread affinity: Profiler thread.
     void ApplyScheduledAndPreemptedResourcesDelta(
-        const TFairShareTreeSnapshotImplPtr& treeSnapshot,
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
         const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& operationIdWithStageToScheduledJobResourcesDeltas,
         const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourcesDeltas,
         const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourceTimeDeltas);
@@ -104,12 +104,12 @@ private:
 
     void RegisterPoolProfiler(const TString& poolName);
 
-    void PrepareOperationProfilingEntries(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
+    void PrepareOperationProfilingEntries(const TFairShareTreeSnapshotPtr& treeSnapshot);
 
     void CleanupPoolProfilingEntries();
 
-    void ProfileOperations(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
-    void ProfilePools(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
+    void ProfileOperations(const TFairShareTreeSnapshotPtr& treeSnapshot);
+    void ProfilePools(const TFairShareTreeSnapshotPtr& treeSnapshot);
 
     void ProfilePool(
         const TSchedulerCompositeElement* element,
@@ -121,7 +121,7 @@ private:
         const TSchedulerElement* element,
         const TFairShareStrategyTreeConfigPtr& treeConfig);
 
-    void ProfileDistributedResources(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
+    void ProfileDistributedResources(const TFairShareTreeSnapshotPtr& treeSnapshot);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeProfileManager)

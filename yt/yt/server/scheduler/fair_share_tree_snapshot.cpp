@@ -1,10 +1,10 @@
-#include "fair_share_tree_snapshot_impl.h"
+#include "fair_share_tree_snapshot.h"
 
 
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
-TFairShareTreeSnapshotImpl::TFairShareTreeSnapshotImpl(
+TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     TTreeSnapshotId id,
     TSchedulerRootElementPtr rootElement,
     TNonOwningOperationElementMap enabledOperationIdToElement,
@@ -29,25 +29,25 @@ TFairShareTreeSnapshotImpl::TFairShareTreeSnapshotImpl(
     , ResourceLimits_(resourceLimits)
 { }
 
-TSchedulerPoolElement* TFairShareTreeSnapshotImpl::FindPool(const TString& poolName) const
+TSchedulerPoolElement* TFairShareTreeSnapshot::FindPool(const TString& poolName) const
 {
     auto it = PoolMap_.find(poolName);
     return it != PoolMap_.end() ? it->second : nullptr;
 }
 
-TSchedulerOperationElement* TFairShareTreeSnapshotImpl::FindEnabledOperationElement(TOperationId operationId) const
+TSchedulerOperationElement* TFairShareTreeSnapshot::FindEnabledOperationElement(TOperationId operationId) const
 {
     auto it = EnabledOperationMap_.find(operationId);
     return it != EnabledOperationMap_.end() ? it->second : nullptr;
 }
 
-TSchedulerOperationElement* TFairShareTreeSnapshotImpl::FindDisabledOperationElement(TOperationId operationId) const
+TSchedulerOperationElement* TFairShareTreeSnapshot::FindDisabledOperationElement(TOperationId operationId) const
 {
     auto it = DisabledOperationMap_.find(operationId);
     return it != DisabledOperationMap_.end() ? it->second : nullptr;
 }
     
-void TFairShareTreeSnapshotImpl::UpdateDynamicAttributesSnapshot(const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
+void TFairShareTreeSnapshot::UpdateDynamicAttributesSnapshot(const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
 {
     if (!resourceUsageSnapshot) {
         SetDynamicAttributesListSnapshot(nullptr);
@@ -62,12 +62,12 @@ void TFairShareTreeSnapshotImpl::UpdateDynamicAttributesSnapshot(const TResource
     SetDynamicAttributesListSnapshot(attributesSnapshot);
 }
 
-TDynamicAttributesListSnapshotPtr TFairShareTreeSnapshotImpl::GetDynamicAttributesListSnapshot() const
+TDynamicAttributesListSnapshotPtr TFairShareTreeSnapshot::GetDynamicAttributesListSnapshot() const
 {
     return DynamicAttributesListSnapshot_.Acquire();
 }
 
-void TFairShareTreeSnapshotImpl::SetDynamicAttributesListSnapshot(TDynamicAttributesListSnapshotPtr value)
+void TFairShareTreeSnapshot::SetDynamicAttributesListSnapshot(TDynamicAttributesListSnapshotPtr value)
 {
     DynamicAttributesListSnapshot_.Store(value);
 }

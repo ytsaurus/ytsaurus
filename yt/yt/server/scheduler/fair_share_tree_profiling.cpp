@@ -83,7 +83,7 @@ void TFairShareTreeProfileManager::UnregisterPool(const TSchedulerCompositeEleme
     GetOrCrash(PoolNameToProfilingEntry_, element->GetId()).RemoveTime = TInstant::Now();
 }
 
-void TFairShareTreeProfileManager::ProfileElements(const TFairShareTreeSnapshotImplPtr& treeSnapshot)
+void TFairShareTreeProfileManager::ProfileElements(const TFairShareTreeSnapshotPtr& treeSnapshot)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -102,7 +102,7 @@ void TFairShareTreeProfileManager::ProfileElements(const TFairShareTreeSnapshotI
     ProfilePools(treeSnapshot);
 }
 
-void TFairShareTreeProfileManager::PrepareOperationProfilingEntries(const TFairShareTreeSnapshotImplPtr& treeSnapshot)
+void TFairShareTreeProfileManager::PrepareOperationProfilingEntries(const TFairShareTreeSnapshotPtr& treeSnapshot)
 {
     for (auto [operationId, element] : treeSnapshot->EnabledOperationMap()) {
         auto slotIndex = element->GetSlotIndex();
@@ -396,7 +396,7 @@ void TFairShareTreeProfileManager::ProfileElement(
     }
 }
 
-void TFairShareTreeProfileManager::ProfileOperations(const TFairShareTreeSnapshotImplPtr& treeSnapshot)
+void TFairShareTreeProfileManager::ProfileOperations(const TFairShareTreeSnapshotPtr& treeSnapshot)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -454,7 +454,7 @@ void TFairShareTreeProfileManager::ProfilePool(
     producer->Update(std::move(buffer));
 }
 
-void TFairShareTreeProfileManager::ProfilePools(const TFairShareTreeSnapshotImplPtr& treeSnapshot)
+void TFairShareTreeProfileManager::ProfilePools(const TFairShareTreeSnapshotPtr& treeSnapshot)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -490,7 +490,7 @@ void TFairShareTreeProfileManager::ProfilePools(const TFairShareTreeSnapshotImpl
         findPoolBufferedProducer(RootPoolName));
 }
 
-void TFairShareTreeProfileManager::ProfileDistributedResources(const TFairShareTreeSnapshotImplPtr& treeSnapshot)
+void TFairShareTreeProfileManager::ProfileDistributedResources(const TFairShareTreeSnapshotPtr& treeSnapshot)
 {
     TSensorBuffer buffer;
 
@@ -507,7 +507,7 @@ void TFairShareTreeProfileManager::ProfileDistributedResources(const TFairShareT
 }
 
 void TFairShareTreeProfileManager::ApplyJobMetricsDelta(
-    const TFairShareTreeSnapshotImplPtr& treeSnapshot,
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
     const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
@@ -526,7 +526,7 @@ void TFairShareTreeProfileManager::ApplyJobMetricsDelta(
 }
 
 void TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
-    const TFairShareTreeSnapshotImplPtr& treeSnapshot,
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
     const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& scheduledJobResources,
     const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
     const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes)

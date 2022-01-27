@@ -1386,7 +1386,7 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerOperationElement)
 class TSchedulerRootElementFixedState
 {
 public:
-    // TODO(ignat): move it to TFairShareTreeSnapshotImpl.
+    // TODO(ignat): move it to TFairShareTreeSnapshot.
     DEFINE_BYVAL_RO_PROPERTY(int, TreeSize);
     DEFINE_BYVAL_RO_PROPERTY(int, SchedulableElementCount);
 };
