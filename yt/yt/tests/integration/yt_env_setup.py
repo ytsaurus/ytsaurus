@@ -367,6 +367,7 @@ class YTEnvSetup(object):
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             node_io_engine_type=cls.get_param("NODE_IO_ENGINE_TYPE", index),
             node_use_direct_io_for_reads=cls.get_param("NODE_USE_DIRECT_IO_FOR_READS", index),
+            cluster_name=cls.get_cluster_name(index),
         )
 
         instance = YTInstance(

@@ -30,6 +30,8 @@
 #include <yt/yt/ytlib/query_client/evaluator.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
+#include <yt/yt/ytlib/queue_client/config.h>
+
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
@@ -62,9 +64,11 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
-#include <yt/yt/core/rpc/caching_channel_factory.h>
 
+#include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/balancing_channel.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
@@ -157,6 +161,8 @@ public:
             ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
+
+        InitializeQueueAgentChannels();
 
         PermissionCache_ = New<TPermissionCache>(
             Config_->PermissionCache,
@@ -381,6 +387,15 @@ public:
         return SchedulerChannel_;
     }
 
+    const IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const override
+    {
+        auto it = QueueAgentChannels_.find(stage);
+        if (it == QueueAgentChannels_.end()) {
+            THROW_ERROR_EXCEPTION("Queue agent stage %Qv channel is not found", stage);
+        }
+        return it->second;
+    }
+
     const IChannelFactoryPtr& GetChannelFactory() override
     {
         return ChannelFactory_;
@@ -576,6 +591,7 @@ private:
     NCellMasterClient::TCellDirectorySynchronizerPtr MasterCellDirectorySynchronizer_;
 
     IChannelPtr SchedulerChannel_;
+    THashMap<TString, IChannelPtr> QueueAgentChannels_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
@@ -651,6 +667,32 @@ private:
                 BIND(&CreateTimestampProviderChannelFromAddresses, timestampProviderConfig, ChannelFactory_)) :
             CreateTimestampProviderChannel(timestampProviderConfig, ChannelFactory_);
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(timestampProviderConfig, TimestampProviderChannel_);
+    }
+
+    void InitializeQueueAgentChannels()
+    {
+        for (const auto& [stage, channelConfig] : Config_->QueueAgent->Stages) {
+            auto endpointDescription = Format("QueueAgent/%v", stage);
+            auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("queue_agent").Value(true)
+                    .Item("stage").Value(stage)
+                .EndMap());
+
+            auto channel = CreateBalancingChannel(
+                channelConfig,
+                ChannelFactory_,
+                std::move(endpointDescription),
+                std::move(endpointAttributes));
+
+            channel = CreateRetryingChannel(channelConfig, std::move(channel));
+
+            // TODO(max42): make customizable.
+            constexpr auto timeout = TDuration::Minutes(1);
+            channel = CreateDefaultTimeoutChannel(std::move(channel), timeout);
+
+            QueueAgentChannels_[stage] = std::move(channel);
+        }
     }
 };
 

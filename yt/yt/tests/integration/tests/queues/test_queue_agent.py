@@ -1,7 +1,7 @@
 from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 
 from yt_commands import (authors, get, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
-                         insert_rows, delete_rows, remove)
+                         insert_rows, delete_rows, remove, raises_yt_error, exists)
 
 from yt.common import YtError
 
@@ -346,3 +346,83 @@ class TestMultipleAgents(YTEnvSetup):
             leader = collect_leaders(ignore_instances=[prev_leader])[0]
 
             validate_leader(leader, ignore_instances=[prev_leader])
+
+
+class TestMasterIntegration(YTEnvSetup):
+    NUM_QUEUE_AGENTS = 1
+
+    USE_DYNAMIC_TABLES = 1
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "cluster_connection": {
+            # Disable cache.
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0,
+            },
+        },
+        "queue_agent": {
+            "poll_period": 100,
+        },
+        "election_manager": {
+            "transaction_timeout": 1000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+        },
+    }
+
+    def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
+        sync_create_cells(1)
+        create("table",
+               "//sys/queue_agents/queues",
+               attributes={"dynamic": True, "schema": queue_table_schema},
+               force=True)
+        sync_mount_table("//sys/queue_agents/queues")
+        create("table",
+               "//sys/queue_agents/consumers",
+               attributes={"dynamic": True, "schema": consumer_table_schema},
+               force=True)
+        sync_mount_table("//sys/queue_agents/consumers")
+
+    @authors("max42")
+    def test_queue_attributes(self):
+        self._prepare_tables()
+
+        create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+        sync_mount_table("//tmp/q")
+
+        assert get("//tmp/q/@queue_agent_stage") == "production"
+
+        # Before queue is registered, queue agent backed attributes would throw resolution error.
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
+            get("//tmp/q/@queue_status")
+
+        insert_rows("//sys/queue_agents/queues",
+                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
+                      "dynamic": True, "sorted": False}])
+
+        # Wait for queue status to become available.
+        wait(lambda: get("//tmp/q/@queue_status/partition_count") == 1, ignore_exceptions=True)
+
+        # Check the zeroth partition.
+        partitions = get("//tmp/q/@queue_partitions")
+        assert len(partitions) == 1
+        assert partitions[0]["available_row_count"] == 0
+
+    @authors("max42")
+    def test_non_queues(self):
+        create("table", "//tmp/q_static",
+               attributes={"schema": [{"name": "data", "type": "string"}]})
+        create("table", "//tmp/q_sorted_dynamic",
+               attributes={"dynamic": True, "schema": [{"name": "key", "type": "string", "sort_order": "ascending"},
+                                                       {"name": "value", "type": "string"}]})
+        create("replicated_table", "//tmp/q_ordered_replicated",
+               attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+        attributes = ["queue_agent_stage", "queue_status", "queue_partitions"]
+        result = get("//tmp", attributes=attributes)
+        for name in ("q_static", "q_sorted_dynamic", "q_ordered_replicated"):
+            assert not result[name].attributes
+            for attribute in attributes:
+                assert not exists("//tmp/" + name + "/@" + attribute)

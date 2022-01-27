@@ -23,6 +23,7 @@ class LocalYtConfig(object):
     init_operations_archive = attr.ib(False)
     local_cypress_dir = attr.ib(None)
     meta_files_suffix = attr.ib(".meta")
+    cluster_name = attr.ib(None)
 
     """High level master configuration"""
     primary_cell_tag = attr.ib(0)

@@ -89,6 +89,7 @@ DEFINE_ENUM(EMasterReign,
     ((AlterReplicatedTables)                                        (1922))  // ifsmirnov
     ((UnifiedReplicaMetadata)                                       (1923))  // babenko
     ((ExtraMountConfigKeys)                                         (1924))  // ifsmirnov
+    ((QueueAgentStageAttribute)                                     (1925))  // max42
 );
 
 ////////////////////////////////////////////////////////////////////////////////

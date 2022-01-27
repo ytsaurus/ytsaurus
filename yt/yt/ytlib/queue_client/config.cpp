@@ -1,0 +1,15 @@
+#include "config.h"
+
+namespace NYT::NQueueClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQueueAgentConnectionConfig::TQueueAgentConnectionConfig()
+{
+    RegisterParameter("stages", Stages)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NQueueClient

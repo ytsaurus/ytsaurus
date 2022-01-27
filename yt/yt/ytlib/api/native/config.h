@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
+#include <yt/yt/ytlib/queue_client/public.h>
+
 #include <yt/yt/ytlib/table_client/config.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
@@ -78,8 +80,6 @@ class TConnectionConfig
     , public NCellMasterClient::TCellDirectoryConfig
 {
 public:
-    std::optional<TString> ClusterName;
-
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
@@ -89,6 +89,7 @@ public:
 
     NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
 
+    NQueueClient::TQueueAgentConnectionConfigPtr QueueAgent;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;

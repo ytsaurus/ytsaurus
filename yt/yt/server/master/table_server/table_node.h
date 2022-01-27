@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
+#include <yt/yt/ytlib/queue_client/public.h>
+
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
@@ -87,6 +89,7 @@ private:
         NTabletClient::ETabletBackupState AggregatedTabletBackupState = NTabletClient::ETabletBackupState::None;
         NChaosClient::TReplicationCardId ReplicationCardId;
         NTransactionClient::TTimestamp BackupCheckpointTimestamp = NTransactionClient::NullTimestamp;
+        TString QueueAgentStage = NQueueClient::ProductionStage;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -142,6 +145,7 @@ public:
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByBackupState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, AggregatedTabletBackupState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupCheckpointTimestamp);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, QueueAgentStage);
     DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(DynamicTableAttributes, TabletStatistics);
 
     // COMPAT(ifsmirnov)
@@ -182,6 +186,7 @@ public:
         const NTableClient::TLegacyOwningKey& maxKey);
 
     bool IsDynamic() const;
+    bool IsQueue() const;
     bool IsEmpty() const;
     bool IsLogicallyEmpty() const;
     bool IsUniqueKeys() const;
