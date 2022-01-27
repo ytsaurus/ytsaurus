@@ -10,7 +10,9 @@
 #include "private.h"
 #include "chunk_reader_options.h"
 #include "chunk_reader_statistics.h"
-#include "yt/yt/core/misc/error.h"
+#include "erasure_adaptive_repair.h"
+
+#include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -144,7 +146,7 @@ public:
     TRepairAllPartsSession(
         ICodec* codec,
         const TPartIndexList& erasedIndices,
-        const std::vector<IChunkReaderPtr>& readers,
+        const std::vector<IChunkReaderAllowingRepairPtr>& readers,
         const std::vector<IChunkWriterPtr>& writers,
         const TClientChunkReadOptions& options)
         : Codec_(codec)
@@ -169,7 +171,7 @@ public:
 
 private:
     const ICodec* const Codec_;
-    const std::vector<IChunkReaderPtr> Readers_;
+    const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
     const std::vector<IChunkWriterPtr> Writers_;
     const TPartIndexList ErasedIndices_;
     const TClientChunkReadOptions ChunkReadOptions_;
@@ -292,22 +294,6 @@ private:
         }
     }
 };
-
-TFuture<void> RepairErasedParts(
-    ICodec* codec,
-    const TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderPtr>& readers,
-    const std::vector<IChunkWriterPtr>& writers,
-    const TClientChunkReadOptions& options)
-{
-    auto session = New<TRepairAllPartsSession>(
-        codec,
-        erasedIndices,
-        readers,
-        writers,
-        options);
-    return session->Run();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -622,13 +608,14 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
-        int /*firstBlockIndex*/,
-        int /*blockCount*/,
-        std::optional<i64> /*estimatedSize*/) override
+        const TClientChunkReadOptions& options,
+        int firstBlockIndex,
+        int blockCount,
+        std::optional<i64> estimatedSize) override
     {
-        // Implement when first needed.
-        YT_UNIMPLEMENTED();
+        std::vector<int> blockIndices(blockCount);
+        std::iota(blockIndices.begin(), blockIndices.end(), firstBlockIndex);
+        return ReadBlocks(options, blockIndices, estimatedSize);
     }
 
     TInstant GetLastFailureTime() const override
@@ -670,8 +657,140 @@ TFuture<void> RepairErasedParts(
     const std::vector<IChunkWriterPtr>& writers,
     const TClientChunkReadOptions& options)
 {
-    std::vector<IChunkReaderPtr> simpleReaders(readers.begin(), readers.end());
-    return RepairErasedParts(codec, erasedIndices, simpleReaders, writers, options);
+    auto session = New<TRepairAllPartsSession>(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        options);
+    return session->Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNullChunkWriter
+    : public IChunkWriter
+{
+public:
+    TFuture<void> Open() override
+    {
+        return VoidFuture;
+    }
+
+    bool WriteBlock(const TBlock&) override
+    {
+        return true;
+    }
+
+    bool WriteBlocks(const std::vector<TBlock>&) override
+    {
+        return true;
+    }
+
+    TFuture<void> GetReadyEvent() override
+    {
+        return VoidFuture;
+    }
+
+    TFuture<void> Close(const TDeferredChunkMetaPtr&) override
+    {
+        return VoidFuture;
+    }
+
+    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TChunkId GetChunkId() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NErasure::ECodec GetErasureCodecId() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    bool IsCloseDemanded() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+};
+
+
+//! Creates chunk writers for repaired parts.
+//! param #erasedPartIndices -- holds indices that job asked to repair.
+//! param #bannedPartIndices -- is a superset of #erasedPartIndices, contains indices that currently unavailable.
+std::vector<IChunkWriterPtr> CreateWritersForRepairing(
+    const TPartIndexList& erasedPartIndices,
+    const TPartIndexList& bannedPartIndices,
+    TPartWriterFactory factory)
+{
+    TPartIndexSet requiredSet;
+    for (auto partIndex : erasedPartIndices) {
+        requiredSet.set(partIndex);
+    }
+
+    std::vector<IChunkWriterPtr> writers;
+    writers.reserve(bannedPartIndices.size());
+
+    //! All unavailable parts should be repaired, but result must be saved only for erased parts.
+    for (auto partIndex : bannedPartIndices) {
+        if (requiredSet.test(partIndex)) {
+            writers.push_back(factory(partIndex));
+        } else {
+            writers.push_back(New<TNullChunkWriter>());
+        }
+    }
+
+    return writers;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> AdaptiveRepairErasedParts(
+    TChunkId chunkId,
+    ICodec* codec,
+    TErasureReaderConfigPtr config,
+    const TPartIndexList& erasedIndices,
+    const std::vector<IChunkReaderAllowingRepairPtr>& allReaders,
+    TPartWriterFactory writerFactory,
+    const TClientChunkReadOptions& options,
+    const NLogging::TLogger& logger)
+{
+    auto invoker = TDispatcher::Get()->GetReaderInvoker();
+    auto observer = New<TRepairingReadersObserver>(codec, config, invoker, allReaders);
+    
+    auto target = TAdaptiveErasureRepairingSession::TTarget {
+        .Erased = erasedIndices
+    };
+
+    auto session = New<TAdaptiveErasureRepairingSession>(
+        chunkId,
+        codec,
+        observer,
+        allReaders,
+        invoker,
+        target,
+        logger);
+
+    return session->Run<void>([=] (const TPartIndexList& bannedIndices, const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders) {
+        auto writers = CreateWritersForRepairing(erasedIndices, bannedIndices, writerFactory);
+        YT_VERIFY(writers.size() == bannedIndices.size());
+
+        return RepairErasedParts(codec, bannedIndices, availableReaders, writers, options);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

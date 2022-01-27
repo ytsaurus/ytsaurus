@@ -3,6 +3,7 @@
 #include "erasure_reader.h"
 #include "erasure_repair.h"
 #include "erasure_helpers.h"
+#include "erasure_adaptive_repair.h"
 #include "dispatcher.h"
 #include "chunk_reader_options.h"
 #include "chunk_reader_statistics.h"
@@ -19,8 +20,6 @@
 
 #include <algorithm>
 #include <vector>
-
-static constexpr double SpeedComparisonPrecision = 1e-9;
 
 namespace NYT::NChunkClient {
 
@@ -72,169 +71,28 @@ public:
 private:
     friend class TErasureReaderWithOverridenThrottlers;
 
-    void MaybeUnbanReaders();
-
     TRefCountedChunkMetaPtr DoGetMeta(
         const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags);
+    
+    // ReadBlocks implementation with customizable readers list.
+    TFuture<std::vector<TBlock>> ReadBlocksImpl(
+        const TClientChunkReadOptions& options,
+        const std::vector<int>& blockIndexes,
+        std::optional<i64> estimatedSize,
+        const std::vector<IChunkReaderAllowingRepairPtr>& readers);
 
-    bool CheckReaderRecentlyFailed(TInstant now, int index) const;
-
+private:
     const TErasureReaderConfigPtr Config_;
     const TLogger Logger;
 
     const IInvokerPtr ReaderInvoker_ = CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker());
 
-    TPartIndexSet BannedPartIndices_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, IndicesLock_);
-    std::vector<TInstant> SlowReaderBanTimes_;
-    TPeriodicExecutorPtr ExpirationTimesExecutor_;
+    const TRepairingReadersObserverPtr ReadersObserver_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAdaptiveRepairingErasureReader)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAdaptiveRepairingErasureReaderSession
-    : public TRefCounted
-{
-public:
-    TAdaptiveRepairingErasureReaderSession(
-        ICodec* codec,
-        const TErasureReaderConfigPtr config,
-        const TLogger& logger,
-        std::vector<IChunkReaderAllowingRepairPtr> readers,
-        const TClientChunkReadOptions& options,
-        const TErasurePlacementExt& placementExt,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize,
-        const TWeakPtr<TAdaptiveRepairingErasureReader>& reader)
-        : Codec_(codec)
-        , Config_(config)
-        , Reader_(reader)
-        , Logger(logger ? logger : ChunkClientLogger)
-        , Readers_(std::move(readers))
-        , ChunkReadOptions_(options)
-        , PlacementExt_(placementExt)
-        , BlockIndexes_(blockIndexes)
-        , EstimatedSize_(estimatedSize)
-    {
-        if (Config_->EnableAutoRepair) {
-            YT_VERIFY(std::ssize(Readers_) == Codec_->GetTotalPartCount());
-        } else {
-            YT_VERIFY(std::ssize(Readers_) == Codec_->GetDataPartCount());
-        }
-    }
-
-    TFuture<std::vector<TBlock>> Run()
-    {
-        return BIND(&TAdaptiveRepairingErasureReaderSession::DoRun, MakeStrong(this))
-            .AsyncVia(ReaderInvoker_)
-            .Run();
-    }
-
-private:
-    ICodec* const Codec_;
-    const TErasureReaderConfigPtr Config_;
-    const TWeakPtr<TAdaptiveRepairingErasureReader> Reader_;
-    const TLogger Logger;
-    const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
-    const TClientChunkReadOptions ChunkReadOptions_;
-    const TErasurePlacementExt PlacementExt_;
-    const std::vector<int> BlockIndexes_;
-    const std::optional<i64> EstimatedSize_;
-
-    const IInvokerPtr ReaderInvoker_ = CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker());
-
-    std::vector<TBlock> DoRun()
-    {
-        auto reader = Reader_.Lock();
-        if (!reader) {
-            return std::vector<TBlock>();
-        }
-
-        if (!Config_->EnableAutoRepair) {
-            auto repairingReader = CreateRepairingErasureReader(
-                reader->GetChunkId(),
-                Codec_,
-                /* erasedIndices */ TPartIndexList(),
-                Readers_,
-                Logger);
-            return WaitFor(repairingReader->ReadBlocks(ChunkReadOptions_, BlockIndexes_))
-                .ValueOrThrow();
-        }
-
-        std::optional<TPartIndexSet> erasedIndicesOnPreviousIteration;
-        std::vector<TError> innerErrors;
-        while (true) {
-            reader->UpdateBannedPartIndices();
-
-            auto bannedPartIndices = reader->GetBannedPartIndices();
-
-            TPartIndexList bannedPartIndicesList;
-            for (size_t i = 0; i < Readers_.size(); ++i) {
-                if (bannedPartIndices.test(i)) {
-                    bannedPartIndicesList.push_back(i);
-                }
-            }
-
-            if (erasedIndicesOnPreviousIteration && bannedPartIndices == *erasedIndicesOnPreviousIteration) {
-                THROW_ERROR_EXCEPTION(
-                    NChunkClient::EErrorCode::AutoRepairFailed,
-                    "Error reading chunk %v with repair; cannot proceed since the list of valid underlying part readers did not change",
-                    reader->GetChunkId())
-                    << TErrorAttribute("banned_part_indexes", bannedPartIndicesList)
-                    << innerErrors;
-            }
-
-            erasedIndicesOnPreviousIteration = bannedPartIndices;
-
-            auto optionalRepairIndices = Codec_->GetRepairIndices(bannedPartIndicesList);
-            if (!optionalRepairIndices) {
-                THROW_ERROR_EXCEPTION(
-                    NChunkClient::EErrorCode::AutoRepairFailed,
-                    "Not enough parts to read chunk %v with repair",
-                    reader->GetChunkId())
-                    << TErrorAttribute("banned_part_indexes", bannedPartIndicesList)
-                    << innerErrors;
-            }
-            auto repairIndices = *optionalRepairIndices;
-
-            std::vector<IChunkReaderAllowingRepairPtr> readers;
-            for (int index = 0; index < Codec_->GetDataPartCount(); ++index) {
-                if (!std::binary_search(bannedPartIndicesList.begin(), bannedPartIndicesList.end(), index)) {
-                    readers.push_back(Readers_[index]);
-                }
-            }
-            for (int index = Codec_->GetDataPartCount(); index < Codec_->GetTotalPartCount(); ++index) {
-                if (std::binary_search(repairIndices.begin(), repairIndices.end(), index)) {
-                    readers.push_back(Readers_[index]);
-                }
-            }
-
-            if (!bannedPartIndicesList.empty()) {
-                YT_LOG_DEBUG("Reading blocks with repair (BlockIndexes: %v, BannedPartIndices: %v)",
-                    BlockIndexes_,
-                    bannedPartIndicesList);
-            }
-
-            auto repairingReader = CreateRepairingErasureReader(
-                reader->GetChunkId(),
-                Codec_,
-                bannedPartIndicesList,
-                readers,
-                Logger);
-            auto result = WaitFor(repairingReader->ReadBlocks(ChunkReadOptions_, BlockIndexes_, EstimatedSize_));
-
-            if (result.IsOK()) {
-                return result.Value();
-            } else {
-                innerErrors.push_back(result);
-            }
-        }
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -247,27 +105,9 @@ TAdaptiveRepairingErasureReader::TAdaptiveRepairingErasureReader(
     : TErasureChunkReaderBase(chunkId, codec, partReaders)
     , Config_(config)
     , Logger(logger)
-    , SlowReaderBanTimes_(codec->GetTotalPartCount(), TInstant())
+    , ReadersObserver_(New<TRepairingReadersObserver>(Codec_, Config_, ReaderInvoker_, partReaders))
 {
-    if (Config_->EnableAutoRepair) {
-        for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
-            auto callback = BIND([partIndex, weakThis = MakeWeak(this)] (i64 bytesReceived, TDuration timePassed) {
-                auto this_ = weakThis.Lock();
-                if (!this_) {
-                    return TError();
-                }
-                return this_->CheckPartReaderIsSlow(partIndex, bytesReceived, timePassed);
-            });
-            Readers_[partIndex]->SetSlownessChecker(callback);
-        }
-
-        ExpirationTimesExecutor_ = New<TPeriodicExecutor>(
-            ReaderInvoker_,
-            BIND(&TAdaptiveRepairingErasureReader::MaybeUnbanReaders, MakeWeak(this)),
-            std::min(Config_->SlowReaderExpirationTimeout, Config_->ReplicationReaderFailureTimeout)
-        );
-        ExpirationTimesExecutor_->Start();
-    }
+    YT_VERIFY(Config_->EnableAutoRepair);
 }
 
 TFuture<TRefCountedChunkMetaPtr> TAdaptiveRepairingErasureReader::GetMeta(
@@ -293,26 +133,20 @@ TFuture<TRefCountedChunkMetaPtr> TAdaptiveRepairingErasureReader::GetMeta(
         .Run();
 }
 
+NErasure::TPartIndexList GetDataPartIndices(const NErasure::ICodec* codec)
+{
+    NErasure::TPartIndexList parts(codec->GetDataPartCount());
+    std::iota(parts.begin(), parts.end(), 0);
+    return parts;
+}
+
+
 TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
     const TClientChunkReadOptions& options,
     const std::vector<int>& blockIndexes,
     std::optional<i64> estimatedSize)
 {
-    // We don't use estimatedSize here, because during repair actual use of bandwidth is much higher that the size of blocks;
-    return PreparePlacementMeta(options).Apply(
-        BIND([=, this_ = MakeStrong(this)] {
-            auto session = New<TAdaptiveRepairingErasureReaderSession>(
-                Codec_,
-                Config_,
-                Logger,
-                Readers_,
-                options,
-                PlacementExt_,
-                blockIndexes,
-                estimatedSize,
-                MakeStrong(this));
-            return session->Run();
-        }));
+    return ReadBlocksImpl(options, blockIndexes, estimatedSize, Readers_);
 }
 
 TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
@@ -329,90 +163,47 @@ TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
         estimatedSize);
 }
 
+TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocksImpl(
+        const TClientChunkReadOptions& options,
+        const std::vector<int>& blockIndexes,
+        std::optional<i64> estimatedSize,
+        const std::vector<IChunkReaderAllowingRepairPtr>& allReaders)
+{
+    auto target = TAdaptiveErasureRepairingSession::TTarget {
+        .Existing = GetDataPartIndices(Codec_)
+    };
+
+    auto session = New<TAdaptiveErasureRepairingSession>(
+        GetChunkId(),
+        Codec_,
+        ReadersObserver_,
+        allReaders,
+        ReaderInvoker_,
+        target,
+        Logger);
+
+    return session->Run<std::vector<TBlock>>([=, this_ = MakeStrong(this)] (
+        const NErasure::TPartIndexList& erasedParts,
+        const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders) {
+            if (!erasedParts.empty()) {
+                YT_LOG_DEBUG("Reading blocks with repair (BlockIndexes: %v, BannedPartIndices: %v)",
+                    blockIndexes,
+                    erasedParts);
+            }
+
+            auto repairingReader = CreateRepairingErasureReader(
+                GetChunkId(),
+                Codec_,
+                erasedParts,
+                availableReaders,
+                Logger);
+            return repairingReader->ReadBlocks(options, blockIndexes, estimatedSize);
+    });
+}
+
 TInstant TAdaptiveRepairingErasureReader::GetLastFailureTime() const
 {
     return TInstant();
-}
-
-void TAdaptiveRepairingErasureReader::UpdateBannedPartIndices()
-{
-    TPartIndexList failedReaderIndices;
-    {
-        auto now = GetInstant();
-        auto guard = ReaderGuard(IndicesLock_);
-        for (size_t index = 0; index < Readers_.size(); ++index) {
-            if (CheckReaderRecentlyFailed(now, index) && !BannedPartIndices_.test(index)) {
-                failedReaderIndices.push_back(index);
-            }
-        }
-    }
-
-    if (failedReaderIndices.empty()) {
-        return;
-    }
-
-    {
-        auto guard = WriterGuard(IndicesLock_);
-        for (auto index : failedReaderIndices) {
-            BannedPartIndices_.set(index);
-        }
-    }
-}
-
-TPartIndexSet TAdaptiveRepairingErasureReader::GetBannedPartIndices()
-{
-    auto guard = ReaderGuard(IndicesLock_);
-    return BannedPartIndices_;
-}
-
-void TAdaptiveRepairingErasureReader::MaybeUnbanReaders()
-{
-    auto guard = WriterGuard(IndicesLock_);
-
-    auto now = GetInstant();
-    for (size_t index = 0; index < SlowReaderBanTimes_.size(); ++index) {
-        if (!BannedPartIndices_.test(index)) {
-            continue;
-        }
-
-        auto slownessBanExpiration = SlowReaderBanTimes_[index]
-            ? SlowReaderBanTimes_[index] + Config_->SlowReaderExpirationTimeout
-            : TInstant();
-
-        if (now >= slownessBanExpiration) {
-            SlowReaderBanTimes_[index] = TInstant();
-            if (!CheckReaderRecentlyFailed(now, index)) {
-                BannedPartIndices_.set(index, false);
-            }
-        }
-    }
-}
-
-TError TAdaptiveRepairingErasureReader::CheckPartReaderIsSlow(int partIndex, i64 bytesReceived, TDuration timePassed)
-{
-    double secondsPassed = timePassed.SecondsFloat();
-    double speed = secondsPassed < SpeedComparisonPrecision ? 0.0 : static_cast<double>(bytesReceived) / secondsPassed;
-    if (speed > Config_->ReplicationReaderSpeedLimitPerSec || timePassed < Config_->ReplicationReaderTimeout) {
-        return TError();
-    }
-
-    {
-        auto guard = WriterGuard(IndicesLock_);
-        if (BannedPartIndices_.test(partIndex)) {
-            return TError("Reader of part %v is already banned", partIndex);
-        }
-        BannedPartIndices_.set(partIndex);
-        if (Codec_->CanRepair(BannedPartIndices_)) {
-            SlowReaderBanTimes_[partIndex] = GetInstant();
-            return TError("Reader of part %v is marked as slow since speed is less than %v and passed more than %v seconds from start",
-                partIndex,
-                speed,
-                timePassed.Seconds());
-        } else {
-            BannedPartIndices_.flip(partIndex);
-            return TError();
-        }
-    }
 }
 
 TRefCountedChunkMetaPtr TAdaptiveRepairingErasureReader::DoGetMeta(
@@ -428,7 +219,7 @@ TRefCountedChunkMetaPtr TAdaptiveRepairingErasureReader::DoGetMeta(
 
     auto now = GetInstant();
     for (auto index : indices) {
-        if (CheckReaderRecentlyFailed(now, index)) {
+        if (ReadersObserver_->IsReaderRecentlyFailed(now, index)) {
             continue;
         }
         auto result = WaitFor(Readers_[index]->GetMeta(options, partitionTag, extensionTags));
@@ -445,14 +236,6 @@ TRefCountedChunkMetaPtr TAdaptiveRepairingErasureReader::DoGetMeta(
         << errors;
 }
 
-bool TAdaptiveRepairingErasureReader::CheckReaderRecentlyFailed(TInstant now, int index) const
-{
-    if (auto lastFailureTime = Readers_[index]->GetLastFailureTime()) {
-        return now < lastFailureTime + Config_->ReplicationReaderFailureTimeout;
-    }
-    return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderPtr CreateAdaptiveRepairingErasureReader(
@@ -462,6 +245,15 @@ IChunkReaderPtr CreateAdaptiveRepairingErasureReader(
     const std::vector<IChunkReaderAllowingRepairPtr>& partReaders,
     const TLogger& logger)
 {
+    if (!config->EnableAutoRepair) {
+        return CreateRepairingErasureReader(
+            chunkId,
+            codec,
+            /*erasedIndices*/ TPartIndexList(),
+            partReaders,
+            logger);
+    }
+
     return New<TAdaptiveRepairingErasureReader>(
         chunkId,
         codec,
@@ -498,20 +290,11 @@ public:
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize) override
     {
-        return UnderlyingReader_->PreparePlacementMeta(options).Apply(
-            BIND([=, underlyingReader = UnderlyingReader_, readerAdapters = ReaderAdapters_] {
-                auto session = New<TAdaptiveRepairingErasureReaderSession>(
-                    underlyingReader->Codec_,
-                    underlyingReader->Config_,
-                    underlyingReader->Logger,
-                    std::move(readerAdapters),
-                    options,
-                    underlyingReader->PlacementExt_,
-                    blockIndexes,
-                    estimatedSize,
-                    underlyingReader);
-                return session->Run();
-            }));
+        return UnderlyingReader_->ReadBlocksImpl(
+            options,
+            blockIndexes,
+            estimatedSize,
+            ReaderAdapters_);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
