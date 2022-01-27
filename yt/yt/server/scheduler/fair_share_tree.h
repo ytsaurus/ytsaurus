@@ -69,7 +69,6 @@ struct IFairShareTree
         bool* shouldAbortJob) = 0;
     virtual bool ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
 
-    virtual bool HasSnapshottedOperation(TOperationId operationId) const = 0;
     virtual bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const = 0;
 
     virtual TFairShareStrategyTreeConfigPtr GetSnapshottedConfig() const = 0;
@@ -77,11 +76,11 @@ struct IFairShareTree
     virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
     virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const = 0;
 
-    virtual void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) = 0;
+    virtual void ApplyJobMetricsDelta(THashMap<TOperationId, TJobMetrics> jobMetricsPerOperation) = 0;
     virtual void ApplyScheduledAndPreemptedResourcesDelta(
-        const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& scheduledJobResources,
-        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
-        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes) = 0;
+        THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources> scheduledJobResources,
+        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources,
+        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResourceTimes) = 0;
 
     virtual void BuildResourceMetering(
         TMeteringMap* meteringMap,

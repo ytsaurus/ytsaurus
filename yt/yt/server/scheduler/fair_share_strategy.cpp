@@ -704,25 +704,18 @@ public:
                 if (treeIt == idToTree.end()) {
                     continue;
                 }
-                const auto& tree = treeIt->second;
 
                 const auto& state = GetOperationState(operationId);
                 if (state->GetHost()->IsTreeErased(metrics.TreeId)) {
                     continue;
                 }
 
-                // XXX: remove this check?
-                YT_VERIFY(tree->HasSnapshottedOperation(operationId));
-
                 treeIdToJobMetricDeltas[metrics.TreeId].emplace(operationId, std::move(metrics.Metrics));
             }
         }
 
         for (auto& [treeId, jobMetricsPerOperation] : treeIdToJobMetricDeltas) {
-            Host->GetFairShareProfilingInvoker()->Invoke(BIND(
-                &IFairShareTree::ApplyJobMetricsDelta,
-                GetOrCrash(idToTree, treeId),
-                Passed(std::move(jobMetricsPerOperation))));
+            GetOrCrash(idToTree, treeId)->ApplyJobMetricsDelta(std::move(jobMetricsPerOperation));
         }
     }
 
@@ -755,12 +748,10 @@ public:
             preemptedJobResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(job->GetExecDuration().Seconds());
         }
 
-        Host->GetFairShareProfilingInvoker()->Invoke(BIND(
-            &IFairShareTree::ApplyScheduledAndPreemptedResourcesDelta,
-            tree,
-            Passed(std::move(scheduledJobResources)),
-            Passed(std::move(preemptedJobResources)),
-            Passed(std::move(preemptedJobResourceTimes))));
+        tree->ApplyScheduledAndPreemptedResourcesDelta(
+            std::move(scheduledJobResources),
+            std::move(preemptedJobResources),
+            std::move(preemptedJobResourceTimes));
     }
 
     TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation) override
