@@ -13,7 +13,7 @@ using TTreeSnapshotId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeSnapshotImpl
+class TFairShareTreeSnapshot
     : public TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(TTreeSnapshotId, Id)
@@ -30,7 +30,7 @@ class TFairShareTreeSnapshotImpl
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits)
 
 public:
-    TFairShareTreeSnapshotImpl(
+    TFairShareTreeSnapshot(
         TTreeSnapshotId id,
         TSchedulerRootElementPtr rootElement,
         TNonOwningOperationElementMap enabledOperationIdToElement,
@@ -56,7 +56,7 @@ private:
     TAtomicPtr<TDynamicAttributesListSnapshot> DynamicAttributesListSnapshot_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareTreeSnapshotImpl)
+DEFINE_REFCOUNTED_TYPE(TFairShareTreeSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
