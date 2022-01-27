@@ -21,6 +21,28 @@ using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TString FormatMemoryUsage(i64 memoryUsage)
+{
+    TStringBuf prefix = "";
+    if (memoryUsage < 0) {
+        prefix = "-";
+        memoryUsage *= -1;
+    }
+    if (memoryUsage < static_cast<i64>(1_KB)) {
+        return Format("%v%vB", prefix, memoryUsage);
+    }
+    if (memoryUsage < static_cast<i64>(1_MB)) {
+        return Format("%v%vKB", prefix, memoryUsage / 1_KB);
+    }
+    return Format("%v%vMB", prefix, memoryUsage / 1_MB);
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString FormatResources(
     const TNodeResources& usage,
     const TNodeResources& limits)
@@ -42,12 +64,12 @@ TString FormatResources(
         // Gpu,
         usage.gpu(),
         limits.gpu(),
-        // User memory (in MB)
-        usage.user_memory() / 1_MB,
-        limits.user_memory() / 1_MB,
-        // System memory (in MB)
-        usage.system_memory() / 1_MB,
-        limits.system_memory() / 1_MB,
+        // User memory
+        FormatMemoryUsage(usage.user_memory()),
+        FormatMemoryUsage(limits.user_memory()),
+        // System memory
+        FormatMemoryUsage(usage.system_memory()),
+        FormatMemoryUsage(limits.system_memory()),
         // Network
         usage.network(),
         limits.network(),
@@ -135,28 +157,28 @@ TString FormatResources(const TNodeResources& resources)
 {
     return Format(
         "{"
-        "UserSlots: %v, Cpu: %v, Gpu: %v, UserMemory: %vMB, SystemMemory: %vMB, Network: %v, "
-        "ReplicationSlots: %v, ReplicationDataSize: %vMB, "
+        "UserSlots: %v, Cpu: %v, Gpu: %v, UserMemory: %v, SystemMemory: %v, Network: %v, "
+        "ReplicationSlots: %v, ReplicationDataSize: %v, "
         "RemovalSlots: %v, "
-        "RepairSlots: %v, RepairDataSize: %vMB, "
+        "RepairSlots: %v, RepairDataSize: %v, "
         "SealSlots: %v, "
-        "MergeSlots: %v, MergeDataSize: %vMB, "
+        "MergeSlots: %v, MergeDataSize: %v, "
         "AutotomySlots: %v"
         "}",
         resources.user_slots(),
         resources.cpu(),
         resources.gpu(),
-        resources.user_memory() / 1_MB,
-        resources.system_memory() / 1_MB,
+        FormatMemoryUsage(resources.user_memory()),
+        FormatMemoryUsage(resources.system_memory()),
         resources.network(),
         resources.replication_slots(),
-        resources.replication_data_size() / 1_MB,
+        FormatMemoryUsage(resources.replication_data_size()),
         resources.removal_slots(),
         resources.repair_slots(),
-        resources.repair_data_size() / 1_MB,
+        FormatMemoryUsage(resources.repair_data_size()),
         resources.seal_slots(),
         resources.merge_slots(),
-        resources.merge_data_size() / 1_MB,
+        FormatMemoryUsage(resources.merge_data_size()),
         resources.autotomy_slots());
 }
 
