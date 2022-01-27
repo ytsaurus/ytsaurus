@@ -1492,7 +1492,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     // TODO(gepardo): Add EAggregateIOTag::Pool here when schedulers will pass pool information to controller.
     // See YT-16119 for details.
     AddTagToBaggage(ioTags, EAggregateIOTag::OperationType, ToString(GetTaskHost()->GetOperationType()));
-    AddTagToBaggage(ioTags, EAggregateIOTag::TaskName, GetTitle());
+    AddTagToBaggage(ioTags, EAggregateIOTag::TaskName, GetVertexDescriptor());
     AddTagToBaggage(ioTags, EAggregateIOTag::PoolTree, joblet->TreeId);
     ToProto(schedulerJobSpecExt->mutable_io_tags(), *ioTags);
 

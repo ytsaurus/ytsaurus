@@ -861,6 +861,11 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             "ordered_map": "OrderedMap",
             "reduce": "SortedReduce",
         }[op_type]
+        task_name = {
+            "map": "map",
+            "ordered_map": "ordered_map",
+            "reduce": "sorted_reduce",
+        }[op_type]
 
         for event in raw_events:
             assert event["pool_tree@"] == "default"
@@ -868,7 +873,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             assert event["operation_type@"] == operation_type
             assert "job_id" in event
             assert event["job_type@"] == job_type
-            assert event["task_name@"] == job_type
+            assert event["task_name@"] == task_name
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
         assert raw_events[0]["user@"] == "job:root"
@@ -939,7 +944,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             assert event["operation_type@"] == "Merge"
             assert "job_id" in event
             assert event["job_type@"] == job_type
-            assert event["task_name@"] == job_type
+            assert event["task_name@"] == merge_mode + "_merge"
             assert event["bytes"] > 0
             assert event["io_requests"] > 0
             assert event["user@"] == "job:root"
@@ -1000,7 +1005,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             assert event["operation_type@"] == "Erase"
             assert "job_id" in event
             assert event["job_type@"] == "OrderedMerge"
-            assert event["task_name@"] == "OrderedMerge"
+            assert event["task_name@"] == "ordered_merge"
             assert event["bytes"] > 0
             assert event["io_requests"] > 0
             assert event["user@"] == "job:root"
@@ -1066,11 +1071,11 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             assert event["io_requests"] > 0
             assert event["user@"] == "job:root"
             assert event["data_node_method@"] in {"GetBlockSet", "GetBlockRange", "FinishChunk"}
-            assert event["task_name@"] in ["Map + AutoMergeableOutputMixin", "AutoMerge"]
+            assert event["task_name@"] in ["map", "auto_merge"]
             assert event["account@"] == "tmp"
 
             is_read = event["data_node_method@"] in {"GetBlockSet", "GetBlockRange"}
-            is_auto_merge = event["task_name@"] == "AutoMerge"
+            is_auto_merge = event["task_name@"] == "auto_merge"
             is_intermediate = (is_read and is_auto_merge) or (not is_read and not is_auto_merge)
 
             if is_auto_merge:
@@ -1158,7 +1163,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         operation_type = "Map" if op_type == "map" else "Reduce"
         job_type = "Map" if op_type == "map" else "SortedReduce"
         merge_job_type = "ShallowMerge" if merge_type == "shallow" else "UnorderedMerge"
-        task_name = "Map + AutoMergeableOutputMixin" if op_type == "map" else "SortedReduce + AutoMergeableOutputMixin"
+        task_name = "map" if op_type == "map" else "sorted_reduce"
         for event in raw_events:
             assert event["pool_tree@"] == "default"
             assert event["operation_id"] == op.id
@@ -1168,8 +1173,8 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             assert event["io_requests"] > 0
             assert event["user@"] == "job:root"
             assert event["data_node_method@"] in {"GetBlockSet", "GetBlockRange", "FinishChunk"}
-            assert event["task_name@"] in [task_name, "AutoMerge"]
-            is_auto_merge = event["task_name@"] == "AutoMerge"
+            assert event["task_name@"] in [task_name, "auto_merge"]
+            is_auto_merge = event["task_name@"] == "auto_merge"
             if is_auto_merge:
                 assert event["job_type@"] == merge_job_type
             else:
@@ -1260,7 +1265,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             assert event["io_requests"] > 0
             assert event["user@"] == "job:root"
         assert {event["job_type@"] for event in raw_events} == {"PartitionMap", "PartitionReduce"}
-        assert {event["task_name@"] for event in raw_events} == {"Partition(0)", "PartitionReduce"}
+        assert {event["task_name@"] for event in raw_events} == {"partition_map(0)", "partition_reduce"}
 
         read_events = [event for event in raw_events if event["data_node_method@"] == "GetBlockSet"]
         write_events = [event for event in raw_events if event["data_node_method@"] == "FinishChunk"]
