@@ -2658,16 +2658,6 @@ private:
         return false;
     }
 
-    bool HasSnapshottedOperation(TOperationId operationId) const override
-    {
-        auto treeSnapshotImpl = GetTreeSnapshotImpl();
-
-        YT_VERIFY(treeSnapshotImpl);
-
-        return treeSnapshotImpl->EnabledOperationMap().contains(operationId) ||
-            treeSnapshotImpl->DisabledOperationMap().contains(operationId);
-    }
-
     bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const override
     {
         auto treeSnapshotImpl = GetTreeSnapshotImpl();
@@ -2685,29 +2675,41 @@ private:
         return false;
     }
 
-    void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) override
+    void ApplyJobMetricsDelta(THashMap<TOperationId, TJobMetrics> jobMetricsPerOperation) override
     {
         auto treeSnapshotImpl = GetTreeSnapshotImpl();
 
         YT_VERIFY(treeSnapshotImpl);
 
-        TreeProfiler_->ApplyJobMetricsDelta(treeSnapshotImpl, jobMetricsPerOperation);
+        for (const auto& [operationId, _] : jobMetricsPerOperation) {
+            YT_VERIFY(
+                treeSnapshotImpl->EnabledOperationMap().contains(operationId) ||
+                treeSnapshotImpl->DisabledOperationMap().contains(operationId));
+        }
+
+        StrategyHost_->GetFairShareProfilingInvoker()->Invoke(BIND(
+            &TFairShareTreeProfileManager::ApplyJobMetricsDelta,
+            TreeProfiler_,
+            treeSnapshotImpl,
+            Passed(std::move(jobMetricsPerOperation))));
     }
 
     void ApplyScheduledAndPreemptedResourcesDelta(
-        const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& scheduledJobResources,
-        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
-        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes) override
+        THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources> scheduledJobResources,
+        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources,
+        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResourceTimes) override
     {
         auto treeSnapshotImpl = GetTreeSnapshotImpl();
 
         YT_VERIFY(treeSnapshotImpl);
 
-        TreeProfiler_->ApplyScheduledAndPreemptedResourcesDelta(
+        StrategyHost_->GetFairShareProfilingInvoker()->Invoke(BIND(
+            &TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta,
+            TreeProfiler_,
             treeSnapshotImpl,
-            scheduledJobResources,
-            preemptedJobResources,
-            preemptedJobResourceTimes);
+            Passed(std::move(scheduledJobResources)),
+            Passed(std::move(preemptedJobResources)),
+            Passed(std::move(preemptedJobResourceTimes))));
     }
 
     TJobResources GetSnapshottedTotalResourceLimits() const override
