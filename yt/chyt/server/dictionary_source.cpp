@@ -72,8 +72,8 @@ public:
         ValidateSchema(*table->Schema);
 
         auto tableReadSpec = FetchSingleTableReadSpec(TFetchSingleTableReadSpecOptions{
-            .Client = Host_->GetRootClient(),
             .RichPath = Path_,
+            .Client = Host_->GetRootClient(),
         });
 
         auto reader = CreateAppropriateSchemalessMultiChunkReader(

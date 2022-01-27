@@ -731,9 +731,9 @@ private:
                     dataSourcesByTablet.push_back(TDataSource{
                         .ObjectId = source.ObjectId,
                         .CellId = source.CellId,
-                        .KeyWidth = source.KeyWidth,
                         .Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), rowBuffer),
-                        .LookupSupported = source.LookupSupported
+                        .LookupSupported = source.LookupSupported,
+                        .KeyWidth = source.KeyWidth,
                     });
                 }
             };
@@ -744,10 +744,10 @@ private:
                     dataSourcesByTablet.push_back(TDataSource{
                         .ObjectId = source.ObjectId,
                         .CellId = source.CellId,
-                        .KeyWidth = source.KeyWidth,
-                        .Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder()),
                         .Schema = keySchema,
-                        .LookupSupported = source.LookupSupported
+                        .Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder()),
+                        .LookupSupported = source.LookupSupported,
+                        .KeyWidth = source.KeyWidth,
                     });
                 }
             };
@@ -961,9 +961,9 @@ private:
                 groupedSplits.push_back(TDataSource{
                     .ObjectId = tabletId,
                     .CellId = cellId,
-                    .KeyWidth = tabletIdRange.KeyWidth,
                     .Ranges = split,
-                    .LookupSupported = tabletIdRange.LookupSupported
+                    .LookupSupported = tabletIdRange.LookupSupported,
+                    .KeyWidth = tabletIdRange.KeyWidth,
                 });
             }
         }

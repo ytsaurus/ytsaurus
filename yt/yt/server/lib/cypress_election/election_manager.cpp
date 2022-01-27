@@ -172,8 +172,8 @@ private:
             Options_->MemberName);
         attributes->Set("title", std::move(title));
         TTransactionStartOptions options {
-            .PingPeriod = Config_->TransactionPingPeriod,
             .Timeout = Config_->TransactionTimeout,
+            .PingPeriod = Config_->TransactionPingPeriod,
             .Attributes = std::move(attributes),
         };
         Transaction_ = WaitFor(

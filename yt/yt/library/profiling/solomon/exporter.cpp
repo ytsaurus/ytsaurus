@@ -1015,8 +1015,9 @@ void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* respon
     TTagList tags(tagMap.begin(), tagMap.end());
     TReadOptions readOptions{
         .ExportSummaryAsMax = exportSummaryAsMax,
+        .ReadAllProjections = readAllProjections,
         .SummaryAsMaxForAllTime = summaryAsMaxForAllTime,
-        .ReadAllProjections = readAllProjections};
+    };
     response->set_value(BuildYsonStringFluently()
         .Do([&] (TFluentAny fluent) {
             Registry_->ReadRecentSensorValues(*name, tags, readOptions, fluent);

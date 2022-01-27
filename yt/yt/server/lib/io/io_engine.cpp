@@ -1322,9 +1322,9 @@ struct TReadUringRequest
     void TrySetReadSucceeded()
     {
         IIOEngine::TReadResponse response{
-            .PaddedBytes = PaddedBytes,
             .OutputBuffers = std::move(ReadRequestCombiner.ReleaseOutputBuffers()),
-            .IORequests = FinishedSubrequestCount
+            .PaddedBytes = PaddedBytes,
+            .IORequests = FinishedSubrequestCount,
         };
         if (Promise.TrySet(std::move(response))) {
             YT_LOG_TRACE("Request succeeded (Request: %p)",

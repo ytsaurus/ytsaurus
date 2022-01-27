@@ -827,8 +827,8 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         YT_LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
 
         TRootFS rootFS {
+            .RootPath = *Config_->RootPath,
             .IsRootReadOnly = !Config_->MakeRootFSWritable,
-            .RootPath = *Config_->RootPath
         };
 
         for (const auto& bind : Config_->Binds) {
@@ -854,8 +854,8 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .HostName = Config_->HostName,
         .NetworkAddresses = Config_->NetworkAddresses,
         .EnableNat64 = Config_->EnableNat64,
-        .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
         .EnableCudaGpuCoreDump = options.EnableGpuCoreDumps,
+        .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
         .EnablePorto = options.EnablePorto,
         .ThreadLimit = options.ThreadLimit
     };

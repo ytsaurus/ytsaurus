@@ -72,9 +72,9 @@ struct TProviderGenerator<TReturnType(TArgs...)>
     static TComponent::TProvider NewConstructor(EEnum... kind)
     {
         auto provider = TComponent::TProvider{
-            .IsConstructor = true,
             .Name = "constructor",
             .Provided = TObjectId::Get<TIntrusivePtr<TReturnType>>(kind...),
+            .IsConstructor = true,
             .Constructor = [kind...] (TInjector* injector) {
                 injector->Set(kind..., New<TReturnType>(
                     GetDependency<TArgs>(injector)...
@@ -90,9 +90,9 @@ struct TProviderGenerator<TReturnType(TArgs...)>
     static TComponent::TProvider NewFunction(EEnum... kind, TReturnType (*fn)(TArgs...))
     {
         auto provider = TComponent::TProvider{
-            .ProviderId = reinterpret_cast<void*>(fn),
             .Name = "function",
             .Provided = TObjectId::Get<TReturnType>(),
+            .ProviderId = reinterpret_cast<void*>(fn),
             .Constructor = [fn, kind...] (TInjector* injector) {
                 injector->Set(kind..., fn(GetDependency<TArgs>(injector)...));
             }
@@ -111,9 +111,9 @@ struct TProviderGenerator<TReturnType(TArgs...)>
         }
 
         return TComponent::TProvider{
-            .ProviderId = providerId,
             .Name = "instance",
             .Provided = TObjectId::Get<TReturnType>(),
+            .ProviderId = providerId,
             .Constructor = [instance, kind...] (TInjector* injector) {
                 injector->Set(kind..., instance);
             }
