@@ -35,8 +35,70 @@ CONSUMER_TABLE_SCHEMA = [
 ]
 
 
+class QueueAgentOrchid:
+    def __init__(self, agent_id=None):
+        if agent_id is None:
+            agent_ids = ls("//sys/queue_agents/instances", verbose=False)
+            assert len(agent_ids) == 1
+            agent_id = agent_ids[0]
+
+        self.agent_id = agent_id
+
+    def queue_agent_orchid_path(self):
+        return "//sys/queue_agents/instances/" + self.agent_id + "/orchid"
+
+    def get_error_poll_index(self):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/latest_poll_error/attributes/poll_index")
+
+    def get_poll_index(self):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/poll_index")
+
+    def get_latest_poll_error(self):
+        return YtError.from_dict(get(self.queue_agent_orchid_path() + "/queue_agent/latest_poll_error"))
+
+    def wait_fresh_poll_error(self):
+        poll_index = self.get_error_poll_index()
+        wait(lambda: self.get_error_poll_index() >= poll_index + 2)
+
+    def get_fresh_poll_error(self):
+        self.wait_fresh_poll_error()
+        return self.get_latest_poll_error()
+
+    def wait_fresh_poll(self):
+        poll_index = self.get_poll_index()
+        wait(lambda: self.get_poll_index() >= poll_index + 2)
+
+    def validate_no_poll_error(self):
+        poll_index = self.get_poll_index()
+        self.wait_fresh_poll()
+        if self.get_error_poll_index() <= poll_index:
+            return
+        else:
+            raise self.get_latest_poll_error()
+
+    def get_queues(self):
+        self.wait_fresh_poll()
+        return get(self.queue_agent_orchid_path() + "/queue_agent/queues")
+
+    def get_consumers(self):
+        self.wait_fresh_poll()
+        return get(self.queue_agent_orchid_path() + "/queue_agent/consumers")
+
+    def get_queue_status(self, queue_id):
+        queues = self.get_queues()
+        assert queue_id in queues
+        return queues[queue_id]["status"]
+
+    def get_consumer_status(self, consumer_id):
+        consumers = self.get_consumers()
+        assert consumer_id in consumers
+        return consumers[consumer_id]["status"]
+
+
 class TestQueueAgent(YTEnvSetup):
     NUM_QUEUE_AGENTS = 1
+
+    USE_DYNAMIC_TABLES = 1
 
     DELTA_QUEUE_AGENT_CONFIG = {
         "cluster_connection": {
@@ -52,58 +114,6 @@ class TestQueueAgent(YTEnvSetup):
             "poll_period": 100,
         }
     }
-
-    def _queue_agent_orchid_path(self):
-        agent_ids = ls("//sys/queue_agents/instances", verbose=False)
-        assert len(agent_ids) == 1
-        return "//sys/queue_agents/instances/" + agent_ids[0] + "/orchid"
-
-    def _get_error_poll_index(self):
-        return get(self._queue_agent_orchid_path() + "/queue_agent/latest_poll_error/attributes/poll_index")
-
-    def _get_poll_index(self):
-        return get(self._queue_agent_orchid_path() + "/queue_agent/poll_index")
-
-    def _get_latest_poll_error(self):
-        return YtError.from_dict(get(self._queue_agent_orchid_path() + "/queue_agent/latest_poll_error"))
-
-    def _wait_fresh_poll_error(self):
-        poll_index = self._get_error_poll_index()
-        wait(lambda: self._get_error_poll_index() >= poll_index + 2)
-
-    def _get_fresh_poll_error(self):
-        self._wait_fresh_poll_error()
-        return self._get_latest_poll_error()
-
-    def _wait_fresh_poll(self):
-        poll_index = self._get_poll_index()
-        wait(lambda: self._get_poll_index() >= poll_index + 2)
-
-    def _validate_no_poll_error(self):
-        poll_index = self._get_poll_index()
-        self._wait_fresh_poll()
-        if self._get_error_poll_index() <= poll_index:
-            return
-        else:
-            raise self._get_latest_poll_error()
-
-    def _get_queues(self):
-        self._wait_fresh_poll()
-        return get(self._queue_agent_orchid_path() + "/queue_agent/queues")
-
-    def _get_consumers(self):
-        self._wait_fresh_poll()
-        return get(self._queue_agent_orchid_path() + "/queue_agent/consumers")
-
-    def _get_queue_status(self, queue_id):
-        queues = self._get_queues()
-        assert queue_id in queues
-        return queues[queue_id]["status"]
-
-    def _get_consumer_status(self, consumer_id):
-        consumers = self._get_consumers()
-        assert consumer_id in consumers
-        return consumers[consumer_id]["status"]
 
     def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
         sync_create_cells(1)
@@ -124,131 +134,139 @@ class TestQueueAgent(YTEnvSetup):
 
     @authors("max42")
     def test_polling_loop(self):
+        orchid = QueueAgentOrchid()
+
         self._drop_tables()
 
-        assert_yt_error(self._get_fresh_poll_error(), "has no child with key")
+        assert_yt_error(orchid.get_fresh_poll_error(), "has no child with key")
 
         wrong_schema = copy.deepcopy(QUEUE_TABLE_SCHEMA)
         wrong_schema[-1]["type"] = "int64"
         self._prepare_tables(queue_table_schema=wrong_schema)
 
-        assert_yt_error(self._get_fresh_poll_error(), "Row range schema is incompatible with queue table row schema")
+        assert_yt_error(orchid.get_fresh_poll_error(), "Row range schema is incompatible with queue table row schema")
 
         self._prepare_tables()
 
-        self._validate_no_poll_error()
+        orchid.validate_no_poll_error()
 
     @authors("max42")
     def test_queue_state(self):
+        orchid = QueueAgentOrchid()
+
         self._prepare_tables()
 
-        self._wait_fresh_poll()
-        queues = self._get_queues()
+        orchid.wait_fresh_poll()
+        queues = orchid.get_queues()
         assert len(queues) == 0
 
         # Missing row revision.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q"}])
-        queue = self._get_queue_status("primary://tmp/q")
-        assert_yt_error(YtError.from_dict(queue["error"]), "Queue is not in-sync yet")
-        assert "type" not in queue
+        status = orchid.get_queue_status("primary://tmp/q")
+        assert_yt_error(YtError.from_dict(status["error"]), "Queue is not in-sync yet")
+        assert "type" not in status
 
         # Missing object type.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(1234)}],
                     update=True)
-        queue = self._get_queue_status("primary://tmp/q")
-        assert_yt_error(YtError.from_dict(queue["error"]), "Queue is not in-sync yet")
-        assert "type" not in queue
+        status = orchid.get_queue_status("primary://tmp/q")
+        assert_yt_error(YtError.from_dict(status["error"]), "Queue is not in-sync yet")
+        assert "type" not in status
 
         # Wrong object type.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(2345),
                       "object_type": "map_node"}],
                     update=True)
-        queue = self._get_queue_status("primary://tmp/q")
-        assert_yt_error(YtError.from_dict(queue["error"]), 'Invalid queue object type "map_node"')
+        status = orchid.get_queue_status("primary://tmp/q")
+        assert_yt_error(YtError.from_dict(status["error"]), 'Invalid queue object type "map_node"')
 
         # Sorted dynamic table.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(3456),
                       "object_type": "table", "dynamic": True, "sorted": True}],
                     update=True)
-        queue = self._get_queue_status("primary://tmp/q")
-        assert_yt_error(YtError.from_dict(queue["error"]), "Only ordered dynamic tables are supported as queues")
+        status = orchid.get_queue_status("primary://tmp/q")
+        assert_yt_error(YtError.from_dict(status["error"]), "Only ordered dynamic tables are supported as queues")
 
         # Proper ordered dynamic table.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
                       "dynamic": True, "sorted": False}],
                     update=True)
-        queue = self._get_queue_status("primary://tmp/q")
-        # This error means that controller is instantiated and works properly.
-        assert_yt_error(YtError.from_dict(queue["error"]), code=yt_error_codes.ResolveErrorCode)
+        status = orchid.get_queue_status("primary://tmp/q")
+        # This error means that controller is instantiated and works properly (note that //tmp/q does not exist yet).
+        assert_yt_error(YtError.from_dict(status["error"]), code=yt_error_codes.ResolveErrorCode)
 
         # Switch back to sorted dynamic table.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(5678), "object_type": "table",
                       "dynamic": False, "sorted": False}],
                     update=True)
-        queue = self._get_queue_status("primary://tmp/q")
-        assert_yt_error(YtError.from_dict(queue["error"]), "Only ordered dynamic tables are supported as queues")
-        assert "family" not in queue
+        status = orchid.get_queue_status("primary://tmp/q")
+        assert_yt_error(YtError.from_dict(status["error"]), "Only ordered dynamic tables are supported as queues")
+        assert "family" not in status
 
         # Remove row; queue should be unregistered.
         delete_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
 
-        queues = self._get_queues()
+        queues = orchid.get_queues()
         assert len(queues) == 0
 
     @authors("max42")
     def test_consumer_state(self):
+        orchid = QueueAgentOrchid()
+
         self._prepare_tables()
 
-        self._wait_fresh_poll()
-        queues = self._get_queues()
-        consumers = self._get_consumers()
+        orchid.wait_fresh_poll()
+        queues = orchid.get_queues()
+        consumers = orchid.get_consumers()
         assert len(queues) == 0
         assert len(consumers) == 0
 
         # Missing row revision.
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": "//tmp/c"}])
-        consumer = self._get_consumer_status("primary://tmp/c")
-        assert_yt_error(YtError.from_dict(consumer["error"]), "Consumer is not in-sync yet")
-        assert "target" not in consumer
+        status = orchid.get_consumer_status("primary://tmp/c")
+        assert_yt_error(YtError.from_dict(status["error"]), "Consumer is not in-sync yet")
+        assert "target" not in status
 
         # Missing target.
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(1234)}],
                     update=True)
-        consumer = self._get_consumer_status("primary://tmp/c")
-        assert_yt_error(YtError.from_dict(consumer["error"]), "Consumer is missing target")
-        assert "target" not in consumer
+        status = orchid.get_consumer_status("primary://tmp/c")
+        assert_yt_error(YtError.from_dict(status["error"]), "Consumer is missing target")
+        assert "target" not in status
 
         # Unregistered target queue.
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(2345),
                       "target_cluster": "primary", "target_path": "//tmp/q"}],
                     update=True)
-        consumer = self._get_consumer_status("primary://tmp/c")
-        assert_yt_error(YtError.from_dict(consumer["error"]), 'Target queue "primary://tmp/q" is not registered')
+        status = orchid.get_consumer_status("primary://tmp/c")
+        assert_yt_error(YtError.from_dict(status["error"]), 'Target queue "primary://tmp/q" is not registered')
 
         # Register target queue.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
                       "dynamic": True, "sorted": False}],
                     update=True)
-        queue = self._get_queue_status("primary://tmp/q")
-        assert_yt_error(YtError.from_dict(queue["error"]), code=yt_error_codes.ResolveErrorCode)
+        status = orchid.get_queue_status("primary://tmp/q")
+        assert_yt_error(YtError.from_dict(status["error"]), code=yt_error_codes.ResolveErrorCode)
 
-        consumer = self._get_consumer_status("primary://tmp/c")
         # TODO(max42): uncomment this in future.
+        # consumer = orchid.get_consumer_status("primary://tmp/c")
         # assert_yt_error(YtError.from_dict(consumer["error"]), code=yt_error_codes.ResolveErrorCode)
 
 
 class TestMultipleAgents(YTEnvSetup):
     NUM_QUEUE_AGENTS = 5
+
+    USE_DYNAMIC_TABLES = 1
 
     DELTA_QUEUE_AGENT_CONFIG = {
         "cluster_connection": {
