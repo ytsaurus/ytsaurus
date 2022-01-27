@@ -1106,7 +1106,8 @@ class YTInstance(object):
                 for instance in instances:
                     if not client.exists("//sys/queue_agents/instances/" + instance + "/orchid/queue_agent"):
                         return False
-            except:
+            except YtError as err:
+                logger.exception("Error while waiting for queue agents")
                 return False
 
             return True

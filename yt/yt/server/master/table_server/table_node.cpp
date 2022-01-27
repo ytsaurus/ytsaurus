@@ -90,6 +90,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, TabletCountByBackupState);
     Save(context, AggregatedTabletBackupState);
     Save(context, BackupCheckpointTimestamp);
+    Save(context, QueueAgentStage);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -150,6 +151,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     {
         Load<NChaosClient::TReplicationCardId>(context);
     }
+    // COMPAT(max42)
+    if (context.GetVersion() >= EMasterReign::QueueAgentStageAttribute) {
+        Load(context, QueueAgentStage);
+    }
 }
 
 #define FOR_EACH_COPYABLE_ATTRIBUTE(XX) \
@@ -164,7 +169,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     XX(ProfilingTag) \
     XX(EnableDetailedProfiling) \
     XX(EnableConsistentChunkReplicaPlacement) \
-
+    XX(QueueAgentStage) \
 
 void TTableNode::TDynamicTableAttributes::CopyFrom(const TDynamicTableAttributes* other)
 {
@@ -434,6 +439,11 @@ std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTab
 bool TTableNode::IsDynamic() const
 {
     return GetTrunkNode()->GetDynamic();
+}
+
+bool TTableNode::IsQueue() const
+{
+    return IsDynamic() && !IsSorted() && !IsReplicated();
 }
 
 bool TTableNode::IsEmpty() const

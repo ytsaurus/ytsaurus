@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
+#include <yt/yt/ytlib/queue_client/config.h>
+
 #include <yt/yt/ytlib/transaction_client/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -72,6 +74,8 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("master_cell_directory_synchronizer", MasterCellDirectorySynchronizer)
         .DefaultNew();
     RegisterParameter("scheduler", Scheduler)
+        .DefaultNew();
+    RegisterParameter("queue_agent", QueueAgent)
         .DefaultNew();
     RegisterParameter("transaction_manager", TransactionManager)
         .DefaultNew();

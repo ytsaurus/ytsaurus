@@ -208,7 +208,7 @@ private:
 
         // Fetch partition count (which is equal to tablet count).
 
-        const auto& tableInfo = WaitFor(tableMountCache->GetTableInfo(QueueRef_.Path))
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(QueueRef_.Path))
             .ValueOrThrow();
 
         auto& partitionCount = snapshot->PartitionCount;
@@ -239,7 +239,7 @@ private:
 
         YT_VERIFY(std::ssize(tabletInfos) == std::ssize(tabletIndexes));
 
-        // Fill partition snapshots from tablet infos
+        // Fill partition snapshots from tablet infos.
 
         for (int index = 0; index < std::ssize(tabletInfos); ++index) {
             const auto& partitionSnapshot = partitionSnapshots[tabletIndexes[index]];

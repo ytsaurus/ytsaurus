@@ -74,6 +74,8 @@ struct IConnection
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 
+    virtual const NRpc::IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const = 0;
+
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;

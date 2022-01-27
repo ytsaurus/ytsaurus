@@ -40,12 +40,17 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         ports_generator,
         logs_dir)
 
+    # Note that queue agent config depends on master rpc ports and master config depends on queue agent rpc ports.
+    # That's why we prepare queue agent rpc ports separately before both configs.
+    queue_agent_rpc_ports = _allocate_queue_agent_rpc_ports(yt_config, ports_generator)
+
     master_configs, master_connection_configs = _build_master_configs(
         yt_config,
         dirs["master"],
         dirs["master_tmpfs"],
         clock_connection_config,
         discovery_configs,
+        queue_agent_rpc_ports,
         ports_generator,
         logs_dir)
 
@@ -100,6 +105,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         deepcopy(clock_connection_config),
         timestamp_provider_addresses,
         master_cache_addresses,
+        queue_agent_rpc_ports,
         ports_generator,
         logs_dir,
         yt_config)
@@ -202,6 +208,7 @@ def _build_master_configs(yt_config,
                           master_tmpfs_dirs,
                           clock_connection_config,
                           discovery_configs,
+                          queue_agent_rpc_ports,
                           ports_generator,
                           logs_dir):
     ports = []
@@ -245,7 +252,8 @@ def _build_master_configs(yt_config,
             connection_configs,
             clock_connection_config,
             timestamp_provider_addresses=[],
-            master_cache_addresses=[])
+            master_cache_addresses=[],
+            queue_agent_rpc_ports=queue_agent_rpc_ports)
 
     configs = {}
     for cell_index in xrange(yt_config.secondary_cell_count + 1):
@@ -303,6 +311,16 @@ def _build_master_configs(yt_config,
     configs["secondary_cell_tags"] = cell_tags[1:]
 
     return configs, connection_configs
+
+
+def _allocate_queue_agent_rpc_ports(yt_config, ports_generator):
+    rpc_ports = []
+
+    for i in xrange(yt_config.queue_agent_count):
+        rpc_port = next(ports_generator)
+        rpc_ports.append(rpc_port)
+
+    return rpc_ports
 
 
 def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generator, logs_dir):
@@ -391,7 +409,7 @@ def _build_discovery_server_configs(yt_config, ports_generator, logs_dir):
 
 
 def _build_queue_agent_configs(master_connection_configs, clock_connection_config, timestamp_provider_addresses,
-                               master_cache_addresses, ports_generator, logs_dir, yt_config):
+                               master_cache_addresses, rpc_ports, ports_generator, logs_dir, yt_config):
     configs = []
     for i in xrange(yt_config.queue_agent_count):
         config = default_config.get_queue_agent_config()
@@ -409,7 +427,7 @@ def _build_queue_agent_configs(master_connection_configs, clock_connection_confi
                 timestamp_provider_addresses,
                 master_cache_addresses)
 
-        config["rpc_port"] = next(ports_generator)
+        config["rpc_port"] = rpc_ports[i]
         config["monitoring_port"] = next(ports_generator)
         configs.append(config)
 
@@ -961,11 +979,14 @@ def _build_cluster_connection_config(yt_config,
                                      clock_connection_config,
                                      timestamp_provider_addresses,
                                      master_cache_addresses,
+                                     queue_agent_rpc_ports=None,
                                      config_template=None):
+    queue_agent_rpc_ports = queue_agent_rpc_ports or []
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
     secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
 
     cluster_connection = {
+        "cluster_name": yt_config.cluster_name,
         "cell_directory": _get_balancing_channel_config(),
         "primary_master": master_connection_configs[primary_cell_tag],
         "transaction_manager": {
@@ -998,6 +1019,11 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
             "refresh_time": 0,
+        },
+        "queue_agent": {
+            "stages": {
+                "production": {"addresses": ["{}:{}".format(yt_config.fqdn, port) for port in queue_agent_rpc_ports]},
+            },
         },
         "permission_cache": {
         },

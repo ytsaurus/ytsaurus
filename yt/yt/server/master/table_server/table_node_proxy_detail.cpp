@@ -38,6 +38,8 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/queue_client/helpers.h>
+
 #include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
@@ -82,6 +84,7 @@ using namespace NTabletNode;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
+using namespace NQueueClient;
 
 using NChunkClient::TLegacyReadLimit;
 
@@ -178,6 +181,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
     bool isExternal = table->IsExternal();
+    bool isQueue = table->IsQueue();
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkRowCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RowCount)
@@ -379,6 +383,12 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DataWeight)
         .SetPresent(table->HasDataWeight()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueAgentStage)
+        .SetPresent(isQueue));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueStatus)
+        .SetPresent(isQueue));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueuePartitions)
+        .SetPresent(isQueue));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -389,6 +399,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
     bool isExternal = table->IsExternal();
+    bool isQueue = table->IsQueue();
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
@@ -966,6 +977,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(table->GetEnableConsistentChunkReplicaPlacement());
             return true;
 
+        case EInternedAttributeKey::QueueAgentStage:
+            if (!isQueue) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(table->GetQueueAgentStage());
+            return true;
+
         default:
             break;
     }
@@ -977,7 +997,8 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
 {
     const auto* table = GetThisImpl();
     auto* chunkList = table->GetChunkList();
-    auto isExternal = table->IsExternal();
+    bool isExternal = table->IsExternal();
+    bool isQueue = table->IsQueue();
 
     switch (key) {
         case EInternedAttributeKey::TableChunkFormatStatistics:
@@ -1027,6 +1048,24 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
 
         case EInternedAttributeKey::Schema:
             return table->GetSchema()->AsYsonAsync();
+
+        case EInternedAttributeKey::QueueStatus:
+        case EInternedAttributeKey::QueuePartitions: {
+            if (!isQueue) {
+                break;
+            }
+            const auto& connection = Bootstrap_->GetClusterConnection();
+            const auto& clusterName = connection->GetConfig()->ClusterName;
+            if (!clusterName) {
+                THROW_ERROR_EXCEPTION("Cluster name is not set in cluster connection config");
+            }
+            auto queueService = CreateQueueYPathService(
+                connection->GetQueueAgentChannelOrThrow(table->GetQueueAgentStage()),
+                *clusterName,
+                GetPath());
+            TYPath path = (key == EInternedAttributeKey::QueueStatus) ? "/status" : "/partitions";
+            return AsyncYPathGet(queueService, path);
+        }
 
         default:
             break;
