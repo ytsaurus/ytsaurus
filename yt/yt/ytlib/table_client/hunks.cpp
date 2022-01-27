@@ -292,9 +292,9 @@ THunkValue ReadHunkValue(TRef input)
             }
             return TGlobalRefHunkValue{
                 .ChunkId = chunkId,
-                .Length = static_cast<i64>(length),
                 .BlockIndex = static_cast<int>(blockIndex),
-                .BlockOffset = static_cast<i64>(blockOffset)
+                .BlockOffset = static_cast<i64>(blockOffset),
+                .Length = static_cast<i64>(length),
             };
         }
 
@@ -313,9 +313,9 @@ void DoGlobalizeHunkValue(
     if (const auto* localRefHunkValue = std::get_if<TLocalRefHunkValue>(&hunkValue)) {
         auto globalRefHunkValue = TGlobalRefHunkValue{
             .ChunkId = FromProto<TChunkId>(hunkChunkRefsExt.refs(localRefHunkValue->ChunkIndex).chunk_id()),
-            .Length = localRefHunkValue->Length,
             .BlockIndex = localRefHunkValue->BlockIndex,
-            .BlockOffset = localRefHunkValue->BlockOffset
+            .BlockOffset = localRefHunkValue->BlockOffset,
+            .Length = localRefHunkValue->Length,
         };
         auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
         value->Data.String = globalRefPayload.Begin();
@@ -756,9 +756,9 @@ public:
 
                     TLocalRefHunkValue localRefHunkValue{
                         .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
-                        .Length = payloadLength,
                         .BlockIndex = blockIndex,
-                        .BlockOffset = blockOffset
+                        .BlockOffset = blockOffset,
+                        .Length = payloadLength,
                     };
                     if (columnarStatisticsThunk) {
                         columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
@@ -779,9 +779,9 @@ public:
                         [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
                             TLocalRefHunkValue localRefHunkValue{
                                 .ChunkIndex = RegisterHunkRef(globalRefHunkValue.ChunkId, globalRefHunkValue.Length),
-                                .Length = globalRefHunkValue.Length,
                                 .BlockIndex = globalRefHunkValue.BlockIndex,
-                                .BlockOffset = globalRefHunkValue.BlockOffset
+                                .BlockOffset = globalRefHunkValue.BlockOffset,
+                                .Length = globalRefHunkValue.Length,
                             };
                             if (columnarStatisticsThunk) {
                                 columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);

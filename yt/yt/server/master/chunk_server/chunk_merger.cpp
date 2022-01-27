@@ -1012,9 +1012,9 @@ void TChunkMerger::RegisterJobAwaitingChunkCreation(
         .JobId = jobId,
         .JobIndex = jobIndex,
         .NodeId = nodeId,
-        .MergeMode = mode,
         .ParentChunkListId = parentChunkListId,
         .InputChunkIds = std::move(inputChunkIds),
+        .MergeMode = mode,
     });
 
     YT_LOG_DEBUG("Planning merge job (JobId: %v, NodeId: %v, ParentChunkListId: %v)",
