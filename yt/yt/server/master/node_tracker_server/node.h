@@ -14,24 +14,16 @@
 
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
-
-#include <yt/yt/client/chunk_client/public.h>
-
-#include <yt/yt/client/node_tracker_client/node_directory.h>
-
-#include <yt/yt/client/chunk_client/public.h>
-#include <yt/yt/client/node_tracker_client/node_directory.h>
-
 #include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/yt/core/misc/dense_map.h>
+#include <yt/yt/client/chunk_client/public.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
-
-#include <array>
 
 namespace NYT::NNodeTrackerServer {
 
@@ -65,6 +57,19 @@ DEFINE_ENUM(EWriteTargetValidityChange,
     ((Decommissioned)            (2))
     ((WriteSessionsDisabled)     (3))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TIncrementalHeartbeatCounters
+{
+    NProfiling::TCounter RemovedChunks;
+    NProfiling::TCounter RemovedUnapprovedReplicas;
+    NProfiling::TCounter ApprovedReplicas;
+    NProfiling::TCounter AddedReplicas;
+    NProfiling::TCounter AddedDestroyedReplicas;
+
+    explicit TIncrementalHeartbeatCounters(const NProfiling::TProfiler& profiler);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -269,6 +274,8 @@ public:
     using TCellar = TCompactVector<TCellSlot, NCellarClient::TypicalCellarSize>;
     using TCellarMap = THashMap<NCellarClient::ECellarType, TCellar>;
     DEFINE_BYREF_RW_PROPERTY(TCellarMap, Cellars);
+
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TIncrementalHeartbeatCounters>, IncrementalHeartbeatCounters);
 
 public:
     explicit TNode(NObjectServer::TObjectId objectId);

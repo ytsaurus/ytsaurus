@@ -334,6 +334,8 @@ TMasterConnectorDynamicConfig::TMasterConnectorDynamicConfig()
         .Default();
     RegisterParameter("max_chunk_events_per_incremental_heartbeat", MaxChunkEventsPerIncrementalHeartbeat)
         .Default(1000000);
+    RegisterParameter("enable_profiling", EnableProfiling)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

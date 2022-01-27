@@ -398,6 +398,9 @@ public:
     //! Maximum number of chunk events per incremental heartbeat.
     i64 MaxChunkEventsPerIncrementalHeartbeat;
 
+    //! Enable detailed incremental heartbeat statistics profiling.
+    bool EnableProfiling;
+
     TMasterConnectorDynamicConfig();
 };
 

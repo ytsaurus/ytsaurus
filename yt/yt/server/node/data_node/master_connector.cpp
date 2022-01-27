@@ -51,6 +51,7 @@ using namespace NDataNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
+using namespace NProfiling;
 
 // TODO: Use `using NNodeTrackerClient::NProto` after legacy heartbeats removal.
 using NNodeTrackerClient::NProto::TDataNodeStatistics;
@@ -235,6 +236,15 @@ public:
             protoRequest->set_revision(revision);
         }
 
+        if (EnableIncrementalHeartbeatProfiling_) {
+            const auto& counters = GetIncrementalHeartbeatCounters(cellTag);
+
+            counters.Reported.AddedChunks.Increment(delta->ReportedAdded.size());
+            counters.Reported.RemovedChunks.Increment(delta->ReportedRemoved.size());
+            counters.Reported.MediumChangedChunks.Increment(delta->ReportedChangedMedium.size());
+            counters.ConfirmedAnnouncementRequests.Increment(heartbeat.confirmed_replica_announcement_requests().size());
+        }
+
         return heartbeat;
     }
 
@@ -282,6 +292,14 @@ public:
         auto currentHeartbeatFuture = delta->CurrentHeartbeatBarrier.ToFuture();
         auto nextHeartbeatBarrier = delta->NextHeartbeatBarrier.Exchange(std::move(delta->CurrentHeartbeatBarrier));
         nextHeartbeatBarrier.SetFrom(currentHeartbeatFuture);
+
+        if (EnableIncrementalHeartbeatProfiling_) {
+            const auto& counters = GetIncrementalHeartbeatCounters(cellTag);
+
+            counters.FailedToReport.AddedChunks.Increment(delta->ReportedAdded.size());
+            counters.FailedToReport.RemovedChunks.Increment(delta->ReportedRemoved.size());
+            counters.FailedToReport.MediumChangedChunks.Increment(delta->ReportedChangedMedium.size());
+        }
     }
 
     void OnIncrementalHeartbeatResponse(
@@ -472,9 +490,53 @@ private:
     TDuration JobHeartbeatPeriod_;
     TDuration JobHeartbeatPeriodSplay_;
     i64 MaxChunkEventsPerIncrementalHeartbeat_;
+    bool EnableIncrementalHeartbeatProfiling_ = false;
 
     std::atomic<int> OnlineCellCount_ = 0;
 
+    struct TIncrementalHeartbeatCounters
+    {
+        struct TChunkCounters
+        {
+            TChunkCounters(const TProfiler& profiler)
+                : AddedChunks(profiler.Counter("/added_chunk_count"))
+                , RemovedChunks(profiler.Counter("/removed_chunk_count"))
+                , MediumChangedChunks(profiler.Counter("/medium_changed_chunk_count"))
+            { }
+
+            TCounter AddedChunks;
+            TCounter RemovedChunks;
+            TCounter MediumChangedChunks;
+        };
+
+        TChunkCounters Reported;
+        TChunkCounters FailedToReport;
+
+        TCounter ConfirmedAnnouncementRequests;
+
+        TIncrementalHeartbeatCounters(const TProfiler& profiler)
+            : Reported(profiler.WithPrefix("/reported"))
+            , FailedToReport(profiler.WithPrefix("/failed_to_report"))
+            , ConfirmedAnnouncementRequests(profiler.Counter("/confirmed_announcement_request_count"))
+        { }
+    };
+
+    THashMap<TCellTag, TIncrementalHeartbeatCounters> IncrementalHeartbeatCounters_;
+
+    const TIncrementalHeartbeatCounters& GetIncrementalHeartbeatCounters(TCellTag cellTag)
+    {
+        auto it = IncrementalHeartbeatCounters_.find(cellTag);
+        if (it != IncrementalHeartbeatCounters_.end()) {
+            return it->second;
+        }
+
+        TIncrementalHeartbeatCounters counters(
+            DataNodeProfiler
+                .WithPrefix("/incremental_heartbeat")
+                .WithTag("cell_tag", ToString(cellTag)));
+
+        return IncrementalHeartbeatCounters_.emplace(cellTag, std::move(counters)).first->second;
+    }
 
     void OnMasterDisconnected()
     {
@@ -532,6 +594,11 @@ private:
         JobHeartbeatPeriod_ = dynamicConfig->JobHeartbeatPeriod.value_or(*Config_->JobHeartbeatPeriod);
         JobHeartbeatPeriodSplay_ = dynamicConfig->JobHeartbeatPeriodSplay.value_or(Config_->JobHeartbeatPeriodSplay);
         MaxChunkEventsPerIncrementalHeartbeat_ = dynamicConfig->MaxChunkEventsPerIncrementalHeartbeat;
+        EnableIncrementalHeartbeatProfiling_ = dynamicConfig->EnableProfiling;
+
+        if (!EnableIncrementalHeartbeatProfiling_) {
+            IncrementalHeartbeatCounters_.clear();
+        }
     }
 
     void StartHeartbeats()
