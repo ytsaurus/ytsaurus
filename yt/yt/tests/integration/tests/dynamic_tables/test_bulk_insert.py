@@ -1263,7 +1263,10 @@ class TestBulkInsert(DynamicTablesBase):
 
             merge(in_="//tmp/t_input", out="//tmp/t_output", mode="ordered")
             assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
-            assert read_table("//tmp/t_output") == rows
+            tx = start_transaction(timeout=60000)
+            lock("//tmp/t_output", mode="snapshot", tx=tx)
+            assert read_table("//tmp/t_output", tx=tx) == rows
+            abort_transaction(tx)
 
 ##################################################################
 
