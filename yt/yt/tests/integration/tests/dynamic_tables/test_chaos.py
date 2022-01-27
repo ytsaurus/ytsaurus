@@ -1,7 +1,7 @@
 from test_dynamic_tables import DynamicTablesBase
 
 from yt_commands import (
-    authors, wait, execute_command, get_driver, get, set, ls, create, exists,
+    authors, wait, execute_command, get_driver, get, set, ls, create, exists, remove,
     sync_create_cells, sync_mount_table, sync_unmount_table, reshard_table, alter_table,
     insert_rows, delete_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
@@ -307,6 +307,9 @@ class TestChaos(ChaosTestBase):
         assert exists("#{0}".format(replica_id))
         assert exists("#{0}/@id".format(replica_id))
         assert not exists("#{0}/@nonexisting".format(replica_id))
+
+        remove("#{0}".format(card_id))
+        assert not exists("#{0}".format(card_id))
 
     def _create_queue_table(self, path, **attributes):
         attributes.update({"dynamic": True})

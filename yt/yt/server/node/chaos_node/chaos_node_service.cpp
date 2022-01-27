@@ -39,7 +39,7 @@ public:
     explicit TChaosNodeService(IChaosSlotPtr slot)
         : THydraServiceBase(
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Default),
-            TChaosServiceProxy::GetDescriptor(),
+            TChaosNodeServiceProxy::GetDescriptor(),
             ChaosNodeLogger,
             slot->GetCellId())
         , Slot_(std::move(slot))
@@ -47,6 +47,7 @@ public:
         YT_VERIFY(Slot_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateReplicationCard));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableReplica));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveTableReplica));
@@ -65,6 +66,17 @@ private:
         chaosManager->CreateReplicationCard(std::move(context));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RemoveReplicationCard)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+
+        context->SetRequestInfo("ReplicationCardId: %v",
+            replicationCardId);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->RemoveReplicationCard(std::move(context));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCard)
     {
         SyncWithUpstream();
@@ -77,7 +89,7 @@ private:
             fetchOptions);
 
         const auto& chaosManager = Slot_->GetChaosManager();
-        auto replicationCard = chaosManager->GetReplicationCard(replicationCardId);
+        auto replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
 
         auto* protoReplicationCard = response->mutable_replication_card();
         protoReplicationCard->set_era(replicationCard->GetEra());

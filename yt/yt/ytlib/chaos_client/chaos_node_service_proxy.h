@@ -8,14 +8,15 @@ namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosServiceProxy
+class TChaosNodeServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TChaosServiceProxy, ChaosService,
+    DEFINE_RPC_PROXY(TChaosNodeServiceProxy, ChaosNodeService,
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NProto, CreateReplicationCard);
+    DEFINE_RPC_PROXY_METHOD(NProto, RemoveReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, GetReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, CreateTableReplica);
     DEFINE_RPC_PROXY_METHOD(NProto, RemoveTableReplica);
