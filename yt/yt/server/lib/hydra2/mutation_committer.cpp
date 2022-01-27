@@ -96,11 +96,11 @@ TLeaderCommitter::TLeaderCommitter(
     , AcceptMutationsExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::Flush, MakeWeak(this)),
-        Config_->MaxCommitBatchDuration))
+        Config_->MaxCommitBatchDelay))
     , SerializeMutationsExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::SerializeMutations, MakeWeak(this)),
-        Config_->MaxCommitBatchDuration))
+        Config_->MaxCommitBatchDelay))
     , CommittedState_(std::move(reachableState))
     , PreliminaryMutationQueue_(queue)
     , BatchSummarySize_(profiler.Summary("/mutation_batch_size"))
@@ -157,7 +157,9 @@ void TLeaderCommitter::SerializeMutations()
     NTracing::TNullTraceContextGuard traceContextGuard;
 
     TMutationDraft mutationDraft;
-    while (PreliminaryMutationQueue_->TryDequeue(&mutationDraft)) {
+    int mutationCount = 0;
+    while (mutationCount < Config_->MaxCommitBatchRecordCount && PreliminaryMutationQueue_->TryDequeue(&mutationDraft)) {
+        ++mutationCount;
         if (ReadOnly_) {
             auto error = TError(
                 EErrorCode::ReadOnly,
