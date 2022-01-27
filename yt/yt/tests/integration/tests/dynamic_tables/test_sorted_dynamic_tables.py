@@ -12,7 +12,7 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table,
-    get_singular_chunk_id, create_dynamic_table, get_tablet_leader_address,
+    get_singular_chunk_id, create_dynamic_table, get_cell_leader_address, get_tablet_leader_address,
     raises_yt_error, build_snapshot, AsyncLastCommittedTimestamp, MinTimestamp)
 
 import yt_error_codes
@@ -427,6 +427,16 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@lookup_cache_rows_ratio", 0.1)
         set("//tmp/t/@enable_lookup_cache_by_default", True)
         remount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
+        address = get_cell_leader_address(cell_id)
+
+        def check_tablet_config():
+            config = get("//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}/config".format(address, cell_id, tablet_id))
+            return "enable_lookup_cache_by_default" in config
+
+        wait(check_tablet_config)
 
         # Populate cache and use it.
         for step in xrange(1, 5):
