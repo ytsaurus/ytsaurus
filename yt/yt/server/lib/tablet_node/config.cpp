@@ -166,7 +166,9 @@ TTableMountConfig::TTableMountConfig()
     RegisterParameter("lookup_cache_rows_per_tablet", LookupCacheRowsPerTablet)
         .Default(0);
     RegisterParameter("lookup_cache_rows_ratio", LookupCacheRowsRatio)
-        .Default(0);
+        .Default(0)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
     RegisterParameter("enable_lookup_cache_by_default", EnableLookupCacheByDefault)
         .Default(false);
 
