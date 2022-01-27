@@ -17,6 +17,7 @@ class TChaosReplicatedTableNode
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TReplicationCardId, ReplicationCardId)
+    DEFINE_BYVAL_RW_PROPERTY(bool, OwnsReplicationCard)
 
 public:
     using TCypressNode::TCypressNode;

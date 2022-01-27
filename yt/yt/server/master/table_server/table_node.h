@@ -87,7 +87,6 @@ private:
         NTabletClient::ETableBackupState BackupState = NTabletClient::ETableBackupState::None;
         TEnumIndexedVector<NTabletClient::ETabletBackupState, int> TabletCountByBackupState;
         NTabletClient::ETabletBackupState AggregatedTabletBackupState = NTabletClient::ETabletBackupState::None;
-        NChaosClient::TReplicationCardId ReplicationCardId;
         NTransactionClient::TTimestamp BackupCheckpointTimestamp = NTransactionClient::NullTimestamp;
         TString QueueAgentStage = NQueueClient::ProductionStage;
 
