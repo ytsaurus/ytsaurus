@@ -35,7 +35,7 @@ using namespace NErasureHelpers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<IChunkReaderPtr> CreateErasurePartReaders(
+std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NNative::IClientPtr client,
@@ -68,7 +68,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartReaders(
     auto partConfig = CloneYsonSerializable(config);
     partConfig->FailOnNoSeeds = true;
 
-    std::vector<IChunkReaderPtr> readers;
+    std::vector<IChunkReaderAllowingRepairPtr> readers;
     readers.reserve(partIndexSet.size());
 
     {
@@ -111,7 +111,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartReaders(
     return readers;
 }
 
-std::vector<IChunkReaderPtr> CreateAllErasurePartReaders(
+std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NNative::IClientPtr client,

@@ -1313,7 +1313,7 @@ std::vector<TMemoryMapping> GetProcessMemoryMappings(int pid)
 #endif
 }
 
-template<typename TField>
+template <typename TField>
 static bool TryParseField(const TVector<TString>& fields, int index, TField& field)
 {
     if (std::ssize(fields) <= index) {

@@ -872,7 +872,7 @@ private:
         return chunkId;
     }
 
-    IChunkReaderPtr CreateReader(int partIndex)
+    IChunkReaderAllowingRepairPtr CreateReader(int partIndex)
     {
         TChunkReplicaList partReplicas;
         for (auto replica : SourceReplicas_) {
@@ -995,7 +995,7 @@ private:
                         THROW_ERROR_EXCEPTION("Codec is unable to repair the chunk");
                     }
 
-                    std::vector<IChunkReaderPtr> readers;
+                    std::vector<IChunkReaderAllowingRepairPtr> readers;
                     for (int partIndex : *repairPartIndexes) {
                         readers.push_back(CreateReader(partIndex));
                     }

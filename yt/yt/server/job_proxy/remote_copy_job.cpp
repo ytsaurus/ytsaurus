@@ -835,7 +835,7 @@ private:
     }
 
     // Request input chunk meta. Input and output chunk metas are the same.
-    TDeferredChunkMetaPtr GetChunkMeta(const std::vector<IChunkReaderPtr>& readers)
+    TDeferredChunkMetaPtr GetChunkMeta(const std::vector<IChunkReaderAllowingRepairPtr>& readers)
     {
         // In erasure chunks some of the parts might be unavailable, but they all have the same meta,
         // so we try to get meta from all of the readers simultaneously.

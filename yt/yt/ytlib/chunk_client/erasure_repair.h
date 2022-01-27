@@ -17,13 +17,6 @@ namespace NYT::NChunkClient {
 TFuture<void> RepairErasedParts(
     NErasure::ICodec* codec,
     const NErasure::TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderPtr>& readers,
-    const std::vector<IChunkWriterPtr>& writers,
-    const TClientChunkReadOptions& options);
-
-TFuture<void> RepairErasedParts(
-    NErasure::ICodec* codec,
-    const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
     const TClientChunkReadOptions& options);
@@ -34,6 +27,21 @@ IChunkReaderPtr CreateRepairingErasureReader(
     const NErasure::TPartIndexList& erasedIndices,
     // This list must consist of readers for all data parts and repair parts sorted by part index.
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
+    const NLogging::TLogger& logger = {});
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TPartWriterFactory = std::function<NChunkClient::IChunkWriterPtr(int partIndex)>;
+
+TFuture<void> AdaptiveRepairErasedParts(
+    TChunkId chunkId,
+    NErasure::ICodec* codec,
+    TErasureReaderConfigPtr config,
+    const NErasure::TPartIndexList& erasedIndices,
+    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
+    TPartWriterFactory writerFactory,
+    const TClientChunkReadOptions& options,
     const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////

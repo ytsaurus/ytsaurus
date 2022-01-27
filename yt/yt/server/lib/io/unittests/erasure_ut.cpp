@@ -146,6 +146,8 @@ std::vector<TString> GetRandomData(std::mt19937& gen, int blocksCount, int block
     return result;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TErasureCodingTest, RandomText)
 {
     std::map<ECodec, int> guaranteedRepairCount;
@@ -212,6 +214,14 @@ TEST(TErasureCodingTest, RandomText)
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETestPartInfo,
+    ((OK)       (0))
+    ((Failing)  (1))
+    ((Erased)   (2))
+);
 
 class TErasuseMixtureTest
     : public ::testing::Test
@@ -316,6 +326,43 @@ public:
                 allReaders->push_back(reader);
             }
         }
+    }
+
+    static void PrepareAdaptiveReadersAndWriters(
+        ICodec* codec,
+        const std::vector<ETestPartInfo>& parts,
+        std::vector<IChunkReaderAllowingRepairPtr>* allReaders,
+        TPartWriterFactory* writerFactory)
+    {
+        YT_VERIFY(codec->GetTotalPartCount() == std::ssize(parts));
+
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
+
+        for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+            auto filename = "part" + ToString(index + 1);
+            auto partInfo = parts[index];
+            if (partInfo != ETestPartInfo::OK) {
+                auto reader = New<TChunkFileReader>(
+                    ioEngine,
+                    NullChunkId,
+                    filename,
+                    EDirectIOPolicy::Never);
+                allReaders->push_back(New<TFailingChunkFileReaderAdapter>(reader, /*period*/ 1));
+            } else {
+                auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
+                    ioEngine,
+                    NullChunkId,
+                    filename,
+                    EDirectIOPolicy::Never));
+                allReaders->push_back(reader);
+            }
+        }
+
+        *writerFactory = [=] (int index) {
+            YT_VERIFY(parts[index] == ETestPartInfo::Erased);
+            auto filename = "part" + ToString(index + 1);
+            return New<TChunkFileWriter>(ioEngine, NullChunkId, filename);
+        };
     }
 
     static std::vector<IChunkReaderAllowingRepairPtr> GetChunkFileReaders(int partCount)
@@ -464,6 +511,12 @@ public:
         }
         return readers;
     }
+
+    static void ExecAdaptiveRepairTest(
+        NErasure::ICodec* codec,
+        const std::vector<TSharedRef>& dataRefs,
+        const TPartIndexList& erasedIndices,
+        const TPartIndexList& failingIndices);
 
     static std::mt19937 Gen_;
 };
@@ -1075,6 +1128,120 @@ TEST_F(TErasuseMixtureTest, RepairingReaderUnrecoverable)
     ASSERT_FALSE(result.IsOK());
 
     Cleanup(codec);
+}
+
+void TErasuseMixtureTest::ExecAdaptiveRepairTest(
+    NErasure::ICodec* codec,
+    const std::vector<TSharedRef>& dataRefs,
+    const TPartIndexList& erasedIndices,
+    const TPartIndexList& failingIndices)
+{
+    WriteErasureChunk(codec->GetId(), codec, dataRefs);
+    RemoveErasedParts(erasedIndices);
+
+    std::vector<ETestPartInfo> parts(codec->GetTotalPartCount(), ETestPartInfo::OK);
+    for (auto index : erasedIndices) {
+        parts[index] = ETestPartInfo::Erased;
+    }
+    for (auto index : failingIndices) {
+        parts[index] = ETestPartInfo::Failing;
+    }
+
+    std::vector<IChunkReaderAllowingRepairPtr> allReaders;
+    TPartWriterFactory writerFactory;
+    PrepareAdaptiveReadersAndWriters(codec, parts, &allReaders, &writerFactory);
+
+    auto repairFuture = AdaptiveRepairErasedParts(
+        NullChunkId,
+        codec,
+        CreateErasureConfig(),
+        erasedIndices,
+        allReaders,
+        writerFactory, 
+        {});
+    EXPECT_TRUE(repairFuture.Get().IsOK());
+
+    auto erasureReader = CreateErasureReader(codec);
+    CheckRepairResult(erasureReader, dataRefs);
+
+    Cleanup(codec);
+}
+
+TEST_P(TErasuseMixtureTest, TestAdaptiveRepair1)
+{
+    auto codec = GetCodec(ECodec::ReedSolomon_6_3);
+
+    // Prepare data.
+    auto data = ToSharedRefs(GetRandomData(Gen_, 20, 100));
+    TPartIndexList erasedIndices = {2};
+    YT_VERIFY(erasedIndices.size() == 1 && erasedIndices.front() == 2);
+    TPartIndexList failingIndices = {1, 4};
+
+    ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
+}
+
+TEST_P(TErasuseMixtureTest, TestAdaptiveRepair2)
+{
+    auto codec = GetCodec(GetParam());
+
+    // Prepare data.
+    std::vector<TString> dataStrings = {
+        "a",
+        "b",
+        "",
+        "Hello world"};
+    TPartIndexList erasedIndices = {0, 13};
+    TPartIndexList failingIndices = {1, 14};
+
+    ExecAdaptiveRepairTest(codec, ToSharedRefs(dataStrings), erasedIndices, failingIndices);
+}
+
+TEST_P(TErasuseMixtureTest, TestAdaptiveRepair3)
+{
+    auto codec = GetCodec(GetParam());
+
+    auto data = GetRandomTextBlocks(20, 100, 100);
+
+    TPartIndexList erasedIndices = {1, 8, 13};
+    TPartIndexList failingIndices = {15};
+
+    ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
+}
+
+TEST_P(TErasuseMixtureTest, TestAdaptiveRepair4)
+{
+    auto codec = GetCodec(GetParam());
+
+    auto data = GetRandomTextBlocks(2000, 100, 100);
+
+    TPartIndexList erasedIndices = {1};
+    TPartIndexList failingIndices = {8, 13, 15};
+
+    ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
+}
+
+TEST_P(TErasuseMixtureTest, TestAdaptiveRepair5)
+{
+    auto codec = GetCodec(GetParam());
+
+    auto data = GetRandomTextBlocks(2000, 100, 100);
+
+    TPartIndexList erasedIndices = {1};
+    TPartIndexList failingIndices = {};
+
+    ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
+}
+
+TEST_P(TErasuseMixtureTest, TestAdaptiveRepair6)
+{
+    auto codec = GetCodec(GetParam());
+
+    auto data = GetRandomTextBlocks(2000, 100, 100);
+
+    TPartIndexList erasedIndices = {};
+    TPartIndexList failingIndices = {8, 13, 15};
+
+    ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
 
 INSTANTIATE_TEST_SUITE_P(
