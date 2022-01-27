@@ -3,6 +3,8 @@
 #include "type_handler_detail.h"
 #include "client_impl.h"
 
+#include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -14,6 +16,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NChaosClient;
+using namespace NHydra;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,9 +72,16 @@ private:
             .ValueOrThrow();
     }
 
-    void DoRemoveObject(TReplicationCardId /*replicationCardId*/) override
+    void DoRemoveObject(TReplicationCardId replicationCardId) override
     {
-        THROW_ERROR_EXCEPTION("Unsupported");
+        auto channel = Client_->GetChaosChannelByCardId(replicationCardId, EPeerKind::Leader);
+        auto proxy = TChaosNodeServiceProxy(std::move(channel));
+
+        auto req = proxy.RemoveReplicationCard();
+        ToProto(req->mutable_replication_card_id(), replicationCardId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
     }
 };
 

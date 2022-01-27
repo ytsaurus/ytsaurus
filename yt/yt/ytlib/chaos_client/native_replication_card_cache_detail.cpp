@@ -92,7 +92,7 @@ public:
     TReplicationCardPtr Run()
     {
         auto channel = Owner_->ChaosCacheChannel_;
-        auto proxy = TChaosServiceProxy(channel);
+        auto proxy = TChaosNodeServiceProxy(channel);
         auto req = proxy.GetReplicationCard();
         ToProto(req->mutable_replication_card_id(), Key_.CardId);
         ToProto(req->mutable_fetch_options(), Key_.FetchOptions);

@@ -89,6 +89,7 @@ public:
             BIND(&TChaosManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TChaosManager::HydraCreateReplicationCard, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraRemoveReplicationCard, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraUpdateCoordinatorCells, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCreateTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRemoveTableReplica, Unretained(this)));
@@ -111,6 +112,13 @@ public:
 
 
     void CreateReplicationCard(const TCreateReplicationCardContextPtr& context) override
+    {
+        auto mutation = CreateMutation(HydraManager_, context);
+        mutation->SetAllowLeaderForwarding(true);
+        mutation->CommitAndReply(context);
+    }
+
+    void RemoveReplicationCard(const TRemoveReplicationCardContextPtr& context) override
     {
         auto mutation = CreateMutation(HydraManager_, context);
         mutation->SetAllowLeaderForwarding(true);
@@ -318,9 +326,24 @@ private:
 
         ToProto(response->mutable_replication_card_id(), replicationCardId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Created replication card (ReplicationCardId: %v, ReplicationCard: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card created (ReplicationCardId: %v, ReplicationCard: %v)",
             replicationCardId,
             *replicationCard);
+    }
+
+    void HydraRemoveReplicationCard(
+        const TRemoveReplicationCardContextPtr& /*context*/,
+        NChaosClient::NProto::TReqRemoveReplicationCard* request,
+        NChaosClient::NProto::TRspRemoveReplicationCard* /*response*/)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+
+        GetReplicationCardOrThrow(replicationCardId);
+
+        ReplicationCardMap_.Remove(replicationCardId);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card removed (ReplicationCardId: %v)",
+            replicationCardId);
     }
 
     void HydraCreateTableReplica(
@@ -386,7 +409,7 @@ private:
 
         ToProto(response->mutable_replica_id(), newReplicaId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Created table replica (ReplicationCardId: %v, ReplicaId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (ReplicationCardId: %v, ReplicaId: %v)",
             replicationCardId,
             newReplicaId);
     }
@@ -408,7 +431,7 @@ private:
 
         EraseOrCrash(replicationCard->Replicas(), replicaId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removed table replica (ReplicationCardId: %v, ReplicaId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica removed (ReplicationCardId: %v, ReplicaId: %v)",
             replicationCardId,
             replicaId);
     }
@@ -474,7 +497,7 @@ private:
             RevokeShortcuts(replicationCard);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Altered table replica (ReplicationCardId: %v, ReplicaId: %v, Replica: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica altered (ReplicationCardId: %v, ReplicaId: %v, Replica: %v)",
             replicationCardId,
             replicaId,
             *replicaInfo);
@@ -726,7 +749,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Start new replication era (ReplicationCard: %v, Era: %v, Timestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Starting new replication era (ReplicationCard: %v, Era: %v, Timestamp: %llx)",
             *replicationCard,
             newEra,
             timestamp);
@@ -748,7 +771,7 @@ private:
     {
         auto [_, inserted] = SuspendedCoordinators_.emplace(coordinatorCellId, GetCurrentMutationContext()->GetTimestamp());
         if (inserted) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Suspend coordinator (CoordinatorCellId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator suspended (CoordinatorCellId: %v)",
                 coordinatorCellId);
         }
     }
@@ -757,7 +780,7 @@ private:
     {
         auto removed = SuspendedCoordinators_.erase(coordinatorCellId);
         if (removed > 0) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Resume coordinator (CoordinatorCellId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator resumed (CoordinatorCellId: %v)",
                 coordinatorCellId);
         }
     }
@@ -799,7 +822,7 @@ private:
 
         CoordinatorCellIds_.insert(CoordinatorCellIds_.end(), newCells.begin(), newCells.end());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated coordinator cells (AddedCoordinatorCellIds: %v, RemovedCoordinatorCellIds: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator cells updated (AddedCoordinatorCellIds: %v, RemovedCoordinatorCellIds: %v)",
             newCells,
             removedCells);
     }

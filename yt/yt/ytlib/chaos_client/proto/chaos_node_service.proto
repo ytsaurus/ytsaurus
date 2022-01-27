@@ -15,6 +15,16 @@ message TRspCreateReplicationCard
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqRemoveReplicationCard
+{
+    required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
+}
+
+message TRspRemoveReplicationCard
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetReplicationCard
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId

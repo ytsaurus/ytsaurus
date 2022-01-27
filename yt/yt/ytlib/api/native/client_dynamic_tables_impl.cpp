@@ -2969,7 +2969,7 @@ TReplicationCardId TClient::DoCreateReplicationCard(
     const TCreateReplicationCardOptions& options)
 {
     auto channel = GetChaosChannelByCellId(chaosCellId);
-    auto proxy = TChaosServiceProxy(std::move(channel));
+    auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
     auto req = proxy.CreateReplicationCard();
     SetMutationId(req, options);
@@ -2995,7 +2995,7 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
     }
 
     auto channel = GetChaosChannelByCardId(replicationCardId, EPeerKind::LeaderOrFollower);
-    auto proxy = TChaosServiceProxy(std::move(channel));
+    auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
     auto req = proxy.GetReplicationCard();
     ToProto(req->mutable_replication_card_id(), replicationCardId);
@@ -3020,7 +3020,7 @@ void TClient::DoRemoveReplicationCardReplica(
     const TRemoveReplicationCardReplicaOptions& options)
 {
     auto channel = GetChaosChannelByCardId(replicationCardId);
-    auto proxy = TChaosServiceProxy(std::move(channel));
+    auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
     auto req = proxy.RemoveTableReplica();
     SetMutationId(req, options);
@@ -3037,7 +3037,7 @@ void TClient::DoAlterReplicationCardReplica(
     const TAlterReplicationCardReplicaOptions& options)
 {
     auto channel = GetChaosChannelByCardId(replicationCardId);
-    auto proxy = TChaosServiceProxy(std::move(channel));
+    auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
     auto req = proxy.AlterTableReplica();
     SetMutationId(req, options);
@@ -3060,7 +3060,7 @@ void TClient::DoUpdateReplicationProgress(
     const TUpdateReplicationProgressOptions& options)
 {
     auto channel = GetChaosChannelByCardId(replicationCardId);
-    auto proxy = TChaosServiceProxy(std::move(channel));
+    auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
     auto req = proxy.UpdateReplicationProgress();
     SetMutationId(req, options);

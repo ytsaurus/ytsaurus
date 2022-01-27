@@ -106,7 +106,7 @@ private:
         auto enabled = attributes->Get<bool>("enabled", false);
 
         auto channel = Client_->GetChaosChannelByCardId(replicationCardId);
-        auto proxy = TChaosServiceProxy(std::move(channel));
+        auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.CreateTableReplica();
         Client_->SetMutationId(req, options);

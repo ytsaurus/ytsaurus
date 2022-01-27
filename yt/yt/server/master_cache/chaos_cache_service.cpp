@@ -33,7 +33,7 @@ public:
         TChaosCachePtr cache)
         : TServiceBase(
             std::move(invoker),
-            TChaosServiceProxy::GetDescriptor(),
+            TChaosNodeServiceProxy::GetDescriptor(),
             MasterCacheLogger)
         , Cache_(std::move(cache))
         , Client_(std::move(masterClient))

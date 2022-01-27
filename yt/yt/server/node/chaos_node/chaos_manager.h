@@ -14,21 +14,30 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TCreateReplicationCardContextPtr = TIntrusivePtr<::NYT::NRpc::TTypedServiceContext<
-    NYT::NChaosClient::NProto::TReqCreateReplicationCard,
-    NYT::NChaosClient::NProto::TRspCreateReplicationCard>>;
-using TCreateTableReplicaContextPtr = TIntrusivePtr<::NYT::NRpc::TTypedServiceContext<
-    NYT::NChaosClient::NProto::TReqCreateTableReplica,
-    NYT::NChaosClient::NProto::TRspCreateTableReplica>>;
-using TRemoveTableReplicaContextPtr = TIntrusivePtr<::NYT::NRpc::TTypedServiceContext<
-    NYT::NChaosClient::NProto::TReqRemoveTableReplica,
-    NYT::NChaosClient::NProto::TRspRemoveTableReplica>>;
-using TAlterTableReplicaContextPtr = TIntrusivePtr<::NYT::NRpc::TTypedServiceContext<
-    NYT::NChaosClient::NProto::TReqAlterTableReplica,
-    NYT::NChaosClient::NProto::TRspAlterTableReplica>>;
-using TUpdateReplicationProgressContextPtr = TIntrusivePtr<::NYT::NRpc::TTypedServiceContext<
-    NYT::NChaosClient::NProto::TReqUpdateReplicationProgress,
-    NYT::NChaosClient::NProto::TRspUpdateReplicationProgress>>;
+using TCreateReplicationCardContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+    NChaosClient::NProto::TReqCreateReplicationCard,
+    NChaosClient::NProto::TRspCreateReplicationCard
+>>;
+using TRemoveReplicationCardContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+    NChaosClient::NProto::TReqRemoveReplicationCard,
+    NChaosClient::NProto::TRspRemoveReplicationCard
+>>;
+using TCreateTableReplicaContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+    NChaosClient::NProto::TReqCreateTableReplica,
+    NChaosClient::NProto::TRspCreateTableReplica
+>>;
+using TRemoveTableReplicaContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+    NChaosClient::NProto::TReqRemoveTableReplica,
+    NChaosClient::NProto::TRspRemoveTableReplica
+>>;
+using TAlterTableReplicaContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+    NChaosClient::NProto::TReqAlterTableReplica,
+    NChaosClient::NProto::TRspAlterTableReplica
+>>;
+using TUpdateReplicationProgressContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+    NChaosClient::NProto::TReqUpdateReplicationProgress,
+    NChaosClient::NProto::TRspUpdateReplicationProgress
+>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +49,7 @@ struct IChaosManager
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 
     virtual void CreateReplicationCard(const TCreateReplicationCardContextPtr& context) = 0;
+    virtual void RemoveReplicationCard(const TRemoveReplicationCardContextPtr& context) = 0;
     virtual void CreateTableReplica(const TCreateTableReplicaContextPtr& context) = 0;
     virtual void RemoveTableReplica(const TRemoveTableReplicaContextPtr& context) = 0;
     virtual void AlterTableReplica(const TAlterTableReplicaContextPtr& context) = 0;
