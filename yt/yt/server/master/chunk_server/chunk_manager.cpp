@@ -2186,8 +2186,32 @@ private:
 
     ICompositeJobControllerPtr JobController_;
 
+    std::optional<TIncrementalHeartbeatCounters> TotalIncrementalHeartbeatCounters_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+
+    const TIncrementalHeartbeatCounters& GetIncrementalHeartbeatCounters(TNode* node)
+    {
+        const auto& dynamicConfig = GetDynamicConfig();
+
+        if (dynamicConfig->EnablePerNodeIncrementalHeartbeatProfiling) {
+            auto& nodeCounters = node->IncrementalHeartbeatCounters();
+            if (!nodeCounters) {
+                nodeCounters.emplace(
+                    ChunkServerProfiler
+                        .WithPrefix("/incremental_heartbeat")
+                        .WithTag("node", node->GetDefaultAddress()));
+            }
+            return *nodeCounters;
+        }
+
+        if (!TotalIncrementalHeartbeatCounters_) {
+            TotalIncrementalHeartbeatCounters_.emplace(ChunkServerProfiler.WithPrefix(
+                "/incremental_heartbeat"));
+        }
+        return *TotalIncrementalHeartbeatCounters_;
+    }
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer)
     {
@@ -2646,6 +2670,9 @@ private:
         response->set_revision(GetCurrentMutationContext()->GetVersion().ToRevision());
         SetAnnounceReplicaRequests(response, node, announceReplicaRequests);
 
+        const auto& counters = GetIncrementalHeartbeatCounters(node);
+        counters.RemovedChunks.Increment(request->removed_chunks().size());
+
         for (const auto& chunkInfo : request->removed_chunks()) {
             if (auto* chunk = ProcessRemovedChunk(node, chunkInfo)) {
                 if (IsObjectAlive(chunk) && chunk->IsBlob()) {
@@ -2659,6 +2686,7 @@ private:
 
         auto& unapprovedReplicas = node->UnapprovedReplicas();
         const auto& dynamicConfig = GetDynamicConfig();
+        int removedUnapprovedReplicaCount = 0;
         for (auto it = unapprovedReplicas.begin(); it != unapprovedReplicas.end();) {
             auto jt = it++;
             auto replica = jt->first;
@@ -2674,8 +2702,11 @@ private:
                 auto mediumIndex = replica.GetMediumIndex();
                 const auto* medium = GetMediumByIndex(mediumIndex);
                 RemoveChunkReplica(medium, node, replica, reason, /*approved*/ false);
+                ++removedUnapprovedReplicaCount;
             }
         }
+
+        counters.RemovedUnapprovedReplicas.Increment(removedUnapprovedReplicaCount);
 
         if (ChunkPlacement_) {
             ChunkPlacement_->OnNodeUpdated(node);
@@ -4242,12 +4273,20 @@ private:
 
         bool cached = medium->GetCache();
 
+        const auto* counters = incremental
+            ? &GetIncrementalHeartbeatCounters(node)
+            : nullptr;
+
         auto* chunk = FindChunk(chunkIdWithIndexes.Id);
         if (!IsObjectAlive(chunk)) {
             if (cached) {
                 // Nodes may still contain cached replicas of chunks that no longer exist.
                 // We just silently ignore this case.
                 return nullptr;
+            }
+
+            if (incremental) {
+                counters->AddedDestroyedReplicas.Increment();
             }
 
             auto isUnknown = node->AddDestroyedReplica(chunkIdWithIndexes);
@@ -4268,10 +4307,16 @@ private:
         TNodePtrWithIndexes nodeWithIndexes(node, chunkIdWithIndexes.ReplicaIndex, chunkIdWithIndexes.MediumIndex, state);
 
         if (!cached && node->HasUnapprovedReplica(chunkWithIndexes)) {
+            if (incremental) {
+                counters->ApprovedReplicas.Increment();
+            }
             ApproveChunkReplica(
                 node,
                 chunkWithIndexes);
         } else {
+            if (incremental) {
+                counters->AddedReplicas.Increment();
+            }
             AddChunkReplica(
                 medium,
                 node,
@@ -4624,6 +4669,20 @@ private:
                 ScheduleGlobalChunkRefresh();
             }
         } // Don't schedule refresh on leader switches - it's already scheduled from elsewhere.
+
+        if (oldConfig &&
+            oldConfig->ChunkManager->EnablePerNodeIncrementalHeartbeatProfiling !=
+                GetDynamicConfig()->EnablePerNodeIncrementalHeartbeatProfiling)
+        {
+            if (GetDynamicConfig()->EnablePerNodeIncrementalHeartbeatProfiling) {
+                TotalIncrementalHeartbeatCounters_.reset();
+            } else {
+                const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+                for (const auto& [id, node] : nodeTracker->Nodes()) {
+                    node->IncrementalHeartbeatCounters().reset();
+                }
+            }
+        }
     }
 
     static void ValidateMediumName(const TString& name)

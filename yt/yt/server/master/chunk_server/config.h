@@ -376,6 +376,9 @@ public:
 
     int FinishedJobsQueueSize;
 
+    //! Controls if node={{node}} tag should be added to incremental heartbeat sensors.
+    bool EnablePerNodeIncrementalHeartbeatProfiling;
+
     TDynamicDataNodeTrackerConfigPtr DataNodeTracker;
 
     TDynamicChunkMergerConfigPtr ChunkMerger;

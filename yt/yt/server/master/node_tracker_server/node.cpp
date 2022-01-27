@@ -53,8 +53,19 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NCellarClient;
 using namespace NCellarNodeTrackerClient::NProto;
 using namespace NYTree;
+using namespace NProfiling;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIncrementalHeartbeatCounters::TIncrementalHeartbeatCounters(const TProfiler& profiler)
+    : RemovedChunks(profiler.Counter("/removed_chunk_count"))
+    , RemovedUnapprovedReplicas(profiler.Counter("/removed_unapproved_replica_count"))
+    , ApprovedReplicas(profiler.Counter("/approved_replica_count"))
+    , AddedReplicas(profiler.Counter("/added_replica_count"))
+    , AddedDestroyedReplicas(profiler.Counter("/added_destroyed_replica_count"))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

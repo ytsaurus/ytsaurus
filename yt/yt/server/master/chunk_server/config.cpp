@@ -390,6 +390,10 @@ TDynamicChunkManagerConfig::TDynamicChunkManagerConfig()
         .GreaterThanOrEqual(0)
         .Default(50'000);
 
+    RegisterParameter("enable_per_node_incremental_heartbeat_profiling", EnablePerNodeIncrementalHeartbeatProfiling)
+        .Default(false)
+        .DontSerializeDefault();
+
     RegisterParameter("testing", Testing)
         .DefaultNew();
 
