@@ -5,6 +5,7 @@ from __future__ import print_function
 from .conftest import authors
 from .helpers import set_config_option
 
+import yt.logger as logger
 import yt.wrapper as yt
 
 import pytest
@@ -56,6 +57,9 @@ def reproduce_transaction_loss(
         try:
             tx_context_manager.__exit__(*sys.exc_info())
         except yt.errors.YtNoSuchTransaction:
+            logger.exception("Transaction __exit__ call interrupted")
+            # Explicitely stop pinger since it can be interrupted.
+            tx_context_manager._stop_pinger()
             pass
 
         while True:
@@ -112,7 +116,7 @@ class TestPingFailedModes(object):
             with pytest.raises(KeyboardInterrupt):
                 reproduce_transaction_loss()
 
-        print("Checking threads", file=sys.stderr)
+        logger.info("Checking alive threads")
         while True:
             names = []
             try:
@@ -124,12 +128,12 @@ class TestPingFailedModes(object):
                     if thread.getName() in ("ping_failed_interrupt_main", "PingTransaction"):
                         thread.join(timeout=0.1)
                         found_ping_related_threads = True
-                print("Thread names: {}".format(names), file=sys.stderr)
+                logger.info("Alive threads (names: %s)", names)
                 if not found_ping_related_threads:
                     break
             except KeyboardInterrupt:
                 pass
-        print("Checking threads completed", file=sys.stderr)
+        logger.info("Alive threads checked")
 
     @authors("marat-khalili")
     def test_pass(self):
