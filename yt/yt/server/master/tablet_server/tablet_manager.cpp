@@ -5740,6 +5740,56 @@ private:
         return firstDynamicStoreIndex;
     }
 
+    void ValidateTabletContainsStore(const TTablet* tablet, TChunkTree* const store)
+    {
+        const auto* tabletChunkList = tablet->GetChunkList();
+
+        // Fast path: the store belongs to the tablet directly.
+        if (tabletChunkList->ChildToIndex().contains(store)) {
+            return;
+        }
+
+        auto onParent = [&] (TChunkTree* parent) {
+            if (parent->GetType() != EObjectType::ChunkList) {
+                return false;
+            }
+            auto* chunkList = parent->AsChunkList();
+            if (chunkList->GetKind() != EChunkListKind::SortedDynamicSubtablet) {
+                return false;
+            }
+            if (tabletChunkList->ChildToIndex().contains(chunkList)) {
+                return true;
+            }
+            return false;
+        };
+
+        // NB: tablet chunk list has rank of at most 2, so it suffices to check only
+        // one intermediate chunk list between store and tablet.
+        if (IsChunkTabletStoreType(store->GetType())) {
+            for (auto& [parent, multiplicity] : store->AsChunk()->Parents()) {
+                if (onParent(parent)) {
+                    return;
+                }
+            }
+        } else if (store->GetType() == EObjectType::ChunkView) {
+            for (auto* parent : store->AsChunkView()->Parents()) {
+                if (onParent(parent)) {
+                    return;
+                }
+            }
+        } else if (IsDynamicTabletStoreType(store->GetType())) {
+            for (auto* parent : store->AsDynamicStore()->Parents()) {
+                if (onParent(parent)) {
+                    return;
+                }
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("Store %v does not belong to tablet %v",
+            store->GetId(),
+            tablet->GetId());
+    }
+
     void HydraPrepareUpdateTabletStores(TTransaction* transaction, NProto::TReqUpdateTabletStores* request, bool persistent)
     {
         YT_VERIFY(persistent);
@@ -5869,6 +5919,32 @@ private:
                     THROW_ERROR_EXCEPTION("Attempted to flush ordered dynamic store out of order")
                         << TErrorAttribute("first_dynamic_store_id", firstDynamicStore->GetId())
                         << TErrorAttribute("flushed_store_id", storeId);
+                }
+            }
+        }
+
+        if (table->IsPhysicallySorted()) {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            for (const auto& descriptor : request->stores_to_remove()) {
+                auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                auto type = TypeFromId(storeId);
+
+                if (IsChunkTabletStoreType(type)) {
+                    auto* chunk = chunkManager->GetChunkOrThrow(storeId);
+                    ValidateTabletContainsStore(tablet, chunk);
+                } else if (type == EObjectType::ChunkView) {
+                    auto* chunkView = chunkManager->GetChunkViewOrThrow(storeId);
+                    ValidateTabletContainsStore(tablet, chunkView);
+                } else if (IsDynamicTabletStoreType(type)) {
+                    if (table->GetMountedWithEnabledDynamicStoreRead()) {
+                        auto* dynamicStore = chunkManager->GetDynamicStoreOrThrow(storeId);
+                        ValidateTabletContainsStore(tablet, dynamicStore);
+                    }
+                } else {
+                    THROW_ERROR_EXCEPTION("Cannot detach store %v of type %v from tablet %v",
+                        storeId,
+                        type,
+                        tablet->GetId());
                 }
             }
         }
