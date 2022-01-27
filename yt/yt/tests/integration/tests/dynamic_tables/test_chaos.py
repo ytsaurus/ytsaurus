@@ -2,6 +2,7 @@ from test_dynamic_tables import DynamicTablesBase
 
 from yt_commands import (
     authors, wait, execute_command, get_driver, get, set, ls, create, exists, remove,
+    start_transaction, commit_transaction,
     sync_create_cells, sync_mount_table, sync_unmount_table, reshard_table, alter_table,
     insert_rows, delete_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
@@ -11,6 +12,7 @@ from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
 import pytest
+import time
 
 import __builtin__
 
@@ -693,6 +695,7 @@ class TestChaos(ChaosTestBase):
         create("chaos_replicated_table", "//tmp/crt", attributes={"replication_card_id": card_id})
         assert get("//tmp/crt/@type") == "chaos_replicated_table"
         assert get("//tmp/crt/@replication_card_id") == card_id
+        assert get("//tmp/crt/@owns_replication_card")
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
@@ -715,6 +718,36 @@ class TestChaos(ChaosTestBase):
             del replica["history"]
             del replica["replication_progress"]
             assert replica == crt_replicas[replica_id]
+
+    @authors("babenko")
+    def test_chaos_replicated_table_replication_card_ownership(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        card_id = create_replication_card(chaos_cell_id=cell_id)
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "replication_card_id": card_id
+        })
+        create("chaos_replicated_table", "//tmp/crt_view", attributes={
+            "replication_card_id": card_id,
+            "owns_replication_card": False
+        })
+
+        assert get("//tmp/crt/@owns_replication_card")
+        assert not get("//tmp/crt_view/@owns_replication_card")
+
+        assert exists("#{0}".format(card_id))
+        remove("//tmp/crt_view")
+        time.sleep(1)
+        assert exists("#{0}".format(card_id))
+
+        tx = start_transaction()
+        set("//tmp/crt/@attr", "value", tx=tx)
+        commit_transaction(tx)
+        time.sleep(1)
+        assert exists("#{0}".format(card_id))
+
+        remove("//tmp/crt")
+        wait(lambda: not exists("#{0}".format(card_id)))
 
 
 ##################################################################

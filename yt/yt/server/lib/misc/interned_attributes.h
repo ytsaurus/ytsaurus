@@ -294,6 +294,7 @@
     XX(Overlayed, overlayed) \
     XX(Owner, owner) \
     XX(OwningNodes, owning_nodes) \
+    XX(OwnsReplicationCard, owns_replication_card) \
     XX(Partitions, partitions) \
     XX(PartitionedBy, partitioned_by) \
     XX(Packing, packing) \

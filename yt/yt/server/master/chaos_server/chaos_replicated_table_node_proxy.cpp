@@ -46,6 +46,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(EInternedAttributeKey::ReplicationCardId);
+        descriptors->push_back(EInternedAttributeKey::OwnsReplicationCard);
         descriptors->push_back(EInternedAttributeKey::Era);
         descriptors->push_back(EInternedAttributeKey::CoordinatorCellIds);
         descriptors->push_back(EInternedAttributeKey::Replicas);
@@ -56,9 +57,30 @@ private:
         const auto* impl = GetThisImpl();
 
         switch (key) {
-            case EInternedAttributeKey::ReplicationCardId: {
+            case EInternedAttributeKey::ReplicationCardId:
                 BuildYsonFluently(consumer)
                     .Value(impl->GetReplicationCardId());
+                return true;
+
+            case EInternedAttributeKey::OwnsReplicationCard:
+                BuildYsonFluently(consumer)
+                    .Value(impl->GetOwnsReplicationCard());
+                return true;
+
+            default:
+                break;
+        }
+
+        return TCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    {
+        switch (key) {
+            case EInternedAttributeKey::OwnsReplicationCard: {
+                ValidateNoTransaction();
+                auto* lockedImpl = LockThisImpl();
+                lockedImpl->SetOwnsReplicationCard(ConvertTo<bool>(value));
                 return true;
             }
 
@@ -66,7 +88,7 @@ private:
                 break;
         }
 
-        return TCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
+        return TCypressNodeProxyBase::SetBuiltinAttribute(key, value);
     }
 
     TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
