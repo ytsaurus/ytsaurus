@@ -20,7 +20,6 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
-import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.type_info.TiType;
 import ru.yandex.yt.TError;
 import ru.yandex.yt.testlib.ExceptionUtils;
@@ -65,7 +64,7 @@ public class YtClientRetryWithTransactionTest extends YtClientTestBase {
         var tablePath = ytFixture.testDirectory.child("table");
         var yt = ytFixture.yt;
 
-        var serializer = new YTreeObjectSerializer<>(ClassX.wrap(KeyValue.class));
+        var serializer = new YTreeObjectSerializer<>(KeyValue.class);
 
         yt.createNode(
                 new CreateNode(tablePath, ObjectType.Table)
@@ -228,7 +227,7 @@ public class YtClientRetryWithTransactionTest extends YtClientTestBase {
         public CompletableFuture<Void> apply(ApiServiceTransaction tx) {
             attempts++;
 
-            var serializer = new YTreeObjectSerializer<>(ClassX.wrap(KeyValue.class));
+            var serializer = new YTreeObjectSerializer<>(KeyValue.class);
             var res = tx.lookupRows(
                     new LookupRowsRequest(tablePath.toString(), keyValueTableSchema.toLookup())
                             .addFilter(key),

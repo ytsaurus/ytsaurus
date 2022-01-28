@@ -13,7 +13,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
-import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.type_info.TiType;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
@@ -32,7 +31,7 @@ public class MultiYtClientIntegrationTest {
             .build();
     ExecutorService executor = Executors.newSingleThreadExecutor();
     YTreeObjectSerializer<KeyValue> serializer =
-            new YTreeObjectSerializer<>(ClassX.wrap(MultiYtClientIntegrationTest.KeyValue.class));
+            new YTreeObjectSerializer<>(MultiYtClientIntegrationTest.KeyValue.class);
 
     OutageController outageControllerOne = new OutageController();
     OutageController outageControllerTwo = new OutageController();

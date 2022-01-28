@@ -16,7 +16,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.misc.lang.number.UnsignedLong;
-import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
@@ -94,7 +93,7 @@ public class WireProtocolWriterTest extends WireProtocolTest {
     public void writeUnversionedRowMappedWithoutFewFields() {
         // Исключаем поля vInt64 из списка вставляемых vString
         var exclude = Set.of("vInt64", "vString");
-        var serializer = new YTreeObjectSerializer<>(ClassX.wrap(RowSampleObject.class),
+        var serializer = new YTreeObjectSerializer<>(RowSampleObject.class,
                 field -> !exclude.contains(field.getName()));
         process(Collections.singletonList(makeUnversionedRowCanonicalBlob_For_RowSampleNoVInt64NoVString()),
                 serializer, makeSample_For_RowSampleObject());
