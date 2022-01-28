@@ -357,6 +357,11 @@ public:
         Sensors_.InflightCounter.Decrement();
     }
 
+    TDuration GetElapsedTime() const
+    {
+        return Timer_.GetElapsedTime();
+    }
+
 private:
     TIOEngineSensors::TRequestSensors Sensors_;
     NProfiling::TWallTimer Timer_;
@@ -770,7 +775,9 @@ public:
                         MakeStrong(this),
                         std::move(slice.Request),
                         std::move(slice.OutputBuffer),
-                        TWallTimer())
+                        TWallTimer(),
+                        category,
+                        sessionId)
                     .AsyncVia(invoker)
                     .Run());
             }
@@ -836,15 +843,25 @@ private:
     void DoRead(
         const TReadRequest& request,
         TMutableRef buffer,
-        TWallTimer timer)
+        TWallTimer timer,
+        EWorkloadCategory category,
+        TSessionId sessionId)
     {
         YT_VERIFY(std::ssize(buffer) == request.Size);
 
-        AddReadWaitTimeSample(timer.GetElapsedTime());
+        const auto readWaitTime = timer.GetElapsedTime();
+        AddReadWaitTimeSample(readWaitTime);
 
         auto toReadRemaining = static_cast<i64>(buffer.Size());
         auto fileOffset = request.Offset;
         i64 bufferOffset = 0;
+
+        YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
+            "Started reading from disk (Handle: %v,  RequestSize: %v, ReadSessionId: %v, ReadWaitTime: %v)",
+            static_cast<FHANDLE>(*request.Handle),
+            request.Size,
+            sessionId,
+            readWaitTime);
 
         NFS::ExpectIOErrors([&] {
             while (toReadRemaining > 0) {
@@ -855,6 +872,13 @@ private:
                     TRequestStatsGuard statsGuard(Sensors.ReadSensors);
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
                     reallyRead = HandleEintr(::pread, *request.Handle, buffer.Begin() + bufferOffset, toRead, fileOffset);
+
+                    YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
+                        "Finished reading from disk (Handle: %v, ReadBytes: %v, ReadSessionId: %v, ReadTime: %v)", 
+                        static_cast<FHANDLE>(*request.Handle),
+                        reallyRead,
+                        sessionId,
+                        statsGuard.GetElapsedTime());
                 }
 
                 if (reallyRead < 0) {
