@@ -21,7 +21,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
-import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
@@ -136,7 +135,7 @@ public class YtClientDynamicTableTest extends YtClientTestBase {
 
     @Test
     public void testAggregateColumns() {
-        var serializer = new YTreeObjectSerializer<>(ClassX.wrap(AggregateRow.class));
+        var serializer = new YTreeObjectSerializer<>(AggregateRow.class);
 
         Function<String, AggregateRow> readKey = (String key) -> {
             var res = yt.lookupRows(
@@ -231,7 +230,7 @@ public class YtClientDynamicTableTest extends YtClientTestBase {
                     )
             ));
 
-            final var serializer = new YTreeObjectSerializer<>(ClassX.wrap(KeyValue.class));
+            final var serializer = new YTreeObjectSerializer<>(KeyValue.class);
             var keyValueList = yt.lookupRows(lookupRows, serializer).join();
 
             assertThat(keyValueList, is(

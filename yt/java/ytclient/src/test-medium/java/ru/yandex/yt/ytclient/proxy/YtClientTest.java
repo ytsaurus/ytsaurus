@@ -36,7 +36,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.type_info.TiType;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.testlib.LocalYt;
@@ -426,7 +425,7 @@ public class YtClientTest {
         final String query = String.format("* from [%s]", table);
 
         final YTreeObjectSerializer<MappedObject> limitedSerializer =
-                new YTreeObjectSerializer<>(ClassX.wrap(MappedObject.class), field -> !field.getName().equals("v1"));
+                new YTreeObjectSerializer<>(MappedObject.class, field -> !field.getName().equals("v1"));
 
         insertData(client, table, Arrays.asList(
                 new MappedObject(1, "test1", 100),
@@ -457,7 +456,7 @@ public class YtClientTest {
 
 
         final YTreeObjectSerializer<MappedObject> limitedSerializer =
-                new YTreeObjectSerializer<>(ClassX.wrap(MappedObject.class), field -> !field.getName().equals("v1"));
+                new YTreeObjectSerializer<>(MappedObject.class, field -> !field.getName().equals("v1"));
 
         // Поле полностью игнорируется десериализатором - оно не будет заполнено пустой строкой
         List<MappedObject> expect = Arrays.asList(

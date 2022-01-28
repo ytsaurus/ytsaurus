@@ -15,7 +15,6 @@ import org.junit.Test;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.misc.codec.Hex;
-import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
@@ -123,7 +122,7 @@ public class WireProtocolReaderTest extends WireProtocolTest {
     public void readUnversionedRowMappedWithoutFewFields() {
         // Исключаем поля vInt64 из списка вставляемых vString
         var exclude = Set.of("vInt64", "vString");
-        var serializer = new YTreeObjectSerializer<>(ClassX.wrap(RowSampleObject.class),
+        var serializer = new YTreeObjectSerializer<>(RowSampleObject.class,
                 field -> !exclude.contains(field.getName()));
 
         process(Collections.singletonList(makeUnversionedRowCanonicalBlob_For_RowSampleNoVInt64NoVString()),
