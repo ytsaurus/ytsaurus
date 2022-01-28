@@ -238,6 +238,7 @@ struct TTrimTableOptions
 
 struct TAlterTableReplicaOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
 {
     std::optional<bool> Enabled;
     std::optional<NTabletClient::ETableReplicaMode> Mode;
@@ -308,11 +309,6 @@ struct TBalanceTabletCellsOptions
     bool KeepActions = false;
 };
 
-struct TCreateReplicationCardOptions
-    : public TTimeoutOptions
-    , public TMutatingOptions
-{ };
-
 struct TGetReplicationCardOptions
     : public TTimeoutOptions
     , public NChaosClient::TReplicationCardFetchOptions
@@ -320,25 +316,7 @@ struct TGetReplicationCardOptions
     bool BypassCache = false;
 };
 
-struct TCreateReplicationCardReplicaOptions
-    : public TTimeoutOptions
-    , public TMutatingOptions
-{ };
-
-struct TRemoveReplicationCardReplicaOptions
-    : public TTimeoutOptions
-    , public TMutatingOptions
-{ };
-
-struct TAlterReplicationCardReplicaOptions
-    : public TTimeoutOptions
-    , public TMutatingOptions
-{
-    std::optional<NTabletClient::ETableReplicaMode> Mode;
-    std::optional<bool> Enabled;
-};
-
-struct TUpdateReplicationProgressOptions
+struct TUpdateChaosTableReplicaProgressOptions
     : public TTimeoutOptions
     , public TMutatingOptions
 {
@@ -1687,28 +1665,13 @@ struct IClient
         const std::vector<NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options = {}) = 0;
 
-    virtual TFuture<NChaosClient::TReplicationCardId> CreateReplicationCard(
-        NObjectClient::TCellId chaosCellId,
-        const TCreateReplicationCardOptions& options = {}) = 0;
-
     virtual TFuture<NChaosClient::TReplicationCardPtr> GetReplicationCard(
         const NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options = {}) = 0;
 
-    virtual TFuture<void> RemoveReplicationCardReplica(
-        NChaosClient::TReplicationCardId replicationCardId,
+    virtual TFuture<void> UpdateChaosTableReplicaProgress(
         NChaosClient::TReplicaId replicaId,
-        const TRemoveReplicationCardReplicaOptions& options = {}) = 0;
-
-    virtual TFuture<void> AlterReplicationCardReplica(
-        NChaosClient::TReplicationCardId replicationCardId,
-        NChaosClient::TReplicaId replicaId,
-        const TAlterReplicationCardReplicaOptions& options = {}) = 0;
-
-    virtual TFuture<void> UpdateReplicationProgress(
-        NChaosClient::TReplicationCardId replicationCardId,
-        NChaosClient::TReplicaId replicaId,
-        const TUpdateReplicationProgressOptions& options = {}) = 0;
+        const TUpdateChaosTableReplicaProgressOptions& options = {}) = 0;
 
 
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(

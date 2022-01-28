@@ -2225,6 +2225,7 @@ private:
 
         TAlterTableReplicaOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_enabled()) {
             options.Enabled = request->enabled();
         }

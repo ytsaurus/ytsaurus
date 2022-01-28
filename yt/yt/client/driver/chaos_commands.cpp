@@ -11,24 +11,17 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicationCardCommandBase::TReplicationCardCommandBase()
-{
-    RegisterParameter("replication_card_id", ReplicationCardId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TUpdateReplicationProgressCommand::TUpdateReplicationProgressCommand()
+TUpdateChaosTableReplicaProgressCommand::TUpdateChaosTableReplicaProgressCommand()
 {
     RegisterParameter("replica_id", ReplicaId);
     RegisterParameter("progress", Options.Progress);
 }
 
-void TUpdateReplicationProgressCommand::DoExecute(ICommandContextPtr context)
+void TUpdateChaosTableReplicaProgressCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
 
-    auto future = client->UpdateReplicationProgress(ReplicationCardId, ReplicaId, Options);
+    auto future = client->UpdateChaosTableReplicaProgress(ReplicaId, Options);
     WaitFor(future)
         .ThrowOnError();
     ProduceEmptyOutput(context);

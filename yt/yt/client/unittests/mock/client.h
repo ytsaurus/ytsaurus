@@ -297,28 +297,13 @@ public:
         const std::vector<NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options), (override));
 
-    MOCK_METHOD(TFuture<NChaosClient::TReplicationCardId>, CreateReplicationCard, (
-        NObjectClient::TCellId chaosCellId,
-        const TCreateReplicationCardOptions& options), (override));
-
     MOCK_METHOD(TFuture<NChaosClient::TReplicationCardPtr>, GetReplicationCard, (
         NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options), (override));
 
-    MOCK_METHOD(TFuture<void>, RemoveReplicationCardReplica, (
-        NChaosClient::TReplicationCardId replicationCardId,
+    MOCK_METHOD(TFuture<void>, UpdateChaosTableReplicaProgress, (
         NChaosClient::TReplicaId replicaId,
-        const TRemoveReplicationCardReplicaOptions& options), (override));
-
-    MOCK_METHOD(TFuture<void>, AlterReplicationCardReplica, (
-        NChaosClient::TReplicationCardId replicationCardId,
-        NChaosClient::TReplicaId replicaId,
-        const TAlterReplicationCardReplicaOptions& options), (override));
-
-    MOCK_METHOD(TFuture<void>, UpdateReplicationProgress, (
-        NChaosClient::TReplicationCardId replicationCardId,
-        NChaosClient::TReplicaId replicaId,
-        const TUpdateReplicationProgressOptions& options), (override));
+        const TUpdateChaosTableReplicaProgressOptions& options), (override));
 
     MOCK_METHOD(TFuture<TSkynetSharePartsLocationsPtr>, LocateSkynetShare, (
         const NYPath::TRichYPath& path,

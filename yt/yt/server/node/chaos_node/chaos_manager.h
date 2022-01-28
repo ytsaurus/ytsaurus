@@ -14,33 +14,6 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TCreateReplicationCardContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
-    NChaosClient::NProto::TReqCreateReplicationCard,
-    NChaosClient::NProto::TRspCreateReplicationCard
->>;
-using TRemoveReplicationCardContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
-    NChaosClient::NProto::TReqRemoveReplicationCard,
-    NChaosClient::NProto::TRspRemoveReplicationCard
->>;
-using TCreateTableReplicaContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
-    NChaosClient::NProto::TReqCreateTableReplica,
-    NChaosClient::NProto::TRspCreateTableReplica
->>;
-using TRemoveTableReplicaContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
-    NChaosClient::NProto::TReqRemoveTableReplica,
-    NChaosClient::NProto::TRspRemoveTableReplica
->>;
-using TAlterTableReplicaContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
-    NChaosClient::NProto::TReqAlterTableReplica,
-    NChaosClient::NProto::TRspAlterTableReplica
->>;
-using TUpdateReplicationProgressContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
-    NChaosClient::NProto::TReqUpdateReplicationProgress,
-    NChaosClient::NProto::TRspUpdateReplicationProgress
->>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IChaosManager
     : public virtual TRefCounted
 {
@@ -48,12 +21,37 @@ struct IChaosManager
 
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 
+    using TCreateReplicationCardContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqCreateReplicationCard,
+        NChaosClient::NProto::TRspCreateReplicationCard
+    >>;
+    using TRemoveReplicationCardContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqRemoveReplicationCard,
+        NChaosClient::NProto::TRspRemoveReplicationCard
+    >>;
+    using TCreateTableReplicaContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqCreateTableReplica,
+        NChaosClient::NProto::TRspCreateTableReplica
+    >>;
+    using TRemoveTableReplicaContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqRemoveTableReplica,
+        NChaosClient::NProto::TRspRemoveTableReplica
+    >>;
+    using TAlterTableReplicaContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqAlterTableReplica,
+        NChaosClient::NProto::TRspAlterTableReplica
+    >>;
+    using TUpdateTableReplicaProgressContextPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqUpdateTableReplicaProgress,
+        NChaosClient::NProto::TRspUpdateTableReplicaProgress
+    >>;
+
     virtual void CreateReplicationCard(const TCreateReplicationCardContextPtr& context) = 0;
     virtual void RemoveReplicationCard(const TRemoveReplicationCardContextPtr& context) = 0;
     virtual void CreateTableReplica(const TCreateTableReplicaContextPtr& context) = 0;
     virtual void RemoveTableReplica(const TRemoveTableReplicaContextPtr& context) = 0;
     virtual void AlterTableReplica(const TAlterTableReplicaContextPtr& context) = 0;
-    virtual void UpdateReplicationProgress(const TUpdateReplicationProgressContextPtr& context) = 0;
+    virtual void UpdateTableReplicaProgress(const TUpdateTableReplicaProgressContextPtr& context) = 0;
 
     virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() = 0;
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) = 0;

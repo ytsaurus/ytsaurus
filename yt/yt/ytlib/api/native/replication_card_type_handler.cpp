@@ -68,16 +68,27 @@ private:
 
         auto chaosCellId = attributes->Get<TCellId>("chaos_cell_id");
 
-        return WaitFor(Client_->CreateReplicationCard(chaosCellId, {}))
+        auto channel = Client_->GetChaosChannelByCellId(chaosCellId);
+        auto proxy = TChaosNodeServiceProxy(std::move(channel));
+
+        auto req = proxy.CreateReplicationCard();
+        Client_->SetMutationId(req, options);
+
+        auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
+
+        return FromProto<TReplicationCardId>(rsp->replication_card_id());
     }
 
-    void DoRemoveObject(TReplicationCardId replicationCardId) override
+    void DoRemoveObject(
+        TReplicationCardId replicationCardId,
+        const TRemoveNodeOptions& options) override
     {
         auto channel = Client_->GetChaosChannelByCardId(replicationCardId, EPeerKind::Leader);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.RemoveReplicationCard();
+        Client_->SetMutationId(req, options);
         ToProto(req->mutable_replication_card_id(), replicationCardId);
 
         WaitFor(req->Invoke())

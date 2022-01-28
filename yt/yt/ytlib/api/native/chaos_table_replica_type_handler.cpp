@@ -48,11 +48,21 @@ public:
 
         auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
 
-        TAlterReplicationCardReplicaOptions chaosOptions;
-        chaosOptions.Mode = options.Mode;
-        chaosOptions.Enabled = options.Enabled;
+        auto channel = Client_->GetChaosChannelByCardId(replicationCardId);
+        auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
-        WaitFor(Client_->AlterReplicationCardReplica(replicationCardId, replicaId, chaosOptions))
+        auto req = proxy.AlterTableReplica();
+        Client_->SetMutationId(req, options);
+        ToProto(req->mutable_replication_card_id(), replicationCardId);
+        ToProto(req->mutable_replica_id(), replicaId);
+        if (options.Mode) {
+            req->set_mode(ToProto<int>(*options.Mode));
+        }
+        if (options.Enabled) {
+            req->set_enabled(*options.Enabled);
+        }
+
+        WaitFor(req->Invoke())
             .ThrowOnError();
 
         return std::monostate();
@@ -123,11 +133,19 @@ private:
         return FromProto<TReplicaId>(rsp->replica_id());
     }
 
-    void DoRemoveObject(TReplicaId replicaId) override
+    void DoRemoveObject(TReplicaId replicaId, const TRemoveNodeOptions& options) override
     {
         auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
 
-        WaitFor(Client_->RemoveReplicationCardReplica(replicationCardId, replicaId))
+        auto channel = Client_->GetChaosChannelByCardId(replicationCardId);
+        auto proxy = TChaosNodeServiceProxy(std::move(channel));
+
+        auto req = proxy.RemoveTableReplica();
+        Client_->SetMutationId(req, options);
+        ToProto(req->mutable_replication_card_id(), replicationCardId);
+        ToProto(req->mutable_replica_id(), replicaId);
+
+        WaitFor(req->Invoke())
             .ThrowOnError();
     }
 };

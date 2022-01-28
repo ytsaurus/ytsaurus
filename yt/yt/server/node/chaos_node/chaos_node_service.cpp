@@ -52,7 +52,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableReplica));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveTableReplica));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateReplicationProgress));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableReplicaProgress));
     }
 
 private:
@@ -172,7 +172,7 @@ private:
         chaosManager->AlterTableReplica(std::move(context));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateReplicationProgress)
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateTableReplicaProgress)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<TTableId>(request->replica_id());
@@ -184,7 +184,7 @@ private:
             progress);
 
         const auto& chaosManager = Slot_->GetChaosManager();
-        chaosManager->UpdateReplicationProgress(std::move(context));
+        chaosManager->UpdateTableReplicaProgress(std::move(context));
     }
 
     // THydraServiceBase overrides.

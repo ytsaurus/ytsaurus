@@ -113,6 +113,7 @@ public:
         Client_->ValidateTableReplicaPermission(replicaId, EPermission::Write);
 
         auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
+        Client_->SetMutationId(req, options);
         if (options.Enabled) {
             req->set_enabled(*options.Enabled);
         }
