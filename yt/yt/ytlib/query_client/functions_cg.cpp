@@ -47,9 +47,7 @@ Type* GetOpaqueType(
     TCGBaseContext& builder,
     const char* name)
 {
-    auto existingType = builder.Module
-        ->GetModule()
-        ->getTypeByName(name);
+    auto existingType = StructType::getTypeByName(builder->getContext(), name);
 
     if (existingType) {
         return existingType;
