@@ -127,10 +127,10 @@ public:
         ResourceUsageUpdateExecutor_->Stop();
 
         OperationIdToOperationState_.clear();
+        SnapshottedIdToTree_.Exchange(THashMap<TString, IFairShareTreePtr>());
         IdToTree_.clear();
         Initialized_ = false;
         DefaultTreeId_.reset();
-        SnapshottedIdToTree_.Store(THashMap<TString, IFairShareTreePtr>());
     }
 
     void OnFairShareProfiling()
