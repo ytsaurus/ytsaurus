@@ -89,7 +89,9 @@ struct IFairShareTree
     virtual void ProfileFairShare() const = 0;
     virtual void LogFairShareAt(TInstant now) const = 0;
     virtual void EssentialLogFairShareAt(TInstant now) const = 0;
-    virtual void UpdateResourceUsageSnapshot() = 0;
+
+    //! Updates accumulated resources usage information. Update current resource usages in snapshot.
+    virtual void UpdateResourceUsages() = 0;
 
     //! Updates fair share attributes of tree elements and saves it as tree snapshot.
     virtual TFuture<std::pair<IFairShareTreePtr, TError>> OnFairShareUpdateAt(TInstant now) = 0;
@@ -101,7 +103,7 @@ struct IFairShareTree
     virtual void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) = 0;
 
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
-
+    
     virtual bool HasOperation(TOperationId operationId) const = 0;
     virtual bool HasRunningOperation(TOperationId operationId) const = 0;
     virtual int GetOperationCount() const = 0;

@@ -374,10 +374,13 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_resource_usage_snapshot", &TThis::EnableResourceUsageSnapshot)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("max_event_log_operation_batch_size", &TThis::MaxEventLogOperationBatchSize)
         .Default(1000);
+
+    registrar.Parameter("accumulated_resource_usage_update_period", &TThis::AccumulatedResourceUsageUpdatePeriod)
+        .Default(TDuration::Seconds(1));
 
     registrar.Parameter("allow_aggressive_preemption_for_gang_operations", &TThis::AllowAggressivePreemptionForGangOperations)
         .Default(true);
@@ -685,6 +688,9 @@ void TResourceMeteringConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("default_folder_id", &TThis::DefaultFolderId)
         .Default();
+
+    registrar.Parameter("enable_separate_schema_for_allocation", &TThis::EnableSeparateSchemaForAllocation)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

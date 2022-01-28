@@ -53,6 +53,60 @@ using NVectorHdrf::RatioComparisonPrecision;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAccumulatedResourceUsageInfo
+{
+public:
+    explicit TAccumulatedResourceUsageInfo(TDuration updatePeriod)
+        : UpdatePeriod_(updatePeriod)
+        , LocalInstantPoolToAccumulatedResourceUsageUpdateTime_(TInstant::Now())
+    { }
+
+    void Update(const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
+    {
+        auto now = TInstant::Now();
+        auto period = now - LocalInstantPoolToAccumulatedResourceUsageUpdateTime_;
+
+        for (const auto& [poolName, resourceUsage] : resourceUsageSnapshot->PoolToResourceUsage) {
+            LocalPoolToAccumulatedResourceUsage_[poolName] += TResourceVolume(resourceUsage, period);
+        }
+
+        if (LastPoolToAccumulatedResourceUsageUpdateTime_ + UpdatePeriod_ < now) {
+            auto guard = Guard(PoolToAccumulatedResourceUsageLock_);
+            for (const auto& [poolName, resourceVolume] : LocalPoolToAccumulatedResourceUsage_) {
+                PoolToAccumulatedResourceUsage_[poolName] += resourceVolume;
+            }
+            LocalPoolToAccumulatedResourceUsage_.clear();
+            LastPoolToAccumulatedResourceUsageUpdateTime_ = now;
+        }
+
+        LocalInstantPoolToAccumulatedResourceUsageUpdateTime_ = now;
+    }
+
+    THashMap<TString, TResourceVolume> ExtractPoolResourceUsages()
+    {
+        auto guard = Guard(PoolToAccumulatedResourceUsageLock_);
+        auto result = std::move(PoolToAccumulatedResourceUsage_);
+        PoolToAccumulatedResourceUsage_.clear();
+        return result;
+    }
+
+
+private:
+    TDuration UpdatePeriod_;
+
+    // This map is updated regularly from some thread pool.
+    THashMap<TString, TResourceVolume> LocalPoolToAccumulatedResourceUsage_;
+    TInstant LocalInstantPoolToAccumulatedResourceUsageUpdateTime_;
+
+    // This map is updated rarely and accessed from Control thread.
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PoolToAccumulatedResourceUsageLock_);
+    THashMap<TString, TResourceVolume> PoolToAccumulatedResourceUsage_;
+    TInstant LastPoolToAccumulatedResourceUsageUpdateTime_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(
     IOperationStrategyHost* host,
     const TFairShareStrategyOperationControllerConfigPtr& config,
@@ -145,6 +199,7 @@ public:
         , FairShareTextLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_text_log_time"))
         , CumulativeScheduleJobsTime_(TreeProfiler_->GetProfiler().TimeCounter("/cumulative_schedule_jobs_time"))
         , ScheduleJobsDeadlineReachedCounter_(TreeProfiler_->GetProfiler().Counter("/schedule_jobs_deadline_reached"))
+        , AccumulatedResourceUsageInfo_(TAccumulatedResourceUsageInfo(Config_->AccumulatedResourceUsageUpdatePeriod))
     {
         RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, TreeId_, Logger);
 
@@ -1140,6 +1195,9 @@ private:
 
     // NB: Used only in fair share logging invoker.
     mutable TTreeSnapshotId LastLoggedTreeSnapshotId_;
+
+    // NB: Used only at building metering info.
+    mutable TAccumulatedResourceUsageInfo AccumulatedResourceUsageInfo_;
 
     TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept
     {
@@ -2745,7 +2803,8 @@ private:
         YT_VERIFY(treeSnapshot);
 
         auto rootElement = treeSnapshot->RootElement();
-        rootElement->BuildResourceMetering(/* parentKey */ std::nullopt, meteringMap);
+        auto accumulatedResourceUsageMap = AccumulatedResourceUsageInfo_.ExtractPoolResourceUsages();
+        rootElement->BuildResourceMetering(/*parentKey*/ std::nullopt, accumulatedResourceUsageMap, meteringMap);
 
         *customMeteringTags = treeSnapshot->TreeConfig()->MeteringTags;
     }
@@ -2839,34 +2898,43 @@ private:
         }
     }
 
-    void UpdateResourceUsageSnapshot() override
+    void UpdateResourceUsages() override
     {
         auto treeSnapshot = GetTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
+            
+        auto operationResourceUsageMap = THashMap<TOperationId, TJobResources>(treeSnapshot->EnabledOperationMap().size());
+        auto poolResourceUsageMap = THashMap<TString, TJobResources>(treeSnapshot->PoolMap().size());
 
-        if (!treeSnapshot->TreeConfig()->EnableResourceUsageSnapshot) {
-            SetResourceUsageSnapshot(nullptr);
-
-            YT_LOG_DEBUG("Resource usage snapshot is disabled; skipping update");
-            return;
-        }
-
-        auto resourceUsageMap = THashMap<TOperationId, TJobResources>(treeSnapshot->EnabledOperationMap().size());
         for (const auto& [operationId, element] : treeSnapshot->EnabledOperationMap()) {
-            if (element->IsAlive()) {
-               resourceUsageMap[operationId] = element->GetInstantResourceUsage();
+            if (!element->IsAlive()) {
+                continue;
+            }
+            auto resourceUsage = element->GetInstantResourceUsage();
+            operationResourceUsageMap[operationId] = resourceUsage;
+            const TSchedulerCompositeElement* parentPool = element->GetParent();
+            while (parentPool) {
+                poolResourceUsageMap[parentPool->GetId()] += resourceUsage;
+                parentPool = parentPool->GetParent();
             }
         }
 
         auto resourceUsageSnapshot = New<TResourceUsageSnapshot>();
-        resourceUsageSnapshot->OperationIdToResourceUsage = std::move(resourceUsageMap);
+        resourceUsageSnapshot->OperationIdToResourceUsage = std::move(operationResourceUsageMap);
+        resourceUsageSnapshot->PoolToResourceUsage = std::move(poolResourceUsageMap);
+
+        AccumulatedResourceUsageInfo_.Update(resourceUsageSnapshot);
+
+        if (!treeSnapshot->TreeConfig()->EnableResourceUsageSnapshot) {
+            resourceUsageSnapshot = nullptr;
+            YT_LOG_DEBUG("Resource usage snapshot is disabled");
+        } else {
+            YT_LOG_DEBUG("Updating resources usage snapshot");
+        }
 
         SetResourceUsageSnapshot(resourceUsageSnapshot);
-
         treeSnapshot->UpdateDynamicAttributesSnapshot(resourceUsageSnapshot);
-
-        YT_LOG_DEBUG("Resource usage snapshot updated");
     }
 
 

@@ -8,11 +8,13 @@ TMeteringStatistics::TMeteringStatistics(
     const TJobResources& strongGuaranteeResources,
     const TJobResources& resourceFlow,
     const TJobResources& burstGuaranteeResources,
-    const TJobResources& allocatedResources)
+    const TJobResources& allocatedResources,
+    const TResourceVolume& accumulatedResourceUsage)
     : StrongGuaranteeResources_(strongGuaranteeResources)
     , ResourceFlow_(resourceFlow)
     , BurstGuaranteeResources_(burstGuaranteeResources)
     , AllocatedResources_(allocatedResources)
+    , AccumulatedResourceUsage_(accumulatedResourceUsage)
 { }
 
 void TMeteringStatistics::AccountChild(const TMeteringStatistics& child)
@@ -24,6 +26,7 @@ void TMeteringStatistics::AccountChild(const TMeteringStatistics& child)
 void TMeteringStatistics::DiscountChild(const TMeteringStatistics& child)
 {
     AllocatedResources_ -= child.AllocatedResources_;
+    AccumulatedResourceUsage_ -= child.AccumulatedResourceUsage_;
     StrongGuaranteeResources_ -= child.StrongGuaranteeResources_;
 }
 
@@ -33,6 +36,7 @@ TMeteringStatistics& TMeteringStatistics::operator+=(const TMeteringStatistics &
     ResourceFlow_ += other.ResourceFlow_;
     BurstGuaranteeResources_ += other.BurstGuaranteeResources_;
     AllocatedResources_ += other.AllocatedResources_;
+    AccumulatedResourceUsage_ += other.AccumulatedResourceUsage_;
     return *this;
 }
 
@@ -42,6 +46,7 @@ TMeteringStatistics& TMeteringStatistics::operator-=(const TMeteringStatistics &
     ResourceFlow_ -= other.ResourceFlow_;
     BurstGuaranteeResources_ -= other.BurstGuaranteeResources_;
     AllocatedResources_ -= other.AllocatedResources_;
+    AccumulatedResourceUsage_ -= other.AccumulatedResourceUsage_;
     return *this;
 }
 

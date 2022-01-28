@@ -14,7 +14,7 @@ from yt_commands import (
     map_reduce, merge, sort, get_job,
     run_test_vanilla, run_sleeping_vanilla, get_job_fail_context, dump_job_context,
     get_singular_chunk_id, PrepareTables,
-    raises_yt_error,
+    raises_yt_error, update_scheduler_config,
     assert_statistics, sorted_dicts)
 
 from yt_type_helpers import make_schema
@@ -2316,7 +2316,7 @@ class TestResourceMetering(YTEnvSetup):
         super(TestResourceMetering, cls).setup_class()
         set("//sys/@cluster_name", "my_cluster")
 
-    def _extract_metering_records_from_log(self, last=True):
+    def _extract_metering_records_from_log(self, last=True, schema=None):
         """ Returns dict from metering key to last record with this key. """
         scheduler_log_file = os.path.join(self.path_to_run, "logs/scheduler-0.json.log")
         scheduler_address = ls("//sys/scheduler/instances")[0]
@@ -2328,6 +2328,9 @@ class TestResourceMetering(YTEnvSetup):
         reports = {}
         for entry in events:
             if "abc_id" not in entry:
+                continue
+
+            if schema is not None and entry["schema"] != schema:
                 continue
 
             key = (
@@ -2344,7 +2347,7 @@ class TestResourceMetering(YTEnvSetup):
 
         return reports
 
-    def _validate_metering_records(self, root_key, desired_metering_data, event_key_to_last_record):
+    def _validate_metering_records(self, root_key, desired_metering_data, event_key_to_last_record, precision=None):
         if root_key not in event_key_to_last_record:
             print_debug("Root key is missing")
             return False
@@ -2354,7 +2357,12 @@ class TestResourceMetering(YTEnvSetup):
                 observed_value = get_by_composite_key(tags, resource_key.split("/"), default=0)
                 if isinstance(desired_value, int):
                     observed_value = int(observed_value)
-                if observed_value != desired_value:
+                is_equal = False
+                if precision is None:
+                    is_equal = observed_value == desired_value
+                else:
+                    is_equal = abs(observed_value - desired_value) < precision
+                if not is_equal:
                     print_debug(
                         "Value mismatch (abc_key: {}, resource_key: {}, observed: {}, desired: {})"
                         .format(key, resource_key, observed_value, desired_value))
@@ -2696,6 +2704,61 @@ class TestResourceMetering(YTEnvSetup):
         metering_count_sensor = profiler_factory().at_scheduler().counter("scheduler/metering/record_count")
 
         wait(lambda: metering_count_sensor.get_delta() > 0)
+
+    @authors("ignat")
+    def test_separate_schema_for_allocation(self):
+        update_scheduler_config("resource_metering/enable_separate_schema_for_allocation", True)
+        set("//sys/pool_trees/default/@config/accumulated_resource_usage_update_period", 100)
+
+        create_pool(
+            "my_pool",
+            pool_tree="default",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 4},
+                "abc": {"id": 1, "slug": "my", "name": "MyService"},
+            },
+            wait_for_orchid=False,
+        )
+
+        op = run_test_vanilla("sleep 1000", job_count=1, spec={"pool": "my_pool"})
+        wait(lambda: op.get_job_count("running") == 1)
+
+        root_key = (42, "default", "<Root>")
+
+        desired_guarantees_metering_data = {
+            root_key: {
+                "strong_guarantee_resources/cpu": 0,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+            },
+            (1, "default", "my_pool"): {
+                "strong_guarantee_resources/cpu": 4,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+            },
+        }
+
+        desired_allocation_metering_data = {
+            root_key: {
+                "allocated_resources/cpu": 0,
+            },
+            (1, "default", "my_pool"): {
+                "allocated_resources/cpu": 1.0,
+            },
+        }
+
+        def check_expected_guarantee_records():
+            event_key_to_last_record = self._extract_metering_records_from_log(schema="yt.scheduler.pools.compute_guarantee.v1")
+            return self._validate_metering_records(root_key, desired_guarantees_metering_data, event_key_to_last_record)
+
+        wait(check_expected_guarantee_records)
+
+        def check_expected_allocation_records():
+            event_key_to_last_record = self._extract_metering_records_from_log(schema="yt.scheduler.pools.compute_allocation.v1")
+            # Update period equal 100ms, metering period is 1000ms, so we expected the error to be less than or equal to 10%.
+            return self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, precision=0.15)
+
+        wait(check_expected_allocation_records)
 
 
 ##################################################################

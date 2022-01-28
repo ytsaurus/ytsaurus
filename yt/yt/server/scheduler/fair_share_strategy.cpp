@@ -85,21 +85,22 @@ public:
 
         ResourceUsageUpdateExecutor_ = New<TPeriodicExecutor>(
             Host->GetFairShareUpdateInvoker(),
-            BIND(&TFairShareStrategy::OnUpdateResourceUsageSnapshot, MakeWeak(this)),
+            BIND(&TFairShareStrategy::OnUpdateResourceUsages, MakeWeak(this)),
             Config->ResourceUsageSnapshotUpdatePeriod);
     }
 
-    void OnUpdateResourceUsageSnapshot()
+    void OnUpdateResourceUsages()
     {
         auto idToTree = SnapshottedIdToTree_.Load();
         for (const auto& [_, tree] : idToTree) {
-            tree->UpdateResourceUsageSnapshot();
+            tree->UpdateResourceUsages();
         }
     }
 
     void OnMasterHandshake(const TMasterHandshakeResult& result) override
     {
         LastMeteringStatisticsUpdateTime_ = result.LastMeteringLogTime;
+        ConnectionTime_ = TInstant::Now();
     }
 
     void OnMasterConnected() override
@@ -1246,6 +1247,7 @@ private:
     // in the current |IdToTree_| map. Snapshots could be a little bit behind.
     TAtomicObject<THashMap<TString, IFairShareTreePtr>> SnapshottedIdToTree_;
 
+    TInstant ConnectionTime_;
     TInstant LastMeteringStatisticsUpdateTime_;
     TMeteringMap MeteringStatistics_;
 
@@ -1779,11 +1781,13 @@ private:
                         value.StrongGuaranteeResources(),
                         value.ResourceFlow(),
                         value.BurstGuaranteeResources(),
-                        value.AllocatedResources());
+                        value.AllocatedResources(),
+                        value.AccumulatedResourceUsage());
                     Host->LogResourceMetering(
                         key,
                         delta,
                         customMeteringTags,
+                        ConnectionTime_,
                         LastMeteringStatisticsUpdateTime_,
                         now);
                 } else {
@@ -1791,6 +1795,7 @@ private:
                         key,
                         value,
                         customMeteringTags,
+                        ConnectionTime_,
                         LastMeteringStatisticsUpdateTime_,
                         now);
                 }
