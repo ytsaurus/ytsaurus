@@ -199,6 +199,8 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
 
         case DB::TypeIndex::String: {
             std::string value = field.get<std::string>();
+            // It should be guaranteed that value is not a minimum possible value.
+            YT_VERIFY(!value.empty());
             if (value.back() != '\0') {
                 value.back() = static_cast<unsigned char>(value.back()) - 1;
             } else {
@@ -244,7 +246,7 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
 
         case DB::TypeIndex::String: {
             std::string value = field.get<std::string>();
-            if (value.back() != '\xff') {
+            if (!value.empty() && value.back() != '\xff') {
                 value.back() = static_cast<unsigned char>(value.back()) + 1;
             } else {
                 value.push_back('\0');
