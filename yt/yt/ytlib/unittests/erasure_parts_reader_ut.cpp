@@ -297,8 +297,8 @@ TEST(TErasurePartsReaderTest, SimpleTest)
                 {1, {.GetMetaBehavior = TPlot::Slow}},
                 {2, {.GetMetaBehavior = TPlot::Slow}},
             },
+            .SlowPathDelay = TDuration::MilliSeconds(1),
             .ShouldFail = false,
-            .SlowPathDelay = TDuration::MilliSeconds(1)
         },
         {
             .ReadersPlot = {
@@ -309,8 +309,8 @@ TEST(TErasurePartsReaderTest, SimpleTest)
                 {4, {.GetMetaBehavior = TPlot::Fail}},
                 {5, {.GetMetaBehavior = TPlot::Fail}},
             },
+            .SlowPathDelay = TDuration::MilliSeconds(1),
             .ShouldFail = false,
-            .SlowPathDelay = TDuration::MilliSeconds(1)
         },
         // {
         //     .ReadersPlot = {
@@ -321,8 +321,8 @@ TEST(TErasurePartsReaderTest, SimpleTest)
         //         {4, {.ReadBlocksBehavior = TPlot::Fail}},
         //         {5, {.ReadBlocksBehavior = TPlot::Fail}},
         //     },
+        //     .SlowPathDelay = TDuration::MilliSeconds(1),
         //     .ShouldFail = false,
-        //     .SlowPathDelay = TDuration::MilliSeconds(1)
         // },
         // {
         //     .ReadersPlot = {
@@ -343,8 +343,8 @@ TEST(TErasurePartsReaderTest, SimpleTest)
                 {4, {.GetMetaBehavior = TPlot::Fail}},
                 {5, {.GetMetaBehavior = TPlot::Fail}},
             },
+            .SlowPathDelay = TDuration::MilliSeconds(1),
             .ShouldFail = false,
-            .SlowPathDelay = TDuration::MilliSeconds(1)
         },
         {
             .FirstRowIndex = 10,
@@ -377,8 +377,8 @@ TEST(TErasurePartsReaderTest, SimpleTest)
                 {3, {.MaxBlockCount = 9}},
                 {4, {.MaxBlockCount = 9}},
             },
+            .SlowPathDelay = TDuration::MilliSeconds(1),
             .ShouldFail = false,
-            .SlowPathDelay = TDuration::MilliSeconds(1)
         },
         {
             .FirstRowIndex = 3,

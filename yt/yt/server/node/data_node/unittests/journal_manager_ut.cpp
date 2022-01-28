@@ -105,8 +105,8 @@ public:
         .DataNodeConfig = Config,
 
         .ChunkReaderSweeper = ChunkReaderSweeper,
-        .BlobReaderCache = BlobReaderCache,
         .JournalDispatcher = JournalDispatcher,
+        .BlobReaderCache = BlobReaderCache,
     });
 
     TChunkStorePtr ChunkStore;

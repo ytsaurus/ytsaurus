@@ -104,8 +104,8 @@ private:
             ReplicationCard_ = WaitFor(replicationCardCache->GetReplicationCard({
                     .CardId = ReplicationCardId_,
                     .FetchOptions = {
+                        .IncludeProgress = true,
                         .IncludeHistory = true,
-                        .IncludeProgress = true
                     }
                 })).ValueOrThrow();
 
