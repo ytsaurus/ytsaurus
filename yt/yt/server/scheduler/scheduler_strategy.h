@@ -90,8 +90,9 @@ struct ISchedulerStrategyHost
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
         const THashMap<TString, TString>& otherTags,
-        TInstant lastUpdateTime,
-        TInstant now) = 0;
+        TInstant connectionTime,
+        TInstant previousLogTime,
+        TInstant currentTime) = 0;
     virtual int GetDefaultAbcId() const = 0;
 
     virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) = 0;

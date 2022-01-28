@@ -115,6 +115,7 @@ struct TResourceUsageSnapshot final
     static constexpr bool EnableHazard = true;
 
     THashMap<TOperationId, TJobResources> OperationIdToResourceUsage;
+    THashMap<TString, TJobResources> PoolToResourceUsage;
 };
 
 using TResourceUsageSnapshotPtr = TIntrusivePtr<TResourceUsageSnapshot>;
@@ -539,7 +540,10 @@ public:
     virtual void PrepareConditionalUsageDiscounts(TScheduleJobsContext* context, EOperationPreemptionPriority operationPreemptionPriority) const = 0;
 
     //! Other methods based on tree snapshot.
-    virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const;
+    virtual void BuildResourceMetering(
+        const std::optional<TMeteringKey>& parentKey,
+        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        TMeteringMap* meteringMap) const;
 
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
@@ -919,7 +923,10 @@ public:
     std::optional<bool> IsAggressivePreemptionAllowed() const override;
 
     //! Other methods.
-    void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
+    void BuildResourceMetering(
+        const std::optional<TMeteringKey>& parentKey,
+        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        TMeteringMap* meteringMap) const override;
 
     THashSet<TString> GetAllowedProfilingTags() const override;
 
@@ -1456,7 +1463,10 @@ public:
 
     bool IsFairShareTruncationInFifoPoolEnabled() const override;
 
-    void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
+    void BuildResourceMetering(
+        const std::optional<TMeteringKey>& parentKey,
+        const THashMap<TString, TResourceVolume>& poolResourceUsages,
+        TMeteringMap* meteringMap) const override;
 
     TResourceDistributionInfo GetResourceDistributionInfo() const;
     void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;

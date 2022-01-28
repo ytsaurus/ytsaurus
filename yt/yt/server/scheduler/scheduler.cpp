@@ -328,6 +328,16 @@ public:
             .Counter("/metering/record_count");
         MeteringUsageQuantityCounter_ = SchedulerProfiler
             .Counter("/metering/usage_quantity");
+
+        AllocationMeteringRecordCountCounter_ = SchedulerProfiler
+            .Counter("/metering/allocation/record_count");
+        AllocationMeteringUsageQuantityCounter_ = SchedulerProfiler
+            .Counter("/metering/allocation/usage_quantity");
+
+        GuaranteesMeteringRecordCountCounter_ = SchedulerProfiler
+            .Counter("/metering/guarantees/record_count");
+        GuaranteesMeteringUsageQuantityCounter_ = SchedulerProfiler
+            .Counter("/metering/guarantees/usage_quantity");
     }
 
     const NApi::NNative::IClientPtr& GetMasterClient() const
@@ -1491,69 +1501,104 @@ public:
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
         const THashMap<TString, TString>& otherTags,
-        TInstant intervalStartTime,
-        TInstant intervalFinishTime) override
-    {
-        for (auto [startTime, finishTime] : SplitTimeIntervalByHours(intervalStartTime, intervalFinishTime)) {
-            DoLogResourceMetering(key, statistics, otherTags, startTime, finishTime);
-        }
-    }
-
-    void DoLogResourceMetering(
-        const TMeteringKey& key,
-        const TMeteringStatistics& statistics,
-        const THashMap<TString, TString>& otherTags,
-        TInstant startTime,
-        TInstant finishTime)
+        TInstant connectionTime,
+        TInstant previousLogTime,
+        TInstant currentTime) override
     {
         if (!ClusterName_) {
             return;
         }
 
-        auto usageQuantity = (finishTime - startTime).MilliSeconds();
-
-        NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger, NLogging::ELogLevel::Info)
-            .Item("schema").Value("yt.scheduler.pools.compute.v1")
-            .Item("id").Value(Format("%v:%v:%v", key.TreeId, key.PoolId, (finishTime - TInstant()).Seconds()))
-            .DoIf(Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
-                fluent
-                    .Item("abc_id").Value(key.AbcId);
-            })
-            .DoIf(!Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
-                fluent
-                    .Item("abc_id").Value(ToString(key.AbcId))
-                    .Item("cloud_id").Value(Config_->ResourceMetering->DefaultCloudId)
-                    .Item("folder_id").Value(Config_->ResourceMetering->DefaultFolderId);
-            })
-            .Item("usage").BeginMap()
-                .Item("quantity").Value(usageQuantity)
-                .Item("unit").Value("milliseconds")
-                .Item("start").Value(startTime.Seconds())
-                .Item("finish").Value(finishTime.Seconds())
-            .EndMap()
-            .Item("tags").BeginMap()
-                .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
-                .Item("resource_flow").Value(statistics.ResourceFlow())
-                .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
-                .Item("allocated_resources").Value(statistics.AllocatedResources())
-                .Item("cluster").Value(ClusterName_)
-                .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                    fluent.Item(pair.first).Value(pair.second);
+        auto buildCommonLogEventPart = [&] (const TString& schema, i64 usageQuantity, TInstant startTime, TInstant finishTime) {
+            return NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger, NLogging::ELogLevel::Info)
+                .Item("schema").Value(schema)
+                .Item("id").Value(Format("%v:%v:%v", key.TreeId, key.PoolId, (finishTime - TInstant()).Seconds()))
+                .DoIf(Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("abc_id").Value(key.AbcId);
                 })
-                .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                    fluent.Item(pair.first).Value(pair.second);
+                .DoIf(!Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("abc_id").Value(ToString(key.AbcId))
+                        .Item("cloud_id").Value(Config_->ResourceMetering->DefaultCloudId)
+                        .Item("folder_id").Value(Config_->ResourceMetering->DefaultFolderId);
                 })
-            .EndMap()
-            .Item("labels").BeginMap()
-                .Item("pool_tree").Value(key.TreeId)
-                .Item("pool").Value(key.PoolId)
-            .EndMap()
-            .Item("version").Value("1")
-            .Item("source_wt").Value((finishTime - TInstant()).Seconds());
+                .Item("usage").BeginMap()
+                    .Item("quantity").Value(usageQuantity)
+                    .Item("unit").Value("milliseconds")
+                    .Item("start").Value(startTime.Seconds())
+                    .Item("finish").Value(finishTime.Seconds())
+                .EndMap()
+                .Item("labels").BeginMap()
+                    .Item("pool_tree").Value(key.TreeId)
+                    .Item("pool").Value(key.PoolId)
+                .EndMap()
+                .Item("version").Value("1")
+                .Item("source_wt").Value((finishTime - TInstant()).Seconds());
+        };
 
-        MeteringRecordCountCounter_.Increment();
-        MeteringUsageQuantityCounter_.Increment(usageQuantity);
+        if (Config_->ResourceMetering->EnableSeparateSchemaForAllocation) {
+            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
+                auto usageQuantity = (finishTime - startTime).MilliSeconds();
+                buildCommonLogEventPart("yt.scheduler.pools.compute_guarantee.v1", usageQuantity, startTime, finishTime)
+                    .Item("tags").BeginMap()
+                        .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
+                        .Item("resource_flow").Value(statistics.ResourceFlow())
+                        .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
+                        .Item("cluster").Value(ClusterName_)
+                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
+                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                            fluent.Item(pair.first).Value(pair.second);
+                        })
+                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                            fluent.Item(pair.first).Value(pair.second);
+                        })
+                    .EndMap();
+                GuaranteesMeteringRecordCountCounter_.Increment();
+                GuaranteesMeteringUsageQuantityCounter_.Increment(usageQuantity);
+            }
+
+            auto usageLogStartTime = std::max(previousLogTime, connectionTime);
+            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(usageLogStartTime, currentTime)) {
+                double timeRatio = (finishTime - startTime).SecondsFloat() / (currentTime - usageLogStartTime).SecondsFloat();
+                auto usageQuantity = (finishTime - startTime).MilliSeconds();
+                buildCommonLogEventPart("yt.scheduler.pools.compute_allocation.v1", usageQuantity, startTime, finishTime)
+                    .Item("tags").BeginMap()
+                        .Item("allocated_resources").Value(statistics.AccumulatedResourceUsage() * timeRatio)
+                        .Item("cluster").Value(ClusterName_)
+                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
+                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                            fluent.Item(pair.first).Value(pair.second);
+                        })
+                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                            fluent.Item(pair.first).Value(pair.second);
+                        })
+                    .EndMap();
+                AllocationMeteringRecordCountCounter_.Increment();
+                AllocationMeteringUsageQuantityCounter_.Increment(usageQuantity);
+            }
+        } else {
+            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
+                auto usageQuantity = (finishTime - startTime).MilliSeconds();
+                buildCommonLogEventPart("yt.scheduler.pools.compute.v1", usageQuantity, startTime, finishTime)
+                    .Item("tags").BeginMap()
+                        .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
+                        .Item("resource_flow").Value(statistics.ResourceFlow())
+                        .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
+                        .Item("allocated_resources").Value(statistics.AllocatedResources())
+                        .Item("cluster").Value(ClusterName_)
+                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
+                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                            fluent.Item(pair.first).Value(pair.second);
+                        })
+                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                            fluent.Item(pair.first).Value(pair.second);
+                        })
+                    .EndMap();
+                MeteringRecordCountCounter_.Increment();
+                MeteringUsageQuantityCounter_.Increment(usageQuantity);
+            }
+        }
     }
 
     int GetDefaultAbcId() const override
@@ -1944,6 +1989,11 @@ private:
 
     NProfiling::TCounter MeteringRecordCountCounter_;
     NProfiling::TCounter MeteringUsageQuantityCounter_;
+
+    NProfiling::TCounter AllocationMeteringRecordCountCounter_;
+    NProfiling::TCounter AllocationMeteringUsageQuantityCounter_;
+    NProfiling::TCounter GuaranteesMeteringRecordCountCounter_;
+    NProfiling::TCounter GuaranteesMeteringUsageQuantityCounter_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ClusterInfoLoggingExecutor_;

@@ -14,13 +14,15 @@ class TMeteringStatistics
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceFlow);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, BurstGuaranteeResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AllocatedResources);
+    DEFINE_BYREF_RO_PROPERTY(TResourceVolume, AccumulatedResourceUsage);
 
 public:
     TMeteringStatistics(
         const TJobResources& strongGuaranteeResources,
         const TJobResources& resourceFlow,
         const TJobResources& burstGuaranteeResources,
-        const TJobResources& allocatedResources);
+        const TJobResources& allocatedResources,
+        const TResourceVolume& accumulatedResourceUsage);
 
     TMeteringStatistics& operator+=(const TMeteringStatistics& other);
     TMeteringStatistics& operator-=(const TMeteringStatistics& other);

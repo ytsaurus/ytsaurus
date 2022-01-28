@@ -321,6 +321,8 @@ public:
 
     int MaxEventLogOperationBatchSize;
 
+    TDuration AccumulatedResourceUsageUpdatePeriod;
+
     bool AllowAggressivePreemptionForGangOperations;
 
     //! If set, remote copy operation will fail to start if it can acquire
@@ -620,6 +622,9 @@ public:
     //! Default id for all metering records.
     TString DefaultCloudId;
     TString DefaultFolderId;
+
+    //! Enable separate schemas for guarantees and allocations.
+    bool EnableSeparateSchemaForAllocation;
 
     REGISTER_YSON_STRUCT(TResourceMeteringConfig);
 
