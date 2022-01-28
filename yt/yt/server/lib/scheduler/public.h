@@ -45,6 +45,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((UpdateUserToDefaultPoolMap)                   (13))
     ((OperationAlertArchivation)                    (14))
     ((ManageNodeSchedulingSegments)                 (15))
+    ((UpdateSsdPriorityPreemptionMedia)             (16))
 );
 
 DEFINE_ENUM(EOperationAlertType,
@@ -174,6 +175,7 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerIntegralGuaranteesConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategySchedulingSegmentsConfig)
+DECLARE_REFCOUNTED_CLASS(TFairShareStrategySsdPriorityPreemptionConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TExperimentEffectConfig)
 DECLARE_REFCOUNTED_STRUCT(TExperimentGroupConfig)

@@ -48,6 +48,8 @@ void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consume
         .Item("unconditional_resource_usage_discount").Value(statistics.UnconditionalResourceUsageDiscount)
         .Item("resource_usage").Value(statistics.ResourceUsage)
         .Item("resource_limits").Value(statistics.ResourceLimits)
+        .Item("ssd_priority_preemption_enabled").Value(statistics.SsdPriorityPreemptionEnabled)
+        .Item("ssd_priority_preemption_media").Value(statistics.SsdPriorityPreemptionMedia)
     .EndMap();
 }
 
@@ -63,8 +65,10 @@ TString FormatPreemptableInfoCompact(const TScheduleJobsStatistics& statistics)
 
 TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics)
 {
-    return Format("{NP: %v, AP: %v, P: %v, C: %v, TO: %v, MNPSI: %v}",
+    return Format("{NP: %v, SAP: %v, SP: %v, AP: %v, P: %v, C: %v, TO: %v, MNPSI: %v}",
         statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::NonPreemptive],
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::SsdAggressivelyPreemptive],
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::SsdPreemptive],
         statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::AggressivelyPreemptive],
         statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::Preemptive],
         statistics.ControllerScheduleJobCount,
@@ -74,9 +78,11 @@ TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statisti
 
 TString FormatOperationCountByPreemptionPriorityCompact(const TScheduleJobsStatistics& statistics)
 {
-    return Format("{R: %v, A: %v}",
+    return Format("{R: %v, A: %v, SR: %v, SA: %v}",
         statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::Regular],
-        statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::Aggressive]);
+        statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::Aggressive],
+        statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::SsdRegular],
+        statistics.OperationCountByPreemptionPriority[EOperationPreemptionPriority::SsdAggressive]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

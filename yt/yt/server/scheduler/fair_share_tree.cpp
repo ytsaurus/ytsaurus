@@ -241,6 +241,8 @@ public:
         RootElement_->UpdateTreeConfig(Config_);
         ResourceTree_->UpdateConfig(Config_);
 
+        UpdateSsdPriorityPreemptionMedia();
+
         if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
             auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
             StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
@@ -249,6 +251,35 @@ public:
         YT_LOG_INFO("Tree has updated with new config");
 
         return true;
+    }
+
+    void UpdateSsdPriorityPreemptionMedia()
+    {
+        THashSet<int> media;
+        std::vector<TString> unknownNames;
+        for (const auto& mediumName : Config_->SsdPriorityPreemption->MediumNames) {
+            if (auto mediumIndex = StrategyHost_->FindMediumIndexByName(mediumName)) {
+                media.insert(*mediumIndex);
+            } else {
+                unknownNames.push_back(mediumName);
+            }
+        }
+
+        if (unknownNames.empty()) {
+            if (SsdPriorityPreemptionMedia_ != media) {
+                YT_LOG_INFO("Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: %v, NewSsdPriorityPreemptionMedia: %v)",
+                    SsdPriorityPreemptionMedia_,
+                    media);
+
+                SsdPriorityPreemptionMedia_.emplace(std::move(media));
+
+                StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, TError());
+            }
+        } else {
+            auto error = TError("Config contains unknown SSD priority preemption media")
+                << TErrorAttribute("unknown_medium_names", std::move(unknownNames));
+            StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, error);
+        }
     }
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) override
@@ -504,8 +535,8 @@ public:
             }
         }
 
-        bool hasMinNeededResources = !element->GetDetailedMinNeededJobResources().empty();
-        auto aggregatedMinNeededResources = element->GetAggregatedMinNeededJobResources();
+        bool hasMinNeededResources = !element->DetailedMinNeededJobResources().empty();
+        auto aggregatedMinNeededResources = element->AggregatedMinNeededJobResources();
         bool shouldCheckLimitingAncestor = hasMinNeededResources &&
             Config_->EnableLimitingAncestorCheck &&
             element->IsLimitingAncestorCheckEnabled();
@@ -1095,6 +1126,8 @@ private:
 
     TCachedJobPreemptionStatuses PersistentCachedJobPreemptionStatuses_;
 
+    std::optional<THashSet<int>> SsdPriorityPreemptionMedia_;
+
     TSchedulerRootElementPtr RootElement_;
 
     class TOperationsByPoolOrchidService
@@ -1248,9 +1281,10 @@ private:
             .ResourceLimitsPerModule = std::move(resourceLimitsPerModule),
         };
 
-        TFairSharePostUpdateContext fairSharePostUpdateContext;
-        fairSharePostUpdateContext.Now = updateContext.Now;
-        fairSharePostUpdateContext.CachedJobPreemptionStatuses = PersistentCachedJobPreemptionStatuses_;
+        TFairSharePostUpdateContext fairSharePostUpdateContext{
+            .Now = updateContext.Now,
+            .CachedJobPreemptionStatuses = PersistentCachedJobPreemptionStatuses_,
+        };
 
         auto rootElement = RootElement_->Clone();
         {
@@ -1306,6 +1340,13 @@ private:
         RootElement_->PersistentAttributes() = rootElement->PersistentAttributes();
         PersistentCachedJobPreemptionStatuses_ = fairSharePostUpdateContext.CachedJobPreemptionStatuses;
 
+        // NB(eshcherbin): We cannot update SSD media in the constructor, because initial pool trees update
+        // in the registration pipeline is done before medium directory sync. That's why we do the initial update
+        // during the first fair share update.
+        if (!SsdPriorityPreemptionMedia_) {
+            UpdateSsdPriorityPreemptionMedia();
+        }
+
         rootElement->MarkImmutable();
 
         auto treeSnapshotId = TTreeSnapshotId::Create();
@@ -1324,7 +1365,8 @@ private:
             ControllerConfig_,
             std::move(manageSegmentsContext.SchedulingSegmentsState),
             resourceUsage,
-            resourceLimits);
+            resourceLimits,
+            *SsdPriorityPreemptionMedia_);
 
         if (Config_->EnableResourceUsageSnapshot) {
             treeSnapshot->UpdateDynamicAttributesSnapshot(ResourceUsageSnapshot_.Acquire());
@@ -1408,9 +1450,17 @@ private:
 
         context.SchedulingStatistics().ScheduleWithPreemption = scheduleJobsWithPreemption;
         if (scheduleJobsWithPreemption) {
+            auto ssdPriorityPreemptionConfig = treeSnapshot->TreeConfig()->SsdPriorityPreemption;
+            bool shouldAttemptSsdPriorityPreemption = ssdPriorityPreemptionConfig->Enable &&
+                schedulingContext->CanSchedule(ssdPriorityPreemptionConfig->NodeTagFilter);
+            context.SetSsdPriorityPreemptionEnabled(shouldAttemptSsdPriorityPreemption);
+            context.SsdPriorityPreemptionMedia() = treeSnapshot->SsdPriorityPreemptionMedia();
+            context.SchedulingStatistics().SsdPriorityPreemptionEnabled = context.GetSsdPriorityPreemptionEnabled();
+            context.SchedulingStatistics().SsdPriorityPreemptionMedia = context.SsdPriorityPreemptionMedia();
+
             context.CountOperationsByPreemptionPriority(treeSnapshot->RootElement());
 
-            for (const auto& preemptiveStage : BuildPreemptiveSchedulingStageList()) {
+            for (const auto& preemptiveStage : BuildPreemptiveSchedulingStageList(&context)) {
                 // We allow to schedule at most one job using preemption.
                 if (context.SchedulingStatistics().ScheduledDuringPreemption > 0) {
                     break;
@@ -1446,21 +1496,36 @@ private:
         CumulativeScheduleJobsTime_.Add(scheduleJobsTimer.GetElapsedTime());
     }
 
-    TPreemptiveScheduleJobsStageList BuildPreemptiveSchedulingStageList()
+    TPreemptiveScheduleJobsStageList BuildPreemptiveSchedulingStageList(TScheduleJobsContext* context)
     {
-        return TPreemptiveScheduleJobsStageList{
-            TPreemptiveScheduleJobsStage{
-                .Stage = &SchedulingStages_[EJobSchedulingStage::AggressivelyPreemptive],
-                .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Aggressive,
-                .MinJobPreemptionLevel = EJobPreemptionLevel::AggressivelyPreemptable,
-                .ForcePreemptionAttempt = false,
-            },
-            TPreemptiveScheduleJobsStage{
-                .Stage = &SchedulingStages_[EJobSchedulingStage::Preemptive],
-                .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Regular,
-                .MinJobPreemptionLevel = EJobPreemptionLevel::Preemptable,
-                .ForcePreemptionAttempt = true,
-            }};
+        TPreemptiveScheduleJobsStageList preemptiveStages;
+
+        if (context->GetSsdPriorityPreemptionEnabled()) {
+            preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
+                .Stage = &SchedulingStages_[EJobSchedulingStage::SsdAggressivelyPreemptive],
+                .TargetOperationPreemptionPriority = EOperationPreemptionPriority::SsdAggressive,
+                .MinJobPreemptionLevel = EJobPreemptionLevel::SsdAggressivelyPreemptable,
+            });
+            preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
+                .Stage = &SchedulingStages_[EJobSchedulingStage::SsdPreemptive],
+                .TargetOperationPreemptionPriority = EOperationPreemptionPriority::SsdRegular,
+                .MinJobPreemptionLevel = EJobPreemptionLevel::NonPreemptable,
+            });
+        }
+
+        preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
+            .Stage = &SchedulingStages_[EJobSchedulingStage::AggressivelyPreemptive],
+            .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Aggressive,
+            .MinJobPreemptionLevel = EJobPreemptionLevel::AggressivelyPreemptable,
+        });
+        preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
+            .Stage = &SchedulingStages_[EJobSchedulingStage::Preemptive],
+            .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Regular,
+            .MinJobPreemptionLevel = EJobPreemptionLevel::Preemptable,
+            .ForcePreemptionAttempt = true,
+        });
+
+        return preemptiveStages;
     }
 
     std::vector<TJobWithPreemptionInfo> CollectJobsWithPreemptionInfo(
@@ -1647,7 +1712,7 @@ private:
             YT_LOG_TRACE(
                 "Scheduling new jobs with preemption "
                 "(UnconditionallyPreemptableJobs: %v, UnconditionalResourceUsageDiscount: %v, TargetOperationPreemptionPriority: %v)",
-                unconditionallyPreemptableJobs.size(),
+                unconditionallyPreemptableJobs,
                 FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount()),
                 targetOperationPreemptionPriority);
 
@@ -1825,12 +1890,16 @@ private:
             return nullptr;
         };
 
+        // XXX(eshcherbin): Do we really need a fine-grained preemption reason enum?
+        // I think just "Preemption" would be fine, given we also add an elaborate preemption reason string later.
         auto preemptionReason = [&] {
             switch (targetOperationPreemptionPriority) {
-                case EOperationPreemptionPriority::Aggressive:
-                    return EJobPreemptionReason::AggressivePreemption;
                 case EOperationPreemptionPriority::Regular:
+                case EOperationPreemptionPriority::SsdRegular:
                     return EJobPreemptionReason::Preemption;
+                case EOperationPreemptionPriority::Aggressive:
+                case EOperationPreemptionPriority::SsdAggressive:
+                    return EJobPreemptionReason::AggressivePreemption;
                 default:
                     YT_ABORT();
             }
@@ -3130,17 +3199,18 @@ private:
             .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
             .Item("min_needed_resources_unsatisfied_count").Value(element->GetMinNeededResourcesUnsatisfiedCount())
             .Item("detailed_min_needed_job_resources").BeginList()
-                .DoFor(element->GetDetailedMinNeededJobResources(), [&] (TFluentList fluent, const TJobResourcesWithQuota& jobResourcesWithQuota) {
+                .DoFor(element->DetailedMinNeededJobResources(), [&] (TFluentList fluent, const TJobResourcesWithQuota& jobResourcesWithQuota) {
                     fluent.Item().Do([&] (TFluentAny fluent) {
                         strategyHost->SerializeResources(jobResourcesWithQuota, fluent.GetConsumer());
                     });
                 })
             .EndList()
-            .Item("aggregated_min_needed_job_resources").Value(element->GetAggregatedMinNeededJobResources())
+            .Item("aggregated_min_needed_job_resources").Value(element->AggregatedMinNeededJobResources())
             .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
             .Item("starving_since").Value(element->GetStarvationStatus() != EStarvationStatus::NonStarving
                 ? std::make_optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
+            .Item("disk_request_media").Value(element->DiskRequestMedia())
             .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(element)));
     }
 

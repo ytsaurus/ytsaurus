@@ -19,6 +19,7 @@ TJob::TJob(
     TExecNodePtr node,
     TInstant startTime,
     const TJobResources& resourceLimits,
+    const TDiskQuota& diskQuota,
     bool interruptible,
     EPreemptionMode preemptionMode,
     TString treeId,
@@ -39,6 +40,7 @@ TJob::TJob(
     , TreeId_(std::move(treeId))
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
+    , DiskQuota_(diskQuota)
     , PreemptionMode_(preemptionMode)
     , SchedulingIndex_(schedulingIndex)
     , SchedulingStage_(schedulingStage)

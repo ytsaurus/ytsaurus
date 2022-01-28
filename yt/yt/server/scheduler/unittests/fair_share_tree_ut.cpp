@@ -144,6 +144,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    std::optional<int> FindMediumIndexByName(const TString& /*mediumName*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
         const TSchedulingTagFilter& /*filter*/) const override
     {
@@ -616,6 +621,7 @@ protected:
             execNode,
             startTime,
             jobResources,
+            TDiskQuota(),
             /*interruptible*/ false,
             /*preemptionMode*/ EPreemptionMode::Normal,
             /*treeId*/ "",

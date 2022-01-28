@@ -1250,6 +1250,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
             joblet->JobType,
             joblet->StartTime,
             joblet->ResourceLimits,
+            joblet->DiskQuota,
             joblet->Task->IsJobInterruptible(),
             joblet->TreeId,
             joblet->NodeDescriptor.Id,

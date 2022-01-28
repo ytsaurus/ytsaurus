@@ -662,12 +662,14 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         // only when preemptive scheduling has been attempted.
         context->SetIncrementalResponseInfo(
             "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
-            "PreemptableInfo: %v, ScheduleJobAttempts: %v, "
-            "OperationCountByPreemptionPriority: %v",
+            "PreemptableInfo: %v, SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
+            "ScheduleJobAttempts: %v, OperationCountByPreemptionPriority: %v",
             schedulingContext->StartedJobs().size(),
             statistics.ScheduledDuringPreemption,
             schedulingContext->PreemptedJobs().size(),
             FormatPreemptableInfoCompact(statistics),
+            statistics.SsdPriorityPreemptionEnabled,
+            statistics.SsdPriorityPreemptionMedia,
             FormatScheduleJobAttemptsCompact(statistics),
             FormatOperationCountByPreemptionPriorityCompact(statistics));
     } else {

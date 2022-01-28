@@ -303,5 +303,16 @@ std::vector<std::pair<TInstant, TInstant>> SplitTimeIntervalByHours(TInstant sta
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashSet<int> GetDiskQuotaMedia(const TDiskQuota& diskQuota)
+{
+    THashSet<int> media;
+    for (const auto& [index, _] : diskQuota.DiskSpacePerMedium) {
+        media.insert(index);
+    }
+    return media;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler
 

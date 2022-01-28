@@ -38,6 +38,8 @@ DEFINE_ENUM(EDeactivationReason,
     (UnmatchedSchedulingTag)
     (IsNotEligibleForAggressivelyPreemptiveScheduling)
     (IsNotEligibleForPreemptiveScheduling)
+    (IsNotEligibleForSsdAggressivelyPreemptiveScheduling)
+    (IsNotEligibleForSsdPreemptiveScheduling)
     (ScheduleJobFailed)
     (NoBestLeafDescendant)
     (MinNeededResourcesUnsatisfied)
@@ -179,6 +181,25 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategySchedulingSegmentsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareStrategySsdPriorityPreemptionConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enable;
+
+    TSchedulingTagFilter NodeTagFilter;
+
+    std::vector<TString> MediumNames;
+
+    REGISTER_YSON_STRUCT(TFairShareStrategySsdPriorityPreemptionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategySsdPriorityPreemptionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -329,6 +350,8 @@ public:
     //! more than RequiredResourceLimitsForRemoteCopy resources in any pool tree.
     bool FailRemoteCopyOnMissingResourceLimits;
     TJobResourcesConfigPtr RequiredResourceLimitsForRemoteCopy;
+
+    TFairShareStrategySsdPriorityPreemptionConfigPtr SsdPriorityPreemption;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 

@@ -63,6 +63,8 @@ public:
     void UpdateNodesOnChangedTrees(
         const THashMap<TString, NScheduler::TSchedulingTagFilter>& treeIdToFilter) override;
 
+    std::optional<int> FindMediumIndexByName(const TString& mediumName) const override;
+
     TString FormatResources(const NScheduler::TJobResourcesWithQuota& resources) const override;
     TString FormatResourceUsage(
         const NScheduler::TJobResources& usage,

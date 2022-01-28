@@ -194,6 +194,7 @@ message TReviveOperationResult
         required string tree_id = 6;
         required uint32 node_id = 7;
         required string node_address = 8;
+        required NScheduler.NProto.TDiskQuota disk_quota = 9;
     }
 
     required bytes attributes = 1; // YSON
