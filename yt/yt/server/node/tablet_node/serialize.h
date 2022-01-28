@@ -38,6 +38,7 @@ DEFINE_ENUM(ETabletReign,
     ((Chaos)                              (100401)) // savrus
     ((BackupsSorted)                      (100402)) // ifsmirnov
     ((MaxClipTimestamp)                   (100403)) // ifsmirnov
+    ((SerializeForeign)                   (100404)) // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

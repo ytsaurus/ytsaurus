@@ -539,6 +539,7 @@ private:
     std::optional<TTimestamp> MinCommitTimestamp_;
 
     bool Decommissioned_ = false;
+    ETabletReign SnapshotReign_ = TEnumTraits<ETabletReign>::GetMaxValue();
 
     IYPathServicePtr OrchidService_;
 
@@ -777,6 +778,9 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         PersistentTransactionMap_.LoadKeys(context);
+
+        SnapshotReign_ = context.GetVersion();
+        Automaton_->RememberReign(static_cast<NHydra::TReign>(SnapshotReign_));
     }
 
     void LoadValues(TLoadContext& context)
@@ -974,11 +978,32 @@ private:
             ->CommitAndLog(Logger);
     }
 
+    bool IsOldHydraContext(ETabletReign reign)
+    {
+        if (const auto* mutationContext = TryGetCurrentMutationContext();
+            mutationContext && mutationContext->Request().Reign < ToUnderlying(reign))
+        {
+            return true;
+        }
+
+        if (const auto* snapshotContext = TryGetCurrentHydraContext();
+            snapshotContext && SnapshotReign_ < reign)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     void RegisterPrepareTimestamp(TTransaction* transaction)
     {
-        if (transaction->GetForeign()) {
-            return;
+        // COMPAT(savrus)
+        if (IsOldHydraContext(ETabletReign::SerializeForeign)) {
+            if (transaction->GetForeign()) {
+                return;
+            }
         }
+
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         if (prepareTimestamp == NullTimestamp) {
             return;
@@ -988,9 +1013,13 @@ private:
 
     void UnregisterPrepareTimestamp(TTransaction* transaction)
     {
-        if (transaction->GetForeign()) {
-            return;
+        // COMPAT(savrus)
+        if (IsOldHydraContext(ETabletReign::SerializeForeign)) {
+            if (transaction->GetForeign()) {
+                return;
+            }
         }
+
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         if (prepareTimestamp == NullTimestamp) {
             return;
