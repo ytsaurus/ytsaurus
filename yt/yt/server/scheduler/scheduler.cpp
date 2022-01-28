@@ -1907,9 +1907,6 @@ private:
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> Connected_ = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MediumDirectoryLock_);
-    NChunkClient::TMediumDirectoryPtr MediumDirectory_;
-
     TOperationsCleanerPtr OperationsCleaner_;
 
     const TThreadPoolPtr OrchidWorkerPool_;
