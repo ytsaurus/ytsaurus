@@ -67,8 +67,8 @@ public:
         , Config_(options.Config ? options.Config : New<TFileReaderConfig>())
         , ChunkReadOptions_{
             .WorkloadDescriptor = Config_->WorkloadDescriptor,
+            .ReadSessionId = TReadSessionId::Create(),
             .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
-            .ReadSessionId = TReadSessionId::Create()
         }
         , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
             Path_,
