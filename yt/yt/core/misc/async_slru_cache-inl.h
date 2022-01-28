@@ -244,6 +244,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
         return OlderSizeCounter_.load();
     });
 
+    GhostCachesEnabled_.store(Config_->EnableGhostCaches);
+
     YT_VERIFY(IsPowerOf2(Config_->ShardCount));
     Shards_.reset(new TShard[Config_->ShardCount]);
 
@@ -252,20 +254,23 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     for (int index = 0; index < Config_->ShardCount; ++index) {
         auto& shard = Shards_[index];
 
-        shard.SmallGhost.SetCounters(&SmallGhostCounters_);
-        shard.LargeGhost.SetCounters(&LargeGhostCounters_);
-
         shard.SetTouchBufferCapacity(touchBufferCapacity);
-        shard.SmallGhost.SetTouchBufferCapacity(touchBufferCapacity);
-        shard.LargeGhost.SetTouchBufferCapacity(touchBufferCapacity);
-
         shard.Reconfigure(shardCapacity, Config_->YoungerSizeFraction);
-        shard.SmallGhost.Reconfigure(
-            static_cast<i64>(shardCapacity * Config_->SmallGhostCacheRatio),
-            Config_->YoungerSizeFraction);
-        shard.LargeGhost.Reconfigure(
-            static_cast<i64>(shardCapacity * Config_->LargeGhostCacheRatio),
-            Config_->YoungerSizeFraction);
+
+        if (GhostCachesEnabled_.load()) {
+            shard.SmallGhost.SetCounters(&SmallGhostCounters_);
+            shard.LargeGhost.SetCounters(&LargeGhostCounters_);
+
+            shard.SmallGhost.SetTouchBufferCapacity(touchBufferCapacity);
+            shard.LargeGhost.SetTouchBufferCapacity(touchBufferCapacity);
+
+            shard.SmallGhost.Reconfigure(
+                static_cast<i64>(shardCapacity * Config_->SmallGhostCacheRatio),
+                Config_->YoungerSizeFraction);
+            shard.LargeGhost.Reconfigure(
+                static_cast<i64>(shardCapacity * Config_->LargeGhostCacheRatio),
+                Config_->YoungerSizeFraction);
+        }
 
         shard.Parent = this;
     }
@@ -279,15 +284,21 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynam
     double youngerSizeFraction = config->YoungerSizeFraction.value_or(Config_->YoungerSizeFraction);
     Capacity_.store(capacity);
 
+    if (!config->EnableGhostCaches) {
+        GhostCachesEnabled_.store(false);
+    }
+
     for (int shardIndex = 0; shardIndex < Config_->ShardCount; ++shardIndex) {
         auto& shard = Shards_[shardIndex];
 
-        shard.SmallGhost.Reconfigure(
-            static_cast<i64>(shardCapacity * Config_->SmallGhostCacheRatio),
-            youngerSizeFraction);
-        shard.LargeGhost.Reconfigure(
-            static_cast<i64>(shardCapacity * Config_->LargeGhostCacheRatio),
-            youngerSizeFraction);
+        if (GhostCachesEnabled_.load()) {
+            shard.SmallGhost.Reconfigure(
+                static_cast<i64>(shardCapacity * Config_->SmallGhostCacheRatio),
+                youngerSizeFraction);
+            shard.LargeGhost.Reconfigure(
+                static_cast<i64>(shardCapacity * Config_->LargeGhostCacheRatio),
+                youngerSizeFraction);
+        }
 
         auto writerGuard = WriterGuard(shard.SpinLock);
         shard.Reconfigure(shardCapacity, youngerSizeFraction);
@@ -302,8 +313,10 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 {
     auto* shard = GetShardByKey(key);
 
-    shard->SmallGhost.Find(key);
-    shard->LargeGhost.Find(key);
+    if (GhostCachesEnabled_.load()) {
+        shard->SmallGhost.Find(key);
+        shard->LargeGhost.Find(key);
+    }
 
     auto readerGuard = ReaderGuard(shard->SpinLock);
 
@@ -373,8 +386,10 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     auto* shard = GetShardByKey(key);
 
-    shard->SmallGhost.Lookup(key);
-    shard->LargeGhost.Lookup(key);
+    if (GhostCachesEnabled_.load()) {
+        shard->SmallGhost.Lookup(key);
+        shard->LargeGhost.Lookup(key);
+    }
 
     auto valueFuture = DoLookup(shard, key);
     if (!valueFuture) {
@@ -388,8 +403,10 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Touch(const TValuePtr& value)
 {
     auto* shard = GetShardByKey(value->GetKey());
 
-    shard->SmallGhost.Touch(value);
-    shard->LargeGhost.Touch(value);
+    if (GhostCachesEnabled_.load()) {
+        shard->SmallGhost.Touch(value);
+        shard->LargeGhost.Touch(value);
+    }
 
     auto readerGuard = ReaderGuard(shard->SpinLock);
 
@@ -491,8 +508,10 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
         // NB: Releases the lock.
         NotifyOnTrim(shard->Trim(writerGuard), value);
 
-        shard->SmallGhost.Resurrect(value, weight);
-        shard->LargeGhost.Resurrect(value, weight);
+        if (GhostCachesEnabled_.load()) {
+            shard->SmallGhost.Resurrect(value, weight);
+            shard->LargeGhost.Resurrect(value, weight);
+        }
 
         return valueFuture;
     }
@@ -504,22 +523,24 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
     auto* shard = GetShardByKey(key);
 
     if (auto valueFuture = DoLookup(shard, key)) {
-        if (valueFuture.IsSet() && valueFuture.Get().IsOK()) {
-            bool smallInserted = shard->SmallGhost.BeginInsert(key);
-            bool largeInserted = shard->LargeGhost.BeginInsert(key);
-            if (smallInserted || largeInserted) {
-                const auto& value = valueFuture.Get().Value();
-                i64 weight = GetWeight(value);
-                if (smallInserted) {
-                    shard->SmallGhost.EndInsert(value, weight);
+        if (GhostCachesEnabled_.load()) {
+            if (valueFuture.IsSet() && valueFuture.Get().IsOK()) {
+                bool smallInserted = shard->SmallGhost.BeginInsert(key);
+                bool largeInserted = shard->LargeGhost.BeginInsert(key);
+                if (smallInserted || largeInserted) {
+                    const auto& value = valueFuture.Get().Value();
+                    i64 weight = GetWeight(value);
+                    if (smallInserted) {
+                        shard->SmallGhost.EndInsert(value, weight);
+                    }
+                    if (largeInserted) {
+                        shard->LargeGhost.EndInsert(value, weight);
+                    }
                 }
-                if (largeInserted) {
-                    shard->LargeGhost.EndInsert(value, weight);
-                }
+            } else {
+                shard->SmallGhost.Lookup(key);
+                shard->LargeGhost.Lookup(key);
             }
-        } else {
-            shard->SmallGhost.Lookup(key);
-            shard->LargeGhost.Lookup(key);
         }
 
         return TInsertCookie(
@@ -556,16 +577,18 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 
             guard.Release();
 
-            if (value) {
-                if (shard->SmallGhost.BeginInsert(key)) {
-                    shard->SmallGhost.EndInsert(value, weight);
+            if (GhostCachesEnabled_.load()) {
+                if (value) {
+                    if (shard->SmallGhost.BeginInsert(key)) {
+                        shard->SmallGhost.EndInsert(value, weight);
+                    }
+                    if (shard->LargeGhost.BeginInsert(key)) {
+                        shard->LargeGhost.EndInsert(value, weight);
+                    }
+                } else {
+                    shard->SmallGhost.Lookup(key);
+                    shard->LargeGhost.Lookup(key);
                 }
-                if (shard->LargeGhost.BeginInsert(key)) {
-                    shard->LargeGhost.EndInsert(value, weight);
-                }
-            } else {
-                shard->SmallGhost.Lookup(key);
-                shard->LargeGhost.Lookup(key);
             }
 
             return TInsertCookie(
@@ -592,8 +615,12 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
                 this,
                 std::move(valueFuture),
                 true);
-            insertCookie.InsertedIntoSmallGhost_ = shard->SmallGhost.BeginInsert(key);
-            insertCookie.InsertedIntoLargeGhost_ = shard->LargeGhost.BeginInsert(key);
+
+            if (GhostCachesEnabled_.load()) {
+                insertCookie.InsertedIntoSmallGhost_ = shard->SmallGhost.BeginInsert(key);
+                insertCookie.InsertedIntoLargeGhost_ = shard->LargeGhost.BeginInsert(key);
+            }
+
             return insertCookie;
         }
 
@@ -614,8 +641,10 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 
             guard.Release();
 
-            shard->SmallGhost.Resurrect(value, weight);
-            shard->LargeGhost.Resurrect(value, weight);
+            if (GhostCachesEnabled_.load()) {
+                shard->SmallGhost.Resurrect(value, weight);
+                shard->LargeGhost.Resurrect(value, weight);
+            }
 
             return TInsertCookie(
                 key,
@@ -662,6 +691,9 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(const TInsertCookie& in
     // NB: Releases the lock.
     NotifyOnTrim(shard->Trim(guard), value);
 
+    // We do not want to break the ghost cache invariants, according to which either EndInsert
+    // or CancelInsert must be called for each item in Inserting state. So we end the insertion
+    // even after ghost cache is disabled.
     if (insertCookie.InsertedIntoSmallGhost_) {
         shard->SmallGhost.EndInsert(value, weight);
     }
@@ -678,6 +710,9 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TInsertCookie&
     const auto& key = insertCookie.Key_;
     auto* shard = GetShardByKey(key);
 
+    // We do not want to break the ghost cache invariants, according to which either EndInsert
+    // or CancelInsert must be called for each item in Inserting state. So we end the insertion
+    // even after ghost cache is disabled.
     if (insertCookie.InsertedIntoSmallGhost_) {
         shard->SmallGhost.CancelInsert(key);
     }
@@ -741,8 +776,10 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::DoTryRemove(
 {
     auto* shard = GetShardByKey(key);
 
-    shard->SmallGhost.TryRemove(key, value);
-    shard->LargeGhost.TryRemove(key, value);
+    if (GhostCachesEnabled_.load()) {
+        shard->SmallGhost.TryRemove(key, value);
+        shard->LargeGhost.TryRemove(key, value);
+    }
 
     auto guard = WriterGuard(shard->SpinLock);
 
@@ -823,8 +860,10 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::UpdateWeight(const TKey& key)
 
     NotifyOnTrim(shard->Trim(guard), nullptr);
 
-    shard->SmallGhost.UpdateWeight(key, newWeight);
-    shard->LargeGhost.UpdateWeight(key, newWeight);
+    if (GhostCachesEnabled_.load()) {
+        shard->SmallGhost.UpdateWeight(key, newWeight);
+        shard->LargeGhost.UpdateWeight(key, newWeight);
+    }
 }
 
 template <class TKey, class TValue, class THash>

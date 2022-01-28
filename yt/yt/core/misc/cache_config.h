@@ -30,6 +30,10 @@ public:
     double SmallGhostCacheRatio;
     double LargeGhostCacheRatio;
 
+    //! Set to true if ghost caches are enabled. Once disabled, ghost caches cannot be
+    //! re-enabled again (i.e. the value of this field is ignored).
+    bool EnableGhostCaches;
+
     explicit TSlruCacheConfig(i64 capacity = 0);
 };
 
@@ -47,6 +51,10 @@ public:
 
     //! The fraction of total capacity given to the younger segment.
     std::optional<double> YoungerSizeFraction;
+
+    //! Set to true if ghost caches are enabled. Once disabled, ghost caches cannot be
+    //! re-enabled again (i.e. the value of this field is ignored).
+    bool EnableGhostCaches;
 
     TSlruCacheDynamicConfig();
 };
