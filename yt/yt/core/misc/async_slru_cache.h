@@ -432,6 +432,8 @@ private:
     TGhostCounters SmallGhostCounters_;
     TGhostCounters LargeGhostCounters_;
 
+    std::atomic<bool> GhostCachesEnabled_;
+
     TShard* GetShardByKey(const TKey& key) const;
 
     TValueFuture DoLookup(TShard* shard, const TKey& key);

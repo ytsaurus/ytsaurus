@@ -812,6 +812,72 @@ TEST(TAsyncSlruGhostCacheTest, MoveAssignCookie)
     }
 }
 
+TEST(TAsyncSlruGhostCacheTest, Disable)
+{
+    constexpr int cacheSize = 100;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TSimpleSlruCache>(std::move(config), TProfiler{"/cache"});
+
+    {
+        auto oldSmallCounters = cache->ReadSmallGhostCounters();
+        auto oldLargeCounters = cache->ReadLargeGhostCounters();
+
+        auto cookie = cache->BeginInsert(1);
+        ASSERT_TRUE(cookie.IsActive());
+        cookie.EndInsert(New<TSimpleCachedValue>(
+            /*key*/ 1,
+            /*value*/ 42,
+            /*weight*/ 1));
+
+        auto smallCount = cache->ReadSmallGhostCounters() - oldSmallCounters;
+        auto largeCount = cache->ReadLargeGhostCounters() - oldLargeCounters;
+
+        EXPECT_EQ(smallCount.SyncHit, 0);
+        EXPECT_EQ(smallCount.AsyncHit, 0);
+        EXPECT_EQ(smallCount.Missed, 1);
+
+        EXPECT_EQ(largeCount.SyncHit, 0);
+        EXPECT_EQ(largeCount.AsyncHit, 0);
+        EXPECT_EQ(largeCount.Missed, 1);
+    }
+
+    auto dynamicConfig = New<TSlruCacheDynamicConfig>();
+    dynamicConfig->EnableGhostCaches = false;
+    cache->Reconfigure(dynamicConfig);
+
+    {
+        auto oldSmallCounters = cache->ReadSmallGhostCounters();
+        auto oldLargeCounters = cache->ReadLargeGhostCounters();
+
+        auto cookie = cache->BeginInsert(2);
+        ASSERT_TRUE(cookie.IsActive());
+        cookie.EndInsert(New<TSimpleCachedValue>(
+            /*key*/ 2,
+            /*value*/ 57,
+            /*weight*/ 1));
+
+        auto value1 = cache->Find(1);
+        ASSERT_NE(value1, nullptr);
+        ASSERT_EQ(value1->Value, 42);
+
+        auto value2 = cache->Lookup(2);
+        ASSERT_TRUE(value2.IsSet());
+        ASSERT_TRUE(value2.Get().IsOK());
+        ASSERT_EQ(value2.Get().Value()->Value, 57);
+
+        auto smallCount = cache->ReadSmallGhostCounters() - oldSmallCounters;
+        auto largeCount = cache->ReadLargeGhostCounters() - oldLargeCounters;
+
+        EXPECT_EQ(smallCount.SyncHit, 0);
+        EXPECT_EQ(smallCount.AsyncHit, 0);
+        EXPECT_EQ(smallCount.Missed, 0);
+
+        EXPECT_EQ(largeCount.SyncHit, 0);
+        EXPECT_EQ(largeCount.AsyncHit, 0);
+        EXPECT_EQ(largeCount.Missed, 0);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EStressOperation,

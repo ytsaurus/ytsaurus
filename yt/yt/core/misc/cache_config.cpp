@@ -24,6 +24,8 @@ TSlruCacheConfig::TSlruCacheConfig(i64 capacity)
     RegisterParameter("large_ghost_cache_ratio", LargeGhostCacheRatio)
         .Default(2.0)
         .GreaterThanOrEqual(0.0);
+    RegisterParameter("enable_ghost_caches", EnableGhostCaches)
+        .Default(true);
 
     RegisterPostprocessor([&] () {
         if (!IsPowerOf2(ShardCount)) {
@@ -43,6 +45,8 @@ TSlruCacheDynamicConfig::TSlruCacheDynamicConfig()
     RegisterParameter("younger_size_fraction", YoungerSizeFraction)
         .Optional()
         .InRange(0.0, 1.0);
+    RegisterParameter("enable_ghost_caches", EnableGhostCaches)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
