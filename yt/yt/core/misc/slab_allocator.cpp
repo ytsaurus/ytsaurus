@@ -221,13 +221,13 @@ public:
 
     void* Allocate(size_t size)
     {
-        if (!TryAcquireMemory(size)) {
+        auto allocatedSize = nallocx(size, 0);
+        if (!TryAcquireMemory(allocatedSize)) {
             return nullptr;
         }
         auto itemCount = ++RefCount_;
-        auto ptr = NYTAlloc::Allocate(size);
-        auto allocatedSize = malloc_usable_size(ptr);
-        YT_VERIFY(allocatedSize == size);
+        auto ptr = malloc(size);
+        YT_VERIFY(malloc_usable_size(ptr) == allocatedSize);
         AllocatedItems.Increment();
         AliveItems.Update(itemCount);
 
@@ -238,7 +238,7 @@ public:
     {
         auto allocatedSize = malloc_usable_size(ptr);
         ReleaseMemory(allocatedSize);
-        NYTAlloc::Free(ptr);
+        free(ptr);
         FreedItems.Increment();
         AliveItems.Update(RefCount_.load() - 1);
         Unref();
