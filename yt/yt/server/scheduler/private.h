@@ -79,10 +79,13 @@ DEFINE_ENUM(EOperationPreemptionPriority,
     (None)
     (Regular)
     (Aggressive)
+    (SsdRegular)
+    (SsdAggressive)
 );
 
-// NB(eshcherbin): Currently this enum is identical to |EJobPreemptionStatus|, however, it's going to change soon.
 DEFINE_ENUM(EJobPreemptionLevel,
+    (SsdNonPreemptable)
+    (SsdAggressivelyPreemptable)
     (NonPreemptable)
     (AggressivelyPreemptable)
     (Preemptable)
@@ -95,10 +98,12 @@ DEFINE_ENUM(EJobPreemptionStatus,
 );
 
 DEFINE_ENUM(EJobSchedulingStage,
-    ((NonPreemptive)          (0))
-    ((PackingFallback)        (1))
-    ((Preemptive)             (100))
-    ((AggressivelyPreemptive) (101))
+    ((NonPreemptive)             (0))
+    ((PackingFallback)           (1))
+    ((Preemptive)                (100))
+    ((AggressivelyPreemptive)    (101))
+    ((SsdPreemptive)             (102))
+    ((SsdAggressivelyPreemptive) (103))
 );
 
 DEFINE_ENUM(EJobPreemptionReason,

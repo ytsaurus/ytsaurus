@@ -73,6 +73,7 @@ class TJob
 
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(TDiskQuota, DiskQuota);
 
     //! Temporary flag used during heartbeat jobs processing to mark found jobs.
     DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
@@ -123,6 +124,7 @@ public:
         TExecNodePtr node,
         TInstant startTime,
         const TJobResources& resourceLimits,
+        const TDiskQuota& diskQuota,
         bool interruptible,
         EPreemptionMode preemptionMode,
         TString treeId,

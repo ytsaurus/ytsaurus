@@ -15,7 +15,8 @@ TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     TTreeSchedulingSegmentsState schedulingSegmentsState,
     const TJobResources& resourceUsage,
-    const TJobResources& resourceLimits)
+    const TJobResources& resourceLimits,
+    THashSet<int> ssdPriorityPreemptionMedia)
     : Id_(id)
     , RootElement_(std::move(rootElement))
     , EnabledOperationMap_(std::move(enabledOperationIdToElement))
@@ -27,6 +28,7 @@ TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     , CachedJobPreemptionStatuses_(cachedJobPreemptionStatuses)
     , ResourceUsage_(resourceUsage)
     , ResourceLimits_(resourceLimits)
+    , SsdPriorityPreemptionMedia_(std::move(ssdPriorityPreemptionMedia))
 { }
 
 TSchedulerPoolElement* TFairShareTreeSnapshot::FindPool(const TString& poolName) const

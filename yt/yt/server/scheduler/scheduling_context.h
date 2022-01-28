@@ -36,6 +36,8 @@ struct TScheduleJobsStatistics
     TJobResources ResourceUsage;
     TJobResources UnconditionalResourceUsageDiscount;
     TJobResources MaxConditionalResourceUsageDiscount;
+    bool SsdPriorityPreemptionEnabled = false;
+    THashSet<int> SsdPriorityPreemptionMedia;
 };
 
 void Serialize(const TScheduleJobsStatistics& statistics, NYson::IYsonConsumer* consumer);

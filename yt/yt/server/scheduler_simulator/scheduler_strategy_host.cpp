@@ -177,6 +177,11 @@ void TSchedulerStrategyHost::UpdateNodesOnChangedTrees(
     // Nothing to do.
 }
 
+std::optional<int> TSchedulerStrategyHost::FindMediumIndexByName(const TString& /*mediumName*/) const
+{
+    return {};
+}
+
 TString TSchedulerStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
 {
     return NScheduler::FormatResources(resources);

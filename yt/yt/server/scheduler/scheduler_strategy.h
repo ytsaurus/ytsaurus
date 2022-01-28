@@ -63,6 +63,8 @@ struct ISchedulerStrategyHost
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const = 0;
     virtual void SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const = 0;
 
+    virtual std::optional<int> FindMediumIndexByName(const TString& mediumName) const = 0;
+
     virtual TInstant GetConnectionTime() const = 0;
 
     virtual void MarkOperationAsRunningInStrategy(TOperationId operationId) = 0;

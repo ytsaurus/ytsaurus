@@ -178,6 +178,26 @@ const THashSet<TString>& TFairShareStrategySchedulingSegmentsConfig::GetModules(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TFairShareStrategySsdPriorityPreemptionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("node_tag_filter", &TThis::NodeTagFilter)
+        .Default();
+
+    registrar.Parameter("medium_names", &TThis::MediumNames)
+        .Default();
+
+    registrar.Postprocessor([&] (TFairShareStrategySsdPriorityPreemptionConfig* config) {
+        if (config->Enable && config->NodeTagFilter == EmptySchedulingTagFilter) {
+            THROW_ERROR_EXCEPTION("SSD node tag filter must be non-empty when SSD priority preemption is enabled");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("nodes_filter", &TThis::NodesFilter)
@@ -391,6 +411,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("required_resource_limits_for_remote_copy", &TThis::RequiredResourceLimitsForRemoteCopy)
         .DefaultCtor(&GetDefaultRequiredResourceLimitsForRemoteCopy);
+
+    registrar.Parameter("ssd_priority_preemption", &TThis::SsdPriorityPreemption)
+        .DefaultNew();
 
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {

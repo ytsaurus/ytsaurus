@@ -160,15 +160,15 @@ using TDynamicAttributesListSnapshotPtr = TIntrusivePtr<TDynamicAttributesListSn
 
 struct TFairSharePostUpdateContext
 {
-    TInstant Now;
+    const TInstant Now;
+
+    TCachedJobPreemptionStatuses CachedJobPreemptionStatuses;
 
     TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
 
     TNonOwningOperationElementMap EnabledOperationIdToElement;
     TNonOwningOperationElementMap DisabledOperationIdToElement;
     TNonOwningPoolElementMap PoolNameToElement;
-
-    TCachedJobPreemptionStatuses CachedJobPreemptionStatuses;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,6 +244,9 @@ struct TJobWithPreemptionInfo
     bool operator ==(const TJobWithPreemptionInfo& other) const = default;
 };
 
+void FormatValue(TStringBuilderBase* builder, const TJobWithPreemptionInfo& jobInfo, TStringBuf /*format*/);
+TString ToString(const TJobWithPreemptionInfo& jobInfo);
+
 using TJobWithPreemptionInfoSet = THashSet<TJobWithPreemptionInfo>;
 using TJobWithPreemptionInfoSetMap = THashMap<int, TJobWithPreemptionInfoSet>;
 
@@ -316,6 +319,9 @@ private:
 
     DEFINE_BYREF_RW_PROPERTY(TDynamicAttributesListSnapshotPtr, DynamicAttributesListSnapshot);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, SsdPriorityPreemptionEnabled);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<int>, SsdPriorityPreemptionMedia)
+
 public:
     TScheduleJobsContext(
         ISchedulingContextPtr schedulingContext,
@@ -362,6 +368,8 @@ private:
     void ProfileStageStatistics();
 
     void LogStageStatistics();
+
+    bool IsEligibleForSsdPriorityPreemption(const THashSet<int>& diskRequestMedia) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -968,6 +976,11 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<ESchedulingSegment>, SchedulingSegment);
     DEFINE_BYREF_RW_PROPERTY(std::optional<THashSet<TString>>, SpecifiedSchedulingSegmentModules);
 
+    DEFINE_BYREF_RO_PROPERTY(TJobResourcesWithQuotaList, DetailedMinNeededJobResources);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededJobResources);
+
+    DEFINE_BYREF_RO_PROPERTY(THashSet<int>, DiskRequestMedia);
+
 protected:
     TSchedulerOperationElementFixedState(
         IOperationStrategyHost* operation,
@@ -987,10 +1000,6 @@ protected:
 
     // Used only for profiling.
     int SlotIndex_ = UndefinedSlotIndex;
-
-    // Used in schedule jobs.
-    TJobResourcesWithQuotaList DetailedMinNeededJobResources_;
-    TJobResources AggregatedMinNeededJobResources_;
 
     // Used to compute operation demand.
     TJobResources TotalNeededResources_;
@@ -1305,10 +1314,6 @@ public:
 
     //! Other methods.
     std::optional<TString> GetCustomProfilingTag() const;
-
-    //! Used in orchid.
-    TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
-    TJobResources GetAggregatedMinNeededJobResources() const;
 
 protected:
     //! Pre update methods.

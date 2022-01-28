@@ -105,6 +105,21 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, const TJobWithPreemptionInfo& jobInfo, TStringBuf /*format*/)
+{
+    builder->AppendFormat("{JobId: %v, PreemptionStatus: %v, OperationId: %v}",
+        jobInfo.Job->GetId(),
+        jobInfo.PreemptionStatus,
+        jobInfo.OperationElement->GetId());
+}
+
+TString ToString(const TJobWithPreemptionInfo& jobInfo)
+{
+    return ToStringViaBuilder(jobInfo);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPersistentAttributes::ResetOnElementEnabled()
 {
     // NB: We don't want to reset all attributes.
@@ -128,13 +143,20 @@ TScheduleJobsContext::TScheduleJobsContext(
     , Logger(logger)
 { }
 
-EOperationPreemptionPriority TScheduleJobsContext::GetOperationPreemptionPriority(const TSchedulerOperationElement* operationElement) const
+EOperationPreemptionPriority TScheduleJobsContext::GetOperationPreemptionPriority(
+    const TSchedulerOperationElement* operationElement) const
 {
+    bool isEligibleForSsdPriorityPreemption = SsdPriorityPreemptionEnabled_ &&
+        IsEligibleForSsdPriorityPreemption(operationElement->DiskRequestMedia());
     if (operationElement->GetLowestAggressivelyStarvingAncestor()) {
-        return EOperationPreemptionPriority::Aggressive;
+        return isEligibleForSsdPriorityPreemption
+            ? EOperationPreemptionPriority::SsdAggressive
+            : EOperationPreemptionPriority::Aggressive;
     }
     if (operationElement->GetLowestStarvingAncestor()) {
-        return EOperationPreemptionPriority::Regular;
+        return isEligibleForSsdPriorityPreemption
+            ? EOperationPreemptionPriority::SsdRegular
+            : EOperationPreemptionPriority::Regular;
     }
     return EOperationPreemptionPriority::None;
 }
@@ -147,14 +169,26 @@ void TScheduleJobsContext::CountOperationsByPreemptionPriority(const TSchedulerR
 
 EJobPreemptionLevel TScheduleJobsContext::GetJobPreemptionLevel(const TJobWithPreemptionInfo& jobWithPreemptionInfo) const
 {
-    auto aggressivePreemptionAllowed = jobWithPreemptionInfo.OperationElement->GetEffectiveAggressivePreemptionAllowed();
-    switch (jobWithPreemptionInfo.PreemptionStatus) {
+    const auto& [job, preemptionStatus, operationElement] = jobWithPreemptionInfo;
+
+    bool isEligibleForSsdPriorityPreemption = SsdPriorityPreemptionEnabled_ &&
+        IsEligibleForSsdPriorityPreemption(GetDiskQuotaMedia(job->DiskQuota()));
+    auto aggressivePreemptionAllowed = operationElement->GetEffectiveAggressivePreemptionAllowed();
+    switch (preemptionStatus) {
         case EJobPreemptionStatus::NonPreemptable:
-            return EJobPreemptionLevel::NonPreemptable;
-        case EJobPreemptionStatus::AggressivelyPreemptable:
-            return aggressivePreemptionAllowed
-                ? EJobPreemptionLevel::AggressivelyPreemptable
+            return isEligibleForSsdPriorityPreemption
+                ? EJobPreemptionLevel::SsdNonPreemptable
                 : EJobPreemptionLevel::NonPreemptable;
+        case EJobPreemptionStatus::AggressivelyPreemptable:
+            if (aggressivePreemptionAllowed) {
+                return isEligibleForSsdPriorityPreemption
+                    ? EJobPreemptionLevel::SsdAggressivelyPreemptable
+                    : EJobPreemptionLevel::AggressivelyPreemptable;
+            } else {
+                return isEligibleForSsdPriorityPreemption
+                    ? EJobPreemptionLevel::SsdNonPreemptable
+                    : EJobPreemptionLevel::NonPreemptable;
+            }
         case EJobPreemptionStatus::Preemptable:
             return EJobPreemptionLevel::Preemptable;
         default:
@@ -339,6 +373,16 @@ void TScheduleJobsContext::LogStageStatistics()
         SchedulingContext_->GetNodeDescriptor().Address,
         SchedulingContext_->GetSchedulingSegment(),
         StageState_->MaxSchedulingIndex);
+}
+
+bool TScheduleJobsContext::IsEligibleForSsdPriorityPreemption(const THashSet<int>& diskRequestMedia) const
+{
+    for (const auto& medium : diskRequestMedia) {
+        if (SsdPriorityPreemptionMedia_.contains(medium)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2547,16 +2591,6 @@ std::optional<TString> TSchedulerOperationElement::GetCustomProfilingTag() const
     return tagName;
 }
 
-TJobResourcesWithQuotaList TSchedulerOperationElement::GetDetailedMinNeededJobResources() const
-{
-    return DetailedMinNeededJobResources_;
-}
-
-TJobResources TSchedulerOperationElement::GetAggregatedMinNeededJobResources() const
-{
-    return AggregatedMinNeededJobResources_;
-}
-
 void TSchedulerOperationElement::Disable(bool markAsNonAlive)
 {
     YT_LOG_DEBUG("Operation element disabled in strategy");
@@ -2770,6 +2804,12 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
         PersistentAttributes_.LastBestAllocationRatioUpdateTime = context->Now;
     }
 
+    for (const auto& jobResourcesWithQuota : DetailedMinNeededJobResources_) {
+        for (auto [index, _] : jobResourcesWithQuota.GetDiskQuota().DiskSpacePerMedium) {
+            DiskRequestMedia_.insert(index);
+        }
+    }
+
     TSchedulerElement::PreUpdateBottomUp(context);
 }
 
@@ -2977,11 +3017,16 @@ void TSchedulerOperationElement::CheckForDeactivation(
         auto deactivationReason = [&] {
             YT_VERIFY(targetOperationPreemptionPriority != EOperationPreemptionPriority::None);
 
+            // TODO(eshcherbin): Somehow get rid of these deactivation reasons.
             switch (targetOperationPreemptionPriority) {
                 case EOperationPreemptionPriority::Regular:
                     return EDeactivationReason::IsNotEligibleForPreemptiveScheduling;
+                case EOperationPreemptionPriority::SsdRegular:
+                    return EDeactivationReason::IsNotEligibleForSsdPreemptiveScheduling;
                 case EOperationPreemptionPriority::Aggressive:
                     return EDeactivationReason::IsNotEligibleForAggressivelyPreemptiveScheduling;
+                case EOperationPreemptionPriority::SsdAggressive:
+                    return EDeactivationReason::IsNotEligibleForSsdAggressivelyPreemptiveScheduling;
                 default:
                     YT_ABORT();
             }

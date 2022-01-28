@@ -97,6 +97,7 @@ struct TOperationControllerReviveResult
         EJobType JobType;
         TInstant StartTime;
         TJobResources ResourceLimits;
+        NScheduler::TDiskQuota DiskQuota;
         bool Interruptible;
         TString TreeId;
         NNodeTrackerClient::TNodeId NodeId;

@@ -16,18 +16,19 @@ using TTreeSnapshotId = TGuid;
 class TFairShareTreeSnapshot
     : public TRefCounted
 {
-    DEFINE_BYVAL_RO_PROPERTY(TTreeSnapshotId, Id)
+    DEFINE_BYVAL_RO_PROPERTY(TTreeSnapshotId, Id);
 
-    DEFINE_BYREF_RO_PROPERTY(TSchedulerRootElementPtr, RootElement)
-    DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, EnabledOperationMap)
-    DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, DisabledOperationMap)
-    DEFINE_BYREF_RO_PROPERTY(TNonOwningPoolElementMap, PoolMap)
-    DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyTreeConfigPtr, TreeConfig)
+    DEFINE_BYREF_RO_PROPERTY(TSchedulerRootElementPtr, RootElement);
+    DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, EnabledOperationMap);
+    DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, DisabledOperationMap);
+    DEFINE_BYREF_RO_PROPERTY(TNonOwningPoolElementMap, PoolMap);
+    DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyTreeConfigPtr, TreeConfig);
     DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyOperationControllerConfigPtr, ControllerConfig)
-    DEFINE_BYREF_RO_PROPERTY(TTreeSchedulingSegmentsState, SchedulingSegmentsState)
-    DEFINE_BYREF_RO_PROPERTY(TCachedJobPreemptionStatuses, CachedJobPreemptionStatuses)
-    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage)
-    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits)
+    DEFINE_BYREF_RO_PROPERTY(TTreeSchedulingSegmentsState, SchedulingSegmentsState);
+    DEFINE_BYREF_RO_PROPERTY(TCachedJobPreemptionStatuses, CachedJobPreemptionStatuses);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<int>, SsdPriorityPreemptionMedia);
 
 public:
     TFairShareTreeSnapshot(
@@ -41,7 +42,8 @@ public:
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         TTreeSchedulingSegmentsState schedulingSegmentsState,
         const TJobResources& resourceUsage,
-        const TJobResources& resourceLimits);
+        const TJobResources& resourceLimits,
+        THashSet<int> ssdPriorityPreemptionMedia);
 
     TSchedulerPoolElement* FindPool(const TString& poolName) const;
     TSchedulerOperationElement* FindEnabledOperationElement(TOperationId operationId) const;

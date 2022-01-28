@@ -173,6 +173,7 @@ void TSchedulingContextBase::StartJob(
         Node_,
         startTime,
         startDescriptor.ResourceLimits.ToJobResources(),
+        startDescriptor.ResourceLimits.GetDiskQuota(),
         startDescriptor.Interruptible,
         preemptionMode,
         treeId,

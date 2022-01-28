@@ -1800,6 +1800,18 @@ public:
         ProcessNodesWithoutPoolTreeAlert();
     }
 
+    std::optional<int> FindMediumIndexByName(const TString& mediumName) const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& mediumDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectory();
+        const auto* descriptor = mediumDirectory->FindByName(mediumName);
+        return descriptor ? std::make_optional(descriptor->Index) : std::nullopt;
+    };
+
     const ISchedulerStrategyPtr& GetStrategy() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
