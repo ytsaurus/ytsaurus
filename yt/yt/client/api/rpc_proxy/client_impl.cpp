@@ -449,6 +449,8 @@ TFuture<void> TClient::AlterTableReplica(
         req->set_atomicity(static_cast<NProto::EAtomicity>(*options.Atomicity));
     }
 
+    ToProto(req->mutable_mutating_options(), options);
+
     return req->Invoke().As<void>();
 }
 
@@ -591,13 +593,6 @@ TFuture<std::vector<TTabletActionId>> TClient::BalanceTabletCells(
     }));
 }
 
-TFuture<NChaosClient::TReplicationCardId> TClient::CreateReplicationCard(
-    NObjectClient::TCellId /*chaosCellId*/,
-    const TCreateReplicationCardOptions& /*options*/)
-{
-    YT_UNIMPLEMENTED();
-}
-
 TFuture<NChaosClient::TReplicationCardPtr> TClient::GetReplicationCard(
     NChaosClient::TReplicationCardId /*replicationCardId*/,
     const TGetReplicationCardOptions& /*options*/)
@@ -605,26 +600,9 @@ TFuture<NChaosClient::TReplicationCardPtr> TClient::GetReplicationCard(
     YT_UNIMPLEMENTED();
 }
 
-TFuture<void> TClient::RemoveReplicationCardReplica(
-    NChaosClient::TReplicationCardId /*replicationCardId*/,
+TFuture<void> TClient::UpdateChaosTableReplicaProgress(
     NChaosClient::TReplicaId /*replicaId*/,
-    const TRemoveReplicationCardReplicaOptions& /*options*/)
-{
-    YT_UNIMPLEMENTED();
-}
-
-TFuture<void> TClient::AlterReplicationCardReplica(
-    NChaosClient::TReplicationCardId /*replicationCardId*/,
-    NChaosClient::TReplicaId /*replicaId*/,
-    const TAlterReplicationCardReplicaOptions& /*options*/)
-{
-    YT_UNIMPLEMENTED();
-}
-
-TFuture<void> TClient::UpdateReplicationProgress(
-    NChaosClient::TReplicationCardId /*replicationCardId*/,
-    NChaosClient::TReplicaId /*replicaId*/,
-    const TUpdateReplicationProgressOptions& /*options*/)
+    const TUpdateChaosTableReplicaProgressOptions& /*options*/)
 {
     YT_UNIMPLEMENTED();
 }

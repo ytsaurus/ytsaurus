@@ -112,28 +112,13 @@ public:
         const std::vector<NYPath::TYPath>& movableTables,
         const NApi::TBalanceTabletCellsOptions& options) override;
 
-    TFuture<NChaosClient::TReplicationCardId> CreateReplicationCard(
-        NChaosClient::TReplicationCardId replicationCardId,
-        const TCreateReplicationCardOptions& options = {}) override;
-
     TFuture<NChaosClient::TReplicationCardPtr> GetReplicationCard(
         NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options = {}) override;
 
-    TFuture<void> RemoveReplicationCardReplica(
-        NChaosClient::TReplicationCardId replicationCardId,
+    TFuture<void> UpdateChaosTableReplicaProgress(
         NChaosClient::TReplicaId replicaId,
-        const TRemoveReplicationCardReplicaOptions& options = {}) override;
-
-    TFuture<void> AlterReplicationCardReplica(
-        NChaosClient::TReplicationCardId replicationCardId,
-        NChaosClient::TReplicaId replicaId,
-        const TAlterReplicationCardReplicaOptions& options = {}) override;
-
-    TFuture<void> UpdateReplicationProgress(
-        NChaosClient::TReplicationCardId replicationCardId,
-        NChaosClient::TReplicaId replicaId,
-        const TUpdateReplicationProgressOptions& options = {}) override;
+        const TUpdateChaosTableReplicaProgressOptions& options = {}) override;
 
     // Files
     TFuture<NApi::TGetFileFromCacheResult> GetFileFromCache(

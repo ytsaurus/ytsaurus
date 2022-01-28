@@ -94,7 +94,7 @@ public:
         RegisterMethod(BIND(&TChaosManager::HydraCreateTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraAlterTableReplica, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraUpdateReplicationProgress, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraUpdateTableReplicaProgress, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCommenceNewReplicationEra, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRspGrantShortcuts, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRspRevokeShortcuts, Unretained(this)));
@@ -146,7 +146,7 @@ public:
         mutation->CommitAndReply(context);
     }
 
-    void UpdateReplicationProgress(const TUpdateReplicationProgressContextPtr& context) override
+    void UpdateTableReplicaProgress(const TUpdateTableReplicaProgressContextPtr& context) override
     {
         auto mutation = CreateMutation(HydraManager_, context);
         mutation->SetAllowLeaderForwarding(true);
@@ -827,7 +827,7 @@ private:
             removedCells);
     }
 
-    void HydraUpdateReplicationProgress(NChaosClient::NProto::TReqUpdateReplicationProgress* request)
+    void HydraUpdateTableReplicaProgress(NChaosClient::NProto::TReqUpdateTableReplicaProgress* request)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<NTableClient::TTableId>(request->replica_id());

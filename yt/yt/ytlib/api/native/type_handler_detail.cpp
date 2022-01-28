@@ -124,7 +124,7 @@ std::optional<bool> TVirtualTypeHandler::NodeExists(
 
 std::optional<std::monostate> TVirtualTypeHandler::RemoveNode(
     const TYPath& path,
-    const TRemoveNodeOptions& /*options*/)
+    const TRemoveNodeOptions& options)
 {
     TObjectId objectId;
     TYPath pathSuffix;
@@ -138,7 +138,7 @@ std::optional<std::monostate> TVirtualTypeHandler::RemoveNode(
         THROW_ERROR_EXCEPTION("Can only remove object as a whole");
     }
 
-    DoRemoveObject(objectId);
+    DoRemoveObject(objectId, options);
 
     return std::monostate();
 }
@@ -159,7 +159,8 @@ std::optional<TYsonString> TVirtualTypeHandler::TryGetObjectYson(
     return GetObjectYson(objectId);
 }
 
-std::optional<TObjectId> TVirtualTypeHandler::DoCreateObject(const TCreateObjectOptions& /*options*/)
+std::optional<TObjectId> TVirtualTypeHandler::DoCreateObject(
+    const TCreateObjectOptions& /*options*/)
 {
     return {};
 }

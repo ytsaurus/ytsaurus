@@ -225,11 +225,10 @@ private:
     {
         auto client = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
 
-        auto options = TUpdateReplicationProgressOptions{
+        auto options = TUpdateChaosTableReplicaProgressOptions{
             .Progress = *Tablet_->RuntimeData()->ReplicationProgress.Load()
         };
-        auto future = client->UpdateReplicationProgress(
-            ReplicationCardId_,
+        auto future = client->UpdateChaosTableReplicaProgress(
             Tablet_->GetUpstreamReplicaId(),
             options);
         auto resultOrError = WaitFor(future);

@@ -215,29 +215,14 @@ public:
         const std::vector< NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options),
         (tabletCellBundle, movableTables, options))
-    IMPLEMENT_METHOD(NChaosClient::TReplicationCardId, CreateReplicationCard, (
-        NObjectClient::TCellId chaosCellId,
-        const TCreateReplicationCardOptions& options),
-        (chaosCellId, options))
     IMPLEMENT_METHOD(NChaosClient::TReplicationCardPtr, GetReplicationCard, (
         NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options = {}),
         (replicationCardId, options))
-    IMPLEMENT_METHOD(void, RemoveReplicationCardReplica, (
-        NChaosClient::TReplicationCardId replicationCardId,
+    IMPLEMENT_METHOD(void, UpdateChaosTableReplicaProgress, (
         NChaosClient::TReplicaId replicaId,
-        const TRemoveReplicationCardReplicaOptions& options = {}),
-        (replicationCardId, replicaId, options))
-    IMPLEMENT_METHOD(void, AlterReplicationCardReplica, (
-        NChaosClient::TReplicationCardId replicationCardId,
-        NChaosClient::TReplicaId replicaId,
-        const TAlterReplicationCardReplicaOptions& options = {}),
-        (replicationCardId, replicaId, options))
-    IMPLEMENT_METHOD(void, UpdateReplicationProgress, (
-        NChaosClient::TReplicationCardId replicationCardId,
-        NChaosClient::TReplicaId replicaId,
-        const TUpdateReplicationProgressOptions& options = {}),
-        (replicationCardId, replicaId, options))
+        const TUpdateChaosTableReplicaProgressOptions& options = {}),
+        (replicaId, options))
 
     IMPLEMENT_METHOD(NYson::TYsonString, GetNode, (
         const NYPath::TYPath& path,
@@ -839,24 +824,12 @@ private:
     // Chaos
     //
 
-    NChaosClient::TReplicationCardId DoCreateReplicationCard(
-        NObjectClient::TCellId chaosCellId,
-        const TCreateReplicationCardOptions& options);
     NChaosClient::TReplicationCardPtr DoGetReplicationCard(
         NChaosClient::TReplicationCardId replicationCardId,
         const TGetReplicationCardOptions& options);
-    void DoRemoveReplicationCardReplica(
-        NChaosClient::TReplicationCardId replicationCardId,
+    void DoUpdateChaosTableReplicaProgress(
         NChaosClient::TReplicaId replicaId,
-        const TRemoveReplicationCardReplicaOptions& options);
-    void DoAlterReplicationCardReplica(
-        NChaosClient::TReplicationCardId replicationCardId,
-        NChaosClient::TReplicaId replicaId,
-        const TAlterReplicationCardReplicaOptions& options);
-    void DoUpdateReplicationProgress(
-        NChaosClient::TReplicationCardId replicationCardId,
-        NChaosClient::TReplicaId replicaId,
-        const TUpdateReplicationProgressOptions& options);
+        const TUpdateChaosTableReplicaProgressOptions& options);
     NRpc::IChannelPtr WrapChaosChannel(NRpc::IChannelPtr channel);
     template <class TPrefetcher, class TFetcher>
     NRpc::IChannelPtr DoGetChaosChannel(

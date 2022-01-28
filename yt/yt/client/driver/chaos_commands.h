@@ -10,24 +10,11 @@ namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardCommandBase
-    : public virtual NYTree::TYsonSerializableLite
+class TUpdateChaosTableReplicaProgressCommand
+    : public TTypedCommand<NApi::TUpdateChaosTableReplicaProgressOptions>
 {
 public:
-    TReplicationCardCommandBase();
-
-protected:
-    NChaosClient::TReplicationCardId ReplicationCardId;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TUpdateReplicationProgressCommand
-    : public TTypedCommand<NApi::TUpdateReplicationProgressOptions>
-    , public TReplicationCardCommandBase
-{
-public:
-    TUpdateReplicationProgressCommand();
+    TUpdateChaosTableReplicaProgressCommand();
 
 private:
     NChaosClient::TReplicaId ReplicaId;
