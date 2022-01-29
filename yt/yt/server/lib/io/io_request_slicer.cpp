@@ -115,7 +115,7 @@ std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& 
     return results;
 }
 
-std::vector<TSlicedReadRequest> TDummyRequestSlicer::Slice(IIOEngine::TReadRequest request, TMutableRef buffer) const
+std::array<TSlicedReadRequest, 1> TDummyRequestSlicer::Slice(IIOEngine::TReadRequest request, TMutableRef buffer) const
 {
     return {
         TSlicedReadRequest{
@@ -125,12 +125,12 @@ std::vector<TSlicedReadRequest> TDummyRequestSlicer::Slice(IIOEngine::TReadReque
     };
 }
 
-std::vector<IIOEngine::TWriteRequest> TDummyRequestSlicer::Slice(IIOEngine::TWriteRequest request) const
+std::array<IIOEngine::TWriteRequest, 1> TDummyRequestSlicer::Slice(IIOEngine::TWriteRequest request) const
 {
     return {std::move(request)};
 }
 
-std::vector<IIOEngine::TFlushFileRangeRequest> TDummyRequestSlicer::Slice(IIOEngine::TFlushFileRangeRequest request) const
+std::array<IIOEngine::TFlushFileRangeRequest, 1> TDummyRequestSlicer::Slice(IIOEngine::TFlushFileRangeRequest request) const
 {
     return {std::move(request)};
 }
