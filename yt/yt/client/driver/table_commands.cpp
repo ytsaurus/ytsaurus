@@ -944,7 +944,9 @@ void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     tableInfo->ValidateDynamic();
-    tableInfo->ValidateReplicated();
+    if (!tableInfo->IsChaosReplica()) {
+        tableInfo->ValidateReplicated();
+    }
 
     TFuture<std::vector<NTabletClient::TTableReplicaId>> asyncReplicas;
     if (AllKeys) {

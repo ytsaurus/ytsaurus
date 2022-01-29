@@ -52,6 +52,7 @@ public:
         const NLogging::TLogger& logger);
     TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardCacheKey& key) override;
     TFuture<TReplicationCardPtr> DoGet(const TReplicationCardCacheKey& key, bool isPeriodicUpdate) noexcept override;
+    void ForceRefresh(const TReplicationCardCacheKey& key, const TReplicationCardPtr& replicationCard) override;
     void Clear() override;
 
     IChannelPtr GetChaosCacheChannel();
@@ -96,6 +97,9 @@ public:
         auto req = proxy.GetReplicationCard();
         ToProto(req->mutable_replication_card_id(), Key_.CardId);
         ToProto(req->mutable_fetch_options(), Key_.FetchOptions);
+        if (Key_.RefreshEra != InvalidReplicationEra) {
+            req->set_refresh_era(Key_.RefreshEra);
+        }
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
@@ -150,6 +154,11 @@ TFuture<TReplicationCardPtr> TReplicationCardCache::DoGet(const TReplicationCard
     return BIND(&TGetSession::Run, std::move(session))
         .AsyncVia(std::move(invoker))
         .Run();
+}
+
+void TReplicationCardCache::ForceRefresh(const TReplicationCardCacheKey& key, const TReplicationCardPtr& replicationCard)
+{
+    TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>::ForceRefresh(key, replicationCard);
 }
 
 void TReplicationCardCache::Clear()

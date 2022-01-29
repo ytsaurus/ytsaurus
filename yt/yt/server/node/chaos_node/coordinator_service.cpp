@@ -1,17 +1,16 @@
 #include "coordinator_service.h"
 
-#include "private.h"
 #include "bootstrap.h"
 #include "chaos_slot.h"
 #include "coordinator_manager.h"
+#include "private.h"
+#include "shortcut_snapshot_store.h"
 #include "transaction_manager.h"
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
 
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
-
-#include <yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h>
 
 namespace NYT::NChaosNode {
 
@@ -38,6 +37,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCardEra)
+            .SetInvoker(Slot_->GetSnapshotStoreReadPoolInvoker()));
     }
 
 private:
@@ -79,10 +80,36 @@ private:
             ->CommitAndReply(context);
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCardEra)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        context->SetRequestInfo("ReplicationCardId: %v",
+            replicationCardId);
+
+        ValidateLeader();
+
+        const auto& shortcutSnapshotStore = Slot_->GetShortcutSnapshotStore();
+        auto shortcut = shortcutSnapshotStore->GetShortcutOrThrow(replicationCardId);
+
+        response->set_replication_era(shortcut.Era);
+
+        context->SetResponseInfo("Era: %v",
+            shortcut.Era);
+        context->Reply();
+    }
 
     IHydraManagerPtr GetHydraManager() override
     {
         return Slot_->GetHydraManager();
+    }
+
+    void ValidateLeader()
+    {
+        if (!GetHydraManager()->IsActiveLeader()) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Not an active leader");
+        }
     }
 };
 

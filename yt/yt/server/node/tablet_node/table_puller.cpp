@@ -186,8 +186,12 @@ private:
             {
                 TEventTimerGuard timerGuard(counters.PullRowsTime);
 
-                auto foreignConnection = LocalConnection_->GetClusterDirectory()->FindConnection(clusterName);
-                auto foreignClient = foreignConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+                auto alienConnection = LocalConnection_->GetClusterDirectory()->FindConnection(clusterName);
+                if (!alienConnection) {
+                    THROW_ERROR_EXCEPTION("Queue replica cluster %Qv is not known", clusterName)
+                        << HardErrorAttribute;
+                }
+                auto alienClient = alienConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
 
                 TPullRowsOptions options;
                 options.TabletRowsPerRead = TabletRowsPerRead;
@@ -204,7 +208,7 @@ private:
                     options.StartReplicationRowIndexes,
                     upperTimestamp);
 
-                result = WaitFor(foreignClient->PullRows(replicaPath, options))
+                result = WaitFor(alienClient->PullRows(replicaPath, options))
                     .ValueOrThrow();
             }
 
@@ -278,11 +282,12 @@ private:
             counters.DataWeight.Increment(dataWeight);
         } catch (const std::exception& ex) {
             auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Pull);
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(error);
             YT_LOG_ERROR(error, "Error pulling rows, backing off");
-
+            if (tabletSnapshot) {
+                tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(error);
+            }
             if (error.Attributes().Get<bool>("hard", false)) {
                 DoHardBackoff(error);
             } else {

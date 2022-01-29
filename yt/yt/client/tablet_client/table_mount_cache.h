@@ -117,6 +117,7 @@ struct TTableMountInfo
     bool IsReplicated() const;
     bool IsReplicationLog() const;
     bool IsPhysicallyLog() const;
+    bool IsChaosReplica() const;
 
     TTabletInfoPtr GetTabletByIndexOrThrow(int tabletIndex) const;
     int GetTabletIndexForKey(TRange<NTableClient::TUnversionedValue> key) const;

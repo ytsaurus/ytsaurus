@@ -788,10 +788,11 @@ private:
             .MaxRowsPerRead = request->max_rows_per_read()
         };
 
-        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, ResponseCodec: %v, ReadSessionId: %v)",
+        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, UpperTimestamp: %llx, ResponseCodec: %v, ReadSessionId: %v)",
             tabletId,
             startReplicationRowIndex,
             progress,
+            upperTimestamp,
             responseCodecId,
             chunkReadOptions.ReadSessionId);
 
@@ -837,33 +838,47 @@ private:
                     Logger);
                 TWireProtocolWriter writer;
 
-                auto currentRowIndex = startReplicationRowIndex.value_or(logParser->ComputeStartRowIndex(
-                    tabletSnapshot,
-                    GetReplicationProgressMinTimestamp(progress),
-                    chunkReadOptions));
-
                 auto rowBuffer = New<TRowBuffer>();
-                i64 totalRowCount = 0;
+                i64 readRowCount = 0;
                 i64 responseRowCount = 0;
                 i64 responseDataWeight = 0;
                 auto maxTimestamp = MinTimestamp;
                 bool tooMuch = false;
+                std::optional<i64> endReplicationRowIndex;
 
-                ReadReplicationBatch(
-                    tabletSnapshot,
-                    chunkReadOptions,
-                    rowBatchReadOptions,
-                    progress,
-                    logParser,
-                    rowBuffer,
-                    currentRowIndex,
-                    upperTimestamp,
-                    &writer,
-                    &totalRowCount,
-                    &responseRowCount,
-                    &responseDataWeight,
-                    &maxTimestamp,
-                    &tooMuch);
+                auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
+                auto totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
+
+                YT_LOG_DEBUG("Reading replication log (TrimmedRowCount: %v, TotalRowCount: %v)",
+                    trimmedRowCount,
+                    totalRowCount);
+
+                if (totalRowCount > trimmedRowCount) {
+                    auto currentRowIndex = startReplicationRowIndex.value_or(logParser->ComputeStartRowIndex(
+                        tabletSnapshot,
+                        GetReplicationProgressMinTimestamp(progress),
+                        chunkReadOptions));
+
+                    ReadReplicationBatch(
+                        tabletSnapshot,
+                        chunkReadOptions,
+                        rowBatchReadOptions,
+                        progress,
+                        logParser,
+                        rowBuffer,
+                        &currentRowIndex,
+                        upperTimestamp,
+                        &writer,
+                        &readRowCount,
+                        &responseRowCount,
+                        &responseDataWeight,
+                        &maxTimestamp,
+                        &tooMuch);
+
+                    endReplicationRowIndex = currentRowIndex;
+                } else if (startReplicationRowIndex) {
+                    endReplicationRowIndex = startReplicationRowIndex;
+                }
 
                 YT_LOG_DEBUG("Read replication batch (LastTimestamp: %llx, ReadAllRows: %v, UpperTimestamp: %llx, ProgressMinTimestamp: %llx)",
                     maxTimestamp,
@@ -889,14 +904,16 @@ private:
                 auto counters = tabletSnapshot->TableProfiler->GetPullRowsCounters(GetCurrentProfilingUser());
                 counters->DataWeight.Increment(responseDataWeight);
                 counters->RowCount.Increment(responseRowCount);
-                counters->WastedRowCount.Increment(totalRowCount - responseRowCount);
+                counters->WastedRowCount.Increment(readRowCount - responseRowCount);
                 counters->ChunkReaderStatisticsCounters.Increment(
                     chunkReadOptions.ChunkReaderStatistics,
                     /*failed*/ false);
 
                 response->set_row_count(responseRowCount);
                 response->set_data_weight(responseDataWeight);
-                response->set_end_replication_row_index(currentRowIndex);
+                if (endReplicationRowIndex) {
+                    response->set_end_replication_row_index(*endReplicationRowIndex);
+                }
                 ToProto(response->mutable_end_replication_progress(), endProgress);
                 response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
 
@@ -904,7 +921,7 @@ private:
                     responseRowCount,
                     responseDataWeight,
                     totalRowCount,
-                    currentRowIndex,
+                    endReplicationRowIndex,
                     endProgress);
                 context->Reply();
             });
@@ -1544,7 +1561,7 @@ private:
         const TReplicationProgress& progress,
         const IReplicationLogParserPtr& logParser,
         const TRowBufferPtr& rowBuffer,
-        i64 currentRowIndex,
+        i64* currentRowIndex,
         TTimestamp upperTimestamp,
         TWireProtocolWriter* writer,
         i64* totalRowCount,
@@ -1556,7 +1573,7 @@ private:
         auto reader = CreateSchemafulRangeTabletReader(
             tabletSnapshot,
             TColumnFilter(),
-            MakeRowBound(currentRowIndex),
+            MakeRowBound(*currentRowIndex),
             MakeRowBound(std::numeric_limits<i64>::max()),
             /* timestampRange */ {},
             chunkReadOptions,
@@ -1576,7 +1593,7 @@ private:
 
             if (batch->IsEmpty()) {
                 YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
-                    currentRowIndex);
+                    *currentRowIndex);
 
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
@@ -1587,7 +1604,7 @@ private:
             auto readerRows = std::vector<TUnversionedRow>(range.begin(), range.end());
 
             for (const auto& replicationLogRow : readerRows) {
-                ++currentRowIndex;
+                ++*currentRowIndex;
 
                 TTypeErasedRow replicationRow;
                 NApi::ERowModificationType modificationType;

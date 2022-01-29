@@ -3,6 +3,7 @@
 #include "automaton.h"
 #include "chaos_slot.h"
 #include "private.h"
+#include "shortcut_snapshot_store.h"
 #include "transaction.h"
 #include "transaction_manager.h"
 
@@ -52,6 +53,7 @@ public:
             slot,
             bootstrap)
         , Config_(config)
+        , SnapshotStore_(slot->GetShortcutSnapshotStore())
         , OrchidService_(CreateOrchidService())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -172,6 +174,7 @@ private:
     };
 
     const TCoordinatorManagerConfigPtr Config_;
+    const IShortcutSnapshotStorePtr SnapshotStore_;
 
     using TShortcutMap = THashMap<NChaosClient::TReplicationCardId, TShortcut>;
     TShortcutMap Shortcuts_;
@@ -276,7 +279,7 @@ private:
                 YT_VERIFY(it->second.AliveTransactions.empty());
             }
 
-            Shortcuts_[replicationCardId] = TShortcut{chaosCellId, era, EShortcutState::Granted, {}};
+            InsertShortcut(replicationCardId, {chaosCellId, era, EShortcutState::Granted, {}});
             grantedShortcuts.emplace_back(replicationCardId, era);
 
             auto* rspShortcut = rsp.add_shortcuts();
@@ -325,10 +328,10 @@ private:
             revokedShortcuts.emplace_back(replicationCardId, shortcut.Era);
 
             if (!shortcut.AliveTransactions.empty()) {
-                 shortcut.State = EShortcutState::Revoking;
+                shortcut.State = EShortcutState::Revoking;
             } else {
-                 inactiveShortcuts.emplace_back(replicationCardId, shortcut.Era);
-                 Shortcuts_.erase(replicationCardId);
+                inactiveShortcuts.emplace_back(replicationCardId, shortcut.Era);
+                EraseShortcut(replicationCardId);
             }
         }
 
@@ -422,7 +425,7 @@ private:
             auto era = it->second.Era;
 
             SendRevokeShortcutsResponse(chaosCellId, {{replicationCardId, era}});
-            Shortcuts_.erase(it);
+            EraseShortcut(replicationCardId); 
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcut revoked (ReplicationCardId: %v, Era: %v)",
                 replicationCardId,
@@ -446,6 +449,18 @@ private:
         const auto& hiveManager = Slot_->GetHiveManager();
         auto* mailbox = hiveManager->GetMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
+    }
+
+    void InsertShortcut(TReplicationCardId replicationCardId, TShortcut shortcut)
+    {
+        Shortcuts_[replicationCardId] = shortcut;
+        SnapshotStore_->UpdateShortcut(replicationCardId, {shortcut.Era});
+    }
+
+    void EraseShortcut(TReplicationCardId replicationCardId)
+    {
+        Shortcuts_.erase(replicationCardId);
+        SnapshotStore_->RemoveShortcut(replicationCardId);
     }
 
 

@@ -11,6 +11,7 @@ struct TReplicationCardCacheKey
 {
     TReplicationCardId CardId;
     TReplicationCardFetchOptions FetchOptions;
+    TReplicationEra RefreshEra = InvalidReplicationEra;
 
     operator size_t() const;
     bool operator == (const TReplicationCardCacheKey& other) const = default;
@@ -25,6 +26,7 @@ struct IReplicationCardCache
     : public virtual TRefCounted
 {
     virtual TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardCacheKey& key) = 0;
+    virtual void ForceRefresh(const TReplicationCardCacheKey& key, const TReplicationCardPtr& replicationCard) = 0;
     virtual void Clear() = 0;
 };
 

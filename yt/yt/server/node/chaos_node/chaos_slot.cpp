@@ -166,6 +166,20 @@ public:
         return CoordinatorManager_;
     }
 
+    const IShortcutSnapshotStorePtr& GetShortcutSnapshotStore() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetShortcutSnapshotStore();
+    }
+
+    const IInvokerPtr& GetSnapshotStoreReadPoolInvoker() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetSnapshotStoreReadPoolInvoker();
+    }
+
     TObjectId GenerateId(EObjectType type) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

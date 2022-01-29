@@ -43,6 +43,11 @@ bool TTableMountInfo::IsPhysicallyLog() const
     return IsReplicated() || IsReplicationLog();
 }
 
+bool TTableMountInfo::IsChaosReplica() const
+{
+    return TypeFromId(UpstreamReplicaId) == EObjectType::ChaosTableReplica;
+}
+
 TTabletInfoPtr TTableMountInfo::GetTabletByIndexOrThrow(int tabletIndex) const
 {
     if (tabletIndex < 0 || tabletIndex >= std::ssize(Tablets)) {

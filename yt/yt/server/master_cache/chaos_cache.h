@@ -78,7 +78,8 @@ public:
         NRpc::TRequestId requestId,
         const TChaosCacheKey& key,
         TDuration successExpirationTime,
-        TDuration failureExpirationTime);
+        TDuration failureExpirationTime,
+        NChaosClient::TReplicationEra refreshEra);
 
     void EndLookup(
         NRpc::TRequestId requestId,

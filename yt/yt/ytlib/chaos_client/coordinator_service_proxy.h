@@ -1,5 +1,6 @@
 #pragma once
 
+#include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 #include <yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
@@ -18,6 +19,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, SuspendCoordinator);
     DEFINE_RPC_PROXY_METHOD(NProto, ResumeCoordinator);
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterTransactionActions);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetReplicationCardEra);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

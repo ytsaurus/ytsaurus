@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "slot_manager.h"
+#include "shortcut_snapshot_store.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -32,6 +33,10 @@ public:
 
     void Initialize() override
     {
+        SnapshotStoreReadPool_ = New<TThreadPool>(
+            GetConfig()->ChaosNode->SnapshotStoreReadPoolSize,
+            "ShortcutRead");
+
         SlotManager_ = CreateSlotManager(GetConfig()->ChaosNode, this);
         SlotManager_->Initialize();
     }
@@ -49,9 +54,21 @@ public:
         return GetCellarNodeBootstrap()->GetCellarManager();
     }
 
+    const IShortcutSnapshotStorePtr& GetShortcutSnapshotStore() const override
+    {
+        return ShortcutSnapshotStore_;
+    }
+
+    const IInvokerPtr& GetSnapshotStoreReadPoolInvoker() const override
+    {
+        return SnapshotStoreReadPool_->GetInvoker();
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
-
+    const IShortcutSnapshotStorePtr ShortcutSnapshotStore_ = CreateShortcutSnapshotStore();
+ 
+    TThreadPoolPtr SnapshotStoreReadPool_;
     ISlotManagerPtr SlotManager_;
 
     NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override

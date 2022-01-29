@@ -594,6 +594,7 @@ b"""
             };
             era_commencing_period = 100;
         };
+        snapshot_store_read_pool_size = 1;
     };
 
     cellar_node = {
