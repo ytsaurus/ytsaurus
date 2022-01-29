@@ -1756,7 +1756,6 @@ void TNodeShard::ProcessHeartbeatJobs(
         YT_LOG_DEBUG("Requesting node to include stored jobs in the next heartbeat (NodeId: %v, NodeAddress: %v)",
             nodeId,
             nodeAddress);
-        ToProto(response->mutable_old_jobs_to_confirm(), node->UnconfirmedJobIds());
         // If it is a first time we get the heartbeat from a given node,
         // there will definitely be some jobs that are missing. No need to abort
         // them.

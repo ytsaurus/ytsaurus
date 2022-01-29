@@ -1360,11 +1360,6 @@ void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbe
             for (const auto& protoJobToAbort : response->jobs_to_abort()) {
                 doAbortJob(FromProto<TJobToAbort>(protoJobToAbort));
             }
-        } else {
-            // COMPAT(eshcherbin)
-            for (const auto& protoJobId : response->old_jobs_to_abort()) {
-                doAbortJob({FromProto<TJobId>(protoJobId)});
-            }
         }
     }
 

@@ -36,7 +36,6 @@ void FromProto(NJobTrackerClient::TJobToAbort* jobToAbort, const NProto::TJobToA
 
 void AddJobToAbort(NProto::TRspHeartbeat* response, const TJobToAbort& jobToAbort)
 {
-    ToProto(response->add_old_jobs_to_abort(), jobToAbort.JobId);
     ToProto(response->add_jobs_to_abort(), jobToAbort);
 }
 
