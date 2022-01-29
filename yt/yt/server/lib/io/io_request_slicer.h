@@ -2,6 +2,7 @@
 
 #include "io_engine.h"
 
+#include <array>
 #include <vector>
 
 namespace NYT::NIO {
@@ -41,9 +42,9 @@ public:
     TDummyRequestSlicer(i64 /*desiredBlockSize*/, i64 /*minBlockSize*/)
     { }
 
-    std::vector<TSlicedReadRequest> Slice(IIOEngine::TReadRequest request, TMutableRef buffer) const;
-    std::vector<IIOEngine::TWriteRequest> Slice(IIOEngine::TWriteRequest request) const;
-    std::vector<IIOEngine::TFlushFileRangeRequest> Slice(IIOEngine::TFlushFileRangeRequest request) const;
+    std::array<TSlicedReadRequest, 1> Slice(IIOEngine::TReadRequest request, TMutableRef buffer) const;
+    std::array<IIOEngine::TWriteRequest, 1> Slice(IIOEngine::TWriteRequest request) const;
+    std::array<IIOEngine::TFlushFileRangeRequest, 1> Slice(IIOEngine::TFlushFileRangeRequest request) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
