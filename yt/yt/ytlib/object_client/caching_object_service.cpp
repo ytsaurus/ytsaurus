@@ -185,6 +185,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
             subrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
 
+            req->set_supports_portals(true);
             req->add_part_counts(subrequestMessage.Size());
             req->Attachments().insert(
                 req->Attachments().end(),
