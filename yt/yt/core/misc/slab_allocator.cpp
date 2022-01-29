@@ -221,22 +221,28 @@ public:
 
     void* Allocate(size_t size)
     {
-        auto allocatedSize = nallocx(size, 0);
+        auto allocatedSize = size + sizeof(TSizeHeader);
         if (!TryAcquireMemory(allocatedSize)) {
             return nullptr;
         }
+
         auto itemCount = ++RefCount_;
-        auto ptr = malloc(size);
-        YT_VERIFY(malloc_usable_size(ptr) == allocatedSize);
+        auto ptr = malloc(allocatedSize);
+
+        auto header = reinterpret_cast<TSizeHeader*>(ptr);
+        header->Size = allocatedSize;
+
         AllocatedItems.Increment();
         AliveItems.Update(itemCount);
 
-        return ptr;
+        return reinterpret_cast<void*>(reinterpret_cast<char*>(ptr) + sizeof(TSizeHeader));
     }
 
     void Free(void* ptr)
     {
-        auto allocatedSize = malloc_usable_size(ptr);
+        ptr = reinterpret_cast<void*>(reinterpret_cast<char*>(ptr) - sizeof(TSizeHeader));
+
+        auto allocatedSize = reinterpret_cast<TSizeHeader*>(ptr)->Size;
         ReleaseMemory(allocatedSize);
         free(ptr);
         FreedItems.Increment();
@@ -302,6 +308,12 @@ public:
     }
 
 private:
+    struct TSizeHeader
+    {
+        i64 Size;
+        i64 Dummy;
+    };
+
     const IMemoryUsageTrackerPtr MemoryTracker_;
     // One ref from allocator plus refs from allocated objects.
     std::atomic<size_t> RefCount_ = 1;
