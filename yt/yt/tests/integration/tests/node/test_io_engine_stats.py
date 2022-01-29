@@ -5,6 +5,7 @@ from yt_helpers import profiler_factory
 import re
 import pytest
 import platform
+import os.path
 
 from yt_commands import (authors, wait, read_table, ls, create, write_table, set)
 
@@ -78,8 +79,15 @@ def is_uring_supported():
         return supported
 
 
+def is_uring_disabled():
+    proc_file = "/proc/sys/kernel/io_uring_perm"
+    if not os.path.exists(proc_file):
+        return False
+    with open(proc_file, "r") as myfile:
+        return myfile.read() == '0'
+
+
 @authors("capone212")
-@pytest.mark.skip("YT-15905 io_uring is broken in CI")
-@pytest.mark.skipif(not is_uring_supported(), reason="io_uring is not supported on this platform.")
+@pytest.mark.skipif(not is_uring_supported() or is_uring_disabled(), reason="io_uring is not available on this host")
 class TestIoEngineUringStats(TestIoEngineThreadPoolStats):
     NODE_IO_ENGINE_TYPE = "uring"
