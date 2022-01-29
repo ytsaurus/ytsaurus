@@ -2974,8 +2974,8 @@ TReplicationCardPtr TClient::GetSyncReplicationCard(const TTableMountInfoPtr& ta
     const auto& mountCacheConfig = Connection_->GetConfig()->TableMountCache;
     auto fetchOptions = TReplicationCardFetchOptions{
         .IncludeCoordinators = true,
+        .IncludeProgress = true,
         .IncludeHistory = true,
-        .IncludeProgress = true
     };
     const auto& replicationCardCache = GetReplicationCardCache();
     TReplicationCardPtr replicationCard;
