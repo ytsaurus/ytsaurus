@@ -155,6 +155,7 @@ public:
 
     IMapNodePtr GetUnrecognized() const;
     IMapNodePtr GetUnrecognizedRecursively() const;
+    IMapNodePtr GetRecursiveUnrecognized() const;
 
     void SetUnrecognizedStrategy(EUnrecognizedStrategy strategy);
 

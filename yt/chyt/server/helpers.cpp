@@ -321,7 +321,7 @@ TQuerySettingsPtr ParseCustomSettings(
     YT_LOG_DEBUG(
         "Custom settings parsed (Settings: %v, Unrecognized: %v)",
         ConvertToYsonString(result, EYsonFormat::Text),
-        ConvertToYsonString(result->GetUnrecognizedRecursively(), EYsonFormat::Text));
+        ConvertToYsonString(result->GetRecursiveUnrecognized(), EYsonFormat::Text));
 
     return result;
 }

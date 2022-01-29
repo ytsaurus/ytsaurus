@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NScheduler {
 
@@ -14,7 +14,7 @@ namespace NYT::NScheduler {
 //! to override some user-provided values (similar to TYsonSerializable preprocessors
 //! and postprocessor).
 struct TExperimentEffectConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     //! Spec template patch applied in scheduler.
     NYTree::INodePtr SchedulerSpecTemplatePatch;
@@ -34,7 +34,9 @@ struct TExperimentEffectConfig
     //! If set, only controller agents with this tag may be assigned to operations of this group.
     std::optional<TString> ControllerAgentTag;
 
-    TExperimentEffectConfig();
+    REGISTER_YSON_STRUCT(TExperimentEffectConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExperimentEffectConfig)
@@ -48,7 +50,9 @@ struct TExperimentGroupConfig
     //! Fraction of all operations assigned to enclosing experiment that will be assigned to this group.
     double Fraction;
 
-    TExperimentGroupConfig();
+    REGISTER_YSON_STRUCT(TExperimentGroupConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExperimentGroupConfig)
@@ -57,7 +61,7 @@ DEFINE_REFCOUNTED_TYPE(TExperimentGroupConfig)
 
 //! Specification of a single experiment.
 struct TExperimentConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     //! Ticket containing details about this experiment (required, non-empty).
     TString Ticket;
@@ -84,7 +88,9 @@ struct TExperimentConfig
     //! will be automatically generated with remaining fraction and empty spec patches and controller agent tag.
     TExperimentGroupConfigPtr AbTreatmentGroup = nullptr;
 
-    TExperimentConfig();
+    REGISTER_YSON_STRUCT(TExperimentConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExperimentConfig)
@@ -93,7 +99,7 @@ DEFINE_REFCOUNTED_TYPE(TExperimentConfig)
 
 //! Finalized specification of an assignment to a particular experiment including group assigment.
 struct TExperimentAssignment
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     //! Experiment name.
     TString Experiment;
@@ -111,9 +117,10 @@ struct TExperimentAssignment
     //! Effect provided by the chosen experiment and group.
     TExperimentEffectConfigPtr Effect;
 
-    TExperimentAssignment();
+    //! Returns experiment assignment name of form "<experiment>.<group>".
+    TString GetName() const;
 
-    TExperimentAssignment(
+    void SetFields(
         TString experiment,
         TString group,
         TString ticket,
@@ -122,8 +129,9 @@ struct TExperimentAssignment
         double groupUniformSample,
         TExperimentEffectConfigPtr effect);
 
-    //! Returns experiment assignment name of form "<experiment>.<group>".
-    TString GetName() const;
+    REGISTER_YSON_STRUCT(TExperimentAssignment);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExperimentAssignment)

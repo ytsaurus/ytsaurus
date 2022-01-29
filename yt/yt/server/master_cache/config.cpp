@@ -12,21 +12,21 @@ namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterCacheConfig::TMasterCacheConfig()
+void TMasterCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
-    RegisterParameter("bus_client", BusClient)
+    registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
 
-    RegisterParameter("cluster_connection", ClusterConnection)
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
         .DefaultNew();
 
-    RegisterParameter("caching_object_service", CachingObjectService)
+    registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .DefaultNew();
 
-    RegisterParameter("chaos_cache", ChaosCache)
+    registrar.Parameter("chaos_cache", &TThis::ChaosCache)
         .DefaultNew();
 }
 

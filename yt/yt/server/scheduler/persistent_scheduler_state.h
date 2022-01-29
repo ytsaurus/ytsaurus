@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
+#include "yt/yt/core/ytree/yson_struct.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 #include <yt/yt/library/vector_hdrf/resource_volume.h>
@@ -13,12 +14,14 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPersistentPoolState
-    : public NYTree::TYsonSerializable  // TODO(renadeen): Try to make it lite.
+    : public NYTree::TYsonStruct  // TODO(renadeen): Try to make it lite.
 {
 public:
     TResourceVolume AccumulatedResourceVolume;
 
-    TPersistentPoolState();
+    REGISTER_YSON_STRUCT(TPersistentPoolState);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPersistentPoolState)
@@ -29,12 +32,14 @@ void FormatValue(TStringBuilderBase* builder, const TPersistentPoolStatePtr& sta
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPersistentTreeState
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     THashMap<TString, TPersistentPoolStatePtr> PoolStates;
 
-    TPersistentTreeState();
+    REGISTER_YSON_STRUCT(TPersistentTreeState);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPersistentTreeState)
@@ -42,12 +47,14 @@ DEFINE_REFCOUNTED_TYPE(TPersistentTreeState)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPersistentStrategyState
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     THashMap<TString, TPersistentTreeStatePtr> TreeStates;
 
-    TPersistentStrategyState();
+    REGISTER_YSON_STRUCT(TPersistentStrategyState);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPersistentStrategyState)
@@ -72,12 +79,14 @@ using TPersistentNodeSchedulingSegmentStateMap = THashMap<NNodeTrackerClient::TN
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPersistentSchedulingSegmentsState
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TPersistentNodeSchedulingSegmentStateMap NodeStates;
 
-    TPersistentSchedulingSegmentsState();
+    REGISTER_YSON_STRUCT(TPersistentSchedulingSegmentsState);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPersistentSchedulingSegmentsState)

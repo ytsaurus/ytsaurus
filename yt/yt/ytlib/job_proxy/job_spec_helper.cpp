@@ -1,5 +1,7 @@
 #include "job_spec_helper.h"
 
+#include "config.h"
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/data_source.pb.h>

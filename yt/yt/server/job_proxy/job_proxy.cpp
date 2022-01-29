@@ -25,6 +25,7 @@
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 
+#include <yt/yt/ytlib/job_proxy/config.h>
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>

@@ -9,7 +9,7 @@ namespace NYT::NTimestampProvider {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampProviderConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -18,7 +18,9 @@ public:
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 
-    TTimestampProviderConfig();
+    REGISTER_YSON_STRUCT(TTimestampProviderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTimestampProviderConfig)

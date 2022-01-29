@@ -13,6 +13,7 @@
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/client/security_client/acl.h>
 
@@ -632,7 +633,7 @@ public:
     IYPathServicePtr GetOrchidService() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        
+
         auto dynamicOrchidService = New<TCompositeMapService>();
         dynamicOrchidService->AddChild("pool_trees", New<TPoolTreeService>(this));
         return dynamicOrchidService;

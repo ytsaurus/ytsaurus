@@ -26,6 +26,11 @@ IMapNodePtr TYsonSerializableLite::GetUnrecognized() const
     return Unrecognized;
 }
 
+IMapNodePtr TYsonSerializableLite::GetRecursiveUnrecognized() const
+{
+    return GetUnrecognizedRecursively();
+}
+
 IMapNodePtr TYsonSerializableLite::GetUnrecognizedRecursively() const
 {
     // Take a copy of `Unrecognized` and add parameter->GetUnrecognizedRecursively()

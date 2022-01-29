@@ -1079,7 +1079,7 @@ private:
 
     void DoValidateConfig()
     {
-        auto unrecognized = Config_->GetUnrecognizedRecursively();
+        auto unrecognized = Config_->GetRecursiveUnrecognized();
         if (unrecognized && unrecognized->GetChildCount() > 0) {
             if (Config_->EnableUnrecognizedOptionsAlert) {
                 UnrecognizedOptionsAlert_ = TError(

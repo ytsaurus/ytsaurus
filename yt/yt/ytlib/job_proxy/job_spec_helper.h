@@ -9,8 +9,6 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/yt/server/lib/job_proxy/config.h>
-
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////

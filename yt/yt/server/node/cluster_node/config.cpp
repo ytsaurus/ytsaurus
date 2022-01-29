@@ -4,19 +4,19 @@ namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryLimit::TMemoryLimit()
+void TMemoryLimit::Register(TRegistrar registrar)
 {
-    RegisterParameter("type", Type)
+    registrar.Parameter("type", &TThis::Type)
         .Default();
 
-    RegisterParameter("value", Value)
+    registrar.Parameter("value", &TThis::Value)
         .Default();
 
-    RegisterPostprocessor([&] {
-        if (Type == NNodeTrackerClient::EMemoryLimitType::Static && !Value) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->Type == NNodeTrackerClient::EMemoryLimitType::Static && !config->Value) {
             THROW_ERROR_EXCEPTION("Value should be set for static memory limits");
         }
-        if (Type != NNodeTrackerClient::EMemoryLimitType::Static && Value) {
+        if (config->Type != NNodeTrackerClient::EMemoryLimitType::Static && config->Value) {
             THROW_ERROR_EXCEPTION("Value can be set only for static memory limits");
         }
     });
@@ -31,68 +31,68 @@ void TMemoryLimit::Validate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceLimitsConfig::TResourceLimitsConfig()
+void TResourceLimitsConfig::Register(TRegistrar registrar)
 {
     // Very low default, override for production use.
     // COMPAT(gritukan)
-    RegisterParameter("total_memory", TotalMemory)
+    registrar.Parameter("total_memory", &TThis::TotalMemory)
         .Alias("memory")
         .GreaterThanOrEqual(0)
         .Default(5_GB);
 
-    RegisterParameter("user_jobs", UserJobs)
+    registrar.Parameter("user_jobs", &TThis::UserJobs)
         .Default();
-    RegisterParameter("tablet_static", TabletStatic)
+    registrar.Parameter("tablet_static", &TThis::TabletStatic)
         .Default();
-    RegisterParameter("tablet_dynamic", TabletDynamic)
-        .Default();
-
-    RegisterParameter("memory_limits", MemoryLimits)
+    registrar.Parameter("tablet_dynamic", &TThis::TabletDynamic)
         .Default();
 
-    RegisterParameter("free_memory_watermark", FreeMemoryWatermark)
+    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .Default();
 
-    RegisterParameter("total_cpu", TotalCpu)
+    registrar.Parameter("free_memory_watermark", &TThis::FreeMemoryWatermark)
         .Default();
 
-    RegisterParameter("node_dedicated_cpu", NodeDedicatedCpu)
+    registrar.Parameter("total_cpu", &TThis::TotalCpu)
         .Default();
 
-    RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
+    registrar.Parameter("node_dedicated_cpu", &TThis::NodeDedicatedCpu)
         .Default();
 
-    RegisterParameter("node_cpu_weight", NodeCpuWeight)
+    registrar.Parameter("cpu_per_tablet_slot", &TThis::CpuPerTabletSlot)
+        .Default();
+
+    registrar.Parameter("node_cpu_weight", &TThis::NodeCpuWeight)
         .GreaterThanOrEqual(0.01)
         .LessThanOrEqual(100)
         .Default(10);
 
-    RegisterParameter("memory_accounting_tolerance", MemoryAccountingTolerance)
+    registrar.Parameter("memory_accounting_tolerance", &TThis::MemoryAccountingTolerance)
         .GreaterThan(0)
         .LessThanOrEqual(1_GB)
         .Default(1_MB);
 
-    RegisterParameter("memory_accounting_gap", MemoryAccountingGap)
+    registrar.Parameter("memory_accounting_gap", &TThis::MemoryAccountingGap)
         .GreaterThan(0)
         .Default(512_MB);
 
-    RegisterPreprocessor([&] {
+    registrar.Preprocessor([] (TThis* config) {
         // Default LookupRowsCache memory limit.
         auto lookupRowsCacheLimit = New<TMemoryLimit>();
         lookupRowsCacheLimit->Type = NNodeTrackerClient::EMemoryLimitType::Static;
         lookupRowsCacheLimit->Value = 0;
-        MemoryLimits[NNodeTrackerClient::EMemoryCategory::LookupRowsCache] = lookupRowsCacheLimit;
+        config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::LookupRowsCache] = lookupRowsCacheLimit;
     });
 
-    RegisterPostprocessor([&] {
-        if (UserJobs) {
-            MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs] = UserJobs;
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->UserJobs) {
+            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs] = config->UserJobs;
         }
-        if (TabletStatic) {
-            MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic] = TabletStatic;
+        if (config->TabletStatic) {
+            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic] = config->TabletStatic;
         }
-        if (TabletDynamic) {
-            MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic] = TabletDynamic;
+        if (config->TabletDynamic) {
+            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic] = config->TabletDynamic;
         }
     });
 }
@@ -115,80 +115,80 @@ void TResourceLimitsConfig::Validate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceLimitsDynamicConfig::TResourceLimitsDynamicConfig()
+void TResourceLimitsDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("user_jobs", UserJobs)
+    registrar.Parameter("user_jobs", &TThis::UserJobs)
         .Default();
-    RegisterParameter("tablet_static", TabletStatic)
+    registrar.Parameter("tablet_static", &TThis::TabletStatic)
         .Default();
-    RegisterParameter("tablet_dynamic", TabletDynamic)
-        .Default();
-
-    RegisterParameter("memory_limits", MemoryLimits)
-        .Default();
-    RegisterParameter("free_memory_watermark", FreeMemoryWatermark)
-        .Default();
-    RegisterParameter("node_dedicated_cpu", NodeDedicatedCpu)
-        .Default();
-    RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
+    registrar.Parameter("tablet_dynamic", &TThis::TabletDynamic)
         .Default();
 
-    RegisterParameter("total_cpu", TotalCpu)
+    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
+        .Default();
+    registrar.Parameter("free_memory_watermark", &TThis::FreeMemoryWatermark)
+        .Default();
+    registrar.Parameter("node_dedicated_cpu", &TThis::NodeDedicatedCpu)
+        .Default();
+    registrar.Parameter("cpu_per_tablet_slot", &TThis::CpuPerTabletSlot)
+        .Default();
+
+    registrar.Parameter("total_cpu", &TThis::TotalCpu)
         .Default(0);
 
-    RegisterParameter("use_instance_limits_tracker", UseInstanceLimitsTracker)
+    registrar.Parameter("use_instance_limits_tracker", &TThis::UseInstanceLimitsTracker)
         .Default(true);
 
-    RegisterPostprocessor([&] {
-        if (UserJobs) {
-            MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs] = UserJobs;
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->UserJobs) {
+            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs] = config->UserJobs;
         }
-        if (TabletStatic) {
-            MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic] = TabletStatic;
+        if (config->TabletStatic) {
+            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic] = config->TabletStatic;
         }
-        if (TabletDynamic) {
-            MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic] = TabletDynamic;
+        if (config->TabletDynamic) {
+            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic] = config->TabletDynamic;
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnectorDynamicConfig::TMasterConnectorDynamicConfig()
+void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
+    registrar.Parameter("incremental_heartbeat_period", &TThis::IncrementalHeartbeatPeriod)
         .Default();
-    RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
+    registrar.Parameter("incremental_heartbeat_period_splay", &TThis::IncrementalHeartbeatPeriodSplay)
         .Default();
-    RegisterParameter("heartbeat_period", HeartbeatPeriod)
+    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
         .Default();
-    RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
+    registrar.Parameter("heartbeat_period_splay", &TThis::HeartbeatPeriodSplay)
         .Default();
-    RegisterParameter("use_host_objects", UseHostObjects)
+    registrar.Parameter("use_host_objects", &TThis::UseHostObjects)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBatchingChunkServiceConfig::TBatchingChunkServiceConfig()
+void TBatchingChunkServiceConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_batch_delay", MaxBatchDelay)
+    registrar.Parameter("max_batch_delay", &TThis::MaxBatchDelay)
         .Default(TDuration::Zero());
-    RegisterParameter("max_batch_cost", MaxBatchCost)
+    registrar.Parameter("max_batch_cost", &TThis::MaxBatchCost)
         .Default(1000);
-    RegisterParameter("cost_throttler", CostThrottler)
+    registrar.Parameter("cost_throttler", &TThis::CostThrottler)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicConfigManagerConfig::TDynamicConfigManagerConfig()
+void TDynamicConfigManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enabled", Enabled)
+    registrar.Parameter("enabled", &TThis::Enabled)
         .Default(true);
-    RegisterParameter("update_period", UpdatePeriod)
+    registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("enable_unrecognized_options_alert", EnableUnrecognizedOptionsAlert)
+    registrar.Parameter("enable_unrecognized_options_alert", &TThis::EnableUnrecognizedOptionsAlert)
         .Default(false);
 }
 
@@ -206,189 +206,189 @@ TClusterNodeConnectionConfig::TClusterNodeConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnectorConfig::TMasterConnectorConfig()
+void TMasterConnectorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("lease_trascation_timeout", LeaseTransactionTimeout)
+    registrar.Parameter("lease_trascation_timeout", &TThis::LeaseTransactionTimeout)
         .Default();
-    RegisterParameter("lease_transaction_ping_period", LeaseTransactionPingPeriod)
-        .Default();
-
-    RegisterParameter("register_retry_period", RegisterRetryPeriod)
-        .Default();
-    RegisterParameter("register_retry_splay", RegisterRetrySplay)
-        .Default();
-    RegisterParameter("register_timeout", RegisterTimeout)
+    registrar.Parameter("lease_transaction_ping_period", &TThis::LeaseTransactionPingPeriod)
         .Default();
 
-    RegisterParameter("heartbeat_period", HeartbeatPeriod)
+    registrar.Parameter("register_retry_period", &TThis::RegisterRetryPeriod)
+        .Default();
+    registrar.Parameter("register_retry_splay", &TThis::RegisterRetrySplay)
+        .Default();
+    registrar.Parameter("register_timeout", &TThis::RegisterTimeout)
+        .Default();
+
+    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
+    registrar.Parameter("heartbeat_period_splay", &TThis::HeartbeatPeriodSplay)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("sync_directories_on_connect", SyncDirectoriesOnConnect)
+    registrar.Parameter("sync_directories_on_connect", &TThis::SyncDirectoriesOnConnect)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterNodeConfig::TClusterNodeConfig()
+void TClusterNodeConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
+    registrar.Parameter("orchid_cache_update_period", &TThis::OrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("cluster_connection", ClusterConnection);
-    RegisterParameter("data_node", DataNode)
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
+    registrar.Parameter("data_node", &TThis::DataNode)
         .DefaultNew();
-    RegisterParameter("exec_node", ExecNode)
+    registrar.Parameter("exec_node", &TThis::ExecNode)
         .Alias("exec_agent")
         .DefaultNew();
-    RegisterParameter("cellar_node", CellarNode)
+    registrar.Parameter("cellar_node", &TThis::CellarNode)
         .DefaultNew();
-    RegisterParameter("tablet_node", TabletNode)
+    registrar.Parameter("tablet_node", &TThis::TabletNode)
         .DefaultNew();
-    RegisterParameter("query_agent", QueryAgent)
+    registrar.Parameter("query_agent", &TThis::QueryAgent)
         .DefaultNew();
-    RegisterParameter("chaos_node", ChaosNode)
+    registrar.Parameter("chaos_node", &TThis::ChaosNode)
         .DefaultNew();
-    RegisterParameter("caching_object_service", CachingObjectService)
+    registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .Alias("master_cache_service")
         .DefaultNew();
-    RegisterParameter("batching_chunk_service", BatchingChunkService)
+    registrar.Parameter("batching_chunk_service", &TThis::BatchingChunkService)
         .DefaultNew();
-    RegisterParameter("timestamp_provider", TimestampProvider)
+    registrar.Parameter("timestamp_provider", &TThis::TimestampProvider)
         .Default();
-    RegisterParameter("addresses", Addresses)
+    registrar.Parameter("addresses", &TThis::Addresses)
         .Default();
-    RegisterParameter("tags", Tags)
+    registrar.Parameter("tags", &TThis::Tags)
         .Default();
-    RegisterParameter("host_name", HostName)
+    registrar.Parameter("host_name", &TThis::HostName)
         .Default();
-    RegisterParameter("resource_limits", ResourceLimits)
+    registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
-    RegisterParameter("job_throttler", JobThrottler)
+    registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultNew();
 
-    RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
+    registrar.Parameter("resource_limits_update_period", &TThis::ResourceLimitsUpdatePeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("instance_limits_update_period", InstanceLimitsUpdatePeriod)
+    registrar.Parameter("instance_limits_update_period", &TThis::InstanceLimitsUpdatePeriod)
         .Default();
 
-    RegisterParameter("skynet_http_port", SkynetHttpPort)
+    registrar.Parameter("skynet_http_port", &TThis::SkynetHttpPort)
         .Default(10080);
 
-    RegisterParameter("cypress_annotations", CypressAnnotations)
+    registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(NYTree::BuildYsonNodeFluently()
             .BeginMap()
             .EndMap()
         ->AsMap());
 
-    RegisterParameter("enable_unrecognized_options_alert", EnableUnrecognizedOptionsAlert)
+    registrar.Parameter("enable_unrecognized_options_alert", &TThis::EnableUnrecognizedOptionsAlert)
         .Default(false);
 
-    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
-    RegisterParameter("dynamic_config_manager", DynamicConfigManager)
+    registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
 
-    RegisterParameter("use_new_heartbeats", UseNewHeartbeats)
+    registrar.Parameter("use_new_heartbeats", &TThis::UseNewHeartbeats)
         .Default(false);
 
-    RegisterParameter("flavors", Flavors)
+    registrar.Parameter("flavors", &TThis::Flavors)
         .Default({
             NNodeTrackerClient::ENodeFlavor::Data,
             NNodeTrackerClient::ENodeFlavor::Exec,
             NNodeTrackerClient::ENodeFlavor::Tablet
         });
 
-    RegisterParameter("master_connector", MasterConnector)
+    registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
 
-    RegisterParameter("network_bandwidth", NetworkBandwidth)
+    registrar.Parameter("network_bandwidth", &TThis::NetworkBandwidth)
         .Default(1250000000);
-    RegisterParameter("in_throttlers", InThrottlers)
+    registrar.Parameter("in_throttlers", &TThis::InThrottlers)
         .Default();
-    RegisterParameter("out_throttlers", OutThrottlers)
+    registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
 
-    RegisterPostprocessor([&] {
-        NNodeTrackerClient::ValidateNodeTags(Tags);
+    registrar.Postprocessor([] (TThis* config) {
+        NNodeTrackerClient::ValidateNodeTags(config->Tags);
 
         // COMPAT(gritukan): Drop this code after configs migration.
-        if (!ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs]) {
-            auto& memoryLimit = ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs];
+        if (!config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs]) {
+            auto& memoryLimit = config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs];
             memoryLimit = New<TMemoryLimit>();
             memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::Dynamic;
         }
-        if (!ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic]) {
-            auto& memoryLimit = ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic];
+        if (!config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic]) {
+            auto& memoryLimit = config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic];
             memoryLimit = New<TMemoryLimit>();
-            if (TabletNode->ResourceLimits->TabletStaticMemory == std::numeric_limits<i64>::max()) {
+            if (config->TabletNode->ResourceLimits->TabletStaticMemory == std::numeric_limits<i64>::max()) {
                 memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::None;
             } else {
                 memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::Static;
-                memoryLimit->Value = TabletNode->ResourceLimits->TabletStaticMemory;
+                memoryLimit->Value = config->TabletNode->ResourceLimits->TabletStaticMemory;
             }
         }
-        if (!ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic]) {
-            auto& memoryLimit = ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic];
+        if (!config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic]) {
+            auto& memoryLimit = config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic];
             memoryLimit = New<TMemoryLimit>();
-            if (TabletNode->ResourceLimits->TabletDynamicMemory == std::numeric_limits<i64>::max()) {
+            if (config->TabletNode->ResourceLimits->TabletDynamicMemory == std::numeric_limits<i64>::max()) {
                 memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::None;
             } else {
                 memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::Static;
-                memoryLimit->Value = TabletNode->ResourceLimits->TabletDynamicMemory;
+                memoryLimit->Value = config->TabletNode->ResourceLimits->TabletDynamicMemory;
             }
         }
-        if (!ResourceLimits->FreeMemoryWatermark) {
-            ResourceLimits->FreeMemoryWatermark = 0;
-            auto freeMemoryWatermarkNode = ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("free_memory_watermark");
+        if (!config->ResourceLimits->FreeMemoryWatermark) {
+            config->ResourceLimits->FreeMemoryWatermark = 0;
+            auto freeMemoryWatermarkNode = config->ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("free_memory_watermark");
             if (freeMemoryWatermarkNode) {
-                ResourceLimits->FreeMemoryWatermark = freeMemoryWatermarkNode->GetValue<i64>();
+                config->ResourceLimits->FreeMemoryWatermark = freeMemoryWatermarkNode->GetValue<i64>();
             }
         }
-        if (!ResourceLimits->NodeDedicatedCpu) {
-            ResourceLimits->NodeDedicatedCpu = 2; // Old default.
-            auto nodeDedicatedCpuNode = ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("node_dedicated_cpu");
+        if (!config->ResourceLimits->NodeDedicatedCpu) {
+            config->ResourceLimits->NodeDedicatedCpu = 2; // Old default.
+            auto nodeDedicatedCpuNode = config->ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("node_dedicated_cpu");
             if (nodeDedicatedCpuNode) {
-                ResourceLimits->NodeDedicatedCpu = nodeDedicatedCpuNode->GetValue<double>();
+                config->ResourceLimits->NodeDedicatedCpu = nodeDedicatedCpuNode->GetValue<double>();
             }
         }
-        if (!ResourceLimits->CpuPerTabletSlot) {
-            ResourceLimits->CpuPerTabletSlot = ExecNode->JobController->CpuPerTabletSlot;
+        if (!config->ResourceLimits->CpuPerTabletSlot) {
+            config->ResourceLimits->CpuPerTabletSlot = config->ExecNode->JobController->CpuPerTabletSlot;
         }
-        if (!InstanceLimitsUpdatePeriod) {
-            auto resourceLimitsUpdatePeriodNode = ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("resource_limits_update_period");
+        if (!config->InstanceLimitsUpdatePeriod) {
+            auto resourceLimitsUpdatePeriodNode = config->ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("resource_limits_update_period");
             if (resourceLimitsUpdatePeriodNode) {
-                InstanceLimitsUpdatePeriod = NYTree::ConvertTo<std::optional<TDuration>>(resourceLimitsUpdatePeriodNode);
+                config->InstanceLimitsUpdatePeriod = NYTree::ConvertTo<std::optional<TDuration>>(resourceLimitsUpdatePeriodNode);
             }
         }
 
-        DynamicConfigManager->IgnoreConfigAbsence = true;
+        config->DynamicConfigManager->IgnoreConfigAbsence = true;
 
         // COMPAT(gritukan)
-        if (!MasterConnector->LeaseTransactionTimeout) {
-            MasterConnector->LeaseTransactionTimeout = DataNode->LeaseTransactionTimeout;
+        if (!config->MasterConnector->LeaseTransactionTimeout) {
+            config->MasterConnector->LeaseTransactionTimeout = config->DataNode->LeaseTransactionTimeout;
         }
-        if (!MasterConnector->LeaseTransactionPingPeriod) {
-            MasterConnector->LeaseTransactionPingPeriod = DataNode->LeaseTransactionPingPeriod;
+        if (!config->MasterConnector->LeaseTransactionPingPeriod) {
+            config->MasterConnector->LeaseTransactionPingPeriod = config->DataNode->LeaseTransactionPingPeriod;
         }
-        if (!MasterConnector->FirstRegisterSplay) {
+        if (!config->MasterConnector->FirstRegisterSplay) {
             // This is not a mistake!
-            MasterConnector->FirstRegisterSplay = DataNode->IncrementalHeartbeatPeriod;
+            config->MasterConnector->FirstRegisterSplay = config->DataNode->IncrementalHeartbeatPeriod;
         }
-        if (!MasterConnector->RegisterRetryPeriod) {
-            MasterConnector->RegisterRetryPeriod = DataNode->RegisterRetryPeriod;
+        if (!config->MasterConnector->RegisterRetryPeriod) {
+            config->MasterConnector->RegisterRetryPeriod = config->DataNode->RegisterRetryPeriod;
         }
-        if (!MasterConnector->RegisterRetrySplay) {
-            MasterConnector->RegisterRetrySplay = DataNode->RegisterRetrySplay;
+        if (!config->MasterConnector->RegisterRetrySplay) {
+            config->MasterConnector->RegisterRetrySplay = config->DataNode->RegisterRetrySplay;
         }
-        if (!MasterConnector->RegisterTimeout) {
-            MasterConnector->RegisterTimeout = DataNode->RegisterTimeout;
+        if (!config->MasterConnector->RegisterTimeout) {
+            config->MasterConnector->RegisterTimeout = config->DataNode->RegisterTimeout;
         }
-        if (!MasterConnector->SyncDirectoriesOnConnect) {
-            MasterConnector->SyncDirectoriesOnConnect = DataNode->SyncDirectoriesOnConnect;
+        if (!config->MasterConnector->SyncDirectoriesOnConnect) {
+            config->MasterConnector->SyncDirectoriesOnConnect = config->DataNode->SyncDirectoriesOnConnect;
         }
     });
 }
@@ -405,30 +405,30 @@ NHttp::TServerConfigPtr TClusterNodeConfig::CreateSkynetHttpServerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterNodeDynamicConfig::TClusterNodeDynamicConfig()
+void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("config_annotation", ConfigAnnotation)
+    registrar.Parameter("config_annotation", &TThis::ConfigAnnotation)
         .Optional();
-    RegisterParameter("resource_limits", ResourceLimits)
+    registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
-    RegisterParameter("data_node", DataNode)
+    registrar.Parameter("data_node", &TThis::DataNode)
         .DefaultNew();
-    RegisterParameter("cellar_node", CellarNode)
+    registrar.Parameter("cellar_node", &TThis::CellarNode)
         .DefaultNew();
-    RegisterParameter("tablet_node", TabletNode)
+    registrar.Parameter("tablet_node", &TThis::TabletNode)
         .DefaultNew();
-    RegisterParameter("query_agent", QueryAgent)
+    registrar.Parameter("query_agent", &TThis::QueryAgent)
         .DefaultNew();
-    RegisterParameter("exec_node", ExecNode)
+    registrar.Parameter("exec_node", &TThis::ExecNode)
         .Alias("exec_agent")
         .DefaultNew();
-    RegisterParameter("caching_object_service", CachingObjectService)
+    registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .DefaultNew();
-    RegisterParameter("master_connector", MasterConnector)
+    registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
-    RegisterParameter("in_throttlers", InThrottlers)
+    registrar.Parameter("in_throttlers", &TThis::InThrottlers)
         .Default();
-    RegisterParameter("out_throttlers", OutThrottlers)
+    registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
 }
 

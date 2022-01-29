@@ -29,7 +29,7 @@ namespace NYT::NHttpProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoordinatorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
@@ -49,47 +49,57 @@ public:
     double RandomnessWeight;
     double DampeningWeight;
 
-    TCoordinatorConfig();
+    REGISTER_YSON_STRUCT(TCoordinatorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCoordinatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TApiTestingOptions
-    : public NYTree::TYsonSerializable
+class TDelayBeforeCommand
+    : public NYTree::TYsonStruct
 {
 public:
-    class TDelayBeforeCommand
-        : public NYTree::TYsonSerializable
-    {
-    public:
-        TDuration Delay;
-        TString ParameterPath;
-        TString Substring;
+    TDuration Delay;
+    TString ParameterPath;
+    TString Substring;
 
-        TDelayBeforeCommand();
-    };
+    REGISTER_YSON_STRUCT(TDelayBeforeCommand);
 
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_REFCOUNTED_TYPE(TDelayBeforeCommand);
+
+class TApiTestingOptions
+    : public NYTree::TYsonStruct
+{
 public:
     THashMap<TString, TIntrusivePtr<TDelayBeforeCommand>> DelayBeforeCommand;
 
-    TApiTestingOptions();
+    REGISTER_YSON_STRUCT(TApiTestingOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TApiTestingOptions);
-DEFINE_REFCOUNTED_TYPE(TApiTestingOptions::TDelayBeforeCommand);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFramingConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
     std::optional<TDuration> KeepAlivePeriod;
 
-    TFramingConfig();
+    REGISTER_YSON_STRUCT(TFramingConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFramingConfig)
@@ -97,7 +107,7 @@ DEFINE_REFCOUNTED_TYPE(TFramingConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TApiConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration BanCacheExpirationTime;
@@ -109,7 +119,9 @@ public:
 
     TApiTestingOptionsPtr TestingOptions;
 
-    TApiConfig();
+    REGISTER_YSON_STRUCT(TApiConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TApiConfig)
@@ -117,14 +129,16 @@ DEFINE_REFCOUNTED_TYPE(TApiConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TApiDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TFramingConfigPtr Framing;
 
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
-    TApiDynamicConfig();
+    REGISTER_YSON_STRUCT(TApiDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TApiDynamicConfig)
@@ -132,7 +146,7 @@ DEFINE_REFCOUNTED_TYPE(TApiDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAccessCheckerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Whether access checker is enabled.
@@ -145,7 +159,9 @@ public:
     //! Parameters of the permission cache.
     NSecurityClient::TPermissionCacheConfigPtr Cache;
 
-    TAccessCheckerConfig();
+    REGISTER_YSON_STRUCT(TAccessCheckerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAccessCheckerConfig)
@@ -153,13 +169,15 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAccessCheckerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Whether access checker is enabled.
     std::optional<bool> Enabled;
 
-    TAccessCheckerDynamicConfig();
+    REGISTER_YSON_STRUCT(TAccessCheckerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
@@ -167,7 +185,7 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     int Port;
@@ -203,7 +221,9 @@ public:
     TString DynamicConfigPath;
     bool UseTaggedDynamicConfig;
 
-    TProxyConfig();
+    REGISTER_YSON_STRUCT(TProxyConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProxyConfig)
@@ -215,7 +235,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 // NOTE: config might me unavalable. Users must handle such cases
 // gracefully.
 class TProxyDynamicConfig
-    : public TDeprecatedSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TApiDynamicConfigPtr Api;
@@ -237,7 +257,9 @@ public:
     TFramingConfigPtr Framing;
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
-    TProxyDynamicConfig();
+    REGISTER_YSON_STRUCT(TProxyDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProxyDynamicConfig)

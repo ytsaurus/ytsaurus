@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/exec_node/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/client/file_client/config.h>
@@ -20,14 +18,14 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobThrottlerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration MinBackoffTime;
@@ -36,20 +34,9 @@ public:
 
     TDuration RpcTimeout;
 
-    TJobThrottlerConfig()
-    {
-        RegisterParameter("min_backoff_time", MinBackoffTime)
-            .Default(TDuration::MilliSeconds(100));
+    REGISTER_YSON_STRUCT(TJobThrottlerConfig);
 
-        RegisterParameter("max_backoff_time", MaxBackoffTime)
-            .Default(TDuration::Seconds(60));
-
-        RegisterParameter("backoff_multiplier", BackoffMultiplier)
-            .Default(1.5);
-
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(60));
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobThrottlerConfig)
@@ -57,7 +44,7 @@ DEFINE_REFCOUNTED_TYPE(TJobThrottlerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoreWatcherConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Cores lookup period.
@@ -72,21 +59,9 @@ public:
     //! Cumulative timeout for cores processing.
     TDuration CoresProcessingTimeout;
 
-    TCoreWatcherConfig()
-    {
-        RegisterParameter("period", Period)
-            .Default(TDuration::Seconds(5))
-            .GreaterThan(TDuration::Zero());
-        RegisterParameter("io_timeout", IOTimeout)
-            .Default(TDuration::Seconds(60))
-            .GreaterThan(TDuration::Zero());
-        RegisterParameter("finalization_timeout", FinalizationTimeout)
-            .Default(TDuration::Seconds(60))
-            .GreaterThan(TDuration::Zero());
-        RegisterParameter("cores_processing_timeout", CoresProcessingTimeout)
-            .Default(TDuration::Minutes(15))
-            .GreaterThan(TDuration::Zero());
-    }
+    REGISTER_YSON_STRUCT(TCoreWatcherConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCoreWatcherConfig)
@@ -94,21 +69,16 @@ DEFINE_REFCOUNTED_TYPE(TCoreWatcherConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobNetworkAddress
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NNet::TIP6Address Address;
 
     TString Name;
 
-    TUserJobNetworkAddress()
-    {
-        RegisterParameter("address", Address)
-            .Default();
+    REGISTER_YSON_STRUCT(TUserJobNetworkAddress);
 
-        RegisterParameter("name", Name)
-            .Default();
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobNetworkAddress)
@@ -116,16 +86,14 @@ DEFINE_REFCOUNTED_TYPE(TUserJobNetworkAddress)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTmpfsManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::vector<TString> TmpfsPaths;
 
-    TTmpfsManagerConfig()
-    {
-        RegisterParameter("tmpfs_paths", TmpfsPaths)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TTmpfsManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTmpfsManagerConfig)
@@ -133,7 +101,7 @@ DEFINE_REFCOUNTED_TYPE(TTmpfsManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryTrackerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool IncludeMemoryMappedFiles;
@@ -142,25 +110,39 @@ public:
 
     TDuration MemoryStatisticsCachePeriod;
 
-    TMemoryTrackerConfig()
-    {
-        RegisterParameter("include_memory_mapped_files", IncludeMemoryMappedFiles)
-            .Default(true);
+    REGISTER_YSON_STRUCT(TMemoryTrackerConfig);
 
-        RegisterParameter("use_smaps_memory_tracker", UseSMapsMemoryTracker)
-            .Default(false);
-
-        RegisterParameter("memory_statisitcs_cache_period", MemoryStatisticsCachePeriod)
-            .Default(TDuration::Zero());
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBindConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString ExternalPath;
+    TString InternalPath;
+    bool ReadOnly;
+
+    TBindConfig()
+    {
+        RegisterParameter("external_path", ExternalPath);
+        RegisterParameter("internal_path", InternalPath);
+        RegisterParameter("read_only", ReadOnly)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBindConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 class TJobProxyConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     // Job-specific parameters.
@@ -170,7 +152,7 @@ public:
 
     TMemoryTrackerConfigPtr MemoryTracker;
 
-    std::vector<NExecNode::TBindConfigPtr> Binds;
+    std::vector<TBindConfigPtr> Binds;
 
     std::vector<TString> GpuDevices;
 
@@ -237,139 +219,17 @@ public:
 
     bool UploadDebugArtifactChunks;
 
-    TJobProxyConfig()
-    {
-        RegisterParameter("slot_index", SlotIndex);
+    REGISTER_YSON_STRUCT(TJobProxyConfig);
 
-        RegisterParameter("tmpfs_manager", TmpfsManager)
-            .DefaultNew();
-
-        RegisterParameter("memory_tracker", MemoryTracker)
-            .DefaultNew();
-
-        RegisterParameter("root_path", RootPath)
-            .Default();
-
-        RegisterParameter("stderr_path", StderrPath)
-            .Default();
-
-        RegisterParameter("make_rootfs_writable", MakeRootFSWritable)
-            .Default(false);
-
-        RegisterParameter("binds", Binds)
-            .Default();
-
-        RegisterParameter("gpu_devices", GpuDevices)
-            .Default();
-
-        RegisterParameter("cluster_connection", ClusterConnection);
-
-        RegisterParameter("supervisor_connection", SupervisorConnection);
-
-        RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
-            .Default(TDuration::Seconds(30));
-
-        RegisterParameter("heartbeat_period", HeartbeatPeriod)
-            .Default(TDuration::Seconds(5));
-
-        RegisterParameter("input_pipe_blinker_period", InputPipeBlinkerPeriod)
-            .Default(TDuration::Seconds(1));
-
-        RegisterParameter("job_environment", JobEnvironment);
-
-        RegisterParameter("addresses", Addresses)
-            .Default();
-
-        RegisterParameter("local_host_name", LocalHostName)
-            .Default();
-
-        RegisterParameter("rack", Rack)
-            .Default();
-
-        RegisterParameter("data_center", DataCenter)
-            .Default();
-
-        RegisterParameter("ahead_memory_reserve", AheadMemoryReserve)
-            .Default(100_MB);
-
-        RegisterParameter("test_root_fs", TestRootFS)
-            .Default(false);
-
-        RegisterParameter("job_throttler", JobThrottler)
-            .Default(nullptr);
-
-        RegisterParameter("host_name", HostName)
-            .Default();
-
-        RegisterParameter("enable_nat64", EnableNat64)
-            .Default(false);
-
-        RegisterParameter("network_addresses", NetworkAddresses)
-            .Default();
-
-        RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
-            .Default(false);
-
-        RegisterParameter("core_watcher", CoreWatcher)
-            .DefaultNew();
-
-        RegisterParameter("test_poll_job_shell", TestPollJobShell)
-            .Default(false);
-
-        RegisterParameter("do_not_set_user_id", DoNotSetUserId)
-            .Default(false);
-
-        RegisterParameter("check_user_job_memory_limit", CheckUserJobMemoryLimit)
-            .Default(true);
-
-        RegisterParameter("enable_job_shell_seccomp", EnableJobShellSeccopm)
-            .Default(true);
-
-        RegisterParameter("use_porto_kill_for_signalling", UsePortoKillForSignalling)
-            .Default(false);
-
-        RegisterParameter("force_idle_cpu_policy", ForceIdleCpuPolicy)
-            .Default(false);
-
-        RegisterParameter("upload_debug_artifact_chunks", UploadDebugArtifactChunks)
-            .Default(true);
-
-        RegisterPreprocessor([&] {
-            SolomonExporter->EnableSelfProfiling = false;
-            SolomonExporter->WindowSize = 1;
-        });
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobTestingOptions
-    : public NYTree::TYsonSerializable
-{
-public:
-    std::optional<TDuration> DelayAfterNodeDirectoryPrepared;
-    bool FailBeforeJobStart;
-    bool ThrowInShallowMerge;
-
-    TJobTestingOptions()
-    {
-        RegisterParameter("delay_after_node_directory_prepared", DelayAfterNodeDirectoryPrepared)
-            .Default();
-        RegisterParameter("fail_before_job_start", FailBeforeJobStart)
-            .Default(false);
-        RegisterParameter("throw_in_shallow_merge", ThrowInShallowMerge)
-            .Default(false);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobTestingOptions)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobProxyDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
@@ -382,23 +242,9 @@ public:
 
     bool UploadDebugArtifactChunks;
 
-    TJobProxyDynamicConfig()
-    {
-        RegisterParameter("jaeger", Jaeger)
-            .DefaultNew();
+    REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 
-        RegisterParameter("enable_job_shell_seccomp", EnableJobShellSeccopm)
-            .Default(true);
-
-        RegisterParameter("use_porto_kill_for_signalling", UsePortoKillForSignalling)
-            .Default(false);
-
-        RegisterParameter("force_idle_cpu_policy", ForceIdleCpuPolicy)
-            .Default(false);
-
-        RegisterParameter("upload_debug_artifact_chunks", UploadDebugArtifactChunks)
-            .Default(true);
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxyDynamicConfig)

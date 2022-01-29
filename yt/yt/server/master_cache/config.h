@@ -15,7 +15,7 @@ namespace NYT::NMasterCache {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterCacheConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -28,7 +28,9 @@ public:
 
     NChaosCache::TChaosCacheConfigPtr ChaosCache;
 
-    TMasterCacheConfig();
+    REGISTER_YSON_STRUCT(TMasterCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterCacheConfig)

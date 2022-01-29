@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/https/config.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -391,7 +393,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingSecretVaultServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAuthenticationManagerConfig
-    : public virtual NYT::NYTree::TYsonSerializable
+    : public virtual NYT::NYTree::TYsonStruct
 {
 public:
     bool RequireAuthentication;
@@ -401,29 +403,6 @@ public:
     NAuth::TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
     NAuth::TDefaultTvmServiceConfigPtr TvmService;
     NAuth::TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
-
-    TAuthenticationManagerConfig()
-    {
-        // COMPAT(prime@)
-        RegisterParameter("require_authentication", RequireAuthentication)
-            .Alias("enable_authentication")
-            .Default(true);
-        RegisterParameter("blackbox_token_authenticator", BlackboxTokenAuthenticator)
-            .Alias("token_authenticator")
-            .Optional();
-        RegisterParameter("blackbox_cookie_authenticator", BlackboxCookieAuthenticator)
-            .Alias("cookie_authenticator")
-            .DefaultNew();
-        RegisterParameter("blackbox_service", BlackboxService)
-            .Alias("blackbox")
-            .DefaultNew();
-        RegisterParameter("cypress_token_authenticator", CypressTokenAuthenticator)
-            .Optional();
-        RegisterParameter("tvm_service", TvmService)
-            .Optional();
-        RegisterParameter("blackbox_ticket_authenticator", BlackboxTicketAuthenticator)
-            .Optional();
-    }
 
     TString GetCsrfSecret() const
     {
@@ -443,6 +422,31 @@ public:
         }
 
         return TInstant::Now() - DefaultCsrfTokenTtl;
+    }
+
+    REGISTER_YSON_STRUCT(TAuthenticationManagerConfig);
+
+    static void Register(TRegistrar registrar)
+    {
+        // COMPAT(prime@)
+        registrar.Parameter("require_authentication", &TThis::RequireAuthentication)
+            .Alias("enable_authentication")
+            .Default(true);
+        registrar.Parameter("blackbox_token_authenticator", &TThis::BlackboxTokenAuthenticator)
+            .Alias("token_authenticator")
+            .Optional();
+        registrar.Parameter("blackbox_cookie_authenticator", &TThis::BlackboxCookieAuthenticator)
+            .Alias("cookie_authenticator")
+            .DefaultNew();
+        registrar.Parameter("blackbox_service", &TThis::BlackboxService)
+            .Alias("blackbox")
+            .DefaultNew();
+        registrar.Parameter("cypress_token_authenticator", &TThis::CypressTokenAuthenticator)
+            .Optional();
+        registrar.Parameter("tvm_service", &TThis::TvmService)
+            .Optional();
+        registrar.Parameter("blackbox_ticket_authenticator", &TThis::BlackboxTicketAuthenticator)
+            .Optional();
     }
 };
 

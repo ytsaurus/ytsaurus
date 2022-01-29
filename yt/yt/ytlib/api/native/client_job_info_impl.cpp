@@ -35,6 +35,8 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>

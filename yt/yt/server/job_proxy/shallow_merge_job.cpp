@@ -19,6 +19,7 @@
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
+#include <yt/yt/ytlib/job_proxy/config.h>
 #include <yt/yt/ytlib/job_proxy/public.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
