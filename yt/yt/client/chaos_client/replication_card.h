@@ -113,6 +113,7 @@ TReplicationProgress AdvanceReplicationProgress(const TReplicationProgress& prog
 TReplicationProgress LimitReplicationProgressByTimestamp(const TReplicationProgress& progress, NTransactionClient::TTimestamp timestamp);
 
 NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progress);
+NTransactionClient::TTimestamp GetReplicationProgressTimestampForKey(const TReplicationProgress& progress, NTableClient::TUnversionedRow key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

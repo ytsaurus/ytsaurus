@@ -835,6 +835,13 @@ private:
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication progress (ReplicationCardId: %v, ReplicaId: %v, ReplicationProgress: %v, NewProgress: %v)",
+            replicationCardId,
+            replicaId,
+            replicaInfo->ReplicationProgress,
+            newProgress);
+
         NChaosClient::UpdateReplicationProgress(&replicaInfo->ReplicationProgress, newProgress);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (ReplicationCardId: %v, ReplicaId: %v, Progress: %v",

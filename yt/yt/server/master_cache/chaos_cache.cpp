@@ -91,11 +91,21 @@ TChaosCache::TCookie TChaosCache::BeginLookup(
     TRequestId requestId,
     const TChaosCacheKey& key,
     TDuration successExpirationTime,
-    TDuration failureExpirationTime)
+    TDuration failureExpirationTime,
+    TReplicationEra refreshEra)
 {
     auto entry = Find(key);
     bool cacheHit = false;
     if (entry) {
+        if (refreshEra != InvalidReplicationEra && entry->GetSuccess() && entry->GetReplicationCard().Value()->Era <= refreshEra) {
+            YT_LOG_DEBUG("Cache entry refresh requested (RequestId: %v, Key: %v, Era: %v, RefreshEra: %v)",
+                requestId,
+                key,
+                entry->GetReplicationCard().Value()->Era,
+                refreshEra);
+
+            TryRemoveValue(entry);
+        }
         if (IsExpired(entry, successExpirationTime, failureExpirationTime)) {
             YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Success: %v)",
                 requestId,
@@ -103,7 +113,6 @@ TChaosCache::TCookie TChaosCache::BeginLookup(
                 entry->GetSuccess());
 
             TryRemoveValue(entry);
-
         } else {
             cacheHit = true;
             YT_LOG_DEBUG("Cache hit (RequestId: %v, Key: %v, Success: %v)",

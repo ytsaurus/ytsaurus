@@ -29,6 +29,7 @@ message TReqGetReplicationCard
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
     optional TReplicationCardFetchOptions fetch_options = 2;
+    optional uint64 refresh_era = 3;
 }
 
 message TRspGetReplicationCard

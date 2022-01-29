@@ -6,7 +6,8 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, reshard_table, alter_table,
     insert_rows, delete_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
-    sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id)
+    sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
+    get_in_sync_replicas, generate_timestamp, MaxTimestamp)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -152,6 +153,17 @@ class ChaosTestBase(DynamicTablesBase):
 
         wait(_check_sync)
 
+    def _create_queue_table(self, path, **attributes):
+        attributes.update({"dynamic": True})
+        if "schema" not in attributes:
+            attributes.update({
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}]
+                })
+        driver = attributes.pop("driver", None)
+        create("replication_log_table", path, attributes=attributes, driver=driver)
+
     def setup_method(self, method):
         super(ChaosTestBase, self).setup_method(method)
 
@@ -180,7 +192,7 @@ class ChaosTestBase(DynamicTablesBase):
 
 class TestChaos(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     @authors("savrus")
     def test_virtual_maps(self):
@@ -312,17 +324,6 @@ class TestChaos(ChaosTestBase):
 
         remove("#{0}".format(card_id))
         assert not exists("#{0}".format(card_id))
-
-    def _create_queue_table(self, path, **attributes):
-        attributes.update({"dynamic": True})
-        if "schema" not in attributes:
-            attributes.update({
-                "schema": [
-                    {"name": "key", "type": "int64", "sort_order": "ascending"},
-                    {"name": "value", "type": "string"}]
-                })
-        driver = attributes.pop("driver", None)
-        create("replication_log_table", path, attributes=attributes, driver=driver)
 
     @authors("savrus")
     def test_chaos_table(self):
@@ -748,6 +749,113 @@ class TestChaos(ChaosTestBase):
 
         remove("//tmp/crt")
         wait(lambda: not exists("#{0}".format(card_id)))
+
+    @authors("savrus")
+    @pytest.mark.parametrize("all_keys", [True, False])
+    def test_get_in_sync_replicas(self, all_keys):
+        def _get_in_sync_replicas():
+            if all_keys:
+                return get_in_sync_replicas("//tmp/t", [], all_keys=True, timestamp=MaxTimestamp)
+            else:
+                return get_in_sync_replicas("//tmp/t", [{"key": 0}], timestamp=MaxTimestamp)
+
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        sync_replicas = _get_in_sync_replicas()
+        assert len(sync_replicas) == 0
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
+
+        sync_replicas = _get_in_sync_replicas()
+        assert len(sync_replicas) == 1
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
+
+        rows = [{"key": 0, "value": "0"}]
+        keys = [{"key": 0}]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+        alter_table_replica(replica_ids[0], enabled=True)
+
+        sync_replicas = _get_in_sync_replicas()
+        assert len(sync_replicas) == 0
+
+        sync_mount_table("//tmp/t")
+        wait(lambda: lookup_rows("//tmp/t", keys) == rows)
+
+        def _check_progress():
+            card = get("#{0}/@".format(card_id))
+            replica = card["replicas"][replica_ids[0]]
+            if replica["state"] != "enabled":
+                return False
+            if replica["replication_progress"]["segments"][0]["timestamp"] < replica["history"][-1]["timestamp"]:
+                return False
+            return True
+
+        wait(_check_progress)
+
+        sync_replicas = _get_in_sync_replicas()
+        assert len(sync_replicas) == 1
+
+    @authors("savrus")
+    def test_async_get_in_sync_replicas(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [1]])
+
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        keys = [{"key": row["key"]} for row in rows]
+        insert_rows("//tmp/t", rows)
+        timestamp0 = generate_timestamp()
+
+        def _check(keys, expected):
+            sync_replicas = get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0)
+            assert len(sync_replicas) == expected
+
+        _check(keys[:1], 0)
+        _check(keys[1:], 0)
+        _check(keys, 0)
+
+        def _check_progress(segment_index=0):
+            card = get("#{0}/@".format(card_id))
+            replica = card["replicas"][replica_ids[0]]
+            # Segment index may not be strict since segments with the same timestamp are glued into one.
+            segment_index = min(segment_index, len(replica["replication_progress"]["segments"]) - 1)
+
+            if replica["state"] != "enabled":
+                return False
+            if replica["replication_progress"]["segments"][segment_index]["timestamp"] < timestamp0:
+                return False
+            return True
+
+        sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+        wait(lambda: lookup_rows("//tmp/t", keys[:1]) == rows[:1])
+        wait(lambda: _check_progress(0))
+
+        _check(keys[:1], 1)
+        _check(keys[1:], 0)
+        _check(keys, 0)
+
+        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
+        wait(lambda: lookup_rows("//tmp/t", keys[1:]) == rows[1:])
+        wait(lambda: _check_progress(1))
+
+        _check(keys[:1], 1)
+        _check(keys[1:], 1)
+        _check(keys, 1)
 
 
 ##################################################################

@@ -355,6 +355,22 @@ NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(const TReplica
     return minTimestamp;
 }
 
+NTransactionClient::TTimestamp GetReplicationProgressTimestampForKey(
+    const TReplicationProgress& progress,
+    TUnversionedRow key)
+{
+    auto it = std::upper_bound(
+        progress.Segments.begin(),
+        progress.Segments.end(),
+        key,
+        [] (const auto& lhs, const auto& rhs) {
+            return CompareRows(lhs, rhs.LowerKey) < 0;
+        });
+
+    YT_VERIFY(it != progress.Segments.begin());
+    return (it - 1)->Timestamp;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosClient

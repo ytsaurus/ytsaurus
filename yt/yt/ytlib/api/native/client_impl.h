@@ -820,6 +820,26 @@ private:
         const std::vector<NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options);
 
+    TSharedRange<NTableClient::TUnversionedRow> PermuteAndEvaluateKeys(
+        const NTabletClient::TTableMountInfoPtr& tableInfo,
+        const NTableClient::TNameTablePtr& nameTable,
+        const TSharedRange<NTableClient::TLegacyKey>& keys);
+
+    std::vector<NTabletClient::TTableReplicaId> GetRepliatedTableInSyncReplicas(
+        const NTabletClient::TTableMountInfoPtr& tableInfo,
+        const NTableClient::TNameTablePtr& nameTable,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
+        bool allKeys,
+        const TGetInSyncReplicasOptions& options);
+
+    std::vector<NTabletClient::TTableReplicaId> GetChaosTableInSyncReplicas(
+        const NTabletClient::TTableMountInfoPtr& tableInfo,
+        const NChaosClient::TReplicationCardPtr& replicationCard,
+        const NTableClient::TNameTablePtr& nameTable,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
+        bool allKeys,
+        const TGetInSyncReplicasOptions& options);
+
     //
     // Chaos
     //
@@ -845,6 +865,7 @@ private:
     NRpc::IChannelPtr GetChaosChannelByCardId(
         NChaosClient::TReplicationCardId replicationCardId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
+    NChaosClient::TReplicationCardPtr GetSyncReplicationCard(const NTabletClient::TTableMountInfoPtr& tableInfo);
 
     //
     // Cypress

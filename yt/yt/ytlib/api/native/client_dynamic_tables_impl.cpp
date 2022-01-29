@@ -9,10 +9,9 @@
 
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 
+#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
-
-#include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -90,6 +89,8 @@
 #include <yt/yt/core/rpc/config.h>
 
 #include <library/cpp/int128/int128.h>
+
+#include <util/random/random.h>
 
 namespace NYT::NApi::NNative {
 
@@ -2718,7 +2719,9 @@ private:
 
         Result_ = resultOrError.Value();
         ReplicationProgress_ = FromProto<TReplicationProgress>(Result_->end_replication_progress());
-        ReplicationRowIndex_ = Result_->end_replication_row_index();
+        if (Result_->has_end_replication_row_index()) {
+            ReplicationRowIndex_ = Result_->end_replication_row_index();
+        }
         DataWeight_ += Result_->data_weight();
         RowCount_ += Result_->row_count();
 
@@ -2964,6 +2967,87 @@ IChannelPtr TClient::GetChaosChannelByCardId(TReplicationCardId replicationCardI
 
     auto cellTag = CellTagFromId(replicationCardId);
     return GetChaosChannelByCellTag(cellTag, peerKind);
+}
+
+TReplicationCardPtr TClient::GetSyncReplicationCard(const TTableMountInfoPtr& tableInfo)
+{
+    const auto& mountCacheConfig = Connection_->GetConfig()->TableMountCache;
+    auto fetchOptions = TReplicationCardFetchOptions{
+        .IncludeCoordinators = true,
+        .IncludeHistory = true,
+        .IncludeProgress = true
+    };
+    const auto& replicationCardCache = GetReplicationCardCache();
+    TReplicationCardPtr replicationCard;
+
+    for (int retryCount = 0; retryCount < mountCacheConfig->OnErrorRetryCount; ++retryCount) {
+        YT_LOG_DEBUG("Synchronizing replication card (ReplicationCardId: %v, Attempt: %v)",
+            tableInfo->ReplicationCardId,
+            retryCount);
+
+        auto key = TReplicationCardCacheKey{
+            .CardId = tableInfo->ReplicationCardId,
+            .FetchOptions = fetchOptions,
+        };
+
+        if (retryCount > 0) {
+            key.RefreshEra = replicationCard->Era;
+            replicationCardCache->ForceRefresh(key, replicationCard);
+
+            TDelayedExecutor::WaitForDuration(mountCacheConfig->OnErrorSlackPeriod);
+        }
+
+        auto futureReplicationCard = replicationCardCache->GetReplicationCard(key);
+        auto replicationCardOrError = WaitFor(futureReplicationCard);
+
+        if (!replicationCardOrError.IsOK()) {
+            YT_LOG_DEBUG(replicationCardOrError, "Failed to get replication card from cache (ReplicationCardId: %v)",
+                tableInfo->ReplicationCardId);
+            continue;
+        }
+
+        replicationCard = replicationCardOrError.Value();
+
+        if (replicationCard->CoordinatorCellIds.empty()) {
+            YT_LOG_DEBUG("Replication card contains no coordinators (ReplicationCard: %v)",
+                *replicationCard);
+            continue;
+        }
+
+        auto cooridnator = replicationCard->CoordinatorCellIds[RandomNumber<size_t>() % replicationCard->CoordinatorCellIds.size()];
+        auto channel = GetChaosChannelByCellId(cooridnator, EPeerKind::Leader);
+        auto proxy = TCoordinatorServiceProxy(channel);
+        auto req = proxy.GetReplicationCardEra();
+
+        ToProto(req->mutable_replication_card_id(), tableInfo->ReplicationCardId);
+
+        auto rspOrError = WaitFor(req->Invoke());
+
+        if (!rspOrError.IsOK()) {
+            YT_LOG_DEBUG(rspOrError, "Failed to get replication card from coordinator (ReplicationCardId: %v)",
+                tableInfo->ReplicationCardId);
+            continue;
+        }
+
+        auto rsp = rspOrError.Value();
+        auto coordinatorEra = rsp->replication_era();
+
+        YT_LOG_DEBUG("Got replication card era from coordinator (Era: %v)",
+            coordinatorEra);
+
+        if (replicationCard->Era == coordinatorEra) {
+            return replicationCard;
+        }
+
+        YT_VERIFY(replicationCard->Era < coordinatorEra);
+
+        YT_LOG_DEBUG("Replication card era mismatch coordinator era (ReplicationCardEra: %v, CoordinatorEra: %v)",
+            replicationCard->Era,
+            coordinatorEra);
+    }
+
+    THROW_ERROR_EXCEPTION("Unable to synchronize replication card")
+        << TErrorAttribute("replication_card_id", tableInfo->ReplicationCardId);
 }
 
 TReplicationCardPtr TClient::DoGetReplicationCard(

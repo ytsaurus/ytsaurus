@@ -53,10 +53,14 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
     auto requestId = context->GetRequestId();
     auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
     auto fetchOptions = FromProto<TReplicationCardFetchOptions>(request->fetch_options());
+    auto refreshEra = request->has_refresh_era()
+        ? request->refresh_era()
+        : InvalidReplicationEra;
 
-    context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
+    context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v, RefreshEra: %v",
         fetchOptions,
-        replicationCardId);
+        replicationCardId,
+        refreshEra);
 
     TGetReplicationCardOptions getCardOptions;
     getCardOptions.BypassCache = true;
@@ -84,7 +88,8 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
             requestId,
             key,
             expireAfterSuccessfulUpdateTime,
-            expireAfterFailedUpdateTime);
+            expireAfterFailedUpdateTime,
+            refreshEra);
 
         replicationCardFuture = cookie.GetValue().Apply(BIND([] (const TErrorOr<TChaosCacheEntryPtr>& entry) -> TErrorOr<TReplicationCardPtr> {
             if (entry.IsOK()) {

@@ -39,4 +39,14 @@ message TReqReplicatedCommit
     required uint64 replication_era = 1; // NChaosClient::TReplicationEra
 }
 
+message TReqGetReplicationCardEra
+{
+    required NYT.NProto.TGuid replication_card_id = 1;
+}
+
+message TRspGetReplicationCardEra
+{
+    required uint64 replication_era = 1;
+}   
+
 ////////////////////////////////////////////////////////////////////////////////

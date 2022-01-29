@@ -96,6 +96,8 @@ public:
 
     TDuration SlotScanPeriod;
 
+    int SnapshotStoreReadPoolSize;
+
     TChaosNodeConfig()
     {
         RegisterParameter("cellar_occupant", CellarOccupant)
@@ -108,6 +110,8 @@ public:
             .DefaultNew();
         RegisterParameter("slot_scan_period", SlotScanPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("snapshot_store_read_pool_size", SnapshotStoreReadPoolSize)
+            .Default(8);
     }
 };
 

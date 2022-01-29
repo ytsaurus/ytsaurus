@@ -57,6 +57,7 @@ default_api_version = 4
 SyncLastCommittedTimestamp = 0x3FFFFFFFFFFFFF01
 AsyncLastCommittedTimestamp = 0x3FFFFFFFFFFFFF04
 MinTimestamp = 0x0000000000000001
+MaxTimestamp = 0x3fffffffffffff00
 
 _clusters_drivers = {}
 _zombie_responses = []
