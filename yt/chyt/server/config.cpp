@@ -6,550 +6,550 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeSettings::TCompositeSettings()
+void TCompositeSettings::Register(TRegistrar registrar)
 {
-    RegisterParameter("default_yson_format", DefaultYsonFormat)
+    registrar.Parameter("default_yson_format", &TThis::DefaultYsonFormat)
         .Default(EExtendedYsonFormat::Binary);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicTableSettings::TDynamicTableSettings()
+void TDynamicTableSettings::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
+    registrar.Parameter("enable_dynamic_store_read", &TThis::EnableDynamicStoreRead)
         .Default(true);
 
-    RegisterParameter("write_retry_count", WriteRetryCount)
+    registrar.Parameter("write_retry_count", &TThis::WriteRetryCount)
         .Default(5);
 
-    RegisterParameter("write_retry_backoff", WriteRetryBackoff)
+    registrar.Parameter("write_retry_backoff", &TThis::WriteRetryBackoff)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("max_rows_per_write", MaxRowsPerWrite)
+    registrar.Parameter("max_rows_per_write", &TThis::MaxRowsPerWrite)
         .Default(100'000);
 
-    RegisterParameter("transaction_atomicity", TransactionAtomicity)
+    registrar.Parameter("transaction_atomicity", &TThis::TransactionAtomicity)
         .Default(NTransactionClient::EAtomicity::Full);
 
-    RegisterParameter("fetch_from_tablets", FetchFromTablets)
+    registrar.Parameter("fetch_from_tablets", &TThis::FetchFromTablets)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTestingSettings::TTestingSettings()
+void TTestingSettings::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_key_condition_filtering", EnableKeyConditionFiltering)
+    registrar.Parameter("enable_key_condition_filtering", &TThis::EnableKeyConditionFiltering)
         .Default(true);
-    RegisterParameter("make_upper_bound_inclusive", MakeUpperBoundInclusive)
+    registrar.Parameter("make_upper_bound_inclusive", &TThis::MakeUpperBoundInclusive)
         .Default(true);
 
-    RegisterParameter("throw_exception_in_distributor", ThrowExceptionInDistributor)
+    registrar.Parameter("throw_exception_in_distributor", &TThis::ThrowExceptionInDistributor)
         .Default(false);
-    RegisterParameter("throw_exception_in_subquery", ThrowExceptionInSubquery)
+    registrar.Parameter("throw_exception_in_subquery", &TThis::ThrowExceptionInSubquery)
         .Default(false);
-    RegisterParameter("subquery_allocation_size", SubqueryAllocationSize)
+    registrar.Parameter("subquery_allocation_size", &TThis::SubqueryAllocationSize)
         .Default(0);
 
-    RegisterParameter("hang_control_invoker", HangControlInvoker)
+    registrar.Parameter("hang_control_invoker", &TThis::HangControlInvoker)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExecutionSettings::TExecutionSettings()
+void TExecutionSettings::Register(TRegistrar registrar)
 {
-    RegisterParameter("query_depth_limit", QueryDepthLimit)
+    registrar.Parameter("query_depth_limit", &TThis::QueryDepthLimit)
         .GreaterThanOrEqual(-1)
         .Default(0);
 
-    RegisterParameter("min_data_weight_per_secondary_query", MinDataWeightPerSecondaryQuery)
+    registrar.Parameter("min_data_weight_per_secondary_query", &TThis::MinDataWeightPerSecondaryQuery)
         .GreaterThanOrEqual(-1)
         .Default(0);
 
-    RegisterParameter("join_node_limit", JoinNodeLimit)
+    registrar.Parameter("join_node_limit", &TThis::JoinNodeLimit)
         .GreaterThanOrEqual(-1)
         .Default(0);
-    RegisterParameter("select_node_limit", SelectNodeLimit)
+    registrar.Parameter("select_node_limit", &TThis::SelectNodeLimit)
         .GreaterThanOrEqual(-1)
         .Default(0);
 
-    RegisterParameter("join_policy", JoinPolicy)
+    registrar.Parameter("join_policy", &TThis::JoinPolicy)
         .Default(EJoinPolicy::DistributeInitial);
 
-    RegisterParameter("select_policy", SelectPolicy)
+    registrar.Parameter("select_policy", &TThis::SelectPolicy)
         .Default(ESelectPolicy::DistributeInitial);
 
-    RegisterParameter("distribution_seed", DistributionSeed)
+    registrar.Parameter("distribution_seed", &TThis::DistributionSeed)
         .Default(42);
 
-    RegisterParameter("input_streams_per_secondary_query", InputStreamsPerSecondaryQuery)
+    registrar.Parameter("input_streams_per_secondary_query", &TThis::InputStreamsPerSecondaryQuery)
         .GreaterThanOrEqual(-1)
         .Default(0);
 
-    RegisterParameter("optimize_query_processing_stage", OptimizeQueryProcessingStage)
+    registrar.Parameter("optimize_query_processing_stage", &TThis::OptimizeQueryProcessingStage)
         .Default(true);
-    RegisterParameter("filter_joined_subquery_by_sort_key", FilterJoinedSubqueryBySortKey)
-        .Default(true);
-
-    RegisterParameter("allow_switch_to_sorted_pool", AllowSwitchToSortedPool)
-        .Default(true);
-    RegisterParameter("allow_key_truncating", AllowKeyTruncating)
+    registrar.Parameter("filter_joined_subquery_by_sort_key", &TThis::FilterJoinedSubqueryBySortKey)
         .Default(true);
 
-    RegisterParameter("keep_nulls_in_right_or_full_join", KeepNullsInRightOrFullJoin)
+    registrar.Parameter("allow_switch_to_sorted_pool", &TThis::AllowSwitchToSortedPool)
+        .Default(true);
+    registrar.Parameter("allow_key_truncating", &TThis::AllowKeyTruncating)
         .Default(true);
 
-    RegisterParameter("distributed_insert_stage", DistributedInsertStage)
+    registrar.Parameter("keep_nulls_in_right_or_full_join", &TThis::KeepNullsInRightOrFullJoin)
+        .Default(true);
+
+    registrar.Parameter("distributed_insert_stage", &TThis::DistributedInsertStage)
         .Default(EDistributedInsertStage::WithMergeableState);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachingSettings::TCachingSettings()
+void TCachingSettings::Register(TRegistrar registrar)
 {
-    RegisterParameter("table_attributes_invalidate_mode", TableAttributesInvalidateMode)
+    registrar.Parameter("table_attributes_invalidate_mode", &TThis::TableAttributesInvalidateMode)
         .Default(EInvalidateCacheMode::Sync);
-    RegisterParameter("invalidate_request_timeout", InvalidateRequestTimeout)
+    registrar.Parameter("invalidate_request_timeout", &TThis::InvalidateRequestTimeout)
         .Default(TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConcatTablesSettings::TConcatTablesSettings()
+void TConcatTablesSettings::Register(TRegistrar registrar)
 {
-    RegisterParameter("missing_column_mode", MissingColumnMode)
+    registrar.Parameter("missing_column_mode", &TThis::MissingColumnMode)
         .Default(EMissingColumnMode::ReadAsNull);
-    RegisterParameter("type_mismatch_mode", TypeMismatchMode)
+    registrar.Parameter("type_mismatch_mode", &TThis::TypeMismatchMode)
         .Default(ETypeMismatchMode::Throw);
-    RegisterParameter("allow_empty_schema_intersection", AllowEmptySchemaIntersection)
+    registrar.Parameter("allow_empty_schema_intersection", &TThis::AllowEmptySchemaIntersection)
         .Default(false);
-    RegisterParameter("max_tables", MaxTables)
+    registrar.Parameter("max_tables", &TThis::MaxTables)
         .LessThanOrEqual(2500)
         .Default(250);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListDirSettings::TListDirSettings()
+void TListDirSettings::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_size", MaxSize)
+    registrar.Parameter("max_size", &TThis::MaxSize)
         .Default(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQuerySettings::TQuerySettings()
+void TQuerySettings::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_columnar_read", EnableColumnarRead)
+    registrar.Parameter("enable_columnar_read", &TThis::EnableColumnarRead)
         .Default(true);
 
-    RegisterParameter("enable_computed_column_deduction", EnableComputedColumnDeduction)
+    registrar.Parameter("enable_computed_column_deduction", &TThis::EnableComputedColumnDeduction)
         .Default(true);
 
-    RegisterParameter("deduced_statement_mode", DeducedStatementMode)
+    registrar.Parameter("deduced_statement_mode", &TThis::DeducedStatementMode)
         .Default(EDeducedStatementMode::In);
 
-    RegisterParameter("use_block_sampling", UseBlockSampling)
+    registrar.Parameter("use_block_sampling", &TThis::UseBlockSampling)
         .Default(false);
 
-    RegisterParameter("log_key_condition_details", LogKeyConditionDetails)
+    registrar.Parameter("log_key_condition_details", &TThis::LogKeyConditionDetails)
         .Default(false);
 
-    RegisterParameter("convert_row_batches_in_worker_thread_pool", ConvertRowBatchesInWorkerThreadPool)
+    registrar.Parameter("convert_row_batches_in_worker_thread_pool", &TThis::ConvertRowBatchesInWorkerThreadPool)
         .Default(true);
 
-    RegisterParameter("infer_dynamic_table_ranges_from_pivot_keys", InferDynamicTableRangesFromPivotKeys)
+    registrar.Parameter("infer_dynamic_table_ranges_from_pivot_keys", &TThis::InferDynamicTableRangesFromPivotKeys)
         .Default(true);
 
-    RegisterParameter("composite", Composite)
+    registrar.Parameter("composite", &TThis::Composite)
         .DefaultNew();
 
-    RegisterParameter("dynamic_table", DynamicTable)
+    registrar.Parameter("dynamic_table", &TThis::DynamicTable)
         .DefaultNew();
 
-    RegisterParameter("testing", Testing)
+    registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 
-    RegisterParameter("execution", Execution)
+    registrar.Parameter("execution", &TThis::Execution)
         .DefaultNew();
 
-    RegisterParameter("concat_tables", ConcatTables)
+    registrar.Parameter("concat_tables", &TThis::ConcatTables)
         .DefaultNew();
 
-    RegisterParameter("list_dir", ListDir)
+    registrar.Parameter("list_dir", &TThis::ListDir)
         .DefaultNew();
 
-    RegisterParameter("table_reader", TableReader)
+    registrar.Parameter("table_reader", &TThis::TableReader)
         .DefaultNew();
-    RegisterParameter("table_writer", TableWriter)
+    registrar.Parameter("table_writer", &TThis::TableWriter)
         .DefaultNew();
 
-    RegisterParameter("enable_reader_tracing", EnableReaderTracing)
+    registrar.Parameter("enable_reader_tracing", &TThis::EnableReaderTracing)
         .Default(false);
 
-    RegisterParameter("caching", Caching)
+    registrar.Parameter("caching", &TThis::Caching)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        TableReader->GroupSize = 20_MB;
-        TableReader->WindowSize = 70_MB;
-        TableReader->MaxBufferSize = 200_MB;
-        TableReader->BlockRpcHedgingDelay = TDuration::MilliSeconds(50);
-        TableReader->MetaRpcHedgingDelay = TDuration::MilliSeconds(10);
-        TableReader->CancelPrimaryBlockRpcRequestOnHedging = true;
+    registrar.Preprocessor([] (TThis* config) {
+        config->TableReader->GroupSize = 20_MB;
+        config->TableReader->WindowSize = 70_MB;
+        config->TableReader->MaxBufferSize = 200_MB;
+        config->TableReader->BlockRpcHedgingDelay = TDuration::MilliSeconds(50);
+        config->TableReader->MetaRpcHedgingDelay = TDuration::MilliSeconds(10);
+        config->TableReader->CancelPrimaryBlockRpcRequestOnHedging = true;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THealthCheckerConfig::THealthCheckerConfig()
+void THealthCheckerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("period", Period)
+    registrar.Parameter("period", &TThis::Period)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("timeout", Timeout)
+    registrar.Parameter("timeout", &TThis::Timeout)
         .Default();
-    RegisterParameter("queries", Queries)
+    registrar.Parameter("queries", &TThis::Queries)
         .Default();
 
-    RegisterPostprocessor([&] {
-        if (Timeout == TDuration::Zero()) {
-            Timeout = Period / std::max<double>(1.0, Queries.size()) * 0.95;
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->Timeout == TDuration::Zero()) {
+            config->Timeout = config->Period / std::max<double>(1.0, config->Queries.size()) * 0.95;
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TShowTablesConfig::TShowTablesConfig()
+void TShowTablesConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("roots", Roots)
+    registrar.Parameter("roots", &TThis::Roots)
         .Default();
 
-    RegisterPostprocessor([&] {
+    registrar.Postprocessor([] (TThis* config) {
         const int MaxRootCount = 10;
-        if (Roots.size() > MaxRootCount) {
-            THROW_ERROR_EXCEPTION("Maximum number of roots for SHOW TABLES exceeded: %v > %v", Roots.size(), MaxRootCount);
+        if (config->Roots.size() > MaxRootCount) {
+            THROW_ERROR_EXCEPTION("Maximum number of roots for SHOW TABLES exceeded: %v > %v", config->Roots.size(), MaxRootCount);
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSubqueryConfig::TSubqueryConfig()
+void TSubqueryConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("chunk_slice_fetcher", ChunkSliceFetcher)
+    registrar.Parameter("chunk_slice_fetcher", &TThis::ChunkSliceFetcher)
         .DefaultNew();
-    RegisterParameter("max_job_count_for_pool", MaxJobCountForPool)
+    registrar.Parameter("max_job_count_for_pool", &TThis::MaxJobCountForPool)
         .Default(1'000'000);
-    RegisterParameter("min_data_weight_per_thread", MinDataWeightPerThread)
+    registrar.Parameter("min_data_weight_per_thread", &TThis::MinDataWeightPerThread)
         .Default(64_MB);
-    RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+    registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)
         .Default(100'000);
-    RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+    registrar.Parameter("max_chunks_per_locate_request", &TThis::MaxChunksPerLocateRequest)
         .Default(10'000);
-    RegisterParameter("max_data_weight_per_subquery", MaxDataWeightPerSubquery)
+    registrar.Parameter("max_data_weight_per_subquery", &TThis::MaxDataWeightPerSubquery)
         .Default(50_GB);
-    RegisterParameter("use_columnar_statistics", UseColumnarStatistics)
+    registrar.Parameter("use_columnar_statistics", &TThis::UseColumnarStatistics)
         .Default(true);
-    RegisterParameter("min_slice_data_weight", MinSliceDataWeight)
+    registrar.Parameter("min_slice_data_weight", &TThis::MinSliceDataWeight)
         .Default(1_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryWatchdogConfig::TMemoryWatchdogConfig()
+void TMemoryWatchdogConfig::Register(TRegistrar registrar)
 {
     // Default is effective infinity.
-    RegisterParameter("memory_limit", MemoryLimit)
+    registrar.Parameter("memory_limit", &TThis::MemoryLimit)
         .Default(1_TB);
-    RegisterParameter("codicil_watermark", CodicilWatermark)
+    registrar.Parameter("codicil_watermark", &TThis::CodicilWatermark)
         .Default(0);
-    RegisterParameter("period", Period)
+    registrar.Parameter("period", &TThis::Period)
         .Default(TDuration::MilliSeconds(300));
-    RegisterParameter("window_codicil_watermark", WindowCodicilWatermark)
+    registrar.Parameter("window_codicil_watermark", &TThis::WindowCodicilWatermark)
         .Default(0);
-    RegisterParameter("window_width", WindowWidth)
+    registrar.Parameter("window_width", &TThis::WindowWidth)
         .Default(TDuration::Minutes(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManagerConfig::TSecurityManagerConfig()
+void TSecurityManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
-    RegisterParameter("operation_acl_update_period", OperationAclUpdatePeriod)
+    registrar.Parameter("operation_acl_update_period", &TThis::OperationAclUpdatePeriod)
         .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryStatisticsReporterConfig::TQueryStatisticsReporterConfig()
+void TQueryStatisticsReporterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("distributed_queries_handler", DistributedQueriesHandler)
+    registrar.Parameter("distributed_queries_handler", &TThis::DistributedQueriesHandler)
         .DefaultNew();
-    RegisterParameter("secondary_queries_handler", SecondaryQueriesHandler)
+    registrar.Parameter("secondary_queries_handler", &TThis::SecondaryQueriesHandler)
         .DefaultNew();
-    RegisterParameter("ancestor_query_ids_handler", AncestorQueryIdsHandler)
+    registrar.Parameter("ancestor_query_ids_handler", &TThis::AncestorQueryIdsHandler)
         .DefaultNew();
 
-    RegisterParameter("user", User)
+    registrar.Parameter("user", &TThis::User)
         .Default("yt-clickhouse");
 
-    RegisterPreprocessor([&] {
-        Enabled = false;
+    registrar.Preprocessor([] (TThis* config) {
+        config->Enabled = false;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGossipConfig::TGossipConfig()
+void TGossipConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("period", Period)
+    registrar.Parameter("period", &TThis::Period)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("timeout", Timeout)
+    registrar.Parameter("timeout", &TThis::Timeout)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("unknown_instance_age_threshold", UnknownInstanceAgeThreshold)
+    registrar.Parameter("unknown_instance_age_threshold", &TThis::UnknownInstanceAgeThreshold)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("unknown_instance_ping_limit", UnknownInstancePingLimit)
+    registrar.Parameter("unknown_instance_ping_limit", &TThis::UnknownInstancePingLimit)
         .Default(10);
-    RegisterParameter("ping_banned", PingBanned)
+    registrar.Parameter("ping_banned", &TThis::PingBanned)
         .Default(true);
-    RegisterParameter("allow_unban", AllowUnban)
+    registrar.Parameter("allow_unban", &TThis::AllowUnban)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInvokerLivenessCheckerConfig::TInvokerLivenessCheckerConfig()
+void TInvokerLivenessCheckerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enabled", Enabled)
+    registrar.Parameter("enabled", &TThis::Enabled)
         .Default(true);
-    RegisterParameter("period", Period)
+    registrar.Parameter("period", &TThis::Period)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("timeout", Timeout)
+    registrar.Parameter("timeout", &TThis::Timeout)
         .Default(TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryRegistryConfig::TQueryRegistryConfig()
+void TQueryRegistryConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("process_list_snapshot_update_period", ProcessListSnapshotUpdatePeriod)
+    registrar.Parameter("process_list_snapshot_update_period", &TThis::ProcessListSnapshotUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("save_running_queries", SaveRunningQueries)
+    registrar.Parameter("save_running_queries", &TThis::SaveRunningQueries)
         .Default(true);
-    RegisterParameter("save_users", SaveUsers)
+    registrar.Parameter("save_users", &TThis::SaveUsers)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYtConfig::TYtConfig()
+void TYtConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("clique_id", CliqueId)
+    registrar.Parameter("clique_id", &TThis::CliqueId)
         .Default();
-    RegisterParameter("instance_id", InstanceId)
+    registrar.Parameter("instance_id", &TThis::InstanceId)
         .Default();
-    RegisterParameter("address", Address)
+    registrar.Parameter("address", &TThis::Address)
         .Default();
 
-    RegisterParameter("client_cache", ClientCache)
+    registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
 
-    RegisterParameter("user_agent_black_list", UserAgentBlackList)
+    registrar.Parameter("user_agent_black_list", &TThis::UserAgentBlackList)
         .Default();
 
-    RegisterParameter("validate_operation_access", ValidateOperationAccess)
+    registrar.Parameter("validate_operation_access", &TThis::ValidateOperationAccess)
         .Default();
-    RegisterParameter("operation_acl_update_period", OperationAclUpdatePeriod)
+    registrar.Parameter("operation_acl_update_period", &TThis::OperationAclUpdatePeriod)
         .Default();
 
-    RegisterParameter("security_manager", SecurityManager)
+    registrar.Parameter("security_manager", &TThis::SecurityManager)
         .DefaultNew();
 
-    RegisterParameter("user", User)
+    registrar.Parameter("user", &TThis::User)
         .Default("yt-clickhouse");
 
-    RegisterParameter("show_tables", ShowTables)
+    registrar.Parameter("show_tables", &TThis::ShowTables)
         .DefaultNew();
 
-    RegisterParameter("memory_watchdog", MemoryWatchdog)
-        .Default(New<TMemoryWatchdogConfig>());
+    registrar.Parameter("memory_watchdog", &TThis::MemoryWatchdog)
+        .DefaultNew();
 
-    RegisterParameter("discovery", Discovery)
+    registrar.Parameter("discovery", &TThis::Discovery)
         .DefaultNew("//sys/clickhouse/cliques");
 
-    RegisterParameter("gossip", Gossip)
+    registrar.Parameter("gossip", &TThis::Gossip)
         .DefaultNew();
 
-    RegisterParameter("control_invoker_checker", ControlInvokerChecker)
+    registrar.Parameter("control_invoker_checker", &TThis::ControlInvokerChecker)
         .DefaultNew();
 
-    RegisterParameter("permission_cache", PermissionCache)
+    registrar.Parameter("permission_cache", &TThis::PermissionCache)
         .DefaultNew();
 
-    RegisterParameter("worker_thread_count", WorkerThreadCount)
+    registrar.Parameter("worker_thread_count", &TThis::WorkerThreadCount)
         .Default(8);
 
-    RegisterParameter("fetcher_thread_count", FetcherThreadCount)
+    registrar.Parameter("fetcher_thread_count", &TThis::FetcherThreadCount)
         .Default(8);
 
-    RegisterParameter("cpu_limit", CpuLimit)
+    registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .Default();
 
-    RegisterParameter("subquery", Subquery)
+    registrar.Parameter("subquery", &TThis::Subquery)
         .DefaultNew();
 
-    RegisterParameter("create_table_default_attributes", CreateTableDefaultAttributes)
+    registrar.Parameter("create_table_default_attributes", &TThis::CreateTableDefaultAttributes)
         .MergeBy(NYTree::EMergeStrategy::Combine)
         .Default(NYTree::BuildYsonNodeFluently()
         .BeginMap()
             .Item("optimize_for").Value("scan")
         .EndMap());
 
-    RegisterParameter("total_reader_memory_limit", TotalReaderMemoryLimit)
+    registrar.Parameter("total_reader_memory_limit", &TThis::TotalReaderMemoryLimit)
         .Default(20_GB);
-    RegisterParameter("reader_memory_requirement", ReaderMemoryRequirement)
+    registrar.Parameter("reader_memory_requirement", &TThis::ReaderMemoryRequirement)
         .Default(500_MB);
 
-    RegisterParameter("health_checker", HealthChecker)
+    registrar.Parameter("health_checker", &TThis::HealthChecker)
         .DefaultNew();
 
-    RegisterParameter("enable_dynamic_tables", EnableDynamicTables)
+    registrar.Parameter("enable_dynamic_tables", &TThis::EnableDynamicTables)
         .Default(false);
 
-    RegisterParameter("total_memory_tracker_update_period", TotalMemoryTrackerUpdatePeriod)
+    registrar.Parameter("total_memory_tracker_update_period", &TThis::TotalMemoryTrackerUpdatePeriod)
         .Default(TDuration::MilliSeconds(300));
 
-    RegisterParameter("query_settings", QuerySettings)
+    registrar.Parameter("query_settings", &TThis::QuerySettings)
         .Alias("settings")
         .DefaultNew();
 
-    RegisterParameter("table_attribute_cache", TableAttributeCache)
+    registrar.Parameter("table_attribute_cache", &TThis::TableAttributeCache)
         .DefaultNew();
 
-    RegisterParameter("table_columnar_statistics_cache", TableColumnarStatisticsCache)
+    registrar.Parameter("table_columnar_statistics_cache", &TThis::TableColumnarStatisticsCache)
         .DefaultNew();
 
-    RegisterParameter("query_statistics_reporter", QueryStatisticsReporter)
+    registrar.Parameter("query_statistics_reporter", &TThis::QueryStatisticsReporter)
         .DefaultNew();
 
-    RegisterParameter("query_registry", QueryRegistry)
+    registrar.Parameter("query_registry", &TThis::QueryRegistry)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        TableAttributeCache->ExpireAfterAccessTime = TDuration::Minutes(2);
-        TableAttributeCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(20);
-        TableAttributeCache->ExpireAfterFailedUpdateTime = TDuration::Zero();
-        TableAttributeCache->RefreshTime = TDuration::Seconds(15);
-        TableAttributeCache->BatchUpdate = true;
+    registrar.Preprocessor([] (TThis* config) {
+        config->TableAttributeCache->ExpireAfterAccessTime = TDuration::Minutes(2);
+        config->TableAttributeCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(20);
+        config->TableAttributeCache->ExpireAfterFailedUpdateTime = TDuration::Zero();
+        config->TableAttributeCache->RefreshTime = TDuration::Seconds(15);
+        config->TableAttributeCache->BatchUpdate = true;
 
-        PermissionCache->RefreshUser = CacheUserName;
-        PermissionCache->AlwaysUseRefreshUser = false;
+        config->PermissionCache->RefreshUser = CacheUserName;
+        config->PermissionCache->AlwaysUseRefreshUser = false;
 
         // Disable background updates since we deal with consistency issues by checking cached table revision.
-        TableColumnarStatisticsCache->RefreshTime = std::nullopt;
-        TableColumnarStatisticsCache->ExpireAfterSuccessfulUpdateTime = TDuration::Hours(6);
-        TableColumnarStatisticsCache->ExpireAfterAccessTime = TDuration::Hours(6);
+        config->TableColumnarStatisticsCache->RefreshTime = std::nullopt;
+        config->TableColumnarStatisticsCache->ExpireAfterSuccessfulUpdateTime = TDuration::Hours(6);
+        config->TableColumnarStatisticsCache->ExpireAfterAccessTime = TDuration::Hours(6);
 
     });
 
-    RegisterPostprocessor([&] {
-        if (ValidateOperationAccess) {
-            SecurityManager->Enable = *ValidateOperationAccess;
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->ValidateOperationAccess) {
+            config->SecurityManager->Enable = *config->ValidateOperationAccess;
         }
-        if (OperationAclUpdatePeriod) {
-            SecurityManager->OperationAclUpdatePeriod = *OperationAclUpdatePeriod;
+        if (config->OperationAclUpdatePeriod) {
+            config->SecurityManager->OperationAclUpdatePeriod = *config->OperationAclUpdatePeriod;
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLauncherConfig::TLauncherConfig()
+void TLauncherConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("version", Version)
+    registrar.Parameter("version", &TThis::Version)
         .Default(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryConfig::TMemoryConfig()
+void TMemoryConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("reader", Reader)
+    registrar.Parameter("reader", &TThis::Reader)
         .Default();
-    RegisterParameter("uncompressed_block_cache", UncompressedBlockCache)
+    registrar.Parameter("uncompressed_block_cache", &TThis::UncompressedBlockCache)
         .Default();
-    RegisterParameter("compressed_block_cache", CompressedBlockCache)
+    registrar.Parameter("compressed_block_cache", &TThis::CompressedBlockCache)
         .Default();
-    RegisterParameter("chunk_meta_cache", ChunkMetaCache)
+    registrar.Parameter("chunk_meta_cache", &TThis::ChunkMetaCache)
         .Default();
-    RegisterParameter("memory_limit", MemoryLimit)
+    registrar.Parameter("memory_limit", &TThis::MemoryLimit)
         .Default();
-    RegisterParameter("max_server_memory_usage", MaxServerMemoryUsage)
+    registrar.Parameter("max_server_memory_usage", &TThis::MaxServerMemoryUsage)
         .Default();
-    RegisterParameter("watchdog_oom_watermark", WatchdogOomWatermark)
+    registrar.Parameter("watchdog_oom_watermark", &TThis::WatchdogOomWatermark)
         .Default();
-    RegisterParameter("watchdog_oom_window_watermark", WatchdogOomWindowWatermark)
+    registrar.Parameter("watchdog_oom_window_watermark", &TThis::WatchdogOomWindowWatermark)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
+void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cluster_connection", ClusterConnection);
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
 
-    RegisterParameter("yt", Yt)
+    registrar.Parameter("yt", &TThis::Yt)
         .DefaultNew();
 
-    RegisterParameter("graceful_interruption_delay", GracefulInterruptionDelay)
+    registrar.Parameter("graceful_interruption_delay", &TThis::GracefulInterruptionDelay)
         .Default(TDuration::Seconds(2))
         // COMPAT(dakovalkov)
         .Alias("interruption_graceful_timeout");
 
-    RegisterParameter("interruption_timeout", InterruptionTimeout)
+    registrar.Parameter("interruption_timeout", &TThis::InterruptionTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("launcher", Launcher)
+    registrar.Parameter("launcher", &TThis::Launcher)
         .DefaultNew();
 
-    RegisterParameter("clickhouse", ClickHouse)
+    registrar.Parameter("clickhouse", &TThis::ClickHouse)
         .Alias("engine")
         .DefaultNew();
 
-    RegisterParameter("cpu_limit", CpuLimit)
+    registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .Default();
 
-    RegisterParameter("memory", Memory)
+    registrar.Parameter("memory", &TThis::Memory)
         .Default();
 
-    RegisterPreprocessor([&] {
-        Jaeger->ServiceName = "clickhouse_server";
-        Jaeger->CollectorChannelConfig = New<NRpc::NGrpc::TChannelConfig>();
-        Jaeger->CollectorChannelConfig->Address = "yt.c.jaeger.yandex-team.ru:14250";
+    registrar.Preprocessor([] (TThis* config) {
+        config->Jaeger->ServiceName = "clickhouse_server";
+        config->Jaeger->CollectorChannelConfig = New<NRpc::NGrpc::TChannelConfig>();
+        config->Jaeger->CollectorChannelConfig->Address = "yt.c.jaeger.yandex-team.ru:14250";
     });
 
-    RegisterPostprocessor([&] {
-        if (CpuLimit) {
-            Yt->CpuLimit = CpuLimit;
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->CpuLimit) {
+            config->Yt->CpuLimit = config->CpuLimit;
         }
 
-        if (Memory) {
-            if (Memory->Reader) {
-                Yt->TotalReaderMemoryLimit = *Memory->Reader;
+        if (config->Memory) {
+            if (config->Memory->Reader) {
+                config->Yt->TotalReaderMemoryLimit = *config->Memory->Reader;
             }
-            if (Memory->MemoryLimit) {
-                Yt->MemoryWatchdog->MemoryLimit = *Memory->MemoryLimit;
+            if (config->Memory->MemoryLimit) {
+                config->Yt->MemoryWatchdog->MemoryLimit = *config->Memory->MemoryLimit;
             }
-            if (Memory->WatchdogOomWatermark) {
-                Yt->MemoryWatchdog->CodicilWatermark = *Memory->WatchdogOomWatermark;
+            if (config->Memory->WatchdogOomWatermark) {
+                config->Yt->MemoryWatchdog->CodicilWatermark = *config->Memory->WatchdogOomWatermark;
             }
-            if (Memory->WatchdogOomWindowWatermark) {
-                Yt->MemoryWatchdog->WindowCodicilWatermark = *Memory->WatchdogOomWindowWatermark;
+            if (config->Memory->WatchdogOomWindowWatermark) {
+                config->Yt->MemoryWatchdog->WindowCodicilWatermark = *config->Memory->WatchdogOomWindowWatermark;
             }
 
             auto initDefault = [] (auto& config) {
@@ -558,21 +558,21 @@ TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
                 }
             };
 
-            if (Memory->UncompressedBlockCache) {
-                initDefault(ClusterConnection->BlockCache);
-                ClusterConnection->BlockCache->UncompressedData->Capacity = *Memory->UncompressedBlockCache;
+            if (config->Memory->UncompressedBlockCache) {
+                initDefault(config->ClusterConnection->BlockCache);
+                config->ClusterConnection->BlockCache->UncompressedData->Capacity = *config->Memory->UncompressedBlockCache;
             }
-            if (Memory->CompressedBlockCache) {
-                initDefault(ClusterConnection->BlockCache);
-                ClusterConnection->BlockCache->CompressedData->Capacity = *Memory->CompressedBlockCache;
+            if (config->Memory->CompressedBlockCache) {
+                initDefault(config->ClusterConnection->BlockCache);
+                config->ClusterConnection->BlockCache->CompressedData->Capacity = *config->Memory->CompressedBlockCache;
             }
-            if (Memory->ChunkMetaCache) {
-                initDefault(ClusterConnection->ChunkMetaCache);
-                ClusterConnection->ChunkMetaCache->Capacity = *Memory->ChunkMetaCache;
+            if (config->Memory->ChunkMetaCache) {
+                initDefault(config->ClusterConnection->ChunkMetaCache);
+                config->ClusterConnection->ChunkMetaCache->Capacity = *config->Memory->ChunkMetaCache;
             }
 
-            if (Memory->MaxServerMemoryUsage) {
-                ClickHouse->MaxServerMemoryUsage = *Memory->MaxServerMemoryUsage;
+            if (config->Memory->MaxServerMemoryUsage) {
+                config->ClickHouse->MaxServerMemoryUsage = *config->Memory->MaxServerMemoryUsage;
             }
         }
     });

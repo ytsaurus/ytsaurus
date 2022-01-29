@@ -1,5 +1,7 @@
 #include "fair_share_tree_profiling.h"
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 namespace NYT::NScheduler {
 
 using namespace NProfiling;

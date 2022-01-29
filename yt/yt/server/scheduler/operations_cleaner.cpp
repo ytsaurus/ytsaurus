@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/operation_archive_schema.h>

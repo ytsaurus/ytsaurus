@@ -13,7 +13,7 @@ namespace NYT::NLogTailer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogRotationConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
@@ -27,17 +27,19 @@ public:
     //! Delay between SIGHUP and last read of old log.
     TDuration RotationDelay;
 
-    TLogRotationConfig()
+    REGISTER_YSON_STRUCT(TLogRotationConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("enable", Enable)
+        registrar.Parameter("enable", &TThis::Enable)
             .Default(false);
-        RegisterParameter("rotation_period", RotationPeriod)
+        registrar.Parameter("rotation_period", &TThis::RotationPeriod)
             .Default();
-        RegisterParameter("log_segment_count", LogSegmentCount)
+        registrar.Parameter("log_segment_count", &TThis::LogSegmentCount)
             .Default(5);
-        RegisterParameter("log_writer_pid", LogWriterPid)
+        registrar.Parameter("log_writer_pid", &TThis::LogWriterPid)
             .Default();
-        RegisterParameter("rotation_delay", RotationDelay)
+        registrar.Parameter("rotation_delay", &TThis::RotationDelay)
             .Default(TDuration::MilliSeconds(50));
     }
 };
@@ -47,16 +49,18 @@ DEFINE_REFCOUNTED_TYPE(TLogRotationConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogTableConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NYTree::TYPath Path;
     bool RequireTraceId;
 
-    TLogTableConfig()
+    REGISTER_YSON_STRUCT(TLogTableConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("path", Path);
-        RegisterParameter("require_trace_id", RequireTraceId)
+        registrar.Parameter("path", &TThis::Path);
+        registrar.Parameter("require_trace_id", &TThis::RequireTraceId)
             .Default(false);
     }
 };
@@ -66,17 +70,19 @@ DEFINE_REFCOUNTED_TYPE(TLogTableConfig);
 /////////////////////////////////////////////////////////////////////////////
 
 class TLogFileConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Path;
     std::vector<TLogTableConfigPtr> Tables;
 
-    TLogFileConfig()
+    REGISTER_YSON_STRUCT(TLogFileConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("path", Path)
+        registrar.Parameter("path", &TThis::Path)
             .Default();
-        RegisterParameter("tables", Tables)
+        registrar.Parameter("tables", &TThis::Tables)
             .Default();
     }
 };
@@ -86,23 +92,25 @@ DEFINE_REFCOUNTED_TYPE(TLogFileConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogWriterLivenessCheckerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
 
     TDuration LivenessCheckPeriod;
 
-    TLogWriterLivenessCheckerConfig()
+    REGISTER_YSON_STRUCT(TLogWriterLivenessCheckerConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("enable", Enable)
+        registrar.Parameter("enable", &TThis::Enable)
             .Default(false);
 
-        RegisterParameter("liveness_check_period", LivenessCheckPeriod)
+        registrar.Parameter("liveness_check_period", &TThis::LivenessCheckPeriod)
             .Default();
 
-        RegisterPostprocessor([&] {
-            if (Enable && !LivenessCheckPeriod) {
+        registrar.Postprocessor([] (TThis* config) {
+            if (config->Enable && !config->LivenessCheckPeriod) {
                 THROW_ERROR_EXCEPTION("Log writer liveness checker is enabled while liveness_check_period is not set");
             }
         });
@@ -114,7 +122,7 @@ DEFINE_REFCOUNTED_TYPE(TLogWriterLivenessCheckerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogTailerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TLogRotationConfigPtr LogRotation;
@@ -132,30 +140,32 @@ public:
 
     TDuration TickPeriod;
 
-    TLogTailerConfig()
+    REGISTER_YSON_STRUCT(TLogTailerConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("log_rotation", LogRotation)
+        registrar.Parameter("log_rotation", &TThis::LogRotation)
             .DefaultNew();
 
-        RegisterParameter("log_files", LogFiles)
+        registrar.Parameter("log_files", &TThis::LogFiles)
             .Default();
 
-        RegisterParameter("log_writer_liveness_checker", LogWriterLivenessChecker)
+        registrar.Parameter("log_writer_liveness_checker", &TThis::LogWriterLivenessChecker)
             .Default();
 
-        RegisterParameter("read_period", ReadPeriod)
+        registrar.Parameter("read_period", &TThis::ReadPeriod)
             .Default(TDuration::Seconds(1));
 
-        RegisterParameter("read_buffer_size", ReadBufferSize)
+        registrar.Parameter("read_buffer_size", &TThis::ReadBufferSize)
             .Default(16_MB);
 
-        RegisterParameter("max_records_per_transaction", MaxRecordsPerTransaction)
+        registrar.Parameter("max_records_per_transaction", &TThis::MaxRecordsPerTransaction)
             .Default(10 * 1000);
 
-        RegisterParameter("max_records_in_buffer", MaxRecordsInBuffer)
+        registrar.Parameter("max_records_in_buffer", &TThis::MaxRecordsInBuffer)
             .Default(100 * 1000);
 
-        RegisterParameter("tick_period", TickPeriod)
+        registrar.Parameter("tick_period", &TThis::TickPeriod)
             .Default(TDuration::MilliSeconds(500));
     }
 };
@@ -165,7 +175,7 @@ DEFINE_REFCOUNTED_TYPE(TLogTailerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogTailerBootstrapConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     TLogTailerConfigPtr LogTailer;
@@ -174,14 +184,16 @@ public:
 
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
-    TLogTailerBootstrapConfig()
-    {
-        RegisterParameter("log_tailer", LogTailer);
+    REGISTER_YSON_STRUCT(TLogTailerBootstrapConfig);
 
-        RegisterParameter("cluster_user", ClusterUser)
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("log_tailer", &TThis::LogTailer);
+
+        registrar.Parameter("cluster_user", &TThis::ClusterUser)
             .Default("yt-log-tailer");
 
-        RegisterParameter("cluster_connection", ClusterConnection);
+        registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
     }
 };
 

@@ -33,7 +33,7 @@ namespace NYT::NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiscoveryServiceConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     bool Enable;
@@ -42,21 +42,9 @@ public:
     TDuration AvailabilityPeriod;
     TDuration BackoffPeriod;
 
-    TDiscoveryServiceConfig()
-    {
-        RegisterParameter("enable", Enable)
-            .Default(true);
-        RegisterParameter("liveness_update_period", LivenessUpdatePeriod)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("proxy_update_period", ProxyUpdatePeriod)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("availability_period", AvailabilityPeriod)
-            .Default(TDuration::Seconds(15))
-            .GreaterThan(LivenessUpdatePeriod);
-        RegisterParameter("backoff_period", BackoffPeriod)
-            .Default(TDuration::Seconds(60))
-            .GreaterThan(AvailabilityPeriod);
-    }
+    REGISTER_YSON_STRUCT(TDiscoveryServiceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoveryServiceConfig)
@@ -64,7 +52,7 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAccessCheckerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Whether access checker is enabled.
@@ -77,17 +65,9 @@ public:
     //! Parameters of the permission cache.
     NSecurityClient::TPermissionCacheConfigPtr Cache;
 
-    TAccessCheckerConfig()
-    {
-        RegisterParameter("enabled", Enabled)
-            .Default(false);
+    REGISTER_YSON_STRUCT(TAccessCheckerConfig);
 
-        RegisterParameter("path_prefix", PathPrefix)
-            .Default("//sys/rpc_proxy_roles");
-
-        RegisterParameter("cache", Cache)
-            .DefaultNew();
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAccessCheckerConfig)
@@ -95,17 +75,15 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAccessCheckerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Whether access checker is enabled.
     std::optional<bool> Enabled;
 
-    TAccessCheckerDynamicConfig()
-    {
-        RegisterParameter("enabled", Enabled)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TAccessCheckerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
@@ -113,7 +91,7 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
     , public NAuth::TAuthenticationManagerConfig
 {
 public:
@@ -142,52 +120,9 @@ public:
     TString DynamicConfigPath;
     bool UseTaggedDynamicConfig;
 
-    TProxyConfig()
-    {
-        RegisterParameter("cluster_connection", ClusterConnection)
-            .Default();
+    REGISTER_YSON_STRUCT(TProxyConfig);
 
-        RegisterParameter("grpc_server", GrpcServer)
-            .Default();
-        RegisterParameter("api_service", ApiService)
-            .DefaultNew();
-        RegisterParameter("discovery_service", DiscoveryService)
-            .DefaultNew();
-        RegisterParameter("addresses", Addresses)
-            .Default();
-        RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
-            .GreaterThan(0)
-            .Default(8);
-
-        RegisterParameter("access_checker", AccessChecker)
-            .DefaultNew();
-
-        RegisterParameter("cypress_annotations", CypressAnnotations)
-            .Default(NYTree::BuildYsonNodeFluently()
-                .BeginMap()
-                .EndMap()
-            ->AsMap());
-
-        RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
-            .Default(false);
-
-        RegisterParameter("retry_request_queue_size_limit_exceeded", RetryRequestQueueSizeLimitExceeded)
-            .Default(true);
-
-        RegisterParameter("dynamic_config_manager", DynamicConfigManager)
-            .DefaultNew();
-
-        RegisterParameter("dynamic_config_path", DynamicConfigPath)
-            .Default("//sys/rpc_proxies/@config");
-        RegisterParameter("use_tagged_dynamic_config", UseTaggedDynamicConfig)
-            .Default(false);
-
-        RegisterPostprocessor([&] {
-            if (GrpcServer && GrpcServer->Addresses.size() > 1) {
-                THROW_ERROR_EXCEPTION("Multiple GRPC addresses are not supported");
-            }
-        });
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProxyConfig)
@@ -195,7 +130,7 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyDynamicConfig
-    : public TDeprecatedSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TApiServiceDynamicConfigPtr Api;
@@ -207,29 +142,9 @@ public:
 
     NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
 
-    TProxyDynamicConfig()
-    {
-        RegisterParameter("api", Api)
-            .DefaultNew();
+    REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
-        RegisterParameter("tracing", Tracing)
-            .DefaultNew();
-        RegisterParameter("formats", Formats)
-            .Default();
-
-        RegisterParameter("access_checker", AccessChecker)
-            .DefaultNew();
-
-        RegisterParameter("cluster_connection", ClusterConnection)
-            .DefaultNew();
-
-        // COMPAT(gritukan, levysotsky)
-        RegisterPostprocessor([&] {
-            if (Api->Formats.empty()) {
-                Api->Formats = Formats;
-            }
-        });
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProxyDynamicConfig)

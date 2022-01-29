@@ -17,6 +17,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/security_client/helpers.h>

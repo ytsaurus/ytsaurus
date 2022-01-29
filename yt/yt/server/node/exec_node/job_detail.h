@@ -19,6 +19,8 @@
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
+#include <yt/yt/ytlib/job_proxy/public.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/yson/string.h>

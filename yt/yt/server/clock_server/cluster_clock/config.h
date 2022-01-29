@@ -43,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(TClockHydraManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterClockConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     NElection::TCellConfigPtr ClockCell;
@@ -57,7 +57,9 @@ public:
 
     NBus::TTcpBusConfigPtr BusClient;
 
-    TClusterClockConfig();
+    REGISTER_YSON_STRUCT(TClusterClockConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterClockConfig)

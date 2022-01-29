@@ -22,220 +22,220 @@ using namespace NAuth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCoordinatorConfig::TCoordinatorConfig()
+void TCoordinatorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
-    RegisterParameter("announce", Announce)
+    registrar.Parameter("announce", &TThis::Announce)
         .Default(true);
 
-    RegisterParameter("public_fqdn", PublicFqdn)
+    registrar.Parameter("public_fqdn", &TThis::PublicFqdn)
         .Default();
-    RegisterParameter("default_role_filter", DefaultRoleFilter)
+    registrar.Parameter("default_role_filter", &TThis::DefaultRoleFilter)
         .Default("data");
 
-    RegisterParameter("heartbeat_interval", HeartbeatInterval)
+    registrar.Parameter("heartbeat_interval", &TThis::HeartbeatInterval)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("death_age", DeathAge)
+    registrar.Parameter("death_age", &TThis::DeathAge)
         .Default(TDuration::Minutes(2));
-    RegisterParameter("cypress_timeout", CypressTimeout)
+    registrar.Parameter("cypress_timeout", &TThis::CypressTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("show_ports", ShowPorts)
+    registrar.Parameter("show_ports", &TThis::ShowPorts)
         .Default(false);
 
-    RegisterParameter("load_average_weight", LoadAverageWeight)
+    registrar.Parameter("load_average_weight", &TThis::LoadAverageWeight)
         .Default(1.0);
-    RegisterParameter("network_load_weight", NetworkLoadWeight)
+    registrar.Parameter("network_load_weight", &TThis::NetworkLoadWeight)
         .Default(50);
-    RegisterParameter("randomness_weight", RandomnessWeight)
+    registrar.Parameter("randomness_weight", &TThis::RandomnessWeight)
         .Default(1);
-    RegisterParameter("dampening_weight", DampeningWeight)
+    registrar.Parameter("dampening_weight", &TThis::DampeningWeight)
         .Default(0.3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TApiTestingOptions::TDelayBeforeCommand::TDelayBeforeCommand()
+void TDelayBeforeCommand::Register(TRegistrar registrar)
 {
-    RegisterParameter("delay", Delay);
-    RegisterParameter("parameter_path", ParameterPath);
-    RegisterParameter("substring", Substring);
+    registrar.Parameter("delay", &TThis::Delay);
+    registrar.Parameter("parameter_path", &TThis::ParameterPath);
+    registrar.Parameter("substring", &TThis::Substring);
 }
 
-TApiTestingOptions::TApiTestingOptions()
+void TApiTestingOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("delay_before_command", DelayBeforeCommand)
+    registrar.Parameter("delay_before_command", &TThis::DelayBeforeCommand)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFramingConfig::TFramingConfig()
+void TFramingConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("keep_alive_period", KeepAlivePeriod)
+    registrar.Parameter("keep_alive_period", &TThis::KeepAlivePeriod)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TApiConfig::TApiConfig()
+void TApiConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("ban_cache_expiration_time", BanCacheExpirationTime)
+    registrar.Parameter("ban_cache_expiration_time", &TThis::BanCacheExpirationTime)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("concurrency_limit", ConcurrencyLimit)
+    registrar.Parameter("concurrency_limit", &TThis::ConcurrencyLimit)
         .Default(1024);
 
-    RegisterParameter("disable_cors_check", DisableCorsCheck)
+    registrar.Parameter("disable_cors_check", &TThis::DisableCorsCheck)
         .Default(false);
 
-    RegisterParameter("force_tracing", ForceTracing)
+    registrar.Parameter("force_tracing", &TThis::ForceTracing)
         .Default(false);
 
-    RegisterParameter("testing", TestingOptions)
+    registrar.Parameter("testing", &TThis::TestingOptions)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TApiDynamicConfig::TApiDynamicConfig()
+void TApiDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("framing", Framing)
+    registrar.Parameter("framing", &TThis::Framing)
         .DefaultNew();
 
-    RegisterParameter("formats", Formats)
+    registrar.Parameter("formats", &TThis::Formats)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccessCheckerConfig::TAccessCheckerConfig()
+void TAccessCheckerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enabled", Enabled)
+    registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 
-    RegisterParameter("path_prefix", PathPrefix)
+    registrar.Parameter("path_prefix", &TThis::PathPrefix)
         .Default("//sys/http_proxy_roles");
 
-    RegisterParameter("cache", Cache)
+    registrar.Parameter("cache", &TThis::Cache)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccessCheckerDynamicConfig::TAccessCheckerDynamicConfig()
+void TAccessCheckerDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enabled", Enabled)
+    registrar.Parameter("enabled", &TThis::Enabled)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProxyConfig::TProxyConfig()
+void TProxyConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("port", Port)
+    registrar.Parameter("port", &TThis::Port)
         .Default(80);
-    RegisterParameter("thread_count", ThreadCount)
+    registrar.Parameter("thread_count", &TThis::ThreadCount)
         .Default(16);
-    RegisterParameter("http_server", HttpServer)
+    registrar.Parameter("http_server", &TThis::HttpServer)
         .DefaultNew();
-    RegisterParameter("https_server", HttpsServer)
+    registrar.Parameter("https_server", &TThis::HttpsServer)
         .Optional();
 
-    RegisterPostprocessor([&] {
-        HttpServer->Port = Port;
+    registrar.Postprocessor([] (TThis* config) {
+        config->HttpServer->Port = config->Port;
     });
 
-    RegisterParameter("driver", Driver)
+    registrar.Parameter("driver", &TThis::Driver)
         .Default();
-    RegisterParameter("auth", Auth)
+    registrar.Parameter("auth", &TThis::Auth)
         .DefaultNew();
 
-    RegisterParameter("ui_redirect_url", UIRedirectUrl)
+    registrar.Parameter("ui_redirect_url", &TThis::UIRedirectUrl)
         .Default();
 
-    RegisterParameter("retry_request_queue_size_limit_exceeded", RetryRequestQueueSizeLimitExceeded)
+    registrar.Parameter("retry_request_queue_size_limit_exceeded", &TThis::RetryRequestQueueSizeLimitExceeded)
         .Default(true);
 
-    RegisterParameter("coordinator", Coordinator)
+    registrar.Parameter("coordinator", &TThis::Coordinator)
         .DefaultNew();
-    RegisterParameter("api", Api)
-        .DefaultNew();
-
-    RegisterParameter("access_checker", AccessChecker)
+    registrar.Parameter("api", &TThis::Api)
         .DefaultNew();
 
-    RegisterParameter("clickhouse", ClickHouse)
+    registrar.Parameter("access_checker", &TThis::AccessChecker)
         .DefaultNew();
 
-    RegisterParameter("cypress_annotations", CypressAnnotations)
+    registrar.Parameter("clickhouse", &TThis::ClickHouse)
+        .DefaultNew();
+
+    registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(NYTree::BuildYsonNodeFluently()
             .BeginMap()
             .EndMap()
         ->AsMap());
 
-    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
-    RegisterParameter("default_network", DefaultNetwork)
+    registrar.Parameter("default_network", &TThis::DefaultNetwork)
         .Default(NBus::DefaultNetworkName);
-    RegisterParameter("networks", Networks)
+    registrar.Parameter("networks", &TThis::Networks)
         .Default();
 
-    RegisterParameter("dynamic_config_manager", DynamicConfigManager)
+    registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
 
-    RegisterParameter("dynamic_config_path", DynamicConfigPath)
+    registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
         .Default("//sys/proxies/@config");
-    RegisterParameter("use_tagged_dynamic_config", UseTaggedDynamicConfig)
+    registrar.Parameter("use_tagged_dynamic_config", &TThis::UseTaggedDynamicConfig)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProxyDynamicConfig::TProxyDynamicConfig()
+void TProxyDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("api", Api)
+    registrar.Parameter("api", &TThis::Api)
         .Default();
 
-    RegisterParameter("tracing", Tracing)
+    registrar.Parameter("tracing", &TThis::Tracing)
         .DefaultNew();
 
-    RegisterParameter("fitness_function", FitnessFunction)
+    registrar.Parameter("fitness_function", &TThis::FitnessFunction)
         .Default();
 
-    RegisterParameter("relax_csrf_check", RelaxCsrfCheck)
+    registrar.Parameter("relax_csrf_check", &TThis::RelaxCsrfCheck)
         .Default(false);
 
-    RegisterParameter("cpu_weight", CpuWeight)
+    registrar.Parameter("cpu_weight", &TThis::CpuWeight)
         .Default(1);
-    RegisterParameter("cpu_wait_weight", CpuWaitWeight)
+    registrar.Parameter("cpu_wait_weight", &TThis::CpuWaitWeight)
         .Default(10);
-    RegisterParameter("concurrent_requests_weight", ConcurrentRequestsWeight)
+    registrar.Parameter("concurrent_requests_weight", &TThis::ConcurrentRequestsWeight)
         .Default(10);
 
-    RegisterParameter("clickhouse", ClickHouse)
+    registrar.Parameter("clickhouse", &TThis::ClickHouse)
         .DefaultNew();
 
-    RegisterParameter("formats", Formats)
+    registrar.Parameter("formats", &TThis::Formats)
         .Default();
 
-    RegisterParameter("framing", Framing)
+    registrar.Parameter("framing", &TThis::Framing)
         .DefaultNew();
 
-    RegisterParameter("access_checker", AccessChecker)
+    registrar.Parameter("access_checker", &TThis::AccessChecker)
         .DefaultNew();
 
     // COMPAT(gritukan, levysotsky)
-    RegisterPostprocessor([&] {
-        if (!Api) {
-            Api = New<TApiDynamicConfig>();
-            Api->Formats = Formats;
-            Api->Framing = Framing;
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->Api) {
+            config->Api = New<TApiDynamicConfig>();
+            config->Api->Formats = config->Formats;
+            config->Api->Framing = config->Framing;
         }
     });
 }

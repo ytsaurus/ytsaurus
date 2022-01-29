@@ -6,15 +6,15 @@ namespace NYT::NTimestampProvider {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTimestampProviderConfig::TTimestampProviderConfig()
+void TTimestampProviderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
-    RegisterParameter("bus_client", BusClient)
+    registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
 
-    RegisterParameter("timestamp_provider", TimestampProvider)
+    registrar.Parameter("timestamp_provider", &TThis::TimestampProvider)
         .DefaultNew();
 }
 

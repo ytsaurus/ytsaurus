@@ -4,18 +4,18 @@ namespace NYT::NClusterDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterDiscoveryServerConfig::TClusterDiscoveryServerConfig()
+void TClusterDiscoveryServerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
-    RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
+    registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
         .Default(4);
 
-    RegisterParameter("bus_client", BusClient)
+    registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
 
-    RegisterParameter("discovery_server", DiscoveryServer)
+    registrar.Parameter("discovery_server", &TThis::DiscoveryServer)
         .DefaultNew();
 }
 

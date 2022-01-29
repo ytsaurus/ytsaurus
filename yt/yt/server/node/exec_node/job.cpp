@@ -41,6 +41,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
+#include <yt/yt/ytlib/job_proxy/config.h>
+
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>

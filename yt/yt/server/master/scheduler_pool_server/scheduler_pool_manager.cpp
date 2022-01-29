@@ -22,6 +22,8 @@
 #include <yt/yt/server/master/object_server/map_object.h>
 #include <yt/yt/server/master/object_server/map_object_type_handler.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 namespace NYT::NSchedulerPoolServer {
 
 using namespace NObjectServer;

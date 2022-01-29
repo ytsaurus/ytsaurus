@@ -4,37 +4,37 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellBalancerConfig::TCellBalancerConfig()
+void TCellBalancerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("tablet_manager", TabletManager)
+    registrar.Parameter("tablet_manager", &TThis::TabletManager)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellBalancerMasterConnectorConfig::TCellBalancerMasterConnectorConfig()
+void TCellBalancerMasterConnectorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
+    registrar.Parameter("connect_retry_backoff_time", &TThis::ConnectRetryBackoffTime)
         .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellBalancerBootstrapConfig::TCellBalancerBootstrapConfig()
+void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
-    RegisterParameter("cluster_connection", ClusterConnection);
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
 
-    RegisterParameter("election_manager", ElectionManager)
+    registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
-    RegisterParameter("cell_balancer", CellBalancer)
+    registrar.Parameter("cell_balancer", &TThis::CellBalancer)
         .DefaultNew();
-    RegisterParameter("master_connector", MasterConnector)
+    registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
 
-    RegisterParameter("addresses", Addresses)
+    registrar.Parameter("addresses", &TThis::Addresses)
         .Default();
 }
 

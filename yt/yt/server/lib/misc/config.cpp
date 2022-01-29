@@ -126,5 +126,21 @@ TFormatConfig::TFormatConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TArchiveReporterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
+    registrar.Parameter("reporting_period", &TThis::ReportingPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("min_repeat_delay", &TThis::MinRepeatDelay)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("max_repeat_delay", &TThis::MaxRepeatDelay)
+        .Default(TDuration::Minutes(5));
+    registrar.Parameter("max_items_in_batch", &TThis::MaxItemsInBatch)
+        .Default(1000);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 

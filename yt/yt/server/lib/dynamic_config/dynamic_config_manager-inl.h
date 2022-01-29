@@ -247,7 +247,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
             << ex;
     }
 
-    auto unrecognizedOptions = newConfig->GetUnrecognizedRecursively();
+    auto unrecognizedOptions = newConfig->GetRecursiveUnrecognized();
 
     TError unrecognizedOptionsError;
     if (unrecognizedOptions && unrecognizedOptions->GetChildCount() > 0 && Config_->EnableUnrecognizedOptionsAlert) {

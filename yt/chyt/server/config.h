@@ -26,18 +26,22 @@
 
 #include <yt/yt/core/yson/public.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Settings affecting how CHYT behaves around composite values and any columns.
 class TCompositeSettings
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     EExtendedYsonFormat DefaultYsonFormat;
 
-    TCompositeSettings();
+    REGISTER_YSON_STRUCT(TCompositeSettings);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeSettings);
@@ -45,7 +49,7 @@ DEFINE_REFCOUNTED_TYPE(TCompositeSettings);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTableSettings
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableDynamicStoreRead;
@@ -60,7 +64,9 @@ public:
 
     bool FetchFromTablets;
 
-    TDynamicTableSettings();
+    REGISTER_YSON_STRUCT(TDynamicTableSettings);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicTableSettings);
@@ -68,7 +74,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTableSettings);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestingSettings
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableKeyConditionFiltering;
@@ -80,7 +86,9 @@ public:
 
     bool HangControlInvoker;
 
-    TTestingSettings();
+    REGISTER_YSON_STRUCT(TTestingSettings);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTestingSettings);
@@ -88,7 +96,7 @@ DEFINE_REFCOUNTED_TYPE(TTestingSettings);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecutionSettings
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Hard limit for query depth. Query will be aborted after reaching this.
@@ -144,7 +152,9 @@ public:
     //! The minimum query stage to enable distributed insert.
     EDistributedInsertStage DistributedInsertStage;
 
-    TExecutionSettings();
+    REGISTER_YSON_STRUCT(TExecutionSettings);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecutionSettings);
@@ -152,7 +162,7 @@ DEFINE_REFCOUNTED_TYPE(TExecutionSettings);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConcatTablesSettings
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! What to do if a column is missing in some tables (Drop / Throw / ReadAsNull).
@@ -164,7 +174,9 @@ public:
     //! Limit for number of tables in concat. If exceeded, the error is thrown.
     int MaxTables;
 
-    TConcatTablesSettings();
+    REGISTER_YSON_STRUCT(TConcatTablesSettings);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConcatTablesSettings)
@@ -172,7 +184,7 @@ DEFINE_REFCOUNTED_TYPE(TConcatTablesSettings)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachingSettings
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Specifies how to invalidate cached attributes after table is modified (write/drop).
@@ -186,7 +198,9 @@ public:
     // bool UseBlockCache;
     // bool UseColumnarStatisticsCache;
 
-    TCachingSettings();
+    REGISTER_YSON_STRUCT(TCachingSettings);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingSettings)
@@ -194,14 +208,16 @@ DEFINE_REFCOUNTED_TYPE(TCachingSettings)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListDirSettings
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Maximum number of nodes in listed directory. If exceeded, the error is thrown.
     //! Zero means 'default yt limit'.
     int MaxSize;
 
-    TListDirSettings();
+    REGISTER_YSON_STRUCT(TListDirSettings);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TListDirSettings)
@@ -210,7 +226,7 @@ DEFINE_REFCOUNTED_TYPE(TListDirSettings)
 
 //! This class will be accessible either via settings or via default_settings.
 class TQuerySettings
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableColumnarRead;
@@ -246,7 +262,9 @@ public:
 
     TCachingSettingsPtr Caching;
 
-    TQuerySettings();
+    REGISTER_YSON_STRUCT(TQuerySettings);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuerySettings)
@@ -254,14 +272,16 @@ DEFINE_REFCOUNTED_TYPE(TQuerySettings)
 ////////////////////////////////////////////////////////////////////////////////
 
 class THealthCheckerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration Period;
     TDuration Timeout;
     std::vector<TString> Queries;
 
-    THealthCheckerConfig();
+    REGISTER_YSON_STRUCT(THealthCheckerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(THealthCheckerConfig)
@@ -269,12 +289,14 @@ DEFINE_REFCOUNTED_TYPE(THealthCheckerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TShowTablesConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::vector<TString> Roots;
 
-    TShowTablesConfig();
+    REGISTER_YSON_STRUCT(TShowTablesConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TShowTablesConfig)
@@ -282,7 +304,7 @@ DEFINE_REFCOUNTED_TYPE(TShowTablesConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSubqueryConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NChunkClient::TFetcherConfigPtr ChunkSliceFetcher;
@@ -298,7 +320,9 @@ public:
 
     i64 MinSliceDataWeight;
 
-    TSubqueryConfig();
+    REGISTER_YSON_STRUCT(TSubqueryConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSubqueryConfig)
@@ -306,7 +330,7 @@ DEFINE_REFCOUNTED_TYPE(TSubqueryConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryWatchdogConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Memory limit for the job.
@@ -324,7 +348,9 @@ public:
     //! Check period.
     TDuration Period;
 
-    TMemoryWatchdogConfig();
+    REGISTER_YSON_STRUCT(TMemoryWatchdogConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig);
@@ -332,14 +358,16 @@ DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
 
     TDuration OperationAclUpdatePeriod;
 
-    TSecurityManagerConfig();
+    REGISTER_YSON_STRUCT(TSecurityManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig);
@@ -356,7 +384,9 @@ public:
 
     TString User;
 
-    TQueryStatisticsReporterConfig();
+    REGISTER_YSON_STRUCT(TQueryStatisticsReporterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryStatisticsReporterConfig);
@@ -364,7 +394,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryStatisticsReporterConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGossipConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period to run the gossip procedure.
@@ -386,7 +416,9 @@ public:
     //! transient error (e.g. temporary network overload).
     bool AllowUnban;
 
-    TGossipConfig();
+    REGISTER_YSON_STRUCT(TGossipConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGossipConfig);
@@ -394,14 +426,16 @@ DEFINE_REFCOUNTED_TYPE(TGossipConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInvokerLivenessCheckerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enabled;
     TDuration Period;
     TDuration Timeout;
 
-    TInvokerLivenessCheckerConfig();
+    REGISTER_YSON_STRUCT(TInvokerLivenessCheckerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInvokerLivenessCheckerConfig);
@@ -409,7 +443,7 @@ DEFINE_REFCOUNTED_TYPE(TInvokerLivenessCheckerConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryRegistryConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration ProcessListSnapshotUpdatePeriod;
@@ -417,7 +451,9 @@ public:
     bool SaveRunningQueries;
     bool SaveUsers;
 
-    TQueryRegistryConfig();
+    REGISTER_YSON_STRUCT(TQueryRegistryConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryRegistryConfig);
@@ -425,7 +461,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryRegistryConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYtConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Clique id = id of containing operation.
@@ -496,7 +532,9 @@ public:
 
     TQueryRegistryConfigPtr QueryRegistry;
 
-    TYtConfig();
+    REGISTER_YSON_STRUCT(TYtConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TYtConfig);
@@ -504,12 +542,14 @@ DEFINE_REFCOUNTED_TYPE(TYtConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLauncherConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int Version;
 
-    TLauncherConfig();
+    REGISTER_YSON_STRUCT(TLauncherConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLauncherConfig);
@@ -537,7 +577,7 @@ DEFINE_REFCOUNTED_TYPE(TLauncherConfig);
 // Memory tracking is one hell of a job.
 
 class TMemoryConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<i64> Reader;
@@ -549,7 +589,9 @@ public:
     std::optional<i64> WatchdogOomWatermark;
     std::optional<i64> WatchdogOomWindowWatermark;
 
-    TMemoryConfig();
+    REGISTER_YSON_STRUCT(TMemoryConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryConfig);
@@ -567,7 +609,7 @@ struct TPorts
 };
 
 class TClickHouseServerBootstrapConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
@@ -594,7 +636,9 @@ public:
 
     TPorts GetPorts() const;
 
-    TClickHouseServerBootstrapConfig();
+    REGISTER_YSON_STRUCT(TClickHouseServerBootstrapConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClickHouseServerBootstrapConfig);

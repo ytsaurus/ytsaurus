@@ -156,77 +156,77 @@ TDynamicMulticellManagerConfig::TDynamicMulticellManagerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellMasterConfig::TCellMasterConfig()
+void TCellMasterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("networks", Networks)
+    registrar.Parameter("networks", &TThis::Networks)
         .Default(NNodeTrackerClient::DefaultNetworkPreferences);
-    RegisterParameter("primary_master", PrimaryMaster)
+    registrar.Parameter("primary_master", &TThis::PrimaryMaster)
         .Default();
-    RegisterParameter("secondary_masters", SecondaryMasters)
+    registrar.Parameter("secondary_masters", &TThis::SecondaryMasters)
         .Default();
-    RegisterParameter("election_manager", ElectionManager)
+    registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
-    RegisterParameter("changelogs", Changelogs);
-    RegisterParameter("snapshots", Snapshots);
-    RegisterParameter("hydra_manager", HydraManager)
+    registrar.Parameter("changelogs", &TThis::Changelogs);
+    registrar.Parameter("snapshots", &TThis::Snapshots);
+    registrar.Parameter("hydra_manager", &TThis::HydraManager)
         .DefaultNew();
-    RegisterParameter("cell_directory", CellDirectory)
+    registrar.Parameter("cell_directory", &TThis::CellDirectory)
         .DefaultNew();
-    RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
+    registrar.Parameter("cell_directory_synchronizer", &TThis::CellDirectorySynchronizer)
         .DefaultNew();
-    RegisterParameter("hive_manager", HiveManager)
+    registrar.Parameter("hive_manager", &TThis::HiveManager)
         .DefaultNew();
-    RegisterParameter("node_tracker", NodeTracker)
+    registrar.Parameter("node_tracker", &TThis::NodeTracker)
         .DefaultNew();
-    RegisterParameter("chunk_manager", ChunkManager)
+    registrar.Parameter("chunk_manager", &TThis::ChunkManager)
         .DefaultNew();
-    RegisterParameter("object_service", ObjectService)
+    registrar.Parameter("object_service", &TThis::ObjectService)
         .DefaultNew();
-    RegisterParameter("cypress_manager", CypressManager)
+    registrar.Parameter("cypress_manager", &TThis::CypressManager)
         .DefaultNew();
-    RegisterParameter("replicated_table_tracker", ReplicatedTableTracker)
+    registrar.Parameter("replicated_table_tracker", &TThis::ReplicatedTableTracker)
         .DefaultNew();
-    RegisterParameter("enable_timestamp_manager", EnableTimestampManager)
+    registrar.Parameter("enable_timestamp_manager", &TThis::EnableTimestampManager)
         .Default(true);
-    RegisterParameter("timestamp_manager", TimestampManager)
+    registrar.Parameter("timestamp_manager", &TThis::TimestampManager)
         .DefaultNew();
-    RegisterParameter("timestamp_provider", TimestampProvider);
-    RegisterParameter("discovery_server", DiscoveryServer)
+    registrar.Parameter("timestamp_provider", &TThis::TimestampProvider);
+    registrar.Parameter("discovery_server", &TThis::DiscoveryServer)
         .Default();
-    RegisterParameter("transaction_supervisor", TransactionSupervisor)
+    registrar.Parameter("transaction_supervisor", &TThis::TransactionSupervisor)
         .DefaultNew();
-    RegisterParameter("multicell_manager", MulticellManager)
+    registrar.Parameter("multicell_manager", &TThis::MulticellManager)
         .DefaultNew();
-    RegisterParameter("world_initializer", WorldInitializer)
+    registrar.Parameter("world_initializer", &TThis::WorldInitializer)
         .DefaultNew();
-    RegisterParameter("security_manager", SecurityManager)
+    registrar.Parameter("security_manager", &TThis::SecurityManager)
         .DefaultNew();
-    RegisterParameter("enable_provision_lock", EnableProvisionLock)
+    registrar.Parameter("enable_provision_lock", &TThis::EnableProvisionLock)
         .Default(true);
-    RegisterParameter("bus_client", BusClient)
+    registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
-    RegisterParameter("cypress_annotations", CypressAnnotations)
+    registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(BuildYsonNodeFluently()
             .BeginMap()
             .EndMap()
         ->AsMap());
-    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+    registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
-    RegisterParameter("enable_networking", EnableNetworking)
+    registrar.Parameter("enable_networking", &TThis::EnableNetworking)
         .Default(true);
-    RegisterParameter("cluster_connection", ClusterConnection);
-    RegisterParameter("use_new_hydra", UseNewHydra)
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
+    registrar.Parameter("use_new_hydra", &TThis::UseNewHydra)
         .Default(false);
 
-    RegisterPostprocessor([&] {
-        if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->SecondaryMasters.size() > MaxSecondaryMasterCells) {
             THROW_ERROR_EXCEPTION("Too many secondary master cells");
         }
 
-        auto cellId = PrimaryMaster->CellId;
-        auto primaryCellTag = CellTagFromId(PrimaryMaster->CellId);
+        auto cellId = config->PrimaryMaster->CellId;
+        auto primaryCellTag = CellTagFromId(config->PrimaryMaster->CellId);
         THashSet<TCellTag> cellTags = {primaryCellTag};
-        for (const auto& cellConfig : SecondaryMasters) {
+        for (const auto& cellConfig : config->SecondaryMasters) {
             if (ReplaceCellTagInId(cellConfig->CellId, primaryCellTag) != cellId) {
                 THROW_ERROR_EXCEPTION("Invalid cell id %v specified for secondary master in server configuration",
                     cellConfig->CellId);
@@ -242,15 +242,15 @@ TCellMasterConfig::TCellMasterConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicCellMasterConfig::TDynamicCellMasterConfig()
+void TDynamicCellMasterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("mutation_time_commit_period", MutationTimeCommitPeriod)
+    registrar.Parameter("mutation_time_commit_period", &TThis::MutationTimeCommitPeriod)
         .Default(TDuration::Minutes(10));
 
-    RegisterParameter("alert_update_period", AlertUpdatePeriod)
+    registrar.Parameter("alert_update_period", &TThis::AlertUpdatePeriod)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("automaton_thread_bucket_weights", AutomatonThreadBucketWeights)
+    registrar.Parameter("automaton_thread_bucket_weights", &TThis::AutomatonThreadBucketWeights)
         .Default();
 }
 

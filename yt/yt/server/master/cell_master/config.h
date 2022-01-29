@@ -164,7 +164,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicMulticellManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     NNodeTrackerClient::TNetworkPreferenceList Networks;
@@ -222,7 +222,9 @@ public:
 
     bool UseNewHydra;
 
-    TCellMasterConfig();
+    REGISTER_YSON_STRUCT(TCellMasterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
@@ -230,7 +232,7 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicCellMasterConfig
-    : public TDeprecatedSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     TDuration MutationTimeCommitPeriod;
@@ -239,7 +241,9 @@ public:
 
     THashMap<TString, double> AutomatonThreadBucketWeights;
 
-    TDynamicCellMasterConfig();
+    REGISTER_YSON_STRUCT(TDynamicCellMasterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicCellMasterConfig)

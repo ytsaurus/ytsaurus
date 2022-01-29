@@ -11,19 +11,19 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterClockConfig::TClusterClockConfig()
+void TClusterClockConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("clock_cell", ClockCell)
+    registrar.Parameter("clock_cell", &TThis::ClockCell)
         .Default();
-    RegisterParameter("election_manager", ElectionManager)
+    registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
-    RegisterParameter("changelogs", Changelogs);
-    RegisterParameter("snapshots", Snapshots);
-    RegisterParameter("hydra_manager", HydraManager)
+    registrar.Parameter("changelogs", &TThis::Changelogs);
+    registrar.Parameter("snapshots", &TThis::Snapshots);
+    registrar.Parameter("hydra_manager", &TThis::HydraManager)
         .DefaultNew();
-    RegisterParameter("timestamp_manager", TimestampManager)
+    registrar.Parameter("timestamp_manager", &TThis::TimestampManager)
         .DefaultNew();
-    RegisterParameter("bus_client", BusClient)
+    registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
 }
 

@@ -15,75 +15,75 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExperimentEffectConfig::TExperimentEffectConfig()
+void TExperimentEffectConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("scheduler_spec_template_patch", SchedulerSpecTemplatePatch)
+    registrar.Parameter("scheduler_spec_template_patch", &TThis::SchedulerSpecTemplatePatch)
         .Default();
-    RegisterParameter("scheduler_spec_patch", SchedulerSpecPatch)
-        .Default();
-
-    RegisterParameter("controller_user_job_spec_template_patch", ControllerUserJobSpecTemplatePatch)
-        .Default();
-    RegisterParameter("controller_user_job_spec_patch", ControllerUserJobSpecPatch)
+    registrar.Parameter("scheduler_spec_patch", &TThis::SchedulerSpecPatch)
         .Default();
 
-    RegisterParameter("controller_job_io_template_patch", ControllerJobIOTemplatePatch)
+    registrar.Parameter("controller_user_job_spec_template_patch", &TThis::ControllerUserJobSpecTemplatePatch)
         .Default();
-    RegisterParameter("controller_job_io_patch", ControllerJobIOPatch)
+    registrar.Parameter("controller_user_job_spec_patch", &TThis::ControllerUserJobSpecPatch)
         .Default();
 
-    RegisterParameter("controller_agent_tag", ControllerAgentTag)
+    registrar.Parameter("controller_job_io_template_patch", &TThis::ControllerJobIOTemplatePatch)
+        .Default();
+    registrar.Parameter("controller_job_io_patch", &TThis::ControllerJobIOPatch)
+        .Default();
+
+    registrar.Parameter("controller_agent_tag", &TThis::ControllerAgentTag)
         .Default()
         .NonEmpty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExperimentGroupConfig::TExperimentGroupConfig()
+void TExperimentGroupConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("fraction", Fraction)
+    registrar.Parameter("fraction", &TThis::Fraction)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExperimentConfig::TExperimentConfig()
+void TExperimentConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("ticket", Ticket)
+    registrar.Parameter("ticket", &TThis::Ticket)
         .NonEmpty();
 
-    RegisterParameter("filter", Filter)
+    registrar.Parameter("filter", &TThis::Filter)
         .Default();
 
-    RegisterParameter("dimension", Dimension)
+    registrar.Parameter("dimension", &TThis::Dimension)
         .Default("default")
         .NonEmpty();
 
-    RegisterParameter("fraction", Fraction)
+    registrar.Parameter("fraction", &TThis::Fraction)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0);
 
-    RegisterParameter("groups", Groups)
+    registrar.Parameter("groups", &TThis::Groups)
         .Default();
 
-    RegisterParameter("ab_treatment_group", AbTreatmentGroup)
+    registrar.Parameter("ab_treatment_group", &TThis::AbTreatmentGroup)
         .Default();
 
-    RegisterPostprocessor([&] {
-        if ((Groups.empty() && !AbTreatmentGroup) || (!Groups.empty() && AbTreatmentGroup)) {
+    registrar.Postprocessor([] (TExperimentConfig* config) {
+        if ((config->Groups.empty() && !config->AbTreatmentGroup) || (!config->Groups.empty() && config->AbTreatmentGroup)) {
             THROW_ERROR_EXCEPTION("Exactly one of groups and ab_treatment_group experiment spec options should be specified");
-        } else if (AbTreatmentGroup) {
-            auto& controlGroup = Groups["control"];
+        } else if (config->AbTreatmentGroup) {
+            auto& controlGroup = config->Groups["control"];
             controlGroup = New<TExperimentGroupConfig>();
-            controlGroup->Fraction = 1.0 - AbTreatmentGroup->Fraction;
-            Groups["treatment"] = std::move(AbTreatmentGroup);
+            controlGroup->Fraction = 1.0 - config->AbTreatmentGroup->Fraction;
+            config->Groups["treatment"] = std::move(config->AbTreatmentGroup);
         }
-        YT_VERIFY(!Groups.empty() && !AbTreatmentGroup);
+        YT_VERIFY(!config->Groups.empty() && !config->AbTreatmentGroup);
 
         constexpr double AbsTolerance = 1e-6;
         double totalFraction = 0.0;
-        for (const auto& [groupName, group] : Groups) {
+        for (const auto& [groupName, group] : config->Groups) {
             // Dot is used in explicit experiment override specification delimiting name and group.
             if (groupName.find('.') != TString::npos) {
                 THROW_ERROR_EXCEPTION("Dots are not allowed in group name");
@@ -99,40 +99,40 @@ TExperimentConfig::TExperimentConfig()
         }
 
         // Check that query is well-formed.
-        if (Filter) {
-            NOrm::NQueryHelpers::CreateFilterMatcher(*Filter);
+        if (config->Filter) {
+            NOrm::NQueryHelpers::CreateFilterMatcher(*config->Filter);
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExperimentAssignment::TExperimentAssignment()
+void TExperimentAssignment::Register(TRegistrar registrar)
 {
-    RegisterParameter("experiment", Experiment)
+    registrar.Parameter("experiment", &TThis::Experiment)
         .NonEmpty();
 
-    RegisterParameter("group", Group)
+    registrar.Parameter("group", &TThis::Group)
         .NonEmpty();
 
-    RegisterParameter("ticket", Ticket)
+    registrar.Parameter("ticket", &TThis::Ticket)
         .NonEmpty();
 
-    RegisterParameter("dimension", Dimension)
+    registrar.Parameter("dimension", &TThis::Dimension)
         .NonEmpty();
 
-    RegisterParameter("experiment_uniform_sample", ExperimentUniformSample)
+    registrar.Parameter("experiment_uniform_sample", &TThis::ExperimentUniformSample)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0);
 
-    RegisterParameter("group_uniform_sample", GroupUniformSample)
+    registrar.Parameter("group_uniform_sample", &TThis::GroupUniformSample)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0);
 
-    RegisterParameter("effect", Effect);
+    registrar.Parameter("effect", &TThis::Effect);
 }
 
-TExperimentAssignment::TExperimentAssignment(
+void TExperimentAssignment::SetFields(
     TString experiment,
     TString group,
     TString ticket,
@@ -140,7 +140,6 @@ TExperimentAssignment::TExperimentAssignment(
     double experimentUniformSample,
     double groupUniformSample,
     TExperimentEffectConfigPtr effect)
-    : TExperimentAssignment()
 {
     Experiment = std::move(experiment);
     Group = std::move(group);
@@ -223,14 +222,15 @@ std::vector<TExperimentAssignmentPtr> AssignExperiments(
                     << TErrorAttribute("filter", experiment->Filter);
             }
 
-            assignments.emplace_back(New<TExperimentAssignment>(
+            assignments.emplace_back(New<TExperimentAssignment>());
+            assignments.back()->SetFields(
                 experimentName,
                 groupName,
                 experiment->Ticket,
                 experiment->Dimension,
                 /* experimentUniformSample */ 0.0,
                 /* groupUniformSample */ 0.0,
-                groupIt->second));
+                groupIt->second);
         }
     } else {
         // Pick at most one experiment from each dimension, then pick
@@ -294,14 +294,15 @@ std::vector<TExperimentAssignmentPtr> AssignExperiments(
                 continue;
             }
 
-            assignments.emplace_back(New<TExperimentAssignment>(
+            assignments.emplace_back(New<TExperimentAssignment>());
+            assignments.back()->SetFields(
                 experimentName,
                 groupName,
                 experiment->Ticket,
                 experiment->Dimension,
                 experimentUniformSample,
                 groupUniformSample,
-                group));
+                group);
         }
     }
 

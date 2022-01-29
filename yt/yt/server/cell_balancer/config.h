@@ -17,12 +17,14 @@ namespace NYT::NCellBalancer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
-    TCellBalancerConfig();
-
     NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
+
+    REGISTER_YSON_STRUCT(TCellBalancerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellBalancerConfig)
@@ -30,12 +32,14 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerMasterConnectorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration ConnectRetryBackoffTime;
 
-    TCellBalancerMasterConnectorConfig();
+    REGISTER_YSON_STRUCT(TCellBalancerMasterConnectorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellBalancerMasterConnectorConfig)
@@ -43,7 +47,7 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerMasterConnectorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerBootstrapConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -56,7 +60,9 @@ public:
 
     NNodeTrackerClient::TNetworkAddressList Addresses;
 
-    TCellBalancerBootstrapConfig();
+    REGISTER_YSON_STRUCT(TCellBalancerBootstrapConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellBalancerBootstrapConfig)

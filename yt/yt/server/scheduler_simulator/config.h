@@ -9,7 +9,7 @@
 #include <yt/yt/ytlib/program/program.h>
 
 #include <yt/yt/core/ytree/public.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <util/system/user.h>
 
@@ -53,7 +53,7 @@ typedef TIntrusivePtr<TSchedulerSimulatorConfig> TSchedulerSimulatorConfigPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeResourcesConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     i64 Memory;
@@ -61,34 +61,38 @@ public:
     int UserSlots;
     int Network;
 
-    TNodeResourcesConfig()
+    REGISTER_YSON_STRUCT(TNodeResourcesConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("memory", Memory);
-        RegisterParameter("cpu", Cpu);
-        RegisterParameter("network", Network);
-        RegisterParameter("user_slots", UserSlots);
+        registrar.Parameter("memory", &TThis::Memory);
+        registrar.Parameter("cpu", &TThis::Cpu);
+        registrar.Parameter("network", &TThis::Network);
+        registrar.Parameter("user_slots", &TThis::UserSlots);
     }
 };
 
 class TNodeGroupConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int Count;
     TNodeResourcesConfigPtr ResourceLimits;
     THashSet<TString> Tags;
 
-    TNodeGroupConfig()
+    REGISTER_YSON_STRUCT(TNodeGroupConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("count", Count);
-        RegisterParameter("resource_limits", ResourceLimits);
-        RegisterParameter("tags", Tags)
+        registrar.Parameter("count", &TThis::Count);
+        registrar.Parameter("resource_limits", &TThis::ResourceLimits);
+        registrar.Parameter("tags", &TThis::Tags)
             .Default({});
     }
 };
 
 class TRemoteEventLogConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NEventLog::TEventLogManagerConfigPtr EventLogManager;
@@ -97,32 +101,34 @@ public:
     NApi::NNative::TConnectionConfigPtr Connection;
     TString User;
 
-    TRemoteEventLogConfig()
-    {
-        RegisterParameter("event_log_manager", EventLogManager);
+    REGISTER_YSON_STRUCT(TRemoteEventLogConfig);
 
-        RegisterParameter("connection_filename", ConnectionFilename)
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("event_log_manager", &TThis::EventLogManager);
+
+        registrar.Parameter("connection_filename", &TThis::ConnectionFilename)
             .Default();
-        RegisterParameter("connection", Connection)
-            .Default(nullptr);
-        RegisterParameter("user", User)
+        registrar.Parameter("connection", &TThis::Connection)
+            .Default();
+        registrar.Parameter("user", &TThis::User)
             .Optional();
 
-        RegisterPostprocessor([&] {
-            YT_VERIFY(EventLogManager->Path);
-            if (ConnectionFilename) {
-                Connection = LoadConfig<NApi::NNative::TConnectionConfig>(*ConnectionFilename);
+        registrar.Postprocessor([] (TThis* config) {
+            YT_VERIFY(config->EventLogManager->Path);
+            if (config->ConnectionFilename) {
+                config->Connection = LoadConfig<NApi::NNative::TConnectionConfig>(*config->ConnectionFilename);
             }
 
-            if (!User) {
-                User = GetUsername();
+            if (!config->User) {
+                config->User = GetUsername();
             }
         });
     }
 };
 
 class TSchedulerSimulatorConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     int HeartbeatPeriod;
@@ -145,44 +151,46 @@ public:
 
     TRemoteEventLogConfigPtr RemoteEventLog;
 
-    TSchedulerSimulatorConfig()
+    REGISTER_YSON_STRUCT(TSchedulerSimulatorConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("heartbeat_period", HeartbeatPeriod)
+        registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
             .Default(5000)
             .GreaterThan(0);
 
-        RegisterParameter("node_groups_file", NodeGroupsFilename);
-        RegisterParameter("pool_trees_file", PoolTreesFilename)
+        registrar.Parameter("node_groups_file", &TThis::NodeGroupsFilename);
+        registrar.Parameter("pool_trees_file", &TThis::PoolTreesFilename)
             .Alias("pools_file");
-        RegisterParameter("operations_stats_file", OperationsStatsFilename);
-        RegisterParameter("event_log_file", EventLogFilename);
-        RegisterParameter("scheduler_config_file", SchedulerConfigFilename);
+        registrar.Parameter("operations_stats_file", &TThis::OperationsStatsFilename);
+        registrar.Parameter("event_log_file", &TThis::EventLogFilename);
+        registrar.Parameter("scheduler_config_file", &TThis::SchedulerConfigFilename);
 
-        RegisterParameter("enable_full_event_log", EnableFullEventLog)
+        registrar.Parameter("enable_full_event_log", &TThis::EnableFullEventLog)
             .Default(false);
 
-        RegisterParameter("cycles_per_flush", CyclesPerFlush)
+        registrar.Parameter("cycles_per_flush", &TThis::CyclesPerFlush)
             .Default(100000)
             .GreaterThan(0);
 
-        RegisterParameter("thread_count", ThreadCount)
+        registrar.Parameter("thread_count", &TThis::ThreadCount)
             .Default(1)
             .GreaterThan(0);
-        RegisterParameter("node_shard_count", NodeShardCount)
+        registrar.Parameter("node_shard_count", &TThis::NodeShardCount)
             .Default(1)
             .GreaterThan(0);
 
-        RegisterParameter("schedule_job_delay", ScheduleJobDelay)
+        registrar.Parameter("schedule_job_delay", &TThis::ScheduleJobDelay)
             .Default();
 
-        RegisterParameter("shift_operations_to_start", ShiftOperationsToStart)
+        registrar.Parameter("shift_operations_to_start", &TThis::ShiftOperationsToStart)
             .Default(false);
 
-        RegisterParameter("remote_event_log", RemoteEventLog)
-            .Default(nullptr);
+        registrar.Parameter("remote_event_log", &TThis::RemoteEventLog)
+            .Default();
 
-        RegisterPostprocessor([&] () {
-            if (EnableFullEventLog && !RemoteEventLog) {
+        registrar.Postprocessor([] (TThis* config) {
+            if (config->EnableFullEventLog && !config->RemoteEventLog) {
                 THROW_ERROR_EXCEPTION("Full event log cannot be written locally. Please specify \"remote_event_log\" parameter");
             }
         });

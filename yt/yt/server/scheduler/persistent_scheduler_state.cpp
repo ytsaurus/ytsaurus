@@ -9,9 +9,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPersistentPoolState::TPersistentPoolState()
+void TPersistentPoolState::Register(TRegistrar registrar)
 {
-    RegisterParameter("accumulated_resource_volume", AccumulatedResourceVolume)
+    registrar.Parameter("accumulated_resource_volume", &TThis::AccumulatedResourceVolume)
         .Default({});
 }
 
@@ -27,17 +27,17 @@ void FormatValue(TStringBuilderBase* builder, const TPersistentPoolStatePtr& sta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPersistentTreeState::TPersistentTreeState()
+void TPersistentTreeState::Register(TRegistrar registrar)
 {
-    RegisterParameter("pool_states", PoolStates)
+    registrar.Parameter("pool_states", &TThis::PoolStates)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPersistentStrategyState::TPersistentStrategyState()
+void TPersistentStrategyState::Register(TRegistrar registrar)
 {
-    RegisterParameter("tree_states", TreeStates)
+    registrar.Parameter("tree_states", &TThis::TreeStates)
         .Default();
 }
 
@@ -68,9 +68,9 @@ void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYson::TYsonPullP
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPersistentSchedulingSegmentsState::TPersistentSchedulingSegmentsState()
+void TPersistentSchedulingSegmentsState::Register(TRegistrar registrar)
 {
-    RegisterParameter("node_states", NodeStates)
+    registrar.Parameter("node_states", &TThis::NodeStates)
         .Default();
 }
 

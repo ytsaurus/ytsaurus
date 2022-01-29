@@ -47,7 +47,7 @@ namespace NYT::NClusterNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryLimit
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // COMPAT(gritukan): Drop optional after configs migration.
@@ -55,7 +55,9 @@ public:
 
     std::optional<i64> Value;
 
-    TMemoryLimit();
+    REGISTER_YSON_STRUCT(TMemoryLimit);
+
+    static void Register(TRegistrar registrar);
 
     void Validate();
 };
@@ -65,7 +67,7 @@ DEFINE_REFCOUNTED_TYPE(TMemoryLimit)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResourceLimitsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Total amount of memory available for node.
@@ -100,7 +102,9 @@ public:
     i64 MemoryAccountingTolerance;
     i64 MemoryAccountingGap;
 
-    TResourceLimitsConfig();
+    REGISTER_YSON_STRUCT(TResourceLimitsConfig);
+
+    static void Register(TRegistrar registrar);
 
     void Validate();
 };
@@ -110,7 +114,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResourceLimitsDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // COMPAT(gritukan)
@@ -130,7 +134,9 @@ public:
 
     bool UseInstanceLimitsTracker;
 
-    TResourceLimitsDynamicConfig();
+    REGISTER_YSON_STRUCT(TResourceLimitsDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceLimitsDynamicConfig)
@@ -138,7 +144,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnectorDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<TDuration> IncrementalHeartbeatPeriod;
@@ -153,7 +159,9 @@ public:
     // COMPAT(gritukan)
     bool UseHostObjects;
 
-    TMasterConnectorDynamicConfig();
+    REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
@@ -161,14 +169,16 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBatchingChunkServiceConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration MaxBatchDelay;
     int MaxBatchCost;
     NConcurrency::TThroughputThrottlerConfigPtr CostThrottler;
 
-    TBatchingChunkServiceConfig();
+    REGISTER_YSON_STRUCT(TBatchingChunkServiceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBatchingChunkServiceConfig)
@@ -176,7 +186,7 @@ DEFINE_REFCOUNTED_TYPE(TBatchingChunkServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicConfigManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Whether dynamic config manager is enabled.
@@ -189,7 +199,9 @@ public:
     //! should be enabled.
     bool EnableUnrecognizedOptionsAlert;
 
-    TDynamicConfigManagerConfig();
+    REGISTER_YSON_STRUCT(TDynamicConfigManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicConfigManagerConfig)
@@ -209,7 +221,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterNodeConnectionConfig)
 
 // COMPAT(gritukan): Drop optionals here after configs migration.
 class TMasterConnectorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Timeout for lease transactions.
@@ -243,7 +255,9 @@ public:
     //! Useful for tests.
     std::optional<bool> SyncDirectoriesOnConnect;
 
-    TMasterConnectorConfig();
+    REGISTER_YSON_STRUCT(TMasterConnectorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
@@ -251,7 +265,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     //! Interval between Orchid cache rebuilds.
@@ -338,9 +352,11 @@ public:
     //! Bucket configuration for out network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
 
-    TClusterNodeConfig();
-
     NHttp::TServerConfigPtr CreateSkynetHttpServerConfig();
+
+    REGISTER_YSON_STRUCT(TClusterNodeConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterNodeConfig)
@@ -348,7 +364,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterNodeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeDynamicConfig
-    : public TDeprecatedSingletonsDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
     //! Dynamic config annotation.
@@ -384,7 +400,9 @@ public:
     //! Bucket configuration for out network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
 
-    TClusterNodeDynamicConfig();
+    REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterNodeDynamicConfig)

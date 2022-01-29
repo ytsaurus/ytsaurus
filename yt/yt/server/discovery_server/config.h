@@ -13,7 +13,7 @@ namespace NYT::NClusterDiscoveryServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterDiscoveryServerConfig
-    : public TDeprecatedServerConfig
+    : public TServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -24,7 +24,9 @@ public:
 
     NDiscoveryServer::TDiscoveryServerConfigPtr DiscoveryServer;
 
-    TClusterDiscoveryServerConfig();
+    REGISTER_YSON_STRUCT(TClusterDiscoveryServerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterDiscoveryServerConfig)

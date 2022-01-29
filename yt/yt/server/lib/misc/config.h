@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "yt/yt/core/ytree/yson_struct.h"
 
 #include <yt/yt/server/lib/core_dump/config.h>
 
@@ -132,7 +133,7 @@ DEFINE_REFCOUNTED_TYPE(TFormatConfig)
 //! Options which are supposed to be changed independently for every archive table
 //! are listed in TArchiveHandlerConfig.
 class TArchiveReporterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enabled;
@@ -141,19 +142,9 @@ public:
     TDuration MaxRepeatDelay;
     int MaxItemsInBatch;
 
-    TArchiveReporterConfig()
-    {
-        RegisterParameter("enabled", Enabled)
-            .Default(true);
-        RegisterParameter("reporting_period", ReportingPeriod)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("min_repeat_delay", MinRepeatDelay)
-            .Default(TDuration::Seconds(10));
-        RegisterParameter("max_repeat_delay", MaxRepeatDelay)
-            .Default(TDuration::Minutes(5));
-        RegisterParameter("max_items_in_batch", MaxItemsInBatch)
-            .Default(1000);
-    }
+    REGISTER_YSON_STRUCT(TArchiveReporterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TArchiveReporterConfig)

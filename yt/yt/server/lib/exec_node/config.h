@@ -444,27 +444,6 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBindConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TString ExternalPath;
-    TString InternalPath;
-    bool ReadOnly;
-
-    TBindConfig()
-    {
-        RegisterParameter("external_path", ExternalPath);
-        RegisterParameter("internal_path", InternalPath);
-        RegisterParameter("read_only", ReadOnly)
-            .Default(true);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TBindConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TUserJobSensor
     : public NYTree::TYsonSerializable
 {
@@ -528,7 +507,7 @@ public:
     //! Instead of actually setting root fs, it just provides special environment variable.
     bool TestRootFS;
 
-    std::vector<TBindConfigPtr> RootFSBinds;
+    std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;
 
     int NodeDirectoryPrepareRetryCount;
     TDuration NodeDirectoryPrepareBackoffTime;
