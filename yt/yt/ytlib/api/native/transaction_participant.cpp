@@ -1,5 +1,6 @@
-#include "connection.h"
 #include "transaction_participant.h"
+
+#include "connection.h"
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
@@ -48,9 +49,9 @@ public:
         return CellId_;
     }
 
-    TCellTag GetClockCellTag() const override
+    TClusterTag GetClockClusterTag() const override
     {
-        return Connection_->GetPrimaryMasterCellTag();
+        return Connection_->GetClusterTag();
     }
 
     const ITimestampProviderPtr& GetTimestampProvider() const override
@@ -72,7 +73,7 @@ public:
     TFuture<void> PrepareTransaction(
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
-        TCellTag prepareTimestampCellTag,
+        TClusterTag prepareTimestampClusterTag,
         const std::vector<TCellId>& cellIdsToSyncWith,
         const NRpc::TAuthenticationIdentity& identity) override
     {
@@ -86,7 +87,7 @@ public:
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_prepare_timestamp(prepareTimestamp);
-                req->set_prepare_timestamp_cell_tag(prepareTimestampCellTag);
+                req->set_prepare_timestamp_cluster_tag(prepareTimestampClusterTag);
                 ToProto(req->mutable_cell_ids_to_sync_with(), cellIdsToSyncWith);
                 return req;
             });
@@ -95,7 +96,7 @@ public:
     TFuture<void> CommitTransaction(
         TTransactionId transactionId,
         TTimestamp commitTimestamp,
-        TCellTag commitTimestampCellTag,
+        TClusterTag commitTimestampClusterTag,
         const NRpc::TAuthenticationIdentity& identity) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
@@ -108,7 +109,7 @@ public:
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_commit_timestamp(commitTimestamp);
-                req->set_commit_timestamp_cell_tag(commitTimestampCellTag);
+                req->set_commit_timestamp_cluster_tag(commitTimestampClusterTag);
                 return req;
             });
     }
