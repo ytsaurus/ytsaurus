@@ -626,7 +626,7 @@ void TOperationControllerImpl::SetControllerRuntimeData(const TControllerRuntime
 {
     ControllerRuntimeData_ = controllerData;
 }
-    
+
 TFuture<void> TOperationControllerImpl::GetFullHeartbeatProcessed()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

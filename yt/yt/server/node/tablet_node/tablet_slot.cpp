@@ -287,7 +287,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag();
+        return Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
     }
 
     TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() override

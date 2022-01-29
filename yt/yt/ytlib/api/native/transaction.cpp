@@ -87,9 +87,9 @@ public:
         NLogging::TLogger logger)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
-        , Logger(logger.WithTag("TransactionId: %v, ConnectionCellTag: %v",
+        , Logger(logger.WithTag("TransactionId: %v, ClusterTag: %v",
             GetId(),
-            Client_->GetConnection()->GetCellTag()))
+            Client_->GetConnection()->GetClusterTag()))
         , SerializedInvoker_(CreateSerializedInvoker(
             Client_->GetConnection()->GetInvoker()))
         , OrderedRequestsSlidingWindow_(
@@ -1690,7 +1690,7 @@ private:
                 return clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
             }) /* serialization intentionally omitted */)
             .Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::IConnectionPtr& connection) {
-                if (connection->GetCellTag() == Client_->GetConnection()->GetCellTag()) {
+                if (connection->GetClusterTag() == Client_->GetConnection()->GetClusterTag()) {
                     return MakeFuture<NApi::ITransactionPtr>(nullptr);
                 }
 
