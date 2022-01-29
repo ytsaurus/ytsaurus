@@ -42,6 +42,11 @@ IF (AUTOCHECK OR YT_TEAMCITY)
     ENDIF()
 
     TIMEOUT(1800)
+ELSE()
+    DEPENDS(
+        # We intentionally want to have symlink on ytserver-all at this path in local runs.
+        yt/yt/server/all
+    )
 ENDIF()
 
 DATA(
