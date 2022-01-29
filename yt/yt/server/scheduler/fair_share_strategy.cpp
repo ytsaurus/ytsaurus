@@ -858,10 +858,10 @@ public:
             // This is necessary to maintain consistency between strategy and trees.
             TForbidContextSwitchGuard guard;
 
-            SnapshottedIdToTree_.Exchange(std::move(snapshottedIdToTree));
-            for (const auto& [_, tree] : idToTree) {
+            for (const auto& [_, tree] : snapshottedIdToTree) {
                 tree->FinishFairShareUpdate();
             }
+            SnapshottedIdToTree_.Exchange(std::move(snapshottedIdToTree));
         }
 
         if (!errors.empty()) {
