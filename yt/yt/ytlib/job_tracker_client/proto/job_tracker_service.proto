@@ -67,14 +67,14 @@ message TJobsToConfirm
 message TRspHeartbeat
 {
     repeated TJobStartInfo jobs_to_start = 1;
-    repeated NYT.NProto.TGuid old_jobs_to_abort = 2; // COMPAT
+    reserved 2;
     repeated TJobToAbort jobs_to_abort = 15;
     repeated TJobToRemove jobs_to_remove = 3;
     repeated NYT.NProto.TGuid jobs_to_store = 4;
     repeated NYT.NProto.TGuid jobs_to_interrupt = 5;
     repeated NYT.NProto.TGuid jobs_to_fail = 6;
     // Ids of jobs that should be included in the next heartbeat even if they are stored.
-    repeated NYT.NProto.TGuid old_jobs_to_confirm = 7; // COMPAT
+    reserved 7;
     repeated TJobsToConfirm jobs_to_confirm = 16;
     optional bool scheduling_skipped = 8;
     optional bool enable_job_reporter = 9;
