@@ -224,11 +224,18 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     @classmethod
     def modify_controller_agent_config(cls, config):
         if not hasattr(cls, "controller_agent_counter"):
-            cls.controller_agent_counter = 0
-        cls.controller_agent_counter += 1
-        if cls.controller_agent_counter > 2:
-            cls.controller_agent_counter -= 2
-        config["controller_agent"]["memory_watchdog"] = {"total_controller_memory_limit": cls.controller_agent_counter * 50 * 1024 ** 2}
+            cls.controller_agent_index = 0
+            cls.countroller_agent_index_to_memory = {
+                0: 50 * 1024 ** 2,
+                1: 50 * 1024 ** 2,
+                2: 100 * 1024 ** 2,
+            }
+
+        config["controller_agent"]["memory_watchdog"] = {
+            "total_controller_memory_limit": cls.countroller_agent_index_to_memory[cls.controller_agent_index],
+        }
+
+        cls.controller_agent_index += 1
 
     @authors("ignat")
     @flaky(max_runs=5)
@@ -253,6 +260,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
                 track=False,
             )
             wait(lambda: op.get_state() == "running")
+            wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 0)
             ops.append(op)
 
         address_to_operation = defaultdict(list)

@@ -39,7 +39,7 @@ class TestErasureBase(YTEnvSetup):
     def _get_blocks_count(self, chunk_id, replica, replica_index):
         address = str(replica)
         parts = [int(s, 16) for s in chunk_id.split("-")]
-        parts[2] = (parts[2] / 2 ** 16) * (2 ** 16) + 103 + replica_index
+        parts[2] = (parts[2] // 2 ** 16) * (2 ** 16) + 103 + replica_index
         node_chunk_id = "-".join(hex(i)[2:] for i in parts)
         return get("//sys/cluster_nodes/{0}/orchid/stored_chunks/{1}".format(address, node_chunk_id))["block_count"]
 
@@ -65,7 +65,7 @@ class TestErasureBase(YTEnvSetup):
                 compression_codec="none")
             sync_mount_table("//tmp/table")
 
-        content = [{"key": i, "value": "x" * 1024} for i in xrange(12)]
+        content = [{"key": i, "value": "x" * 1024} for i in range(12)]
 
         if not dynamic:
             write_table("//tmp/table",
@@ -377,7 +377,7 @@ class TestErasure(TestErasureBase):
         write_table("//tmp/t", {"a": "b"})
         chunk_id = get_singular_chunk_id("//tmp/t")
         parts = chunk_id.split("-")
-        for x in xrange(103, 119):
+        for x in range(103, 119):
             part_id = "%s-%s-%s%x-%s" % (parts[0], parts[1], parts[2][:-2], x, parts[3])
             assert get("#" + part_id + "/@id") == chunk_id
 
@@ -400,14 +400,14 @@ class TestErasure(TestErasureBase):
     def test_write_file_with_erasure(self, erasure_codec):
         create("file", "//tmp/f")
 
-        write_file("<erasure_codec={}>//tmp/f".format(erasure_codec), "a")
+        write_file("<erasure_codec={}>//tmp/f".format(erasure_codec), b"a")
         assert get("//tmp/f/@erasure_codec") == erasure_codec
 
-        write_file("<erasure_codec=none>//tmp/f", "a")
+        write_file("<erasure_codec=none>//tmp/f", b"a")
         assert get("//tmp/f/@erasure_codec") == "none"
 
         with pytest.raises(YtError):
-            write_file("<append=true;compression_codec=none>//tmp/f", "a")
+            write_file("<append=true;compression_codec=none>//tmp/f", b"a")
 
     @authors("shakurov")
     def test_part_loss_time(self):

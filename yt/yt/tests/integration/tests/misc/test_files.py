@@ -26,11 +26,11 @@ class TestFiles(YTEnvSetup):
         with pytest.raises(YtError):
             read_file("//tmp")
         with pytest.raises(YtError):
-            write_file("//tmp", "")
+            write_file("//tmp", b"")
 
     @authors("ignat")
     def test_simple(self):
-        content = "some_data"
+        content = b"some_data"
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
         assert read_file("//tmp/file") == content
@@ -46,15 +46,15 @@ class TestFiles(YTEnvSetup):
     @authors("psushin", "babenko")
     def test_empty(self):
         create("file", "//tmp/file")
-        write_file("//tmp/file", "")
-        assert read_file("//tmp/file") == ""
+        write_file("//tmp/file", b"")
+        assert read_file("//tmp/file") == b""
 
         assert get("//tmp/file/@chunk_ids") == []
         assert get("//tmp/file/@uncompressed_data_size") == 0
 
     @authors("ignat")
     def test_read_interval(self):
-        content = "".join(["data"] * 100)
+        content = b"".join([b"data"] * 100)
         create("file", "//tmp/file")
         write_file("//tmp/file", content, file_writer={"block_size": 8})
 
@@ -77,7 +77,7 @@ class TestFiles(YTEnvSetup):
 
     @authors("acid")
     def test_read_all_intervals(self):
-        content = "".join(chr(c) for c in range(ord("a"), ord("a") + 8))
+        content = "".join(chr(c) for c in range(ord("a"), ord("a") + 8)).encode("ascii")
         create("file", "//tmp/file")
         write_file("//tmp/file", content, file_writer={"block_size": 3})
 
@@ -87,7 +87,7 @@ class TestFiles(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_copy(self):
-        content = "some_data"
+        content = b"some_data"
         create("file", "//tmp/f")
         write_file("//tmp/f", content)
 
@@ -109,7 +109,7 @@ class TestFiles(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_copy_tx(self):
-        content = "some_data"
+        content = b"some_data"
         create("file", "//tmp/f")
         write_file("//tmp/f", content)
 
@@ -132,7 +132,7 @@ class TestFiles(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_replication_factor_attr(self):
-        content = "some_data"
+        content = b"some_data"
         create("file", "//tmp/f")
         write_file("//tmp/f", content)
 
@@ -151,7 +151,7 @@ class TestFiles(YTEnvSetup):
 
     @authors("psushin", "ignat")
     def test_append(self):
-        content = "some_data"
+        content = b"some_data"
         create("file", "//tmp/f")
         write_file("//tmp/f", content)
         write_file("<append=true>//tmp/f", content)
@@ -162,7 +162,7 @@ class TestFiles(YTEnvSetup):
 
     @authors("ignat")
     def test_overwrite(self):
-        content = "some_data"
+        content = b"some_data"
         create("file", "//tmp/f")
         write_file("//tmp/f", content)
         write_file("//tmp/f", content)
@@ -177,10 +177,10 @@ class TestFiles(YTEnvSetup):
 
         tx = start_transaction()
 
-        content = "some_data"
+        content = b"some_data"
         write_file("//tmp/f", content, tx=tx)
 
-        assert read_file("//tmp/f") == ""
+        assert read_file("//tmp/f") == b""
         assert read_file("//tmp/f", tx=tx) == content
 
         commit_transaction(tx)
@@ -190,20 +190,20 @@ class TestFiles(YTEnvSetup):
     @authors("ignat")
     def test_concatenate(self):
         create("file", "//tmp/fa")
-        write_file("//tmp/fa", "a")
-        assert read_file("//tmp/fa") == "a"
+        write_file("//tmp/fa", b"a")
+        assert read_file("//tmp/fa") == b"a"
 
         create("file", "//tmp/fb")
-        write_file("//tmp/fb", "b")
-        assert read_file("//tmp/fb") == "b"
+        write_file("//tmp/fb", b"b")
+        assert read_file("//tmp/fb") == b"b"
 
         create("file", "//tmp/f")
 
         concatenate(["//tmp/fa", "//tmp/fb"], "//tmp/f")
-        assert read_file("//tmp/f") == "ab"
+        assert read_file("//tmp/f") == b"ab"
 
         concatenate(["//tmp/fa", "//tmp/fb"], "<append=true>//tmp/f")
-        assert read_file("//tmp/f") == "abab"
+        assert read_file("//tmp/f") == b"abab"
 
     @authors("ignat")
     def test_concatenate_incorrect_types(self):
@@ -224,14 +224,14 @@ class TestFiles(YTEnvSetup):
     def test_set_compression(self):
         create("file", "//tmp/f")
 
-        write_file("<compression_codec=lz4>//tmp/f", "a")
+        write_file("<compression_codec=lz4>//tmp/f", b"a")
         assert get("//tmp/f/@compression_codec") == "lz4"
 
-        write_file("<compression_codec=none>//tmp/f", "a")
+        write_file("<compression_codec=none>//tmp/f", b"a")
         assert get("//tmp/f/@compression_codec") == "none"
 
         with pytest.raises(YtError):
-            write_file("<append=true;compression_codec=none>//tmp/f", "a")
+            write_file("<append=true;compression_codec=none>//tmp/f", b"a")
 
     @authors("ignat", "kiselyovp")
     def test_compute_hash(self):
@@ -241,34 +241,34 @@ class TestFiles(YTEnvSetup):
         create("file", "//tmp/fcache4")
         create("file", "//tmp/fcache5")
 
-        write_file("<append=%true>//tmp/fcache", "abacaba", compute_md5=True)
+        write_file("<append=%true>//tmp/fcache", b"abacaba", compute_md5=True)
 
-        assert get("//tmp/fcache/@md5") == "129296d4fd2ade2b2dbc402d4564bf81" == hashlib.md5("abacaba").hexdigest()
+        assert get("//tmp/fcache/@md5") == "129296d4fd2ade2b2dbc402d4564bf81" == hashlib.md5(b"abacaba").hexdigest()
         assert exists("//tmp/fcache/@md5")
 
-        write_file("<append=%true>//tmp/fcache", "new", compute_md5=True)
-        assert get("//tmp/fcache/@md5") == "12ef1dfdbbb50c2dfd2b4119bac9dee5" == hashlib.md5("abacabanew").hexdigest()
+        write_file("<append=%true>//tmp/fcache", b"new", compute_md5=True)
+        assert get("//tmp/fcache/@md5") == "12ef1dfdbbb50c2dfd2b4119bac9dee5" == hashlib.md5(b"abacabanew").hexdigest()
 
-        write_file("//tmp/fcache2", "abacaba")
+        write_file("//tmp/fcache2", b"abacaba")
         assert not exists("//tmp/fcache2/@md5")
 
-        write_file("//tmp/fcache3", "test", compute_md5=True)
-        assert get("//tmp/fcache3/@md5") == "098f6bcd4621d373cade4e832627b4f6" == hashlib.md5("test").hexdigest()
+        write_file("//tmp/fcache3", b"test", compute_md5=True)
+        assert get("//tmp/fcache3/@md5") == "098f6bcd4621d373cade4e832627b4f6" == hashlib.md5(b"test").hexdigest()
 
-        write_file("//tmp/fcache3", "test2", compute_md5=True)
-        assert get("//tmp/fcache3/@md5") == hashlib.md5("test2").hexdigest()
+        write_file("//tmp/fcache3", b"test2", compute_md5=True)
+        assert get("//tmp/fcache3/@md5") == hashlib.md5(b"test2").hexdigest()
 
         concatenate(["//tmp/fcache", "//tmp/fcache3"], "//tmp/fcache4")
         assert not exists("//tmp/fcache4/@md5")
 
         with pytest.raises(YtError):
-            write_file("<append=%true>//tmp/fcache4", "data", compute_md5=True)
+            write_file("<append=%true>//tmp/fcache4", b"data", compute_md5=True)
 
         with pytest.raises(YtError):
             set("//tmp/fcache/@md5", "test")
 
-        write_file("//tmp/fcache5", "", compute_md5=True)
-        assert get("//tmp/fcache5/@md5") == "d41d8cd98f00b204e9800998ecf8427e" == hashlib.md5("").hexdigest()
+        write_file("//tmp/fcache5", b"", compute_md5=True)
+        assert get("//tmp/fcache5/@md5") == "d41d8cd98f00b204e9800998ecf8427e" == hashlib.md5(b"").hexdigest()
 
     @authors("kvk1920")
     def test_data_weight_for_files_absent(self):
@@ -326,31 +326,31 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
     @authors("kiselyovp")
     def test_faulty_client(self):
         create("file", "//tmp/file")
-        write_file("//tmp/file", "abacaba")
+        write_file("//tmp/file", b"abacaba")
 
         tx = start_transaction()
         with pytest.raises(YtError):
             write_file(
                 "<append=true>//tmp/file",
                 None,
-                input_stream=self.FaultyStringStream("dabacaba"),
+                input_stream=self.FaultyStringStream(b"dabacaba"),
                 tx=tx,
             )
 
         wait(lambda: get("//sys/transactions/{0}/@nested_transaction_ids".format(tx)) == [])
-        assert read_file("//tmp/file") == "abacaba"
+        assert read_file("//tmp/file") == b"abacaba"
 
     @authors("kiselyovp")
     def test_faulty_server(self):
         create("file", "//tmp/file")
-        write_file("//tmp/file", "abacaba")
-        assert read_file("//tmp/file") == "abacaba"
+        write_file("//tmp/file", b"abacaba")
+        assert read_file("//tmp/file") == b"abacaba"
 
         nodes = ls("//sys/cluster_nodes")
         set_node_banned(nodes[0], True)
 
         with pytest.raises(YtError):
-            write_file("<append=true>//tmp/file", "dabacaba")
+            write_file("<append=true>//tmp/file", b"dabacaba")
 
         set_node_banned(nodes[1], True)
         with pytest.raises(YtError):
@@ -358,7 +358,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
 
         set_node_banned(nodes[0], False)
         set_node_banned(nodes[1], False)
-        assert retry(lambda: read_file("//tmp/file")) == "abacaba"
+        assert retry(lambda: read_file("//tmp/file")) == b"abacaba"
 
 
 ##################################################################
@@ -375,8 +375,10 @@ class TestBigFilesRpcProxy(YTEnvSetup):
     def test_big_files(self):
         alphabet_size = 25
         data = ""
-        for i in xrange(alphabet_size):
+        for i in range(alphabet_size):
             data += chr(ord("a") + i) + data
+
+        data = data.encode("ascii")
 
         create("file", "//tmp/abacaba")
         write_file("//tmp/abacaba", data)

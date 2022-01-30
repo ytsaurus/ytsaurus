@@ -47,21 +47,21 @@ def encode_decimal(decimal_value, precision, scale):
 
     if decimal_value == decimal.Decimal("Inf"):
         return {
-            4:  "\xFF\xFF\xFF\xFE",
-            8:  "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE",
-            16: "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE",
+            4: b"\xFF\xFF\xFF\xFE",
+            8: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE",
+            16: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE",
         }[_get_decimal_byte_size(precision)]
     elif decimal_value == decimal.Decimal("-Inf"):
         return {
-            4:  "\x00\x00\x00\x02",
-            8:  "\x00\x00\x00\x00\x00\x00\x00\x02",
-            16: "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02",
+            4: b"\x00\x00\x00\x02",
+            8: b"\x00\x00\x00\x00\x00\x00\x00\x02",
+            16: b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02",
         }[_get_decimal_byte_size(precision)]
     elif decimal_value.is_nan():
         return {
-            4:  "\xFF\xFF\xFF\xFF",
-            8:  "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
-            16: "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+            4: b"\xFF\xFF\xFF\xFF",
+            8: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+            16: b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
         }[_get_decimal_byte_size(precision)]
 
     scaled = decimal_value.scaleb(scale, context=_DECIMAL_CONTEXT)
@@ -98,6 +98,8 @@ def decode_decimal(yt_binary_value, precision, scale):
         return value_map.get(intval, None)
 
     expected_size = _get_decimal_byte_size(precision)
+    if isinstance(yt_binary_value, str):
+        yt_binary_value = yt_binary_value.encode("ascii")
     if isinstance(yt_binary_value, YsonStringProxy):
         yt_binary_value = get_bytes(yt_binary_value)
     if len(yt_binary_value) != _get_decimal_byte_size(precision):

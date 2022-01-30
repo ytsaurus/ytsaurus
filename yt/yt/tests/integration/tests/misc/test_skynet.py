@@ -203,7 +203,7 @@ class TestSkynetIntegration(YTEnvSetup):
 
         chunk = info["chunk_specs"][0]
         chunk_id = chunk["chunk_id"]
-        assert chunk["replicas"] > 0
+        assert len(chunk["replicas"]) > 0
         for node in info["nodes"]:
             node_id = node["node_id"]
             if node_id in chunk["replicas"]:
@@ -252,7 +252,7 @@ class TestSkynetIntegration(YTEnvSetup):
 
         chunk = info["chunk_specs"][0]
         chunk_id = chunk["chunk_id"]
-        assert chunk["replicas"] > 0
+        assert len(chunk["replicas"]) > 0
         for node in info["nodes"]:
             node_id = node["node_id"]
             if node_id in chunk["replicas"]:
@@ -260,7 +260,7 @@ class TestSkynetIntegration(YTEnvSetup):
         else:
             assert False, "Node not found: {}, {}".format(chunk["replicas"], str(info["nodes"]))
 
-        assert "abc" == self.get_skynet_part(
+        assert b"abc" == self.get_skynet_part(
             node_id,
             info["nodes"],
             chunk_id=chunk_id,
@@ -283,20 +283,20 @@ class TestSkynetIntegration(YTEnvSetup):
         )
 
         def to_skynet_chunk(data):
-            return data * (4 * 1024 * 1024 / len(data))
+            return data * (4 * 1024 * 1024 // len(data))
 
         write_table(
             "//tmp/table",
             [
-                {"filename": "a", "part_index": 0, "data": to_skynet_chunk("a1")},
-                {"filename": "a", "part_index": 1, "data": "a2"},
-                {"filename": "b", "part_index": 0, "data": "b1"},
-                {"filename": "c", "part_index": 0, "data": to_skynet_chunk("c1")},
-                {"filename": "c", "part_index": 1, "data": to_skynet_chunk("c2")},
-                {"filename": "c", "part_index": 2, "data": to_skynet_chunk("c3")},
-                {"filename": "c", "part_index": 3, "data": to_skynet_chunk("c4")},
-                {"filename": "c", "part_index": 4, "data": to_skynet_chunk("c5")},
-                {"filename": "c", "part_index": 5, "data": "c6"},
+                {"filename": "a", "part_index": 0, "data": to_skynet_chunk(b"a1")},
+                {"filename": "a", "part_index": 1, "data": b"a2"},
+                {"filename": "b", "part_index": 0, "data": b"b1"},
+                {"filename": "c", "part_index": 0, "data": to_skynet_chunk(b"c1")},
+                {"filename": "c", "part_index": 1, "data": to_skynet_chunk(b"c2")},
+                {"filename": "c", "part_index": 2, "data": to_skynet_chunk(b"c3")},
+                {"filename": "c", "part_index": 3, "data": to_skynet_chunk(b"c4")},
+                {"filename": "c", "part_index": 4, "data": to_skynet_chunk(b"c5")},
+                {"filename": "c", "part_index": 5, "data": b"c6"},
             ],
         )
 
@@ -308,12 +308,12 @@ class TestSkynetIntegration(YTEnvSetup):
         node_2 = info["chunk_specs"][1]["replicas"][0]
 
         test_queries = [
-            (node_1, chunk_1, to_skynet_chunk("a1") + "a2", 0, 2, 0),
-            (node_1, chunk_1, "b1", 2, 3, 0),
+            (node_1, chunk_1, to_skynet_chunk(b"a1") + b"a2", 0, 2, 0),
+            (node_1, chunk_1, b"b1", 2, 3, 0),
             (
                 node_1,
                 chunk_1,
-                to_skynet_chunk("c1") + to_skynet_chunk("c2") + to_skynet_chunk("c3"),
+                to_skynet_chunk(b"c1") + to_skynet_chunk(b"c2") + to_skynet_chunk(b"c3"),
                 3,
                 6,
                 0,
@@ -321,7 +321,7 @@ class TestSkynetIntegration(YTEnvSetup):
             (
                 node_2,
                 chunk_2,
-                to_skynet_chunk("c4") + to_skynet_chunk("c5") + "c6",
+                to_skynet_chunk(b"c4") + to_skynet_chunk(b"c5") + b"c6",
                 0,
                 3,
                 3,
@@ -434,7 +434,7 @@ class TestSkynetIntegration(YTEnvSetup):
         )
 
         def to_skynet_chunk(data):
-            return data * (4 * 1024 * 1024 / len(data))
+            return data * (4 * 1024 * 1024 // len(data))
 
         write_table(
             "//tmp/table",
@@ -450,9 +450,9 @@ class TestSkynetIntegration(YTEnvSetup):
 
         file_content = {}
         for row in read_table("//tmp/table", verbose=False):
-            assert hashlib.sha1(row["data"]).digest() == row["sha1"], str(row)
+            assert hashlib.sha1(row["data"].encode("ascii")).digest() == row["sha1"], str(row)
 
-            file_content[row["filename"]] = file_content.get(row["filename"], "") + row["data"]
+            file_content[row["filename"]] = file_content.get(row["filename"], b"") + row["data"].encode("ascii")
             assert hashlib.md5(file_content[row["filename"]]).digest() == row["md5"]
 
     @authors("aleksandra-zh")

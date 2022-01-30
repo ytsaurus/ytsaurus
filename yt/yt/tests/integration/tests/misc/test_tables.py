@@ -7,7 +7,7 @@ from yt_commands import (
     write_table, read_blob_table, map, map_reduce, merge,
     sort, remote_copy, get_first_chunk_id,
     get_singular_chunk_id, get_chunk_replication_factor, set_banned_flag,
-    get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, update_nodes_dynamic_config
+    get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, update_nodes_dynamic_config, sorted_dicts,
 )
 
 from yt_helpers import skip_if_no_descending, profiler_factory
@@ -396,15 +396,15 @@ class TestTables(YTEnvSetup):
 
         # we can write only list fragments
         with pytest.raises(YtError):
-            write_table("<append=true>//tmp/table", yson.loads("string"))
+            write_table("<append=true>//tmp/table", yson.loads(b"string"))
         self._wait_until_unlocked("//tmp/table")
 
         with pytest.raises(YtError):
-            write_table("<append=true>//tmp/table", yson.loads("100"))
+            write_table("<append=true>//tmp/table", yson.loads(b"100"))
         self._wait_until_unlocked("//tmp/table")
 
         with pytest.raises(YtError):
-            write_table("<append=true>//tmp/table", yson.loads("3.14"))
+            write_table("<append=true>//tmp/table", yson.loads(b"3.14"))
         self._wait_until_unlocked("//tmp/table")
 
         # check max_row_weight limit
@@ -424,12 +424,12 @@ class TestTables(YTEnvSetup):
 
         # check duplicate ids
         with pytest.raises(YtError):
-            write_table("//tmp/table", "{a=version1; a=version2}", is_raw=True)
+            write_table("//tmp/table", b"{a=version1; a=version2}", is_raw=True)
         self._wait_until_unlocked("//tmp/table")
 
     @authors("psushin")
     def test_cannot_read_file_as_table(self):
-        content = "some_data"
+        content = b"some_data"
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
         with pytest.raises(YtError):
@@ -473,18 +473,18 @@ class TestTables(YTEnvSetup):
         )
 
         assert get("//tmp/table/@schema_mode") == "strong"
-        assert read_table("//tmp/table") == [{"key": i} for i in xrange(2)]
+        assert read_table("//tmp/table") == [{"key": i} for i in range(2)]
 
         # schemas are equal so this must work; data is overwritten
         write_table(
             "<schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table",
             [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}],
         )
-        assert read_table("//tmp/table") == [{"key": i} for i in xrange(4)]
+        assert read_table("//tmp/table") == [{"key": i} for i in range(4)]
 
         write_table("<append=true>//tmp/table", [{"key": 4}, {"key": 5}])
         assert get("//tmp/table/@schema_mode") == "strong"
-        assert read_table("//tmp/table") == [{"key": i} for i in xrange(6)]
+        assert read_table("//tmp/table") == [{"key": i} for i in range(6)]
 
         # data is overwritten, schema is reset
         write_table("<schema=[{name=key; type=any}]>//tmp/table", [{"key": 4}, {"key": 5}])
@@ -600,7 +600,7 @@ class TestTables(YTEnvSetup):
         self._wait_until_unlocked("//tmp/table")
 
         write_table("//tmp/table", [{"k2": 0}, {"k2": 1}])
-        assert read_table("//tmp/table") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+        assert read_table("//tmp/table") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
     @authors("panin", "ignat")
     def test_row_index_selector(self):
@@ -1194,7 +1194,7 @@ class TestTables(YTEnvSetup):
     @authors("ignat")
     def test_chunk_tree_balancer(self):
         create("table", "//tmp/t")
-        for i in xrange(0, 40):
+        for i in range(0, 40):
             write_table("<append=true>//tmp/t", {"a": "b"})
         chunk_list_id = get("//tmp/t/@chunk_list_id")
         statistics = get("#" + chunk_list_id + "/@statistics")
@@ -1211,7 +1211,7 @@ class TestTables(YTEnvSetup):
         tx = start_transaction()
         tx_stack.append(tx)
 
-        for i in xrange(0, 1000):
+        for i in range(0, 1000):
             write_table("<append=true>//tmp/t", {"a": i}, tx=tx)
 
         chunk_list_id = get("//tmp/t/@chunk_list_id", tx=tx)
@@ -1252,7 +1252,7 @@ class TestTables(YTEnvSetup):
     def test_vital_update(self):
         create("table", "//tmp/t")
         create_user("u")
-        for i in xrange(0, 5):
+        for i in range(0, 5):
             write_table("<append=true>//tmp/t", {"a": "b"})
 
         def check_vital_chunks(is_vital):
@@ -1273,7 +1273,7 @@ class TestTables(YTEnvSetup):
     def test_replication_factor_update1(self):
         create("table", "//tmp/t")
         create_user("u")
-        for i in xrange(0, 5):
+        for i in range(0, 5):
             write_table("<append=true>//tmp/t", {"a": "b"})
         set("//tmp/t/@replication_factor", 4, authenticated_user="u")
         wait(lambda: self._check_replication_factor("//tmp/t", 4))
@@ -1283,7 +1283,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         create_user("u")
         tx = start_transaction()
-        for i in xrange(0, 5):
+        for i in range(0, 5):
             write_table("<append=true>//tmp/t", {"a": "b"}, tx=tx)
         set("//tmp/t/@replication_factor", 4, authenticated_user="u")
         commit_transaction(tx)
@@ -1294,7 +1294,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         create_user("u")
         tx = start_transaction()
-        for i in xrange(0, 5):
+        for i in range(0, 5):
             write_table("<append=true>//tmp/t", {"a": "b"}, tx=tx)
         set("//tmp/t/@replication_factor", 2, authenticated_user="u")
         commit_transaction(tx)
@@ -1390,7 +1390,7 @@ class TestTables(YTEnvSetup):
         set("//tmp/t/@compression_codec", "snappy")
         write_table(table, {"foo": "bar"})
 
-        for i in xrange(8):
+        for i in range(8):
             merge(in_=[table, table], out="<append=true>" + table)
 
         chunk_count = 3 ** 8
@@ -1416,7 +1416,7 @@ class TestTables(YTEnvSetup):
         map(in_=[tableA], out=[tableB], command="cat")
 
         codec_info = get(tableB + "/@compression_statistics")
-        assert codec_info.keys() == ["snappy"]
+        assert list(codec_info.keys()) == ["snappy"]
 
     @authors("asaitgalin")
     def test_optimize_for_statistics(self):
@@ -1429,7 +1429,7 @@ class TestTables(YTEnvSetup):
 
         set(table + "/@optimize_for", "scan")
 
-        for i in xrange(2):
+        for i in range(2):
             merge(
                 in_=[table, table],
                 out="<append=true>" + table,
@@ -1447,36 +1447,36 @@ class TestTables(YTEnvSetup):
     @authors("ignat")
     def test_json_format(self):
         create("table", "//tmp/t")
-        write_table("//tmp/t", '{"x":"0"}\n{"x":"1"}', input_format="json", is_raw=True)
-        assert '{"x":"0"}\n{"x":"1"}\n' == read_table("//tmp/t", output_format="json")
+        write_table("//tmp/t", b'{"x":"0"}\n{"x":"1"}', input_format="json", is_raw=True)
+        assert b'{"x":"0"}\n{"x":"1"}\n' == read_table("//tmp/t", output_format="json")
 
     @authors("psushin")
     def test_yson_skip_nulls(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"x": 0, "y": None}, {"x": None, "y": 1}])
-        format = yson.loads("<skip_null_values=%true; format=text>yson")
-        assert '{"x"=0;};\n{"y"=1;};\n' == read_table("//tmp/t", output_format=format)
+        format = yson.loads(b"<skip_null_values=%true; format=text>yson")
+        assert b'{"x"=0;};\n{"y"=1;};\n' == read_table("//tmp/t", output_format=format)
         del format.attributes["skip_null_values"]
-        assert '{"y"=#;"x"=0;};\n{"y"=1;"x"=#;};\n' == read_table("//tmp/t", output_format=format)
+        assert b'{"x"=0;"y"=#;};\n{"x"=#;"y"=1;};\n' == read_table("//tmp/t", output_format=format)
 
     @authors("ignat")
     def test_boolean(self):
         create("table", "//tmp/t")
-        format = yson.loads("<format=text>yson")
+        format = yson.loads(b"<format=text>yson")
         write_table(
             "//tmp/t",
-            "{x=%false};{x=%true};{x=false};",
+            b"{x=%false};{x=%true};{x=false};",
             input_format=format,
             is_raw=True,
         )
-        assert '{"x"=%false;};\n{"x"=%true;};\n{"x"="false";};\n' == read_table("//tmp/t", output_format=format)
+        assert b'{"x"=%false;};\n{"x"=%true;};\n{"x"="false";};\n' == read_table("//tmp/t", output_format=format)
 
     @authors("babenko", "ignat", "lukyan")
     def test_uint64(self):
         create("table", "//tmp/t")
-        format = yson.loads("<format=text>yson")
-        write_table("//tmp/t", "{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True)
-        assert '{"x"=1u;};\n{"x"=4u;};\n{"x"=9u;};\n' == read_table("//tmp/t", output_format=format)
+        format = yson.loads(b"<format=text>yson")
+        write_table("//tmp/t", b"{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True)
+        assert b'{"x"=1u;};\n{"x"=4u;};\n{"x"=9u;};\n' == read_table("//tmp/t", output_format=format)
 
     @authors("babenko")
     def test_concatenate(self):
@@ -1540,9 +1540,9 @@ class TestTables(YTEnvSetup):
 
         tabular_data = read_table(
             "//tmp/t1",
-            output_format=yson.loads("<columns=[column2;column3]>schemaful_dsv"),
+            output_format=yson.loads(b"<columns=[column2;column3]>schemaful_dsv"),
         )
-        assert tabular_data == "value12\tvalue13\nvalue22\tvalue23\n"
+        assert tabular_data == b"value12\tvalue13\nvalue22\tvalue23\n"
 
     @authors("babenko")
     def test_dynamic_table_schema_required(self):
@@ -1589,7 +1589,7 @@ class TestTables(YTEnvSetup):
         )
         test_negative(schema, [{"values": 1}])
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
         if sort_order == "descending":
             rows = rows[::-1]
 
@@ -1624,7 +1624,7 @@ class TestTables(YTEnvSetup):
         )
         test_positive(schema, rows)
 
-        rows = [{"key": 1, "value": str(i)} for i in xrange(10)]
+        rows = [{"key": 1, "value": str(i)} for i in range(10)]
         if sort_order == "descending":
             rows = rows[::-1]
         test_negative(schema, rows)
@@ -1648,10 +1648,10 @@ class TestTables(YTEnvSetup):
             },
         )
 
-        row = '{int64=3u; uint64=42; boolean="false"; double=18; any={}; extra=qwe}'
+        row = b'{int64=3u; uint64=42; boolean="false"; double=18; any={}; extra=qwe}'
 
-        yson_without_type_conversion = yson.loads("yson")
-        yson_with_type_conversion = yson.loads("<enable_type_conversion=%true>yson")
+        yson_without_type_conversion = yson.loads(b"yson")
+        yson_with_type_conversion = yson.loads(b"<enable_type_conversion=%true>yson")
 
         with pytest.raises(YtError):
             write_table("//tmp/t", row, is_raw=True, input_format=yson_without_type_conversion)
@@ -1670,7 +1670,7 @@ class TestTables(YTEnvSetup):
             },
         )
 
-        write_table("//tmp/t", [{"value": "A" * 1024} for i in xrange(10)])
+        write_table("//tmp/t", [{"value": "A" * 1024} for i in range(10)])
         chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
@@ -1709,18 +1709,18 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError):
             read_blob_table("//tmp/ttt[:#1]", start_part_index=1, part_size=6)
 
-        assert "hello " == read_blob_table("//tmp/ttt[:#1]", part_size=6)
-        assert "world!" == read_blob_table("//tmp/ttt[#1:#2]", part_size=6, start_part_index=1)
-        assert "rld!" == read_blob_table("//tmp/ttt[#1:#2]", part_size=6, start_part_index=1, offset=2)
-        assert "hello world!" == read_blob_table("//tmp/ttt[:#2]", part_size=6)
-        assert "AAA" == read_blob_table("//tmp/ttt[#2]", part_size=3)
+        assert b"hello " == read_blob_table("//tmp/ttt[:#1]", part_size=6)
+        assert b"world!" == read_blob_table("//tmp/ttt[#1:#2]", part_size=6, start_part_index=1)
+        assert b"rld!" == read_blob_table("//tmp/ttt[#1:#2]", part_size=6, start_part_index=1, offset=2)
+        assert b"hello world!" == read_blob_table("//tmp/ttt[:#2]", part_size=6)
+        assert b"AAA" == read_blob_table("//tmp/ttt[#2]", part_size=3)
 
-        assert "hello world!" == read_blob_table("//tmp/ttt[x]", part_size=6)
-        assert "AAA" == read_blob_table("//tmp/ttt[y]", part_size=3)
+        assert b"hello world!" == read_blob_table("//tmp/ttt[x]", part_size=6)
+        assert b"AAA" == read_blob_table("//tmp/ttt[y]", part_size=3)
         with pytest.raises(YtError):
             read_blob_table("//tmp/ttt[x:z]", part_size=3)
 
-        assert "abacabaabac" == read_blob_table("//tmp/ttt[za]", part_size=7)
+        assert b"abacabaabac" == read_blob_table("//tmp/ttt[za]", part_size=7)
 
         with pytest.raises(YtError):
             read_blob_table("//tmp/ttt[zb]", part_size=7)
@@ -1735,7 +1735,7 @@ class TestTables(YTEnvSetup):
                 {"key": "x", "index": 1, "value": "world!"},
             ],
         )
-        assert "hello world!" == read_blob_table(
+        assert b"hello world!" == read_blob_table(
             "//tmp/ttt",
             part_index_column_name="index",
             data_column_name="value",
@@ -1793,12 +1793,12 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t", attributes=attributes)
         tx = start_transaction()
         lock("//tmp/t", mode="snapshot", tx=tx)
-        for k, v in attributes.iteritems():
+        for k, v in attributes.items():
             assert get("//tmp/t/@" + k, tx=tx) == v
 
         copy("//tmp/t", "//tmp/t2", tx=tx)
         commit_transaction(tx)
-        for k, v in attributes.iteritems():
+        for k, v in attributes.items():
             assert get("//tmp/t2/@" + k) == v
 
     @authors("savrus")
@@ -1851,7 +1851,7 @@ class TestTables(YTEnvSetup):
 
         write_table(
             "//tmp/t",
-            [{"key": str(i)} for i in xrange(0, 2)],
+            [{"key": str(i)} for i in range(0, 2)],
             max_row_buffer_size=1,
             table_writer={"desired_chunk_size": 1},
         )
@@ -2036,7 +2036,7 @@ class TestTables(YTEnvSetup):
         commit_transaction(tx=tx2)
 
         assert get("//tmp/t/@chunk_count") == 2
-        assert sorted(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
+        assert sorted_dicts(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
 
     @authors("gritukan")
     def test_chunk_sort_columns_unique_keys_violation(self):
@@ -2503,13 +2503,13 @@ class TestTables(YTEnvSetup):
     def test_read_with_hedging(self):
         create("table", "//tmp/t")
 
-        ROWS = list([{"key": i} for i in xrange(10)])
+        ROWS = list([{"key": i} for i in range(10)])
         write_table("//tmp/t", ROWS)
 
         chunk_id = get("//tmp/t/@chunk_ids/0")
         wait(lambda: len(get("#{}/@stored_replicas".format(chunk_id))) == 3)
 
-        for _ in xrange(10):
+        for _ in range(10):
             rows = read_table(
                 "//tmp/t",
                 table_reader={
@@ -2530,7 +2530,7 @@ class TestTables(YTEnvSetup):
         def random_str():
             return hex(r.randint(0, 16 ** 50 - 1))[2:]
 
-        schema = [{"name": "col{:2d}".format(i), "type": "string"} for i in xrange(col_count)]
+        schema = [{"name": "col{:2d}".format(i), "type": "string"} for i in range(col_count)]
         for reordering_config in (
             {"enable_block_reordering": False},
             {"enable_block_reordering": True},
@@ -2552,7 +2552,7 @@ class TestTables(YTEnvSetup):
                         },
                         verbose=False,
                     )
-                    content = [{schema[i]["name"]: random_str() for i in xrange(col_count)} for j in xrange(row_count)]
+                    content = [{schema[i]["name"]: random_str() for i in range(col_count)} for j in range(row_count)]
                     write_table(
                         "//tmp/t",
                         content,
@@ -2697,7 +2697,7 @@ class TestTables(YTEnvSetup):
             }
         })
 
-        rows = list([{"key": i} for i in xrange(100)])
+        rows = list([{"key": i} for i in range(100)])
 
         profiler = profiler_factory().at_node(nodes[0])
         queue_size = profiler.gauge("cluster_node/in_throttler/queue_size")
