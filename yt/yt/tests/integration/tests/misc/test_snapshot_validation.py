@@ -68,18 +68,18 @@ class TestSnapshotValidation(YTEnvSetup):
         config_path = os.path.join(self.path_to_run, "configs", "node-0.yson")
 
         config = None
-        with open(config_path, "r") as fh:
-            config = " ".join(fh.read().splitlines())
+        with open(config_path, "rb") as fh:
+            config = b" ".join(fh.read().splitlines())
             config = yson.loads(config)
 
         config["data_node"]["store_locations"] = []
         config["exec_agent"]["slot_manager"]["locations"] = []
 
-        with open(config_path, "w") as fh:
+        with open(config_path, "wb") as fh:
             fh.write(yson.dumps(config, yson_format="pretty"))
 
         snapshot = read_file("{}/{}".format(snapshot_path, snapshots[0]))
-        with open("snapshot_file", "w") as fh:
+        with open("snapshot_file", "wb") as fh:
             fh.write(snapshot)
 
         command = [

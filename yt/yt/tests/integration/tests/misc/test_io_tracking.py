@@ -6,7 +6,7 @@ from yt_commands import (
     alter_table, authors, create, get, read_journal, wait, read_table, write_file, write_journal, create_account,
     write_table, update_nodes_dynamic_config, get_singular_chunk_id, set_node_banned,
     sync_create_cells, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table,
-    reduce, map_reduce, merge, erase, read_file)
+    reduce, map_reduce, merge, erase, read_file, sorted_dicts)
 
 from yt_helpers import read_structured_log, write_log_barrier
 from yt_driver_bindings import Driver
@@ -686,7 +686,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         sync_unmount_table("//tmp/my_dyntable")
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        assert sorted(read_table("//tmp/my_dyntable")) == sorted(data)
+        assert sorted_dicts(read_table("//tmp/my_dyntable")) == sorted_dicts(data)
         raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier, check_event_count=False,
                                              filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
 
@@ -728,7 +728,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         alter_table("//tmp/table", dynamic=True)
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        assert sorted(read_table("//tmp/table")) == sorted(data)
+        assert sorted_dicts(read_table("//tmp/table")) == sorted_dicts(data)
         raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier, check_event_count=False,
                                              filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
 
@@ -746,7 +746,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         create("file", "//tmp/file")
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        write_file("//tmp/file", "Soon we will see how this file is being read ;)")
+        write_file("//tmp/file", b"Soon we will see how this file is being read ;)")
         raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier, check_event_count=False,
                                              filter=lambda event: event.get("data_node_method@") == "FinishChunk")
 
@@ -760,7 +760,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         assert "object_id" in write_event
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        assert read_file("//tmp/file") == "Soon we will see how this file is being read ;)"
+        assert read_file("//tmp/file") == b"Soon we will see how this file is being read ;)"
         raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier, check_event_count=False,
                                              filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
 
@@ -968,7 +968,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert "object_id" in write_events[0]
         assert write_events[0]["account@"] == "tmp"
 
-        assert sorted(read_table("//tmp/table_out")) == sorted(first_data + second_data)
+        assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(first_data + second_data)
 
     @authors("gepardo")
     def test_erase(self):
@@ -1132,7 +1132,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
         run_op = yt_commands.map if op_type == "map" else reduce
-        table_format = "<columns=[a];enable_string_to_all_conversion=%true;>schemaful_dsv"
+        table_format = b"<columns=[a];enable_string_to_all_conversion=%true;>schemaful_dsv"
         op = run_op(
             in_="//tmp/table_in",
             out=["//tmp/table_out1", "//tmp/table_out2"],
@@ -1228,7 +1228,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert intermediate_reads == {"<intermediate_0>", "<intermediate_1>"}
 
         output_data = read_table("//tmp/table_out1") + read_table("//tmp/table_out2")
-        assert sorted(output_data) == sorted(table_data)
+        assert sorted_dicts(list(output_data)) == sorted_dicts(list(table_data))
 
     @authors("gepardo")
     def test_map_reduce(self):
@@ -1284,4 +1284,4 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
 
         # TODO(gepardo): Add table tags to output tables and check them here.
 
-        assert sorted(read_table("//tmp/table_out")) == sorted(table_data)
+        assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)

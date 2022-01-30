@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, get_driver, get_supported_features
 
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -41,7 +41,7 @@ class TestGetFeatures(YTEnvSetup):
             "timestamp",
             "interval",
         }
-        assert expected_types == expected_types.intersection(__builtin__.set(features["primitive_types"]))
+        assert expected_types == expected_types.intersection(builtins.set(features["primitive_types"]))
 
         assert "compression_codecs" in features
         expected_compression_codecs = {
@@ -61,11 +61,11 @@ class TestGetFeatures(YTEnvSetup):
             "bzip2_9",
         }
         assert expected_compression_codecs == expected_compression_codecs.intersection(
-            __builtin__.set(features["compression_codecs"])
+            builtins.set(features["compression_codecs"])
         )
         deprecated_compression_codecs = {"zlib6", "gzip_best_compression", "brotli8"}
-        assert not deprecated_compression_codecs.intersection(__builtin__.set(features["compression_codecs"]))
-        assert len(features["compression_codecs"]) == len(__builtin__.set(features["compression_codecs"]))
+        assert not deprecated_compression_codecs.intersection(builtins.set(features["compression_codecs"]))
+        assert len(features["compression_codecs"]) == len(builtins.set(features["compression_codecs"]))
 
         assert "erasure_codecs" in features
         expected_erasure_codecs = {
@@ -77,5 +77,5 @@ class TestGetFeatures(YTEnvSetup):
             "isa_lrc_12_2_2",
         }
         assert expected_erasure_codecs == expected_erasure_codecs.intersection(
-            __builtin__.set(features["erasure_codecs"])
+            builtins.set(features["erasure_codecs"])
         )

@@ -56,24 +56,24 @@ class TestSecurityTags(YTEnvSetup):
     def test_write_file_with_security_tags(self):
         create("file", "//tmp/f")
 
-        write_file("<security_tags=[tag1;tag2]>//tmp/f", "test")
+        write_file("<security_tags=[tag1;tag2]>//tmp/f", b"test")
         assert_items_equal(get("//tmp/f/@security_tags"), ["tag1", "tag2"])
 
-        write_file("//tmp/f", "test")
+        write_file("//tmp/f", b"test")
         assert_items_equal(get("//tmp/f/@security_tags"), [])
 
-        write_file("<security_tags=[tag3]>//tmp/f", "test")
+        write_file("<security_tags=[tag3]>//tmp/f", b"test")
         assert_items_equal(get("//tmp/f/@security_tags"), ["tag3"])
 
-        write_file("<security_tags=[]>//tmp/f", "test")
+        write_file("<security_tags=[]>//tmp/f", b"test")
         assert_items_equal(get("//tmp/f/@security_tags"), [])
 
     @authors("babenko")
     def test_write_file_with_security_tags_append(self):
         create("file", "//tmp/f")
 
-        write_file("<security_tags=[tag1;tag2]>//tmp/f", "test")
-        write_file("<append=true>//tmp/f", "test")
+        write_file("<security_tags=[tag1;tag2]>//tmp/f", b"test")
+        write_file("<append=true>//tmp/f", b"test")
         assert_items_equal(get("//tmp/f/@security_tags"), ["tag1", "tag2"])
 
     @authors("babenko")

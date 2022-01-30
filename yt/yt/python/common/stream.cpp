@@ -35,7 +35,7 @@ public:
 
         try {
             LastReadResult_ = ReadFunction_.apply(args);
-        } catch (const std::exception& ex) { \
+        } catch (const Py::BaseException&) { \
             if (WrapPythonExceptions_) {
                 THROW_ERROR Py::BuildErrorFromPythonException();
             } else {

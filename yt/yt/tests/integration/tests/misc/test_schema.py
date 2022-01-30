@@ -38,7 +38,7 @@ INTERESTING_DECIMAL_PRECISION_LIST = [
     19, 25, MAX_DECIMAL_PRECISION,  # 16 bytes
 ]
 
-POSITIONAL_YSON = yson.loads("<complex_type_mode=positional>yson")
+POSITIONAL_YSON = yson.loads(b"<complex_type_mode=positional>yson")
 
 ##################################################################
 
@@ -518,19 +518,19 @@ class TestComplexTypes(YTEnvSetup):
 
     @authors("ermolovd")
     def test_uuid(self, optimize_for):
-        uuid = "\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xAA\xBB\xCC\xDD\xEE\xFF"
+        uuid = b"\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xAA\xBB\xCC\xDD\xEE\xFF"
         table = SingleColumnTable("uuid", optimize_for)
         table.check_good_value(uuid)
 
-        table.check_bad_value("")
+        table.check_bad_value(b"")
         table.check_bad_value(uuid[:-1])
-        table.check_bad_value(uuid + "a")
+        table.check_bad_value(uuid + b"a")
 
         table = SingleColumnTable(list_type("uuid"), optimize_for)
         table.check_good_value([uuid])
-        table.check_bad_value([""])
+        table.check_bad_value([b""])
         table.check_bad_value([uuid[:-1]])
-        table.check_bad_value([uuid + "a"])
+        table.check_bad_value([uuid + b"a"])
 
 
 @authors("ermolovd")
@@ -604,19 +604,19 @@ class TestComplexTypesMisc(YTEnvSetup):
     @pytest.mark.parametrize("precision", [p for p in INTERESTING_DECIMAL_PRECISION_LIST])
     @authors("ermolovd")
     def test_decimal_sort_random(self, precision):
-        scale = precision / 2
+        scale = precision // 2
         digits = "0123456789"
         rnd = random.Random()
         rnd.seed(42)
 
         def generate_random_decimal():
             decimal_text = (
-                "".join(rnd.choice(digits) for _ in xrange(precision - scale))
-                + "." + "".join(rnd.choice(digits) for _ in xrange(scale))
+                "".join(rnd.choice(digits) for _ in range(precision - scale))
+                + "." + "".join(rnd.choice(digits) for _ in range(scale))
             )
             return decimal.Decimal(decimal_text)
 
-        data = [generate_random_decimal() for _ in xrange(1000)]
+        data = [generate_random_decimal() for _ in range(1000)]
 
         for d in data:
             assert d == decode_decimal(encode_decimal(d, precision, scale), precision, scale)
@@ -634,7 +634,7 @@ class TestComplexTypesMisc(YTEnvSetup):
 
         if actual != expected:
             assert len(actual) == len(expected)
-            for i in xrange(len(actual)):
+            for i in range(len(actual)):
                 assert actual[i] == expected[i], "Mismatch on position {}; {} != {} ".format(i, actual[i], expected[i])
 
     @authors("ermolovd")
@@ -1082,12 +1082,12 @@ class TestLogicalType(YTEnvSetup):
 
         type_tester.check_good_value("utf8", "ff")
         type_tester.check_good_value("utf8", "ЫТЬ")
-        type_tester.check_bad_value("utf8", "\xFF")
+        type_tester.check_bad_value("utf8", b"\xFF")
         type_tester.check_bad_value("utf8", 1)
 
         type_tester.check_good_value("string", "ff")
         type_tester.check_good_value("string", "ЫТЬ")
-        type_tester.check_good_value("string", "\xFF")
+        type_tester.check_good_value("string", b"\xFF")
         type_tester.check_bad_value("string", 1)
 
         type_tester.check_good_value("null", None)
@@ -1145,7 +1145,7 @@ class TestLogicalType(YTEnvSetup):
         type_tester.check_bad_value("json", "False")
         type_tester.check_bad_value("json", "}{")
         type_tester.check_bad_value("json", '{3: "wrong key type"}')
-        type_tester.check_bad_value("json", "Non-utf8: \xFF")
+        type_tester.check_bad_value("json", b"Non-utf8: \xFF")
 
     @authors("ermolovd")
     def test_special_float_values(self):
@@ -1197,6 +1197,7 @@ class TestLogicalType(YTEnvSetup):
 
     @authors("ermolovd")
     def test_logical_type_column_constrains(self):
+        remove("//test-table", force=True)
         with raises_yt_error('Computed column "key1" type mismatch: declared type'):
             create(
                 "table",

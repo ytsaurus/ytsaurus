@@ -134,7 +134,7 @@ UNIFIED_TYPES_YSON = [s.strip() for s in UNIFIED_TYPES_YSON]
 class TestTypeV3Type(YTEnvSetup):
     @pytest.mark.parametrize("type_yson", UNIFIED_TYPES_YSON)
     def test_type_v3_type(self, type_yson):
-        type = yson.loads(type_yson)
+        type = yson.loads(type_yson.encode("ascii"))
 
         # check we can create without exception
         create(
