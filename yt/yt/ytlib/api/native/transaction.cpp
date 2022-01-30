@@ -940,7 +940,7 @@ private:
             } else {
                 auto transaction = Transaction_.Lock();
                 if (!transaction) {
-                    OnGotReplicationCard(false);
+                    return VoidFuture;
                 }
 
                 const auto& replicationCardCache = transaction->Client_->GetReplicationCardCache();
