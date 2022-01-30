@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "yt/yt/core/ytree/yson_struct.h"
 
 #include <yt/yt/server/lib/core_dump/config.h>
 
@@ -20,6 +19,7 @@
 #include <yt/yt/core/http/config.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT {
 
