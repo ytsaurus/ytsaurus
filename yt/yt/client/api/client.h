@@ -342,6 +342,7 @@ struct TCheckPermissionOptions
     , public TPrerequisiteOptions
 {
     std::optional<std::vector<TString>> Columns;
+    std::optional<bool> Vital;
 };
 
 struct TCheckPermissionResult

@@ -185,11 +185,15 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     if (request->has_columns()) {
         checkOptions.Columns = FromProto<std::vector<TString>>(request->columns().items());
     }
+    if (request->has_vital()) {
+        checkOptions.Vital = request->vital();
+    }
 
-    context->SetRequestInfo("User: %v, Permission: %v, Columns: %v, IgnoreSafeMode: %v",
+    context->SetRequestInfo("User: %v, Permission: %v, Columns: %v, Vital: %v, IgnoreSafeMode: %v",
         userName,
         permission,
         checkOptions.Columns,
+        checkOptions.Vital,
         ignoreSafeMode);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();

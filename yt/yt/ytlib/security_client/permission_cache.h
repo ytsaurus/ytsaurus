@@ -25,8 +25,10 @@ struct TPermissionKey
     TString User;
     NYTree::EPermission Permission;
 
-    //! May be specified only when `Object` is set.
+    // Fields below may be specified only when `Object` is set.
+
     std::optional<std::vector<TString>> Columns;
+    std::optional<bool> Vital;
 
     void AssertValidity() const;
 

@@ -26,9 +26,16 @@ TPermissionKey::operator size_t() const
     HashCombine(result, User);
     HashCombine(result, Permission);
     if (Columns) {
+        // In order to distinguish between nullopt and [].
+        HashCombine(result, 1);
         for (const auto& column : *Columns) {
             HashCombine(result, column);
         }
+    }
+    if (Vital) {
+        // In order to distinguish between nullopt and false.
+        HashCombine(result, 1);
+        HashCombine(result, Vital);
     }
     return result;
 }
@@ -39,6 +46,7 @@ void TPermissionKey::AssertValidity() const
     YT_ASSERT(Object.has_value() || Acl.has_value());
     YT_ASSERT(!Object.has_value() || !Acl.has_value());
     YT_ASSERT(Object.has_value() || !Columns.has_value());
+    YT_ASSERT(Object.has_value() || !Vital.has_value());
 }
 
 bool TPermissionKey::operator == (const TPermissionKey& other) const
@@ -48,16 +56,39 @@ bool TPermissionKey::operator == (const TPermissionKey& other) const
         Acl == other.Acl &&
         User == other.User &&
         Permission == other.Permission &&
-        Columns == other.Columns;
+        Columns == other.Columns &&
+        Vital == other.Vital;
 }
 
 TString ToString(const TPermissionKey& key)
 {
-    return Format("%v:%v:%v:%v",
+    TStringBuilder builder;
+    builder.AppendFormat(
+        "%v:%v:%v",
         key.Object ? TStringBuf(*key.Object) : key.Acl->AsStringBuf(),
         key.User,
-        key.Permission,
-        key.Columns);
+        key.Permission);
+
+    // Format optional part.
+    bool isFirst = true;
+
+    auto append = [&] (auto format, auto value) {
+        if (!value) {
+            return;
+        }
+        builder.AppendString(isFirst ? ":{" : ", ");
+        isFirst = false;
+        builder.AppendFormat(format, value);
+    };
+
+    append("Columns: %v", key.Columns);
+    append("Vital: %v", key.Vital);
+
+    if (!isFirst) {
+        builder.AppendString("}");
+    }
+
+    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,6 +204,9 @@ NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
         typedReq->set_permission(static_cast<int>(key.Permission));
         if (key.Columns) {
             ToProto(typedReq->mutable_columns()->mutable_items(), *key.Columns);
+        }
+        if (key.Vital) {
+            typedReq->set_vital(*key.Vital);
         }
         typedReq->set_ignore_safe_mode(true);
         req = std::move(typedReq);

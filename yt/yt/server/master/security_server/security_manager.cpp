@@ -3888,6 +3888,15 @@ private:
                 return;
             }
 
+            if (Permission_ == EPermission::RegisterQueueConsumer) {
+                // RegisterQueueConsumer may only be present in ACE as a single permission;
+                // in this case it is ensured that vitality is specified.
+                YT_VERIFY(ace.Vital);
+                if (!CheckVitalityMatch(*ace.Vital, Options_.Vital.value_or(false))) {
+                    return;
+                }
+            }
+
             for (auto* subject : ace.Subjects) {
                 auto* adjustedSubject = subject == Impl_->GetOwnerUser() && owner
                     ? owner
@@ -4036,6 +4045,11 @@ private:
         static bool CheckPermissionMatch(EPermissionSet permissions, EPermission requestedPermission)
         {
             return (permissions & requestedPermission) != NonePermissions;
+        }
+
+        static bool CheckVitalityMatch(bool vital, bool requestedVital)
+        {
+            return !requestedVital || vital;
         }
 
         static TPermissionCheckResponse MakeFastCheckPermissionResponse(ESecurityAction action, const TPermissionCheckOptions& options)

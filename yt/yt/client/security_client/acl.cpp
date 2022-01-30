@@ -32,7 +32,8 @@ bool operator == (const TSerializableAccessControlEntry& lhs, const TSerializabl
         lhs.Subjects == rhs.Subjects &&
         lhs.Permissions == rhs.Permissions &&
         lhs.InheritanceMode == rhs.InheritanceMode &&
-        lhs.Columns == rhs.Columns;
+        lhs.Columns == rhs.Columns &&
+        lhs.Vital == rhs.Vital;
 }
 
 bool operator != (const TSerializableAccessControlEntry& lhs, const TSerializableAccessControlEntry& rhs)
@@ -50,8 +51,11 @@ void Serialize(const TSerializableAccessControlEntry& ace, NYson::IYsonConsumer*
             .Item("action").Value(ace.Action)
             .Item("subjects").Value(ace.Subjects)
             .Item("permissions").Value(ace.Permissions)
+            // TODO(max42): YT-16347.
+            // Do not serialize this field by default
             .Item("inheritance_mode").Value(ace.InheritanceMode)
             .OptionalItem("columns", ace.Columns)
+            .OptionalItem("vital", ace.Vital)
         .EndMap();
 }
 
@@ -62,13 +66,25 @@ static void EnsureCorrect(const TSerializableAccessControlEntry& ace)
             ESecurityAction::Undefined);
     }
 
-    if (ace.Columns) {
-        for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
-            if (Any(ace.Permissions & permission) && permission != EPermission::Read) {
-                THROW_ERROR_EXCEPTION("Columnar ACE cannot contain %Qlv permission",
-                    permission);
-            }
-        }
+    // Currently, we allow empty permissions with columns. They seem to be no-op.
+    bool onlyReadOrEmpty = None(ace.Permissions & ~EPermission::Read);
+    if (ace.Columns && !onlyReadOrEmpty) {
+        THROW_ERROR_EXCEPTION("ACE specifying columns may contain only %Qlv permission; found %Qlv",
+            EPermission::Read,
+            ace.Permissions);
+    }
+
+    bool hasRegisterQueueConsumer = Any(ace.Permissions & EPermission::RegisterQueueConsumer);
+    bool onlyRegisterQueueConsumer = ace.Permissions == EPermission::RegisterQueueConsumer;
+
+    if (hasRegisterQueueConsumer && !ace.Vital) {
+        THROW_ERROR_EXCEPTION("Permission %Qlv requires vitality to be specified",
+            EPermission::RegisterQueueConsumer);
+    }
+    if (ace.Vital && !onlyRegisterQueueConsumer) {
+        THROW_ERROR_EXCEPTION("ACE specifying vitality must contain a single %Qlv permission; found %Qlv",
+            EPermission::RegisterQueueConsumer,
+            ace.Permissions);
     }
 }
 
@@ -90,6 +106,11 @@ void Deserialize(TSerializableAccessControlEntry& ace, NYTree::INodePtr node)
         Deserialize(ace.Columns, columnsNode);
     } else {
         ace.Columns.reset();
+    }
+    if (auto vitalNode = mapNode->FindChild("vital")) {
+        Deserialize(ace.Vital, vitalNode);
+    } else {
+        ace.Vital.reset();
     }
     EnsureCorrect(ace);
 }
@@ -120,6 +141,9 @@ void Deserialize(TSerializableAccessControlEntry& ace, NYson::TYsonPullParserCur
         } else if (key == TStringBuf("columns")) {
             cursor->Next();
             Deserialize(ace.Columns, cursor);
+        } else if (key == TStringBuf("vital")) {
+            cursor->Next();
+            Deserialize(ace.Vital, cursor);
         } else {
             cursor->Next();
             cursor->SkipComplexValue();
@@ -139,6 +163,7 @@ void TSerializableAccessControlEntry::Persist(const TStreamPersistenceContext& c
     Persist(context, Subjects);
     Persist(context, Permissions);
     Persist(context, InheritanceMode);
+    // NB: Columns and Vital are not persisted since this method is intended only for use in controller.
 }
 
 bool operator == (const TSerializableAccessControlList& lhs, const TSerializableAccessControlList& rhs)
