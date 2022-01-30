@@ -3679,6 +3679,9 @@ private:
         if (request->has_columns()) {
             options.Columns = FromProto<std::vector<TString>>(request->columns().items());
         }
+        if (request->has_vital()) {
+            options.Vital = request->vital();
+        }
         SetTimeoutOptions(&options, context.Get());
         if (request->has_master_read_options()) {
             FromProto(&options, request->master_read_options());

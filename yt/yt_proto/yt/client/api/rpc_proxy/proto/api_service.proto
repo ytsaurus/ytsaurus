@@ -1984,6 +1984,8 @@ message TReqCheckPermission
         repeated string items = 1;
     }
     optional TColumns columns = 4;
+
+    optional bool vital = 5;
 }
 
 message TRspCheckPermission

@@ -47,6 +47,9 @@ void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& contex
     Persist(context, Action);
     Persist(context, InheritanceMode);
     Persist(context, Columns);
+    if (context.GetVersion() >= EMasterReign::RegisterQueueConsumerPermission) {
+        Persist(context, Vital);
+    }
 }
 
 void TAccessControlEntry::Persist(const NCypressServer::TCopyPersistenceContext& context)
@@ -57,6 +60,7 @@ void TAccessControlEntry::Persist(const NCypressServer::TCopyPersistenceContext&
     Persist(context, Action);
     Persist(context, InheritanceMode);
     Persist(context, Columns);
+    Persist(context, Vital);
 }
 
 void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
@@ -70,6 +74,7 @@ void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
             .Item("permissions").Value(FormatPermissions(ace.Permissions))
             .Item("inheritance_mode").Value(ace.InheritanceMode)
             .OptionalItem("columns", ace.Columns)
+            .OptionalItem("vital", ace.Vital)
         .EndMap();
 }
 
@@ -128,6 +133,9 @@ void Deserialize(
 
         // Columns
         ace.Columns = std::move(serializableAce.Columns);
+
+        // Vital
+        ace.Vital = serializableAce.Vital;
 
         acl.Entries.push_back(ace);
     }

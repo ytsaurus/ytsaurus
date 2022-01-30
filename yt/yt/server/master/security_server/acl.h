@@ -37,6 +37,7 @@ struct TAccessControlEntry
     EPermissionSet Permissions;
     EAceInheritanceMode InheritanceMode;
     std::optional<std::vector<TString>> Columns;
+    std::optional<bool> Vital;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
     void Persist(const NCypressServer::TCopyPersistenceContext& context);

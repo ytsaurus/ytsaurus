@@ -19,6 +19,7 @@ struct TSerializableAccessControlEntry
     NYTree::EPermissionSet Permissions;
     EAceInheritanceMode InheritanceMode = EAceInheritanceMode::ObjectAndDescendants;
     std::optional<std::vector<TString>> Columns;
+    std::optional<bool> Vital;
 
     TSerializableAccessControlEntry(
         ESecurityAction action,
@@ -29,6 +30,7 @@ struct TSerializableAccessControlEntry
     // Use only for deserialization.
     TSerializableAccessControlEntry();
 
+    // Used only for persistence in operation controller. Does not work with Columns and Vital fields.
     void Persist(const TStreamPersistenceContext& context);
 };
 

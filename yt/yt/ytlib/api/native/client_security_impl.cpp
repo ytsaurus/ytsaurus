@@ -128,6 +128,9 @@ TCheckPermissionResponse TClient::DoCheckPermission(
     if (options.Columns) {
         ToProto(req->mutable_columns()->mutable_items(), *options.Columns);
     }
+    if (options.Vital) {
+        req->set_vital(*options.Vital);
+    }
     SetTransactionId(req, options, true);
     SetCachingHeader(req, options);
     NCypressClient::SetSuppressAccessTracking(req, true);

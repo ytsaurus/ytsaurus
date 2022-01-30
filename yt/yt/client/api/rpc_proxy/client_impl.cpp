@@ -661,6 +661,9 @@ TFuture<TCheckPermissionResponse> TClient::CheckPermission(
         auto* protoColumns = req->mutable_columns();
         ToProto(protoColumns->mutable_items(), *options.Columns);
     }
+    if (options.Vital) {
+        req->set_vital(*options.Vital);
+    }
 
     ToProto(req->mutable_master_read_options(), options);
     ToProto(req->mutable_transactional_options(), options);

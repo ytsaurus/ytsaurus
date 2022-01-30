@@ -99,6 +99,8 @@ TCheckPermissionCommand::TCheckPermissionCommand()
     RegisterParameter("path", Path);
     RegisterParameter("columns", Options.Columns)
         .Optional();
+    RegisterParameter("vital", Options.Vital)
+        .Optional();
 }
 
 void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
