@@ -11,8 +11,8 @@ namespace NYT::NQueueClient {
 //! Creates YPath service for queue agent orchid subtree representing queue #cluster:#queuePath.
 NYTree::IYPathServicePtr CreateQueueYPathService(
     NRpc::IChannelPtr queueAgentChannel,
-    TString cluster,
-    NYPath::TYPath queuePath);
+    const TString& cluster,
+    const NYPath::TYPath& queuePath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

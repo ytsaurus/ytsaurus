@@ -384,6 +384,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DataWeight)
         .SetPresent(table->HasDataWeight()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueAgentStage)
+        .SetWritable(true)
         .SetPresent(isQueue));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueStatus)
         .SetPresent(isQueue));
@@ -1423,6 +1424,18 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
             auto* lockedTable = LockThisImpl();
             lockedTable->SetEnableConsistentChunkReplicaPlacement(ConvertTo<bool>(value));
+            return true;
+        }
+
+        case EInternedAttributeKey::QueueAgentStage: {
+            ValidateNoTransaction();
+
+            if (!table->IsQueue()) {
+                break;
+            }
+
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetQueueAgentStage(ConvertTo<TString>(value));
             return true;
         }
 
