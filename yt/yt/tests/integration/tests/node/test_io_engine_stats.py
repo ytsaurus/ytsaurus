@@ -88,6 +88,7 @@ def is_uring_disabled():
 
 
 @authors("capone212")
+@pytest.mark.skip("YT-15905 io_uring is broken in CI")
 @pytest.mark.skipif(not is_uring_supported() or is_uring_disabled(), reason="io_uring is not available on this host")
 class TestIoEngineUringStats(TestIoEngineThreadPoolStats):
     NODE_IO_ENGINE_TYPE = "uring"
