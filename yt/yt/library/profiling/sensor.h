@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "tag.h"
+#include "histogram_snapshot.h"
 
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 #include <library/cpp/yt/memory/weak_ptr.h>
@@ -134,6 +135,9 @@ public:
     void Add(double value, int count = 1);
     void Remove(double value, int count = 1);
     void Reset();
+
+    THistogramSnapshot GetSnapshot() const;
+    void LoadSnapshot(THistogramSnapshot snapshot);
 
     explicit operator bool() const;
 

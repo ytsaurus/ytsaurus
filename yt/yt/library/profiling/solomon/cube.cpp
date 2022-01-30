@@ -1,9 +1,9 @@
 #include "cube.h"
-#include "histogram_snapshot.h"
 #include "remote.h"
 
 #include <yt/yt/library/profiling/summary.h>
 #include <yt/yt/library/profiling/tag.h>
+#include <yt/yt/library/profiling/histogram_snapshot.h>
 
 #include <yt/yt/core/misc/error.h>
 

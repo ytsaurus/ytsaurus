@@ -93,6 +93,7 @@ DEFINE_ENUM(EMasterReign,
     ((QueueAgentStageAttribute)                                     (1925))  // max42
     ((OwnsReplicationCard)                                          (1926))  // babenko
     ((RegisterQueueConsumerPermission)                              (1927))  // max42
+    ((ChunkWeightStatisticsHistogram)                               (1928))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

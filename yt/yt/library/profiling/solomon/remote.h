@@ -4,9 +4,8 @@
 
 #include <yt/yt/library/profiling/tag.h>
 #include <yt/yt/library/profiling/summary.h>
-
+#include <yt/yt/library/profiling/histogram_snapshot.h>
 #include <yt/yt/library/profiling/solomon/sensor_dump.pb.h>
-#include <yt/yt/library/profiling/solomon/histogram_snapshot.h>
 
 #include <util/generic/hash_set.h>
 

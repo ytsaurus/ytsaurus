@@ -141,6 +141,16 @@ void TGaugeHistogram::Reset()
     Histogram_->Reset();
 }
 
+THistogramSnapshot TGaugeHistogram::GetSnapshot() const
+{
+    return Histogram_->GetSnapshot();
+}
+
+void TGaugeHistogram::LoadSnapshot(THistogramSnapshot snapshot)
+{
+    Histogram_->LoadSnapshot(snapshot);
+}
+
 TGaugeHistogram::operator bool() const
 {
     return Histogram_.operator bool();

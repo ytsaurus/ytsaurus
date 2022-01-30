@@ -8,6 +8,8 @@ from yt_commands import (
     set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address)
 
+from yt_helpers import profiler_factory
+
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
@@ -803,3 +805,118 @@ class TestConsistentChunkReplicaPlacementLeaderSwitch(TestConsistentChunkReplica
         replicas_after = get("#{}/@stored_replicas".format(chunk_ids[0]))
 
         assert self._are_chunk_replicas_collocated(replicas_before, replicas_after)
+
+##################################################################
+
+
+class TestChunkWeightStatisticsHistogram(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    def _validate_chunk_weight_statistic_histograms(self, histogram_name, attribute_name):
+        chunk_ids = get("//tmp/t/@chunk_ids")
+
+        bounds = [1, 2, 4, 8, 16, 32, 64, 125, 250, 500]
+        for i in range(0, 28):
+            bounds.append(bounds[i] * 1000)
+
+        def find_correct_bucket(bounds, value):
+            if value <= bounds[0]:
+                return 0
+
+            for i in range(1, len(bounds)):
+                if bounds[i - 1] < value <= bounds[i]:
+                    return i
+
+            return len(bounds)
+
+        def validate_histogram(histogram_name, attribute_name, bounds, chunk_ids):
+            result = []
+            for i in range(0, 39):
+                result.append(0)
+
+            for chunk_id in chunk_ids:
+                value = get("#{0}/@{1}".format(chunk_id, attribute_name))
+                result[find_correct_bucket(bounds, value)] += 1
+
+            master_address = ls("//sys/primary_masters")[0]
+            profiler = profiler_factory().at_primary_master(master_address)
+            histogram = profiler.histogram("chunk_server/" + histogram_name)
+
+            histogram_bins = histogram.get_bins(verbose=False)
+            for i in range(0, 39):
+                assert int(histogram_bins[i]['count']) == result[i]
+
+        validate_histogram(histogram_name, attribute_name, bounds, chunk_ids)
+
+    def _check_chunk_weight_statistics_snapshot(self):
+        create("table", "//tmp/t")
+        value1 = ""
+        for i in range(0, 1000):
+            value1 += "a"
+        value2 = ""
+        for i in range(0, 500):
+            value2 += "a"
+        value3 = ""
+        for i in range(0, 50):
+            value3 += "a"
+
+        write_table("<append=%true>//tmp/t", {"a": "b"})
+        write_table("<append=%true>//tmp/t", {"a": value1})
+        write_table("<append=%true>//tmp/t", {"a": value2})
+        write_table("<append=%true>//tmp/t", {"a": value3})
+        write_table("<append=%true>//tmp/t", {"a": "c"})
+        write_table("<append=%true>//tmp/t", {"a": "d"})
+        write_table("<append=%true>//tmp/t", {"a": "e"})
+
+        yield
+
+        sleep(10)
+
+        self._validate_chunk_weight_statistic_histograms("chunk_row_count_histogram", "row_count")
+        self._validate_chunk_weight_statistic_histograms("chunk_compressed_data_size_histogram", "compressed_data_size")
+        self._validate_chunk_weight_statistic_histograms("chunk_uncompressed_data_size_histogram", "uncompressed_data_size")
+        self._validate_chunk_weight_statistic_histograms("chunk_data_weight_histogram", "data_weight")
+
+    @authors("h0pless")
+    def test_chunk_weight_statistics_histogram(self):
+        create("table", "//tmp/t")
+        value1 = ""
+        for i in range(0, 1000):
+            value1 += "a"
+        value2 = ""
+        for i in range(0, 500):
+            value2 += "a"
+        value3 = ""
+        for i in range(0, 50):
+            value3 += "a"
+
+        write_table("<append=%true>//tmp/t", {"a": "b"})
+        write_table("<append=%true>//tmp/t", {"a": value1})
+        write_table("<append=%true>//tmp/t", {"a": value2})
+        write_table("<append=%true>//tmp/t", {"a": value3})
+        write_table("<append=%true>//tmp/t", {"a": "c"})
+        write_table("<append=%true>//tmp/t", {"a": "d"})
+        write_table("<append=%true>//tmp/t", {"a": "e"})
+
+        sleep(10)
+
+        self._validate_chunk_weight_statistic_histograms("chunk_row_count_histogram", "row_count")
+        self._validate_chunk_weight_statistic_histograms("chunk_compressed_data_size_histogram", "compressed_data_size")
+        self._validate_chunk_weight_statistic_histograms("chunk_uncompressed_data_size_histogram", "uncompressed_data_size")
+        self._validate_chunk_weight_statistic_histograms("chunk_data_weight_histogram", "data_weight")
+
+    @authors("h0pless")
+    def test_chunk_weight_statistics_histogram_snapshots(self):
+
+        checker_state = iter(self._check_chunk_weight_statistics_snapshot())
+
+        next(checker_state)
+
+        build_snapshot(cell_id=None)
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        with pytest.raises(StopIteration):
+            next(checker_state)
