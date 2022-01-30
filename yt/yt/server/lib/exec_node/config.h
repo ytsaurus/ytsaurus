@@ -704,6 +704,8 @@ public:
     TVolumeManagerDynamicConfigPtr VolumeManager;
 
     NJobAgent::TJobControllerDynamicConfigPtr JobController;
+    
+    NJobAgent::TJobReporterDynamicConfigPtr JobReporter;
 
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
@@ -722,6 +724,9 @@ public:
             .DefaultNew();
 
         RegisterParameter("job_controller", JobController)
+            .DefaultNew();
+
+        RegisterParameter("job_reporter", JobReporter)
             .DefaultNew();
 
         RegisterParameter("scheduler_connector", SchedulerConnector)

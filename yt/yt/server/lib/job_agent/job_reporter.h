@@ -34,14 +34,17 @@ public:
     ~TJobReporter();
 
     void HandleJobReport(TJobReport&& statistics);
-    void SetEnabled(bool enable);
-    void SetSpecEnabled(bool enable);
-    void SetStderrEnabled(bool enable);
-    void SetProfileEnabled(bool enable);
-    void SetFailContextEnabled(bool enable);
     void SetOperationArchiveVersion(int version);
     int ExtractWriteFailuresCount();
     bool GetQueueIsTooLarge();
+
+    // For updates by original config changes (CA).
+    void UpdateConfig(const TJobReporterConfigPtr& config);
+
+    // For updates by dynamic config patch (Node).
+    void OnDynamicConfigChanged(
+        const TJobReporterDynamicConfigPtr& oldConfig,
+        const TJobReporterDynamicConfigPtr& newConfig);
 
 private:
     class TImpl;

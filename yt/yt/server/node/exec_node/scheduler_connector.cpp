@@ -169,24 +169,8 @@ void TSchedulerConnector::SendHeartbeat() noexcept
         HeartbeatInfo_.LastFullyProcessedHeartbeatTime = TInstant::Now();
     }
 
-    const auto& reporter = Bootstrap_->GetJobReporter();
-    if (rsp->has_enable_job_reporter()) {
-        reporter->SetEnabled(rsp->enable_job_reporter());
-    }
-    if (rsp->has_enable_job_spec_reporter()) {
-        reporter->SetSpecEnabled(rsp->enable_job_spec_reporter());
-    }
-    if (rsp->has_enable_job_stderr_reporter()) {
-        reporter->SetStderrEnabled(rsp->enable_job_stderr_reporter());
-    }
-    if (rsp->has_enable_job_profile_reporter()) {
-        reporter->SetProfileEnabled(rsp->enable_job_profile_reporter());
-    }
-    if (rsp->has_enable_job_fail_context_reporter()) {
-        reporter->SetFailContextEnabled(rsp->enable_job_fail_context_reporter());
-    }
     if (rsp->has_operation_archive_version()) {
-        reporter->SetOperationArchiveVersion(rsp->operation_archive_version());
+        Bootstrap_->GetJobReporter()->SetOperationArchiveVersion(rsp->operation_archive_version());
     }
 
     const auto result = WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob));

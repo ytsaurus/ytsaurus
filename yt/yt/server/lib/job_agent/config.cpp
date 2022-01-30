@@ -262,6 +262,20 @@ void TJobControllerConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+    
+void TJobReporterDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_job_reporter", &TThis::EnableJobReporter)
+        .Default();
+    registrar.Parameter("enable_job_spec_reporter", &TThis::EnableJobSpecReporter)
+        .Default();
+    registrar.Parameter("enable_job_stderr_reporter", &TThis::EnableJobStderrReporter)
+        .Default();
+    registrar.Parameter("enable_job_profile_reporter", &TThis::EnableJobProfileReporter)
+        .Default();
+    registrar.Parameter("enable_job_fail_context_reporter", &TThis::EnableJobFailContextReporter)
+        .Default();
+}
 
 void TJobReporterConfig::Register(TRegistrar registrar)
 {
@@ -293,6 +307,17 @@ void TJobReporterConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("max_in_progress_job_fail_context_data_size", &TThis::MaxInProgressJobFailContextDataSize)
         .Default();
+        
+    registrar.Parameter("enable_job_reporter", &TThis::EnableJobReporter)
+        .Default(true);
+    registrar.Parameter("enable_job_spec_reporter", &TThis::EnableJobSpecReporter)
+        .Default(true);
+    registrar.Parameter("enable_job_stderr_reporter", &TThis::EnableJobStderrReporter)
+        .Default(true);
+    registrar.Parameter("enable_job_profile_reporter", &TThis::EnableJobProfileReporter)
+        .Default(true);
+    registrar.Parameter("enable_job_fail_context_reporter", &TThis::EnableJobFailContextReporter)
+        .Default(true);
 
     registrar.Preprocessor([] (TThis* config) {
         config->OperationIdHandler->MaxInProgressDataSize = 10_MB;

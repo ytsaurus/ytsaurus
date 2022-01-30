@@ -219,6 +219,25 @@ DEFINE_REFCOUNTED_TYPE(TJobControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobReporterDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<bool> EnableJobReporter;
+    std::optional<bool> EnableJobSpecReporter;
+    std::optional<bool> EnableJobStderrReporter;
+    std::optional<bool> EnableJobProfileReporter;
+    std::optional<bool> EnableJobFailContextReporter;
+
+    REGISTER_YSON_STRUCT(TJobReporterDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobReporterDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobReporterConfig
     : public TArchiveReporterConfig
 {
@@ -239,6 +258,21 @@ public:
     std::optional<int> MaxInProgressJobSpecDataSize;
     std::optional<int> MaxInProgressJobStderrDataSize;
     std::optional<int> MaxInProgressJobFailContextDataSize;
+
+    // Enables job reporter to send job events/statistics etc.
+    bool EnableJobReporter;
+
+    // Enables job reporter to send job specs.
+    bool EnableJobSpecReporter;
+
+    // Enables job reporter to send job stderrs.
+    bool EnableJobStderrReporter;
+
+    // Enables job reporter to send job profiles.
+    bool EnableJobProfileReporter;
+
+    // Enables job reporter to send job fail contexts.
+    bool EnableJobFailContextReporter;
 
     REGISTER_YSON_STRUCT(TJobReporterConfig);
 

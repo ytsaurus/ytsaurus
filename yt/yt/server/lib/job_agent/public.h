@@ -18,6 +18,7 @@ DECLARE_REFCOUNTED_CLASS(TJobReporter)
 
 DECLARE_REFCOUNTED_CLASS(TJobControllerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TGpuManagerDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TJobReporterDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

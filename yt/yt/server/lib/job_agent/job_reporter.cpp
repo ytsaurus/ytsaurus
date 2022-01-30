@@ -476,31 +476,6 @@ public:
         OperationIdHandler_->SetEnabled(enable);
     }
 
-    void SetSpecEnabled(bool enable)
-    {
-        JobSpecHandler_->SetEnabled(enable);
-    }
-
-    void SetStderrEnabled(bool enable)
-    {
-        JobStderrHandler_->SetEnabled(enable);
-    }
-
-    void SetProfileEnabled(bool enable)
-    {
-        JobProfileHandler_->SetEnabled(enable);
-    }
-
-    void SetFailContextEnabled(bool enable)
-    {
-        JobFailContextHandler_->SetEnabled(enable);
-    }
-
-    void SetJobProfileEnabled(bool enable)
-    {
-        JobProfileHandler_->SetEnabled(enable);
-    }
-
     void SetOperationArchiveVersion(int version)
     {
         Version_->Set(version);
@@ -524,6 +499,26 @@ public:
             JobStderrHandler_->QueueIsTooLarge() ||
             JobFailContextHandler_->QueueIsTooLarge() ||
             JobProfileHandler_->QueueIsTooLarge();
+    }
+    
+    void UpdateConfig(const TJobReporterConfigPtr& config)
+    {
+        JobHandler_->SetEnabled(config->EnableJobReporter);
+        JobSpecHandler_->SetEnabled(config->EnableJobSpecReporter);
+        JobStderrHandler_->SetEnabled(config->EnableJobStderrReporter);
+        JobProfileHandler_->SetEnabled(config->EnableJobProfileReporter);
+        JobFailContextHandler_->SetEnabled(config->EnableJobFailContextReporter);
+    }
+    
+    void OnDynamicConfigChanged(
+        const TJobReporterDynamicConfigPtr& /* oldConfig */,
+        const TJobReporterDynamicConfigPtr& newConfig)
+    {
+        JobHandler_->SetEnabled(newConfig->EnableJobReporter.value_or(Config_->EnableJobReporter));
+        JobSpecHandler_->SetEnabled(newConfig->EnableJobSpecReporter.value_or(Config_->EnableJobSpecReporter));
+        JobStderrHandler_->SetEnabled(newConfig->EnableJobStderrReporter.value_or(Config_->EnableJobStderrReporter));
+        JobProfileHandler_->SetEnabled(newConfig->EnableJobProfileReporter.value_or(Config_->EnableJobProfileReporter));
+        JobFailContextHandler_->SetEnabled(newConfig->EnableJobFailContextReporter.value_or(Config_->EnableJobFailContextReporter));
     }
 
 private:
@@ -562,41 +557,6 @@ void TJobReporter::HandleJobReport(TJobReport&& jobReport)
     }
 }
 
-void TJobReporter::SetEnabled(bool enable)
-{
-    if (Impl_) {
-        Impl_->SetEnabled(enable);
-    }
-}
-
-void TJobReporter::SetSpecEnabled(bool enable)
-{
-    if (Impl_) {
-        Impl_->SetSpecEnabled(enable);
-    }
-}
-
-void TJobReporter::SetStderrEnabled(bool enable)
-{
-    if (Impl_) {
-        Impl_->SetStderrEnabled(enable);
-    }
-}
-
-void TJobReporter::SetProfileEnabled(bool enable)
-{
-    if (Impl_) {
-        Impl_->SetProfileEnabled(enable);
-    }
-}
-
-void TJobReporter::SetFailContextEnabled(bool enable)
-{
-    if (Impl_) {
-        Impl_->SetFailContextEnabled(enable);
-    }
-}
-
 void TJobReporter::SetOperationArchiveVersion(int version)
 {
     if (Impl_) {
@@ -618,6 +578,22 @@ bool TJobReporter::GetQueueIsTooLarge()
         return Impl_->GetQueueIsTooLarge();
     }
     return false;
+}
+    
+void TJobReporter::UpdateConfig(const TJobReporterConfigPtr& config)
+{
+    if (Impl_) {
+        Impl_->UpdateConfig(config);
+    }
+}
+    
+void TJobReporter::OnDynamicConfigChanged(
+    const TJobReporterDynamicConfigPtr& oldConfig,
+    const TJobReporterDynamicConfigPtr& newConfig)
+{
+    if (Impl_) {
+        Impl_->OnDynamicConfigChanged(oldConfig, newConfig);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
