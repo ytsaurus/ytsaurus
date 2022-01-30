@@ -92,6 +92,7 @@ bool TClient::DoesOperationsArchiveExist()
 int TClient::DoGetOperationsArchiveVersion()
 {
     auto asyncVersionResult = GetNode(GetOperationsArchiveVersionPath(), TGetNodeOptions());
+
     auto versionNodeOrError = WaitFor(asyncVersionResult);
 
     if (!versionNodeOrError.IsOK()) {

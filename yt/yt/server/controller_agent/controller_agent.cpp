@@ -454,6 +454,8 @@ public:
         MemoryTagQueue_->UpdateConfig(Config_);
 
         CachedExecNodeDescriptorsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
+
+        JobReporter_->UpdateConfig(Config_->JobReporter);
     }
 
 
@@ -1626,7 +1628,7 @@ private:
         }
 
         JobReporter_->SetOperationArchiveVersion(rsp->operation_archive_version());
-        JobReporter_->SetEnabled(rsp->enable_job_reporter());
+
         ConfirmHeartbeatRequest(preparedRequest);
     }
 

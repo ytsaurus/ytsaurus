@@ -77,9 +77,11 @@ message TRspHeartbeat
     reserved 7;
     repeated TJobsToConfirm jobs_to_confirm = 16;
     optional bool scheduling_skipped = 8;
+    optional int32 operation_archive_version = 11;
+
+    // COMPAT(ignat): remove after 22.1
     optional bool enable_job_reporter = 9;
     optional bool enable_job_spec_reporter = 10;
-    optional int32 operation_archive_version = 11;
     optional bool enable_job_stderr_reporter = 12;
     optional bool enable_job_fail_context_reporter = 13;
     optional bool enable_job_profile_reporter = 14;

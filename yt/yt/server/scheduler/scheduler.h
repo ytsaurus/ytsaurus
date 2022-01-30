@@ -149,7 +149,6 @@ public:
     NSecurityClient::TSerializableAccessControlList GetOperationBaseAcl() const;
 
     int GetOperationArchiveVersion() const;
-    bool IsJobReporterEnabled() const;
 
     TString FormatResources(const TJobResourcesWithQuota& resources) const;
     TString FormatResourceUsage(

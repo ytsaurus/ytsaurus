@@ -1859,13 +1859,6 @@ public:
         return OperationArchiveVersion_.load();
     }
 
-    bool IsJobReporterEnabled() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Config_->EnableJobReporter;
-    }
-
     TSerializableAccessControlList GetOperationBaseAcl() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -4942,11 +4935,6 @@ TSerializableAccessControlList TScheduler::GetOperationBaseAcl() const
 int TScheduler::GetOperationArchiveVersion() const
 {
     return Impl_->GetOperationArchiveVersion();
-}
-
-bool TScheduler::IsJobReporterEnabled() const
-{
-    return Impl_->IsJobReporterEnabled();
 }
 
 TString TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const

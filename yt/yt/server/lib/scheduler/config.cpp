@@ -803,17 +803,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("orchid_keys_update_period", &TThis::OrchidKeysUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
-    registrar.Parameter("enable_job_reporter", &TThis::EnableJobReporter)
-        .Default(true);
-    registrar.Parameter("enable_job_spec_reporter", &TThis::EnableJobSpecReporter)
-        .Default(true);
-    registrar.Parameter("enable_job_stderr_reporter", &TThis::EnableJobStderrReporter)
-        .Default(true);
-    registrar.Parameter("enable_job_profile_reporter", &TThis::EnableJobProfileReporter)
-        .Default(true);
-    registrar.Parameter("enable_job_fail_context_reporter", &TThis::EnableJobFailContextReporter)
-        .Default(true);
-
     registrar.Parameter("enable_unrecognized_alert", &TThis::EnableUnrecognizedAlert)
         .Default(true);
 

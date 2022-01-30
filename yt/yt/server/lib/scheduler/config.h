@@ -740,21 +740,6 @@ public:
     // Scheduler does not apply this option on the fly yet.
     TDuration StaticOrchidCacheUpdatePeriod;
 
-    // Enables job reporter to send job events/statistics etc.
-    bool EnableJobReporter;
-
-    // Enables job reporter to send job specs.
-    bool EnableJobSpecReporter;
-
-    // Enables job reporter to send job stderrs.
-    bool EnableJobStderrReporter;
-
-    // Enables job reporter to send job profiles.
-    bool EnableJobProfileReporter;
-
-    // Enables job reporter to send job fail contexts.
-    bool EnableJobFailContextReporter;
-
     bool EnableUnrecognizedAlert;
 
     // How much time we wait before aborting the revived job that was not confirmed

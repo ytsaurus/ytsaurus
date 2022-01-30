@@ -544,11 +544,13 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
     }
 
-    response->set_enable_job_reporter(Config_->EnableJobReporter);
-    response->set_enable_job_spec_reporter(Config_->EnableJobSpecReporter);
-    response->set_enable_job_stderr_reporter(Config_->EnableJobStderrReporter);
-    response->set_enable_job_profile_reporter(Config_->EnableJobProfileReporter);
-    response->set_enable_job_fail_context_reporter(Config_->EnableJobFailContextReporter);
+    // COMPAT(ignat): remove after 22.1
+    response->set_enable_job_reporter(true);
+    response->set_enable_job_spec_reporter(true);
+    response->set_enable_job_stderr_reporter(true);
+    response->set_enable_job_profile_reporter(true);
+    response->set_enable_job_fail_context_reporter(true);
+
     response->set_operation_archive_version(Host_->GetOperationArchiveVersion());
 
     BeginNodeHeartbeatProcessing(node);

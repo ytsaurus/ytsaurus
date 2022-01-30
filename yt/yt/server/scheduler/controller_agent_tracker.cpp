@@ -845,7 +845,6 @@ public:
         });
 
         response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());
-        response->set_enable_job_reporter(Bootstrap_->GetScheduler()->IsJobReporterEnabled());
 
         context->SetResponseInfo("IncarnationId: %v", incarnationId);
 
