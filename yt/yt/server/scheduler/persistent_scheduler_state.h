@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "yt/yt/core/ytree/yson_struct.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
