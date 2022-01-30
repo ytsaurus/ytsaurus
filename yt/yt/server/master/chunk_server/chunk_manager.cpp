@@ -411,8 +411,20 @@ public:
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler
             .WithDefaultDisabled()
+            .WithGlobal()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", BufferedProducer_);
+
+        auto bucketBounds = GenerateGenericBucketBounds();
+
+        ChunkRowCountHistogram_ = ChunkServerProfiler.
+            GaugeHistogram("/chunk_row_count_histogram", bucketBounds);
+        ChunkCompressedDataSizeHistogram_ = ChunkServerProfiler.
+            GaugeHistogram("/chunk_compressed_data_size_histogram", bucketBounds);
+        ChunkUncompressedDataSizeHistogram_ = ChunkServerProfiler.
+            GaugeHistogram("/chunk_uncompressed_data_size_histogram", bucketBounds);
+        ChunkDataWeightHistogram_ = ChunkServerProfiler.
+            GaugeHistogram("/chunk_data_weight_histogram", bucketBounds);
 
         RedistributeConsistentReplicaPlacementTokensExecutor_ =
             New<TPeriodicExecutor>(
@@ -588,6 +600,10 @@ public:
         }
 
         chunk->Confirm(chunkInfo, chunkMeta);
+
+        if (chunk->IsBlob()) {
+            UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
+        }
 
         CancelChunkExpiration(chunk);
 
@@ -877,6 +893,10 @@ public:
         if (chunk->IsNative() && chunk->IsDiskSizeFinal()) {
             // The chunk has been already unstaged.
             UpdateResourceUsage(chunk, -1);
+        }
+
+        if (chunk->IsBlob() && chunk->IsConfirmed()) {
+            UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ false);
         }
 
         // Unregister chunk replicas from all known locations.
@@ -2113,6 +2133,9 @@ private:
     // COMPAT(aleksandra-zh)
     bool NeedClearDestroyedReplicaQueues_ = false;
 
+    // COMPAT(h0pless)
+    bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -2134,6 +2157,11 @@ private:
     i64 EndorsementCount_ = 0;
 
     i64 DestroyedReplicaCount_ = 0;
+
+    TGaugeHistogram ChunkRowCountHistogram_;
+    TGaugeHistogram ChunkCompressedDataSizeHistogram_;
+    TGaugeHistogram ChunkUncompressedDataSizeHistogram_;
+    TGaugeHistogram ChunkDataWeightHistogram_;
 
     TMediumMap<std::vector<i64>> ConsistentReplicaPlacementTokenDistribution_;
 
@@ -2260,6 +2288,27 @@ private:
         auto* chunkList = ChunkListMap_.Insert(id, std::move(chunkListHolder));
         chunkList->SetKind(kind);
         return chunkList;
+    }
+
+    void UpdateChunkWeightStatisticsHistogram(const TChunk* chunk, bool add)
+    {
+        YT_VERIFY(chunk->IsBlob() && chunk->IsConfirmed());
+        auto rowCount = chunk->GetRowCount();
+        auto compressedDataSize = chunk->GetCompressedDataSize();
+        auto uncompressedDataSize = chunk->GetUncompressedDataSize();
+        auto dataWeight = chunk->GetDataWeight();
+
+        if (add) {
+            ChunkRowCountHistogram_.Add(rowCount, 1);
+            ChunkCompressedDataSizeHistogram_.Add(compressedDataSize, 1);
+            ChunkUncompressedDataSizeHistogram_.Add(uncompressedDataSize, 1);
+            ChunkDataWeightHistogram_.Add(dataWeight, 1);
+        } else {
+            ChunkRowCountHistogram_.Remove(rowCount, 1);
+            ChunkCompressedDataSizeHistogram_.Remove(compressedDataSize, 1);
+            ChunkUncompressedDataSizeHistogram_.Remove(uncompressedDataSize, 1);
+            ChunkDataWeightHistogram_.Remove(dataWeight, 1);
+        }
     }
 
     TChunkView* DoCreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier)
@@ -3515,6 +3564,12 @@ private:
         DynamicStoreMap_.SaveKeys(context);
     }
 
+    void SaveHistogramValues(NCellMaster::TSaveContext& context, const THistogramSnapshot& snapshot) const
+    {
+        Save(context, snapshot.Bounds);
+        Save(context, snapshot.Values);
+    }
+
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
         using NYT::Save;
@@ -3528,6 +3583,11 @@ private:
         DynamicStoreMap_.SaveValues(context);
 
         Save(context, ConsistentReplicaPlacementTokenDistribution_);
+
+        SaveHistogramValues(context, ChunkRowCountHistogram_.GetSnapshot());
+        SaveHistogramValues(context, ChunkCompressedDataSizeHistogram_.GetSnapshot());
+        SaveHistogramValues(context, ChunkUncompressedDataSizeHistogram_.GetSnapshot());
+        SaveHistogramValues(context, ChunkDataWeightHistogram_.GetSnapshot());
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -3537,6 +3597,14 @@ private:
         MediumMap_.LoadKeys(context);
         ChunkViewMap_.LoadKeys(context);
         DynamicStoreMap_.LoadKeys(context);
+    }
+
+    void LoadHistogramValues(NCellMaster::TLoadContext& context, TGaugeHistogram& histogram)
+    {
+        THistogramSnapshot snapshot;
+        Load(context, snapshot.Bounds);
+        Load(context, snapshot.Values);
+        histogram.LoadSnapshot(snapshot);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -3562,6 +3630,16 @@ private:
             Load(context, ConsistentReplicaPlacementTokenDistribution_);
         }
 
+        // COMPAT(h0pless)
+        if (context.GetVersion() >= EMasterReign::ChunkWeightStatisticsHistogram) {
+            LoadHistogramValues(context, ChunkRowCountHistogram_);
+            LoadHistogramValues(context, ChunkCompressedDataSizeHistogram_);
+            LoadHistogramValues(context, ChunkUncompressedDataSizeHistogram_);
+            LoadHistogramValues(context, ChunkDataWeightHistogram_);
+        } else {
+            NeedRecomputeChunkWeightStatisticsHistogram_ = true;
+        }
+
         // COMPAT(aleksandra-zh)
         NeedClearDestroyedReplicaQueues_ = context.GetVersion() < EMasterReign::FixZombieReplicaRemoval;
     }
@@ -3582,6 +3660,10 @@ private:
 
         for (auto [chunkId, chunk] : ChunkMap_) {
             RegisterChunk(chunk);
+
+            if (NeedRecomputeChunkWeightStatisticsHistogram_ && chunk->IsConfirmed() && chunk->IsBlob()) {
+                UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
+            }
 
             auto addReplicas = [&, chunk = chunk] (const auto& replicas) {
                 for (auto replica : replicas) {
@@ -3710,6 +3792,11 @@ private:
         EndorsementCount_ = 0;
 
         DestroyedReplicaCount_ = 0;
+
+        ChunkRowCountHistogram_.Reset();
+        ChunkCompressedDataSizeHistogram_.Reset();
+        ChunkUncompressedDataSizeHistogram_.Reset();
+        ChunkDataWeightHistogram_.Reset();
 
         DefaultStoreMedium_ = nullptr;
         DefaultCacheMedium_ = nullptr;

@@ -1,9 +1,8 @@
 #pragma once
 
-#include "histogram_snapshot.h"
-
 #include <yt/yt/library/profiling/impl.h>
 #include <yt/yt/library/profiling/summary.h>
+#include <yt/yt/library/profiling/histogram_snapshot.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
@@ -102,6 +101,8 @@ private:
 
 DECLARE_REFCOUNTED_CLASS(THistogram)
 
+std::vector<double> GenerateGenericBucketBounds();
+
 class THistogram
     : public ISummaryImplBase<TDuration>
     , public IGaugeHistogramImpl
@@ -115,7 +116,8 @@ public:
     void Remove(double value, int count) override;
     void Reset() override;
 
-    THistogramSnapshot GetSnapshot(bool reset);
+    THistogramSnapshot GetSnapshot() const override;
+    void LoadSnapshot(THistogramSnapshot snapshot) override;
 
 private:
     std::vector<double> Bounds_;

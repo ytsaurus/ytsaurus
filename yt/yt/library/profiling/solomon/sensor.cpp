@@ -124,8 +124,11 @@ template class TSimpleSummary<double>;
 template class TSimpleSummary<TDuration>;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 constexpr int MaxBinCount = 65;
-static auto GenericBucketBounds() {
+
+static auto GenericBucketBounds()
+{
     std::array<ui64, MaxBinCount> result;
 
     for (int index = 0; index <= 6; ++index) {
@@ -138,6 +141,22 @@ static auto GenericBucketBounds() {
 
     for (int index = 10; index < MaxBinCount; ++index) {
         result[index] = 1000 * result[index - 10];
+    }
+
+    return result;
+}
+
+std::vector<double> GenerateGenericBucketBounds()
+{
+    // BEWARE: Changing this variable will lead to master snapshots becoming invalid.
+    constexpr int MaxGaugeHistogramBinCount = 38;
+    std::vector<double> result;
+
+    auto genericBounds = GenericBucketBounds();
+    result.reserve(MaxGaugeHistogramBinCount);
+
+    for (int i = 0; i < std::ssize(genericBounds) && i < MaxGaugeHistogramBinCount; ++i) {
+        result.push_back(genericBounds[i]);
     }
 
     return result;
@@ -204,21 +223,30 @@ void THistogram::Reset()
     }
 }
 
-THistogramSnapshot THistogram::GetSnapshot(bool reset)
+THistogramSnapshot THistogram::GetSnapshot() const
 {
     THistogramSnapshot snapshot;
     snapshot.Bounds = Bounds_;
     snapshot.Values.resize(Buckets_.size());
 
     for (int i = 0; i < std::ssize(Buckets_); ++i) {
-        if (reset) {
-            snapshot.Values[i] = Buckets_[i].exchange(0, std::memory_order_relaxed);
-        } else {
-            snapshot.Values[i] = Buckets_[i].load(std::memory_order_relaxed);
-        }
+        snapshot.Values[i] = Buckets_[i].load(std::memory_order_relaxed);
     }
 
     return snapshot;
+}
+
+void THistogram::LoadSnapshot(THistogramSnapshot snapshot)
+{
+    for (int i = 0; i < std::ssize(snapshot.Bounds); ++i) {
+        YT_VERIFY(Bounds_[i] == snapshot.Bounds[i]);
+    }
+
+    YT_VERIFY(std::ssize(Buckets_) == std::ssize(Bounds_) + 1);
+
+    for (int i = 0; i < std::ssize(snapshot.Values); ++i) {
+        Buckets_[i].store(snapshot.Values[i], std::memory_order_relaxed);
+    }
 }
 
 TSummarySnapshot<TDuration> THistogram::GetSummary()

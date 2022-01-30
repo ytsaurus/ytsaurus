@@ -158,6 +158,9 @@ struct IGaugeHistogramImpl
     virtual void Add(double value, int count) = 0;
     virtual void Remove(double value, int count) = 0;
     virtual void Reset() = 0;
+
+    virtual THistogramSnapshot GetSnapshot() const = 0;
+    virtual void LoadSnapshot(THistogramSnapshot snapshot) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGaugeHistogramImpl)

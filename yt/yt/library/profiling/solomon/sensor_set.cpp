@@ -218,7 +218,8 @@ int TSensorSet::Collect()
             return {{}, false};
         }
 
-        auto value = owner->GetSnapshot(true);
+        auto value = owner->GetSnapshot();
+        owner->Reset();
         return {value, true};
     });
 
@@ -228,7 +229,7 @@ int TSensorSet::Collect()
             return {{}, false};
         }
 
-        auto value = owner->GetSnapshot(false);
+        auto value = owner->GetSnapshot();
         return {value, true};
     });
 
