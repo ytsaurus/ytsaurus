@@ -391,7 +391,7 @@ public:
     {
         auto it = QueueAgentChannels_.find(stage);
         if (it == QueueAgentChannels_.end()) {
-            THROW_ERROR_EXCEPTION("Queue agent stage %Qv channel is not found", stage);
+            THROW_ERROR_EXCEPTION("Queue agent stage %Qv is not found", stage);
         }
         return it->second;
     }

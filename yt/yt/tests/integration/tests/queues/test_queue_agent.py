@@ -1,7 +1,7 @@
 from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 
-from yt_commands import (authors, get, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
-                         insert_rows, delete_rows, remove, raises_yt_error, exists)
+from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
+                         insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction)
 
 from yt.common import YtError
 
@@ -410,6 +410,26 @@ class TestMasterIntegration(YTEnvSetup):
         partitions = get("//tmp/q/@queue_partitions")
         assert len(partitions) == 1
         assert partitions[0]["available_row_count"] == 0
+
+    @authors("max42")
+    def test_queue_agent_stage(self):
+        self._prepare_tables()
+
+        create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+        sync_mount_table("//tmp/q")
+
+        assert get("//tmp/q/@queue_agent_stage") == "production"
+
+        set("//tmp/q/@queue_agent_stage", "testing")
+        assert get("//tmp/q/@queue_agent_stage") == "testing"
+
+        # There is no queue agent with stage "testing", so accessing queue status would result in an error.
+        with raises_yt_error('Queue agent stage "testing" is not found'):
+            get("//tmp/q/@queue_status")
+
+        tx = start_transaction()
+        with raises_yt_error("Operation cannot be performed in transaction"):
+            set("//tmp/q/@queue_agent_stage", "value_under_tx", tx=tx)
 
     @authors("max42")
     def test_non_queues(self):
