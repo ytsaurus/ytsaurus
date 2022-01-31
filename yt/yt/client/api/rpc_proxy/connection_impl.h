@@ -32,9 +32,9 @@ public:
     const TConnectionConfigPtr& GetConfig();
 
     // IConnection implementation
-    TClusterTag GetClusterTag() const override;
-    const TString& GetLoggingTag() const override;
-    const TString& GetClusterId() const override;
+    NObjectClient::TCellTag GetCellTag() override;
+    const TString& GetLoggingTag() override;
+    const TString& GetClusterId() override;
 
     IInvokerPtr GetInvoker() override;
 

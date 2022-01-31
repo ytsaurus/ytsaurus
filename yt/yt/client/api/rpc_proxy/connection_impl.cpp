@@ -236,17 +236,17 @@ IChannelPtr TConnection::CreateChannel(bool sticky)
     return CreateRoamingChannel(std::move(provider));
 }
 
-TClusterTag TConnection::GetClusterTag() const
+NObjectClient::TCellTag TConnection::GetCellTag()
 {
     YT_ABORT();
 }
 
-const TString& TConnection::GetLoggingTag() const
+const TString& TConnection::GetLoggingTag()
 {
     return LoggingTag_;
 }
 
-const TString& TConnection::GetClusterId() const
+const TString& TConnection::GetClusterId()
 {
     return ClusterId_;
 }

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <yt/yt/client/object_client/public.h>
-
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/client/transaction_client/public.h>
@@ -9,10 +7,6 @@
 #include <yt/yt/core/misc/public.h>
 
 namespace NYT::NApi {
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TClusterTag = NObjectClient::TCellTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 
