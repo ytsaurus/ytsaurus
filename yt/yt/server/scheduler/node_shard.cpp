@@ -2747,9 +2747,10 @@ void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState
 
 void TNodeShard::PreemptJob(const TJobPtr& job, std::optional<TCpuDuration> interruptTimeout)
 {
-    YT_LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, Interruptible: %v, Reason: %v)",
+    YT_LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, TreeId: %v, Interruptible: %v, Reason: %v)",
         job->GetId(),
         job->GetOperationId(),
+        job->GetTreeId(),
         job->GetInterruptible(),
         job->GetPreemptionReason());
 
