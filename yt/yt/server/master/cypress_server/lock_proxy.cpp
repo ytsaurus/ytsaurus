@@ -115,8 +115,9 @@ private:
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
-
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IObjectProxyPtr CreateLockProxy(
     NCellMaster::TBootstrap* bootstrap,

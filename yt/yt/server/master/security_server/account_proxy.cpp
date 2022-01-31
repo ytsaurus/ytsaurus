@@ -47,12 +47,7 @@ private:
     using TBasePtr = TIntrusivePtr<TBase>;
 
 public:
-    TAccountProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TAccount* account)
-        : TBase(bootstrap, metadata, account)
-    { }
+    using TNonversionedMapObjectProxyBase::TNonversionedMapObjectProxyBase;
 
 protected:
     std::unique_ptr<TNonversionedMapObjectFactoryBase<TAccount>> CreateObjectFactory() const override
@@ -455,6 +450,8 @@ private:
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TIntrusivePtr<TNonversionedMapObjectProxyBase<TAccount>> CreateAccountProxy(
     NCellMaster::TBootstrap* bootstrap,

@@ -510,18 +510,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkOwnerNodeProxy::TChunkOwnerNodeProxy(
-    NCellMaster::TBootstrap* bootstrap,
-    TObjectTypeMetadata* metadata,
-    TTransaction* transaction,
-    TChunkOwnerBase* trunkNode)
-    : TNontemplateCypressNodeProxyBase(
-        bootstrap,
-        metadata,
-        transaction,
-        trunkNode)
-{ }
-
 ENodeType TChunkOwnerNodeProxy::GetType() const
 {
     return ENodeType::Entity;

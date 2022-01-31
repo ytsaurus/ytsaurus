@@ -22,13 +22,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerPoolProxy::TSchedulerPoolProxy(
-    NCellMaster::TBootstrap* bootstrap,
-    NObjectServer::TObjectTypeMetadata* metadata,
-    TSchedulerPool* schedulerPool)
-    : TNonversionedMapObjectProxyBase<TSchedulerPool>(bootstrap, metadata, schedulerPool)
-{ }
-
 TSchedulerPoolProxy::TProxyBasePtr TSchedulerPoolProxy::ResolveNameOrThrow(const TString& name)
 {
     auto poolTreeName = GetMaybePoolTreeName(GetThisImpl());

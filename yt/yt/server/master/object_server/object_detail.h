@@ -253,12 +253,7 @@ class TNonversionedObjectProxyBase
     : public TNontemplateNonversionedObjectProxyBase
 {
 public:
-    TNonversionedObjectProxyBase(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TObject* object)
-        : TNontemplateNonversionedObjectProxyBase(bootstrap, metadata, object)
-    { }
+    using TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase;
 
 protected:
     template <class TActualImpl = TObject>

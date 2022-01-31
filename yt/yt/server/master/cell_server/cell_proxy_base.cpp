@@ -38,17 +38,9 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTabletClient;
 
-using NYT::ToProto;
 using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TCellProxyBase::TCellProxyBase(
-    NCellMaster::TBootstrap* bootstrap,
-    TObjectTypeMetadata* metadata,
-    TCellBase* cell)
-    : TBase(bootstrap, metadata, cell)
-{ }
 
 void TCellProxyBase::ValidateRemoval()
 {

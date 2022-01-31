@@ -84,12 +84,7 @@ class TTabletCellProxy
     : public TCellProxyBase
 {
 public:
-    TTabletCellProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTabletCell* cell)
-        : TBase(bootstrap, metadata, cell)
-    { }
+    using TCellProxyBase::TCellProxyBase;
 
 private:
     using TBase = TCellProxyBase;
@@ -285,6 +280,8 @@ private:
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IObjectProxyPtr CreateTabletCellProxy(
     NCellMaster::TBootstrap* bootstrap,

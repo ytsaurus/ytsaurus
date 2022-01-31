@@ -20,17 +20,7 @@ class TPortalExitProxy
     : public TMapNodeProxy
 {
 public:
-    TPortalExitProxy(
-        TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTransaction* transaction,
-        TPortalExitNode* trunkNode)
-        : TBase(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TMapNodeProxy::TMapNodeProxy;
 
 private:
     using TBase = TMapNodeProxy;

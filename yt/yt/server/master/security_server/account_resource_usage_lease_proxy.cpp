@@ -102,6 +102,8 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 };
+////////////////////////////////////////////////////////////////////////////////
+
 
 IObjectProxyPtr CreateAccountResourceUsageLeaseProxy(
     NCellMaster::TBootstrap* bootstrap,

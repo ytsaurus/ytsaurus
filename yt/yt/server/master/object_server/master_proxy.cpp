@@ -258,6 +258,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IObjectProxyPtr CreateMasterProxy(
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,

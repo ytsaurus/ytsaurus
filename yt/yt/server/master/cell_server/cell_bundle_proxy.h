@@ -14,10 +14,7 @@ class TCellBundleProxy
     : public NObjectServer::TNonversionedObjectProxyBase<TCellBundle>
 {
 public:
-    TCellBundleProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        TCellBundle* cellBundle);
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 protected:
     using TBase = TNonversionedObjectProxyBase<TCellBundle>;

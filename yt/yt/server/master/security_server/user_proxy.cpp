@@ -23,20 +23,13 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
 
-using ::ToString;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserProxy
     : public TSubjectProxy<TUser>
 {
 public:
-    TUserProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TUser* user)
-        : TBase(bootstrap, metadata, user)
-    { }
+    using TSubjectProxy::TSubjectProxy;
 
 private:
     using TBase = TSubjectProxy<TUser>;
@@ -247,6 +240,8 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IObjectProxyPtr CreateUserProxy(
     NCellMaster::TBootstrap* bootstrap,

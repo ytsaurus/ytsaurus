@@ -1,6 +1,7 @@
 #pragma once
 
 #include "table_node.h"
+#include "replicated_table_node.h"
 
 #include <yt/yt/server/master/object_server/public.h>
 
@@ -24,11 +25,7 @@ class TTableNodeProxy
     : public NCypressServer::TCypressNodeProxyBase<NChunkServer::TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode>
 {
 public:
-    TTableNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TTableNode* trunkNode);
+    using TCypressNodeProxyBase::TCypressNodeProxyBase;
 
 protected:
     using TBase = TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode>;
@@ -71,17 +68,12 @@ class TReplicatedTableNodeProxy
     : public TTableNodeProxy
 {
 public:
-    TReplicatedTableNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TReplicatedTableNode* trunkNode);
+    using TTableNodeProxy::TTableNodeProxy;
 
 protected:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
     bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,12 +26,7 @@ class TTabletActionProxy
     : public TNonversionedObjectProxyBase<TTabletAction>
 {
 public:
-    TTabletActionProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTabletAction* action)
-        : TBase(bootstrap, metadata, action)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TTabletAction>;
@@ -144,6 +139,8 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IObjectProxyPtr CreateTabletActionProxy(
     NCellMaster::TBootstrap* bootstrap,

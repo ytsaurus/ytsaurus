@@ -23,17 +23,7 @@ public:
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
-    TPortalEntranceProxy(
-        TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTransaction* transaction,
-        TPortalEntranceNode* trunkNode)
-        : TBase(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TCypressNodeProxyBase::TCypressNodeProxyBase;
 
 private:
     using TBase = TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TPortalEntranceNode>;

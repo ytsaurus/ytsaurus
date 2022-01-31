@@ -55,12 +55,7 @@ class TTabletCellBundleProxy
     : public TCellBundleProxy
 {
 public:
-    TTabletCellBundleProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTabletCellBundle* cellBundle)
-        : TBase(bootstrap, metadata, cellBundle)
-    { }
+    using TCellBundleProxy::TCellBundleProxy;
 
 private:
     using TBase = TCellBundleProxy;
