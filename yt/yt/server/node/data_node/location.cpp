@@ -35,6 +35,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -45,6 +46,7 @@ namespace NYT::NDataNode {
 using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NHydra;
@@ -893,6 +895,119 @@ const TChunkStorePtr& TChunkLocation::GetChunkStore() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStoreLocation::TIOStatisticsProvider
+    : public TRefCounted
+{
+public:
+    TIOStatisticsProvider(
+        TLogger logger,
+        TString deviceName,
+        NIO::IIOEnginePtr ioEngine,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager)
+        : Logger(std::move(logger))
+        , DeviceName_(std::move(deviceName))
+        , IOEngine_(std::move(ioEngine))
+        , LastUpdateTime_(TInstant::Now())
+        , LastCounters_(GetCounters())
+    {
+        dynamicConfigManager->SubscribeConfigChanged(
+            BIND(&TIOStatisticsProvider::OnDynamicConfigChanged, MakeWeak(this)));
+    }
+
+    TIOStatistics Get()
+    {
+        auto guard = Guard(CountersLock_);
+
+        if (TInstant::Now() > LastUpdateTime_ + UpdateStatisticsTimeout_) {
+            Update();
+        }
+
+        return Statistics_;
+    }
+
+private:
+    struct TCounters
+    {
+        i64 FilesystemRead = 0;
+        i64 FilesystemWritten = 0;
+        i64 DiskRead = 0;
+        i64 DiskWritten = 0;
+    };
+
+    const TLogger Logger;
+    const TString DeviceName_;
+    const NIO::IIOEnginePtr IOEngine_;
+    std::atomic<TDuration> UpdateStatisticsTimeout_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CountersLock_);
+    TInstant LastUpdateTime_;
+    std::optional<TCounters> LastCounters_;
+    TIOStatistics Statistics_;
+
+    std::optional<TCounters> GetCounters() const
+    {
+        static const int UnixSectorSize = 512;
+
+        try {
+            auto counters = TCounters{
+                .FilesystemRead = IOEngine_->GetTotalReadBytes(),
+                .FilesystemWritten = IOEngine_->GetTotalWrittenBytes(),
+            };
+
+            auto diskStats = NYT::GetDiskStats();
+            auto it = diskStats.find(DeviceName_);
+            if (it != diskStats.end()) {
+                counters.DiskRead = it->second.SectorsRead * UnixSectorSize;
+                counters.DiskWritten = it->second.SectorsWritten * UnixSectorSize;
+            } else {
+                YT_LOG_WARNING("Can't find disk statistics for location with disk label %v", DeviceName_);
+            }
+
+            return counters;
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to get IO statistics");
+        }
+        return std::nullopt;
+    }
+
+    static i64 CalculateRate(i64 oldValue, i64 newValue, TDuration duration)
+    {
+        auto seconds = static_cast<double>(duration.MilliSeconds()) / 1000;
+        return static_cast<i64>(std::max<i64>(0, (newValue - oldValue)) / seconds);
+    }
+
+    void Update()
+    {
+        auto oldCounters = LastCounters_;
+        auto currentCounters = GetCounters();
+        auto now = TInstant::Now();
+        auto duration = now - LastUpdateTime_;
+
+        if (oldCounters && currentCounters) {
+            Statistics_ = TIOStatistics {
+                .FilesystemReadRate = CalculateRate(oldCounters->FilesystemRead, currentCounters->FilesystemRead, duration),
+                .FilesystemWriteRate = CalculateRate(oldCounters->FilesystemWritten, currentCounters->FilesystemWritten, duration),
+                .DiskReadRate = CalculateRate(oldCounters->DiskRead, currentCounters->DiskRead, duration),
+                .DiskWriteRate = CalculateRate(oldCounters->DiskWritten, currentCounters->DiskWritten, duration),
+            };
+        }
+
+        LastUpdateTime_ = now;
+        LastCounters_ = currentCounters;
+    }
+
+     void OnDynamicConfigChanged(
+        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& newConfig)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        UpdateStatisticsTimeout_.store(newConfig->DataNode->IOStatisticsUpdateTimeout);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStoreLocation::TStoreLocation(
     const TString& id,
     TStoreLocationConfigPtr config,
@@ -918,6 +1033,11 @@ TStoreLocation::TStoreLocation(
         TrashCheckQueue_->GetInvoker(),
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         Config_->TrashCheckPeriod))
+    , StatisticsProvider_(New<TIOStatisticsProvider>(
+        Logger,
+        Config_->DeviceName,
+        GetIOEngine(),
+        dynamicConfigManager))
 {
     YT_VERIFY(chunkStore);
 
@@ -936,6 +1056,9 @@ TStoreLocation::TStoreLocation(
     TabletStoreFlushInThrottler_ = createThrottler(config->TabletStoreFlushInThrottler, "TabletStoreFlushIn");
     UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedIn", diskThrottlerProfiler);
 }
+
+TStoreLocation::~TStoreLocation()
+{ }
 
 const TStoreLocationConfigPtr& TStoreLocation::GetConfig() const
 {
@@ -1379,6 +1502,12 @@ void TStoreLocation::DoStart()
     JournalManager_->Initialize();
 
     TrashCheckExecutor_->Start();
+}
+
+
+TStoreLocation::TIOStatistics TStoreLocation::GetIOStatistics()
+{
+    return StatisticsProvider_->Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

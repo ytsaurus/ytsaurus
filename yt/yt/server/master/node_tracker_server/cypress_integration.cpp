@@ -281,6 +281,11 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(statistics.TotalSpace.Used);
                 return true;
+            
+            case EInternedAttributeKey::IOStatistics:
+                BuildYsonFluently(consumer)
+                    .DoMap(BIND(&TVirtualNodeMapBase::BuildIOStatisticsYson, Unretained(this), statistics.TotalIO));
+                return true;
 
             case EInternedAttributeKey::AvailableSpacePerMedium:
                 BuildYsonFluently(consumer)
@@ -307,6 +312,22 @@ private:
                             }
                             fluent
                                 .Item(medium->GetName()).Value(it->second.Used);
+                        });
+                return true;
+            
+            case EInternedAttributeKey::IOStatisticsPerMedium:
+                BuildYsonFluently(consumer)
+                    .DoMapFor(
+                        statistics.IOPerMedium.begin(),
+                        statistics.IOPerMedium.end(),
+                        [&] (TFluentMap fluent, auto it) {
+                            auto mediumIndex = it->first;
+                            const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                            if (!medium) {
+                                return;
+                            }
+                            fluent.Item(medium->GetName())
+                                .DoMap(BIND(&TVirtualNodeMapBase::BuildIOStatisticsYson, Unretained(this), it->second));
                         });
                 return true;
 
@@ -360,6 +381,15 @@ private:
         }
 
         return TVirtualMapBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    void BuildIOStatisticsYson(const NNodeTrackerClient::TIOStatistics& io, NYTree::TFluentMap fluent)
+    {
+        fluent
+            .Item("filesystem_read_rate").Value(io.FilesystemReadRate)
+            .Item("filesystem_write_rate").Value(io.FilesystemWriteRate)
+            .Item("disk_read_rate").Value(io.DiskReadRate)
+            .Item("disk_write_rate").Value(io.DiskWriteRate);
     }
 };
 

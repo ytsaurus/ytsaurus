@@ -18,10 +18,22 @@ struct TDiskSpaceStatistics
     i64 Used = 0;
 };
 
+struct TIOStatistics
+{
+    i64 FilesystemReadRate = 0;
+    i64 FilesystemWriteRate = 0;
+
+    i64 DiskReadRate = 0;
+    i64 DiskWriteRate = 0;
+};
+
 struct TAggregatedNodeStatistics
 {
     TDiskSpaceStatistics TotalSpace;
     NChunkClient::TMediumMap<TDiskSpaceStatistics> SpacePerMedium = NChunkClient::TMediumMap<TDiskSpaceStatistics>();
+
+    TIOStatistics TotalIO;
+    NChunkClient::TMediumMap<TIOStatistics> IOPerMedium = NChunkClient::TMediumMap<TIOStatistics>();
 
     i64 ChunkReplicaCount = 0;
 

@@ -716,6 +716,8 @@ public:
 
     TChunkAutotomizerConfigPtr ChunkAutotomizer;
 
+    TDuration IOStatisticsUpdateTimeout;
+
     TDataNodeDynamicConfig();
 };
 

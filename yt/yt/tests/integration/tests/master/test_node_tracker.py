@@ -199,6 +199,19 @@ class TestNodeTracker(YTEnvSetup):
         assert "limit" not in memory_statistics["alloc_fragmentation"]
         assert memory_statistics["block_cache"]["limit"] == 2000000
 
+    @authors("capone212")
+    def test_io_statistics(self):
+        create("table", "//tmp/t")
+
+        for parts in range(10):
+            row_count = 1024
+            write_table("<append=%true>//tmp/t", [{"a": i} for i in range(row_count)])
+
+        wait(lambda: get("//sys/cluster_nodes/@io_statistics")["filesystem_write_rate"] > 0)
+        per_medium_io = get("//sys/cluster_nodes/@io_statistics_per_medium")
+        assert "default" in per_medium_io
+        assert per_medium_io["default"]["filesystem_write_rate"] > 0
+
 
 ##################################################################
 

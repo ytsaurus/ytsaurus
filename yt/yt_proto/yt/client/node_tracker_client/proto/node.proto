@@ -12,6 +12,15 @@ message TMediumChunkStatistics
     required int32 chunk_count = 2;
 }
 
+message TIOStatistics
+{
+    optional int64 filesystem_read_rate = 1;
+    optional int64 filesystem_write_rate = 2;
+
+    optional int64 disk_read_rate = 3;
+    optional int64 disk_write_rate = 4;
+}
+
 // Describes the current state of a chunk location.
 message TChunkLocationStatistics
 {
@@ -29,6 +38,8 @@ message TChunkLocationStatistics
     optional bool throttling_reads = 9 [default = false];
     optional bool throttling_writes = 10 [default = false];
     optional bool sick = 11 [default = false];
+
+    optional TIOStatistics io_statistics = 14;
 }
 
 // Describes the current state of a slot location.
