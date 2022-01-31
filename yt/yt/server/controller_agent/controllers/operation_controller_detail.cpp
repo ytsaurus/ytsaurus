@@ -2856,6 +2856,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     if (State != EControllerState::Running && State != EControllerState::Failing) {
         YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
+        RemoveFinishedJobInfo(jobId);
         return;
     }
 
@@ -3018,6 +3019,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     if (State != EControllerState::Running && State != EControllerState::Failing) {
         YT_LOG_DEBUG("Stale job failed, ignored (JobId: %v)", jobId);
+        RemoveFinishedJobInfo(jobId);
         return;
     }
 
@@ -3142,6 +3144,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     if (State != EControllerState::Running && State != EControllerState::Failing) {
         YT_LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
+        RemoveFinishedJobInfo(jobId);
         return;
     }
 
