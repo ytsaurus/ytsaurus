@@ -72,11 +72,12 @@ struct TQueueTableRow
 
     static std::vector<TString> GetCypressAttributeNames();
 
-    TQueueTableRow() = default;
-    TQueueTableRow(
-        TCrossClusterReference queue,
+    static TQueueTableRow FromAttributeDictionary(
+        const TCrossClusterReference& queue,
         std::optional<TRowRevision> rowRevision,
-        const NYTree::IAttributeDictionaryPtr& attributeDictionary);
+        const NYTree::IAttributeDictionaryPtr& cypressAttributes);
+
+    bool operator==(const TQueueTableRow& rhs) const = default;
 };
 
 void Serialize(const TQueueTableRow& row, NYson::IYsonConsumer* consumer);
@@ -115,11 +116,12 @@ struct TConsumerTableRow
 
     static std::vector<TString> GetCypressAttributeNames();
 
-    TConsumerTableRow() = default;
-    TConsumerTableRow(
-        TCrossClusterReference consumer,
+    static TConsumerTableRow FromAttributeDictionary(
+        const TCrossClusterReference& consumer,
         std::optional<TRowRevision> rowRevision,
-        const NYTree::IAttributeDictionaryPtr& attributeDictionary);
+        const NYTree::IAttributeDictionaryPtr& cypressAttributes);
+
+    bool operator==(const TConsumerTableRow& rhs) const = default;
 };
 
 void Serialize(const TConsumerTableRow& row, NYson::IYsonConsumer* consumer);
