@@ -882,7 +882,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             : std::nullopt;
         if (auto nodeInfinibandCluster = execNode->GetInfinibandCluster()) {
             YT_LOG_WARNING_IF(nodeInfinibandCluster != infinibandCluster,
-                "Node infiniband cluster tag has changed "
+                "Node's infiniband cluster tag has changed "
                 "(NodeAddress: %v, OldInfinibandCluster: %v, NewInfinibandCluster: %v)",
                 address,
                 nodeInfinibandCluster,
