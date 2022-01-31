@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/api/public.h>
+
 #include <yt/yt/client/transaction_client/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -26,10 +28,8 @@ struct ITransactionParticipant
 {
     virtual TCellId GetCellId() const = 0;
 
-    //! Returns cell tag uniquely defining source of timestamps for a given participant.
-    //! For now equals to cell tag of primary master cell of a cluster participant
-    //! belongs to.
-    virtual NObjectClient::TCellTag GetClockCellTag() const = 0;
+    //! Returns tag of a cluster timestamps were generated from.
+    virtual NApi::TClusterTag GetClockClusterTag() const = 0;
 
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const = 0;
 
@@ -38,13 +38,13 @@ struct ITransactionParticipant
     virtual TFuture<void> PrepareTransaction(
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
-        NObjectClient::TCellTag prepareTimestampCellTag,
+        NApi::TClusterTag prepareTimestampClusterTag,
         const std::vector<TCellId>& cellIdsToSyncWith,
         const NRpc::TAuthenticationIdentity& identity) = 0;
     virtual TFuture<void> CommitTransaction(
         TTransactionId transactionId,
         TTimestamp commitTimestamp,
-        NObjectClient::TCellTag commitTimestampCellTag,
+        NApi::TClusterTag commitTimestampClusterTag,
         const NRpc::TAuthenticationIdentity& identity) = 0;
     virtual TFuture<void> AbortTransaction(
         TTransactionId transactionId,

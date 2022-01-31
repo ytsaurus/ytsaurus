@@ -236,19 +236,26 @@ IChannelPtr TConnection::CreateChannel(bool sticky)
     return CreateRoamingChannel(std::move(provider));
 }
 
-NObjectClient::TCellTag TConnection::GetCellTag()
+TClusterTag TConnection::GetClusterTag() const
 {
     YT_ABORT();
 }
 
-const TString& TConnection::GetLoggingTag()
+const TString& TConnection::GetLoggingTag() const
 {
     return LoggingTag_;
 }
 
-const TString& TConnection::GetClusterId()
+const TString& TConnection::GetClusterId() const
 {
     return ClusterId_;
+}
+
+bool TConnection::IsSameCluster(const IConnectionPtr& other) const
+{
+    // NB: Cluster tag is not defined for RPC proxy connection
+    // so we use some best-effort logic here.
+    return GetClusterId() == other->GetClusterId();
 }
 
 IInvokerPtr TConnection::GetInvoker()
