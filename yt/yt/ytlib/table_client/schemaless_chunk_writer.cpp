@@ -256,7 +256,7 @@ protected:
     const TEncodingChunkWriterPtr EncodingChunkWriter_;
     TLegacyOwningKey LastKey_;
 
-    NProto::TBlockMetaExt BlockMetaExt_;
+    NProto::TDataBlockMetaExt BlockMetaExt_;
 
     const TTraceContextPtr TraceContext_;
     const TTraceContextFinishGuard FinishGuard_;
@@ -280,10 +280,10 @@ protected:
 
         YT_VERIFY(block.Meta.uncompressed_size() > 0);
 
-        block.Meta.set_block_index(BlockMetaExt_.blocks_size());
+        block.Meta.set_block_index(BlockMetaExt_.data_blocks_size());
 
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
-        BlockMetaExt_.add_blocks()->Swap(&block.Meta);
+        BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
 
         EncodingChunkWriter_->WriteBlock(std::move(block.Data), block.GroupIndex);
     }
@@ -335,17 +335,17 @@ protected:
             // Note that simply mapping each block's block_index is not enough.
             // Currently, our code assumes that blocks follow in ascending order
             // of block indexes (which is quite natural assumption).
-            NProto::TBlockMetaExt reorderedBlockMetaExt;
-            reorderedBlockMetaExt.mutable_blocks()->Reserve(blockMetaExt.blocks().size());
-            for (ssize_t index = 0; index < blockMetaExt.blocks_size(); ++index) {
-                reorderedBlockMetaExt.add_blocks();
+            NProto::TDataBlockMetaExt reorderedBlockMetaExt;
+            reorderedBlockMetaExt.mutable_data_blocks()->Reserve(blockMetaExt.data_blocks().size());
+            for (ssize_t index = 0; index < blockMetaExt.data_blocks_size(); ++index) {
+                reorderedBlockMetaExt.add_data_blocks();
             }
-            for (auto& block : *blockMetaExt.mutable_blocks()) {
+            for (auto& block : *blockMetaExt.mutable_data_blocks()) {
                 auto index = block.block_index();
                 YT_VERIFY(index < std::ssize(mapping));
                 auto mappedIndex = mapping[index];
-                reorderedBlockMetaExt.mutable_blocks(mappedIndex)->Swap(&block);
-                reorderedBlockMetaExt.mutable_blocks(mappedIndex)->set_block_index(mappedIndex);
+                reorderedBlockMetaExt.mutable_data_blocks(mappedIndex)->Swap(&block);
+                reorderedBlockMetaExt.mutable_data_blocks(mappedIndex)->set_block_index(mappedIndex);
             }
             SetProtoExtension(meta->mutable_extensions(), reorderedBlockMetaExt);
         });
@@ -758,7 +758,7 @@ private:
     void FinishBlock(int blockWriterIndex, TUnversionedRow lastRow)
     {
         DataWeightSinceLastBlockFlush_ = 0;
-        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.blocks_size(), RowCount_);
+        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_);
         block.Meta.set_chunk_row_count(RowCount_);
         RegisterBlock(block, lastRow);
     }

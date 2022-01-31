@@ -27,7 +27,7 @@ std::vector<bool> GetCompositeColumnFlags(const TTableSchemaPtr& schema)
 
 THorizontalBlockReader::THorizontalBlockReader(
     const TSharedRef& block,
-    const NProto::TBlockMeta& meta,
+    const NProto::TDataBlockMeta& meta,
     const std::vector<bool>& compositeColumnFlags,
     const std::vector<int>& chunkToReaderIdMapping,
     int chunkComparatorLength,

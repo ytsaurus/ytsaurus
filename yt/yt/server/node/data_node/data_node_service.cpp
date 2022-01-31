@@ -1488,7 +1488,7 @@ private:
                 const auto& blockMetaCache = Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache();
                 auto cachedBlockMeta = blockMetaCache->Find(chunkId);
                 if (!cachedBlockMeta) {
-                    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
+                    auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(meta->extensions());
                     cachedBlockMeta = New<TCachedBlockMeta>(chunkId, std::move(blockMetaExt));
                     blockMetaCache->TryInsert(cachedBlockMeta);
                 }
@@ -1855,10 +1855,10 @@ private:
             ? FromProto<TLegacyOwningKey>(sampleRequest.upper_key())
             : MaxKey();
 
-        auto blocksExt = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
+        auto blockMeta = GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions());
 
         std::vector<TLegacyOwningKey> samples;
-        for (const auto& block : blocksExt.blocks()) {
+        for (const auto& block : blockMeta.data_blocks()) {
             YT_VERIFY(block.has_last_key());
             auto key = FromProto<TLegacyOwningKey>(block.last_key());
             if (key >= lowerKey && key < upperKey) {

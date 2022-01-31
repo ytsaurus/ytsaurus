@@ -186,7 +186,7 @@ protected:
 
     TLegacyOwningKey LastKey_;
 
-    TBlockMetaExt BlockMetaExt_;
+    TDataBlockMetaExt BlockMetaExt_;
     i64 BlockMetaExtSize_ = 0;
 
     TSamplesExt SamplesExt_;
@@ -381,14 +381,14 @@ private:
     {
         auto block = BlockWriter_->FlushBlock();
         block.Meta.set_chunk_row_count(RowCount_);
-        block.Meta.set_block_index(BlockMetaExt_.blocks_size());
+        block.Meta.set_block_index(BlockMetaExt_.data_blocks_size());
         ToProto(block.Meta.mutable_last_key(), beginKey, endKey);
 
         YT_VERIFY(block.Meta.uncompressed_size() > 0);
 
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
 
-        BlockMetaExt_.add_blocks()->Swap(&block.Meta);
+        BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
         EncodingChunkWriter_->WriteBlock(std::move(block.Data));
 
         MaxTimestamp_ = std::max(MaxTimestamp_, BlockWriter_->GetMaxTimestamp());
@@ -617,15 +617,15 @@ private:
 
     void FinishBlock(int blockWriterIndex, const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
     {
-        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.blocks_size(), RowCount_);
+        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_);
         YT_VERIFY(block.Meta.uncompressed_size() > 0);
 
-        block.Meta.set_block_index(BlockMetaExt_.blocks_size());
+        block.Meta.set_block_index(BlockMetaExt_.data_blocks_size());
         ToProto(block.Meta.mutable_last_key(), beginKey, endKey);
 
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
 
-        BlockMetaExt_.add_blocks()->Swap(&block.Meta);
+        BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
         EncodingChunkWriter_->WriteBlock(std::move(block.Data));
     }
 

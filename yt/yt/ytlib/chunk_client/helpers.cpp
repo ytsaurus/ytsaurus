@@ -648,10 +648,10 @@ i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChun
         i64 currentSize = GetChunkDataWeight(chunkSpec);
 
         // Block used by upper level chunk reader.
-        i64 chunkBufferSize = ChunkReaderMemorySize + miscExt->max_block_size();
+        i64 chunkBufferSize = ChunkReaderMemorySize + miscExt->max_data_block_size();
 
         // If range to read is large enough to cover several blocks, consider prefetch memory estimate.
-        if (currentSize > miscExt->max_block_size()) {
+        if (currentSize > miscExt->max_data_block_size()) {
             chunkBufferSize += config->WindowSize + config->GroupSize;
         }
 

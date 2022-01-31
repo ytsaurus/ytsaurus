@@ -311,7 +311,7 @@ private:
 
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
-        const auto& blockMetaExt = ChunkMeta_->BlockMeta();
+        const auto& blockMetaExt = ChunkMeta_->DataBlockMeta();
         const auto& blockIndexKeys = ChunkMeta_->LegacyBlockLastKeys();
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
@@ -348,7 +348,7 @@ private:
             for (auto it = blocksIt; it < blockKeysEnd; ++it) {
                 int blockIndex = std::distance(blockIndexKeys.begin(), it);
                 BlockIndexes_.push_back(blockIndex);
-                auto& blockMeta = blockMetaExt->blocks(blockIndex);
+                auto& blockMeta = blockMetaExt->data_blocks(blockIndex);
                 int priority = blocks.size();
                 blocks.push_back({
                     .UncompressedDataSize = blockMeta.uncompressed_size(),
@@ -374,7 +374,7 @@ private:
         YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
         BlockReader_.reset(new TSimpleVersionedBlockReader(
             CurrentBlock_.Get().ValueOrThrow().Data,
-            ChunkMeta_->BlockMeta()->blocks(chunkBlockIndex),
+            ChunkMeta_->DataBlockMeta()->data_blocks(chunkBlockIndex),
             ChunkMeta_->GetChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
             ChunkMeta_->GetKeyColumnCount(),
@@ -551,7 +551,7 @@ private:
 
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
-        const auto& blockMetaExt = ChunkMeta_->BlockMeta();
+        const auto& blockMetaExt = ChunkMeta_->DataBlockMeta();
         const auto& blockIndexKeys = ChunkMeta_->LegacyBlockLastKeys();
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
@@ -572,7 +572,7 @@ private:
 
                 int blockIndex = std::distance(blockIndexKeys.begin(), blocksIt);
                 BlockIndexes_.push_back(blockIndex);
-                auto& blockMeta = blockMetaExt->blocks(blockIndex);
+                auto& blockMeta = blockMetaExt->data_blocks(blockIndex);
                 int priority = blocks.size();
                 blocks.push_back({
                     .UncompressedDataSize = blockMeta.uncompressed_size(),
@@ -599,7 +599,7 @@ private:
         int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
         BlockReader_.reset(new TSimpleVersionedBlockReader(
             CurrentBlock_.Get().ValueOrThrow().Data,
-            ChunkMeta_->BlockMeta()->blocks(chunkBlockIndex),
+            ChunkMeta_->DataBlockMeta()->data_blocks(chunkBlockIndex),
             ChunkMeta_->GetChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
             ChunkMeta_->GetKeyColumnCount(),

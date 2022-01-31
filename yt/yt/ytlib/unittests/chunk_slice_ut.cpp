@@ -132,8 +132,8 @@ public:
         ChunkRowCount_ += rowCount;
         ChunkDataWeight_ += dataWeight;
 
-        int blockIndex = Blocks_.blocks_size();
-        auto* block = Blocks_.add_blocks();
+        int blockIndex = Blocks_.data_blocks_size();
+        auto* block = Blocks_.add_data_blocks();
         block->set_block_index(blockIndex);
         ToProto(block->mutable_last_key(), lastKey);
         block->set_row_count(rowCount);
@@ -164,7 +164,7 @@ public:
 
 private:
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
-    NTableClient::NProto::TBlockMetaExt Blocks_;
+    NTableClient::NProto::TDataBlockMetaExt Blocks_;
     TUnversionedOwningRow FirstKey_;
     TUnversionedOwningRow LastKey_;
     i64 ChunkRowCount_ = 0;

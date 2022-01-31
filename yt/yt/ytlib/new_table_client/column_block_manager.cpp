@@ -30,7 +30,7 @@ bool TGroupBlockHolder::NeedUpdateBlock(ui32 rowIndex) const
     return rowIndex >= BlockRowLimit_ && BlockIdIndex_ < BlockIds_.size();
 }
 
-void TGroupBlockHolder::SetBlock(TSharedRef data, const TRefCountedBlockMetaPtr& blockMeta)
+void TGroupBlockHolder::SetBlock(TSharedRef data, const TRefCountedDataBlockMetaPtr& blockMeta)
 {
     YT_VERIFY(BlockIdIndex_ < BlockIds_.size());
     int blockId = BlockIds_[BlockIdIndex_];
@@ -38,11 +38,11 @@ void TGroupBlockHolder::SetBlock(TSharedRef data, const TRefCountedBlockMetaPtr&
     BlockSegmentsMeta = BlockSegmentsMetas_[BlockIdIndex_];
 
     Block = data;
-    BlockRowLimit_ = blockMeta->blocks(blockId).chunk_row_count();
+    BlockRowLimit_ = blockMeta->data_blocks(blockId).chunk_row_count();
 }
 
 // TODO(lukyan): Use block row limits vector instead of blockMeta.
-std::optional<ui32> TGroupBlockHolder::SkipToBlock(ui32 rowIndex, const TRefCountedBlockMetaPtr& blockMeta)
+std::optional<ui32> TGroupBlockHolder::SkipToBlock(ui32 rowIndex, const TRefCountedDataBlockMetaPtr& blockMeta)
 {
     if (!NeedUpdateBlock(rowIndex)) {
         return std::nullopt;
@@ -50,7 +50,7 @@ std::optional<ui32> TGroupBlockHolder::SkipToBlock(ui32 rowIndex, const TRefCoun
 
     // Need to find block with rowIndex.
     BlockIdIndex_ = ExponentialSearch<ui32>(BlockIdIndex_, BlockIds_.size(), [&] (ui32 blockIdIndex) {
-        return blockMeta->blocks(BlockIds_[blockIdIndex]).chunk_row_count() <= rowIndex;
+        return blockMeta->data_blocks(BlockIds_[blockIdIndex]).chunk_row_count() <= rowIndex;
     });
 
     // It is used for generating sentinel rows in lookup (for keys after end of chunk).
@@ -110,7 +110,7 @@ std::vector<std::unique_ptr<TGroupBlockHolder>> CreateGroupBlockHolders(
 
 TBlockWindowManager::TBlockWindowManager(
     std::vector<std::unique_ptr<TGroupBlockHolder>> blockHolders,
-    TRefCountedBlockMetaPtr blockMeta,
+    TRefCountedDataBlockMetaPtr blockMeta,
     TBlockFetcherPtr blockFetcher,
     TReaderStatisticsPtr readerStatistics)
     : BlockHolders_(std::move(blockHolders))

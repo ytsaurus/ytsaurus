@@ -108,6 +108,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
     DEFINE_BYVAL_RO_PROPERTY(i64, MaxBlockSize);
     DEFINE_BYVAL_RO_PROPERTY(NCompression::ECodec, CompressionCodec);
+    DEFINE_BYVAL_RO_PROPERTY(i64, SystemBlockCount);
 
     DEFINE_BYVAL_RW_PROPERTY(NErasure::ECodec, ErasureCodec);
 

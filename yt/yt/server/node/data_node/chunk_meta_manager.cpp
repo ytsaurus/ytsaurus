@@ -171,7 +171,7 @@ public:
 
     void RemoveCachedBlocksExt(TChunkId chunkId) override
     {
-         BlocksExtCache_->TryRemove(chunkId);
+        BlocksExtCache_->TryRemove(chunkId);
     }
 
 private:

@@ -65,6 +65,10 @@ TFuture<void> TChunkReaderBase::DoOpen(
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
 
+    if (miscExt.system_block_count() > 0) {
+        THROW_ERROR_EXCEPTION("Cannot read chunk with system blocks");
+    }
+
     if (blockSequence.empty()) {
         // NB(psushin): typically memory manager is finalized by block fetcher.
         // When block fetcher is not created, we should do it explicitly.
@@ -157,13 +161,13 @@ void TChunkReaderBase::CheckBlockUpperLimits(
     }
 }
 
-int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const TReadLimit& lowerLimit) const
+int TChunkReaderBase::ApplyLowerRowLimit(const TDataBlockMetaExt& blockMeta, const TReadLimit& lowerLimit) const
 {
     if (!lowerLimit.GetRowIndex()) {
         return 0;
     }
 
-    const auto& blockMetaEntries = blockMeta.blocks();
+    const auto& blockMetaEntries = blockMeta.data_blocks();
     const auto& lastBlock = *(--blockMetaEntries.end());
 
     if (*lowerLimit.GetRowIndex() >= lastBlock.chunk_row_count()) {
@@ -171,7 +175,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
             lowerLimit,
             lastBlock.chunk_row_count());
 
-        return blockMeta.blocks_size();
+        return blockMeta.data_blocks_size();
     }
 
     typedef decltype(blockMetaEntries.end()) TIter;
@@ -182,7 +186,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
         rbegin,
         rend,
         *lowerLimit.GetRowIndex(),
-        [] (i64 index, const TBlockMeta& blockMeta) {
+        [] (i64 index, const TDataBlockMeta& blockMeta) {
             // Global (chunk-wide) index of last row in block.
             auto maxRowIndex = blockMeta.chunk_row_count() - 1;
             return index > maxRowIndex;
@@ -231,24 +235,24 @@ int TChunkReaderBase::ApplyLowerKeyLimit(
     return std::distance(blockLastKeys.begin(), it);
 }
 
-int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const TReadLimit& upperLimit) const
+int TChunkReaderBase::ApplyUpperRowLimit(const TDataBlockMetaExt& blockMeta, const TReadLimit& upperLimit) const
 {
     if (!upperLimit.GetRowIndex()) {
-        return blockMeta.blocks_size();
+        return blockMeta.data_blocks_size();
     }
 
-    auto begin = blockMeta.blocks().begin();
-    auto end = blockMeta.blocks().end() - 1;
+    auto begin = blockMeta.data_blocks().begin();
+    auto end = blockMeta.data_blocks().end() - 1;
     auto it = std::lower_bound(
         begin,
         end,
         *upperLimit.GetRowIndex(),
-        [] (const TBlockMeta& blockMeta, i64 index) {
+        [] (const TDataBlockMeta& blockMeta, i64 index) {
             auto maxRowIndex = blockMeta.chunk_row_count() - 1;
             return maxRowIndex < index;
         });
 
-    return  (it != end) ? std::distance(begin, it) + 1 : blockMeta.blocks_size();
+    return  (it != end) ? std::distance(begin, it) + 1 : blockMeta.data_blocks_size();
 }
 
 int TChunkReaderBase::ApplyUpperKeyLimit(

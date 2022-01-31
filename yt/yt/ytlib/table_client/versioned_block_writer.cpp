@@ -130,7 +130,7 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
         size += part.Size();
     }
 
-    TBlockMeta meta;
+    TDataBlockMeta meta;
     meta.set_row_count(RowCount_);
     meta.set_uncompressed_size(size);
 

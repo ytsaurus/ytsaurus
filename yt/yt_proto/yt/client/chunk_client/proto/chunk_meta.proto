@@ -14,6 +14,7 @@ message TBlockInfo
 // Chunk meta extension.
 message TBlocksExt
 {
+    // Addresses both data and system blocks.
     repeated TBlockInfo blocks = 1;
 
     // Whether chunk was written with `sync_on_close` option.
@@ -48,8 +49,8 @@ message TMiscExt
     // Number of key-value pairs across all rows in the chunk.
     optional int64 value_count = 8 [default = 0];
 
-    // Uncompressed size of the largest block.
-    optional int64 max_block_size = 9 [default = 0];
+    // Uncompressed size of the largest data block.
+    optional int64 max_data_block_size = 9 [default = 0];
 
     // Min/max timestamps for versioned table chunks.
     optional uint64 min_timestamp = 10 [default = 0];
@@ -78,6 +79,9 @@ message TMiscExt
 
     // COMPAT(aleksandra-zh): YT-15138
     optional int64 physical_row_count = 20;
+
+    // System blocks contain internal information (e.g. chunk index).
+    optional int32 system_block_count = 21;
 }
 
 message TPartInfo
@@ -89,6 +93,7 @@ message TPartInfo
     repeated int64 block_sizes = 2;
 }
 
+// Chunk meta extension.
 message TErasurePlacementExt
 {
     repeated TPartInfo part_infos = 1;

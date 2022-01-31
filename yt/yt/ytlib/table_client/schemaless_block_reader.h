@@ -29,7 +29,7 @@ public:
 
     THorizontalBlockReader(
         const TSharedRef& block,
-        const NProto::TBlockMeta& meta,
+        const NProto::TDataBlockMeta& meta,
         const std::vector<bool>& compositeColumnFlags,
         const std::vector<int>& chunkToReaderIdMapping,
         int chunkComparatorLength,
@@ -53,7 +53,7 @@ public:
 
 private:
     const TSharedRef Block_;
-    const NProto::TBlockMeta Meta_;
+    const NProto::TDataBlockMeta Meta_;
 
     // Maps chunk name table ids to client name table ids.
     std::vector<int> ChunkToReaderIdMapping_;

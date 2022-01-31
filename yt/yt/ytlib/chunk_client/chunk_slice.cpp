@@ -87,12 +87,12 @@ public:
 
         DataWeightPerRow_ = std::max((i64)1, chunkDataWeight / chunkRowCount);
 
-        auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(Meta_.extensions());
-
-        auto blockCount = blockMetaExt.blocks_size();
+        auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(Meta_.extensions());
+        auto blockCount = blockMetaExt.data_blocks_size();
         BlockDescriptors_.reserve(blockCount);
+
         for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
-            const auto& block = blockMetaExt.blocks(blockIndex);
+            const auto& block = blockMetaExt.data_blocks(blockIndex);
             YT_VERIFY(block.block_index() == blockIndex);
 
             auto blockLastKey = FromProto<TUnversionedOwningRow>(block.last_key());
@@ -426,10 +426,10 @@ i64 GetChunkSliceDataWeights(
         : chunkUpperBound;
 
     TOwningKeyBound prevBlockUpperBound;
-    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
-    auto blockCount = blockMetaExt.blocks_size();
+    auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions());
+    auto blockCount = blockMetaExt.data_blocks_size();
     for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
-        const auto& block = blockMetaExt.blocks(blockIndex);
+        const auto& block = blockMetaExt.data_blocks(blockIndex);
         YT_VERIFY(block.block_index() == blockIndex);
 
         auto blockLastKey = FromProto<TUnversionedOwningRow>(block.last_key());

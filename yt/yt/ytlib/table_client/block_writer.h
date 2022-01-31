@@ -13,7 +13,7 @@ namespace NYT::NTableClient {
 struct TBlock
 {
     std::vector<TSharedRef> Data;
-    NProto::TBlockMeta Meta;
+    NProto::TDataBlockMeta Meta;
     std::optional<int> GroupIndex;
 };
 

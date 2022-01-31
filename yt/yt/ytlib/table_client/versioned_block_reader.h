@@ -21,7 +21,7 @@ class TSimpleVersionedBlockReader
 public:
     TSimpleVersionedBlockReader(
         TSharedRef block,
-        const NProto::TBlockMeta& meta,
+        const NProto::TDataBlockMeta& meta,
         TTableSchemaPtr chunkSchema,
         int chunkKeyColumnCount,
         int keyColumnCount,
@@ -52,7 +52,7 @@ private:
 
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
 
-    const NProto::TBlockMeta& Meta_;
+    const NProto::TDataBlockMeta& Meta_;
     const NProto::TSimpleVersionedBlockMeta& VersionedMeta_;
 
 
@@ -110,7 +110,7 @@ class THorizontalSchemalessVersionedBlockReader
 public:
     THorizontalSchemalessVersionedBlockReader(
         const TSharedRef& block,
-        const NProto::TBlockMeta& meta,
+        const NProto::TDataBlockMeta& meta,
         const std::vector<bool>& compositeColumnFlags,
         const std::vector<int>& chunkToReaderIdMapping,
         int chunkKeyColumnCount,

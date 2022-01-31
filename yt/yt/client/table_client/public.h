@@ -25,9 +25,9 @@ class TKeyColumnsExt;
 class TSortColumnsExt;
 class TBoundaryKeysExt;
 class TBlockIndexesExt;
-class TBlockMetaExt;
+class TDataBlockMetaExt;
 class TColumnarStatisticsExt;
-class TBlockMeta;
+class TDataBlockMeta;
 class TSimpleVersionedBlockMeta;
 class TSchemaDictionary;
 class TColumnFilter;
@@ -40,8 +40,8 @@ class TColumnMetaExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRefCountedBlockMeta = TRefCountedProto<NProto::TBlockMetaExt>;
-using TRefCountedBlockMetaPtr = TIntrusivePtr<TRefCountedBlockMeta>;
+using TRefCountedDataBlockMeta = TRefCountedProto<NProto::TDataBlockMetaExt>;
+using TRefCountedDataBlockMetaPtr = TIntrusivePtr<TRefCountedDataBlockMeta>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

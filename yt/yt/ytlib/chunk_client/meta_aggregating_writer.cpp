@@ -33,7 +33,7 @@ const static THashSet<int> KnownExtensionTags = {
     TProtoExtensionTag<NProto::TMiscExt>::Value,
     TProtoExtensionTag<NProto::TBlocksExt>::Value,
     TProtoExtensionTag<NProto::TErasurePlacementExt>::Value,
-    TProtoExtensionTag<TBlockMetaExt>::Value,
+    TProtoExtensionTag<TDataBlockMetaExt>::Value,
     TProtoExtensionTag<TNameTableExt>::Value,
     TProtoExtensionTag<TBoundaryKeysExt>::Value,
     TProtoExtensionTag<TColumnMetaExt>::Value,
@@ -156,7 +156,7 @@ private:
 
     NProto::TMiscExt MiscExt_;
 
-    TBlockMetaExt BlockMetaExt_;
+    TDataBlockMetaExt BlockMetaExt_;
     TNameTableExt NameTableExt_;
 
     std::optional<TBoundaryKeysExt> BoundaryKeysExt_;
@@ -280,8 +280,8 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
         }
     }
 
-    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
-    for (const auto& block : blockMetaExt.blocks()) {
+    auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(meta->extensions());
+    for (const auto& block : blockMetaExt.data_blocks()) {
         if (MiscExt_.sorted() && !block.has_last_key()) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::IncompatibleChunkMetas,
@@ -289,8 +289,8 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
                 chunkId);
         }
 
-        if (MiscExt_.sorted() && BlockMetaExt_.blocks_size() > 0) {
-            const auto& lastBlock = *BlockMetaExt_.blocks().rbegin();
+        if (MiscExt_.sorted() && BlockMetaExt_.data_blocks_size() > 0) {
+            const auto& lastBlock = *BlockMetaExt_.data_blocks().rbegin();
             YT_VERIFY(lastBlock.has_last_key() && block.has_last_key());
             auto columnCount = Options_->TableSchema->GetKeyColumnCount();
             auto lastRow = NYT::FromProto<TLegacyOwningKey>(lastBlock.last_key());
@@ -300,7 +300,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
             YT_VERIFY(Options_->TableSchema->ToComparator().CompareKeys(lastKey, key) <= 0);
         }
 
-        auto* newBlock = BlockMetaExt_.add_blocks();
+        auto* newBlock = BlockMetaExt_.add_data_blocks();
         ToProto(newBlock, block);
         newBlock->set_block_index(BlockIndex_++);
         newBlock->set_chunk_row_count(RowCount_ + newBlock->chunk_row_count());
@@ -330,7 +330,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
             chunkId);
     }
 
-    i64 totalBlockCount = std::ssize(BlockMetaExt_.blocks());
+    i64 totalBlockCount = std::ssize(BlockMetaExt_.data_blocks());
     if (Options_->MaxBlockCount && totalBlockCount > *Options_->MaxBlockCount) {
         // NB. This error, in fact, doesn't mean that the metas are incompatible. It's used to indicate that
         // we cannot perform shallow merge of the given chunks, as the amount of blocks is too large, preventing
@@ -496,7 +496,7 @@ void TMetaAggregatingWriter::FinalizeMeta()
     MiscExt_.set_uncompressed_data_size(UncompressedDataSize_);
     MiscExt_.set_compressed_data_size(CompressedDataSize_);
     MiscExt_.set_data_weight(DataWeight_);
-    MiscExt_.set_max_block_size(LargestBlockSize_);
+    MiscExt_.set_max_data_block_size(LargestBlockSize_);
     MiscExt_.set_meta_size(ChunkMeta_->ByteSize());
     MiscExt_.set_value_count(ValueCount_);
     SetProtoExtension(ChunkMeta_->mutable_extensions(), MiscExt_);

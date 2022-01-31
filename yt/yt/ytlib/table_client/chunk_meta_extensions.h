@@ -15,7 +15,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TTableSchemaExt, 50)
-DECLARE_PROTO_EXTENSION(NTableClient::NProto::TBlockMetaExt, 51)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TDataBlockMetaExt, 51)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TNameTableExt, 53)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TBoundaryKeysExt, 55)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TSamplesExt, 56)
@@ -80,12 +80,12 @@ bool FindBoundaryKeyBounds(
 
 class TCachedBlockMeta
     : public TSyncCacheValueBase<NChunkClient::TChunkId, TCachedBlockMeta>
-    , public NTableClient::NProto::TBlockMetaExt
+    , public NTableClient::NProto::TDataBlockMetaExt
 {
 public:
     TCachedBlockMeta(
         NChunkClient::TChunkId chunkId,
-        NTableClient::NProto::TBlockMetaExt blockMetaExt);
+        NTableClient::NProto::TDataBlockMetaExt blockMetaExt);
     i64 GetWeight() const;
 
 private:

@@ -735,7 +735,6 @@ private:
         int currentBlockIndex = 0;
         int blockCount = GetBlockCount(chunkId, *meta);
         while (currentBlockIndex < blockCount) {
-
             const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncReadBlocks = chunkBlockManager->ReadBlockRange(
                 chunkId,
@@ -1327,13 +1326,13 @@ private:
             options.WorkloadDescriptor = workloadDescriptor;
 
             auto chunkMeta = GetChunkMeta(reader, options);
-            auto blocksExt = GetProtoExtension<NTableClient::NProto::TBlockMetaExt>(chunkMeta->extensions());
+            auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(chunkMeta->extensions());
 
             InputChunkInfos_.push_back({
                 .Reader = std::move(reader),
                 .Meta = std::move(chunkMeta),
                 .ChunkId = chunkId,
-                .BlockCount = blocksExt.blocks_size(),
+                .BlockCount = blockMetaExt.data_blocks_size(),
                 .Options = options
             });
         }

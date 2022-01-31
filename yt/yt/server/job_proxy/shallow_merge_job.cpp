@@ -161,6 +161,7 @@ private:
         i64 RowCount;
         int BlockCount;
         int InputSpecIndex;
+        int SystemBlockCount;
         bool IsErasureChunk;
     };
 
@@ -286,10 +287,10 @@ private:
         try {
             auto reader = CreateChunkReader(chunkSpec);
             auto chunkMeta = GetChunkMeta(reader);
-            auto blocksExt = GetProtoExtension<TBlockMetaExt>(chunkMeta->extensions());
+            auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(chunkMeta->extensions());
+            auto blockCount = blockMetaExt.data_blocks_size();
             auto erasureCodec = CheckedEnumCast<NErasure::ECodec>(chunkSpec.erasure_codec());
             auto chunkId = reader->GetChunkId();
-            auto blockCount = blocksExt.blocks_size();
             bool isErasureChunk = erasureCodec != NErasure::ECodec::None;
             auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
 
@@ -303,6 +304,7 @@ private:
                 miscExt.row_count(),
                 blockCount,
                 inputSpecIndex,
+                miscExt.system_block_count(),
                 isErasureChunk
             };
         } catch (const std::exception& ex) {
@@ -442,7 +444,11 @@ private:
         for (const auto& chunkState : InputChunkStates_) {
             // TODO(gepardo): Support shallow merge for erasure chunks (see YT-15343).
             if (chunkState.IsErasureChunk) {
-                THROW_ERROR_EXCEPTION("Erasure chunks are not supported by shallow by this moment");
+                THROW_ERROR_EXCEPTION("Erasure chunks are not supported by shallow merge by this moment");
+            }
+            // TODO(akozhikhov).
+            if (chunkState.SystemBlockCount > 0) {
+                THROW_ERROR_EXCEPTION("Chunks containing system blocks cannot be merged");
             }
 
             Writer_->AbsorbMeta(chunkState.Meta, chunkState.ChunkId);

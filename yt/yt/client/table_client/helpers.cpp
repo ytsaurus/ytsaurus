@@ -1349,7 +1349,7 @@ TSharedRange<TUnversionedRow> TUnversionedRowsBuilder::Build()
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(
-    NProto::TBlockMeta,
+    NProto::TDataBlockMeta,
     /*last_key*/ 9,
     TUnversionedOwningRow)
 

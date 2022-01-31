@@ -128,7 +128,7 @@ message TNameTableExt
     repeated string names = 1;
 }
 
-message TBlockMeta
+message TDataBlockMeta
 {
     required int32 row_count = 1;
     required int64 uncompressed_size = 2;
@@ -144,7 +144,7 @@ message TBlockMeta
 
 message TSimpleVersionedBlockMeta
 {
-    extend TBlockMeta
+    extend TDataBlockMeta
     {
         optional TSimpleVersionedBlockMeta block_meta_ext = 100;
     }
@@ -153,9 +153,17 @@ message TSimpleVersionedBlockMeta
     required int32 timestamp_count = 2;
 }
 
-message TBlockMetaExt
+message TDataBlockMetaExt
 {
-    repeated TBlockMeta blocks = 1;
+    repeated TDataBlockMeta data_blocks = 1;
+}
+
+message TSystemBlockMeta
+{ }
+
+message TSystemBlockMetaExt
+{
+    repeated TSystemBlockMeta system_blocks = 1;
 }
 
 // Chunk meta extension.

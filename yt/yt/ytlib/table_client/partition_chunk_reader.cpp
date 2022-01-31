@@ -72,7 +72,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     const std::vector<int> extensionTags = {
         TProtoExtensionTag<TMiscExt>::Value,
-        TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
+        TProtoExtensionTag<NProto::TDataBlockMetaExt>::Value,
         TProtoExtensionTag<NProto::TTableSchemaExt>::Value,
         TProtoExtensionTag<NProto::TNameTableExt>::Value,
     };
@@ -99,10 +99,10 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     InitNameTable(chunkNameTable);
 
-    BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_->extensions());
+    BlockMetaExt_ = GetProtoExtension<NProto::TDataBlockMetaExt>(ChunkMeta_->extensions());
     std::vector<TBlockFetcher::TBlockInfo> blocks;
-    blocks.reserve(BlockMetaExt_.blocks_size());
-    for (const auto& blockMeta : BlockMetaExt_.blocks()) {
+    blocks.reserve(BlockMetaExt_.data_blocks_size());
+    for (const auto& blockMeta : BlockMetaExt_.data_blocks()) {
         int priority = blocks.size();
         blocks.push_back({
             .UncompressedDataSize = blockMeta.uncompressed_size(),
@@ -123,7 +123,7 @@ void TPartitionChunkReader::InitFirstBlock()
     auto comparator = schema->ToComparator();
     BlockReader_ = new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
-        BlockMetaExt_.blocks(CurrentBlockIndex_),
+        BlockMetaExt_.data_blocks(CurrentBlockIndex_),
         GetCompositeColumnFlags(schema),
         ChunkToReaderIdMapping_,
         comparator.GetLength(),

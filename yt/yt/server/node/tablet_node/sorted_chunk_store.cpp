@@ -686,11 +686,11 @@ void TSortedChunkStore::ValidateBlockSize(
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
         if (auto blockSizeLimit = mountConfig->MaxUnversionedBlockSize) {
             auto miscExt = FindProtoExtension<TMiscExt>(chunkState->ChunkSpec.chunk_meta().extensions());
-            if (miscExt && miscExt->max_block_size() > *blockSizeLimit) {
+            if (miscExt && miscExt->max_data_block_size() > *blockSizeLimit) {
                 THROW_ERROR_EXCEPTION("Maximum block size limit violated")
                     << TErrorAttribute("tablet_id", TabletId_)
                     << TErrorAttribute("chunk_id", GetId())
-                    << TErrorAttribute("block_size", miscExt->max_block_size())
+                    << TErrorAttribute("block_size", miscExt->max_data_block_size())
                     << TErrorAttribute("block_size_limit", *blockSizeLimit);
             }
         }

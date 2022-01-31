@@ -19,7 +19,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_PROTO_EXTENSION(TTableSchemaExt, 50, table_schema)
-REGISTER_PROTO_EXTENSION(TBlockMetaExt, 51, block_meta)
+REGISTER_PROTO_EXTENSION(TDataBlockMetaExt, 51, block_meta)
 REGISTER_PROTO_EXTENSION(TNameTableExt, 53, name_table)
 REGISTER_PROTO_EXTENSION(TBoundaryKeysExt, 55, boundary_keys)
 REGISTER_PROTO_EXTENSION(TSamplesExt, 56, samples)
@@ -147,16 +147,16 @@ TChunkMeta FilterChunkMetaByPartitionTag(
     YT_VERIFY(chunkMeta.type() == static_cast<int>(EChunkType::Table));
     auto filteredChunkMeta = chunkMeta;
 
-    std::vector<TBlockMeta> filteredBlocks;
-    for (const auto& blockMeta : cachedBlockMeta->blocks()) {
+    std::vector<TDataBlockMeta> filteredBlocks;
+    for (const auto& blockMeta : cachedBlockMeta->data_blocks()) {
         YT_VERIFY(blockMeta.partition_index() != DefaultPartitionTag);
         if (blockMeta.partition_index() == partitionTag) {
             filteredBlocks.push_back(blockMeta);
         }
     }
 
-    auto blockMetaExt = ObjectPool<TBlockMetaExt>().Allocate();
-    NYT::ToProto(blockMetaExt->mutable_blocks(), filteredBlocks);
+    auto blockMetaExt = ObjectPool<TDataBlockMetaExt>().Allocate();
+    NYT::ToProto(blockMetaExt->mutable_data_blocks(), filteredBlocks);
     SetProtoExtension(filteredChunkMeta.mutable_extensions(), *blockMetaExt);
 
     return filteredChunkMeta;
@@ -166,9 +166,9 @@ TChunkMeta FilterChunkMetaByPartitionTag(
 
 TCachedBlockMeta::TCachedBlockMeta(
     NChunkClient::TChunkId chunkId,
-    TBlockMetaExt blockMeta)
+    TDataBlockMetaExt blockMeta)
     : TSyncCacheValueBase<TChunkId, TCachedBlockMeta>(chunkId)
-    , TBlockMetaExt(std::move(blockMeta))
+    , TDataBlockMetaExt(std::move(blockMeta))
     , Weight_(SpaceUsedLong())
 { }
 

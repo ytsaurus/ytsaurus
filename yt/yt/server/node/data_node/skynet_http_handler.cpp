@@ -177,10 +177,6 @@ private:
         TWorkloadDescriptor skynetWorkload(EWorkloadCategory::UserBatch);
         skynetWorkload.Annotations = {"skynet"};
 
-        static std::vector<int> miscExtension = {
-            TProtoExtensionTag<TMiscExt>::Value
-        };
-
         TChunkReadOptions chunkReadOptions;
         chunkReadOptions.WorkloadDescriptor = skynetWorkload;
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
