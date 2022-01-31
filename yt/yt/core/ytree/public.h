@@ -94,7 +94,7 @@ DEFINE_ENUM(ENodeType,
     (Composite)
 );
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((ResolveError)                        (500))
     ((AlreadyExists)                       (501))
     ((MaxChildCountViolation)              (502))

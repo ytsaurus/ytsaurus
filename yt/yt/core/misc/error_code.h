@@ -1,7 +1,8 @@
 #pragma once
 
-#include <yt/yt/core/misc/common.h>
 #include <yt/yt/core/misc/enum.h>
+
+#include <util/generic/hash_set.h>
 
 namespace NYT {
 
@@ -17,10 +18,12 @@ public:
         TString Namespace;
         TString Name;
 
-        bool operator==(const TErrorCodeInfo& rhs) const = default;
+        bool operator==(const TErrorCodeInfo& rhs) const;
     };
 
-    TErrorCodeInfo Get(int code);
+    TErrorCodeInfo Get(int code) const;
+
+    THashMap<int, TErrorCodeInfo> GetAll() const;
 
     void RegisterErrorCode(int code, const TErrorCodeInfo& errorCodeInfo);
 
@@ -30,15 +33,17 @@ private:
     THashMap<int, TErrorCodeInfo> CodeToInfo_;
 };
 
+TString ToString(const TErrorCodeRegistry::TErrorCodeInfo& errorCodeInfo);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DEFINE_ERROR_ENUM(name, seq) \
-    DEFINE_ENUM(name, seq); \
-    ATTRIBUTE_USED inline const void* ErrorEnum_##name = [] { \
-        for (auto errorCode : ::NYT::TEnumTraits<name>::GetDomainValues()) { \
+#define DEFINE_ERROR_ENUM(seq) \
+    DEFINE_ENUM(EErrorCode, seq); \
+    ATTRIBUTE_USED inline const void* ErrorEnum_EErrorCode = [] { \
+        for (auto errorCode : ::NYT::TEnumTraits<EErrorCode>::GetDomainValues()) { \
             ::NYT::TErrorCodeRegistry::Get()->RegisterErrorCode( \
                 static_cast<int>(errorCode), \
-                {::NYT::TErrorCodeRegistry::ParseNamespace(typeid(name)), ToString(errorCode)}); \
+                {::NYT::TErrorCodeRegistry::ParseNamespace(typeid(EErrorCode)), ToString(errorCode)}); \
         } \
         return nullptr; \
     } ()

@@ -34,7 +34,7 @@ DEFINE_ENUM(EDeliveryTrackingLevel,
     (Full)
 );
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((TransportError)               (100))
 );
 

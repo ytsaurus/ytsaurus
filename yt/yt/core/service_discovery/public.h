@@ -6,7 +6,7 @@ namespace NYT::NServiceDiscovery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((EndpointSetDoesNotExist) (20000))
     ((EndpointResolveFailed)   (20001))
     ((UnknownResolveStatus)    (20002))

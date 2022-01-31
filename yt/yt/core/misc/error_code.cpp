@@ -1,5 +1,7 @@
 #include "error_code.h"
 
+#include <yt/yt/core/logging/log.h>
+
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/format.h>
 
@@ -11,12 +13,26 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(achulkov2): Remove this once we find all duplicate error codes.
+static NLogging::TLogger GetLogger()
+{
+    static NLogging::TLogger logger("ErrorCode");
+    return logger;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TErrorCodeRegistry::TErrorCodeInfo::operator==(const TErrorCodeInfo& rhs) const
+{
+    return Namespace == rhs.Namespace && Name == rhs.Name;
+}
+
 TErrorCodeRegistry* TErrorCodeRegistry::Get()
 {
     return LeakySingleton<TErrorCodeRegistry>();
 }
 
-TErrorCodeRegistry::TErrorCodeInfo TErrorCodeRegistry::Get(int code)
+TErrorCodeRegistry::TErrorCodeInfo TErrorCodeRegistry::Get(int code) const
 {
     auto it = CodeToInfo_.find(code);
     if (it != CodeToInfo_.end()) {
@@ -25,9 +41,25 @@ TErrorCodeRegistry::TErrorCodeInfo TErrorCodeRegistry::Get(int code)
     return {"NUnknown", Format("ErrorCode%v", code)};
 }
 
+THashMap<int, TErrorCodeRegistry::TErrorCodeInfo> TErrorCodeRegistry::GetAll() const
+{
+    return CodeToInfo_;
+}
+
 void TErrorCodeRegistry::RegisterErrorCode(int code, const TErrorCodeInfo& errorCodeInfo)
 {
-    YT_VERIFY(CodeToInfo_.insert({code, errorCodeInfo}).second);
+    if (!CodeToInfo_.insert({code, errorCodeInfo}).second) {
+        // TODO(achulkov2): Deal with duplicate TransportError in NRpc and NBus.
+        if (code == 100) {
+            return;
+        }
+        auto Logger = GetLogger();
+        YT_LOG_FATAL(
+            "Duplicate error code (Code: %v, StoredCodeInfo: %v, NewCodeInfo: %v)",
+            code,
+            CodeToInfo_[code],
+            errorCodeInfo);
+    }
 }
 
 TString TErrorCodeRegistry::ParseNamespace(const std::type_info& errorCodeEnumTypeInfo)
@@ -44,6 +76,14 @@ TString TErrorCodeRegistry::ParseNamespace(const std::type_info& errorCodeEnumTy
         name.resize(name.size() - 2);
     }
     return name;
+}
+
+TString ToString(const TErrorCodeRegistry::TErrorCodeInfo& errorCodeInfo)
+{
+    if (errorCodeInfo.Namespace.empty()) {
+        return Format("EErrorCode::%v", errorCodeInfo.Name);
+    }
+    return Format("%v::EErrorCode::%v", errorCodeInfo.Namespace, errorCodeInfo.Name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
