@@ -93,6 +93,9 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     YT_VERIFY(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
     YT_VERIFY(newStatistics.ChunkCount == oldStatistics.ChunkCount);
     YT_VERIFY(newStatistics.LogicalChunkCount == oldStatistics.LogicalChunkCount);
+    // Scheduling chunk requisition update to prevent possible data loss in cases where rebalancer
+    // was called before requisition update concluded for the old chunk tree.
+    Callbacks_->ScheduleRequisitionUpdate(root);
 }
 
 void TChunkTreeBalancer::AppendChunkTree(

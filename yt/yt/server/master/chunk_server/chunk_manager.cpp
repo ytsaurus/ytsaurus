@@ -184,6 +184,11 @@ public:
         return object->GetObjectRefCounter();
     }
 
+    void ScheduleRequisitionUpdate(TChunkTree* chunkTree) override
+    {
+        Bootstrap_->GetChunkManager()->ScheduleChunkRequisitionUpdate(chunkTree);
+    }
+
     TChunkList* CreateChunkList() override
     {
         return Bootstrap_->GetChunkManager()->CreateChunkList(EChunkListKind::Static);
