@@ -674,6 +674,9 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
 
     RegisterParameter("chunk_autotomizer", ChunkAutotomizer)
         .DefaultNew();
+    
+    RegisterParameter("io_statistics_update_timeout", IOStatisticsUpdateTimeout)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

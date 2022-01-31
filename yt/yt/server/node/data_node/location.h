@@ -352,6 +352,15 @@ class TStoreLocation
     : public TChunkLocation
 {
 public:
+    struct TIOStatistics
+    {
+        i64 FilesystemReadRate = 0;
+        i64 FilesystemWriteRate = 0;
+
+        i64 DiskReadRate = 0;
+        i64 DiskWriteRate = 0;
+    };
+
     TStoreLocation(
         const TString& id,
         TStoreLocationConfigPtr config,
@@ -359,6 +368,8 @@ public:
         TChunkStorePtr chunkStore,
         TChunkContextPtr chunkContext,
         IChunkStoreHostPtr chunkStoreHost);
+    
+    ~TStoreLocation();
 
     //! Returns the location's config.
     const TStoreLocationConfigPtr& GetConfig() const;
@@ -380,6 +391,9 @@ public:
 
     //! Removes a chunk permanently or moves it to the trash.
     void RemoveChunkFiles(TChunkId chunkId, bool force) override;
+
+    //! Returns various IO related statistics. 
+    TIOStatistics GetIOStatistics();
 
 private:
     const TStoreLocationConfigPtr Config_;
@@ -429,6 +443,8 @@ private:
     void DoStart() override;
     std::vector<TChunkDescriptor> DoScan() override;
 
+    class TIOStatisticsProvider;
+    TIntrusivePtr<TIOStatisticsProvider> StatisticsProvider_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocation)

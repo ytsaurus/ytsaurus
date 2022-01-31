@@ -208,6 +208,8 @@
     XX(InferChildrenWeightsFromHistoricUsage, infer_children_weights_from_historic_usage) \
     XX(InheritAcl, inherit_acl) \
     XX(IntegralGuarantees, integral_guarantees) \
+    XX(IOStatistics, io_statistics) \
+    XX(IOStatisticsPerMedium, io_statistics_per_medium) \
     XX(IOWeights, io_weights) \
     XX(IsBeingMerged, is_being_merged) \
     XX(Jobs, jobs) \

@@ -14,6 +14,17 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void static BuildIOStatisticsYson(
+    const NNodeTrackerClient::NProto::TIOStatistics& io,
+    NYTree::TFluentMap fluent)
+{
+    fluent
+        .Item("filesystem_read_rate").Value(io.filesystem_read_rate())
+        .Item("filesystem_write_rate").Value(io.filesystem_write_rate())
+        .Item("disk_read_rate").Value(io.disk_read_rate())
+        .Item("disk_write_rate").Value(io.disk_write_rate());
+}
+
 void Serialize(
     const NNodeTrackerClient::NProto::TChunkLocationStatistics& statistics,
     TFluentMap fluent,
@@ -33,7 +44,8 @@ void Serialize(
         .Item("throttling_reads").Value(statistics.throttling_reads())
         .Item("throttling_writes").Value(statistics.throttling_writes())
         .Item("sick").Value(statistics.sick())
-        .Item("disk_family").Value(statistics.disk_family());
+        .Item("disk_family").Value(statistics.disk_family())
+        .Item("io_statistics").DoMap(BIND(&BuildIOStatisticsYson, statistics.io_statistics()));
 }
 
 void Serialize(

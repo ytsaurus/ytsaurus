@@ -2417,6 +2417,16 @@ private:
             FlavoredNodeStatistics_[flavor] = TAggregatedNodeStatistics();
         }
 
+        auto increment = [] (
+            NNodeTrackerClient::TIOStatistics* statistics,
+            const NNodeTrackerClient::NProto::TIOStatistics& source)
+        {
+            statistics->FilesystemReadRate += source.filesystem_read_rate();
+            statistics->FilesystemWriteRate += source.filesystem_write_rate();
+            statistics->DiskReadRate += source.disk_read_rate();
+            statistics->DiskWriteRate += source.disk_write_rate();
+        };
+
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
@@ -2444,6 +2454,8 @@ private:
                     }
                     statistics->SpacePerMedium[mediumIndex].Used += location.used_space();
                     statistics->TotalSpace.Used += location.used_space();
+                    increment(&statistics->TotalIO, location.io_statistics());
+                    increment(&statistics->IOPerMedium[mediumIndex], location.io_statistics());
                 }
                 statistics->ChunkReplicaCount += nodeStatistics.total_stored_chunk_count();
                 statistics->FullNodeCount += nodeStatistics.full() ? 1 : 0;

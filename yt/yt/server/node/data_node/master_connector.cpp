@@ -55,10 +55,17 @@ using namespace NProfiling;
 
 // TODO: Use `using NNodeTrackerClient::NProto` after legacy heartbeats removal.
 using NNodeTrackerClient::NProto::TDataNodeStatistics;
+using NNodeTrackerClient::NProto::TIOStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    TIOStatistics* protoStatistics,
+    const TStoreLocation::TIOStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -864,6 +871,7 @@ private:
             locationStatistics->set_sick(location->IsSick());
             ToProto(locationStatistics->mutable_location_uuid(), location->GetUuid());
             locationStatistics->set_disk_family(location->GetDiskFamily());
+            ToProto(locationStatistics->mutable_io_statistics(), location->GetIOStatistics());
 
             if (IsLocationWriteable(location)) {
                 ++mediumIndexToIOWeight[mediumIndex];
@@ -1050,6 +1058,18 @@ private:
 IMasterConnectorPtr CreateMasterConnector(IBootstrap* bootstrap)
 {
     return New<TMasterConnector>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    TIOStatistics* protoStatistics,
+    const TStoreLocation::TIOStatistics& statistics)
+{
+    protoStatistics->set_filesystem_read_rate(statistics.FilesystemReadRate);
+    protoStatistics->set_filesystem_write_rate(statistics.FilesystemWriteRate);
+    protoStatistics->set_disk_read_rate(statistics.DiskReadRate);
+    protoStatistics->set_disk_write_rate(statistics.DiskWriteRate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

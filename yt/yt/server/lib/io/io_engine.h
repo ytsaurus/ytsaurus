@@ -143,6 +143,9 @@ struct IIOEngine
 
     virtual const IInvokerPtr& GetAuxPoolInvoker() = 0;
 
+    virtual i64 GetTotalReadBytes() const = 0;
+    virtual i64 GetTotalWrittenBytes() const = 0;
+
     // Extension methods.
     template <class TTag = TDefaultReadTag>
     TFuture<TReadResponse> Read(
