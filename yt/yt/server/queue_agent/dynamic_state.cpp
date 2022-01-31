@@ -199,17 +199,20 @@ std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
     return {"revision", "type", "dynamic", "sorted"};
 }
 
-TQueueTableRow::TQueueTableRow(
-    TCrossClusterReference queue,
+TQueueTableRow TQueueTableRow::FromAttributeDictionary(
+    const TCrossClusterReference& queue,
     std::optional<TRowRevision> rowRevision,
     const IAttributeDictionaryPtr& cypressAttributes)
-    : Queue(std::move(queue))
-    , RowRevision(rowRevision)
-    , Revision(cypressAttributes->Find<NHydra::TRevision>("revision"))
-    , ObjectType(cypressAttributes->Find<EObjectType>("type"))
-    , Dynamic(cypressAttributes->Find<bool>("dynamic"))
-    , Sorted(cypressAttributes->Find<bool>("sorted"))
-{ }
+{
+    return {
+        queue,
+        rowRevision,
+        cypressAttributes->Find<NHydra::TRevision>("revision"),
+        cypressAttributes->Find<EObjectType>("type"),
+        cypressAttributes->Find<bool>("dynamic"),
+        cypressAttributes->Find<bool>("sorted")
+    };
+}
 
 void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
 {
@@ -349,18 +352,21 @@ std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
     return {"target", "revision", "type", "treat_as_consumer"};
 }
 
-TConsumerTableRow::TConsumerTableRow(
-    TCrossClusterReference consumer,
+TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
+    const TCrossClusterReference& consumer,
     std::optional<TRowRevision> rowRevision,
     const IAttributeDictionaryPtr& cypressAttributes)
-    : Consumer(std::move(consumer))
-    , RowRevision(rowRevision)
-    , Revision(cypressAttributes->Find<NHydra::TRevision>("revision"))
-    , ObjectType(cypressAttributes->Find<EObjectType>("type"))
-    , TreatAsConsumer(cypressAttributes->Find<bool>("treat_as_consumer"))
 {
     auto optionalTarget = cypressAttributes->Find<TString>("target");
-    Target = (optionalTarget ? std::make_optional(TCrossClusterReference::FromString(*optionalTarget)) : std::nullopt);
+    auto target = (optionalTarget ? std::make_optional(TCrossClusterReference::FromString(*optionalTarget)) : std::nullopt);
+    return {
+        consumer,
+        rowRevision,
+        target,
+        cypressAttributes->Find<NHydra::TRevision>("revision"),
+        cypressAttributes->Find<EObjectType>("type"),
+        cypressAttributes->Find<bool>("treat_as_consumer")
+    };
 }
 
 void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
