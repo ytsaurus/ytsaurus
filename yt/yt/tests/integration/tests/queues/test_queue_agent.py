@@ -7,7 +7,7 @@ from yt.common import YtError
 
 import copy
 
-from yt.yson import YsonUint64
+from yt.yson import YsonUint64, YsonEntity
 
 import yt_error_codes
 
@@ -410,6 +410,11 @@ class TestMasterIntegration(YTEnvSetup):
         partitions = get("//tmp/q/@queue_partitions")
         assert len(partitions) == 1
         assert partitions[0]["available_row_count"] == 0
+
+        # Check that queue attributes are opaque.
+        full_attributes = get("//tmp/q/@")
+        for attribute in ("queue_status", "queue_partitions"):
+            assert full_attributes[attribute] == YsonEntity()
 
     @authors("max42")
     def test_queue_agent_stage(self):

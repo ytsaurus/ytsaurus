@@ -375,9 +375,11 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetPresent(isQueue));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueStatus)
-        .SetPresent(isQueue));
+        .SetPresent(isQueue)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueuePartitions)
-        .SetPresent(isQueue));
+        .SetPresent(isQueue)
+        .SetOpaque(true));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
