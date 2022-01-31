@@ -262,17 +262,17 @@ public:
 
     // IConnection implementation.
 
-    TClusterTag GetClusterTag() const override
+    TCellTag GetCellTag() override
     {
         return GetPrimaryMasterCellTag();
     }
 
-    const TString& GetLoggingTag() const override
+    const TString& GetLoggingTag() override
     {
         return LoggingTag_;
     }
 
-    const TString& GetClusterId() const override
+    const TString& GetClusterId() override
     {
         return ClusterId_;
     }

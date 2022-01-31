@@ -69,9 +69,10 @@ struct TTransactionParticipantOptions
 struct IConnection
     : public virtual TRefCounted
 {
-    virtual TClusterTag GetClusterTag() const = 0;
-    virtual const TString& GetLoggingTag() const = 0;
-    virtual const TString& GetClusterId() const = 0;
+    // TODO(shakurov): unify this with GetPrimaryMasterCellId, GetPrimaryMasterCellTag, and GetSecondaryMasterCellTags.
+    virtual NObjectClient::TCellTag GetCellTag() = 0;
+    virtual const TString& GetLoggingTag() = 0;
+    virtual const TString& GetClusterId() = 0;
     virtual IInvokerPtr GetInvoker() = 0;
 
     virtual IClientPtr CreateClient(const TClientOptions& options = {}) = 0;

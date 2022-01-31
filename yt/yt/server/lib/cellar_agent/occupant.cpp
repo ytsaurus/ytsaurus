@@ -459,7 +459,7 @@ public:
                 ResponseKeeper_,
                 occupier->GetOccupierTransactionManager(),
                 GetCellId(),
-                connection->GetClusterTag(),
+                connection->GetPrimaryMasterCellTag(),
                 connection->GetTimestampProvider(),
                 std::move(providers));
 

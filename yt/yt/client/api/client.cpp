@@ -401,8 +401,8 @@ TFuture<ITransactionPtr> StartAlienTransaction(
 {
     YT_VERIFY(localTransaction->GetType() == NTransactionClient::ETransactionType::Tablet);
 
-    if (localTransaction->GetConnection()->GetClusterTag() ==
-        alienClient->GetConnection()->GetClusterTag())
+    if (localTransaction->GetConnection()->GetClusterId() ==
+        alienClient->GetConnection()->GetClusterId())
     {
         return MakeFuture(localTransaction);
     }

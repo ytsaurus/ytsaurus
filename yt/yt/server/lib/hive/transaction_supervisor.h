@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
-#include <yt/yt/client/api/public.h>
-
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -43,7 +41,7 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
     NRpc::TResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
     TCellId selfCellId,
-    NApi::TClusterTag selfClockClusterTag,
+    NObjectClient::TCellTag selfClockCellTag,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
     std::vector<ITransactionParticipantProviderPtr> participantProviders);
 

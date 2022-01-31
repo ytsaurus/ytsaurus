@@ -1,5 +1,5 @@
+#include "public.h"
 #include "cluster_directory.h"
-
 #include "private.h"
 
 #include <yt/yt_proto/yt/client/hive/proto/cluster_directory.pb.h>
@@ -33,18 +33,18 @@ TClusterDirectory::TClusterDirectory(NApi::TConnectionOptions connectionOptions)
     : ConnectionOptions_(std::move(connectionOptions))
 { }
 
-IConnectionPtr TClusterDirectory::FindConnection(TClusterTag clusterTag) const
+IConnectionPtr TClusterDirectory::FindConnection(TCellTag cellTag) const
 {
     auto guard = Guard(Lock_);
-    auto it = ClusterTagToCluster_.find(clusterTag);
-    return it == ClusterTagToCluster_.end() ? nullptr : it->second.Connection;
+    auto it = CellTagToCluster_.find(cellTag);
+    return it == CellTagToCluster_.end() ? nullptr : it->second.Connection;
 }
 
-IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TClusterTag clusterTag) const
+IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) const
 {
-    auto connection = FindConnection(clusterTag);
+    auto connection = FindConnection(cellTag);
     if (!connection) {
-        THROW_ERROR_EXCEPTION("Cannot find cluster with tag %v", clusterTag);
+        THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
     }
     return connection;
 }
@@ -79,30 +79,29 @@ void TClusterDirectory::RemoveCluster(const TString& name)
         return;
     }
     const auto& cluster = it->second;
-    auto clusterTag = GetClusterTag(cluster);
+    auto cellTag = GetCellTag(cluster);
     cluster.Connection->Terminate();
     NameToCluster_.erase(it);
-    YT_VERIFY(ClusterTagToCluster_.erase(clusterTag) == 1);
-    YT_LOG_DEBUG("Remote cluster unregistered (Name: %v, ClusterTag: %v)",
-        name,
-        clusterTag);
+    YT_VERIFY(CellTagToCluster_.erase(cellTag) == 1);
+    YT_LOG_DEBUG("Remote cluster unregistered (Name: %v)",
+        name);
 }
 
 void TClusterDirectory::Clear()
 {
     auto guard = Guard(Lock_);
-    ClusterTagToCluster_.clear();
+    CellTagToCluster_.clear();
     NameToCluster_.clear();
 }
 
 void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
-        auto clusterTag = GetClusterTag(cluster);
-        if (ClusterTagToCluster_.find(clusterTag) != ClusterTagToCluster_.end()) {
-            THROW_ERROR_EXCEPTION("Duplicate cluster tag %v", clusterTag);
+        auto cellTag = GetCellTag(cluster);
+        if (CellTagToCluster_.find(cellTag) != CellTagToCluster_.end()) {
+            THROW_ERROR_EXCEPTION("Duplicate cell tag %v", cellTag);
         }
-        ClusterTagToCluster_[clusterTag] = cluster;
+        CellTagToCluster_[cellTag] = cluster;
         NameToCluster_[name] = cluster;
     };
 
@@ -111,19 +110,19 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
         auto cluster = CreateCluster(name, config);
         auto guard = Guard(Lock_);
         addNewCluster(cluster);
-        YT_LOG_DEBUG("Remote cluster registered (Name: %v, ClusterTag: %v)",
+        YT_LOG_DEBUG("Remote cluster registered (Name: %v, CellTag: %v)",
             name,
-            cluster.Connection->GetClusterTag());
+            cluster.Connection->GetCellTag());
     } else if (!AreNodesEqual(it->second.Config, config)) {
         auto cluster = CreateCluster(name, config);
         auto guard = Guard(Lock_);
         it->second.Connection->Terminate();
-        ClusterTagToCluster_.erase(GetClusterTag(it->second));
+        CellTagToCluster_.erase(GetCellTag(it->second));
         NameToCluster_.erase(it);
         addNewCluster(cluster);
-        YT_LOG_DEBUG("Remote cluster updated (Name: %v, ClusterTag: %v)",
+        YT_LOG_DEBUG("Remote cluster updated (Name: %v, CellTag: %v)",
             name,
-            cluster.Connection->GetClusterTag());
+            cluster.Connection->GetCellTag());
     }
 }
 
@@ -161,9 +160,9 @@ TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name
     return cluster;
 }
 
-TClusterTag TClusterDirectory::GetClusterTag(const TClusterDirectory::TCluster& cluster)
+TCellTag TClusterDirectory::GetCellTag(const TClusterDirectory::TCluster& cluster)
 {
-    return cluster.Connection->GetClusterTag();
+    return cluster.Connection->GetCellTag();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

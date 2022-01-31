@@ -87,7 +87,7 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     return CreateTransactionParticipantProvider(
         connection->GetCellDirectory(),
         connection->GetTimestampProvider(),
-        {connection->GetPrimaryMasterCellTag()});
+        {connection->GetCellTag()});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
