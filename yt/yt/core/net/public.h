@@ -24,7 +24,7 @@ DECLARE_REFCOUNTED_STRUCT(IAsyncDialerSession)
 DECLARE_REFCOUNTED_CLASS(TDialerConfig)
 DECLARE_REFCOUNTED_CLASS(TAddressResolverConfig)
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((Aborted)         (1500))
     ((ResolveTimedOut) (1501))
 );

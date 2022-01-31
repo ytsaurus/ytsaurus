@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "error_code.h"
 
 // Google Protobuf forward declarations.
 namespace google::protobuf {
@@ -172,7 +173,7 @@ using IFairSchedulerPtr = TIntrusivePtr<IFairScheduler<TTask>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((OK)                    (0))
     ((Generic)               (1))
     ((Canceled)              (2))

@@ -5,6 +5,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
+#include <yt/yt/core/misc/error_code.h>
+
 namespace NYT {
 
 using namespace NYTree;
@@ -36,6 +38,13 @@ void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
             .Do(BIND([=] (TFluentAnyWithoutAttributes fluent) {
                 BuildBuildAttributes(fluent.GetConsumer(), serviceName);
             })));
+    SyncYPathSet(
+        orchidRoot,
+        "/error_codes",
+        BuildYsonStringFluently().DoMapFor(TErrorCodeRegistry::Get()->GetAll(), [] (TFluentMap fluent, const auto& pair) {
+            fluent
+                .Item(ToString(pair.first)).Value(ToString(pair.second));
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

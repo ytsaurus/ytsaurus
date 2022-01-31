@@ -17,7 +17,7 @@ namespace NYT::NFS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((IOError)(19000))
 );
 

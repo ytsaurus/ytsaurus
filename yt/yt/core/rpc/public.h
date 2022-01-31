@@ -136,7 +136,7 @@ DEFINE_ENUM(EMultiplexingBand,
     ((Heavy)                 (2))
 );
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((TransportError)               (static_cast<int>(NBus::EErrorCode::TransportError)))
     ((ProtocolError)                (101))
     ((NoSuchService)                (102))
