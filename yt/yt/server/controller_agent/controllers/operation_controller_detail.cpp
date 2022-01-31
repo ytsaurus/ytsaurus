@@ -2923,10 +2923,13 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         return;
     }
 
-    TJobFinishedResult taskResult;
+    TJobFinishedResult taskJobResult;
     std::optional<i64> optionalRowCount;
 
     {
+        // NB: We want to process finished job changes atomically.
+        // It is needed to prevent inconsistencies of operation controller state.
+        // Such inconsistencies blocks saving job results in case of operation failure
         TForbidContextSwitchGuard contextSwitchGuard;
 
         // NB: We should not explicitly tell node to remove abandoned job because it may be still
@@ -2957,7 +2960,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
         UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
 
-        taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
+        taskJobResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
 
         if (!abandoned) {
             if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation ||
@@ -2979,7 +2982,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         UnregisterJoblet(joblet);
     }
 
-    ProcessJobFinishedResult(taskResult);
+    ProcessJobFinishedResult(taskJobResult);
 
     UpdateTask(joblet->Task);
     LogProgress();
@@ -3049,10 +3052,13 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     const auto& result = jobSummary->Result;
 
-    TJobFinishedResult taskResult;
+    TJobFinishedResult taskJobResult;
     TError error;
 
     {
+        // NB: We want to process finished job changes atomically.
+        // It is needed to prevent inconsistencies of operation controller state.
+        // Such inconsistencies blocks saving job results in case of operation failure
         TForbidContextSwitchGuard contextSwitchGuard;
 
         ++FailedJobCount_;
@@ -3068,7 +3074,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
         UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
 
-        taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
+        taskJobResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
 
         jobSummary->ReleaseFlags.ArchiveJobSpec = true;
 
@@ -3077,7 +3083,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         UnregisterJoblet(joblet);
     }
 
-    ProcessJobFinishedResult(taskResult);
+    ProcessJobFinishedResult(taskJobResult);
 
     auto finally = Finally(
         [&] () {
@@ -3167,11 +3173,14 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     auto joblet = GetJoblet(jobId);
 
-    TJobFinishedResult taskResult;
+    TJobFinishedResult taskJobResult;
 
     std::vector<TChunkId> failedChunkIds;
 
     {
+        // NB: We want to process finished job changes atomically.
+        // It is needed to prevent inconsistencies of operation controller state.
+        // Such inconsistencies blocks saving job results in case of operation failure
         TForbidContextSwitchGuard contextSwitchGuard;
 
         ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
@@ -3200,7 +3209,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
             failedChunkIds = FromProto<std::vector<TChunkId>>(schedulerResultExt.failed_chunk_ids());
         }
 
-        taskResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
+        taskJobResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
 
         bool retainJob = (abortReason == EAbortReason::UserRequest);
         OnJobFinished(std::move(jobSummary), retainJob);
@@ -3208,7 +3217,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         UnregisterJoblet(joblet);
     }
 
-    ProcessJobFinishedResult(taskResult);
+    ProcessJobFinishedResult(taskJobResult);
 
     for (auto chunkId : failedChunkIds) {
         OnChunkFailed(chunkId);
