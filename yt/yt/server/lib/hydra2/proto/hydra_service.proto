@@ -27,7 +27,8 @@ message TReqLookupChangelog
 
 message TRspLookupChangelog
 {
-    optional int32 record_count = 2;
+    required int32 record_count = 1;
+    optional int64 first_sequence_number = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

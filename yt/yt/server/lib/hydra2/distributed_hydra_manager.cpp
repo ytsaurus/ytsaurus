@@ -17,6 +17,7 @@
 #include <yt/yt/server/lib/hydra_common/snapshot_discovery.h>
 #include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
+#include <yt/yt/server/lib/hydra_common/serialize.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/config.h>
@@ -57,6 +58,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -799,11 +801,16 @@ private:
             context->SetRequestInfo("ChangelogId: %v", changelogId);
 
             auto owner = GetOwnerOrThrow();
-            auto recordCount = owner->LookupChangelog(changelogId);
+            auto [recordCount, firstSequenceNumber] = owner->LookupChangelog(changelogId);
 
             response->set_record_count(recordCount);
+            if (firstSequenceNumber) {
+                response->set_first_sequence_number(*firstSequenceNumber);
+            }
 
-            context->SetResponseInfo("RecordCount: %v", recordCount);
+            context->SetResponseInfo("RecordCount: %v, FirstSequenceNumber: %v",
+                recordCount,
+                firstSequenceNumber);
             context->Reply();
         }
 
@@ -981,12 +988,33 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    i64 LookupChangelog(int changelogId)
+    std::pair<int, std::optional<i64>> LookupChangelog(int changelogId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto changelog = OpenChangelogOrThrow(changelogId);
-        return changelog->GetRecordCount();
+        auto recordCount = changelog->GetRecordCount();
+        if (recordCount == 0) {
+            return {recordCount, std::nullopt};
+        }
+
+        // TODO(aleksandra-zh): extract.
+        auto asyncRecordsData = changelog->Read(
+            0,
+            1,
+            std::numeric_limits<i64>::max());
+        auto recordsData = WaitFor(asyncRecordsData)
+            .ValueOrThrow();
+
+        if (recordsData.empty()) {
+            THROW_ERROR_EXCEPTION("Read zero records in changelog %v", changelogId);
+        }
+
+        TMutationHeader header;
+        TSharedRef requestData;
+        DeserializeMutationRecord(recordsData[0], &header, &requestData);
+
+        return {recordCount, header.sequence_number()};
     }
 
     std::pair<int, int> GetLatestChangelogId()
@@ -1717,6 +1745,7 @@ private:
                 .ThrowOnError();
             YT_LOG_INFO("Followers are in recovery");
 
+            // TODO(aleksandra-zh): fix this when there are no changelogs.
             auto changelogId = AcquireChangelog();
             auto changelog = OpenChangelogOrThrow(changelogId);
 
