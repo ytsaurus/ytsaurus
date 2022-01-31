@@ -1,7 +1,12 @@
 #include "transaction.h"
+
+#include "cell_commit_session.h"
 #include "connection.h"
 #include "config.h"
 #include "sync_replica_cache.h"
+#include "transaction_helpers.h"
+#include "tablet_commit_session.h"
+#include "tablet_request_batcher.h"
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
@@ -94,6 +99,10 @@ public:
             Client_->GetConnection()->GetInvoker()))
         , OrderedRequestsSlidingWindow_(
             Client_->GetNativeConnection()->GetConfig()->MaxRequestWindowSize)
+        , CellCommitSessionProvider_(CreateCellCommitSessionProvider(
+            Client_,
+            MakeWeak(Transaction_),
+            Logger))
     { }
 
 
@@ -547,10 +556,6 @@ private:
     class TTabletCommitSession;
     using TTabletCommitSessionPtr = TIntrusivePtr<TTabletCommitSession>;
 
-    class TCellCommitSession;
-    using TCellCommitSessionPtr = TIntrusivePtr<TCellCommitSession>;
-
-
     class TModificationRequest
     {
     public:
@@ -774,7 +779,7 @@ private:
 
                         auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modificationType);
-                        session->SubmitRow(command, capturedRow, modification.Locks);
+                        session->SubmitUnversionedRow(command, capturedRow, modification.Locks);
                         break;
                     }
 
@@ -809,7 +814,7 @@ private:
                         }
 
                         auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
-                        session->SubmitRow(row);
+                        session->SubmitVersionedRow(row);
                         break;
                     }
 
@@ -1114,519 +1119,11 @@ private:
     THashMap<TYPath, TTableCommitSessionPtr> TablePathToSession_;
     std::vector<TTableCommitSessionPtr> PendingSessions_;
 
-    class TTabletCommitSession
-        : public TRefCounted
-    {
-    public:
-        TTabletCommitSession(
-            TTransactionPtr transaction,
-            TTabletInfoPtr tabletInfo,
-            TTableMountInfoPtr tableInfo,
-            TTableCommitSessionPtr tableSession,
-            TColumnEvaluatorPtr columnEvaluator)
-            : Transaction_(transaction)
-            , TableInfo_(std::move(tableInfo))
-            , TabletInfo_(std::move(tabletInfo))
-            , TableSession_(std::move(tableSession))
-            , Config_(transaction->Client_->GetNativeConnection()->GetConfig())
-            , ColumnEvaluator_(std::move(columnEvaluator))
-            , TableMountCache_(transaction->Client_->GetNativeConnection()->GetTableMountCache())
-            , IsSortedTable_(TableInfo_->Schemas[ETableSchemaKind::Primary]->IsSorted())
-            , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->GetColumnCount())
-            , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount())
-            , EnforceRowCountLimit_(transaction->Client_->GetOptions().GetAuthenticatedUser() != NSecurityClient::ReplicatorUserName)
-            , Logger(transaction->Logger.WithTag("TabletId: %v", TabletInfo_->TabletId))
-        { }
-
-        void SubmitRow(
-            EWireProtocolCommand command,
-            TUnversionedRow row,
-            TLockMask lockMask)
-        {
-            UnversionedSubmittedRows_.push_back({
-                command,
-                row,
-                lockMask,
-                static_cast<int>(UnversionedSubmittedRows_.size())});
-        }
-
-        void SubmitRow(TTypeErasedRow row)
-        {
-            VersionedSubmittedRows_.push_back(row);
-        }
-
-        int Prepare()
-        {
-            if (!VersionedSubmittedRows_.empty() && !UnversionedSubmittedRows_.empty()) {
-                THROW_ERROR_EXCEPTION("Cannot intermix versioned and unversioned writes to a single table "
-                    "within a transaction");
-            }
-
-            if (TableInfo_->IsSorted()) {
-                PrepareSortedBatches();
-            } else {
-                PrepareOrderedBatches();
-            }
-
-            return static_cast<int>(Batches_.size());
-        }
-
-        TFuture<void> Invoke(IChannelPtr channel)
-        {
-            // Do all the heavy lifting here.
-            auto* codec = NCompression::GetCodec(Config_->WriteRowsRequestCodec);
-            YT_VERIFY(!Batches_.empty());
-            for (const auto& batch : Batches_) {
-                batch->RequestData = codec->Compress(batch->Writer.Finish());
-            }
-
-            InvokeChannel_ = channel;
-            InvokeNextBatch();
-            return InvokePromise_;
-        }
-
-        TCellId GetCellId() const
-        {
-            return TabletInfo_->CellId;
-        }
-
-    private:
-        const TWeakPtr<TTransaction> Transaction_;
-        const TTableMountInfoPtr TableInfo_;
-        const TTabletInfoPtr TabletInfo_;
-        const TTableCommitSessionPtr TableSession_;
-        const TConnectionConfigPtr Config_;
-        const TColumnEvaluatorPtr ColumnEvaluator_;
-        const ITableMountCachePtr TableMountCache_;
-        const bool IsSortedTable_;
-        const int ColumnCount_;
-        const int KeyColumnCount_;
-        const bool EnforceRowCountLimit_;
-
-        struct TCommitSessionBufferTag
-        { };
-
-        TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TCommitSessionBufferTag());
-
-        NLogging::TLogger Logger;
-
-        struct TBatch
-        {
-            TWireProtocolWriter Writer;
-            TSharedRef RequestData;
-            int RowCount = 0;
-            size_t DataWeight = 0;
-        };
-
-        int TotalBatchedRowCount_ = 0;
-        std::vector<std::unique_ptr<TBatch>> Batches_;
-
-        std::vector<TTypeErasedRow> VersionedSubmittedRows_;
-
-        struct TUnversionedSubmittedRow
-        {
-            EWireProtocolCommand Command;
-            TUnversionedRow Row;
-            TLockMask Locks;
-            int SequentialId;
-        };
-
-        std::vector<TUnversionedSubmittedRow> UnversionedSubmittedRows_;
-
-        IChannelPtr InvokeChannel_;
-        int InvokeBatchIndex_ = 0;
-        const TPromise<void> InvokePromise_ = NewPromise<void>();
-
-        void PrepareVersionedRows()
-        {
-            for (const auto& typeErasedRow : VersionedSubmittedRows_) {
-                IncrementAndCheckRowCount();
-
-                auto* batch = EnsureBatch();
-                ++batch->RowCount;
-
-                auto& writer = batch->Writer;
-                writer.WriteCommand(EWireProtocolCommand::VersionedWriteRow);
-
-                if (IsSortedTable_) {
-                    TVersionedRow row(typeErasedRow);
-                    batch->DataWeight += GetDataWeight(row);
-                    writer.WriteVersionedRow(row);
-                } else {
-                    TUnversionedRow row(typeErasedRow);
-                    batch->DataWeight += GetDataWeight(row);
-                    writer.WriteUnversionedRow(row);
-                }
-            }
-        }
-
-        void PrepareSortedBatches()
-        {
-            std::sort(
-                UnversionedSubmittedRows_.begin(),
-                UnversionedSubmittedRows_.end(),
-                [=] (const TUnversionedSubmittedRow& lhs, const TUnversionedSubmittedRow& rhs) {
-                    // NB: CompareRows may throw on composite values.
-                    int res = CompareRows(lhs.Row, rhs.Row, KeyColumnCount_);
-                    return res != 0 ? res < 0 : lhs.SequentialId < rhs.SequentialId;
-                });
-
-            std::vector<TUnversionedSubmittedRow> unversionedMergedRows;
-            unversionedMergedRows.reserve(UnversionedSubmittedRows_.size());
-
-            TUnversionedRowMerger merger(
-                RowBuffer_,
-                ColumnCount_,
-                KeyColumnCount_,
-                ColumnEvaluator_);
-
-            for (auto it = UnversionedSubmittedRows_.begin(); it != UnversionedSubmittedRows_.end();) {
-                auto startIt = it;
-                merger.InitPartialRow(startIt->Row);
-
-                TLockMask lockMask;
-                EWireProtocolCommand resultCommand;
-
-                do {
-                    switch (it->Command) {
-                        case EWireProtocolCommand::DeleteRow:
-                            merger.DeletePartialRow(it->Row);
-                            break;
-
-                        case EWireProtocolCommand::WriteRow:
-                            merger.AddPartialRow(it->Row);
-                            break;
-
-                        case EWireProtocolCommand::WriteAndLockRow:
-                            merger.AddPartialRow(it->Row);
-                            lockMask = MaxMask(lockMask, it->Locks);
-                            break;
-
-                        default:
-                            YT_ABORT();
-                    }
-                    resultCommand = it->Command;
-                    ++it;
-                } while (it != UnversionedSubmittedRows_.end() &&
-                    CompareRows(it->Row, startIt->Row, KeyColumnCount_) == 0);
-
-                TUnversionedRow mergedRow;
-                if (resultCommand == EWireProtocolCommand::DeleteRow) {
-                    mergedRow = merger.BuildDeleteRow();
-                } else {
-                    if (lockMask.GetSize() > 0) {
-                        resultCommand = EWireProtocolCommand::WriteAndLockRow;
-                    }
-                    mergedRow = merger.BuildMergedRow();
-                }
-
-                unversionedMergedRows.push_back({resultCommand, mergedRow, lockMask, /*sequentialId*/ 0});
-            }
-
-            for (const auto& submittedRow : unversionedMergedRows) {
-                WriteRow(submittedRow);
-            }
-
-            PrepareVersionedRows();
-        }
-
-        void WriteRow(const TUnversionedSubmittedRow& submittedRow)
-        {
-            IncrementAndCheckRowCount();
-
-            auto* batch = EnsureBatch();
-            auto& writer = batch->Writer;
-            ++batch->RowCount;
-            batch->DataWeight += GetDataWeight(submittedRow.Row);
-
-            // COMPAT(gritukan)
-            if (submittedRow.Command == EWireProtocolCommand::WriteAndLockRow) {
-                auto locks = submittedRow.Locks;
-                if (locks.HasNewLocks()) {
-                    writer.WriteCommand(EWireProtocolCommand::WriteAndLockRow);
-                    writer.WriteUnversionedRow(submittedRow.Row);
-                    writer.WriteLockMask(locks);
-                } else {
-                    writer.WriteCommand(EWireProtocolCommand::ReadLockWriteRow);
-                    writer.WriteLegacyLockBitmap(locks.ToLegacyMask().GetBitmap());
-                    writer.WriteUnversionedRow(submittedRow.Row);
-                }
-            } else {
-                writer.WriteCommand(submittedRow.Command);
-                writer.WriteUnversionedRow(submittedRow.Row);
-            }
-        }
-
-        void PrepareOrderedBatches()
-        {
-            for (const auto& submittedRow : UnversionedSubmittedRows_) {
-                WriteRow(submittedRow);
-            }
-
-            PrepareVersionedRows();
-        }
-
-        bool IsNewBatchNeeded()
-        {
-            if (Batches_.empty()) {
-                return true;
-            }
-
-            const auto& lastBatch = Batches_.back();
-            if (lastBatch->RowCount >= Config_->MaxRowsPerWriteRequest) {
-                return true;
-            }
-            if (static_cast<ssize_t>(lastBatch->DataWeight) >= Config_->MaxDataWeightPerWriteRequest) {
-                return true;
-            }
-
-            return false;
-        }
-
-        TBatch* EnsureBatch()
-        {
-            if (IsNewBatchNeeded()) {
-                Batches_.emplace_back(new TBatch());
-            }
-            return Batches_.back().get();
-        }
-
-        void IncrementAndCheckRowCount()
-        {
-            ++TotalBatchedRowCount_;
-            if (EnforceRowCountLimit_ && TotalBatchedRowCount_ > Config_->MaxRowsPerTransaction) {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::TooManyRowsInTransaction,
-                    "Transaction affects too many rows")
-                    << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
-            }
-        }
-
-        void InvokeNextBatch()
-        {
-            VERIFY_THREAD_AFFINITY_ANY();
-
-            if (InvokeBatchIndex_ >= std::ssize(Batches_)) {
-                InvokePromise_.Set(TError());
-                return;
-            }
-
-            const auto& batch = Batches_[InvokeBatchIndex_++];
-
-            auto transaction = Transaction_.Lock();
-            if (!transaction) {
-                return;
-            }
-
-            auto cellSession = transaction->GetCommitSession(GetCellId());
-
-            TTabletServiceProxy proxy(InvokeChannel_);
-            proxy.SetDefaultTimeout(Config_->WriteRowsTimeout);
-            proxy.SetDefaultAcknowledgementTimeout(std::nullopt);
-
-            auto req = proxy.Write();
-            req->SetResponseHeavy(true);
-            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-            ToProto(req->mutable_transaction_id(), transaction->GetId());
-            if (transaction->GetAtomicity() == EAtomicity::Full) {
-                req->set_transaction_start_timestamp(transaction->GetStartTimestamp());
-                req->set_transaction_timeout(ToProto<i64>(transaction->GetTimeout()));
-            }
-            ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
-            req->set_mount_revision(TabletInfo_->MountRevision);
-            req->set_durability(static_cast<int>(transaction->GetDurability()));
-            req->set_signature(cellSession->AllocateRequestSignature());
-            req->set_request_codec(static_cast<int>(Config_->WriteRowsRequestCodec));
-            req->set_row_count(batch->RowCount);
-            req->set_data_weight(batch->DataWeight);
-            req->set_versioned(!VersionedSubmittedRows_.empty());
-            for (const auto& replicaInfo : TableInfo_->Replicas) {
-                if (replicaInfo->Mode == ETableReplicaMode::Sync) {
-                    ToProto(req->add_sync_replica_ids(), replicaInfo->ReplicaId);
-                }
-            }
-            if (TableSession_->GetUpstreamReplicaId()) {
-                ToProto(req->mutable_upstream_replica_id(), TableSession_->GetUpstreamReplicaId());
-            }
-            if (const auto& replicationCard = TableSession_->GetReplicationCard()) {
-                req->set_replication_era(replicationCard->Era);
-            }
-            req->Attachments().push_back(batch->RequestData);
-
-            YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, "
-                "Versioned: %v, UpstreamReplicaId: %v)",
-                InvokeBatchIndex_,
-                Batches_.size(),
-                batch->RowCount,
-                req->signature(),
-                req->versioned(),
-                TableSession_->GetUpstreamReplicaId());
-
-            req->Invoke().Subscribe(
-                BIND(&TTabletCommitSession::OnResponse, MakeStrong(this)));
-        }
-
-        void OnResponse(const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
-        {
-            if (!rspOrError.IsOK()) {
-                auto error = TError("Error sending transaction rows")
-                    << TErrorAttribute("table_id", TableInfo_->TableId)
-                    << TErrorAttribute("tablet_id", TabletInfo_->TabletId)
-                    << rspOrError;
-                YT_LOG_DEBUG(error);
-                TableMountCache_->InvalidateOnError(error, true /*forceRetry*/);
-                InvokePromise_.Set(error);
-                return;
-            }
-
-            auto owner = Transaction_.Lock();
-            if (!owner) {
-                return;
-            }
-
-            YT_LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
-                InvokeBatchIndex_,
-                Batches_.size());
-
-            InvokeNextBatch();
-        }
-    };
-
     //! Maintains per-tablet commit info.
-    THashMap<TTabletId, TTabletCommitSessionPtr> TabletIdToSession_;
-
-    class TCellCommitSession
-        : public TRefCounted
-    {
-    public:
-        TCellCommitSession(const TTransactionPtr& transaction, TCellId cellId)
-            : Transaction_(transaction)
-            , CellId_(cellId)
-            , Logger(transaction->Logger.WithTag("CellId: %v", CellId_))
-        { }
-
-        void RegisterRequests(int count)
-        {
-            VERIFY_THREAD_AFFINITY_ANY();
-
-            RequestsTotal_ += count;
-            RequestsRemaining_ += count;
-        }
-
-        TTransactionSignature AllocateRequestSignature()
-        {
-            VERIFY_THREAD_AFFINITY_ANY();
-
-            auto remaining = --RequestsRemaining_;
-            YT_VERIFY(remaining >= 0);
-            return remaining == 0
-                ? FinalTransactionSignature - InitialTransactionSignature - RequestsTotal_.load() + 1
-                : 1;
-        }
-
-        void RegisterAction(const TTransactionActionData& data)
-        {
-            if (Actions_.empty()) {
-                RegisterRequests(1);
-            }
-            Actions_.push_back(data);
-        }
-
-        TFuture<void> Invoke(const IChannelPtr& channel)
-        {
-            if (Actions_.empty()) {
-                return VoidFuture;
-            }
-
-            auto transaction = Transaction_.Lock();
-            if (!transaction) {
-                return MakeFuture(TError(NYT::EErrorCode::Canceled, "Transaction destroyed"));
-            }
-
-            YT_LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
-                Actions_.size());
-
-            TFuture<void> future;
-            switch (TypeFromId(CellId_)) {
-                case EObjectType::TabletCell:
-                    future = SendTabletActions(transaction, channel);
-                    break;
-                case EObjectType::MasterCell:
-                    future = SendMasterActions(transaction, channel);
-                    break;
-                case EObjectType::ChaosCell:
-                    future = SendChaosActions(transaction, channel);
-                    break;
-                default:
-                    YT_ABORT();
-            }
-
-            return future.Apply(
-                BIND(&TCellCommitSession::OnResponse, MakeStrong(this))
-                    /* serialization intentionally omitted */);
-        }
-
-    private:
-        const TWeakPtr<TTransaction> Transaction_;
-        const TCellId CellId_;
-        const NLogging::TLogger Logger;
-
-        std::vector<TTransactionActionData> Actions_;
-
-        std::atomic<int> RequestsTotal_ = 0;
-        std::atomic<int> RequestsRemaining_ = 0;
-
-
-        TFuture<void> SendTabletActions(const TTransactionPtr& owner, const IChannelPtr& channel)
-        {
-            TTabletServiceProxy proxy(channel);
-            auto req = proxy.RegisterTransactionActions();
-            req->SetResponseHeavy(true);
-            ToProto(req->mutable_transaction_id(), owner->GetId());
-            req->set_transaction_start_timestamp(owner->GetStartTimestamp());
-            req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
-            req->set_signature(AllocateRequestSignature());
-            ToProto(req->mutable_actions(), Actions_);
-            return req->Invoke().As<void>();
-        }
-
-        TFuture<void> SendMasterActions(const TTransactionPtr& owner, const IChannelPtr& channel)
-        {
-            TTransactionServiceProxy proxy(channel);
-            auto req = proxy.RegisterTransactionActions();
-            req->SetResponseHeavy(true);
-            ToProto(req->mutable_transaction_id(), owner->GetId());
-            ToProto(req->mutable_actions(), Actions_);
-            return req->Invoke().As<void>();
-        }
-
-        TFuture<void> SendChaosActions(const TTransactionPtr& owner, const IChannelPtr& channel)
-        {
-            TCoordinatorServiceProxy proxy(channel);
-            auto req = proxy.RegisterTransactionActions();
-            ToProto(req->mutable_transaction_id(), owner->GetId());
-            req->set_transaction_start_timestamp(owner->GetStartTimestamp());
-            req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
-            req->set_signature(AllocateRequestSignature());
-            ToProto(req->mutable_actions(), Actions_);
-            return req->Invoke().As<void>();
-        }
-
-        void OnResponse(const TError& result)
-        {
-            if (!result.IsOK()) {
-                auto error = TError("Error sending transaction actions")
-                    << result;
-                YT_LOG_DEBUG(error);
-                THROW_ERROR(error);
-            }
-
-            YT_LOG_DEBUG("Transaction actions sent successfully");
-        }
-    };
+    THashMap<TTabletId, ITabletCommitSessionPtr> TabletIdToSession_;
 
     //! Maintains per-cell commit info.
-    THashMap<TCellId, TCellCommitSessionPtr> CellIdToSession_;
+    ICellCommitSessionProviderPtr CellCommitSessionProvider_;
 
     //! Maps replica cluster name to sync replica transaction.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ClusterNameToSyncReplicaTransactionPromiseSpinLock_);
@@ -1776,7 +1273,7 @@ private:
         return it->second;
     }
 
-    TTabletCommitSessionPtr GetOrCreateTabletSession(
+    ITabletCommitSessionPtr GetOrCreateTabletSession(
         const TTabletInfoPtr& tabletInfo,
         const TTableMountInfoPtr& tableInfo,
         const TTableCommitSessionPtr& tableSession)
@@ -1784,16 +1281,20 @@ private:
         auto tabletId = tabletInfo->TabletId;
         auto it = TabletIdToSession_.find(tabletId);
         if (it == TabletIdToSession_.end()) {
-            const auto& evaluatorCache = Client_->GetNativeConnection()->GetColumnEvaluatorCache();
-            auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Primary]);
+            TTabletCommitOptions options{
+                .UpstreamReplicaId = tableSession->GetUpstreamReplicaId(),
+                .ReplicationCard = tableSession->GetReplicationCard()
+            };
             it = TabletIdToSession_.emplace(
                 tabletId,
-                New<TTabletCommitSession>(
-                    this,
+                CreateTabletCommitSession(
+                    Client_,
+                    options,
+                    MakeWeak(Transaction_),
+                    CellCommitSessionProvider_,
                     tabletInfo,
                     tableInfo,
-                    tableSession,
-                    evaluator)
+                    Logger)
                 ).first;
         }
         return it->second;
@@ -1863,14 +1364,7 @@ private:
                 }).AsyncVia(SerializedInvoker_));
         } else {
             for (const auto& [tabletId, tabletSession] : TabletIdToSession_) {
-                auto cellId = tabletSession->GetCellId();
-                int requestCount = tabletSession->Prepare();
-                auto cellSession = GetOrCreateCellCommitSession(cellId);
-                cellSession->RegisterRequests(requestCount);
-            }
-
-            for (const auto& [cellId, session] : CellIdToSession_) {
-                Transaction_->RegisterParticipant(cellId);
+                tabletSession->PrepareRequests();
             }
 
             return VoidFuture;
@@ -1880,17 +1374,13 @@ private:
     TFuture<void> SendRequests()
     {
         std::vector<TFuture<void>> futures;
+        futures.reserve(std::ssize(TabletIdToSession_) + 1);
 
         for (const auto& [tabletId, session] : TabletIdToSession_) {
-            auto cellId = session->GetCellId();
-            auto channel = Client_->GetCellChannelOrThrow(cellId);
-            futures.push_back(session->Invoke(std::move(channel)));
+            futures.push_back(session->Invoke());
         }
 
-        for (const auto& [cellId, session] : CellIdToSession_) {
-            auto channel = Client_->GetCellChannelOrThrow(cellId);
-            futures.push_back(session->Invoke(std::move(channel)));
-        }
+        futures.push_back(CellCommitSessionProvider_->InvokeAll());
 
         return AllSucceeded(std::move(futures));
     }
@@ -2053,7 +1543,7 @@ private:
                     }
 
                     TTransactionFlushResult result{
-                        .ParticipantCellIds = GetKeys(CellIdToSession_)
+                        .ParticipantCellIds = CellCommitSessionProvider_->GetParticipantCellIds(),
                     };
 
                     YT_LOG_DEBUG("Transaction flushed (ParticipantCellIds: %v)",
@@ -2064,22 +1554,18 @@ private:
     }
 
 
-    TCellCommitSessionPtr GetOrCreateCellCommitSession(TCellId cellId)
+    ICellCommitSessionPtr GetOrCreateCellCommitSession(TCellId cellId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto it = CellIdToSession_.find(cellId);
-        if (it == CellIdToSession_.end()) {
-            it = CellIdToSession_.emplace(cellId, New<TCellCommitSession>(this, cellId)).first;
-        }
-        return it->second;
+        return CellCommitSessionProvider_->GetOrCreateCellCommitSession(cellId);
     }
 
-    TCellCommitSessionPtr GetCommitSession(TCellId cellId)
+    ICellCommitSessionPtr GetCommitSession(TCellId cellId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return GetOrCrash(CellIdToSession_, cellId);
+        return CellCommitSessionProvider_->GetCellCommitSession(cellId);
     }
 
 
@@ -2116,6 +1602,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransaction)
+
+////////////////////////////////////////////////////////////////////////////////
 
 ITransactionPtr CreateTransaction(
     IClientPtr client,
