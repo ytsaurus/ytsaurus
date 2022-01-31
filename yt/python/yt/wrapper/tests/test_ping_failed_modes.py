@@ -54,24 +54,11 @@ def reproduce_transaction_loss(
                 if not first_exception:
                     first_exception = exception
                     first_sleep_duration = get_time() - wait_begin
+
         try:
             tx_context_manager.__exit__(*sys.exc_info())
         except yt.errors.YtNoSuchTransaction:
-            logger.exception("Transaction __exit__ call interrupted")
-            # Explicitely stop pinger since it can be interrupted.
-            tx_context_manager._stop_pinger()
             pass
-
-        while True:
-            ping_threads_found = False
-            for thread in threading.enumerate():
-                if not thread.is_alive():
-                    continue
-                if thread.getName() == "PingTransaction":
-                    ping_threads_found = True
-                    thread.join(timeout=0.1)
-            if not ping_threads_found:
-                break
 
         if must_interrupt_sleep:
             assert first_sleep_duration < 0.9 * wait_time, (first_sleep_duration, wait_time)
@@ -116,24 +103,6 @@ class TestPingFailedModes(object):
             with pytest.raises(KeyboardInterrupt):
                 reproduce_transaction_loss()
 
-        logger.info("Checking alive threads")
-        while True:
-            names = []
-            try:
-                found_ping_related_threads = False
-                for thread in threading.enumerate():
-                    if not thread.is_alive():
-                        continue
-                    names.append(thread.getName())
-                    if thread.getName() in ("ping_failed_interrupt_main", "PingTransaction"):
-                        thread.join(timeout=0.1)
-                        found_ping_related_threads = True
-                logger.info("Alive threads (names: %s)", names)
-                if not found_ping_related_threads:
-                    break
-            except KeyboardInterrupt:
-                pass
-        logger.info("Alive threads checked")
 
     @authors("marat-khalili")
     def test_pass(self):

@@ -367,7 +367,6 @@ class PingTransaction(Thread):
         if self.is_alive():
             logger.warning("Ping request could not be completed within %.1lf seconds", self.ping_timeout)
 
-
     def _process_failed_ping(self):
         self.failed = True
         if self.interrupt_on_failed:
@@ -386,6 +385,8 @@ class PingTransaction(Thread):
                 pass
         else:
             logger.exception("Failed to ping transaction %s, pinger stopped", self.transaction)
+
+        self.is_running = False
 
     def run(self):
         while self.is_running:
