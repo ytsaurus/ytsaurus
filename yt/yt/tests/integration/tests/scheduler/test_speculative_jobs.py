@@ -93,11 +93,12 @@ class TestSpeculativeJobEngine(YTEnvSetup):
     def test_abort_speculative_job_after_revival(self, revive_type):
         spec = {"resource_limits": {"user_slots": 0}, "testing": {"testing_speculative_launch_mode": "always"}}
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=1)
-        wait(lambda: op.get_state() == "running")
 
         if revive_type == "before_scheduling":
             with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
                 pass
+
+        wait(lambda: op.get_state() == "running")
 
         update_op_parameters(op.id, parameters={"scheduling_options_per_pool_tree": {
             "default": {"resource_limits": {"user_slots": 100}}},
