@@ -681,6 +681,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IObjectProxyPtr CreateClusterNodeProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,

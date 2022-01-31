@@ -36,13 +36,6 @@ using namespace NNodeTrackerServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellBundleProxy::TCellBundleProxy(
-    NCellMaster::TBootstrap* bootstrap,
-    TObjectTypeMetadata* metadata,
-    TCellBundle* cellBundle)
-    : TBase(bootstrap, metadata, cellBundle)
-{ }
-
 void TCellBundleProxy::ValidateRemoval()
 {
     const auto* cellBundle = GetThisImpl();

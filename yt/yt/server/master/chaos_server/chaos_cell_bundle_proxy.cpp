@@ -39,12 +39,7 @@ class TChaosCellBundleProxy
     : public TCellBundleProxy
 {
 public:
-    TChaosCellBundleProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TChaosCellBundle* cellBundle)
-        : TBase(bootstrap, metadata, cellBundle)
-    { }
+    using TCellBundleProxy::TCellBundleProxy;
 
 private:
     using TBase = TCellBundleProxy;

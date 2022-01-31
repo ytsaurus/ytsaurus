@@ -56,17 +56,7 @@ class TClusterNodeNodeProxy
     : public TMapNodeProxy
 {
 public:
-    TClusterNodeNodeProxy(
-        TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTransaction* transaction,
-        TMapNode* trunkNode)
-        : TMapNodeProxy(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TMapNodeProxy::TMapNodeProxy;
 
     TResolveResult ResolveSelf(
         const TYPath& path,

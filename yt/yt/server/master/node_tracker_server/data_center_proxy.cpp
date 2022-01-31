@@ -92,6 +92,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IObjectProxyPtr CreateDataCenterProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,

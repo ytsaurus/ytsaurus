@@ -35,17 +35,7 @@ class TSysNodeProxy
     : public TMapNodeProxy
 {
 public:
-    TSysNodeProxy(
-        TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTransaction* transaction,
-        TMapNode* trunkNode)
-        : TBase(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TMapNodeProxy::TMapNodeProxy;
 
 private:
     using TBase = TMapNodeProxy;
@@ -104,7 +94,7 @@ private:
             case EInternedAttributeKey::ClusterName:
                 ValidateClusterName(ConvertTo<TString>(newValue));
                 return;
-            
+
             case EInternedAttributeKey::ClusterConnection: {
                 auto node = ConvertToNode(newValue);
                 if (node->GetType() != ENodeType::Entity) {

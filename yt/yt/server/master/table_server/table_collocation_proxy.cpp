@@ -28,7 +28,6 @@ public:
 private:
     using TBase = TNonversionedObjectProxyBase<TTableCollocation>;
 
-
     void ValidateRemoval() override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);

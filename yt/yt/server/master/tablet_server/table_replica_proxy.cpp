@@ -40,12 +40,7 @@ class TTableReplicaProxy
     : public TNonversionedObjectProxyBase<TTableReplica>
 {
 public:
-    TTableReplicaProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTableReplica* replica)
-        : TBase(bootstrap, metadata, replica)
-    { }
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 private:
     using TBase = TNonversionedObjectProxyBase<TTableReplica>;
@@ -264,6 +259,8 @@ private:
         context->Reply();
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IObjectProxyPtr CreateTableReplicaProxy(
     NCellMaster::TBootstrap* bootstrap,

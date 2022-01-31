@@ -49,6 +49,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IObjectProxyPtr CreateSchemaProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,

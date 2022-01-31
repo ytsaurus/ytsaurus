@@ -101,6 +101,7 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
 IObjectProxyPtr CreateCypressShardProxy(
     NCellMaster::TBootstrap* bootstrap,

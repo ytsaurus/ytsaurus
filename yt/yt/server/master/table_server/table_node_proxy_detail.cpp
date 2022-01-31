@@ -94,18 +94,6 @@ static const auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableNodeProxy::TTableNodeProxy(
-    NCellMaster::TBootstrap* bootstrap,
-    TObjectTypeMetadata* metadata,
-    TTransaction* transaction,
-    TTableNode* trunkNode)
-    : TBase(
-        bootstrap,
-        metadata,
-        transaction,
-        trunkNode)
-{ }
-
 void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
 {
     if (context->Permission == EPermission::Read) {
@@ -1881,18 +1869,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, FinishRestore)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TReplicatedTableNodeProxy::TReplicatedTableNodeProxy(
-    NCellMaster::TBootstrap* bootstrap,
-    TObjectTypeMetadata* metadata,
-    TTransaction* transaction,
-    TReplicatedTableNode* trunkNode)
-    : TTableNodeProxy(
-        bootstrap,
-        metadata,
-        transaction,
-        trunkNode)
-{ }
 
 void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {

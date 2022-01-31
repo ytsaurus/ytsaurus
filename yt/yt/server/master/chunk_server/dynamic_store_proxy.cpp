@@ -93,6 +93,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IObjectProxyPtr CreateDynamicStoreProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,

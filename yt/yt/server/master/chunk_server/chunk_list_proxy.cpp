@@ -216,6 +216,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IObjectProxyPtr CreateChunkListProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,

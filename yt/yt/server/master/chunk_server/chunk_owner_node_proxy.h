@@ -42,11 +42,7 @@ class TChunkOwnerNodeProxy
     : public NCypressServer::TNontemplateCypressNodeProxyBase
 {
 public:
-    TChunkOwnerNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TChunkOwnerBase* trunkNode);
+    using TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase;
 
     NYTree::ENodeType GetType() const override;
 

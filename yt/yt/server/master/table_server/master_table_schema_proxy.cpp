@@ -93,6 +93,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IObjectProxyPtr CreateMasterTableSchemaProxy(
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,

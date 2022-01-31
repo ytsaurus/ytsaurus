@@ -20,10 +20,7 @@ class TCellProxyBase
     : public NObjectServer::TNonversionedObjectProxyBase<TCellBase>
 {
 public:
-    TCellProxyBase(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        TCellBase* cell);
+    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 protected:
     using TBase = NObjectServer::TNonversionedObjectProxyBase<TCellBase>;

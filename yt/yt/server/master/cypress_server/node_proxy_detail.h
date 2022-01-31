@@ -304,17 +304,7 @@ class TCypressNodeProxyBase
     , public virtual IBase
 {
 public:
-    TCypressNodeProxyBase(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TImpl* trunkNode)
-        : TBase(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TBase::TBase;
 
 protected:
     template <class TActualImpl = TImpl>
@@ -407,17 +397,7 @@ private:
         YTREE_NODE_TYPE_OVERRIDES(key) \
     \
     public: \
-        T##key##NodeProxy( \
-            NCellMaster::TBootstrap* bootstrap, \
-            NObjectServer::TObjectTypeMetadata* metadata, \
-            NTransactionServer::TTransaction* transaction, \
-            TScalarNode<type>* node) \
-            : TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node>( \
-                bootstrap, \
-                metadata, \
-                transaction, \
-                node) \
-        { }
+        using TScalarNodeProxy::TScalarNodeProxy;
 
 #define END_DEFINE_SCALAR_TYPE(key, type) \
     }; \

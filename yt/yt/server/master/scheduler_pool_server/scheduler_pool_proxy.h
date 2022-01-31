@@ -30,10 +30,7 @@ class TSchedulerPoolProxy
     : public NObjectServer::TNonversionedMapObjectProxyBase<TSchedulerPool>
 {
 public:
-    TSchedulerPoolProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        TSchedulerPool* schedulerPool);
+    using TNonversionedMapObjectProxyBase::TNonversionedMapObjectProxyBase;
 
 protected:
     using TProxyBasePtr = TIntrusivePtr<NObjectServer::TNonversionedMapObjectProxyBase<TSchedulerPool>>;
