@@ -207,10 +207,6 @@ void TRecovery::Recover(int term)
             SyncChangelog(changelog, changelogId);
         }
 
-        // int targetRecordId = changelogId == targetVersion.SegmentId
-        //     ? targetVersion.RecordId
-        //     : changelog->GetRecordCount();
-
         if (!ReplayChangelog(changelog, changelogId, TargetState_.SequenceNumber)) {
             TDelayedExecutor::WaitForDuration(Config_->ChangelogRecordCountCheckRetryPeriod);
             continue;
@@ -246,24 +242,36 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
         changelogId);
     const auto& rsp = rspOrError.Value();
 
-    int remoteRecordCount = rsp->record_count();
-    int localRecordCount = changelog->GetRecordCount();
+    i64 remoteRecordCount = rsp->record_count();
+    auto firstRemoteSequenceNumber = rsp->has_first_sequence_number()
+        ? std::make_optional(rsp->first_sequence_number())
+        : std::nullopt;
+    i64 localRecordCount = changelog->GetRecordCount();
+    i64 adjustedRemoteRecordCount = remoteRecordCount;
 
-    YT_LOG_INFO("Syncing changelog %v: local %v, remote %v",
+    if (firstRemoteSequenceNumber) {
+        i64 recordCountLimit = TargetState_.SequenceNumber - *firstRemoteSequenceNumber + 1;
+        adjustedRemoteRecordCount = std::min<i64>(remoteRecordCount, recordCountLimit);
+    }
+
+    YT_LOG_INFO("Syncing changelog (ChangelogId: %v, LocalRecordCount: %v, RemoteRecordCount: %v, "
+        "FirstRemoteSequenceNumber: %v, AdjustedRemoteRecordCount: %v)",
         changelogId,
         localRecordCount,
-        remoteRecordCount);
+        remoteRecordCount,
+        firstRemoteSequenceNumber,
+        adjustedRemoteRecordCount);
 
-    if (localRecordCount > remoteRecordCount) {
-        auto result = WaitFor(changelog->Truncate(remoteRecordCount));
+    if (localRecordCount > adjustedRemoteRecordCount) {
+        auto result = WaitFor(changelog->Truncate(adjustedRemoteRecordCount));
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error truncating changelog");
-    } else if (localRecordCount < remoteRecordCount) {
+    } else if (localRecordCount < adjustedRemoteRecordCount) {
         auto asyncResult = DownloadChangelog(
             Config_,
             EpochContext_->CellManager,
             ChangelogStore_,
             changelogId,
-            remoteRecordCount);
+            adjustedRemoteRecordCount);
         auto result = WaitFor(asyncResult);
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error downloading changelog records");
     }

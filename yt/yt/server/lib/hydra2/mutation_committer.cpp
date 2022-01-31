@@ -859,17 +859,44 @@ void TFollowerCommitter::PrepareNextChangelog(TVersion version)
         version,
         EpochContext_->Term);
 
+    auto openFuture = WaitFor(EpochContext_->ChangelogStore->TryOpenChangelog(changelogId));
+    if (!openFuture.IsOK()) {
+        LoggingFailed_.Fire(TError("Error opening changelog")
+            << TErrorAttribute("changelog_id", changelogId)
+            << openFuture);
+        openFuture.ThrowOnError();
+    }
+
+    if (auto changelog = openFuture.Value()) {
+        if (ChangelogId_ != -1) {
+            YT_LOG_WARNING("Changelog opened, but it should not exist (OldChangelogId: %v, ChangelogId: %v)",
+                ChangelogId_,
+                changelogId);
+            // There is a verify above that checks that mutation has version N:0 if it is not the first changelog,
+            // so this should be valid as well.
+            YT_VERIFY(changelog->GetRecordCount() == 0);
+        }
+        ChangelogId_ = changelogId;
+        Changelog_ = changelog;
+        return;
+    }
+
+    YT_LOG_INFO("Cannot open changelog, creating (ChangelogId: %v, Term: %v)",
+        changelogId,
+        EpochContext_->Term);
+
     NHydra::NProto::TChangelogMeta meta;
     meta.set_term(EpochContext_->Term);
-    auto future = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, meta));
-    if (!future.IsOK()) {
+    auto createFuture = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, meta));
+    if (!createFuture.IsOK()) {
         LoggingFailed_.Fire(TError("Error creating changelog")
             << TErrorAttribute("changelog_id", changelogId)
-            << future);
-        future.ThrowOnError();
+            << createFuture);
+        createFuture.ThrowOnError();
     }
+
     ChangelogId_ = changelogId;
-    Changelog_ = future.Value();
+    Changelog_ = createFuture.Value();
 }
 
 TFuture<void> TFollowerCommitter::GetLastLoggedMutationFuture()
