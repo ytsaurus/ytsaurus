@@ -308,7 +308,7 @@ void TNodeSchedulingSegmentManager::ValidateInfinibandClusterTagsInTree(
         auto error = validateNode(node);
         if (!error.IsOK()) {
             error = error << TErrorAttribute("node_address", node.Address);
-            context->Errors.push_back(TError("Node infiniband cluster tags validation failed in tree %Qv", treeId)
+            context->Errors.push_back(TError("Node's infiniband cluster tags validation failed in tree %Qv", treeId)
                 << std::move(error));
             break;
         }
