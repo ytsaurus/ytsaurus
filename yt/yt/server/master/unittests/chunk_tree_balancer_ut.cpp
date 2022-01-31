@@ -82,6 +82,9 @@ public:
         return object->GetObjectRefCounter();
     }
 
+    void ScheduleRequisitionUpdate(TChunkTree* /*chunkTree*/) override
+    { }
+
     TChunkList* CreateChunkList() override
     {
         auto chunkList = TPoolAllocator::New<TChunkList>(GenerateChunkListId());

@@ -29,6 +29,8 @@ struct IChunkTreeBalancerCallbacks
     virtual void FlushObjectUnrefs() = 0;
     virtual int GetObjectRefCounter(NObjectServer::TObject* object) = 0;
 
+    virtual void ScheduleRequisitionUpdate(TChunkTree* chunkTree) = 0;
+
     virtual TChunkList* CreateChunkList() = 0;
     virtual void ClearChunkList(TChunkList* chunkList) = 0;
     virtual void AttachToChunkList(
