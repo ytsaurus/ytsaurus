@@ -454,6 +454,10 @@ private:
             CurrentJobMode_ = EChunkMergerMode::Deep;
         }
 
+        if (chunk->GetSystemBlockCount() != 0) {
+            return false;
+        }
+
         if (CurrentRowCount_ + chunk->GetRowCount() < config->MaxRowCount &&
             CurrentDataWeight_ + chunk->GetDataWeight() < config->MaxDataWeight &&
             CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < config->MaxUncompressedDataSize &&

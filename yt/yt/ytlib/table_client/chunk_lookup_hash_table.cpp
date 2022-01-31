@@ -140,9 +140,9 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
     auto blockCache = New<TSimpleBlockCache>(startBlockIndex, blocks);
 
-    auto chunkSize = chunkMeta->BlockMeta()->blocks(lastBlockIndex).chunk_row_count() -
-        (startBlockIndex > 0 ? chunkMeta->BlockMeta()->blocks(startBlockIndex - 1).chunk_row_count() : 0);
-    auto hashTable = New<TChunkLookupHashTable>(chunkSize);
+    auto rowCount = chunkMeta->DataBlockMeta()->data_blocks(lastBlockIndex).chunk_row_count() -
+        (startBlockIndex > 0 ? chunkMeta->DataBlockMeta()->data_blocks(startBlockIndex - 1).chunk_row_count() : 0);
+    auto hashTable = New<TChunkLookupHashTable>(rowCount);
 
     for (int blockIndex = startBlockIndex; blockIndex <= lastBlockIndex; ++blockIndex) {
         auto blockId = TBlockId(chunkMeta->GetChunkId(), blockIndex);
@@ -154,7 +154,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
             return nullptr;
         }
 
-        const auto& blockMeta = chunkMeta->BlockMeta()->blocks(blockIndex);
+        const auto& blockMeta = chunkMeta->DataBlockMeta()->data_blocks(blockIndex);
 
         auto fillHashTable = [&] (auto&& blockReader) {
             // Verify that row index fits into 32 bits.

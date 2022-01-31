@@ -56,7 +56,7 @@ TBlock THorizontalBlockWriter::FlushBlock()
 {
     YT_VERIFY(!Closed_);
 
-    TBlockMeta meta;
+    TDataBlockMeta meta;
     meta.set_row_count(RowCount_);
     meta.set_uncompressed_size(GetBlockSize());
 

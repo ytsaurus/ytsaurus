@@ -99,7 +99,7 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     static const std::vector<int> ExtensionTags{
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
         TProtoExtensionTag<NProto::TTableSchemaExt>::Value,
-        TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
+        TProtoExtensionTag<NProto::TDataBlockMetaExt>::Value,
         TProtoExtensionTag<NProto::TColumnMetaExt>::Value,
         TProtoExtensionTag<NProto::TNameTableExt>::Value,
         TProtoExtensionTag<NProto::TKeyColumnsExt>::Value

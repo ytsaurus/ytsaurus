@@ -25,7 +25,7 @@ using NChunkClient::TBlockFetcher;
 using NChunkClient::TBlockFetcherPtr;
 
 using NTableClient::TCachedVersionedChunkMetaPtr;
-using NTableClient::TRefCountedBlockMetaPtr;
+using NTableClient::TRefCountedDataBlockMetaPtr;
 using NTableClient::TColumnIdMapping;
 
 using NTableClient::EValueType;

@@ -36,7 +36,7 @@ protected:
     TTableSchemaPtr Schema;
 
     TSharedRef Data;
-    NProto::TBlockMeta Meta;
+    NProto::TDataBlockMeta Meta;
 
     TChunkedMemoryPool MemoryPool;
 

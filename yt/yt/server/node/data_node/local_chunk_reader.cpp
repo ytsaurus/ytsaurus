@@ -107,7 +107,7 @@ public:
                 : TCachedBlockMetaPtr();
 
             if (!cachedBlockMeta) {
-                auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
+                auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(meta->extensions());
                 cachedBlockMeta = New<TCachedBlockMeta>(GetChunkId(), std::move(blockMetaExt));
                 if (BlockMetaCache_) {
                     BlockMetaCache_->TryInsert(cachedBlockMeta);

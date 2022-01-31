@@ -676,8 +676,9 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
         ? std::make_optional(miscExt.first_overlayed_row_index())
         : std::nullopt;
     SetFirstOverlayedRowIndex(firstOverlayedRowIndex);
-    MaxBlockSize_ = miscExt.max_block_size();
+    MaxBlockSize_ = miscExt.max_data_block_size();
     CompressionCodec_ = FromProto<NCompression::ECodec>(miscExt.compression_codec());
+    SystemBlockCount_ = miscExt.system_block_count();
     SetSealed(miscExt.sealed());
 
     if (miscExt.has_physical_row_count()) {

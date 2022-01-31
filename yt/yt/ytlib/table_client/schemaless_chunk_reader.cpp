@@ -389,7 +389,7 @@ protected:
 
     std::unique_ptr<THorizontalBlockReader> BlockReader_;
 
-    TRefCountedBlockMetaPtr BlockMetaExt_;
+    TRefCountedDataBlockMetaPtr BlockMetaExt_;
 
     std::vector<int> BlockIndexes_;
 
@@ -464,13 +464,13 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 
     DoInitializeBlockSequence();
 
-    YT_LOG_DEBUG("Reading %v blocks", BlockIndexes_.size());
+    YT_LOG_DEBUG("Reading blocks (BlockCount: %v)", BlockIndexes_.size());
 
     std::vector<TBlockFetcher::TBlockInfo> blocks;
     blocks.reserve(BlockIndexes_.size());
     for (int blockIndex : BlockIndexes_) {
-        YT_VERIFY(blockIndex < BlockMetaExt_->blocks_size());
-        auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
+        YT_VERIFY(blockIndex < BlockMetaExt_->data_blocks_size());
+        const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
         int priority = blocks.size();
         blocks.push_back({
             .UncompressedDataSize = blockMeta.uncompressed_size(),
@@ -486,7 +486,7 @@ void THorizontalSchemalessChunkReaderBase::InitializeIdMapping()
 {
     YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableSchemalessHorizontal);
 
-    BlockMetaExt_ = ChunkMeta_->BlockMeta();
+    BlockMetaExt_ = ChunkMeta_->DataBlockMeta();
 
     const auto& chunkNameTable = ChunkMeta_->ChunkNameTable();
     IdMapping_.resize(chunkNameTable->GetSize(), -1);
@@ -641,7 +641,7 @@ void THorizontalSchemalessRangeChunkReader::DoInitializeBlockSequence()
         YT_VERIFY(ReadRange_.LowerLimit().IsTrivial());
         YT_VERIFY(ReadRange_.UpperLimit().IsTrivial());
 
-        CreateBlockSequence(0, BlockMetaExt_->blocks_size());
+        CreateBlockSequence(0, BlockMetaExt_->data_blocks_size());
     } else {
         bool readSorted = ReadRange_.LowerLimit().KeyBound() || ReadRange_.UpperLimit().KeyBound() || !SortColumns_.empty();
         if (readSorted) {
@@ -702,7 +702,7 @@ void THorizontalSchemalessRangeChunkReader::CreateBlockSequence(int beginIndex, 
 void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
 {
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-    const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
+    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
 
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_.reset(new THorizontalBlockReader(
@@ -721,7 +721,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
         blockLastKey = ChunkMeta_->BlockLastKeys()[blockIndex];
     }
     CheckBlockUpperLimits(
-        BlockMetaExt_->blocks(blockIndex).chunk_row_count(),
+        BlockMetaExt_->data_blocks(blockIndex).chunk_row_count(),
         blockLastKey,
         ReadRange_.UpperLimit(),
         Comparator_);
@@ -940,7 +940,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
         TReadLimit readLimit(TKeyBound::FromRowUnchecked() >= key);
 
         int index = ApplyLowerKeyLimit(ChunkMeta_->BlockLastKeys(), readLimit, Comparator_);
-        if (index == BlockMetaExt_->blocks_size()) {
+        if (index == BlockMetaExt_->data_blocks_size()) {
             break;
         }
 
@@ -1013,7 +1013,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
                     dataWeight += GetDataWeight(row);
 
                     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-                    const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
+                    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
                     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
                 } else {
                     rows.push_back(TUnversionedRow());
@@ -1045,7 +1045,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
 void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
 {
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-    const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
+    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
 
     BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,

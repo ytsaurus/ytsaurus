@@ -259,7 +259,7 @@ public:
 
     TSimpleVersionedBlockReader* CreateBlockReader(
         const TSharedRef& block,
-        const NProto::TBlockMeta& meta,
+        const NProto::TDataBlockMeta& meta,
         bool initialize = true)
     {
         BlockReader_.emplace(
@@ -304,7 +304,7 @@ public:
 
     THorizontalSchemalessVersionedBlockReader* CreateBlockReader(
         const TSharedRef& block,
-        const NProto::TBlockMeta& meta,
+        const NProto::TDataBlockMeta& meta,
         bool /*initialize*/ = true)
     {
         BlockReader_.emplace(
@@ -399,7 +399,7 @@ private:
         auto indices = this->ChunkState_->LookupHashTable->Find(key);
         for (auto index : indices) {
             const auto& uncompressedBlock = this->GetUncompressedBlock(index.first);
-            const auto& blockMeta = this->ChunkState_->ChunkMeta->BlockMeta()->blocks(index.first);
+            const auto& blockMeta = this->ChunkState_->ChunkMeta->DataBlockMeta()->data_blocks(index.first);
 
             auto* blockReader = this->CreateBlockReader(
                 uncompressedBlock,
@@ -421,14 +421,14 @@ private:
         // FIXME(savrus): Use bloom filter here.
 
         int blockIndex = this->GetBlockIndex(key);
-        auto blockCount = this->ChunkState_->ChunkMeta->BlockMeta()->blocks_size();
+        auto blockCount = this->ChunkState_->ChunkMeta->DataBlockMeta()->data_blocks_size();
 
         if (blockIndex >= blockCount) {
             return TVersionedRow();
         }
 
         const auto& uncompressedBlock = this->GetUncompressedBlock(blockIndex);
-        const auto& blockMeta = this->ChunkState_->ChunkMeta->BlockMeta()->blocks(blockIndex);
+        const auto& blockMeta = this->ChunkState_->ChunkMeta->DataBlockMeta()->data_blocks(blockIndex);
 
         auto* blockReader = this->CreateBlockReader(
             uncompressedBlock,
@@ -565,7 +565,7 @@ private:
         ++RangeIndex_;
 
         auto newBlockIndex = this->GetBlockIndex(LowerBound_);
-        auto blockCount = this->ChunkState_->ChunkMeta->BlockMeta()->blocks_size();
+        auto blockCount = this->ChunkState_->ChunkMeta->DataBlockMeta()->data_blocks_size();
 
         if (newBlockIndex >= blockCount) {
             return false;
@@ -620,7 +620,7 @@ private:
 
             if (!BlockReader_->NextRow()) {
                 // End-of-block.
-                if (++BlockIndex_ >= this->ChunkState_->ChunkMeta->BlockMeta()->blocks_size()) {
+                if (++BlockIndex_ >= this->ChunkState_->ChunkMeta->DataBlockMeta()->data_blocks_size()) {
                     // End-of-chunk.
                     NeedLimitUpdate_ = true;
                     break;
@@ -643,7 +643,7 @@ private:
     void UpdateBlockReader()
     {
         const auto& uncompressedBlock = this->GetUncompressedBlock(BlockIndex_);
-        const auto& blockMeta = this->ChunkState_->ChunkMeta->BlockMeta()->blocks(BlockIndex_);
+        const auto& blockMeta = this->ChunkState_->ChunkMeta->DataBlockMeta()->data_blocks(BlockIndex_);
 
         BlockReader_ = this->CreateBlockReader(
             uncompressedBlock,

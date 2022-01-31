@@ -75,7 +75,7 @@ using namespace NYTAlloc;
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::NProto::TBlocksExt;
-using NTableClient::NProto::TBlockMetaExt;
+using NTableClient::NProto::TDataBlockMetaExt;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -412,11 +412,11 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     {
         // For unversioned chunks verify that block size is correct
         if (auto blockSizeLimit = mountConfig->MaxUnversionedBlockSize) {
-            if (miscExt.max_block_size() > *blockSizeLimit) {
+            if (miscExt.max_data_block_size() > *blockSizeLimit) {
                 THROW_ERROR_EXCEPTION("Maximum block size limit violated")
                     << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                     << TErrorAttribute("chunk_id", store->GetId())
-                    << TErrorAttribute("block_size", miscExt.max_block_size())
+                    << TErrorAttribute("block_size", miscExt.max_data_block_size())
                     << TErrorAttribute("block_size_limit", *blockSizeLimit);
             }
         }
@@ -430,7 +430,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         store->GetChunkId(),
         *meta,
         tabletSnapshot->PhysicalSchema);
-    auto blockCount = chunkMeta->BlockMeta()->blocks_size();
+    auto blockCount = chunkMeta->DataBlockMeta()->data_blocks_size();
 
     int startBlockIndex;
     int endBlockIndex;
@@ -470,7 +470,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     if (erasureCodecId == NErasure::ECodec::None) {
         auto blocksExt = GetProtoExtension<TBlocksExt>(meta->extensions());
-        YT_VERIFY(blockCount == blocksExt.blocks_size());
+        YT_VERIFY(blockCount <= blocksExt.blocks_size());
         for (int i = startBlockIndex; i < endBlockIndex; ++i) {
             preallocatedMemory += blocksExt.blocks(i).size();
         }
@@ -484,7 +484,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         compressionCodecId != NCompression::ECodec::None)
     {
         for (int i = startBlockIndex; i < endBlockIndex; ++i) {
-            preallocatedMemory += chunkMeta->BlockMeta()->blocks(i).uncompressed_size();
+            preallocatedMemory += chunkMeta->DataBlockMeta()->data_blocks(i).uncompressed_size();
         }
     }
 

@@ -138,7 +138,7 @@ private:
             .SetPresent(miscExt && miscExt->has_first_overlayed_row_index()));
         descriptors->push_back(EInternedAttributeKey::Overlayed);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxBlockSize)
-            .SetPresent(miscExt && miscExt->has_max_block_size()));
+            .SetPresent(miscExt && miscExt->has_max_data_block_size()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QuorumInfo)
             .SetPresent(chunk->IsJournal())
             .SetOpaque(true));
@@ -629,11 +629,11 @@ private:
                 return true;
 
             case EInternedAttributeKey::MaxBlockSize:
-                if (!miscExt || !miscExt->has_max_block_size()) {
+                if (!miscExt || !miscExt->has_max_data_block_size()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(miscExt->max_block_size());
+                    .Value(miscExt->max_data_block_size());
                 return true;
 
             case EInternedAttributeKey::ReadQuorum:

@@ -80,7 +80,7 @@ protected:
 
     // These methods return min block index, satisfying the lower limit.
     int ApplyLowerRowLimit(
-        const NProto::TBlockMetaExt& blockMeta,
+        const NProto::TDataBlockMetaExt& blockMeta,
         const NChunkClient::TReadLimit& lowerLimit) const;
     int ApplyLowerKeyLimit(
         const TSharedRange<TKey>& blockLastKeys,
@@ -89,7 +89,7 @@ protected:
 
     // These methods return max block index, satisfying the upper limit.
     int ApplyUpperRowLimit(
-        const NProto::TBlockMetaExt& blockMeta,
+        const NProto::TDataBlockMetaExt& blockMeta,
         const NChunkClient::TReadLimit& upperLimit) const;
     int ApplyUpperKeyLimit(
         const TSharedRange<TKey>& blockLastKeys,

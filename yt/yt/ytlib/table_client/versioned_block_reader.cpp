@@ -19,7 +19,7 @@ using namespace NProto;
 
 TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     TSharedRef block,
-    const TBlockMeta& meta,
+    const TDataBlockMeta& meta,
     TTableSchemaPtr chunkSchema,
     int /*chunkKeyColumnCount*/,
     int keyColumnCount,
@@ -481,7 +481,7 @@ i64 TSimpleVersionedBlockReader::GetRowIndex() const
 
 THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockReader(
     const TSharedRef& block,
-    const NProto::TBlockMeta& meta,
+    const NProto::TDataBlockMeta& meta,
     const std::vector<bool>& compositeColumnFlags,
     const std::vector<int>& chunkToReaderIdMapping,
     int chunkKeyColumnCount,

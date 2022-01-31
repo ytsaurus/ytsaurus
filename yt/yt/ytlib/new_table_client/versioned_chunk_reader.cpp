@@ -104,7 +104,7 @@ std::vector<TSpanMatching> DoBuildReadWindows(
     TPredicate pred)
 {
     const auto& blockLastKeys = chunkMeta->LegacyBlockLastKeys();
-    const auto& blockMeta = chunkMeta->BlockMeta();
+    const auto& blockMeta = chunkMeta->DataBlockMeta();
 
     std::vector<TSpanMatching> readWindows;
 
@@ -129,14 +129,14 @@ std::vector<TSpanMatching> DoBuildReadWindows(
         }
 
         auto shardIndex = shardIt - blockLastKeys.begin();
-        auto upperRowLimit = blockMeta->blocks(shardIndex).chunk_row_count();
+        auto upperRowLimit = blockMeta->data_blocks(shardIndex).chunk_row_count();
 
         // TODO(lukyan): Rewrite calculation of start index.
-        while (shardIndex > 0 && blockMeta->blocks(shardIndex - 1).chunk_row_count() == upperRowLimit) {
+        while (shardIndex > 0 && blockMeta->data_blocks(shardIndex - 1).chunk_row_count() == upperRowLimit) {
             --shardIndex;
         }
 
-        ui32 startIndex = shardIndex > 0 ? blockMeta->blocks(shardIndex - 1).chunk_row_count() : 0;
+        ui32 startIndex = shardIndex > 0 ? blockMeta->data_blocks(shardIndex - 1).chunk_row_count() : 0;
 
         if (startIndex < checkLastLimit) {
             return;
@@ -214,7 +214,7 @@ class TVersionedChunkReader
 {
 public:
     TVersionedChunkReader(
-        TRefCountedBlockMetaPtr blockMeta,
+        TRefCountedDataBlockMetaPtr blockMeta,
         std::vector<std::unique_ptr<TGroupBlockHolder>> columnBlockHolders,
         TBlockFetcherPtr blockFetcher,
         std::unique_ptr<IRowsetBuilder> rowsetBuilder,
@@ -316,7 +316,7 @@ public:
         bool lookup,
         TReaderStatisticsPtr readerStatistics)
         : TVersionedChunkReader(
-            chunkMeta->BlockMeta(),
+            chunkMeta->DataBlockMeta(),
             std::move(columnBlockHolders),
             std::move(blockFetcher),
             std::move(rowsetBuilder),
@@ -476,7 +476,7 @@ bool IsKeys(const TSharedRange<TLegacyKey>&)
 std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
     std::vector<TRange<ui32>> groupBlockIndexes,
     TRange<TSpanMatching> windows,
-    const TRefCountedBlockMetaPtr& blockMetas)
+    const TRefCountedDataBlockMetaPtr& blockMetas)
 {
     auto groupCount = groupBlockIndexes.size();
     std::vector<ui32> perGroupBlockRowLimits(groupCount, 0);
@@ -493,14 +493,14 @@ std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
             auto& blockIndexes = groupBlockIndexes[groupId];
 
             auto blockIt = ExponentialSearch(blockIndexes.begin(), blockIndexes.end(), [&] (auto blockIt) {
-                const auto& blockMeta = blockMetas->blocks(*blockIt);
+                const auto& blockMeta = blockMetas->data_blocks(*blockIt);
                 return blockMeta.chunk_row_count() <= startRowIndex;
             });
 
             blockIndexes = blockIndexes.Slice(blockIt - blockIndexes.begin(), blockIndexes.size());
 
             if (blockIt != blockIndexes.end()) {
-                const auto& blockMeta = blockMetas->blocks(*blockIt);
+                const auto& blockMeta = blockMetas->data_blocks(*blockIt);
                 perGroupBlockRowLimits[groupId] = blockMeta.chunk_row_count();
 
                 TBlockFetcher::TBlockInfo blockInfo;
@@ -561,7 +561,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     }
 
     TWallTimer buildBlockInfosTimer;
-    auto blockInfos = BuildBlockInfos(std::move(groupBlockIds), windowsList, chunkMeta->BlockMeta());
+    auto blockInfos = BuildBlockInfos(std::move(groupBlockIds), windowsList, chunkMeta->DataBlockMeta());
     readerStatistics->BuildBlockInfosTime = buildBlockInfosTimer.GetElapsedTime();
 
     auto blockCount = blockInfos.size();

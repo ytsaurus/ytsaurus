@@ -94,6 +94,7 @@ DEFINE_ENUM(EMasterReign,
     ((OwnsReplicationCard)                                          (1926))  // babenko
     ((RegisterQueueConsumerPermission)                              (1927))  // max42
     ((ChunkWeightStatisticsHistogram)                               (1928))  // h0pless
+    ((SystemBlocks)                                                 (1929))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

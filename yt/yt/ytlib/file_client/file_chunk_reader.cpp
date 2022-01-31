@@ -216,6 +216,8 @@ private:
         // COMPAT(psushin): new file chunk meta!
         auto fileBlocksExt = FindProtoExtension<NFileClient::NProto::TBlocksExt>(meta->extensions());
 
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
+
         i64 selectedSize = 0;
         int blockIndex = 0;
         auto addBlock = [&] (int index, i64 size) -> bool {
@@ -260,8 +262,6 @@ private:
             }
         }
         YT_VERIFY(blockCount >= 0);
-
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
 
         SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
             Config_,

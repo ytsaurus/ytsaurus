@@ -23,10 +23,10 @@ public:
 
     bool NeedUpdateBlock(ui32 rowIndex) const;
 
-    void SetBlock(TSharedRef data, const TRefCountedBlockMetaPtr& blockMeta);
+    void SetBlock(TSharedRef data, const TRefCountedDataBlockMetaPtr& blockMeta);
 
     // Returns block id.
-    std::optional<ui32> SkipToBlock(ui32 rowIndex, const TRefCountedBlockMetaPtr& blockMeta);
+    std::optional<ui32> SkipToBlock(ui32 rowIndex, const TRefCountedDataBlockMetaPtr& blockMeta);
 
     TRange<ui32> GetBlockIds() const;
 
@@ -59,7 +59,7 @@ class TBlockWindowManager
 public:
     TBlockWindowManager(
         std::vector<std::unique_ptr<TGroupBlockHolder>> groups,
-        TRefCountedBlockMetaPtr blockMeta,
+        TRefCountedDataBlockMetaPtr blockMeta,
         NChunkClient::TBlockFetcherPtr blockFetcher,
         TReaderStatisticsPtr readerStatistics);
 
@@ -76,7 +76,7 @@ protected:
     TReaderStatisticsPtr ReaderStatistics_;
 
 private:
-    const TRefCountedBlockMetaPtr BlockMeta_;
+    const TRefCountedDataBlockMetaPtr BlockMeta_;
     TFuture<std::vector<NChunkClient::TBlock>> FetchedBlocks_;
     TFuture<void> ReadyEvent_ = VoidFuture;
 };

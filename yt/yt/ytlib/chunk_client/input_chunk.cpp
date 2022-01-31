@@ -49,8 +49,8 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
 
         CompressedDataSize_ = miscExt->compressed_data_size();
 
-        MaxBlockSize_ = miscExt->has_max_block_size()
-            ? miscExt->max_block_size()
+        MaxBlockSize_ = miscExt->has_max_data_block_size()
+            ? miscExt->max_data_block_size()
             : DefaultMaxBlockSize;
         UniqueKeys_ = miscExt->unique_keys();
         if (miscExt->value_count() > 0) {

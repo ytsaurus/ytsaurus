@@ -33,7 +33,7 @@ protected:
 
 protected:
     TSharedRef Data;
-    NProto::TBlockMeta Meta;
+    NProto::TDataBlockMeta Meta;
 
     TChunkedMemoryPool MemoryPool;
 };

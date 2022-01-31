@@ -51,7 +51,7 @@ void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
     ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
 
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-    BlockMeta_ = New<TRefCountedBlockMeta>(GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions()));
+    DataBlockMeta_ = New<TRefCountedDataBlockMeta>(GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions()));
 
     // This is for old horizontal versioned chunks, since TCachedVersionedChunkMeta use this call.
     if (auto columnMeta = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions())) {
@@ -80,8 +80,8 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
     auto tempBuffer = New<TRowBuffer>(TBlockLastKeysBufferTag());
 
     std::vector<TLegacyKey> legacyBlockLastKeys;
-    legacyBlockLastKeys.reserve(BlockMeta_->blocks_size());
-    for (const auto& block : BlockMeta_->blocks()) {
+    legacyBlockLastKeys.reserve(DataBlockMeta_->data_blocks_size());
+    for (const auto& block : DataBlockMeta_->data_blocks()) {
         TLegacyKey key;
         if (ChunkSchema_->GetKeyColumnCount() > 0) {
             YT_VERIFY(block.has_last_key());
@@ -157,7 +157,7 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
         BlockLastKeysSize_ +
         sizeof (TKey) * BlockLastKeys_.Size() +
         Misc_.SpaceUsedLong() +
-        BlockMeta_->GetSize() * metaMemoryFactor +
+        DataBlockMeta_->GetSize() * metaMemoryFactor +
         (ColumnMeta_ ? ColumnMeta_->GetSize() * metaMemoryFactor : 0) +
         ChunkSchema_->GetMemoryUsage();
 }
