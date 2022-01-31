@@ -15,14 +15,14 @@
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLiveness
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     TInstant UpdatedAt;
     double LoadAverage;
@@ -30,13 +30,15 @@ struct TLiveness
     double UserCpu, SystemCpu, CpuWait;
     int ConcurrentRequests;
 
-    TLiveness();
+    REGISTER_YSON_STRUCT(TLiveness);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLiveness)
 
 struct TProxyEntry
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     TString Endpoint;
     TString Role;
@@ -46,9 +48,11 @@ struct TProxyEntry
     bool IsBanned;
     std::optional<TString> BanMessage;
 
-    TProxyEntry();
-
     TString GetHost() const;
+
+    REGISTER_YSON_STRUCT(TProxyEntry);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProxyEntry)

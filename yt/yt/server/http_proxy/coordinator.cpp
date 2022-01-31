@@ -58,36 +58,36 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLiveness::TLiveness()
+void TLiveness::Register(TRegistrar registrar)
 {
-    RegisterParameter("updated_at", UpdatedAt)
+    registrar.Parameter("updated_at", &TThis::UpdatedAt)
         .Default();
-    RegisterParameter("load_average", LoadAverage)
+    registrar.Parameter("load_average", &TThis::LoadAverage)
         .Default();
-    RegisterParameter("network_coef", NetworkCoef)
+    registrar.Parameter("network_coef", &TThis::NetworkCoef)
         .Default();
-    RegisterParameter("user_cpu", UserCpu)
+    registrar.Parameter("user_cpu", &TThis::UserCpu)
         .Default();
-    RegisterParameter("system_cpu", SystemCpu)
+    registrar.Parameter("system_cpu", &TThis::SystemCpu)
         .Default();
-    RegisterParameter("cpu_wait", CpuWait)
+    registrar.Parameter("cpu_wait", &TThis::CpuWait)
         .Default();
-    RegisterParameter("concurrent_requests", ConcurrentRequests)
+    registrar.Parameter("concurrent_requests", &TThis::ConcurrentRequests)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProxyEntry::TProxyEntry()
+void TProxyEntry::Register(TRegistrar registrar)
 {
-    RegisterParameter("role", Role);
-    RegisterParameter("endpoint", Endpoint)
+    registrar.Parameter("role", &TThis::Role);
+    registrar.Parameter("endpoint", &TThis::Endpoint)
         .Optional();
-    RegisterParameter("banned", IsBanned)
+    registrar.Parameter("banned", &TThis::IsBanned)
         .Default(false);
-    RegisterParameter("liveness", Liveness)
+    registrar.Parameter("liveness", &TThis::Liveness)
         .DefaultNew();
-    RegisterParameter(BanMessageAttributeName, BanMessage)
+    registrar.Parameter(BanMessageAttributeName, &TThis::BanMessage)
         .Default();
 }
 

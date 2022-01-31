@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/http/config.h>
 
@@ -15,7 +15,7 @@ namespace NYT::NHttpProxy::NClickHouse {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiscoveryCacheConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Base config for SlruCache.
@@ -34,7 +34,9 @@ public:
     //! How long the proxy will not send new requests to the instance after connection error to it.
     TDuration UnavailableInstanceBanTimeout;
 
-    TDiscoveryCacheConfig();
+    REGISTER_YSON_STRUCT(TDiscoveryCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoveryCacheConfig)
@@ -42,7 +44,7 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStaticClickHouseConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration ProfilingPeriod;
@@ -56,7 +58,9 @@ public:
     //! Clique discovery cache.
     TDiscoveryCacheConfigPtr DiscoveryCache;
 
-    TStaticClickHouseConfig();
+    REGISTER_YSON_STRUCT(TStaticClickHouseConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStaticClickHouseConfig)
@@ -64,7 +68,7 @@ DEFINE_REFCOUNTED_TYPE(TStaticClickHouseConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicClickHouseConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Path to folder in cypress which contains general information about all cliques.
@@ -93,7 +97,9 @@ public:
     //! If set, force enable or disable tracing for requests from DataLens.
     std::optional<bool> DatalensTracingOverride;
 
-    TDynamicClickHouseConfig();
+    REGISTER_YSON_STRUCT(TDynamicClickHouseConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicClickHouseConfig)

@@ -8,70 +8,70 @@ namespace NYT::NHttpProxy::NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiscoveryCacheConfig::TDiscoveryCacheConfig()
+void TDiscoveryCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cache_base", CacheBase)
-        .DefaultNew(/* capacity */ 1000);
-    RegisterParameter("soft_age_threshold", SoftAgeThreshold)
+    registrar.Parameter("cache_base", &TThis::CacheBase)
+        .DefaultCtor([] { return New<TSlruCacheConfig>(/*capacity*/ 1000); });
+    registrar.Parameter("soft_age_threshold", &TThis::SoftAgeThreshold)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("hard_age_threshold", HardAgeThreshold)
+    registrar.Parameter("hard_age_threshold", &TThis::HardAgeThreshold)
         .Default(TDuration::Minutes(15));
-    RegisterParameter("master_cache_expire_time", MasterCacheExpireTime)
+    registrar.Parameter("master_cache_expire_time", &TThis::MasterCacheExpireTime)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("unavailable_instance_ban_timeout", UnavailableInstanceBanTimeout)
+    registrar.Parameter("unavailable_instance_ban_timeout", &TThis::UnavailableInstanceBanTimeout)
         .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStaticClickHouseConfig::TStaticClickHouseConfig()
+void TStaticClickHouseConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("profiling_period", ProfilingPeriod)
+    registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("operation_cache", OperationCache)
+    registrar.Parameter("operation_cache", &TThis::OperationCache)
         .DefaultNew();
-    RegisterParameter("permission_cache", PermissionCache)
+    registrar.Parameter("permission_cache", &TThis::PermissionCache)
         .DefaultNew();
-    RegisterParameter("discovery_cache", DiscoveryCache)
+    registrar.Parameter("discovery_cache", &TThis::DiscoveryCache)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        OperationCache->RefreshTime = TDuration::Minutes(1);
-        OperationCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(2);
-        OperationCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
+    registrar.Preprocessor([] (TThis* config) {
+        config->OperationCache->RefreshTime = TDuration::Minutes(1);
+        config->OperationCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(2);
+        config->OperationCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
 
-        PermissionCache->RefreshUser = ClickHouseUserName;
-        PermissionCache->AlwaysUseRefreshUser = false;
-        PermissionCache->RefreshTime = TDuration::Minutes(1);
-        PermissionCache->ExpireAfterFailedUpdateTime = TDuration::Minutes(2);
-        PermissionCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(2);
+        config->PermissionCache->RefreshUser = ClickHouseUserName;
+        config->PermissionCache->AlwaysUseRefreshUser = false;
+        config->PermissionCache->RefreshTime = TDuration::Minutes(1);
+        config->PermissionCache->ExpireAfterFailedUpdateTime = TDuration::Minutes(2);
+        config->PermissionCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(2);
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicClickHouseConfig::TDynamicClickHouseConfig()
+void TDynamicClickHouseConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("discovery_path", DiscoveryPath)
+    registrar.Parameter("discovery_path", &TThis::DiscoveryPath)
         .Default("//sys/clickhouse/cliques");
-    RegisterParameter("http_client", HttpClient)
+    registrar.Parameter("http_client", &TThis::HttpClient)
         .DefaultNew();
-    RegisterParameter("ignore_missing_credentials", IgnoreMissingCredentials)
+    registrar.Parameter("ignore_missing_credentials", &TThis::IgnoreMissingCredentials)
         .Default(false);
-    RegisterParameter("dead_instance_retry_count", DeadInstanceRetryCount)
+    registrar.Parameter("dead_instance_retry_count", &TThis::DeadInstanceRetryCount)
         .Default(6);
-    RegisterParameter("retry_without_update_limit", RetryWithoutUpdateLimit)
+    registrar.Parameter("retry_without_update_limit", &TThis::RetryWithoutUpdateLimit)
         .Default(3);
-    RegisterParameter("force_discovery_update_age_threshold", ForceDiscoveryUpdateAgeThreshold)
+    registrar.Parameter("force_discovery_update_age_threshold", &TThis::ForceDiscoveryUpdateAgeThreshold)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("alias_resolution_timeout", AliasResolutionTimeout)
+    registrar.Parameter("alias_resolution_timeout", &TThis::AliasResolutionTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("datalens_tracing_override", DatalensTracingOverride)
+    registrar.Parameter("datalens_tracing_override", &TThis::DatalensTracingOverride)
         .Default();
 
-    RegisterPreprocessor([&] {
-        HttpClient->HeaderReadTimeout = TDuration::Hours(1);
-        HttpClient->BodyReadIdleTimeout = TDuration::Hours(1);
+    registrar.Preprocessor([] (TThis* config) {
+        config->HttpClient->HeaderReadTimeout = TDuration::Hours(1);
+        config->HttpClient->BodyReadIdleTimeout = TDuration::Hours(1);
     });
 }
 
