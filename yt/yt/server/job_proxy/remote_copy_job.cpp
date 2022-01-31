@@ -74,7 +74,7 @@ public:
         , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())
         , RemoteCopyJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext))
         , ReaderConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader)
-        , WriterConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter)
+        , WriterConfig_(CloneYsonSerializable(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter))
         , RemoteCopyQueue_(New<TActionQueue>("RemoteCopy"))
         , CopySemaphore_(New<TAsyncSemaphore>(RemoteCopyJobSpecExt_.concurrency()))
     {
@@ -103,6 +103,10 @@ public:
             TYsonString(SchedulerJobSpecExt_.output_table_specs(0).table_writer_options()));
         OutputChunkListId_ = FromProto<TChunkListId>(
             SchedulerJobSpecExt_.output_table_specs(0).chunk_list_id());
+
+        WriterConfig_->UploadReplicationFactor = std::min(
+            WriterConfig_->UploadReplicationFactor,
+            WriterOptionsTemplate_->ReplicationFactor);
 
         auto remoteConnectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
         RemoteConnection_ = NNative::CreateConnection(remoteConnectionConfig);
