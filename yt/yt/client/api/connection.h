@@ -69,11 +69,14 @@ struct TTransactionParticipantOptions
 struct IConnection
     : public virtual TRefCounted
 {
-    // TODO(shakurov): unify this with GetPrimaryMasterCellId, GetPrimaryMasterCellTag, and GetSecondaryMasterCellTags.
-    virtual NObjectClient::TCellTag GetCellTag() = 0;
-    virtual const TString& GetLoggingTag() = 0;
-    virtual const TString& GetClusterId() = 0;
+    virtual TClusterTag GetClusterTag() const = 0;
+    virtual const TString& GetLoggingTag() const = 0;
+    virtual const TString& GetClusterId() const = 0;
     virtual IInvokerPtr GetInvoker() = 0;
+
+    // TODO(gritukan): Fix alien transaction creation for RPC proxy connection
+    // and eliminate this method.
+    virtual bool IsSameCluster(const IConnectionPtr& other) const = 0;
 
     virtual IClientPtr CreateClient(const TClientOptions& options = {}) = 0;
     virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(

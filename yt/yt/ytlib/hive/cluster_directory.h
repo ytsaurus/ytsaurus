@@ -26,16 +26,16 @@ class TClusterDirectory
 public:
     explicit TClusterDirectory(NApi::TConnectionOptions connectionOptions);
 
-    //! Returns the connection to cluster with a given #cellTag.
+    //! Returns the connection to cluster with a given #clusterTag.
     //! Only applies to native connections. Returns |nullptr| if no connection is found.
-    NApi::IConnectionPtr FindConnection(NObjectClient::TCellTag cellTag) const;
-    //! Same as #FindConnection but throws instead of failing.
-    NApi::IConnectionPtr GetConnectionOrThrow(NObjectClient::TCellTag cellTag) const;
+    NApi::IConnectionPtr FindConnection(NApi::TClusterTag clusterTag) const;
+    //! Same as #FindConnection but throws if no connection is found.
+    NApi::IConnectionPtr GetConnectionOrThrow(NApi::TClusterTag clusterTag) const;
 
     //! Returns the connection to cluster with a given #clusterName.
     //! Returns |nullptr| if no connection is found.
     NApi::IConnectionPtr FindConnection(const TString& clusterName) const;
-    //! Same as #FindConnection but throws instead of failing.
+    //! Same as #FindConnection but throws if no connection is found.
     NApi::IConnectionPtr GetConnectionOrThrow(const TString& clusterName) const;
 
     //! Returns the list of names of all registered clusters.
@@ -65,13 +65,12 @@ private:
     const NApi::TConnectionOptions ConnectionOptions_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    THashMap<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
+    THashMap<NApi::TClusterTag, TCluster> ClusterTagToCluster_;
     THashMap<TString, TCluster> NameToCluster_;
 
 
     TCluster CreateCluster(const TString& name, NYTree::INodePtr config) const;
-    static NObjectClient::TCellTag GetCellTag(const TCluster& cluster);
-
+    static NApi::TClusterTag GetClusterTag(const TCluster& cluster);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterDirectory)

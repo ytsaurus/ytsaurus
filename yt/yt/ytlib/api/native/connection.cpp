@@ -262,19 +262,24 @@ public:
 
     // IConnection implementation.
 
-    TCellTag GetCellTag() override
+    TClusterTag GetClusterTag() const override
     {
         return GetPrimaryMasterCellTag();
     }
 
-    const TString& GetLoggingTag() override
+    const TString& GetLoggingTag() const override
     {
         return LoggingTag_;
     }
 
-    const TString& GetClusterId() override
+    const TString& GetClusterId() const override
     {
         return ClusterId_;
+    }
+
+    bool IsSameCluster(const NApi::IConnectionPtr& other) const override
+    {
+        return GetClusterTag() == other->GetClusterTag();
     }
 
     const ITableMountCachePtr& GetTableMountCache() override
