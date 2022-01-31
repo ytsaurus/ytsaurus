@@ -174,7 +174,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ConfigChanged_.Fire(nullptr);
+        ConfigChanged_.Fire(Config_);
     }
 };
 
