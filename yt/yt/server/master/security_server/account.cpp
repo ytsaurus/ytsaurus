@@ -27,6 +27,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = SecurityServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TAccountStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -192,6 +196,15 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::MoreChunkMergerLimits) {
         Load(context, ChunkMergerNodeTraversalConcurrency_);
+    }
+
+    // COMPAT(aleksandra-zh)
+    const auto& attributeName = EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency.Unintern();
+    if (auto value = FindAttribute(attributeName)) {
+        YT_VERIFY(Attributes_->Remove(attributeName));
+        YT_LOG_INFO("Dropping custom chunk merger traversal concurrency value (Value: %v, AccountName: %v)",
+            *value,
+            GetName());
     }
 
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
