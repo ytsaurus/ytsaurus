@@ -68,7 +68,7 @@ ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType() const
 template <class TChunkOwner>
 bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const TString& key) const
 {
-    static const THashSet<TString> supportedInheritableAttributes = {
+    static const THashSet<TString> SupportedInheritableAttributes{
         "compression_codec",
         "erasure_codec",
         "media"
@@ -78,7 +78,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const 
         "enable_chunk_merger"
     };
 
-    return supportedInheritableAttributes.contains(key);
+    return SupportedInheritableAttributes.contains(key);
 }
 
 template <class TChunkOwner>

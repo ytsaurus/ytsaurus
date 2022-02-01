@@ -85,6 +85,7 @@ template <class TImpl>
 void TCellTypeHandlerBase<TImpl>::DoZombifyObject(TImpl* cell)
 {
     TBase::DoZombifyObject(cell);
+
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
     cellManager->ZombifyCell(cell);
 }
