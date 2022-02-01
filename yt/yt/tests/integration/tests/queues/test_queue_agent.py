@@ -282,7 +282,7 @@ class TestMultipleAgents(YTEnvSetup):
             "poll_period": 100,
         },
         "election_manager": {
-            "transaction_timeout": 1000,
+            "transaction_timeout": 5000,
             "transaction_ping_period": 100,
             "lock_acquisition_period": 100,
         },
@@ -367,7 +367,7 @@ class TestMasterIntegration(YTEnvSetup):
             "poll_period": 100,
         },
         "election_manager": {
-            "transaction_timeout": 1000,
+            "transaction_timeout": 5000,
             "transaction_ping_period": 100,
             "lock_acquisition_period": 100,
         },
