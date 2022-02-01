@@ -78,6 +78,11 @@ public:
         , UnderlyingChangelog_(std::move(underlyingChangelog))
     { }
 
+    int GetId() const override
+    {
+        return UnderlyingChangelog_->GetId();
+    }
+
     const NProto::TChangelogMeta& GetMeta() const override
     {
         return UnderlyingChangelog_->GetMeta();
@@ -189,6 +194,11 @@ public:
         : TAsyncCacheValueBase(id)
         , UnderlyingChangelog_(std::move(underlyingChangelog))
     { }
+
+    int GetId() const override
+    {
+        return UnderlyingChangelog_->GetId();
+    }
 
     const NProto::TChangelogMeta& GetMeta() const override
     {
@@ -320,7 +330,7 @@ private:
         auto path = GetChangelogPath(Config_->Path, id);
 
         try {
-            auto underlyingChangelog = WaitFor(Dispatcher_->CreateChangelog(path, meta, Config_))
+            auto underlyingChangelog = WaitFor(Dispatcher_->CreateChangelog(id, path, meta, Config_))
                 .ValueOrThrow();
             auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
@@ -346,7 +356,7 @@ private:
                     id));
             } else {
                 try {
-                    auto underlyingChangelog = WaitFor(Dispatcher_->OpenChangelog(path, Config_))
+                    auto underlyingChangelog = WaitFor(Dispatcher_->OpenChangelog(id, path, Config_))
                         .ValueOrThrow();
                     auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
                     cookie.EndInsert(cachedChangelog);

@@ -35,6 +35,7 @@ DECLARE_REFCOUNTED_CLASS(TFileChangelogQueue)
 DECLARE_REFCOUNTED_CLASS(TFileChangelog)
 
 IChangelogPtr CreateFileChangelog(
+    int id,
     TFileChangelogDispatcherPtr dispatcher,
     TFileChangelogConfigPtr config,
     TSyncFileChangelogPtr changelog);
@@ -349,23 +350,25 @@ public:
     }
 
     TFuture<IChangelogPtr> CreateChangelog(
+        int id,
         const TString& path,
         const TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config) override
     {
         return BIND(&TFileChangelogDispatcher::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(ActionQueue_->GetInvoker())
-            .Run(path, meta, config)
+            .Run(id, path, meta, config)
             .ToUncancelable();
     }
 
     TFuture<IChangelogPtr> OpenChangelog(
+        int id,
         const TString& path,
         const TFileChangelogConfigPtr& config) override
     {
         return BIND(&TFileChangelogDispatcher::DoOpenChangelog, MakeStrong(this))
             .AsyncVia(ActionQueue_->GetInvoker())
-            .Run(path, config)
+            .Run(id, path, config)
             .ToUncancelable();
     }
 
@@ -528,22 +531,24 @@ private:
     }
 
     IChangelogPtr DoCreateChangelog(
+        int id,
         const TString& path,
         const TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config)
     {
         auto syncChangelog = New<TSyncFileChangelog>(IOEngine_, path, config);
         syncChangelog->Create(meta);
-        return CreateFileChangelog(this, config, syncChangelog);
+        return CreateFileChangelog(id, this, config, syncChangelog);
     }
 
     IChangelogPtr DoOpenChangelog(
+        int id,
         const TString& path,
         const TFileChangelogConfigPtr& config)
     {
         auto syncChangelog = New<TSyncFileChangelog>(IOEngine_, path, config);
         syncChangelog->Open();
-        return CreateFileChangelog(this, config, syncChangelog);
+        return CreateFileChangelog(id, this, config, syncChangelog);
     }
 
     TFuture<void> DoFlushChangelogs()
@@ -565,10 +570,12 @@ class TFileChangelog
 {
 public:
     TFileChangelog(
+        int id,
         TFileChangelogDispatcherPtr dispatcher,
         TFileChangelogConfigPtr config,
         TSyncFileChangelogPtr changelog)
-        : Dispatcher_(std::move(dispatcher))
+        : Id_(id)
+        , Dispatcher_(std::move(dispatcher))
         , Config_(std::move(config))
         , Queue_(Dispatcher_->CreateQueue(changelog))
         , RecordCount_(changelog->GetRecordCount())
@@ -583,6 +590,11 @@ public:
             Queue_->GetChangelog()->GetFileName());
         Close();
         Dispatcher_->UnregisterQueue(Queue_);
+    }
+
+    int GetId() const override
+    {
+        return Id_;
     }
 
     int GetRecordCount() const override
@@ -649,6 +661,7 @@ public:
     }
 
 private:
+    const int Id_;
     const TFileChangelogDispatcherPtr Dispatcher_;
     const TFileChangelogConfigPtr Config_;
 
@@ -664,11 +677,13 @@ private:
 DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 
 IChangelogPtr CreateFileChangelog(
+    int id,
     TFileChangelogDispatcherPtr dispatcher,
     TFileChangelogConfigPtr config,
     TSyncFileChangelogPtr changelog)
 {
     return New<TFileChangelog>(
+        id,
         std::move(dispatcher),
         std::move(config),
         std::move(changelog));

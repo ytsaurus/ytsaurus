@@ -14,12 +14,20 @@ class TLazyChangelog
     : public IChangelog
 {
 public:
-    explicit TLazyChangelog(TFuture<IChangelogPtr> futureChangelog)
-        : FutureChangelog_(futureChangelog)
+    TLazyChangelog(
+        int changelogId,
+        TFuture<IChangelogPtr> futureChangelog)
+        : ChangelogId_(changelogId)
+        , FutureChangelog_(futureChangelog)
         , BacklogAppendPromise_(NewPromise<void>())
     {
         FutureChangelog_.Subscribe(
             BIND(&TLazyChangelog::OnUnderlyingChangelogReady, MakeWeak(this)));
+    }
+
+    int GetId() const override
+    {
+        return ChangelogId_;
     }
 
     int GetRecordCount() const override
@@ -114,7 +122,8 @@ public:
     }
 
 private:
-    TFuture<IChangelogPtr> FutureChangelog_;
+    const int ChangelogId_;
+    const TFuture<IChangelogPtr> FutureChangelog_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
@@ -150,6 +159,8 @@ private:
         YT_VERIFY(!UnderlyingChangelog_);
         UnderlyingChangelog_ = changelogOrError.Value();
 
+        YT_VERIFY(UnderlyingChangelog_->GetId() == ChangelogId_);
+
         auto future = UnderlyingChangelog_->Append(BacklogRecords_);
         BacklogRecords_.clear();
 
@@ -165,12 +176,17 @@ private:
         return WaitFor(FutureChangelog_)
             .ValueOrThrow();
     }
-
 };
 
-IChangelogPtr CreateLazyChangelog(TFuture<IChangelogPtr> futureChangelog)
+////////////////////////////////////////////////////////////////////////////////
+
+IChangelogPtr CreateLazyChangelog(
+    int changelogId,
+    TFuture<IChangelogPtr> futureChangelog)
 {
-    return New<TLazyChangelog>(futureChangelog);
+    return New<TLazyChangelog>(
+        changelogId,
+        std::move(futureChangelog));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

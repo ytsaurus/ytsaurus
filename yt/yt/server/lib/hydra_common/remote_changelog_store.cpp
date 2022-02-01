@@ -180,6 +180,7 @@ private:
                 meta.term());
 
             return CreateRemoteChangelog(
+                id,
                 path,
                 meta,
                 /*recordCount*/ 0,
@@ -228,6 +229,7 @@ private:
             TChangelogMeta meta;
             meta.set_term(term);
             return CreateRemoteChangelog(
+                id,
                 path,
                 std::move(meta),
                 recordCount,
@@ -241,6 +243,7 @@ private:
     }
 
     IChangelogPtr CreateRemoteChangelog(
+        int id,
         TYPath path,
         TChangelogMeta meta,
         int recordCount,
@@ -248,6 +251,7 @@ private:
         bool createWriter)
     {
         return New<TRemoteChangelog>(
+            id,
             std::move(path),
             std::move(meta),
             PrerequisiteTransaction_,
@@ -278,6 +282,7 @@ private:
     {
     public:
         TRemoteChangelog(
+            int id,
             TYPath path,
             TChangelogMeta meta,
             ITransactionPtr prerequisiteTransaction,
@@ -285,7 +290,8 @@ private:
             i64 dataSize,
             bool createWriter,
             TRemoteChangelogStorePtr owner)
-            : Path_(std::move(path))
+            : Id_(id)
+            , Path_(std::move(path))
             , Meta_(std::move(meta))
             , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
             , Owner_(std::move(owner))
@@ -297,6 +303,11 @@ private:
                 auto guard = Guard(WriterLock_);
                 CreateWriter();
             }
+        }
+
+        int GetId() const override
+        {
+            return Id_;
         }
 
         int GetRecordCount() const override
@@ -388,6 +399,7 @@ private:
         }
 
     private:
+        const int Id_;
         const TYPath Path_;
         const TChangelogMeta Meta_;
         const ITransactionPtr PrerequisiteTransaction_;
