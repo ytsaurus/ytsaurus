@@ -507,10 +507,18 @@ class YTEnvSetup(object):
                 }
 
             for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
-                driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+                cluster_name = cls.get_cluster_name(cluster_index)
+                driver = yt_commands.get_driver(cluster=cluster_name)
                 if driver is None:
                     continue
-                yt_commands.set("//sys/clusters", clusters, driver=driver)
+
+                requests = [
+                    yt_commands.make_batch_request("set", path="//sys/@cluster_name", input=cluster_name),
+                    yt_commands.make_batch_request("set", path="//sys/clusters", input=clusters)
+                ]
+                responses = yt_commands.execute_batch(requests, driver=driver)
+                for response in responses:
+                    yt_commands.raise_batch_error(response)
 
         # TODO(babenko): wait for cluster sync
         if cls.remote_envs:
