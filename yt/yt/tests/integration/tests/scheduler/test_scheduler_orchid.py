@@ -9,6 +9,7 @@ from yt_scheduler_helpers import (
     scheduler_orchid_operation_by_pool_path, scheduler_new_orchid_pool_tree_path, scheduler_orchid_pool_tree_path)
 
 import builtins
+import time
 
 ##################################################################
 
@@ -84,3 +85,36 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
         wait(lambda: get(
             scheduler_new_orchid_pool_tree_path("default") + "/resource_distribution_info") == get(
                 scheduler_orchid_pool_tree_path("default") + "/resource_distribution_info"))
+
+
+class TestOrchidOnSchedulerRestart(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 500,
+            "testing_options": {
+                "enable_random_master_disconnection": True,
+                "random_master_disconnection_max_backoff": 2000,
+                "finish_operation_transition_delay": 1000,
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    def test_orchid_on_scheduler_restarts(self):
+        create_pool("pool")
+        for _ in range(50):
+            try:
+                get(scheduler_new_orchid_pool_tree_path("default") + "/resource_usage", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/resource_distribution_info", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/pools", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/config", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/operations", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/operations_by_pool", verbose=False)
+            except:
+                pass
+            time.sleep(0.1)

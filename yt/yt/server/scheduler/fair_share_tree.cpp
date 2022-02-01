@@ -980,9 +980,7 @@ public:
         dynamicOrchidService->AddChild("operations", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
             if (!treeSnapshot) {
-                BuildYsonFluently(consumer).BeginMap()
-                .EndMap();
-                return;
+                ThrowOrchidIsNotReady();
             }
 
             const auto buildOperationInfo = [&] (TFluentMap fluent, const TSchedulerOperationElement* const operation) {
@@ -1011,9 +1009,7 @@ public:
         dynamicOrchidService->AddChild("config", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
             if (!treeSnapshot) {
-                BuildYsonFluently(consumer).BeginMap()
-                .EndMap();
-                return;
+                ThrowOrchidIsNotReady();
             }
 
             BuildYsonFluently(consumer).Value(treeSnapshot->TreeConfig());
@@ -1022,8 +1018,7 @@ public:
         dynamicOrchidService->AddChild("resource_usage", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
             if (!treeSnapshot) {
-                BuildYsonFluently(consumer).Value(TJobResources());
-                return;
+                ThrowOrchidIsNotReady();
             }
 
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceUsage());
@@ -1032,8 +1027,7 @@ public:
         dynamicOrchidService->AddChild("resource_limits", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
             if (!treeSnapshot) {
-                BuildYsonFluently(consumer).Value(TJobResources());
-                return;
+                ThrowOrchidIsNotReady();
             }
 
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceLimits());
@@ -1049,9 +1043,7 @@ public:
         dynamicOrchidService->AddChild("pools", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
             if (!treeSnapshot) {
-                BuildYsonFluently(consumer).BeginMap()
-                .EndMap();
-                return;
+                ThrowOrchidIsNotReady();
             }
 
             BuildYsonFluently(consumer).BeginMap()
@@ -1062,9 +1054,7 @@ public:
         dynamicOrchidService->AddChild("resource_distribution_info", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
             if (!treeSnapshot) {
-                BuildYsonFluently(consumer).BeginMap()
-                .EndMap();
-                return;
+                ThrowOrchidIsNotReady();
             }
 
             BuildYsonFluently(consumer).BeginMap()
@@ -1182,6 +1172,9 @@ private:
             }
 
             const auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshot();
+            if (!fairShareTreeSnapshot) {
+                FairShareTree_->ThrowOrchidIsNotReady();
+            }
 
             std::vector<TString> result;
             result.reserve(std::min(limit, std::ssize(fairShareTreeSnapshot->PoolMap())));
@@ -1201,6 +1194,9 @@ private:
             VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
 
             const auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshot();
+            if (!fairShareTreeSnapshot) {
+                FairShareTree_->ThrowOrchidIsNotReady();
+            }
 
             const auto poolIterator = fairShareTreeSnapshot->PoolMap().find(poolName);
             if (poolIterator == std::cend(fairShareTreeSnapshot->PoolMap())) {
@@ -1259,6 +1255,12 @@ private:
 
     // NB: Used only at building metering info.
     mutable TAccumulatedResourceUsageInfo AccumulatedResourceUsageInfo_;
+
+    void ThrowOrchidIsNotReady() const
+    {
+        THROW_ERROR_EXCEPTION("Fair share tree orchid is not ready yet")
+            << TErrorAttribute("tree_id", TreeId_);
+    }
 
     TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept
     {
