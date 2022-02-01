@@ -136,34 +136,6 @@ public:
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    void OnLeaderActive() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnLeaderActive();
-
-        const auto& gossipConfig = GetGossipConfig();
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsSecondaryMaster()) {
-            StatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
-                BIND(&TImpl::OnStatisticsGossip, MakeWeak(this)),
-                gossipConfig->TableStatisticsGossipPeriod);
-            StatisticsGossipExecutor_->Start();
-        }
-    }
-
-    void OnStopLeading() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnStopLeading();
-
-        if (StatisticsGossipExecutor_) {
-            StatisticsGossipExecutor_->Stop();
-        }
-    }
 
     void ScheduleStatisticsUpdate(
         TChunkOwnerBase* chunkOwner,
@@ -188,21 +160,6 @@ public:
             statistics.UpdateAccessTime = true;
             statistics.UseNativeContentRevisionCas = useNativeContentRevisionCas;
         }
-    }
-
-    void OnStatisticsGossip()
-    {
-        auto nodeCount = StatisticsUpdateRequests_.Size();
-        nodeCount = StatisticsGossipThrottler_->TryAcquireAvailable(nodeCount);
-        if (nodeCount == 0) {
-            return;
-        }
-
-        NTableServer::NProto::TReqSendTableStatisticsUpdates request;
-        request.set_node_count(nodeCount);
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
     }
 
     void SendStatisticsUpdate(
@@ -239,252 +196,10 @@ public:
         StatisticsUpdateRequests_.Pop(chunkOwner->GetId());
     }
 
-    void HydraSendTableStatisticsUpdates(NTableServer::NProto::TReqSendTableStatisticsUpdates* request)
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsSecondaryMaster());
-
-        auto remainingNodeCount = request->node_count();
-
-        std::vector<TNodeId> nodeIds;
-        // NB: Ordered map is needed to make things deterministic.
-        std::map<TCellTag, NTableServer::NProto::TReqUpdateTableStatistics> cellTagToRequest;
-        while (remainingNodeCount-- > 0 && !StatisticsUpdateRequests_.IsEmpty()) {
-            const auto& [nodeId, statistics] = StatisticsUpdateRequests_.Pop();
-
-            auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-            YT_VERIFY(IsSupportedNodeType(node->GetType()));
-
-            if (statistics.UpdateTabletResourceUsage && !IsTableType(node->GetType())) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Requested to send tablet resource usage update for a non-table node; ignored (NodeId: %v)",
-                    nodeId);
-                continue;
-            }
-
-            auto* chunkOwner = node->As<TChunkOwnerBase>();
-
-            auto cellTag = CellTagFromId(nodeId);
-            auto& request = cellTagToRequest[cellTag];
-            auto* entry = request.add_entries();
-            ToProto(entry->mutable_node_id(), nodeId);
-            if (statistics.UpdateDataStatistics) {
-                ToProto(entry->mutable_data_statistics(), chunkOwner->SnapshotStatistics());
-            }
-            if (statistics.UpdateTabletResourceUsage) {
-                // Correctness of this cast has been verified above.
-                auto* table = chunkOwner->As<TTableNode>();
-                ToProto(entry->mutable_tablet_resource_usage(), table->GetTabletResourceUsage());
-            }
-            if (statistics.UpdateModificationTime) {
-                entry->set_modification_time(ToProto<ui64>(chunkOwner->GetModificationTime()));
-            }
-            if (statistics.UpdateAccessTime) {
-                entry->set_access_time(ToProto<ui64>(chunkOwner->GetAccessTime()));
-            }
-            if (statistics.UseNativeContentRevisionCas) {
-                entry->set_expected_content_revision(chunkOwner->GetNativeContentRevision());
-            }
-            nodeIds.push_back(nodeId);
-        }
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Sending node statistics update (RequestedNodeCount: %v, NodeIds: %v)",
-            request->node_count(),
-            nodeIds);
-
-        for  (const auto& [cellTag, request] : cellTagToRequest) {
-            multicellManager->PostToMaster(request, cellTag);
-        }
-    }
-
-    void HydraUpdateTableStatistics(NTableServer::NProto::TReqUpdateTableStatistics* request)
-    {
-        TCompactVector<TTableId, 8> nodeIds;
-        nodeIds.reserve(request->entries_size());
-        for (const auto& entry : request->entries()) {
-            nodeIds.push_back(FromProto<TNodeId>(entry.node_id()));
-        }
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Received node statistics update (NodeIds: %v)",
-            nodeIds);
-
-        TCompactVector<TTableId, 8> nodeIdsToRetry; // Just for logging.
-        NTableServer::NProto::TReqNotifyContentRevisionCasFailed retryRequest;
-
-        auto externalCellTag = InvalidCellTag;
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        for (const auto& entry : request->entries()) {
-            auto nodeId = FromProto<TTableId>(entry.node_id());
-            auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            YT_VERIFY(IsSupportedNodeType(node->GetType()));
-            auto* chunkOwner = node->As<TChunkOwnerBase>();
-
-            YT_VERIFY(
-                externalCellTag == InvalidCellTag ||
-                externalCellTag == chunkOwner->GetExternalCellTag());
-            externalCellTag = chunkOwner->GetExternalCellTag();
-
-            if (entry.has_expected_content_revision() &&
-                chunkOwner->GetContentRevision() != entry.expected_content_revision())
-            {
-                nodeIdsToRetry.push_back(nodeId);
-                auto* retryEntry = retryRequest.add_entries();
-                ToProto(retryEntry->mutable_node_id(), nodeId);
-                retryEntry->set_update_data_statistics(entry.has_data_statistics());
-                retryEntry->set_update_tablet_statistics(entry.has_tablet_resource_usage());
-                // Sending actual revisions fits nicely into the protocol but, strictly
-                // speaking, this is only necessary for migrating on update. (A newly
-                // updated external cell doesn't know native content revisions - and it
-                // has no way of acquiring that knowledge other than these notifications.)
-                retryEntry->set_actual_content_revision(chunkOwner->GetContentRevision());
-                continue;
-            }
-
-            if (entry.has_tablet_resource_usage()) {
-                if (IsTableType(chunkOwner->GetType())) {
-                    auto* table = chunkOwner->As<TTableNode>();
-                    auto tabletResourceUsage = FromProto<TTabletResources>(entry.tablet_resource_usage());
-                    table->SetExternalTabletResourceUsage(tabletResourceUsage);
-                } else {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received tablet resource usage update for a non-table node (NodeId: %v)",
-                        nodeId);
-                }
-            }
-
-            if (entry.has_data_statistics()) {
-                chunkOwner->SnapshotStatistics() = entry.data_statistics();
-            }
-
-            if (entry.has_modification_time()) {
-                chunkOwner->SetModificationTime(std::max(
-                    chunkOwner->GetModificationTime(),
-                    FromProto<TInstant>(entry.modification_time())));
-            }
-
-            if (entry.has_access_time()) {
-                chunkOwner->SetAccessTime(std::max(
-                    chunkOwner->GetAccessTime(),
-                    FromProto<TInstant>(entry.access_time())));
-            }
-        }
-
-        if (!nodeIdsToRetry.empty()) {
-            YT_VERIFY(std::ssize(nodeIdsToRetry) == retryRequest.entries_size());
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(retryRequest, externalCellTag);
-
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Content revision CASes failed, requesting retries (NodeIds: %v)",
-                nodeIdsToRetry);
-        }
-    }
-
-    void HydraNotifyContentRevisionCasFailed(NTableServer::NProto::TReqNotifyContentRevisionCasFailed* request)
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-
-        for (const auto& entry : request->entries()) {
-            auto nodeId = FromProto<TNodeId>(entry.node_id());
-            auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            YT_VERIFY(IsSupportedNodeType(node->GetType()));
-            auto* chunkOwner = node->As<TChunkOwnerBase>();
-
-            auto actualContentRevision = entry.actual_content_revision();
-            if (actualContentRevision >= chunkOwner->GetNativeContentRevision()) {
-                chunkOwner->SetNativeContentRevision(actualContentRevision);
-            } else {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received non-monotonic revision with content revision CAS failure notification; ignored (NodeId: %v, ReceivedRevision: %llx, NodeRevision: %llx)",
-                    nodeId,
-                    actualContentRevision,
-                    chunkOwner->GetNativeContentRevision());
-            }
-
-            ScheduleStatisticsUpdate(
-                chunkOwner,
-                entry.update_data_statistics(),
-                entry.update_tablet_statistics(),
-                /*useNativeContentRevisionCas*/ true);
-        }
-    }
-
-    void Clear() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::Clear();
-
-        MasterTableSchemaMap_.Clear();
-        TableSchemaToObjectMap_.clear();
-        EmptyMasterTableSchema_ = nullptr;
-        TableCollocationMap_.Clear();
-        StatisticsUpdateRequests_.Clear();
-    }
-
-    void SetZeroState() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TCompositeAutomatonPart::SetZeroState();
-
-        InitBuiltins();
-    }
-
-    void LoadKeys(NCellMaster::TLoadContext& context)
-    {
-        MasterTableSchemaMap_.LoadKeys(context);
-        TableCollocationMap_.LoadKeys(context);
-    }
-
-    void LoadValues(NCellMaster::TLoadContext& context)
-    {
-        MasterTableSchemaMap_.LoadValues(context);
-        Load(context, StatisticsUpdateRequests_);
-        TableCollocationMap_.LoadValues(context);
-    }
-
-    void OnBeforeSnapshotLoaded() override
-    {
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-    }
-
-    void OnAfterSnapshotLoaded() override
-    {
-        TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        // Usually the empty table schema, like any other, is loaded from snapshot.
-        // However:
-        //   - we still need to initialize the pointer;
-        //   - on old snapshots that don't contain schema map (or this automaton
-        //     part altogether) this initialization is crucial.
-        InitBuiltins();
-    }
-
-    void SaveKeys(NCellMaster::TSaveContext& context) const
-    {
-        MasterTableSchemaMap_.SaveKeys(context);
-        TableCollocationMap_.SaveKeys(context);
-    }
-
-    void SaveValues(NCellMaster::TSaveContext& context) const
-    {
-        MasterTableSchemaMap_.SaveValues(context);
-        Save(context, StatisticsUpdateRequests_);
-        TableCollocationMap_.SaveValues(context);
-    }
 
     DECLARE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
     DECLARE_ENTITY_MAP_ACCESSORS(TableCollocation, TTableCollocation);
+
 
     TTableNode* GetTableNodeOrThrow(TTableId id)
     {
@@ -627,22 +342,6 @@ public:
         YT_VERIFY(!FindMasterTableSchema(tableSchemaId));
 
         return DoCreateMasterTableSchema(tableSchemaId, tableSchema);
-    }
-
-    void InitBuiltins()
-    {
-        if (EmptyMasterTableSchema_) {
-            return;
-        }
-
-        EmptyMasterTableSchema_ = FindMasterTableSchema(EmptyMasterTableSchemaId_);
-
-        if (EmptyMasterTableSchema_) {
-            return;
-        }
-
-        EmptyMasterTableSchema_ = DoCreateMasterTableSchema(EmptyMasterTableSchemaId_, EmptyTableSchema);
-        YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
     }
 
     TMasterTableSchema* CreateMasterTableSchema(const TTableSchema& tableSchema)
@@ -949,27 +648,6 @@ public:
     }
 
 private:
-    const TDynamicTablesMulticellGossipConfigPtr& GetGossipConfig()
-    {
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        return configManager->GetConfig()->TabletManager->MulticellGossip;
-    }
-
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
-    {
-        const auto& gossipConfig = GetGossipConfig();
-        StatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);
-
-        if (StatisticsGossipExecutor_) {
-            StatisticsGossipExecutor_->SetPeriod(gossipConfig->TableStatisticsGossipPeriod);
-        }
-    }
-
-    static bool IsSupportedNodeType(EObjectType type)
-    {
-        return IsTableType(type) || type == EObjectType::File;
-    }
-
     struct TStatisticsUpdateRequest
     {
         bool UpdateDataStatistics;
@@ -1009,6 +687,337 @@ private:
 
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+
+    const TDynamicTablesMulticellGossipConfigPtr& GetGossipConfig()
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        return configManager->GetConfig()->TabletManager->MulticellGossip;
+    }
+
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    {
+        const auto& gossipConfig = GetGossipConfig();
+        StatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);
+
+        if (StatisticsGossipExecutor_) {
+            StatisticsGossipExecutor_->SetPeriod(gossipConfig->TableStatisticsGossipPeriod);
+        }
+    }
+
+
+    static bool IsSupportedNodeType(EObjectType type)
+    {
+        return IsTableType(type) || type == EObjectType::File;
+    }
+
+
+    void InitBuiltins()
+    {
+        if (EmptyMasterTableSchema_) {
+            return;
+        }
+
+        EmptyMasterTableSchema_ = FindMasterTableSchema(EmptyMasterTableSchemaId_);
+
+        if (EmptyMasterTableSchema_) {
+            return;
+        }
+
+        EmptyMasterTableSchema_ = DoCreateMasterTableSchema(EmptyMasterTableSchemaId_, EmptyTableSchema);
+        YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
+    }
+
+
+    void OnLeaderActive() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnLeaderActive();
+
+        const auto& gossipConfig = GetGossipConfig();
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsSecondaryMaster()) {
+            StatisticsGossipExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
+                BIND(&TImpl::OnStatisticsGossip, MakeWeak(this)),
+                gossipConfig->TableStatisticsGossipPeriod);
+            StatisticsGossipExecutor_->Start();
+        }
+    }
+
+    void OnStopLeading() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnStopLeading();
+
+        if (StatisticsGossipExecutor_) {
+            StatisticsGossipExecutor_->Stop();
+        }
+    }
+
+
+    void OnStatisticsGossip()
+    {
+        auto nodeCount = StatisticsUpdateRequests_.Size();
+        nodeCount = StatisticsGossipThrottler_->TryAcquireAvailable(nodeCount);
+        if (nodeCount == 0) {
+            return;
+        }
+
+        NTableServer::NProto::TReqSendTableStatisticsUpdates request;
+        request.set_node_count(nodeCount);
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger);
+    }
+
+    void HydraSendTableStatisticsUpdates(NTableServer::NProto::TReqSendTableStatisticsUpdates* request)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
+
+        auto remainingNodeCount = request->node_count();
+
+        std::vector<TNodeId> nodeIds;
+        // NB: Ordered map is needed to make things deterministic.
+        std::map<TCellTag, NTableServer::NProto::TReqUpdateTableStatistics> cellTagToRequest;
+        while (remainingNodeCount-- > 0 && !StatisticsUpdateRequests_.IsEmpty()) {
+            const auto& [nodeId, statistics] = StatisticsUpdateRequests_.Pop();
+
+            auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+            YT_VERIFY(IsSupportedNodeType(node->GetType()));
+
+            if (statistics.UpdateTabletResourceUsage && !IsTableType(node->GetType())) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Requested to send tablet resource usage update for a non-table node; ignored (NodeId: %v)",
+                    nodeId);
+                continue;
+            }
+
+            auto* chunkOwner = node->As<TChunkOwnerBase>();
+
+            auto cellTag = CellTagFromId(nodeId);
+            auto& request = cellTagToRequest[cellTag];
+            auto* entry = request.add_entries();
+            ToProto(entry->mutable_node_id(), nodeId);
+            if (statistics.UpdateDataStatistics) {
+                ToProto(entry->mutable_data_statistics(), chunkOwner->SnapshotStatistics());
+            }
+            if (statistics.UpdateTabletResourceUsage) {
+                // Correctness of this cast has been verified above.
+                auto* table = chunkOwner->As<TTableNode>();
+                ToProto(entry->mutable_tablet_resource_usage(), table->GetTabletResourceUsage());
+            }
+            if (statistics.UpdateModificationTime) {
+                entry->set_modification_time(ToProto<ui64>(chunkOwner->GetModificationTime()));
+            }
+            if (statistics.UpdateAccessTime) {
+                entry->set_access_time(ToProto<ui64>(chunkOwner->GetAccessTime()));
+            }
+            if (statistics.UseNativeContentRevisionCas) {
+                entry->set_expected_content_revision(chunkOwner->GetNativeContentRevision());
+            }
+            nodeIds.push_back(nodeId);
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Sending node statistics update (RequestedNodeCount: %v, NodeIds: %v)",
+            request->node_count(),
+            nodeIds);
+
+        for  (const auto& [cellTag, request] : cellTagToRequest) {
+            multicellManager->PostToMaster(request, cellTag);
+        }
+    }
+
+    void HydraUpdateTableStatistics(NTableServer::NProto::TReqUpdateTableStatistics* request)
+    {
+        TCompactVector<TTableId, 8> nodeIds;
+        nodeIds.reserve(request->entries_size());
+        for (const auto& entry : request->entries()) {
+            nodeIds.push_back(FromProto<TNodeId>(entry.node_id()));
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Received node statistics update (NodeIds: %v)",
+            nodeIds);
+
+        TCompactVector<TTableId, 8> nodeIdsToRetry; // Just for logging.
+        NTableServer::NProto::TReqNotifyContentRevisionCasFailed retryRequest;
+
+        auto externalCellTag = InvalidCellTag;
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        for (const auto& entry : request->entries()) {
+            auto nodeId = FromProto<TTableId>(entry.node_id());
+            auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            YT_VERIFY(IsSupportedNodeType(node->GetType()));
+            auto* chunkOwner = node->As<TChunkOwnerBase>();
+
+            YT_VERIFY(
+                externalCellTag == InvalidCellTag ||
+                externalCellTag == chunkOwner->GetExternalCellTag());
+            externalCellTag = chunkOwner->GetExternalCellTag();
+
+            if (entry.has_expected_content_revision() &&
+                chunkOwner->GetContentRevision() != entry.expected_content_revision())
+            {
+                nodeIdsToRetry.push_back(nodeId);
+                auto* retryEntry = retryRequest.add_entries();
+                ToProto(retryEntry->mutable_node_id(), nodeId);
+                retryEntry->set_update_data_statistics(entry.has_data_statistics());
+                retryEntry->set_update_tablet_statistics(entry.has_tablet_resource_usage());
+                // Sending actual revisions fits nicely into the protocol but, strictly
+                // speaking, this is only necessary for migrating on update. (A newly
+                // updated external cell doesn't know native content revisions - and it
+                // has no way of acquiring that knowledge other than these notifications.)
+                retryEntry->set_actual_content_revision(chunkOwner->GetContentRevision());
+                continue;
+            }
+
+            if (entry.has_tablet_resource_usage()) {
+                if (IsTableType(chunkOwner->GetType())) {
+                    auto* table = chunkOwner->As<TTableNode>();
+                    auto tabletResourceUsage = FromProto<TTabletResources>(entry.tablet_resource_usage());
+                    table->SetExternalTabletResourceUsage(tabletResourceUsage);
+                } else {
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received tablet resource usage update for a non-table node (NodeId: %v)",
+                        nodeId);
+                }
+            }
+
+            if (entry.has_data_statistics()) {
+                chunkOwner->SnapshotStatistics() = entry.data_statistics();
+            }
+
+            if (entry.has_modification_time()) {
+                chunkOwner->SetModificationTime(std::max(
+                    chunkOwner->GetModificationTime(),
+                    FromProto<TInstant>(entry.modification_time())));
+            }
+
+            if (entry.has_access_time()) {
+                chunkOwner->SetAccessTime(std::max(
+                    chunkOwner->GetAccessTime(),
+                    FromProto<TInstant>(entry.access_time())));
+            }
+        }
+
+        if (!nodeIdsToRetry.empty()) {
+            YT_VERIFY(std::ssize(nodeIdsToRetry) == retryRequest.entries_size());
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToMaster(retryRequest, externalCellTag);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Content revision CASes failed, requesting retries (NodeIds: %v)",
+                nodeIdsToRetry);
+        }
+    }
+
+    void HydraNotifyContentRevisionCasFailed(NTableServer::NProto::TReqNotifyContentRevisionCasFailed* request)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+        for (const auto& entry : request->entries()) {
+            auto nodeId = FromProto<TNodeId>(entry.node_id());
+            auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            YT_VERIFY(IsSupportedNodeType(node->GetType()));
+            auto* chunkOwner = node->As<TChunkOwnerBase>();
+
+            auto actualContentRevision = entry.actual_content_revision();
+            if (actualContentRevision >= chunkOwner->GetNativeContentRevision()) {
+                chunkOwner->SetNativeContentRevision(actualContentRevision);
+            } else {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received non-monotonic revision with content revision CAS failure notification; ignored (NodeId: %v, ReceivedRevision: %llx, NodeRevision: %llx)",
+                    nodeId,
+                    actualContentRevision,
+                    chunkOwner->GetNativeContentRevision());
+            }
+
+            ScheduleStatisticsUpdate(
+                chunkOwner,
+                entry.update_data_statistics(),
+                entry.update_tablet_statistics(),
+                /*useNativeContentRevisionCas*/ true);
+        }
+    }
+
+
+    void Clear() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::Clear();
+
+        MasterTableSchemaMap_.Clear();
+        TableSchemaToObjectMap_.clear();
+        EmptyMasterTableSchema_ = nullptr;
+        TableCollocationMap_.Clear();
+        StatisticsUpdateRequests_.Clear();
+    }
+
+    void SetZeroState() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TCompositeAutomatonPart::SetZeroState();
+
+        InitBuiltins();
+    }
+
+    void LoadKeys(NCellMaster::TLoadContext& context)
+    {
+        MasterTableSchemaMap_.LoadKeys(context);
+        TableCollocationMap_.LoadKeys(context);
+    }
+
+    void LoadValues(NCellMaster::TLoadContext& context)
+    {
+        MasterTableSchemaMap_.LoadValues(context);
+        Load(context, StatisticsUpdateRequests_);
+        TableCollocationMap_.LoadValues(context);
+    }
+
+    void OnBeforeSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+    }
+
+    void OnAfterSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        // Usually the empty table schema, like any other, is loaded from snapshot.
+        // However:
+        //   - we still need to initialize the pointer;
+        //   - on old snapshots that don't contain schema map (or this automaton
+        //     part altogether) this initialization is crucial.
+        InitBuiltins();
+    }
+
+    void SaveKeys(NCellMaster::TSaveContext& context) const
+    {
+        MasterTableSchemaMap_.SaveKeys(context);
+        TableCollocationMap_.SaveKeys(context);
+    }
+
+    void SaveValues(NCellMaster::TSaveContext& context) const
+    {
+        MasterTableSchemaMap_.SaveValues(context);
+        Save(context, StatisticsUpdateRequests_);
+        TableCollocationMap_.SaveValues(context);
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTableManager::TImpl, MasterTableSchema, TMasterTableSchema, MasterTableSchemaMap_)

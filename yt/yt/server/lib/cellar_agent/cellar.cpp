@@ -127,7 +127,7 @@ public:
 
         CreateOccupant_.Fire();
 
-        YT_LOG_DEBUG("Created cellar occupant (CellarType: %Qlv, Index: %v)",
+        YT_LOG_DEBUG("Created cellar occupant (CellarType: %v, Index: %v)",
             Type_,
             index);
     }
@@ -285,7 +285,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Create occupier (CellarType: %Qlv)",
+        YT_LOG_DEBUG("Create occupier (CellarType: %v)",
             Type_);
 
         if (!OccupierProvider_) {
@@ -303,7 +303,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Updating cellar size (CellarType: %Qlv, OldCellarSize: %v, NewCellarSize: %v)",
+        YT_LOG_INFO("Updating cellar size (CellarType: %v, OldCellarSize: %v, NewCellarSize: %v)",
             Type_,
             Occupants_.size(),
             cellarSize);

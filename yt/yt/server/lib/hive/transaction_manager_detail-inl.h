@@ -4,6 +4,8 @@
 #include "transaction_manager_detail.h"
 #endif
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,9 +16,9 @@ void TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
     const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
     const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor)
 {
-    YT_VERIFY(PrepareActionHandlerMap_.emplace(prepareActionDescriptor.Type, prepareActionDescriptor.Handler).second);
-    YT_VERIFY(CommitActionHandlerMap_.emplace(commitActionDescriptor.Type, commitActionDescriptor.Handler).second);
-    YT_VERIFY(AbortActionHandlerMap_.emplace(abortActionDescriptor.Type, abortActionDescriptor.Handler).second);
+    EmplaceOrCrash(PrepareActionHandlerMap_, prepareActionDescriptor.Type, prepareActionDescriptor.Handler);
+    EmplaceOrCrash(CommitActionHandlerMap_, commitActionDescriptor.Type, commitActionDescriptor.Handler);
+    EmplaceOrCrash(AbortActionHandlerMap_, abortActionDescriptor.Type, abortActionDescriptor.Handler);
 }
 
 template <class TTransaction>

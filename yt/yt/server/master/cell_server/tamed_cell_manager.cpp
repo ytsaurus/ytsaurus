@@ -236,12 +236,13 @@ public:
                 name);
         }
 
-        holder->SetName(name);
+        auto cellBundleId = holder->GetId();
+        auto* cellBundle = CellBundleMap_.Insert(cellBundleId, std::move(holder));
 
-        auto id = holder->GetId();
-        auto* cellBundle = CellBundleMap_.Insert(id, std::move(holder));
-        YT_VERIFY(NameToCellBundleMap_[cellBundle->GetCellarType()].emplace(cellBundle->GetName(), cellBundle).second);
-        YT_VERIFY(CellBundlesPerTypeMap_[cellBundle->GetCellarType()].insert(cellBundle).second);
+        cellBundle->SetName(name);
+
+        EmplaceOrCrash(NameToCellBundleMap_[cellBundle->GetCellarType()], cellBundle->GetName(), cellBundle);
+        InsertOrCrash(CellBundlesPerTypeMap_[cellBundle->GetCellarType()], cellBundle);
         cellBundle->SetOptions(std::move(options));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -268,15 +269,15 @@ public:
         YT_VERIFY(cellBundle->Areas().empty());
 
         // Remove cell bundle from maps.
-        YT_VERIFY(NameToCellBundleMap_[cellBundle->GetCellarType()].erase(cellBundle->GetName()) == 1);
-        YT_VERIFY(CellBundlesPerTypeMap_[cellBundle->GetCellarType()].erase(cellBundle) == 1);
+        EraseOrCrash(NameToCellBundleMap_[cellBundle->GetCellarType()], cellBundle->GetName());
+        EraseOrCrash(CellBundlesPerTypeMap_[cellBundle->GetCellarType()], cellBundle);
 
         CellBundleDestroyed_.Fire(cellBundle);
     }
 
     void DestroyCellBundle(TCellBundle* cellBundle) override
     {
-        CellBundleMap_.Release(cellBundle->GetId()).release();
+        Y_UNUSED(CellBundleMap_.Release(cellBundle->GetId()).release());
     }
 
     void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr newOptions) override
@@ -382,20 +383,20 @@ public:
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Area, hintId);
+        auto areaId = objectManager->GenerateId(EObjectType::Area, hintId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Creating area (CellBundle: %v, Area: %v, AreaId: %v)",
             cellBundle->GetName(),
             name,
-            id);
+            areaId);
 
-        auto areaHolder = TPoolAllocator::New<TArea>(id);
-        areaHolder->SetName(name);
-        areaHolder->SetCellBundle(cellBundle);
+        auto areaHolder = TPoolAllocator::New<TArea>(areaId);
+        auto* area = AreaMap_.Insert(areaId, std::move(areaHolder));
 
-        auto* area = AreaMap_.Insert(id, std::move(areaHolder));
+        area->SetName(name);
+        area->SetCellBundle(cellBundle);
 
-        YT_VERIFY(cellBundle->Areas().emplace(name, area).second);
+        EmplaceOrCrash(cellBundle->Areas(), name, area);
         if (name == DefaultAreaName) {
             cellBundle->SetDefaultArea(area);
         }
@@ -419,7 +420,7 @@ public:
             cellBundle->SetDefaultArea(nullptr);
         }
         area->SetCellBundle(nullptr);
-        YT_VERIFY(cellBundle->Areas().erase(area->GetName()) == 1);
+        EraseOrCrash(cellBundle->Areas(), area->GetName());
     }
 
     void CreateSnapshotAndChangelogNodes(
@@ -477,24 +478,24 @@ public:
             THROW_ERROR_EXCEPTION("Peer count must be positive");
         }
 
-        holder->Peers().resize(peerCount);
-        holder->SetCellBundle(cellBundle);
-        YT_VERIFY(cellBundle->Cells().insert(holder.get()).second);
-        YT_VERIFY(CellsPerTypeMap_[holder->GetCellarType()].insert(holder.get()).second);
+        auto* cell = CellMap_.Insert(cellId, std::move(holder));
+
+        cell->Peers().resize(peerCount);
+        cell->SetCellBundle(cellBundle);
+        InsertOrCrash(cellBundle->Cells(), cell);
+        InsertOrCrash(CellsPerTypeMap_[cell->GetCellarType()], cell);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
 
-        holder->SetArea(area);
-        YT_VERIFY(area->Cells().insert(holder.get()).second);
+        cell->SetArea(area);
+        InsertOrCrash(area->Cells(), cell);
 
-        if (!holder->IsIndependent()) {
-            holder->SetLeadingPeerId(0);
+        if (!cell->IsIndependent()) {
+            cell->SetLeadingPeerId(0);
         }
 
-        holder->GossipStatus().Initialize(Bootstrap_);
-
-        auto* cell = CellMap_.Insert(cellId, std::move(holder));
+        cell->GossipStatus().Initialize(Bootstrap_);
 
         MaybeRegisterGlobalCell(cell);
         ReconfigureCell(cell);
@@ -516,7 +517,7 @@ public:
             // Create Cypress node.
             {
                 auto req = TCypressYPathProxy::Create(cellNodePath);
-                req->set_type(static_cast<int>(EObjectType::TabletCellNode));
+                req->set_type(ToProto<int>(EObjectType::TabletCellNode));
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("opaque", true);
@@ -547,7 +548,7 @@ public:
 
                         {
                             auto req = TCypressYPathProxy::Create(peerNodePath);
-                            req->set_type(static_cast<int>(EObjectType::MapNode));
+                            req->set_type(ToProto<int>(EObjectType::MapNode));
                             SyncExecuteVerb(cellMapNodeProxy, req);
                         }
 
@@ -586,14 +587,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto cellId = cell->GetId();
-        auto* mailbox = hiveManager->FindMailbox(cellId);
-        if (mailbox) {
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        if (auto* mailbox = hiveManager->FindMailbox(cellId)) {
             hiveManager->RemoveMailbox(mailbox);
         }
 
-        for (TPeerId peerId = 0; peerId < static_cast<TPeerId>(cell->Peers().size()); ++peerId) {
+        for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
             const auto& peer = cell->Peers()[peerId];
             if (cell->IsAlienPeer(peerId)) {
                 continue;
@@ -618,25 +619,29 @@ public:
             AbortAllCellTransactions(cell);
         }
 
-        auto cellNodeProxy = FindCellNode(cellId);
-        if (cellNodeProxy) {
+        if (auto cellNodeProxy = FindCellNode(cellId)) {
             try {
                 // NB: Subtree transactions were already aborted above.
                 cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error unregisterting cell from Cypress");
+                YT_LOG_ALERT_IF(
+                    IsMutationLoggingEnabled(),
+                    ex,
+                    "Error unregistering cell from Cypress (CellId: %v)",
+                    cellId);
             }
         }
 
         auto* cellBundle = cell->GetCellBundle();
-        YT_VERIFY(cellBundle->Cells().erase(cell) == 1);
-        YT_VERIFY(CellsPerTypeMap_[cell->GetCellarType()].erase(cell) == 1);
+        EraseOrCrash(cellBundle->Cells(), cell);
+        EraseOrCrash(CellsPerTypeMap_[cell->GetCellarType()], cell);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(cellBundle);
         cell->SetCellBundle(nullptr);
 
         auto* area = cell->GetArea();
-        YT_VERIFY(area->Cells().erase(cell) == 1);
+        EraseOrCrash(area->Cells(), cell);
         cell->SetArea(nullptr);
 
         cell->Peers().clear();
@@ -646,7 +651,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        CellMap_.Release(cell->GetId()).release();
+        Y_UNUSED(CellMap_.Release(cell->GetId()).release());
         MaybeUnregisterGlobalCell(cell);
     }
 
@@ -663,7 +668,7 @@ public:
         cell->PeerCount() = peerCount;
         cell->LastPeerCountUpdateTime() = TInstant::Now();
 
-        int oldPeerCount = static_cast<int>(cell->Peers().size());
+        int oldPeerCount = std::ssize(cell->Peers());
         int newPeerCount = cell->GetCellBundle()->GetOptions()->PeerCount;
         if (cell->PeerCount()) {
             newPeerCount = *cell->PeerCount();
@@ -994,8 +999,8 @@ public:
                 newName);
         }
 
-        YT_VERIFY(NameToCellBundleMap_[cellBundle->GetCellarType()].erase(cellBundle->GetName()) == 1);
-        YT_VERIFY(NameToCellBundleMap_[cellBundle->GetCellarType()].emplace(newName, cellBundle).second);
+        EraseOrCrash(NameToCellBundleMap_[cellBundle->GetCellarType()], cellBundle->GetName());
+        EmplaceOrCrash(NameToCellBundleMap_[cellBundle->GetCellarType()], newName, cellBundle);
         cellBundle->SetName(newName);
     }
 
@@ -1022,8 +1027,8 @@ public:
                 cellBundle->GetName());
         }
 
-        YT_VERIFY(cellBundle->Areas().erase(area->GetName()) == 1);
-        YT_VERIFY(cellBundle->Areas().emplace(newName, area).second);
+        EraseOrCrash(cellBundle->Areas(), area->GetName());
+        EmplaceOrCrash(cellBundle->Areas(), newName, area);
         area->SetName(newName);
     }
 
@@ -1164,8 +1169,8 @@ private:
                 continue;
             }
 
-            YT_VERIFY(NameToCellBundleMap_[bundle->GetCellarType()].emplace(bundle->GetName(), bundle).second);
-            YT_VERIFY(CellBundlesPerTypeMap_[bundle->GetCellarType()].insert(bundle).second);
+            EmplaceOrCrash(NameToCellBundleMap_[bundle->GetCellarType()], bundle->GetName(), bundle);
+            InsertOrCrash(CellBundlesPerTypeMap_[bundle->GetCellarType()], bundle);
         }
 
         for (auto [_, area] : AreaMap_) {
@@ -1173,9 +1178,9 @@ private:
                 continue;
             }
 
-            YT_VERIFY(area->GetCellBundle()->Areas().emplace(area->GetName(), area).second);
+            EmplaceOrCrash(area->GetCellBundle()->Areas(), area->GetName(), area);
             if (area->GetName() == DefaultAreaName) {
-                YT_VERIFY(area->GetCellBundle()->GetDefaultArea() == nullptr);
+                YT_VERIFY(!area->GetCellBundle()->GetDefaultArea());
                 area->GetCellBundle()->SetDefaultArea(area);
             }
         }
@@ -1189,10 +1194,9 @@ private:
 
             MaybeRegisterGlobalCell(cell);
 
-            YT_VERIFY(cell->GetCellBundle()->Cells().insert(cell).second);
-            YT_VERIFY(cell->GetArea()->Cells().insert(cell).second);
-
-            YT_VERIFY(CellsPerTypeMap_[cell->GetCellarType()].insert(cell).second);
+            InsertOrCrash(cell->GetCellBundle()->Cells(), cell);
+            InsertOrCrash(cell->GetArea()->Cells(), cell);
+            InsertOrCrash(CellsPerTypeMap_[cell->GetCellarType()], cell);
 
             for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 if (cell->IsAlienPeer(peerId)) {
@@ -1208,12 +1212,12 @@ private:
                 for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                     auto* transaction = cell->Peers()[peerId].PrerequisiteTransaction;
                     if (transaction) {
-                        YT_VERIFY(TransactionToCellMap_.emplace(transaction, std::make_pair(cell, peerId)).second);
+                        EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
                     }
                 }
             } else {
                 if (auto* transaction = cell->GetPrerequisiteTransaction(); transaction) {
-                    YT_VERIFY(TransactionToCellMap_.emplace(transaction, std::make_pair(cell, std::nullopt)).second);
+                    EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, std::nullopt));
                 }
             }
 
@@ -1453,7 +1457,7 @@ private:
 
             auto cellarType = FromProto<ECellarType>(cellarRequest.type());
             if (!seenCellarTypes.insert(cellarType).second) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Duplicate cellar type in heartbeat, skipped (CellarType: %Qlv)",
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Duplicate cellar type in heartbeat, skipped (CellarType: %v)",
                     cellarType);
                 continue;
             }
@@ -1476,7 +1480,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellarType = FromProto<ECellarType>(request->type());
-        auto Logger = CellServerLogger.WithTag("CellarType: %Qlv", cellarType);
+        auto Logger = CellServerLogger.WithTag("CellarType: %v", cellarType);
 
         // Various request helpers.
         auto requestCreateSlot = [&] (const TCellBase* cell) {
@@ -1616,7 +1620,7 @@ private:
             if (!IsObjectAlive(cell)) {
                 continue;
             }
-            YT_VERIFY(expectedCells.insert(cell).second);
+            InsertOrCrash(expectedCells, cell);
         }
 
         // Figure out and analyze the reality.
@@ -1694,7 +1698,7 @@ private:
 
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
             cell->UpdatePeerState(peerId, state);
-            YT_VERIFY(actualCells.insert(cell).second);
+            InsertOrCrash(actualCells, cell);
 
             // Populate slot.
             slot.Cell = cell;
@@ -2189,7 +2193,7 @@ private:
             EmptyAttributes());
 
         YT_VERIFY(!cell->GetPrerequisiteTransaction(peerId));
-        YT_VERIFY(TransactionToCellMap_.emplace(transaction, std::make_pair(cell, peerId)).second);
+        EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
         cell->SetPrerequisiteTransaction(peerId, transaction);
 
         TReqStartPrerequisiteTransaction request;
@@ -2230,7 +2234,7 @@ private:
             return;
         }
 
-        YT_VERIFY(TransactionToCellMap_.emplace(transaction, std::make_pair(cell, peerId)).second);
+        EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction attached (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
@@ -2267,7 +2271,7 @@ private:
         }
 
         // Suppress calling OnTransactionFinished.
-        YT_VERIFY(TransactionToCellMap_.erase(transaction) == 1);
+        EraseOrCrash(TransactionToCellMap_, transaction);
 
         cell->SetPrerequisiteTransaction(peerId, nullptr);
 
