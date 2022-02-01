@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 from py4j.protocol import Py4JError
 from yt.wrapper import YtClient, get
-from yt.wrapper.http_helpers import get_token
+from yt.wrapper.http_helpers import get_token, get_user_name
 
 logger = logging.getLogger(__name__)
 
@@ -233,8 +233,8 @@ def _build_spark_conf(num_executors=None,
 
     if is_client_mode:
         local_conf = _read_local_conf(local_conf_path)
-        app_name = app_name or "PySpark for {}".format(os.getenv("USER"))
         client = client or create_yt_client(yt_proxy, local_conf)
+        app_name = app_name or "PySpark for {}".format(get_user_name(client=client) or os.getenv("USER"))
         _configure_client_mode(spark_conf, discovery_path, local_conf, spark_id, client)
         spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
         spark_cluster_conf_path = spark_conf.get("spark.yt.cluster.confPath")
