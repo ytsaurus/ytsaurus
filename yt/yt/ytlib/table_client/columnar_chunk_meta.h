@@ -20,25 +20,19 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TRefCountedDataBlockMetaPtr, DataBlockMeta);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedColumnMetaPtr, ColumnMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
-    DEFINE_BYREF_RO_PROPERTY(TSharedRange<TLegacyKey>, LegacyBlockLastKeys);
-    DEFINE_BYREF_RO_PROPERTY(TSharedRange<TKey>, BlockLastKeys);
     DEFINE_BYVAL_RO_PROPERTY(TTableSchemaPtr, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(TNameTablePtr, ChunkNameTable);
+    DEFINE_BYREF_RO_PROPERTY(TSharedRange<TUnversionedRow>, BlockLastKeys);
 
 public:
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
-    void InitBlockLastKeys(const TKeyColumns& keyColumns);
     void RenameColumns(const TColumnRenameDescriptors& renameDescriptros);
 
     virtual i64 GetMemoryUsage() const;
 
     // Free space if there is prepared meta.
     void ClearColumnMeta();
-
-protected:
-    TColumnarChunkMeta() = default;
-    void InitExtensions(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
 private:
     i64 BlockLastKeysSize_;
@@ -49,6 +43,8 @@ DEFINE_REFCOUNTED_TYPE(TColumnarChunkMeta)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableSchemaPtr GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
+int GetCommonKeyPrefix(const TKeyColumns& lhs, const TKeyColumns& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

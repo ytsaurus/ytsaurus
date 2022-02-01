@@ -4,6 +4,8 @@
 
 #include "key.h"
 
+#include <yt/yt/library/codegen/function.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +92,76 @@ void FormatValue(TStringBuilderBase* builder, const TComparator& comparator, TSt
 TString ToString(const TComparator& comparator);
 
 void Serialize(const TComparator& comparator, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TPrefixComparer = int(const TUnversionedValue*, const TUnversionedValue*, int);
+
+int GetCompareSign(int value);
+
+int CompareKeys(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs, TPrefixComparer comparePrefix);
+
+int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, TPrefixComparer comparePrefix);
+
+class TKeyComparer
+    : public NCodegen::TCGFunction<TPrefixComparer>
+{
+public:
+    using TBase = NCodegen::TCGFunction<TPrefixComparer>;
+    using TBase::TBase;
+
+    TKeyComparer(const TBase& base);
+    TKeyComparer();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row);
+
+TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row, int prefix);
+
+TRange<TUnversionedValue> ToKeyRef(TKey key);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TKeyBoundRef
+    : public TRange<TUnversionedValue>
+{
+public:
+    bool Inclusive;
+    bool Upper;
+
+    TKeyBoundRef(TRange<TUnversionedValue> base, bool inclusive = false, bool upper = false);
+};
+
+TKeyBoundRef MakeKeyBoundRef(const TKeyBound& bound);
+
+TKeyBoundRef MakeKeyBoundRef(const TOwningKeyBound& bound);
+
+TKeyBoundRef MakeKeyBoundRef(TUnversionedRow row, bool upper, int keyLength);
+
+////////////////////////////////////////////////////////////////////////////////
+
+int CompareWithWidening(
+    TRange<TUnversionedValue> keyPrefix,
+    TRange<TUnversionedValue> boundKey,
+    TPrefixComparer comparePrefix);
+
+int CompareWithWidening(
+    TRange<TUnversionedValue> keyPrefix,
+    TRange<TUnversionedValue> boundKey);
+
+int TestKey(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders);
+
+int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound);
+
+int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TPrefixComparer comparePrefix);
+
+int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, ESortOrder sortOrder, TStringBuf /* spec */);
 
 ////////////////////////////////////////////////////////////////////////////////
 

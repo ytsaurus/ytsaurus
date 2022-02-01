@@ -868,6 +868,9 @@ private:
 
 TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey upperBound);
 
+TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row);
+TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row, int prefix);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, TUnversionedRow row, TStringBuf format);

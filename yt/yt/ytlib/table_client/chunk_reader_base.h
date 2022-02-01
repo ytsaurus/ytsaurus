@@ -15,6 +15,7 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Non-columnar chunk reader base.
 class TChunkReaderBase
     : public virtual NChunkClient::IReaderBase
     , public TTimingReaderBase
@@ -70,39 +71,41 @@ protected:
     void CheckBlockUpperKeyLimit(
         TLegacyKey blockLastKey,
         TLegacyKey upperLimit,
-        std::optional<int> keyColumnCount = std::nullopt);
+        int keyColumnCount,
+        int commonKeyPrefix);
 
     void CheckBlockUpperLimits(
         i64 blockChunkRowCount,
-        TKey blockLastKey,
+        TUnversionedRow blockLastKey,
         const NChunkClient::TReadLimit& upperLimit,
-        const TComparator& comparator);
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix);
 
     // These methods return min block index, satisfying the lower limit.
     int ApplyLowerRowLimit(
         const NProto::TDataBlockMetaExt& blockMeta,
         const NChunkClient::TReadLimit& lowerLimit) const;
     int ApplyLowerKeyLimit(
-        const TSharedRange<TKey>& blockLastKeys,
+        const TSharedRange<TUnversionedRow>& blockLastKeys,
         const NChunkClient::TReadLimit& lowerLimit,
-        const NTableClient::TComparator& comparator) const;
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix) const;
 
     // These methods return max block index, satisfying the upper limit.
     int ApplyUpperRowLimit(
         const NProto::TDataBlockMetaExt& blockMeta,
         const NChunkClient::TReadLimit& upperLimit) const;
     int ApplyUpperKeyLimit(
-        const TSharedRange<TKey>& blockLastKeys,
+        const TSharedRange<TUnversionedRow>& blockLastKeys,
         const NChunkClient::TReadLimit& upperLimit,
-        const TComparator& comparator) const;
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix) const;
 
     virtual void InitFirstBlock() = 0;
     virtual void InitNextBlock() = 0;
 
 private:
     NLogging::TLogger Logger;
-
-    TLegacyKey WidenKey(const TLegacyKey& key, std::optional<int> keyColumnCount, TChunkedMemoryPool* pool) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

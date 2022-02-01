@@ -33,7 +33,8 @@ public:
         const std::optional<NChunkClient::TDataSource>& dataSource,
         TChunkReaderConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
-        const TSortColumns& sortColumns,
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix,
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::function<void(int /*skippedRowCount*/)> onRowsSkipped,
@@ -46,19 +47,8 @@ protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
 
-    //! Chunk is physically sorted by these columns.
-    //! During unsorted read of a sorted chunk we consider
-    //! chunk as unsorted, so this set is empty.
-    TSortColumns ChunkSortColumns_;
-
-    //! Sort columns of the read result.
-    TSortColumns SortColumns_;
-
-    //! Comparator inferred from #ChunkSortColumns_;
-    TComparator ChunkComparator_;
-
-    //! Comparator inferred from #SortColumns_;
-    TComparator Comparator_;
+    const std::vector<ESortOrder> SortOrders_;
+    const int CommonKeyPrefix_;
 
     TBernoulliSampler Sampler_;
 
@@ -109,7 +99,7 @@ protected:
 
     NChunkClient::TBlockFetcher::TBlockInfo CreateBlockInfo(int blockIndex) const;
     i64 GetSegmentIndex(const TColumn& column, i64 rowIndex) const;
-    i64 GetLowerKeyBoundIndex(TKeyBound lowerBound, const TComparator& comparator) const;
+    i64 GetLowerKeyBoundIndex(TKeyBound lowerBound) const;
 
     //! Returns |true| if block sampling is enabled and all sampling ranges have been read.
     bool IsSamplingCompleted() const;

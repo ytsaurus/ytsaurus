@@ -34,7 +34,8 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     const std::optional<NChunkClient::TDataSource>& dataSource,
     TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
-    const TSortColumns& sortColumns,
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix,
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
     std::function<void(int)> onRowsSkipped,
@@ -44,10 +45,8 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     , UnderlyingReader_(std::move(underlyingReader))
     , BlockCache_(std::move(blockCache))
     , ChunkReadOptions_(chunkReadOptions)
-    , ChunkSortColumns_(ChunkMeta_->GetChunkSchema()->GetSortColumns())
-    , SortColumns_(sortColumns)
-    , ChunkComparator_(GetComparator(ChunkSortColumns_))
-    , Comparator_(GetComparator(sortColumns))
+    , SortOrders_(sortOrders.begin(), sortOrders.end())
+    , CommonKeyPrefix_(commonKeyPrefix)
     , Sampler_(Config_->SamplingRate, std::random_device()())
     , OnRowsSkipped_(onRowsSkipped)
     , TraceContext_(CreateTraceContextFromCurrent("ChunkReader"))
@@ -57,13 +56,6 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
         MemoryManager_ = memoryManager;
     } else {
         MemoryManager_ = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
-    }
-
-    // TODO(gritukan): Now we use the longest possible comparator in order
-    // to properly handle all the comparable entities. Rethink it after YT-14154.
-    if (ChunkComparator_.GetLength() >= Comparator_.GetLength()) {
-        SortColumns_ = ChunkSortColumns_;
-        Comparator_ = ChunkComparator_;
     }
 
     if (Config_->SamplingSeed) {
@@ -198,35 +190,43 @@ i64 TColumnarChunkReaderBase::GetSegmentIndex(const TColumn& column, i64 rowInde
     return std::distance(columnMeta.segments().begin(), it);
 }
 
-i64 TColumnarChunkReaderBase::GetLowerKeyBoundIndex(
-    TKeyBound lowerBound,
-    const TComparator& comparator) const
+i64 TColumnarChunkReaderBase::GetLowerKeyBoundIndex(TKeyBound lowerBound) const
 {
     YT_VERIFY(ChunkMeta_);
     YT_VERIFY(lowerBound);
     YT_VERIFY(!lowerBound.IsUpper);
 
+    const auto& blockLastKeys = ChunkMeta_->BlockLastKeys();
+
     // BinarySearch returns first element such that !pred(it).
     // We are looking for the first block such that Comparator_.TestKey(blockLastKey, lowerBound);
     auto it = BinarySearch(
-        ChunkMeta_->BlockLastKeys().begin(),
-        ChunkMeta_->BlockLastKeys().end(),
-        [&] (const TKey* blockLastKey) {
-            return !comparator.TestKey(*blockLastKey, lowerBound);
+        blockLastKeys.begin(),
+        blockLastKeys.end(),
+        [&] (const TUnversionedRow* blockLastKey) {
+            return !TestKeyWithWidening(
+                ToKeyRef(*blockLastKey, CommonKeyPrefix_),
+                MakeKeyBoundRef(lowerBound),
+                SortOrders_);
         });
 
-    if (it == ChunkMeta_->BlockLastKeys().end()) {
+    if (it == blockLastKeys.end()) {
         return ChunkMeta_->Misc().row_count();
     }
 
-    if (it == ChunkMeta_->BlockLastKeys().begin()) {
+    if (it == blockLastKeys.begin()) {
         return 0;
     }
     --it;
 
-    int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
+    int blockIndex = std::distance(blockLastKeys.begin(), it);
     const auto& blockMeta = ChunkMeta_->DataBlockMeta()->data_blocks(blockIndex);
     return blockMeta.chunk_row_count();
+}
+
+bool TColumnarChunkReaderBase::IsSamplingCompleted() const
+{
+    return IsSamplingCompleted_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,7 +239,7 @@ void TColumnarRangeChunkReaderBase::InitLowerRowIndex()
     }
 
     if (LowerLimit_.KeyBound()) {
-        LowerRowIndex_ = std::max(LowerRowIndex_, GetLowerKeyBoundIndex(LowerLimit_.KeyBound(), Comparator_));
+        LowerRowIndex_ = std::max(LowerRowIndex_, GetLowerKeyBoundIndex(LowerLimit_.KeyBound()));
     }
 }
 
@@ -251,31 +251,36 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
     }
 
     if (UpperLimit_.KeyBound()) {
+        const auto& blockLastKeys = ChunkMeta_->BlockLastKeys();
+
         // BinarySearch returns first element such that !pred(it).
         // We are looking for the first block such that !Comparator_.TestKey(blockLastKey, upperBound);
         auto it = BinarySearch(
-            ChunkMeta_->BlockLastKeys().begin(),
-            ChunkMeta_->BlockLastKeys().end(),
-            [&] (const TKey* blockLastKey) {
-                return Comparator_.TestKey(*blockLastKey, UpperLimit_.KeyBound());
+            blockLastKeys.begin(),
+            blockLastKeys.end(),
+            [&] (const TUnversionedRow* blockLastKey) {
+                return TestKeyWithWidening(
+                    ToKeyRef(*blockLastKey, CommonKeyPrefix_),
+                    MakeKeyBoundRef(UpperLimit_.KeyBound()),
+                    SortOrders_);
             });
 
-        if (it == ChunkMeta_->BlockLastKeys().end()) {
+        if (it == blockLastKeys.end()) {
             SafeUpperRowIndex_ = HardUpperRowIndex_ = std::min(HardUpperRowIndex_, ChunkMeta_->Misc().row_count());
         } else {
-            int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
+            int blockIndex = std::distance(blockLastKeys.begin(), it);
             const auto& blockMeta = ChunkMeta_->DataBlockMeta()->data_blocks(blockIndex);
 
             HardUpperRowIndex_ = std::min(
                 HardUpperRowIndex_,
                 blockMeta.chunk_row_count());
 
-            if (it == ChunkMeta_->BlockLastKeys().begin()) {
+            if (it == blockLastKeys.begin()) {
                 SafeUpperRowIndex_ = 0;
             } else {
                 --it;
 
-                int prevBlockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
+                int prevBlockIndex = std::distance(blockLastKeys.begin(), it);
                 const auto& prevBlockMeta = ChunkMeta_->DataBlockMeta()->data_blocks(prevBlockIndex);
 
                 SafeUpperRowIndex_ = std::min(
@@ -528,18 +533,13 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
     return PendingBlocks_.empty();
 }
 
-bool TColumnarChunkReaderBase::IsSamplingCompleted() const
-{
-    return IsSamplingCompleted_;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TColumnarLookupChunkReaderBase::Initialize()
 {
     RowIndexes_.reserve(Keys_.Size());
     for (const auto& key : Keys_) {
-        RowIndexes_.push_back(GetLowerKeyBoundIndex(TKeyBound::FromRowUnchecked() >= key, Comparator_));
+        RowIndexes_.push_back(GetLowerKeyBoundIndex(TKeyBound::FromRowUnchecked() >= key));
     }
 
     for (auto& column : Columns_) {

@@ -1,10 +1,13 @@
 #pragma once
 
-#include "public.h"
+#include <library/cpp/yt/memory/intrusive_ptr.h>
 
 namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class TSignature>
+class TCGFunction;
 
 template <class R, class... TArgs>
 class TCGFunction<R(TArgs...)>
@@ -15,7 +18,7 @@ private:
 public:
     TCGFunction() = default;
 
-    TCGFunction(uint64_t functionAddress, TCGModulePtr&& module)
+    TCGFunction(uint64_t functionAddress, TRefCountedPtr module)
         : FunctionPtr_(reinterpret_cast<TType*>(functionAddress))
         , Module_(std::move(module))
     { }
@@ -30,9 +33,14 @@ public:
         return FunctionPtr_ != nullptr;
     }
 
+    TType* Get() const
+    {
+        return FunctionPtr_;
+    }
+
 private:
     TType* FunctionPtr_ = nullptr;
-    TCGModulePtr Module_;
+    TRefCountedPtr Module_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

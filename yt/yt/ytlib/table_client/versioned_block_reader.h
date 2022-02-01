@@ -23,7 +23,6 @@ public:
         TSharedRef block,
         const NProto::TDataBlockMeta& meta,
         TTableSchemaPtr chunkSchema,
-        int chunkKeyColumnCount,
         int keyColumnCount,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         const TKeyComparer& keyComparer,
@@ -54,7 +53,6 @@ private:
 
     const NProto::TDataBlockMeta& Meta_;
     const NProto::TSimpleVersionedBlockMeta& VersionedMeta_;
-
 
     const std::unique_ptr<bool[]> ColumnHunkFlags_;
     const std::unique_ptr<bool[]> ColumnAggregateFlags_;
@@ -113,8 +111,8 @@ public:
         const NProto::TDataBlockMeta& meta,
         const std::vector<bool>& compositeColumnFlags,
         const std::vector<int>& chunkToReaderIdMapping,
-        int chunkKeyColumnCount,
-        int keyColumnCount,
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix,
         TTimestamp timestamp);
 
     TLegacyKey GetKey() const;

@@ -14,6 +14,8 @@ using namespace NTableChunkFormat::NProto;
 
 using NYT::FromProto;
 
+struct TBlockLastKeysBufferTag { };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableSchemaPtr GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta)
@@ -38,14 +40,22 @@ TTableSchemaPtr GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta
     return schema;
 }
 
+int GetCommonKeyPrefix(const TKeyColumns& lhs, const TKeyColumns& rhs)
+{
+    int prefixLength = 0;
+    while (prefixLength < std::ssize(lhs) && prefixLength < std::ssize(rhs)) {
+        if (lhs[prefixLength] != rhs[prefixLength]) {
+            break;
+        }
+        ++prefixLength;
+    }
+
+    return prefixLength;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
-{
-    InitExtensions(chunkMeta);
-}
-
-void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
 {
     ChunkType_ = CheckedEnumCast<EChunkType>(chunkMeta.type());
     ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
@@ -64,42 +74,31 @@ void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
         ChunkNameTable_ = New<TNameTable>();
         FromProto(&ChunkNameTable_, *nameTableExt);
     }
-}
 
-void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
-{
-    int prefixLength = 0;
-    while (prefixLength < std::ssize(keyColumns) && prefixLength < ChunkSchema_->GetKeyColumnCount()) {
-        if (keyColumns[prefixLength] != ChunkSchema_->Columns()[prefixLength].Name()) {
-            break;
-        }
-        ++prefixLength;
-    }
+    auto buffer = New<TRowBuffer>(TBlockLastKeysBufferTag());
 
-    struct TBlockLastKeysBufferTag { };
-    auto tempBuffer = New<TRowBuffer>(TBlockLastKeysBufferTag());
-
-    std::vector<TLegacyKey> legacyBlockLastKeys;
-    legacyBlockLastKeys.reserve(DataBlockMeta_->data_blocks_size());
+    std::vector<TUnversionedRow> blockLastKeys;
+    blockLastKeys.reserve(DataBlockMeta_->data_blocks_size());
     for (const auto& block : DataBlockMeta_->data_blocks()) {
-        TLegacyKey key;
-        if (ChunkSchema_->GetKeyColumnCount() > 0) {
-            YT_VERIFY(block.has_last_key());
-            key = FromProto<TLegacyKey>(block.last_key(), tempBuffer);
-        } else {
-            key = tempBuffer->AllocateUnversioned(0);
+        TUnversionedRow key;
+
+        // Block last keys are not supported in partition chunks.
+        if (block.has_last_key()) {
+            if (ChunkSchema_->GetKeyColumnCount() > 0) {
+                YT_VERIFY(block.has_last_key());
+                key = FromProto<TUnversionedRow>(block.last_key(), buffer);
+            } else {
+                key = buffer->AllocateUnversioned(0);
+            }
         }
-        auto wideKey = WidenKeyPrefix(key, prefixLength, keyColumns.size(), tempBuffer);
-        legacyBlockLastKeys.push_back(wideKey);
+        blockLastKeys.push_back(key);
     }
 
-    std::tie(LegacyBlockLastKeys_, BlockLastKeysSize_) = CaptureRows<TBlockLastKeysBufferTag>(MakeRange(legacyBlockLastKeys));
-    std::vector<TKey> blockLastKeys;
-    blockLastKeys.reserve(LegacyBlockLastKeys_.size());
-    for (const auto& lastKey : LegacyBlockLastKeys_) {
-        blockLastKeys.push_back(TKey::FromRow(lastKey));
-    }
-    BlockLastKeys_ = MakeSharedRange(std::move(blockLastKeys), LegacyBlockLastKeys_.GetHolder());
+    BlockLastKeysSize_ = buffer->GetCapacity();
+
+    BlockLastKeys_ = MakeSharedRange(
+        blockLastKeys,
+        std::move(buffer));
 }
 
 void TColumnarChunkMeta::RenameColumns(const TColumnRenameDescriptors& renameDescriptors)

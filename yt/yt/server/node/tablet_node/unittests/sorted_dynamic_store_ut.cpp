@@ -639,14 +639,14 @@ TEST_P(TSortedDynamicRowKeyComparerTest, Test)
     if (urow1.GetCount() == keyColumnCount && !HasSentinels(urow1) && !HasSentinels(urow2)) {
         auto drow1 = BuildDynamicRow(urow1);
         EXPECT_EQ(
-            StaticComparer_(drow1, ToKeyRef(urow2)),
-            LlvmComparer_(drow1, ToKeyRef(urow2)))
+            Sign(StaticComparer_(drow1, ToKeyRef(urow2))),
+            Sign(LlvmComparer_(drow1, ToKeyRef(urow2))))
             << "row1: " << ToString(urow1) << std::endl
             << "row2: " << ToString(urow2);
 
         if (urow2.GetCount() == keyColumnCount) {
             auto drow2 = BuildDynamicRow(urow2);
-            EXPECT_EQ(StaticComparer_(drow1, drow2), LlvmComparer_(drow1, drow2))
+            EXPECT_EQ(Sign(StaticComparer_(drow1, drow2)), Sign(LlvmComparer_(drow1, drow2)))
                 << "row1: " << ToString(urow1) << std::endl
                 << "row2: " << ToString(urow2);
         }

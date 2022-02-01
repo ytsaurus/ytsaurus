@@ -225,11 +225,11 @@ TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
     auto chunkState = New<TChunkState>(
         Bootstrap_->GetBlockCache(),
         std::move(chunkSpec),
-        std::move(chunkMeta),
+        chunkMeta,
         OverrideTimestamp_,
         /*lookupHashTable*/ nullptr,
         New<TChunkReaderPerformanceCounters>(),
-        Bootstrap_->GetRowComparerProvider()->Get(TableSchema_->GetKeyColumnTypes()),
+        TKeyComparer(Bootstrap_->GetRowComparerProvider()->Get(TableSchema_->GetKeyColumnTypes()).UUComparer),
         /*virtualValueDirectory*/ nullptr,
         TableSchema_);
 
@@ -242,7 +242,7 @@ TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
         TChunkReaderConfig::GetDefault(),
         UnderlyingChunkReader_,
         chunkState,
-        chunkState->ChunkMeta,
+        chunkMeta,
         Options_,
         RequestedKeys_,
         ColumnFilter_,

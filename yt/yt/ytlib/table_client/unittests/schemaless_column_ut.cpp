@@ -66,9 +66,9 @@ TEST(TSchemalessColumnTest, Simple)
     auto columnData = codec->Compress(block.Data);
     auto columnMeta = columnWriter->ColumnMeta();
 
-    std::vector<TColumnIdMapping> idMapping;
+    std::vector<int> idMapping;
     for (int index = 0; index < 6; ++index) {
-        idMapping.push_back({index, index});
+        idMapping.push_back(index);
     }
 
     auto reader = CreateSchemalessColumnReader(columnMeta, idMapping);

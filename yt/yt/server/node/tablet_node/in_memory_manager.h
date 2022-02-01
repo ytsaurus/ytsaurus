@@ -32,18 +32,26 @@ struct TPreloadedBlockTag { };
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Contains all relevant data (e.g. blocks) for in-memory chunks.
-struct TInMemoryChunkData
-    : public TRefCounted
+struct TInMemoryChunkData final
 {
-    NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
-    int StartBlockIndex = 0;
-    std::vector<NChunkClient::TBlock> Blocks;
-    NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
-    NTableClient::IChunkLookupHashTablePtr LookupHashTable;
-    TMemoryUsageTrackerGuard MemoryTrackerGuard;
+    const NTabletClient::EInMemoryMode InMemoryMode;
+    const int StartBlockIndex;
+    const std::vector<NChunkClient::TBlock> Blocks;
+    const NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
+    const NTableClient::IChunkLookupHashTablePtr LookupHashTable;
+    const TMemoryUsageTrackerGuard MemoryTrackerGuard;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
+
+TInMemoryChunkDataPtr CreateInMemoryChunkData(
+    NChunkClient::TChunkId chunkId,
+    NTabletClient::EInMemoryMode mode,
+    int startBlockIndex,
+    std::vector<NChunkClient::TBlock> blocks,
+    const NTableClient::TCachedVersionedChunkMetaPtr& versionedChunkMeta,
+    const TTabletSnapshotPtr& tabletSnapshot,
+    TMemoryUsageTrackerGuard memoryTrackerGuard);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,14 +65,9 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
 struct IInMemoryManager
     : public TRefCounted
 {
-    virtual TInMemoryChunkDataPtr EvictInterceptedChunkData(
-        NChunkClient::TChunkId chunkId) = 0;
+    virtual TInMemoryChunkDataPtr EvictInterceptedChunkData(NChunkClient::TChunkId chunkId) = 0;
 
-    virtual void FinalizeChunk(
-        NChunkClient::TChunkId chunkId,
-        TInMemoryChunkDataPtr data,
-        const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        const TTabletSnapshotPtr& tablet) = 0;
+    virtual void FinalizeChunk(NChunkClient::TChunkId chunkId, TInMemoryChunkDataPtr chunkData) = 0;
 
     virtual const TInMemoryManagerConfigPtr& GetConfig() const = 0;
 };

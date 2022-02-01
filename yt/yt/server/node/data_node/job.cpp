@@ -1423,7 +1423,7 @@ private:
                 /*overrideTimestamp*/ NullTimestamp,
                 /*lookupHashTable*/ nullptr,
                 /*performanceCounters*/ nullptr,
-                /*keyComparer*/ nullptr,
+                /*keyComparer*/ TKeyComparer{},
                 /*virtualValueDirectory*/ nullptr,
                 /*tableSchema*/ nullptr);
 

@@ -199,7 +199,7 @@ TSortedChunkStore::TSortedChunkStore(
         chunkBlockManager,
         client,
         localDescriptor)
-    , KeyComparer_(tablet->GetRowKeyComparer())
+    , KeyComparer_(tablet->GetRowKeyComparer().UUComparer)
     , MaxClipTimestamp_(maxClipTimestamp)
 {
     TLegacyKey lowerBound;
@@ -330,10 +330,12 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto chunkReader = GetReaders(workloadCategory).ChunkReader;
     auto chunkState = PrepareChunkState(chunkReader, chunkReadOptions, enableNewScanReader);
 
+    auto chunkMeta = chunkState->ChunkMeta;
+
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
     if (enableNewScanReader &&
-        chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
+        chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
     {
         // Chunk view support.
         ranges = NNewTableClient::ClipRanges(
@@ -345,7 +347,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         return MaybeWrapWithTimestampResettingAdapter(NNewTableClient::CreateVersionedChunkReader(
             std::move(ranges),
             timestamp,
-            chunkState->ChunkMeta,
+            chunkMeta,
             Schema_,
             columnFilter,
             chunkState->ChunkColumnMapping,
@@ -363,7 +365,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         GetReaderConfig(),
         std::move(chunkReader),
         chunkState,
-        chunkState->ChunkMeta,
+        chunkMeta,
         chunkReadOptions,
         std::move(ranges),
         columnFilter,
@@ -388,7 +390,9 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
     }
 
     return CreateCacheBasedVersionedChunkReader(
-        std::move(chunkState),
+        ChunkId_,
+        chunkState,
+        chunkState->ChunkMeta,
         chunkReadOptions,
         std::move(ranges),
         columnFilter,
@@ -487,11 +491,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
 
     auto chunkState = PrepareChunkState(readers.ChunkReader, chunkReadOptions, enableNewScanReader);
+    auto chunkMeta = chunkState->ChunkMeta;
+
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
-    if (enableNewScanReader && chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-        auto chunkMeta = chunkState->ChunkMeta;
-
+    if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         auto reader = NNewTableClient::CreateVersionedChunkReader(
             filteredKeys,
             timestamp,
@@ -512,7 +516,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         GetReaderConfig(),
         std::move(readers.ChunkReader),
         chunkState,
-        chunkState->ChunkMeta,
+        chunkMeta,
         chunkReadOptions,
         filteredKeys,
         columnFilter,
@@ -551,7 +555,9 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
     }
 
     return CreateCacheBasedVersionedChunkReader(
-        std::move(chunkState),
+        ChunkId_,
+        chunkState,
+        chunkState->ChunkMeta,
         chunkReadOptions,
         keys,
         columnFilter,
@@ -677,10 +683,13 @@ void TSortedChunkStore::ValidateBlockSize(
     const TChunkStatePtr& chunkState,
     const TWorkloadDescriptor& workloadDescriptor)
 {
+    auto chunkMeta = chunkState->ChunkMeta;
+    auto chunkFormat = chunkMeta->GetChunkFormat();
+
     if ((workloadDescriptor.Category == EWorkloadCategory::UserInteractive ||
         workloadDescriptor.Category == EWorkloadCategory::UserRealtime) &&
-        (chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableSchemalessHorizontal ||
-        chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar))
+        (chunkFormat == EChunkFormat::TableSchemalessHorizontal ||
+        chunkFormat == EChunkFormat::TableUnversionedColumnar))
     {
         // For unversioned chunks verify that block size is correct.
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;

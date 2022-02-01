@@ -9,31 +9,25 @@
 
 #include <yt/yt/library/codegen/function.h>
 
-#include <yt/yt/core/misc/sync_cache.h>
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT::NTabletClient {
 
 using NTableClient::EValueType;
 using NTableClient::TUnversionedValue;
+using NTableClient::TUnversionedRow;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef int(TDDComparerSignature)(ui32, const TDynamicValueData*, ui32, const TDynamicValueData*);
 typedef int(TDUComparerSignature)(ui32, const TDynamicValueData*, const TUnversionedValue*, int);
-typedef int(TUUComparerSignature)(const TUnversionedValue*, i32, const TUnversionedValue*, i32);
+typedef int(TUUComparerSignature)(const TUnversionedValue*, const TUnversionedValue*, i32);
 
 struct TCGKeyComparers
 {
     NCodegen::TCGFunction<TDDComparerSignature> DDComparer;
     NCodegen::TCGFunction<TDUComparerSignature> DUComparer;
     NCodegen::TCGFunction<TUUComparerSignature> UUComparer;
-
-    int operator()(NTableClient::TUnversionedRow lhs, NTableClient::TUnversionedRow rhs) const
-    {
-        return UUComparer(lhs.Begin(), lhs.GetCount(), rhs.Begin(), rhs.GetCount());
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

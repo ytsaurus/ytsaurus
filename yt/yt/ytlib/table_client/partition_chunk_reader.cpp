@@ -83,6 +83,8 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         extensionTags))
         .ValueOrThrow();
 
+    SortOrders_ = GetSortOrders(GetTableSchema(*ChunkMeta_)->GetSortColumns());
+
     YT_VERIFY(FromProto<EChunkFormat>(ChunkMeta_->format()) == EChunkFormat::TableSchemalessHorizontal);
 
     TNameTablePtr chunkNameTable;
@@ -120,14 +122,14 @@ void TPartitionChunkReader::InitFirstBlock()
 
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
     auto schema = GetTableSchema(*ChunkMeta_);
-    auto comparator = schema->ToComparator();
+
     BlockReader_ = new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         BlockMetaExt_.data_blocks(CurrentBlockIndex_),
         GetCompositeColumnFlags(schema),
         ChunkToReaderIdMapping_,
-        comparator.GetLength(),
-        comparator);
+        SortOrders_,
+        SortOrders_.size());
 
     BlockReaders_.emplace_back(BlockReader_);
 }

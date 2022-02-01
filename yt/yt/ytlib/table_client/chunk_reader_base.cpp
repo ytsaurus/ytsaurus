@@ -8,6 +8,7 @@
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <algorithm>
 
@@ -137,27 +138,30 @@ bool TChunkReaderBase::OnBlockEnded()
 void TChunkReaderBase::CheckBlockUpperKeyLimit(
     TLegacyKey blockLastKey,
     TLegacyKey upperLimit,
-    std::optional<int> keyColumnCount)
+    int keyColumnCount,
+    int commonKeyPrefix)
 {
-    TChunkedMemoryPool pool;
-    auto wideKey = WidenKey(blockLastKey, keyColumnCount, &pool);
-
-    auto upperKey = upperLimit;
-    CheckKeyLimit_ = CompareRows(upperKey, wideKey) <= 0;
+    CheckKeyLimit_ = !TestKeyWithWidening(
+        ToKeyRef(blockLastKey, commonKeyPrefix),
+        MakeKeyBoundRef(upperLimit, true, keyColumnCount));
 }
 
 void TChunkReaderBase::CheckBlockUpperLimits(
     i64 blockChunkRowCount,
-    TKey blockLastKey,
+    TUnversionedRow blockLastKey,
     const TReadLimit& upperLimit,
-    const TComparator& comparator)
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix)
 {
     if (upperLimit.GetRowIndex()) {
         CheckRowLimit_ = *upperLimit.GetRowIndex() < blockChunkRowCount;
     }
 
     if (upperLimit.KeyBound() && blockLastKey) {
-        CheckKeyLimit_ = !comparator.TestKey(blockLastKey, upperLimit.KeyBound());
+        CheckKeyLimit_ = !TestKeyWithWidening(
+            ToKeyRef(blockLastKey, commonKeyPrefix),
+            MakeKeyBoundRef(upperLimit.KeyBound()),
+            sortOrders);
     }
 }
 
@@ -196,9 +200,10 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TDataBlockMetaExt& blockMeta, con
 }
 
 int TChunkReaderBase::ApplyLowerKeyLimit(
-    const TSharedRange<TKey>& blockLastKeys,
+    const TSharedRange<TUnversionedRow>& blockLastKeys,
     const TReadLimit& lowerLimit,
-    const TComparator& comparator) const
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix) const
 {
     const auto& lowerBound = lowerLimit.KeyBound();
     if (!lowerBound) {
@@ -207,28 +212,23 @@ int TChunkReaderBase::ApplyLowerKeyLimit(
 
     YT_VERIFY(!lowerBound.IsUpper);
 
-    const auto& maxKey = blockLastKeys[blockLastKeys.size() - 1];
-    if (!comparator.TestKey(maxKey, lowerBound)) {
-        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v, Comparator: %v)",
-            lowerLimit,
-            maxKey,
-            comparator);
-    }
-
     // BinarySearch returns first iterator such that !pred(it).
     // We are looking for the first block such that comparator.TestKey(blockLastKey, lowerBound).
     auto it = BinarySearch(
         blockLastKeys.begin(),
         blockLastKeys.end(),
-        [&] (const TKey* blockLastKey) {
-            return !comparator.TestKey(*blockLastKey, lowerBound);
+        [&] (const TUnversionedRow* blockLastKey) {
+            return !TestKeyWithWidening(
+                ToKeyRef(*blockLastKey, commonKeyPrefix),
+                MakeKeyBoundRef(lowerBound),
+                sortOrders);
         });
 
     if (it == blockLastKeys.end()) {
-        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v, Comparator: %v)",
+        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v, SortOrders: %v)",
             lowerLimit,
-            maxKey,
-            comparator);
+            blockLastKeys[blockLastKeys.size() - 1],
+            sortOrders);
         return blockLastKeys.size();
     }
 
@@ -256,9 +256,10 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TDataBlockMetaExt& blockMeta, con
 }
 
 int TChunkReaderBase::ApplyUpperKeyLimit(
-    const TSharedRange<TKey>& blockLastKeys,
+    const TSharedRange<TUnversionedRow>& blockLastKeys,
     const TReadLimit& upperLimit,
-    const TComparator& comparator) const
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix) const
 {
     const auto& upperBound = upperLimit.KeyBound();
     if (!upperBound) {
@@ -272,8 +273,11 @@ int TChunkReaderBase::ApplyUpperKeyLimit(
     auto it = BinarySearch(
         blockLastKeys.begin(),
         blockLastKeys.end(),
-        [&] (const TKey* blockLastKey) {
-            return comparator.TestKey(*blockLastKey, upperBound);
+        [&] (const TUnversionedRow* blockLastKey) {
+            return TestKeyWithWidening(
+                ToKeyRef(*blockLastKey, commonKeyPrefix),
+                MakeKeyBoundRef(upperBound),
+                sortOrders);
         });
 
     // TODO(gritukan): Probably half-opened intervals here is not that great idea.
@@ -321,31 +325,6 @@ std::vector<TChunkId> TChunkReaderBase::GetFailedChunkIds() const
     } else {
         return std::vector<TChunkId>();
     }
-}
-
-TLegacyKey TChunkReaderBase::WidenKey(
-    const TLegacyKey& key,
-    std::optional<int> nullableKeyColumnCount,
-    TChunkedMemoryPool* pool) const
-{
-    auto keyColumnCount = nullableKeyColumnCount.value_or(key.GetCount());
-    YT_VERIFY(keyColumnCount >= static_cast<int>(key.GetCount()));
-
-    if (keyColumnCount == static_cast<int>(key.GetCount())) {
-        return key;
-    }
-
-    auto wideKey = TMutableUnversionedRow::Allocate(pool, keyColumnCount);
-
-    for (int index = 0; index < static_cast<int>(key.GetCount()); ++index) {
-        wideKey[index] = key[index];
-    }
-
-    for (int index = key.GetCount(); index < keyColumnCount; ++index) {
-        wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
-    }
-
-    return wideKey;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

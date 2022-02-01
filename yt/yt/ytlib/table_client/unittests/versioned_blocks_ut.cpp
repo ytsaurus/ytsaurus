@@ -90,9 +90,7 @@ protected:
         Meta = block.Meta;
     }
 
-    TKeyComparer KeyComparer_ = [] (TLegacyKey lhs, TLegacyKey rhs) {
-        return CompareRows(lhs, rhs);
-    };
+    TKeyComparer KeyComparer_;
 };
 
 TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
@@ -104,7 +102,6 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         Data,
         Meta,
         Schema,
-        Schema->GetKeyColumnCount(),
         Schema->GetKeyColumnCount() + 2, // Two padding key columns.
         schemaIdMapping,
         KeyComparer_,
@@ -139,7 +136,6 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
         Meta,
         Schema,
         Schema->GetKeyColumnCount(),
-        Schema->GetKeyColumnCount(),
         schemaIdMapping,
         KeyComparer_,
         9,
@@ -166,7 +162,6 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
         Data,
         Meta,
         Schema,
-        Schema->GetKeyColumnCount(),
         Schema->GetKeyColumnCount(),
         schemaIdMapping,
         KeyComparer_,
@@ -196,7 +191,6 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         Data,
         Meta,
         Schema,
-        Schema->GetKeyColumnCount(),
         Schema->GetKeyColumnCount(),
         schemaIdMapping,
         KeyComparer_,

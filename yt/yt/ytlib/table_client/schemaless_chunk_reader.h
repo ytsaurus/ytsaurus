@@ -16,8 +16,6 @@
 #include <yt/yt/client/table_client/column_sort_schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 
-#include <yt/yt/core/concurrency/throughput_throttler.h>
-
 #include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NTableClient {
@@ -37,6 +35,7 @@ struct ISchemalessChunkReader
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
         TRange<NTableClient::TUnversionedRow> unreadRows) const = 0;
 
+    // TODO(lukyan): Move this method to ISchemalessMultiChunkReader.
     virtual const NChunkClient::TDataSliceDescriptor& GetCurrentReaderDescriptor() const = 0;
 };
 
@@ -52,7 +51,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    const TSortColumns& sortColumns,
+    TSortColumns sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const NChunkClient::TReadRange& readRange,

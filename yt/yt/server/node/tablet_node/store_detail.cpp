@@ -399,7 +399,7 @@ public:
         if (Any(type & GetSupportedBlockTypes())) {
             YT_ASSERT(id.ChunkId == ChunkId_);
             int blockIndex = id.BlockIndex - ChunkData_->StartBlockIndex;
-            YT_ASSERT(blockIndex >= 0 && blockIndex < std::ssize(ChunkData_->Blocks));
+            YT_VERIFY(blockIndex >= 0 && blockIndex < std::ssize(ChunkData_->Blocks));
             return TCachedBlock(ChunkData_->Blocks[blockIndex]);
         } else {
             return UnderlyingCache_->FindBlock(id, type);
@@ -413,7 +413,7 @@ public:
         if (Any(type & GetSupportedBlockTypes())) {
             YT_ASSERT(id.ChunkId == ChunkId_);
             int blockIndex = id.BlockIndex - ChunkData_->StartBlockIndex;
-            YT_ASSERT(blockIndex >= 0 && blockIndex < std::ssize(ChunkData_->Blocks));
+            YT_VERIFY(blockIndex >= 0 && blockIndex < std::ssize(ChunkData_->Blocks));
             return CreatePresetCachedBlockCookie(TCachedBlock(ChunkData_->Blocks[blockIndex]));
         } else {
             return UnderlyingCache_->GetBlockCookie(id, type);

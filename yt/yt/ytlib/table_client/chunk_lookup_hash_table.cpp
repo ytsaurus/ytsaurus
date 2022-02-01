@@ -115,46 +115,52 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkLookupHashTablePtr CreateChunkLookupHashTable(
+    NChunkClient::TChunkId chunkId,
     int startBlockIndex,
     const std::vector<TBlock>& blocks,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TTableSchemaPtr& tableSchema,
     const TKeyComparer& keyComparer)
 {
-    if (chunkMeta->GetChunkFormat() != EChunkFormat::TableVersionedSimple &&
-        chunkMeta->GetChunkFormat() != EChunkFormat::TableSchemalessHorizontal)
+    auto chunkFormat = chunkMeta->GetChunkFormat();
+    const auto& chunkBlockMeta = chunkMeta->DataBlockMeta();
+
+    if (chunkFormat != EChunkFormat::TableVersionedSimple &&
+        chunkFormat != EChunkFormat::TableSchemalessHorizontal)
     {
         YT_LOG_INFO("Cannot create lookup hash table for improper chunk format (ChunkId: %v, ChunkFormat: %v)",
-            chunkMeta->GetChunkId(),
-            chunkMeta->GetChunkFormat());
+            chunkId,
+            chunkFormat);
         return nullptr;
     }
 
     int lastBlockIndex = startBlockIndex + static_cast<int>(blocks.size()) - 1;
     if (lastBlockIndex > MaxBlockIndex) {
         YT_LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, LastBlockIndex: %v)",
-            chunkMeta->GetChunkId(),
+            chunkId,
             lastBlockIndex);
         return nullptr;
     }
 
     auto blockCache = New<TSimpleBlockCache>(startBlockIndex, blocks);
 
-    auto rowCount = chunkMeta->DataBlockMeta()->data_blocks(lastBlockIndex).chunk_row_count() -
-        (startBlockIndex > 0 ? chunkMeta->DataBlockMeta()->data_blocks(startBlockIndex - 1).chunk_row_count() : 0);
-    auto hashTable = New<TChunkLookupHashTable>(rowCount);
+    auto chunkSize = chunkBlockMeta->data_blocks(lastBlockIndex).chunk_row_count() -
+        (startBlockIndex > 0 ? chunkBlockMeta->data_blocks(startBlockIndex - 1).chunk_row_count() : 0);
+    auto hashTable = New<TChunkLookupHashTable>(chunkSize);
+
+    const std::vector<ESortOrder> sortOrders(tableSchema->GetKeyColumnCount(), ESortOrder::Ascending);
 
     for (int blockIndex = startBlockIndex; blockIndex <= lastBlockIndex; ++blockIndex) {
-        auto blockId = TBlockId(chunkMeta->GetChunkId(), blockIndex);
+        auto blockId = TBlockId(chunkId, blockIndex);
         auto uncompressedBlock = blockCache->FindBlock(blockId, EBlockType::UncompressedData).Block;
         if (!uncompressedBlock) {
             YT_LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache (ChunkId: %v, BlockIndex: %v)",
-                chunkMeta->GetChunkId(),
+                chunkId,
                 blockIndex);
             return nullptr;
         }
 
-        const auto& blockMeta = chunkMeta->DataBlockMeta()->data_blocks(blockIndex);
+        const auto& blockMeta = chunkBlockMeta->data_blocks(blockIndex);
 
         auto fillHashTable = [&] (auto&& blockReader) {
             // Verify that row index fits into 32 bits.
@@ -167,14 +173,13 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
             }
         };
 
-        switch (chunkMeta->GetChunkFormat()) {
+        switch (chunkFormat) {
             case EChunkFormat::TableVersionedSimple: {
                 TSimpleVersionedBlockReader blockReader(
                     uncompressedBlock.Data,
                     blockMeta,
                     chunkMeta->GetChunkSchema(),
-                    chunkMeta->GetChunkKeyColumnCount(),
-                    chunkMeta->GetKeyColumnCount(),
+                    tableSchema->GetKeyColumnCount(),
                     TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
                         .BuildVersionedSimpleSchemaIdMapping(TColumnFilter()),
                     keyComparer,
@@ -193,8 +198,8 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     GetCompositeColumnFlags(chunkMeta->GetChunkSchema()),
                     TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
                         .BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter()),
+                    sortOrders,
                     chunkMeta->GetChunkKeyColumnCount(),
-                    chunkMeta->GetKeyColumnCount(),
                     chunkMeta->Misc().min_timestamp());
 
                 fillHashTable(blockReader);

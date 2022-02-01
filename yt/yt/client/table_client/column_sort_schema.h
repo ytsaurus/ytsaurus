@@ -43,6 +43,8 @@ TString ToString(const TSortColumns& key);
 
 TKeyColumns GetColumnNames(const TSortColumns& sortColumns);
 
+std::vector<ESortOrder> GetSortOrders(const TSortColumns& sortColumns);
+
 TComparator GetComparator(const TSortColumns& sortColumns);
 
 ////////////////////////////////////////////////////////////////////////////////

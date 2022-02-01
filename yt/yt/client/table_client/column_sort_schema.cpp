@@ -132,7 +132,7 @@ TKeyColumns GetColumnNames(const TSortColumns& sortColumns)
     return keyColumns;
 }
 
-TComparator GetComparator(const TSortColumns& sortColumns)
+std::vector<ESortOrder> GetSortOrders(const TSortColumns& sortColumns)
 {
     std::vector<ESortOrder> sortOrders;
     sortOrders.reserve(sortColumns.size());
@@ -140,7 +140,12 @@ TComparator GetComparator(const TSortColumns& sortColumns)
         sortOrders.push_back(sortColumn.SortOrder);
     }
 
-    return TComparator(sortOrders);
+    return sortOrders;
+}
+
+TComparator GetComparator(const TSortColumns& sortColumns)
+{
+    return TComparator(GetSortOrders(sortColumns));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

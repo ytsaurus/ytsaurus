@@ -7,6 +7,62 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerSchema)
+{
+    auto throwIncompatibleKeyColumns = [&] () {
+        THROW_ERROR_EXCEPTION(
+            "Reader key columns %v are incompatible with chunk key columns %v",
+            readerSchema.GetKeyColumns(),
+            chunkSchema.GetKeyColumns());
+    };
+
+    if (readerSchema.GetKeyColumnCount() < chunkSchema.GetKeyColumnCount()) {
+        throwIncompatibleKeyColumns();
+    }
+
+    for (int readerIndex = 0; readerIndex < readerSchema.GetKeyColumnCount(); ++readerIndex) {
+        auto& column = readerSchema.Columns()[readerIndex];
+        YT_VERIFY (column.SortOrder());
+
+        if (readerIndex < chunkSchema.GetKeyColumnCount()) {
+            const auto& chunkColumn = chunkSchema.Columns()[readerIndex];
+            YT_VERIFY(chunkColumn.SortOrder());
+
+            if (chunkColumn.Name() != column.Name() ||
+                chunkColumn.GetWireType() != column.GetWireType() ||
+                chunkColumn.SortOrder() != column.SortOrder())
+            {
+                throwIncompatibleKeyColumns();
+            }
+        } else {
+            auto* chunkColumn = chunkSchema.FindColumn(column.Name());
+            if (chunkColumn) {
+                THROW_ERROR_EXCEPTION(
+                    "Incompatible reader key columns: %Qv is a non-key column in chunk schema %v",
+                    column.Name(),
+                    ConvertToYsonString(chunkSchema, NYson::EYsonFormat::Text).AsStringBuf());
+            }
+        }
+    }
+
+    for (int readerIndex = readerSchema.GetKeyColumnCount(); readerIndex < std::ssize(readerSchema.Columns()); ++readerIndex) {
+        auto& column = readerSchema.Columns()[readerIndex];
+        auto* chunkColumn = chunkSchema.FindColumn(column.Name());
+        if (!chunkColumn) {
+            // This is a valid case, simply skip the column.
+            continue;
+        }
+
+        if (chunkColumn->GetWireType() != column.GetWireType()) {
+            THROW_ERROR_EXCEPTION(
+                "Incompatible type %Qlv for column %Qv in chunk schema %v",
+                column.GetWireType(),
+                column.Name(),
+                ConvertToYsonString(chunkSchema, NYson::EYsonFormat::Text).AsStringBuf());
+        }
+    }
+}
+
 DEFINE_REFCOUNTED_TYPE(TChunkColumnMapping);
 
 TChunkColumnMapping::TChunkColumnMapping(const TTableSchemaPtr& tableSchema, const TTableSchemaPtr& chunkSchema)
@@ -14,6 +70,8 @@ TChunkColumnMapping::TChunkColumnMapping(const TTableSchemaPtr& tableSchema, con
     , ChunkKeyColumnCount_(chunkSchema->GetKeyColumnCount())
     , ChunkColumnCount_(chunkSchema->GetColumnCount())
 {
+    ValidateSchema(*chunkSchema, *tableSchema);
+
     ValueIdMapping_.resize(tableSchema->GetColumnCount() - TableKeyColumnCount_, -1);
 
     THashMap<TStringBuf, int> chunkValueColumnNames;

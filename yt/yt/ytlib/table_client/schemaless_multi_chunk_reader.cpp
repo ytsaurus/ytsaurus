@@ -220,14 +220,15 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         auto chunkState = New<TChunkState>(
                             blockCache,
                             chunkSpec,
-                            /*chunkMeta*/ nullptr,
+                            nullptr,
                             NullTimestamp,
                             /*lookupHashTable*/ nullptr,
                             /*performanceCounters*/ nullptr,
-                            /*keyComparer*/ nullptr,
+                            TKeyComparer{},
                             dataSource.GetVirtualValueDirectory(),
                             /*tableSchema*/ nullptr);
                         chunkState->DataSource = dataSource;
+
 
                         return CreateSchemalessRangeChunkReader(
                             std::move(chunkState),
@@ -247,7 +248,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 : multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate),
                             dataSliceDescriptor.VirtualRowIndex,
                             interruptDescriptorKeyLength);
-                    }));
+                    }).AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
                 });
 
                 auto createReader = BIND([=] {
@@ -761,6 +762,7 @@ public:
             for (auto schemafulRow : SchemafulRows_) {
                 auto schemalessRow = TMutableUnversionedRow::Allocate(&MemoryPool_, SchemaColumnCount_ + SystemColumnCount_);
 
+                // TODO(lukyan): Do not remap here. Use proper mapping in schemaful reader.
                 int schemalessValueIndex = 0;
                 for (int valueIndex = 0; valueIndex < static_cast<int>(schemafulRow.GetCount()); ++valueIndex) {
                     const auto& value = schemafulRow[valueIndex];
@@ -1187,22 +1189,22 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             bandwidthThrottler,
             rpsThrottler);
 
-        auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
-            remoteReader,
-            chunkReadOptions,
-            versionedReadSchema,
-            renameDescriptors,
-            nullptr /* memoryTracker */);
-        auto chunkMeta = WaitFor(asyncChunkMeta)
+        auto asyncVersionedChunkMeta = remoteReader->GetMeta(chunkReadOptions)
+            .Apply(BIND(&TCachedVersionedChunkMeta::Create));
+
+        auto versionedChunkMeta = WaitFor(asyncVersionedChunkMeta)
             .ValueOrThrow();
+
+        versionedChunkMeta->RenameColumns(renameDescriptors);
+
         auto chunkState = New<TChunkState>(
             blockCache,
             chunkSpec,
-            /*chunkMeta*/ nullptr,
+            versionedChunkMeta,
             chunkSpec.has_override_timestamp() ? chunkSpec.override_timestamp() : NullTimestamp,
             /*lookupHashTable*/ nullptr,
             performanceCounters,
-            /*keyComparer*/ nullptr,
+            /*keyComparer*/ TKeyComparer{},
             /*virtualValueDirectory*/ nullptr,
             versionedReadSchema);
         chunkState->DataSource = dataSource;
@@ -1211,7 +1213,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             config,
             std::move(remoteReader),
             std::move(chunkState),
-            std::move(chunkMeta),
+            std::move(versionedChunkMeta),
             chunkReadOptions,
             lowerLimit.GetLegacyKey(),
             upperLimit.GetLegacyKey(),
@@ -1221,7 +1223,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             chunkReaderMemoryManager
                 ? chunkReaderMemoryManager
                 : multiReaderMemoryManager->CreateChunkReaderMemoryManager(
-                    chunkMeta->Misc().uncompressed_data_size()));
+                    versionedChunkMeta->Misc().uncompressed_data_size()));
     };
 
     auto createVersionedReader = [
@@ -1240,7 +1242,6 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         trafficMeter,
         bandwidthThrottler,
         rpsThrottler,
-        renameDescriptors,
         multiReaderMemoryManager,
         createVersionedChunkReader,
         Logger

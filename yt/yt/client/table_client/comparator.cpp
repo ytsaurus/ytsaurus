@@ -337,4 +337,197 @@ void Serialize(const TComparator& comparator, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Comparator which returns int. abs(compare result) - 1 is equal to index of first non-equal component.
+int ComparePrefix(const TUnversionedValue* lhs, const TUnversionedValue* rhs, int length)
+{
+    int index = 0;
+    while (index < length) {
+        int result = CompareRowValues(lhs[index], rhs[index]);
+        ++index;
+        if (result != 0) {
+            return result > 0 ? index : -index;
+        }
+    }
+
+    return 0;
+}
+
+int GetCompareSign(int value)
+{
+    return value != 0 ? value > 0 ? 1 : -1 : 0;
+}
+
+int CompareKeys(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs, TPrefixComparer comparePrefix)
+{
+    auto minCount = std::min(lhs.Size(), rhs.Size());
+    auto result = comparePrefix(lhs.Begin(), rhs.Begin(), minCount);
+    if (result == 0) {
+        if (lhs.Size() < rhs.Size()) {
+            result = -(minCount + 1);
+        } else if (lhs.Size() > rhs.Size()) {
+            result = minCount + 1;
+        }
+    }
+
+    return GetCompareSign(result);
+}
+
+int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, TPrefixComparer comparePrefix)
+{
+    return CompareKeys(ToKeyRef(lhs), ToKeyRef(rhs), comparePrefix);
+}
+
+TKeyComparer::TKeyComparer(const TBase& base)
+    : TBase(base)
+{ }
+
+TKeyComparer::TKeyComparer()
+    : TBase(reinterpret_cast<uintptr_t>(&ComparePrefix), nullptr)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRange<TUnversionedValue> ToKeyRef(TKey key)
+{
+    return MakeRange(key.Begin(), key.End());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TKeyBoundRef::TKeyBoundRef(TRange<TUnversionedValue> base, bool inclusive, bool upper)
+    : TRange<TUnversionedValue>(base)
+    , Inclusive(inclusive)
+    , Upper(upper)
+{ }
+
+TKeyBoundRef MakeKeyBoundRef(const TKeyBound& bound)
+{
+    return TKeyBoundRef(ToKeyRef(bound.Prefix), bound.IsInclusive, bound.IsUpper);
+}
+
+TKeyBoundRef MakeKeyBoundRef(const TOwningKeyBound& bound)
+{
+    return TKeyBoundRef(ToKeyRef(bound.Prefix), bound.IsInclusive, bound.IsUpper);
+}
+
+std::pair<int, bool> GetBoundPrefixAndInclusiveness(TUnversionedRow row, bool isUpper, int keyLength);
+
+TKeyBoundRef MakeKeyBoundRef(TUnversionedRow row, bool upper, int keyLength)
+{
+    if (!row) {
+        return TKeyBoundRef({}, /*inclusive*/ true, upper);
+    }
+
+    auto [prefixLength, inclusive] = GetBoundPrefixAndInclusiveness(row, upper, keyLength);
+    return TKeyBoundRef(
+        ToKeyRef(row, prefixLength),
+        inclusive,
+        upper);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+int TestComparisonResult(int result, TRange<ESortOrder> sortOrders, bool inclusive, bool upper)
+{
+    if (result != 0) {
+        if (sortOrders[std::abs(result) - 1] == ESortOrder::Descending) {
+            result = -result;
+        }
+
+        if (upper) {
+            result = -result;
+        }
+    }
+
+    return result > 0 || inclusive && result == 0;
+}
+
+int TestComparisonResult(int result, bool inclusive, bool upper)
+{
+    if (upper) {
+        result = -result;
+    }
+
+    return result > 0 || inclusive && result == 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int CompareWithWidening(
+    TRange<TUnversionedValue> keyPrefix,
+    TRange<TUnversionedValue> boundKey,
+    TPrefixComparer comparePrefix)
+{
+    int result;
+    if (keyPrefix.size() < boundKey.size()) {
+        result = comparePrefix(keyPrefix.begin(), boundKey.begin(), keyPrefix.size());
+
+        if (result == 0) {
+            // Key is widened with nulls. Compare them with bound.
+            int index = keyPrefix.size();
+            while (index < std::ssize(boundKey)) {
+                if (boundKey[index].Type != EValueType::Null) {
+                    // Negative value because null is less than non-null value type.
+                    result = -(index + 1);
+                    break;
+                }
+                ++index;
+            }
+        }
+    } else {
+        result = comparePrefix(keyPrefix.begin(), boundKey.begin(), boundKey.size());
+    }
+
+    return result;
+}
+
+int CompareWithWidening(
+    TRange<TUnversionedValue> keyPrefix,
+    TRange<TUnversionedValue> boundKey)
+{
+    return CompareWithWidening(keyPrefix, boundKey, ComparePrefix);
+}
+
+int TestKey(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders)
+{
+    YT_VERIFY(bound.size() <= key.size());
+    int result = ComparePrefix(key.begin(), bound.begin(), bound.size());
+
+    return TestComparisonResult(result, sortOrders, bound.Inclusive, bound.Upper);
+}
+
+int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders)
+{
+    int result = CompareWithWidening(key, bound);
+    return TestComparisonResult(result, sortOrders, bound.Inclusive, bound.Upper);
+}
+
+int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound)
+{
+    int result = CompareWithWidening(key, bound);
+    return TestComparisonResult(result, bound.Inclusive, bound.Upper);
+}
+
+int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TPrefixComparer comparePrefix)
+{
+    int result = CompareWithWidening(key, bound, comparePrefix);
+    return TestComparisonResult(result, bound.Inclusive, bound.Upper);
+}
+
+int TestKeyWithWidening(TPrefixComparer prefixComparer, TRange<TUnversionedValue> key, const TKeyBoundRef& bound)
+{
+    int result = CompareWithWidening(key, bound, prefixComparer);
+    return TestComparisonResult(result, bound.Inclusive, bound.Upper);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, ESortOrder sortOrder, TStringBuf /* spec */)
+{
+    FormatEnum(builder, sortOrder, true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

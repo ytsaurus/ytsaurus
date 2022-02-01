@@ -17,84 +17,16 @@
 
 namespace NYT::NTableClient {
 
-using namespace NConcurrency;
 using namespace NTableClient::NProto;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
-using namespace NNodeTrackerClient;
-using namespace NYson;
-using namespace NYTree;
 
 using NYT::FromProto;
 using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedVersionedChunkMeta::TCachedVersionedChunkMeta() = default;
-
-TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
-    TChunkId chunkId,
-    const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TTableSchemaPtr& schema,
-    const TColumnRenameDescriptors& renameDescriptors,
-    const IMemoryUsageTrackerPtr& memoryTracker)
-{
-    try {
-        auto cachedMeta = New<TCachedVersionedChunkMeta>();
-        cachedMeta->Init(chunkId, chunkMeta, schema, renameDescriptors, memoryTracker);
-        return cachedMeta;
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
-            chunkId)
-            << ex;
-    }
-}
-
-TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
-    const IChunkReaderPtr& chunkReader,
-    const TClientChunkReadOptions& chunkReadOptions,
-    const TTableSchemaPtr& schema,
-    const TColumnRenameDescriptors& renameDescriptors,
-    const IMemoryUsageTrackerPtr& memoryTracker)
-{
-    auto chunkId = chunkReader->GetChunkId();
-    return chunkReader->GetMeta(chunkReadOptions)
-        .Apply(BIND([=] (const TRefCountedChunkMetaPtr& chunkMeta) {
-            return TCachedVersionedChunkMeta::Create(chunkId, *chunkMeta, schema, renameDescriptors, memoryTracker);
-        }));
-}
-
-void TCachedVersionedChunkMeta::Init(
-    TChunkId chunkId,
-    const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TTableSchemaPtr& schema,
-    const TColumnRenameDescriptors& renameDescriptors,
-    const IMemoryUsageTrackerPtr& memoryTracker)
-{
-    ChunkId_ = chunkId;
-
-    auto keyColumns = schema->GetKeyColumns();
-    KeyColumnCount_ = keyColumns.size();
-
-    TColumnarChunkMeta::InitExtensions(chunkMeta);
-    TColumnarChunkMeta::RenameColumns(renameDescriptors);
-    TColumnarChunkMeta::InitBlockLastKeys(keyColumns);
-
-    ValidateChunkMeta();
-    ValidateSchema(*schema);
-
-    if (auto optionalHunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkMeta.extensions())) {
-        HunkChunkRefsExt_ = std::move(*optionalHunkChunkRefsExt);
-    }
-
-    if (memoryTracker) {
-        MemoryTrackerGuard_ = TMemoryUsageTrackerGuard::Acquire(
-            memoryTracker,
-            GetMemoryUsage());
-    }
-}
-
-void TCachedVersionedChunkMeta::ValidateChunkMeta()
+TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+    : TColumnarChunkMeta(chunkMeta)
 {
     if (ChunkType_ != EChunkType::Table) {
         THROW_ERROR_EXCEPTION("Incorrect chunk type: actual %Qlv, expected %Qlv",
@@ -110,63 +42,15 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
         THROW_ERROR_EXCEPTION("Incorrect chunk format %Qlv",
             ChunkFormat_);
     }
+
+    if (auto optionalHunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkMeta.extensions())) {
+        HunkChunkRefsExt_ = std::move(*optionalHunkChunkRefsExt);
+    }
 }
 
-void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
+TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta)
 {
-    ChunkKeyColumnCount_ = ChunkSchema_->GetKeyColumnCount();
-    auto throwIncompatibleKeyColumns = [&] () {
-        THROW_ERROR_EXCEPTION(
-            "Reader key columns %v are incompatible with chunk key columns %v",
-            readerSchema.GetKeyColumns(),
-            ChunkSchema_->GetKeyColumns());
-    };
-
-    if (readerSchema.GetKeyColumnCount() < ChunkSchema_->GetKeyColumnCount()) {
-        throwIncompatibleKeyColumns();
-    }
-
-    for (int readerIndex = 0; readerIndex < readerSchema.GetKeyColumnCount(); ++readerIndex) {
-        auto& column = readerSchema.Columns()[readerIndex];
-        YT_VERIFY (column.SortOrder());
-
-        if (readerIndex < ChunkSchema_->GetKeyColumnCount()) {
-            const auto& chunkColumn = ChunkSchema_->Columns()[readerIndex];
-            YT_VERIFY(chunkColumn.SortOrder());
-
-            if (chunkColumn.Name() != column.Name() ||
-                chunkColumn.GetWireType() != column.GetWireType() ||
-                chunkColumn.SortOrder() != column.SortOrder())
-            {
-                throwIncompatibleKeyColumns();
-            }
-        } else {
-            auto* chunkColumn = ChunkSchema_->FindColumn(column.Name());
-            if (chunkColumn) {
-                THROW_ERROR_EXCEPTION(
-                    "Incompatible reader key columns: %Qv is a non-key column in chunk schema %v",
-                    column.Name(),
-                    ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).AsStringBuf());
-            }
-        }
-    }
-
-    for (int readerIndex = readerSchema.GetKeyColumnCount(); readerIndex < std::ssize(readerSchema.Columns()); ++readerIndex) {
-        auto& column = readerSchema.Columns()[readerIndex];
-        auto* chunkColumn = ChunkSchema_->FindColumn(column.Name());
-        if (!chunkColumn) {
-            // This is a valid case, simply skip the column.
-            continue;
-        }
-
-        if (chunkColumn->GetWireType() != column.GetWireType()) {
-            THROW_ERROR_EXCEPTION(
-                "Incompatible type %Qlv for column %Qv in chunk schema %v",
-                column.GetWireType(),
-                column.Name(),
-                ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).AsStringBuf());
-        }
-    }
+    return New<TCachedVersionedChunkMeta>(*chunkMeta);
 }
 
 i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
@@ -203,6 +87,19 @@ void TCachedVersionedChunkMeta::PrepareColumnarMeta()
     if (MemoryTrackerGuard_) {
         MemoryTrackerGuard_.SetSize(GetMemoryUsage());
     }
+}
+
+int TCachedVersionedChunkMeta::GetChunkKeyColumnCount() const
+{
+    return GetChunkSchema()->GetKeyColumnCount();
+}
+
+
+void TCachedVersionedChunkMeta::TrackMemory(const IMemoryUsageTrackerPtr& memoryTracker)
+{
+    MemoryTrackerGuard_ = TMemoryUsageTrackerGuard::Acquire(
+        memoryTracker,
+        GetMemoryUsage());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
