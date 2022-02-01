@@ -5,7 +5,7 @@ import org.apache.hadoop.fs.{FSDataInputStream, FileStatus, Path}
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.spark.yt.fs.PathUtils.{getMetaPath, hadoopPathToYt}
-import ru.yandex.spark.yt.test.{LocalSpark, LocalYtClient, TestUtils, TmpDir}
+import ru.yandex.spark.yt.test.{LocalSpark, LocalYt, LocalYtClient, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema._
@@ -31,7 +31,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     val c = new Configuration()
     c.set("yt.dynTable.rowSize", "2")
     c.set("fs.ytEventLog.singleReadLimit", "2")
-    c.set("yt.proxy", "localhost:8000")
+    c.set("yt.proxy", s"${LocalYt.host}:${LocalYt.proxyPort}")
     c.set("yt.user", "root")
     c.set("yt.token", "")
     c
@@ -189,7 +189,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
       val c = new Configuration()
       c.set("yt.dynTable.rowSize", "6")
       c.set("fs.ytEventLog.singleReadLimit", "6")
-      c.set("yt.proxy", "localhost:8000")
+      c.set("yt.proxy", s"${LocalYt.host}:${LocalYt.proxyPort}")
       c.set("yt.user", "root")
       c.set("yt.token", "")
       c
@@ -229,7 +229,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
       val c = new Configuration()
       c.set("yt.dynTable.rowSize", "6")
       c.set("fs.ytEventLog.singleReadLimit", "6")
-      c.set("yt.proxy", "localhost:8000")
+      c.set("yt.proxy", s"${LocalYt.host}:${LocalYt.proxyPort}")
       c.set("yt.user", "root")
       c.set("yt.token", "")
       c

@@ -21,6 +21,7 @@ trait LocalYt extends BeforeAndAfterAll {
 }
 
 object LocalYt extends DockerCompose {
+  val host: String = sys.env.getOrElse("YT_LOCAL_HOST", "localhost")
   val proxyPort = 8000
   val rpcProxyPort = 8002
   private val innerProxyPort = 80
@@ -38,12 +39,12 @@ object LocalYt extends DockerCompose {
     super.cleanPrevEnvironment()
   }
 
-  lazy val ytDocker = DockerContainer("registry.yandex.net/yt/yt:stable", name = Some(ytDockerName))
+  lazy val ytDocker = DockerContainer("registry.yandex.net/yt/yt:sashbel31012022", name = Some(ytDockerName))
     .withPorts(innerProxyPort -> Some(proxyPort), rpcProxyPort -> Some(rpcProxyPort))
     .withReadyChecker(
       DockerReadyChecker.And(
         DockerReadyChecker
-          .HttpResponseCode(innerProxyPort, path = "/hosts")
+          .HttpResponseCode(innerProxyPort, path = "/hosts", host = Some(host))
           .looped(100, 5 seconds)
           .within(10 minutes),
         DockerReadyChecker
@@ -52,10 +53,14 @@ object LocalYt extends DockerCompose {
           .within(10 minutes)
       )
     )
-    .withCommand("--proxy-config",
+    .withEntrypoint(
+      "bash", "/usr/bin/start-patched.sh",
+      host,
+      "--proxy-config",
       s"""{address_resolver={enable_ipv4=%true;enable_ipv6=%false;};coordinator={public_fqdn=\"localhost:$proxyPort\"}}""",
       "--rpc-proxy-count", "1",
-      "--rpc-proxy-port", rpcProxyPort.toString)
+      "--rpc-proxy-port", rpcProxyPort.toString
+    )
 
   lazy val ytInterfaceDocker = DockerContainer("registry.yandex.net/yt/yt-interface:stable", name = Some(ytInterfaceDockerName))
     .withPorts(80 -> Some(8001))
@@ -84,7 +89,7 @@ trait LocalYtClient extends LocalYt {
   self: TestSuite =>
 
   private val conf: YtClientConfiguration = YtClientConfiguration(
-    proxy = s"localhost:${LocalYt.proxyPort}",
+    proxy = s"${LocalYt.host}:${LocalYt.proxyPort}",
     user = "root",
     token = "",
     timeout = 5 minutes,

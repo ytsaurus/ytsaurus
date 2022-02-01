@@ -132,7 +132,7 @@ object LocalSpark {
     .set("fs.yt.impl", "ru.yandex.spark.yt.fs.YtFileSystem")
     .set("spark.hadoop.fs.yt.impl", "ru.yandex.spark.yt.fs.YtFileSystem")
     .set("fs.defaultFS", "ytTable:///")
-    .set("spark.hadoop.yt.proxy", "localhost:8000")
+    .set("spark.hadoop.yt.proxy", s"${LocalYt.host}:${LocalYt.proxyPort}")
     .set("spark.hadoop.yt.user", "root")
     .set("spark.hadoop.yt.token", "")
     .set("spark.hadoop.yt.timeout", "300")

@@ -18,7 +18,7 @@ import scala.language.postfixOps
 class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYt with TmpDir with TestUtils {
 
   override protected implicit val ytRpcClient: YtRpcClient = {
-    createClient(s"localhost:${LocalYt.rpcProxyPort}", new RpcCredentials("root", ""))
+    createClient(s"${LocalYt.host}:${LocalYt.rpcProxyPort}", new RpcCredentials("root", ""))
   }
 
   "SingleProxyYtClient" should "create and list nodes" in {
