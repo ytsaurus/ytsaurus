@@ -35,8 +35,8 @@ func opAnnotations(a *Agent, oplet *Oplet) map[string]interface{} {
 			"address": a.hostname,
 			// TODO(max42): build Revision, etc.
 		},
-		"strawberry_incarnation":        oplet.IncarnationIndex + 1,
-		"strawberry_previous_operation": oplet.YTOpID,
+		"strawberry_incarnation":           oplet.IncarnationIndex + 1,
+		"strawberry_previous_operation_id": oplet.YTOpID,
 	}
 }
 
@@ -46,7 +46,7 @@ func opDescription(a *Agent, oplet *Oplet) map[string]interface{} {
 		"strawberry_incarnation": oplet.IncarnationIndex + 1,
 	}
 	if oplet.YTOpID != yt.OperationID(guid.FromParts(0, 0, 0, 0)) {
-		desc["strawberry_previous_operation_id"] = operationURL(a.Proxy, oplet.YTOpID)
+		desc["strawberry_previous_operation"] = operationURL(a.Proxy, oplet.YTOpID)
 	}
 	return desc
 }

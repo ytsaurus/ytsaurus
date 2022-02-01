@@ -69,17 +69,34 @@ func createNode(t *testing.T, env *yttest.Env, alias string) {
 		},
 	})
 	require.NoError(t, err)
+	_, err = env.YT.CreateNode(env.Ctx, root.Child(alias).Child("access"), yt.NodeMap, nil)
+	require.NoError(t, err)
 }
 
 func removeNode(t *testing.T, env *yttest.Env, alias string) {
 	env.L.Debug("removing node", log.String("alias", alias))
-	err := env.YT.RemoveNode(env.Ctx, root.Child(alias), nil)
+	err := env.YT.RemoveNode(
+		env.Ctx,
+		root.Child(alias),
+		&yt.RemoveNodeOptions{
+			Recursive: true,
+		})
 	require.NoError(t, err)
 }
 
 func setAttr(t *testing.T, env *yttest.Env, alias string, attr string, value interface{}) {
 	env.L.Debug("setting attribute", log.String("attr", alias+"/@"+attr))
 	err := env.YT.SetNode(env.Ctx, root.Child(alias).Attr(attr), value, nil)
+	require.NoError(t, err)
+}
+
+func setACL(t *testing.T, env *yttest.Env, alias string, acl []yt.ACE) {
+	err := env.YT.SetNode(env.Ctx, root.Child(alias).Child("access").Attr("acl"), acl, nil)
+	require.NoError(t, err)
+	// TODO(dakovalkov): Changing ACL does not change the revision now.
+	// We set user attribute now to force changing the revision.
+	// Remove it after https://st.yandex-team.ru/YT-16169.
+	err = env.YT.SetNode(env.Ctx, root.Child(alias).Child("access").Attr("_idm_integration"), true, nil)
 	require.NoError(t, err)
 }
 
@@ -113,6 +130,36 @@ func waitOp(t *testing.T, env *yttest.Env, alias string) *yt.OperationStatus {
 	}
 	t.FailNow()
 	return nil
+}
+
+func getOpACL(t *testing.T, env *yttest.Env, alias string) []yt.ACE {
+	op := getOp(t, env, alias)
+	if op == nil {
+		return nil
+	}
+	acl := op.RuntimeParameters.ACL
+	// Delete unused fields.
+	for i := range acl {
+		acl[i].InheritanceMode = ""
+	}
+	return acl
+}
+
+func waitOpACL(t *testing.T, env *yttest.Env, alias string, expectedACL []yt.ACE) {
+	var currentACL []yt.ACE
+	for i := 0; i < 30; i++ {
+		currentACL = getOpACL(t, env, alias)
+		if reflect.DeepEqual(currentACL, expectedACL) {
+			return
+		}
+		time.Sleep(time.Millisecond * 300)
+	}
+
+	currentACLString, err := yson.Marshal(currentACL)
+	require.NoError(t, err)
+	env.L.Error("acl mismatch", log.String("current_acl", string(currentACLString)))
+
+	t.FailNow()
 }
 
 func listAliases(t *testing.T, env *yttest.Env) []string {
@@ -260,4 +307,42 @@ func TestControllerStage(t *testing.T) {
 	waitIncarnation(t, env, "test7", 2)
 	// Default agent is off.
 	waitIncarnation(t, env, "test6", 1)
+}
+
+func TestACLUpdate(t *testing.T) {
+	env, agent := prepare(t)
+	agent.Start()
+
+	createNode(t, env, "test")
+	waitIncarnation(t, env, "test", 1)
+
+	defaultACL := []yt.ACE{
+		{
+			Action:      "allow",
+			Subjects:    []string{"admins"},
+			Permissions: []string{"read", "manage"},
+		},
+		{
+			Action:      "allow",
+			Subjects:    []string{"root"},
+			Permissions: []string{"read", "manage"},
+		},
+	}
+	realACL := getOpACL(t, env, "test")
+
+	require.True(t, reflect.DeepEqual(realACL, defaultACL))
+
+	customACL := []yt.ACE{
+		{
+			Action:      "allow",
+			Subjects:    []string{"everyone"},
+			Permissions: []string{"read"},
+		},
+	}
+	setACL(t, env, "test", customACL)
+
+	// Default ACL is always appended to provided one.
+	customACL = append(customACL, defaultACL...)
+
+	waitOpACL(t, env, "test", customACL)
 }
