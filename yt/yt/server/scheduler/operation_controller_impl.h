@@ -49,7 +49,8 @@ public:
         bool byScheduler) override;
     void OnNonscheduledJobAborted(
         TJobId jobId,
-        EAbortReason abortReason) override;
+        EAbortReason abortReason,
+        const TString& treeId) override;
     void OnJobRunning(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status,

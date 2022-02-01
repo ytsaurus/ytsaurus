@@ -65,6 +65,9 @@ TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     if (status->has_phase()) {
         Phase = static_cast<EJobPhase>(status->phase());
     }
+    if (status->has_job_type()) {
+        Type = static_cast<EJobType>(status->job_type());
+    }
 
     if (status->has_status_timestamp()) {
         LastStatusUpdateTime = FromProto<TInstant>(status->status_timestamp());

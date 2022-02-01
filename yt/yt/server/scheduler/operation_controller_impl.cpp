@@ -495,7 +495,8 @@ void TOperationControllerImpl::OnJobAborted(
 
 void TOperationControllerImpl::OnNonscheduledJobAborted(
     TJobId jobId,
-    EAbortReason abortReason)
+    EAbortReason abortReason,
+    const TString& treeId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -504,17 +505,18 @@ void TOperationControllerImpl::OnNonscheduledJobAborted(
     ToProto(status->mutable_operation_id(), OperationId_);
     status->set_state(static_cast<int>(EJobState::Aborted));
     TSchedulerToAgentJobEvent event{
-        ESchedulerToAgentJobEventType::Aborted,
-        OperationId_,
-        false,
-        {},
-        {},
-        std::move(status),
-        abortReason,
-        {},
-        {},
-        {},
-        {},
+        .EventType = ESchedulerToAgentJobEventType::Aborted,
+        .OperationId = OperationId_,
+        .LogAndProfile = false,
+        .StartTime = {},
+        .FinishTime = {},
+        .TreeId = treeId,
+        .Status = std::move(status),
+        .AbortReason = abortReason,
+        .Abandoned = {},
+        .InterruptReason = {},
+        .AbortedByScheduler = {},
+        .PreemptedFor = {},
     };
     auto result = EnqueueJobEvent(std::move(event));
     YT_LOG_DEBUG("Nonscheduled job abort notification %v (JobId: %v)",
@@ -787,17 +789,18 @@ TSchedulerToAgentJobEvent TOperationControllerImpl::BuildEvent(
     statusHolder->set_job_type(static_cast<int>(job->GetType()));
     statusHolder->set_state(static_cast<int>(job->GetState()));
     return TSchedulerToAgentJobEvent{
-        eventType,
-        OperationId_,
-        logAndProfile,
-        job->GetStartTime(),
-        job->GetFinishTime(),
-        std::move(statusHolder),
-        {},
-        {},
-        {},
-        {},
-        {},
+        .EventType = eventType,
+        .OperationId = OperationId_,
+        .LogAndProfile = logAndProfile,
+        .StartTime = job->GetStartTime(),
+        .FinishTime = job->GetFinishTime(),
+        .TreeId = job->GetTreeId(),
+        .Status = std::move(statusHolder),
+        .AbortReason = {},
+        .Abandoned = {},
+        .InterruptReason = {},
+        .AbortedByScheduler = {},
+        .PreemptedFor = {},
     };
 }
 

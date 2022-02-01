@@ -602,6 +602,7 @@ public:
                     protoEvent->set_log_and_profile(event.LogAndProfile);
                     protoEvent->mutable_status()->CopyFrom(*event.Status);
                     protoEvent->set_start_time(ToProto<ui64>(event.StartTime));
+                    protoEvent->set_tree_id(event.TreeId);
                     if (event.FinishTime) {
                         protoEvent->set_finish_time(ToProto<ui64>(*event.FinishTime));
                     }

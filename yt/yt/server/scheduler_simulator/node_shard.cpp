@@ -218,7 +218,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         PreemptJob(job, Config_->EnableFullEventLog);
         auto operation = RunningOperationsMap_->Get(job->GetOperationId());
         auto controller = operation->GetControllerStrategyHost();
-        controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::Preemption);
+        controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::Preemption, job->GetTreeId());
 
         // Update stats
         OperationStatistics_->OnJobPreempted(job->GetOperationId(), duration);

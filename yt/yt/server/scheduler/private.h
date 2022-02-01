@@ -38,6 +38,7 @@ class TJobMetrics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(ignat)
 using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, std::pair<i64, NProfiling::TGauge>>;
 using TAbortedJobCounter = THashMap<std::tuple<EJobType, EAbortReason, TString>, NProfiling::TCounter>;
 using TFailedJobCounter = THashMap<std::tuple<EJobType, TString>, NProfiling::TCounter>;
@@ -132,7 +133,6 @@ inline const NProfiling::TProfiler SchedulerProfiler{"/scheduler"};
 static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 
 inline const TString EventLogPoolTreeKey{"tree_id"};
-inline const TString ProfilingPoolTreeKey{"tree"};
 
 inline const NLogging::TLogger StrategyLogger{"Strategy"};
 inline const NLogging::TLogger NodeShardLogger{"NodeShard"};
