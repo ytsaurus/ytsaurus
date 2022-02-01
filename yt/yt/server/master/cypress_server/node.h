@@ -46,65 +46,83 @@ struct TTombstonedVersionedBuiltinAttribute
 };
 
 template <class T>
+struct TVersionedBuiltinAttributeTraits
+{
+    using TRawType = T;
+    static constexpr bool IsPointer = std::is_pointer_v<T>;
+    static T ToRaw(T value);
+    static T FromRaw(T value);
+};
+
+template <class T>
+struct TVersionedBuiltinAttributeTraits<NObjectServer::TStrongObjectPtr<T>>
+{
+    using TRawType = T*;
+    static constexpr bool IsPointer = true;
+    static T* ToRaw(const NObjectServer::TStrongObjectPtr<T>& value);
+    static NObjectServer::TStrongObjectPtr<T> FromRaw(T* value);
+};
+
+template <class T>
+using TRawVersionedBuiltinAttributeType = typename TVersionedBuiltinAttributeTraits<T>::TRawType;
+
+template <class T>
 class TVersionedBuiltinAttribute
 {
 public:
     void Persist(const NCellMaster::TPersistenceContext& context);
-    void Persist(const NCypressServer::TCopyPersistenceContext& context);
+
+    void Save(TBeginCopyContext& context) const;
+    void Load(TEndCopyContext& context);
 
 public:
     using TValue = T;
 
-    std::optional<T> ToOptional() const;
+    std::optional<TRawVersionedBuiltinAttributeType<T>> ToOptional() const;
 
     //! Precondition: IsSet().
-    T Unbox() const;
+    TRawVersionedBuiltinAttributeType<T> Unbox() const;
 
     bool IsSet() const;
     bool IsNull() const;
     bool IsTombstoned() const;
 
-    //! Sets this attribute to a new value and returns the old value (if any).
-    std::optional<T> Set(T value);
-    //! Resets this attribute (to null) and returns the old value (if any).
-    std::optional<T> Reset();
-    //! Marks this attribute as removed (with a tombstone) and returns the old
-    //! value (if any).
-    std::optional<T> Remove();
-
-    // COMPAT(shakurov): remove this.
-    void SetOrReset(T value);
+    //! Sets this attribute to a new value.
+    void Set(T value);
+    //! Resets this attribute (to null).
+    void Reset();
+    //! Marks this attribute as removed (with a tombstone).
+    void Remove();
 
     template <class TOwner>
-    static T Get(
+    static TRawVersionedBuiltinAttributeType<T> Get(
         TVersionedBuiltinAttribute TOwner::*member,
         const TOwner* node);
 
     template <class TOwner>
-    static T Get(
+    static TRawVersionedBuiltinAttributeType<T> Get(
         const TVersionedBuiltinAttribute<T>* (TOwner::*memberGetter)() const,
         const TOwner* node);
 
     template <class TOwner>
-    static std::optional<T> TryGet(
+    static std::optional<TRawVersionedBuiltinAttributeType<T>> TryGet(
         TVersionedBuiltinAttribute<T> TOwner::*member,
         const TOwner* node);
 
     template <class TOwner>
-    static std::optional<T> TryGet(
+    static std::optional<TRawVersionedBuiltinAttributeType<T>> TryGet(
         const TVersionedBuiltinAttribute<T>* (TOwner::* memberGetter)() const,
         const TOwner* node);
 
     void Merge(const TVersionedBuiltinAttribute& from, bool isTrunk);
 
 private:
-    using TBox = std::conditional_t<
-        std::is_pointer_v<T>,
+    std::conditional_t<
+        TVersionedBuiltinAttributeTraits<T>::IsPointer,
         std::optional<T>, // std::nullopt is null, nullptr is tombstone.
         // NB: Don't reorder the types; tags are used for persistence.
-        std::variant<TNullVersionedBuiltinAttribute, TTombstonedVersionedBuiltinAttribute, T>>;
-
-    TBox BoxedValue_ = {};
+        std::variant<TNullVersionedBuiltinAttribute, TTombstonedVersionedBuiltinAttribute, T>
+    > BoxedValue_;
 };
 
 #define DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(ownerType, attrType, name) \

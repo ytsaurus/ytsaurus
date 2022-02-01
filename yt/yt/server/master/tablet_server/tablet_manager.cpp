@@ -699,14 +699,14 @@ public:
             freeze = state == ETabletState::Frozen;
         }
 
-        auto* bundle = table->GetTabletCellBundle();
+        const auto& bundle = table->TabletCellBundle();
 
         for (auto* cell : cells) {
             if (!IsCellActive(cell)) {
                 THROW_ERROR_EXCEPTION("Tablet cell %v is not active", cell->GetId());
             }
 
-            if (cell->GetCellBundle() != bundle) {
+            if (cell->GetCellBundle() != bundle.Get()) {
                 THROW_ERROR_EXCEPTION("Table %v and tablet cell %v belong to different bundles",
                     table->GetId(),
                     cell->GetId());
@@ -714,7 +714,7 @@ public:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(bundle, EPermission::Use);
+        securityManager->ValidatePermission(bundle.Get(), EPermission::Use);
 
         switch (kind) {
             case ETabletActionKind::Move:
@@ -873,12 +873,12 @@ public:
         }
 
         auto validateCellBundle = [table] (const TTabletCell* cell) {
-            if (cell->GetCellBundle() != table->GetTabletCellBundle()) {
+            if (cell->GetCellBundle() != table->TabletCellBundle().Get()) {
                 THROW_ERROR_EXCEPTION("Cannot mount tablets into cell %v since it belongs to bundle %Qv while the table "
                     "is configured to use bundle %Qv",
                     cell->GetId(),
                     cell->GetCellBundle()->GetName(),
-                    table->GetTabletCellBundle()->GetName());
+                    table->TabletCellBundle()->GetName());
             }
         };
 
@@ -912,7 +912,7 @@ public:
                 }
             }
         } else {
-            ValidateHasHealthyCells(table->GetTabletCellBundle()); // may throw
+            ValidateHasHealthyCells(table->TabletCellBundle().Get()); // may throw
         }
 
         const auto& allTablets = table->Tablets();
@@ -1519,17 +1519,13 @@ public:
             }
 
             YT_VERIFY(!table->IsExternal());
-            auto* bundle = table->GetTabletCellBundle();
+
+            const auto& bundle = table->TabletCellBundle();
             bundle->UpdateResourceUsage(-table->GetTabletResourceUsage());
 
             table->MutableTablets().clear();
 
             // NB: security manager has already been informed when node's account was reset.
-        }
-
-        if (auto* bundle = table->GetTabletCellBundle()) {
-            objectManager->UnrefObject(bundle);
-            table->SetTabletCellBundle(nullptr);
         }
 
         if (table->GetType() == EObjectType::ReplicatedTable) {
@@ -1722,7 +1718,7 @@ public:
             tabletIds,
             descriptor.TabletCount,
             descriptor.DataSize,
-            table->GetTabletCellBundle()->GetName(),
+            table->TabletCellBundle()->GetName(),
             correlationId);
 
         try {
@@ -1759,7 +1755,7 @@ public:
             descriptor.Tablet->GetId(),
             descriptor.Tablet->GetCell()->GetId(),
             descriptor.TabletCellId,
-            table->GetTabletCellBundle()->GetName(),
+            table->TabletCellBundle()->GetName(),
             correlationId);
 
         try {
@@ -1872,9 +1868,9 @@ public:
 
         ValidateNodeCloneMode(trunkSourceTable, mode);
 
-        if (auto* cellBundle = trunkSourceTable->GetTabletCellBundle()) {
+        if (const auto& cellBundle = trunkSourceTable->TabletCellBundle()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(cellBundle);
+            objectManager->ValidateObjectLifeStage(cellBundle.Get());
         }
 
         ValidateResourceUsageIncrease(
@@ -1893,10 +1889,9 @@ public:
         auto* trunkSourceTable = sourceTable->GetTrunkNode();
         ValidateNodeCloneMode(trunkSourceTable, mode);
 
-        auto* cellBundle = trunkSourceTable->GetTabletCellBundle();
-        if (cellBundle) {
+        if (const auto& cellBundle = trunkSourceTable->TabletCellBundle()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(cellBundle);
+            objectManager->ValidateObjectLifeStage(cellBundle.Get());
         }
     }
 
@@ -2350,12 +2345,12 @@ public:
     TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id)
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        auto* bundle = cellManager->FindCellBundle(id);
-        if (!bundle) {
+        auto* cellBundle = cellManager->FindCellBundle(id);
+        if (!cellBundle) {
             return nullptr;
         }
-        return bundle->GetType() == EObjectType::TabletCellBundle
-            ? bundle->As<TTabletCellBundle>()
+        return cellBundle->GetType() == EObjectType::TabletCellBundle
+            ? cellBundle->As<TTabletCellBundle>()
             : nullptr;
     }
 
@@ -2398,8 +2393,8 @@ public:
     {
         YT_VERIFY(table->IsTrunk());
 
-        auto* oldBundle = table->GetTabletCellBundle();
-        if (oldBundle == newBundle) {
+        const auto& oldBundle = table->TabletCellBundle();
+        if (oldBundle.Get() == newBundle) {
             return;
         }
 
@@ -2423,13 +2418,7 @@ public:
             }
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        if (oldBundle) {
-            objectManager->UnrefObject(oldBundle);
-        }
-
-        table->SetTabletCellBundle(newBundle);
-        objectManager->RefObject(newBundle);
+        table->TabletCellBundle().Assign(newBundle);
     }
 
     void RecomputeTabletCellStatistics(TCellBase* cellBase)
@@ -2678,11 +2667,12 @@ private:
             return &nullCounters;
         }
 
-        if (!table->GetTabletCellBundle()) {
+        const auto& cellBundle = table->TabletCellBundle();
+        if (!cellBundle) {
             return &nullCounters;
         }
 
-        TProfilerKey key{reason, table->GetTabletCellBundle()->GetName(), table->IsPhysicallySorted()};
+        TProfilerKey key{reason, cellBundle->GetName(), table->IsPhysicallySorted()};
         auto it = Counters_.find(key);
         if (it != Counters_.end()) {
             return &it->second;
@@ -2845,8 +2835,8 @@ private:
         action->SetFreeze(freeze);
         action->SetCorrelationId(correlationId);
         action->SetExpirationTime(expirationTime);
-        auto* bundle = action->Tablets()[0]->GetTable()->GetTabletCellBundle();
-        action->SetTabletCellBundle(bundle);
+        const auto& bundle = action->Tablets()[0]->GetTable()->TabletCellBundle();
+        action->SetTabletCellBundle(bundle.Get());
         bundle->TabletActions().insert(action);
         bundle->IncreaseActiveTabletActionCount();
 
@@ -3289,7 +3279,7 @@ private:
 
                 std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
                 if (action->TabletCells().empty()) {
-                    if (!CheckHasHealthyCells(table->GetTabletCellBundle())) {
+                    if (!CheckHasHealthyCells(table->TabletCellBundle().Get())) {
                         ChangeTabletActionState(action, ETabletActionState::Orphaned, false);
                         break;
                     }
@@ -3377,7 +3367,6 @@ private:
 
     void HydraKickOrphanedTabletActions(NProto::TReqKickOrphanedTabletActions* request)
     {
-
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         THashSet<TCellBundle*> healthyBundles;
         for (auto* bundle : cellManager->CellBundles(ECellarType::Tablet)) {
@@ -3399,8 +3388,8 @@ private:
         for (auto actionId : orphanedActionIds) {
             auto* action = FindTabletAction(actionId);
             if (IsObjectAlive(action) && action->GetState() == ETabletActionState::Orphaned) {
-                auto* bundle = action->Tablets().front()->GetTable()->GetTabletCellBundle();
-                if (healthyBundles.contains(bundle)) {
+                const auto& bundle = action->Tablets().front()->GetTable()->TabletCellBundle();
+                if (healthyBundles.contains(bundle.Get())) {
                     ChangeTabletActionState(action, ETabletActionState::Unmounted);
                 }
             }
@@ -3509,7 +3498,7 @@ private:
             auto config = CloneYsonSerializable(GetDynamicConfig()->StoreChunkWriter);
             config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
             if (GetDynamicConfig()->IncreaseUploadReplicationFactor ||
-                table->GetTabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
+                table->TabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
             {
                 config->UploadReplicationFactor = replicationFactor;
             }
@@ -5636,7 +5625,7 @@ private:
         bool force = false)
     {
         TWallTimer timer;
-        auto counters = GetCounters({}, table);
+        auto* counters = GetCounters({}, table);
         auto reportTimeGuard = Finally([&] {
             counters->CopyChunkListTime.Add(timer.GetElapsedTime());
         });
@@ -6548,7 +6537,7 @@ private:
 
         // Brand-new bundle validation.
         if (GetDynamicConfig()->EnableTabletResourceValidation) {
-            auto* bundle = table->GetTabletCellBundle();
+            const auto& bundle = table->TabletCellBundle();
             if (!bundle) {
                 YT_LOG_ALERT("Failed to validate tablet resource usage increase since table lacks tablet cell bundle "
                     "(TableId: %v, Delta: %v)",
@@ -6572,7 +6561,7 @@ private:
             ConvertToClusterResources(delta));
 
         // Brand-new bundle accounting.
-        auto* bundle = table->GetTabletCellBundle();
+        const auto& bundle = table->TabletCellBundle();
         if (!bundle) {
             YT_LOG_ALERT("Failed to update tablet resource usage since table lacks tablet cell bundle "
                 "(TableId: %v, Delta: %v)",
@@ -6771,7 +6760,7 @@ private:
         };
 
         std::vector<TCellKey> cellKeys;
-        for (auto* cellBase : GetValuesSortedByKey(table->GetTabletCellBundle()->Cells())) {
+        for (auto* cellBase : GetValuesSortedByKey(table->TabletCellBundle()->Cells())) {
             if (cellBase->GetType() != EObjectType::TabletCell) {
                 continue;
             }
@@ -6781,7 +6770,7 @@ private:
                 continue;
             }
 
-            if (cell->GetCellBundle() == table->GetTabletCellBundle()) {
+            if (cell->GetCellBundle() == table->TabletCellBundle().Get()) {
                 cellKeys.push_back(TCellKey{getCellSize(cell), cell});
             }
         }

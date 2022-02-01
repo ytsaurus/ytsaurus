@@ -235,7 +235,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
         .SetWritable(true)
-        .SetPresent(trunkTable->GetTabletCellBundle())
+        .SetPresent(trunkTable->TabletCellBundle().IsAlive())
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Atomicity)
         .SetReplicated(true)
@@ -652,12 +652,13 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::TabletCellBundle:
-            if (!trunkTable->GetTabletCellBundle()) {
-                break;
+            if (const auto& cellBundle = trunkTable->TabletCellBundle()) {
+                BuildYsonFluently(consumer)
+                    .Value(trunkTable->TabletCellBundle()->GetName());
+                return true;
+            } else {
+                return false;
             }
-            BuildYsonFluently(consumer)
-                .Value(trunkTable->GetTabletCellBundle()->GetName());
-            return true;
 
         case EInternedAttributeKey::Atomicity:
             BuildYsonFluently(consumer)

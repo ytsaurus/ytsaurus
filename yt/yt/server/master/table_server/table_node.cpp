@@ -217,12 +217,12 @@ TTableNode::TTableNode(TVersionedNodeId id)
 
 TTableNode* TTableNode::GetTrunkNode()
 {
-    return TrunkNode_->As<TTableNode>();
+    return TChunkOwnerBase::GetTrunkNode()->As<TTableNode>();
 }
 
 const TTableNode* TTableNode::GetTrunkNode() const
 {
-    return TrunkNode_->As<TTableNode>();
+    return TChunkOwnerBase::GetTrunkNode()->As<TTableNode>();
 }
 
 void TTableNode::EndUpload(const TEndUploadContext& context)

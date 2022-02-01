@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/master/object_server/public.h>
+
 #include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
@@ -95,6 +97,8 @@ DECLARE_ENTITY_TYPE(TTabletCell, TTabletCellId, NObjectClient::TDirectObjectIdHa
 DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTableReplica, TTableReplicaId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTabletAction, TTabletActionId, NObjectClient::TDirectObjectIdHash)
+
+DECLARE_MASTER_OBJECT_TYPE(TTabletCellBundle)
 
 struct TTabletStatistics;
 struct TTabletPerformanceCounter;

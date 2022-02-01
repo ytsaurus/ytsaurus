@@ -95,6 +95,7 @@ DEFINE_ENUM(EMasterReign,
     ((RegisterQueueConsumerPermission)                              (1927))  // max42
     ((ChunkWeightStatisticsHistogram)                               (1928))  // h0pless
     ((SystemBlocks)                                                 (1929))  // akozhikhov
+    ((RefCountedInheritableAttributes)                              (1930))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

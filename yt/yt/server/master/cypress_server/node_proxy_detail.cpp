@@ -78,6 +78,7 @@ using namespace NTableClient;
 using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
+using namespace NTabletServer;
 using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1148,8 +1149,8 @@ TCypressNode* TNontemplateCypressNodeProxyBase::DoGetThisImpl()
 }
 
 TCypressNode* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
-    const TLockRequest& request /*= ELockMode::Exclusive*/,
-    bool recursive /*= false*/)
+    const TLockRequest& request,
+    bool recursive)
 {
     CachedNode_ = LockImpl(TrunkNode_, request, recursive);
     YT_ASSERT(CachedNode_->GetTransaction() == Transaction_);
@@ -1162,10 +1163,10 @@ void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNode*
         auto* compositeAncestor = ancestor->As<TCompositeNodeBase>();
 
 #define XX(camelCaseName, snakeCaseName) \
-        { \
-            auto inheritedValue = compositeAncestor->TryGet##camelCaseName(); \
-            if (!attributes->camelCaseName.IsSet() && inheritedValue) { \
-                attributes->camelCaseName.Set(std::move(*inheritedValue)); \
+        if (!attributes->camelCaseName.IsSet()) { \
+            if (auto inheritedValue = compositeAncestor->TryGet##camelCaseName()) { \
+                using TValueType = TCompositeNodeBase::T##camelCaseName; \
+                attributes->camelCaseName.Set(TVersionedBuiltinAttributeTraits<TValueType>::FromRaw(std::move(*inheritedValue))); \
             } \
         }
 
@@ -1971,7 +1972,6 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
         .SetRemovable(true));
 
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
-
 #undef XX
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrimaryMedium)
@@ -2036,14 +2036,14 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAtt
         }
 
         case EInternedAttributeKey::TabletCellBundle: {
-            auto optionalTabletCellBundle = node->TryGetTabletCellBundle();
-            if (!optionalTabletCellBundle) {
+            auto optionalBundle = node->TryGetTabletCellBundle();
+            if (!optionalBundle) {
                 break;
             }
-            auto* tabletCellBundle = *optionalTabletCellBundle;
-            YT_VERIFY(tabletCellBundle);
+            const auto& bundle = *optionalBundle;
+            YT_VERIFY(bundle);
             BuildYsonFluently(consumer)
-                .Value((tabletCellBundle)->GetName());
+                .Value(bundle->GetName());
             return true;
         }
 
@@ -2100,10 +2100,9 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
 
             auto name = ConvertTo<TString>(value);
 
-            const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
-            node->SetTabletCellBundle(newBundle, objectManager);
+            node->SetTabletCellBundle(TTabletCellBundlePtr(newBundle));
 
             return true;
         }
@@ -2132,7 +2131,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             return true; \
 
         FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
-
 #undef XX
 
         default:
@@ -2278,8 +2276,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
 
         case EInternedAttributeKey::TabletCellBundle: {
             ValidateNoTransaction();
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            node->RemoveTabletCellBundle(objectManager);
+            node->RemoveTabletCellBundle();
             return true;
         }
 
@@ -2367,12 +2364,12 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
     }
 
     if (key == "tablet_cell_bundle") {
-        auto optionalTabletCellBundle = InheritedAttributes_.TabletCellBundle.ToOptional();
-        if (!optionalTabletCellBundle) {
+        auto optionalCellBundle = InheritedAttributes_.TabletCellBundle.ToOptional();
+        if (!optionalCellBundle) {
             return {};
         }
-        YT_VERIFY(*optionalTabletCellBundle);
-        return ConvertToYsonString((*optionalTabletCellBundle)->GetName());
+        YT_VERIFY(*optionalCellBundle);
+        return ConvertToYsonString((*optionalCellBundle)->GetName());
     }
 
     return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
@@ -2395,7 +2392,6 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
     }
 
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
-
 #undef XX
 
     if (key == "primary_medium") {
@@ -2420,7 +2416,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         auto bundleName = ConvertTo<TString>(value);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
-        InheritedAttributes_.TabletCellBundle.Set(bundle);
+        InheritedAttributes_.TabletCellBundle.Set(TTabletCellBundlePtr(bundle));
         return;
     }
 

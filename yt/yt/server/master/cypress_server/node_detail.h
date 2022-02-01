@@ -614,19 +614,11 @@ protected:
     process(ProfilingTag, profiling_tag) \
     process(ChunkMergerMode, chunk_merger_mode)
 
-#define FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(process) \
-    process(TabletCellBundle, tablet_cell_bundle)
-
 #define FOR_EACH_INHERITABLE_ATTRIBUTE(process) \
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
+    process(TabletCellBundle, tablet_cell_bundle) \
     process(PrimaryMediumIndex, primary_medium) \
-    process(Media, media) \
-    FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(process) \
-
-#define FOR_EACH_NON_OBJECT_REF_INHERITABLE_ATTRIBUTE(process) \
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
-    process(PrimaryMediumIndex, primary_medium) \
-    process(Media, media) \
+    process(Media, media)
 
 class TCompositeNodeBase
     : public TCypressNode
@@ -648,7 +640,7 @@ public:
         TVersionedBuiltinAttribute<NChunkServer::TChunkReplication> Media;
         TVersionedBuiltinAttribute<int> ReplicationFactor;
         TVersionedBuiltinAttribute<bool> Vital;
-        TVersionedBuiltinAttribute<NTabletServer::TTabletCellBundle*> TabletCellBundle;
+        TVersionedBuiltinAttribute<NTabletServer::TTabletCellBundlePtr> TabletCellBundle;
         TVersionedBuiltinAttribute<NTransactionClient::EAtomicity> Atomicity;
         TVersionedBuiltinAttribute<NTransactionClient::ECommitOrdering> CommitOrdering;
         TVersionedBuiltinAttribute<NTabletClient::EInMemoryMode> InMemoryMode;
@@ -670,26 +662,12 @@ public:
 
 #define XX(camelCaseName, snakeCaseName) \
 public: \
-    void Remove##camelCaseName(); \
-    void Set##camelCaseName(decltype(std::declval<TAttributes>().camelCaseName)::TValue value); \
-
-    FOR_EACH_NON_OBJECT_REF_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-#define XX(camelCaseName, snakeCaseName) \
-public: \
-    void Remove##camelCaseName(const NObjectServer::TObjectManagerPtr& objectManager); \
-    void Set##camelCaseName( \
-        decltype(std::declval<TAttributes>().camelCaseName)::TValue value, \
-        const NObjectServer::TObjectManagerPtr& objectManager);
-
-    FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-#define XX(camelCaseName, snakeCaseName) \
-public: \
-    std::optional<decltype(std::declval<TAttributes>().camelCaseName)::TValue> TryGet##camelCaseName() const; \
+    using T##camelCaseName = decltype(std::declval<TAttributes>().camelCaseName)::TValue; \
+    std::optional<TRawVersionedBuiltinAttributeType<T##camelCaseName>> TryGet##camelCaseName() const; \
     bool Has##camelCaseName() const; \
+    void Remove##camelCaseName(); \
+    void Set##camelCaseName(T##camelCaseName value); \
+\
 private: \
     const decltype(std::declval<TAttributes>().camelCaseName)* DoTryGet##camelCaseName() const;
 
@@ -721,8 +699,6 @@ public:
     using TBase::TBase;
 
 protected:
-    void DoDestroy(TImpl* node) override;
-
     void DoClone(
         TImpl* sourceNode,
         TImpl* clonedTrunkNode,

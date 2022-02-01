@@ -120,16 +120,12 @@ private:
     void ValidateUsePermissionOnCellBundle(TTableNode* table)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* cellBundle = table->GetTabletCellBundle();
-        if (cellBundle) {
-            securityManager->ValidatePermission(cellBundle, EPermission::Use);
-        } else {
-            THROW_ERROR_EXCEPTION("Table has null cell bundle (TableId: %v)", table->GetId());
-        }
+        const auto& cellBundle = table->TabletCellBundle();
+        securityManager->ValidatePermission(cellBundle.Get(), EPermission::Use);
     }
 
 
-    void HydraPrepareMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request, bool /*persist*/)
+    void HydraPrepareMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request, bool /*persistent*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -283,7 +279,7 @@ private:
         YT_LOG_ACCESS(tableId, request->path(), transaction, "AbortMount");
     }
 
-    void HydraPrepareUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request, bool /*persist*/)
+    void HydraPrepareUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request, bool /*persistent*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -310,8 +306,8 @@ private:
         ValidateUsePermissionOnCellBundle(table);
 
         if (force) {
-            auto* cellBundle = table->GetTabletCellBundle();
-            securityManager->ValidatePermission(cellBundle, EPermission::Administer);
+            const auto& cellBundle = table->TabletCellBundle();
+            securityManager->ValidatePermission(cellBundle.Get(), EPermission::Administer);
         }
 
         table->ValidateNoCurrentMountTransaction("Cannot unmount table");
@@ -397,7 +393,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnmount");
     }
 
-    void HydraPrepareFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request, bool /*persist*/)
+    void HydraPrepareFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request, bool /*persistent*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -498,7 +494,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortFreeze");
     }
 
-    void HydraPrepareUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request, bool /*persist*/)
+    void HydraPrepareUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request, bool /*persistent*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -600,7 +596,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnfreeze");
     }
 
-    void HydraPrepareRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request, bool /*persist*/)
+    void HydraPrepareRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request, bool /*persistent*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -699,7 +695,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortRemount");
     }
 
-    void HydraPrepareReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request, bool /*persist*/)
+    void HydraPrepareReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request, bool /*persistent*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
