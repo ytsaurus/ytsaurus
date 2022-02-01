@@ -359,16 +359,30 @@ private:
 
         // We do not support node reallocation for erasure chunks.
         auto options = New<TRemoteWriterOptions>();
+        auto nodeDirectory = New<TNodeDirectory>();
         options->AllowAllocatingNewTargetNodes = false;
+        auto targetReplicas = AllocateWriteTargets(
+            Host_->GetClient(),
+            outputSessionId,
+            erasureCodec->GetTotalPartCount(),
+            erasureCodec->GetTotalPartCount(),
+            erasureCodec->GetGuaranteedRepairablePartCount(),
+            /*replicationFactorOverride*/ std::nullopt,
+            /*preferredHostName*/ std::nullopt,
+            /*forbiddenAddresses*/ std::vector<TString>(),
+            nodeDirectory,
+            Logger);
         auto writers = CreateAllErasurePartWriters(
             WriterConfig_,
             New<TRemoteWriterOptions>(),
             outputSessionId,
             erasureCodec,
-            New<TNodeDirectory>(),
+            nodeDirectory,
             Host_->GetClient(),
             Host_->GetTrafficMeter(),
-            Host_->GetOutBandwidthThrottler());
+            Host_->GetOutBandwidthThrottler(),
+            /*blockCache*/ GetNullBlockCache(),
+            targetReplicas);
         YT_VERIFY(readers.size() == writers.size());
 
         auto erasurePlacementExt = GetProtoExtension<TErasurePlacementExt>(chunkMeta->extensions());
@@ -489,7 +503,9 @@ private:
                 outputSessionId,
                 erasureCodec,
                 erasedPartIndicies,
-                &writers);
+                &writers,
+                targetReplicas,
+                nodeDirectory);
         } else {
             YT_LOG_DEBUG("All the parts were copied successfully");
         }
@@ -557,7 +573,9 @@ private:
         NChunkClient::TSessionId outputSessionId,
         NErasure::ICodec* erasureCodec,
         const TPartIndexList& erasedPartIndicies,
-        std::vector<IChunkWriterPtr>* partWriters)
+        std::vector<IChunkWriterPtr>* partWriters,
+        const TChunkReplicaWithMediumList& targetReplicas,
+        const TNodeDirectoryPtr& nodeDirectory)
     {
         auto repairPartIndicies = *erasureCodec->GetRepairIndices(erasedPartIndicies);
 
@@ -565,13 +583,19 @@ private:
             erasedPartIndicies,
             repairPartIndicies);
 
-        TChunkReplicaList localChunkReplicas;
-        localChunkReplicas.resize(repairPartIndicies.size());
+        TChunkReplicaList repairSeedReplicas;
+        repairSeedReplicas.reserve(repairPartIndicies.size());
         for (auto repairPartIndex : repairPartIndicies) {
             auto replicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicas();
             YT_VERIFY(replicas.size() == 1);
             auto replica = TChunkReplica(replicas.front().GetNodeId(), repairPartIndex);
-            localChunkReplicas.push_back(replica);
+            repairSeedReplicas.push_back(replica);
+        }
+
+        TChunkReplicaWithMediumList erasedTargetReplicas;
+        erasedTargetReplicas.reserve(erasedPartIndicies.size());
+        for (auto erasedPartIndex : erasedPartIndicies) {
+            erasedTargetReplicas.push_back(targetReplicas[erasedPartIndex]);
         }
 
         auto repairPartReaders = CreateErasurePartReaders(
@@ -580,7 +604,7 @@ private:
             Host_->GetClient(),
             Host_->GetInputNodeDirectory(),
             outputSessionId.ChunkId,
-            localChunkReplicas,
+            repairSeedReplicas,
             erasureCodec,
             repairPartIndicies,
             Host_->GetReaderBlockCache(),
@@ -595,11 +619,13 @@ private:
             New<TRemoteWriterOptions>(),
             outputSessionId,
             erasureCodec,
-            New<TNodeDirectory>(),
+            nodeDirectory,
             Host_->GetClient(),
             erasedPartIndicies,
             Host_->GetTrafficMeter(),
-            Host_->GetOutBandwidthThrottler());
+            Host_->GetOutBandwidthThrottler(),
+            /*blockCache*/ GetNullBlockCache(),
+            erasedTargetReplicas);
         YT_VERIFY(erasedPartWriters.size() == erasedPartIndicies.size());
 
         WaitFor(RepairErasedParts(

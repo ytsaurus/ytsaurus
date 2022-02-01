@@ -649,6 +649,11 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         def check_everything():
             assert get("//tmp/t2/@chunk_count") == 1
+            if self.Env.get_component_version("ytserver-job-proxy").abi > (21, 3):
+                new_chunk_id = get("//tmp/t2/@chunk_ids/0")
+                new_chunk_replicas = get("#{}/@stored_replicas".format(new_chunk_id))
+                replicas = [str(r) for r in new_chunk_replicas]
+                assert len(replicas) == 9 and len({r for r in replicas}) == 9
             assert read_table("//tmp/t2") == [{"a": "b"}]
 
         def set_banned_flag_for_part_nodes(part_indicies, banned_flag):
