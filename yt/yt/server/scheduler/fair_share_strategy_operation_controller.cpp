@@ -113,9 +113,9 @@ bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(TCpuInst
     return ScheduleJobBackoffDeadline_ > now;
 }
 
-void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason)
+void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason, const TString& treeId)
 {
-    Controller_->OnNonscheduledJobAborted(jobId, abortReason);
+    Controller_->OnNonscheduledJobAborted(jobId, abortReason, treeId);
 }
 
 TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
@@ -152,7 +152,7 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
             scheduleJobResult->RecordFail(EScheduleJobFailReason::Timeout);
             // If ScheduleJob was not canceled we need to abort created job.
             scheduleJobResultFuture.Subscribe(
-                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TControllerScheduleJobResultPtr>& scheduleJobResultOrError) {
+                BIND([this, this_ = MakeStrong(this), treeId] (const TErrorOr<TControllerScheduleJobResultPtr>& scheduleJobResultOrError) {
                     if (!scheduleJobResultOrError.IsOK()) {
                         return;
                     }
@@ -162,7 +162,7 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
                         auto jobId = scheduleJobResult->StartDescriptor->Id;
                         YT_LOG_WARNING("Aborting late job (JobId: %v)",
                             jobId);
-                        AbortJob(jobId, EAbortReason::SchedulingTimeout);
+                        AbortJob(jobId, EAbortReason::SchedulingTimeout, treeId);
                     }
             }));
         }

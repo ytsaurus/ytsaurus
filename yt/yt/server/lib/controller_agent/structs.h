@@ -43,6 +43,7 @@ struct TJobSummary
     TJobId Id;
     EJobState State = EJobState::None;
     EJobPhase Phase = EJobPhase::Missing;
+    EJobType Type = EJobType::SchedulerUnknown;
 
     std::optional<TInstant> FinishTime;
     NJobAgent::TTimeStatistics TimeStatistics;

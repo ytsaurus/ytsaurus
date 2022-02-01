@@ -255,6 +255,7 @@ private:
     std::atomic<int> JobReporterWriteFailuresCount_ = {0};
     std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = {0};
 
+    // COMPAT(ignat)
     TJobCounter JobCounter_;
     TAbortedJobCounter AbortedJobCounter_;
     TFailedJobCounter FailedJobCounter_;

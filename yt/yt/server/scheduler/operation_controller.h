@@ -42,7 +42,8 @@ struct IOperationControllerStrategyHost
     //! Called during scheduling to notify the controller that a (nonscheduled) job has been aborted.
     virtual void OnNonscheduledJobAborted(
         TJobId jobId,
-        EAbortReason abortReason) = 0;
+        EAbortReason abortReason,
+        const TString& treeId) = 0;
 
     //! Returns the total resources that are additionally needed.
     virtual TJobResources GetNeededResources() const = 0;

@@ -28,6 +28,7 @@ struct TSchedulerToAgentJobEvent
     bool LogAndProfile;
     TInstant StartTime;
     std::optional<TInstant> FinishTime;
+    TString TreeId;
     std::unique_ptr<NJobTrackerClient::NProto::TJobStatus> Status;
     std::optional<EAbortReason> AbortReason;
     std::optional<bool> Abandoned;

@@ -67,6 +67,7 @@ using NYT::ToProto;
 
 namespace {
 
+// COMPAT(ignat): remove after 22.1
 TCounter* GetJobErrorCounter(const TString& treeId, const TString& jobError)
 {
     static TSyncMap<std::tuple<TString, TString>, TCounter> counters;
@@ -2288,7 +2289,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
                 job->GetOperationId());
             if (!operationState->ControllerTerminated) {
                 const auto& controller = operationState->Controller;
-                controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended);
+                controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended, job->GetTreeId());
                 JobsToSubmitToStrategy_[job->GetId()] = TJobUpdate{
                     EJobUpdateStatus::Finished,
                     job->GetOperationId(),
@@ -2551,6 +2552,7 @@ void TNodeShard::SubmitJobsToStrategy()
 
 void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
 {
+    // COMPAT(ignat): remove processing finished job events.
     auto jobState = job->GetState();
     if (jobState == EJobState::Aborted ||
         jobState == EJobState::Completed ||

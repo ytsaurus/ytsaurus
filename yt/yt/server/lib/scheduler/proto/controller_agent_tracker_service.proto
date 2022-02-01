@@ -105,6 +105,9 @@ message TSchedulerToAgentJobEvent
     // for Started
     optional uint64 start_time = 6;
 
+    // for profiling
+    optional string tree_id = 13;
+
     // for Completed
     optional bool abandoned = 8;
 
@@ -117,6 +120,7 @@ message TSchedulerToAgentJobEvent
 
     // for Aborted
     optional bool aborted_by_scheduler = 11;
+
 }
 
 message TSchedulerToAgentOperationEvent
