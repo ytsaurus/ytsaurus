@@ -346,7 +346,6 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
       .toDF("a").coalesce(1)
       .write.option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
 
-
     val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("a")
@@ -354,6 +353,36 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
       Row(Row(Map(1 -> Row(2, Seq(Row(3.0, "4"), Row(5.0, "6")))), "a")),
       Row(Row(Map(7 -> Row(0, null)), "b"))
     )
+  }
+
+  it should "generate nullable correct schema" in {
+    val data = Seq(
+      (Map(1 -> TestStructHard(2, Some(Seq(TestStruct(3.0, "4"), TestStruct(5.0, "6"))))), "a"),
+      (Map(7 -> TestStructHard(0, None)), "b")
+    )
+    withConf("spark.sql.schema.forcingNullableIfNoMetadata.enabled", "false") {
+      data.map(Some(_))
+        .toDF("a").coalesce(1)
+        .write.option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
+
+      val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
+
+      res.schema shouldBe StructType(Seq(
+        StructField("a",
+          StructType(Seq(
+            StructField("_1", MapType(IntegerType,
+              StructType(Seq(
+                StructField("v", IntegerType, nullable = false),
+                StructField("l", ArrayType(
+                  StructType(Seq(
+                    StructField("d", DoubleType, nullable = false),
+                    StructField("s", StringType, nullable = true))),
+                  containsNull = true), nullable = true))),
+              valueContainsNull = true), nullable = true),
+            StructField("_2", StringType, nullable = true))),
+          nullable = true,
+          metadata = new MetadataBuilder().putString("original_name", "a").putLong("key_id", -1).build())))
+    }
   }
 }
 
