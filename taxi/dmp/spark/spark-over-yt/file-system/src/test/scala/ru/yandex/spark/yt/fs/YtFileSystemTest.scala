@@ -4,7 +4,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathNotFoundException}
 import org.apache.hadoop.io.IOUtils
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.spark.yt.test.{LocalYtClient, TmpDir}
+import ru.yandex.spark.yt.test.{LocalYt, LocalYtClient, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 
 import java.io.{ByteArrayInputStream, FileNotFoundException}
@@ -20,7 +20,7 @@ class YtFileSystemTest extends FlatSpec with Matchers with LocalYtClient with Tm
 
   private val fsConf = {
     val c = new Configuration()
-    c.set("yt.proxy", "localhost:8000")
+    c.set("yt.proxy", s"${LocalYt.host}:${LocalYt.proxyPort}")
     c.set("yt.user", "root")
     c.set("yt.token", "")
     c
