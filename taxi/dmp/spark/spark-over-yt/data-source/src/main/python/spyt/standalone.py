@@ -122,7 +122,7 @@ def _wait_op_start(op, operation_path, client):
         if state.is_running() and exists(operation_path, client=client):
             return op
         elif state.is_unsuccessfully_finished():
-            process_operation_unsuccesful_finish_state(op, state)
+            process_operation_unsuccesful_finish_state(op, op.get_error(state))
         else:
             op.printer(state)
 
