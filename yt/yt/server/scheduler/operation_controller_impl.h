@@ -51,10 +51,6 @@ public:
         TJobId jobId,
         EAbortReason abortReason,
         const TString& treeId) override;
-    void OnJobRunning(
-        const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status,
-        bool shouldLogJob) override;
 
     void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
     void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) override;

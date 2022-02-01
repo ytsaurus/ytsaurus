@@ -37,7 +37,6 @@ message TJobStartInfo
     // Resource limits as predicted by the controller.
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 3;
 
-    optional NNodeTrackerClient.NProto.TAddressMap spec_service_addresses = 4; // COMPAT
     optional TControllerAgentDescriptor controller_agent_descriptor = 5;
 }
 
@@ -51,11 +50,7 @@ message TJobToAbort
 message TJobToRemove
 {
     required NYT.NProto.TGuid job_id = 1;
-    required bool archive_job_spec = 2; // COMPAT
-    optional bool archive_stderr = 3; // COMPAT
-    optional bool archive_fail_context = 4; // COMPAT
-    optional bool archive_profile = 5; // COMPAT
-    optional TReleaseJobFlags release_job_flags = 6;
+    required TReleaseJobFlags release_job_flags = 6;
 }
 
 message TJobsToConfirm

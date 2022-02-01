@@ -1762,7 +1762,6 @@ void TNodeShard::ProcessHeartbeatJobs(
         // If it is a first time we get the heartbeat from a given node,
         // there will definitely be some jobs that are missing. No need to abort
         // them.
-
         for (const auto& jobId : node->UnconfirmedJobIds()) {
             const auto jobPtr = FindJob(jobId, node);
             auto* operationState = FindOperationState(jobPtr->GetOperationId());
@@ -2144,7 +2143,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 switch (state) {
                     case EJobState::Running:
                         YT_LOG_DEBUG_IF(stateChanged, "Job is now running");
-                        OnJobRunning(job, jobStatus, stateChanged);
+                        OnJobRunning(job, jobStatus);
                         if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
                             YT_LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",
                                 CpuInstantToInstant(job->GetInterruptDeadline()));
@@ -2331,7 +2330,6 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
         ToProto(startInfo->mutable_job_id(), job->GetId());
         ToProto(startInfo->mutable_operation_id(), job->GetOperationId());
         *startInfo->mutable_resource_limits() = ToNodeResources(job->ResourceUsage());
-        ToProto(startInfo->mutable_spec_service_addresses(), agent->GetAgentAddresses());
 
         SetControllerAgentInfo(agent, startInfo->mutable_controller_agent_descriptor());
     }
@@ -2359,7 +2357,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
     }
 }
 
-void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shouldLogJob)
+void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
 {
     YT_VERIFY(status);
 
@@ -2380,12 +2378,6 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
 
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
-        // COMPAT(pogorelov)
-        if (Config_->SendRunningJobEvents || status->has_statistics()) {
-            const auto& controller = operationState->Controller;
-            controller->OnJobRunning(job, status, shouldLogJob);
-        }
-
         auto it = JobsToSubmitToStrategy_.find(job->GetId());
         if (it == JobsToSubmitToStrategy_.end() || it->second.Status != EJobUpdateStatus::Finished) {
             JobsToSubmitToStrategy_[job->GetId()] = TJobUpdate{

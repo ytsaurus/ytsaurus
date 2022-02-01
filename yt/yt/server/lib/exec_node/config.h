@@ -374,15 +374,12 @@ class TControllerAgentConnectorConfig
     : public THeartbeatReporterConfigBase
 {
 public:
-    bool EnableHeartbeats;
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration RunningJobInfoSendingBackoff;
 
     TControllerAgentConnectorConfig()
         : THeartbeatReporterConfigBase{}
     {
-        RegisterParameter("enable_heartbeats", EnableHeartbeats)
-            .Default(true);
         RegisterParameter("statistics_throttler", StatisticsThrottler)
             .DefaultNew(1_MB);
         RegisterParameter("running_job_sending_backoff", RunningJobInfoSendingBackoff)
@@ -402,7 +399,6 @@ public:
     void ApplyDynamicInplace(const TControllerAgentConnectorDynamicConfig& dynamicConfig)
     {
         THeartbeatReporterConfigBase::ApplyDynamicInplace(dynamicConfig);
-        EnableHeartbeats = dynamicConfig.EnableHeartbeats.value_or(EnableHeartbeats);
         if (dynamicConfig.StatisticsThrottler) {
             StatisticsThrottler->Limit = dynamicConfig.StatisticsThrottler->Limit;
             StatisticsThrottler->Period = dynamicConfig.StatisticsThrottler->Period;

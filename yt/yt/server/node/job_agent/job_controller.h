@@ -136,8 +136,6 @@ public:
         virtual void ScheduleHeartbeat(TJobId jobId) = 0;
 
     protected:
-        bool TryAcquireStatisticsThrottler(int size);
-
         void RemoveSchedulerJobsOnFatalAlert();
         bool NeedTotalConfirmation();
         TFuture<void> RequestJobSpecsAndStartJobs(

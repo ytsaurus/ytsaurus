@@ -97,8 +97,7 @@ public:
             TOperationId operationId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec,
-            const TControllerAgentDescriptor& agentDescriptor,
-            const bool sendJobInfoToAgent) ->
+            const TControllerAgentDescriptor& agentDescriptor) ->
             NJobAgent::IJobPtr
         {
             return CreateSchedulerJob(
@@ -107,8 +106,7 @@ public:
                 resourceLimits,
                 std::move(jobSpec),
                 this,
-                agentDescriptor,
-                sendJobInfoToAgent);
+                agentDescriptor);
         });
 
         GetJobController()->RegisterSchedulerJobFactory(NJobAgent::EJobType::Map, createSchedulerJob);

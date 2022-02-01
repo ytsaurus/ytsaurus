@@ -1773,6 +1773,21 @@ void TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo(const TJobId
     }
 }
 
+template <class TJobSummaryType>
+std::unique_ptr<TJobSummaryType> TOperationControllerBase::MergeJobSummariesIfNeeded(
+    std::unique_ptr<TJobSummary> schedulerJobSummary,
+    std::unique_ptr<TJobSummary> nodeJobSummary,
+    const bool needMerge)
+{
+    if (needMerge) {
+        return MergeJobSummaries(
+            SummaryCast<TJobSummaryType>(std::move(schedulerJobSummary)),
+            SummaryCast<TJobSummaryType>(std::move(nodeJobSummary)));
+    }
+
+    return SummaryCast<TJobSummaryType>(std::move(schedulerJobSummary));
+}
+
 IYPathServicePtr TOperationControllerBase::BuildZombieOrchid()
 {
     IYPathServicePtr orchid;
@@ -2854,13 +2869,22 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     const auto jobId = jobSummary->Id;
     const auto abandoned = jobSummary->Abandoned;
 
+    // TODO: Remove before commit
+    YT_LOG_DEBUG(
+        "Debug log: On job completed (JobId: %v, JobProxyCompleted: %v, State: %v, Abandned: %v, HasFullInfo: %v, HasStatistics: %v)",
+        jobId,
+        jobSummary->JobExecutionCompleted,
+        jobSummary->State,
+        abandoned,
+        HasFullFinishedJobInfo(jobId),
+        !!jobSummary->StatisticsYson);
+
     if (State != EControllerState::Running && State != EControllerState::Failing) {
         YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
         RemoveFinishedJobInfo(jobId);
         return;
     }
-
-    if (ExpectsJobInfoSeparately(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
+    if (ExpectsJobInfoFromNode(*jobSummary) && !HasFullFinishedJobInfo(jobId) && !abandoned) {
         ProcessJobSummaryFromScheduler(std::move(jobSummary));
         if (HasFullFinishedJobInfo(jobId)) {
             jobSummary = ReleaseFullJobSummary<TCompletedJobSummary>(jobId);
@@ -2868,7 +2892,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             return;
         }
     } else {
-        YT_VERIFY(HasFullFinishedJobInfo(jobId) || jobSummary->StatisticsYson || abandoned);
+        YT_VERIFY(HasFullFinishedJobInfo(jobId) || abandoned);
     }
 
     const auto defferedRemoveFinishedJobInfo = Finally([this, jobId] {
@@ -3026,7 +3050,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         return;
     }
 
-    if (ExpectsJobInfoSeparately(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
+    if (ExpectsJobInfoFromNode(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
         ProcessJobSummaryFromScheduler(std::move(jobSummary));
         if (HasFullFinishedJobInfo(jobId)) {
             jobSummary = ReleaseFullJobSummary<TFailedJobSummary>(jobId);
@@ -3154,7 +3178,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         return;
     }
 
-    if (ExpectsJobInfoSeparately(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
+    if (ExpectsJobInfoFromNode(*jobSummary) && !HasFullFinishedJobInfo(jobId)) {
         ProcessJobSummaryFromScheduler(std::move(jobSummary));
         if (HasFullFinishedJobInfo(jobId)) {
             jobSummary = ReleaseFullJobSummary<TAbortedJobSummary>(jobId);
@@ -5981,35 +6005,39 @@ void TOperationControllerBase::OnJobInfoReceivedFromNode(std::unique_ptr<TJobSum
 
     finishedJobInfo->State = TFinishedJobInfo::EState::FullyReceived;
 
+    bool needMergeJobSummaries = true;
     if (schedulerSummary->State != nodeSummary->State) {
         YT_LOG_WARNING(
             "Job states received from scheduler and node differ (JobId: %v, StateFromNode: %v, StateFromScheduler: %v)",
             jobId,
             nodeSummary->State,
             schedulerSummary->State);
-        // Scheduler job summary is already in finishedJobInfo, so just return.
-        return;
+        // Scheduler job summary is already in finishedJobInfo.
+        needMergeJobSummaries = false;
     }
 
     switch (nodeSummary->State) {
         case EJobState::Completed: {
-            auto completedJobSummary = MergeJobSummaries(
-                SummaryCast<TCompletedJobSummary>(std::move(schedulerSummary)),
-                SummaryCast<TCompletedJobSummary>(std::move(nodeSummary)));
+            auto completedJobSummary = MergeJobSummariesIfNeeded<TCompletedJobSummary>(
+                std::move(schedulerSummary),
+                std::move(nodeSummary),
+                needMergeJobSummaries);
             SafeOnJobCompleted(std::move(completedJobSummary));
             break;
         }
         case EJobState::Failed: {
-            auto failedJobSummary = MergeJobSummaries(
-                SummaryCast<TFailedJobSummary>(std::move(schedulerSummary)),
-                SummaryCast<TFailedJobSummary>(std::move(nodeSummary)));
+            auto failedJobSummary = MergeJobSummariesIfNeeded<TFailedJobSummary>(
+                std::move(schedulerSummary),
+                std::move(nodeSummary),
+                needMergeJobSummaries);
             SafeOnJobFailed(std::move(failedJobSummary));
             break;
         }
         case EJobState::Aborted: {
-            auto abortedJobSummary = MergeJobSummaries(
-                SummaryCast<TAbortedJobSummary>(std::move(schedulerSummary)),
-                SummaryCast<TAbortedJobSummary>(std::move(nodeSummary)));
+            auto abortedJobSummary = MergeJobSummariesIfNeeded<TAbortedJobSummary>(
+                std::move(schedulerSummary),
+                std::move(nodeSummary),
+                needMergeJobSummaries);
             const bool abortedByScheduler = abortedJobSummary->AbortedByScheduler;
             SafeOnJobAborted(std::move(abortedJobSummary), abortedByScheduler);
             break;

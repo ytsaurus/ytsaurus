@@ -179,8 +179,6 @@ private:
 
     std::atomic<bool> DisableSchedulerJobs_ = false;
 
-    IThroughputThrottlerPtr StatisticsThrottler_;
-
     TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
 
     std::optional<TInstant> UserMemoryOverdraftInstant_;
@@ -219,7 +217,6 @@ private:
         const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
         const TClusterNodeDynamicConfigPtr& newNodeConfig);
     const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds() const;
-    bool TryAcquireStatisticsThrottler(int size);
     void RemoveSchedulerJobsOnFatalAlert();
     bool NeedTotalConfirmation();
 
@@ -239,8 +236,7 @@ private:
         TOperationId operationId,
         const TNodeResources& resourceLimits,
         TJobSpec&& jobSpec,
-        const TControllerAgentDescriptor& controllerAgentDescriptor,
-        bool sendJobInfoToAgent);
+        const TControllerAgentDescriptor& controllerAgentDescriptor);
 
     //! Starts a new master job.
     IJobPtr CreateMasterJob(
@@ -344,7 +340,6 @@ TJobController::TImpl::TImpl(
     IBootstrapBase* bootstrap)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
-    , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(Config_->StatisticsThrottler))
     , Profiler_("/job_controller")
     , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
     , CacheMissArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_miss_artifacts_size"))
@@ -522,11 +517,6 @@ bool TJobController::TImpl::NeedTotalConfirmation()
     }
 
     return false;
-}
-
-bool TJobController::TImpl::TryAcquireStatisticsThrottler(const int size)
-{
-    return StatisticsThrottler_->TryAcquire(size);
 }
 
 std::vector<IJobPtr> TJobController::TImpl::GetRunningSchedulerJobsSortedByStartTime() const
@@ -928,8 +918,7 @@ IJobPtr TJobController::TImpl::CreateSchedulerJob(
     TOperationId operationId,
     const TNodeResources& resourceLimits,
     TJobSpec&& jobSpec,
-    const TControllerAgentDescriptor& controllerAgentDescriptor,
-    bool sendJobInfoToAgent)
+    const TControllerAgentDescriptor& controllerAgentDescriptor)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -950,14 +939,12 @@ IJobPtr TJobController::TImpl::CreateSchedulerJob(
         operationId,
         resourceLimits,
         std::move(jobSpec),
-        controllerAgentDescriptor,
-        sendJobInfoToAgent);
+        controllerAgentDescriptor);
 
-    YT_LOG_INFO("Scheduler job created (JobId: %v, OperationId: %v, JobType: %v, SentJobInfoToAgent: %v)",
+    YT_LOG_INFO("Scheduler job created (JobId: %v, OperationId: %v, JobType: %v)",
         jobId,
         operationId,
-        type,
-        sendJobInfoToAgent);
+        type);
 
     RegisterAndStartJob(jobId, job, waitingJobTimeout);
 
@@ -1356,10 +1343,8 @@ void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbe
             }
         };
 
-        if (response->jobs_to_abort_size() > 0) {
-            for (const auto& protoJobToAbort : response->jobs_to_abort()) {
-                doAbortJob(FromProto<TJobToAbort>(protoJobToAbort));
-            }
+        for (const auto& protoJobToAbort : response->jobs_to_abort()) {
+            doAbortJob(FromProto<TJobToAbort>(protoJobToAbort));
         }
     }
 
@@ -1430,23 +1415,7 @@ TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<TJo
         auto operationId = FromProto<TOperationId>(startInfo.operation_id());
         auto jobId = FromProto<TJobId>(startInfo.job_id());
 
-        auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(startInfo.spec_service_addresses());
-
-        TErrorOr<TControllerAgentDescriptor> agentDescriptorOrError;
-        // COMPAT(pogorelov)
-        if (startInfo.has_controller_agent_descriptor()) {
-            agentDescriptorOrError = TryParseControllerAgentDescriptor(startInfo.controller_agent_descriptor());
-        } else {
-            YT_VERIFY(startInfo.has_spec_service_addresses());
-            auto controllerAgentAddressWithNetworkOrError = TryParseControllerAgentAddress(
-                startInfo.spec_service_addresses());
-
-            if (!controllerAgentAddressWithNetworkOrError.IsOK()) {
-                agentDescriptorOrError = TError{std::move(controllerAgentAddressWithNetworkOrError)};
-            }
-
-            agentDescriptorOrError = TControllerAgentDescriptor{std::move(controllerAgentAddressWithNetworkOrError.Value()), {}};
-        }
+        auto agentDescriptorOrError = TryParseControllerAgentDescriptor(startInfo.controller_agent_descriptor());
 
         if (agentDescriptorOrError.IsOK()) {
             auto& agentDescriptor = agentDescriptorOrError.Value();
@@ -1523,7 +1492,6 @@ void TJobController::TImpl::OnJobSpecsReceived(
     YT_LOG_DEBUG("Job specs received (SpecServiceAddress: %v)", controllerAgentDescriptor.Address);
 
     const auto& rsp = rspOrError.Value();
-    const bool sendJobInfoToAgent = rsp->supports_job_info_from_node();
     YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
     for (size_t index = 0; index < startInfos.size(); ++index) {
         const auto& startInfo = startInfos[index];
@@ -1547,18 +1515,12 @@ void TJobController::TImpl::OnJobSpecsReceived(
 
         const auto& resourceLimits = startInfo.resource_limits();
 
-        // COMPAT(pogorelov)
-        TControllerAgentDescriptor agentDescriptor = controllerAgentDescriptor.IncarnationId.IsEmpty()
-            ? TControllerAgentDescriptor{}
-            : controllerAgentDescriptor;
-
         CreateSchedulerJob(
             jobId,
             operationId,
             resourceLimits,
             std::move(spec),
-            std::move(agentDescriptor),
-            sendJobInfoToAgent);
+            controllerAgentDescriptor);
     }
 }
 
@@ -2028,11 +1990,6 @@ IJobPtr TJobController::TJobHeartbeatProcessorBase::CreateMasterJob(
 const THashMap<TJobId, TOperationId>& TJobController::TJobHeartbeatProcessorBase::GetSpecFetchFailedJobIds()
 {
     return JobController_->Impl_->GetSpecFetchFailedJobIds();
-}
-
-bool TJobController::TJobHeartbeatProcessorBase::TryAcquireStatisticsThrottler(const int size)
-{
-    return JobController_->Impl_->TryAcquireStatisticsThrottler(size);
 }
 
 void TJobController::TJobHeartbeatProcessorBase::PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request)

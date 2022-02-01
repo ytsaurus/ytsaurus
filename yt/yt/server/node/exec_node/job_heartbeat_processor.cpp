@@ -85,11 +85,6 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
     YT_LOG_INFO_IF(totalConfirmation, "Including all stored jobs in heartbeat");
 
     int confirmedJobCount = 0;
-    i64 completedJobsStatisticsSize = 0;
-
-    // A container for all scheduler jobs that are candidate to send statistics. This set contains
-    // only the running jobs since all completed/aborted/failed jobs always send their statistics.
-    std::vector<std::pair<IJobPtr, TJobStatus*>> runningJobs;
 
     bool shouldSendControllerAgentHeartbeatsOutOfBand = false;
 
@@ -101,11 +96,6 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
         }
 
         auto schedulerJob = StaticPointerCast<TJob>(std::move(job));
-        const bool shouldSendStatisticsToScheduler = !schedulerJob->ShouldSendJobInfoToAgent() ||
-            !Bootstrap_
-                ->GetExecNodeBootstrap()
-                ->GetControllerAgentConnectorPool()
-                ->AreHeartbeatsEnabled();
 
         auto confirmIt = JobIdsToConfirm_.find(jobId);
         if (schedulerJob->GetStored() && !totalConfirmation && confirmIt == std::cend(JobIdsToConfirm_)) {
@@ -130,30 +120,17 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
         switch (schedulerJob->GetState()) {
             case EJobState::Running:
                 *jobStatus->mutable_resource_usage() = schedulerJob->GetResourceUsage();
-                if (shouldSendStatisticsToScheduler) {
-                    runningJobs.emplace_back(job, jobStatus);
-                }
                 break;
 
             case EJobState::Completed:
             case EJobState::Aborted:
             case EJobState::Failed:
                 *jobStatus->mutable_result() = schedulerJob->GetResult();
-                // COMPAT(pogorelov)
-                if (shouldSendStatisticsToScheduler) {
-                    if (auto statistics = job->GetStatistics()) {
-                        auto statisticsString = statistics.ToString();
-                        completedJobsStatisticsSize += statisticsString.size();
-                        job->ResetStatisticsLastSendTime();
-                        jobStatus->set_statistics(statisticsString);
-                    }
-                } else {
-                    Bootstrap_
-                        ->GetExecNodeBootstrap()
-                        ->GetControllerAgentConnectorPool()
-                        ->EnqueueFinishedJob(schedulerJob);
-                    shouldSendControllerAgentHeartbeatsOutOfBand = true;
-                }
+                Bootstrap_
+                    ->GetExecNodeBootstrap()
+                    ->GetControllerAgentConnectorPool()
+                    ->EnqueueFinishedJob(schedulerJob);
+                shouldSendControllerAgentHeartbeatsOutOfBand = true;
                 break;
             default:
                 break;
@@ -161,29 +138,6 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
     }
 
     request->set_confirmed_job_count(confirmedJobCount);
-
-    std::sort(
-        runningJobs.begin(),
-        runningJobs.end(),
-        [] (const auto& lhs, const auto& rhs) {
-            return lhs.first->GetStatisticsLastSendTime() < rhs.first->GetStatisticsLastSendTime();
-        });
-
-    i64 runningJobsStatisticsSize = 0;
-    for (const auto& [job, jobStatus] : runningJobs) {
-        if (auto statistics = job->GetStatistics()) {
-            auto statisticsString = statistics.ToString();
-            if (TryAcquireStatisticsThrottler(statisticsString.size())) {
-                runningJobsStatisticsSize += statisticsString.size();
-                job->ResetStatisticsLastSendTime();
-                jobStatus->set_statistics(statisticsString);
-            }
-        }
-    }
-
-    YT_LOG_DEBUG("Job statistics prepared (RunningJobsStatisticsSize: %v, CompletedJobsStatisticsSize: %v)",
-        runningJobsStatisticsSize,
-        completedJobsStatisticsSize);
 
     for (auto [jobId, operationId] : GetSpecFetchFailedJobIds()) {
         auto* jobStatus = request->add_jobs();

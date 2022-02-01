@@ -401,7 +401,7 @@ private:
 
     void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool byScheduler);
     void OnJobFinished(const TJobPtr& job);
-    void OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shouldLogJob);
+    void OnJobRunning(const TJobPtr& job, TJobStatus* status);
     void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
     void OnJobFailed(const TJobPtr& job, TJobStatus* status);
 

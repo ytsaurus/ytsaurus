@@ -163,9 +163,7 @@ TAbortedJobSummary::TAbortedJobSummary(TJobId id, EAbortReason abortReason)
 TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason)
     : TJobSummary(other)
     , AbortReason(abortReason)
-{
-    JobExecutionCompleted = false;
-}
+{ }
 
 TAbortedJobSummary::TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : TJobSummary(event)
@@ -284,7 +282,7 @@ std::unique_ptr<TJobSummary> ParseJobSummary(NJobTrackerClient::NProto::TJobStat
     }
 }
 
-bool ExpectsJobInfoSeparately(const TJobSummary& jobSummary) noexcept
+bool ExpectsJobInfoFromNode(const TJobSummary& jobSummary) noexcept
 {
     return !jobSummary.StatisticsYson && jobSummary.JobExecutionCompleted;
 }

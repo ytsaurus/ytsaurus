@@ -53,8 +53,7 @@ public:
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
         NJobTrackerClient::NProto::TJobSpec&& jobSpec,
         IBootstrap* bootstrap,
-        TControllerAgentDescriptor agentDescriptor,
-        bool sendJobInfoToAgent);
+        TControllerAgentDescriptor agentDescriptor);
 
     ~TJob() override;
 
@@ -179,8 +178,6 @@ public:
 
     bool IsJobProxyCompleted() const noexcept;
 
-    bool ShouldSendJobInfoToAgent() const noexcept;
-
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -289,8 +286,6 @@ private:
     std::vector<TFuture<void>> ArtifactPrepareFutures_;
 
     bool JobProxyCompleted_ = false;
-
-    const bool SendJobInfoToAgent_;
 
     // Helpers.
 

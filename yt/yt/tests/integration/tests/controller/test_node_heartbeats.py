@@ -69,24 +69,3 @@ class TestNodeHeartbeats(YTEnvSetup):
             })
 
         self._test(fixup)
-
-    @authors("pogorelov")
-    def test_disable_heartbeats_on_node(self):
-        def fixup():
-            update_nodes_dynamic_config({
-                "exec_agent": {
-                    "controller_agent_connector": {
-                        "test_heartbeat_delay": 10000,
-                        "enable_heartbeats": False,
-                    }
-                }
-            })
-
-        self._test(fixup)
-
-    @authors("pogorelov")
-    def test_disable_heartbeats_on_agent(self):
-        def fixup():
-            update_controller_agent_config("enable_heartbeats_from_nodes", False)
-
-        self._test(fixup)

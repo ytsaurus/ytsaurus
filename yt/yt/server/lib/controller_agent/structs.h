@@ -143,8 +143,7 @@ std::unique_ptr<TJobSummaryType> SummaryCast(std::unique_ptr<TJobSummary> jobSum
     return std::unique_ptr<TJobSummaryType>{static_cast<TJobSummaryType*>(jobSummary.release())};
 }
 
-// COMPAT(pogorelov)
-bool ExpectsJobInfoSeparately(const TJobSummary& jobSummary) noexcept;
+bool ExpectsJobInfoFromNode(const TJobSummary& jobSummary) noexcept;
 
 ////////////////////////////////////////////////////////////////////////////////
 

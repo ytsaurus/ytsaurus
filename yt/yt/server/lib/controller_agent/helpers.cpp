@@ -70,27 +70,12 @@ void ToProto(NProto::TJobToRemove* protoJobToRemove, const NJobTrackerClient::TJ
 {
     ToProto(protoJobToRemove->mutable_job_id(), jobToRelease.JobId);
     ToProto(protoJobToRemove->mutable_release_job_flags(), jobToRelease.ReleaseFlags);
-
-    // COMPAT
-    const auto& releaseJobFlags = jobToRelease.ReleaseFlags;
-    protoJobToRemove->set_archive_job_spec(releaseJobFlags.ArchiveJobSpec);
-    protoJobToRemove->set_archive_stderr(releaseJobFlags.ArchiveStderr);
-    protoJobToRemove->set_archive_fail_context(releaseJobFlags.ArchiveFailContext);
-    protoJobToRemove->set_archive_profile(releaseJobFlags.ArchiveProfile);
 }
 
 void FromProto(NJobTrackerClient::TJobToRelease* jobToRelease, const NProto::TJobToRemove& protoJobToRemove)
 {
     FromProto(&jobToRelease->JobId, protoJobToRemove.job_id());
-    if (protoJobToRemove.has_release_job_flags()) {
-        FromProto(&jobToRelease->ReleaseFlags, protoJobToRemove.release_job_flags());
-    } else {
-        // COMPAT
-        jobToRelease->ReleaseFlags.ArchiveStderr = protoJobToRemove.archive_stderr();
-        jobToRelease->ReleaseFlags.ArchiveJobSpec = protoJobToRemove.archive_job_spec();
-        jobToRelease->ReleaseFlags.ArchiveFailContext = protoJobToRemove.archive_fail_context();
-        jobToRelease->ReleaseFlags.ArchiveProfile = protoJobToRemove.archive_profile();
-    }
+    FromProto(&jobToRelease->ReleaseFlags, protoJobToRemove.release_job_flags());
 }
 
 } // namespace NProto

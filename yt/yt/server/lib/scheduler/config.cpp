@@ -767,8 +767,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("running_jobs_update_period", &TThis::RunningJobsUpdatePeriod)
         .Default(TDuration::Seconds(10));
-    registrar.Parameter("send_running_job_events", &TThis::SendRunningJobEvents)
-        .Default(true);
     registrar.Parameter("running_job_statistics_update_period", &TThis::RunningJobStatisticsUpdatePeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("missing_jobs_check_period", &TThis::MissingJobsCheckPeriod)

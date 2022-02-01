@@ -153,13 +153,6 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
         return;
     }
 
-    // We consider disabled heartbeats as a signal to stop sending heartbeats and we intentionally do not report jobs that remained in EnqueuedFinishedJobs_. 
-    // All these jobs are supposed to be aborted by controller within timeout.
-    if (!ControllerAgentConnectorPool_->AreHeartbeatsEnabled()) {
-        EnqueuedFinishedJobs_.clear();
-        return;
-    }
-
     if (TInstant::Now() < HeartbeatInfo_.LastFailedHeartbeatTime + HeartbeatInfo_.FailedHeartbeatBackoffTime) {
         YT_LOG_INFO(
             "Skipping heartbeat to agent since backoff after previous heartbeat failure (AgentAddress: %v, IncarnationId: %v)",
@@ -179,10 +172,6 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
         }
 
         auto schedulerJob = StaticPointerCast<TJob>(std::move(job));
-
-        if (!schedulerJob->ShouldSendJobInfoToAgent()) {
-            continue;
-        }
 
         const auto& controllerAgentDescriptor = schedulerJob->GetControllerAgentDescriptor();
 
@@ -380,11 +369,6 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
     }));
 }
 
-bool TControllerAgentConnectorPool::AreHeartbeatsEnabled() const noexcept
-{
-    return HeartbeatsEnabled_;
-}
-
 void TControllerAgentConnectorPool::OnControllerAgentConnectorDestroyed(
         const TControllerAgentDescriptor& controllerAgentDescriptor) noexcept
 {
@@ -423,8 +407,6 @@ void TControllerAgentConnectorPool::EnqueueFinishedJob(const TJobPtr& job)
 void TControllerAgentConnectorPool::OnConfigUpdated()
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
-
-    HeartbeatsEnabled_ = CurrentConfig_->EnableHeartbeats;
 
     for (const auto& [agentDescriptor, controllerAgentConnector] : ControllerAgentConnectors_) {
         controllerAgentConnector->OnConfigUpdated();

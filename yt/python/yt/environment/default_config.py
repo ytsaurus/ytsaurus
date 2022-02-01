@@ -169,7 +169,6 @@ b"""
         operations_cleaner = {
             parse_operation_attributes_batch_size = 2;
         };
-        send_running_job_events = %false;
     };
 }
 """)
@@ -321,7 +320,6 @@ b"""
         };
 
         enable_bulk_insert_for_everyone = %true;
-        enable_heartbeats_from_nodes = %true;
     };
 }
 """)

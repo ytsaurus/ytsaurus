@@ -38,8 +38,7 @@ NJobAgent::IJobPtr CreateSchedulerJob(
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     IBootstrap* bootstrap,
-    TControllerAgentDescriptor agentDescriptor,
-    bool sendJobInfoToAgent);
+    TControllerAgentDescriptor agentDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
