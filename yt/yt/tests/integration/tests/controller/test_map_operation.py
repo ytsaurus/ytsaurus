@@ -60,7 +60,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
             # COMPAT(shakurov): change the default to false and remove
             # this delta once masters are up to date.
             "enable_prerequisites_for_starting_completion_transactions": False,
-            "enable_heartbeats_from_nodes": False,
         }
     }
 

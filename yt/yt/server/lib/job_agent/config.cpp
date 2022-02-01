@@ -189,8 +189,6 @@ void TJobControllerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
-    registrar.Parameter("statistics_throttler", &TThis::StatisticsThrottler)
-        .DefaultNew();
 
     // Make it greater than interrupt preemption timeout.
     registrar.Parameter("waiting_jobs_timeout", &TThis::WaitingJobsTimeout)
@@ -253,12 +251,6 @@ void TJobControllerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("disable_job_proxy_profiling", &TThis::DisableJobProxyProfiling)
         .Default(false);
-
-    registrar.Preprocessor([] (TThis* config) {
-        // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
-        // approximate incoming bandwidth of 1Gbit/sec of the scheduler.
-        config->StatisticsThrottler->Limit = 100_KB;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

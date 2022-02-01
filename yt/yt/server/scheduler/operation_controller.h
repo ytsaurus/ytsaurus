@@ -222,16 +222,6 @@ struct IOperationController
         NJobTrackerClient::NProto::TJobStatus* status,
         bool byScheduler) = 0;
 
-    //! Called during heartbeat processing to notify the controller that a job is still running.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void OnJobRunning(
-        const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status,
-        bool shouldLogJob) = 0;
-
-
     // These methods should be called only by controller agent tracker.
 
     //! Called to notify the controller that the operation initialization has finished.

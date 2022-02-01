@@ -524,21 +524,6 @@ void TOperationControllerImpl::OnNonscheduledJobAborted(
         jobId);
 }
 
-void TOperationControllerImpl::OnJobRunning(
-    const TJobPtr& job,
-    NJobTrackerClient::NProto::TJobStatus* status,
-    bool shouldLogJob)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto event = BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status);
-    auto result = EnqueueJobEvent(std::move(event));
-    YT_LOG_DEBUG_IF(shouldLogJob,
-        "Job run notification %v (JobId: %v)",
-        result ? "enqueued" : "dropped",
-        job->GetId());
-}
-
 void TOperationControllerImpl::OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError)
 {
     YT_VERIFY(PendingInitializeResult_);

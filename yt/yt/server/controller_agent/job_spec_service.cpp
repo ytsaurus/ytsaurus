@@ -95,7 +95,7 @@ private:
                 }
 
                 response->Attachments() = std::move(jobSpecs);
-                response->set_supports_job_info_from_node(controllerAgent->GetConfig()->EnableHeartbeatsFromNodes);
+                response->set_supports_job_info_from_node(true);
                 context->Reply();
             }).Via(GetCurrentInvoker()));
     }

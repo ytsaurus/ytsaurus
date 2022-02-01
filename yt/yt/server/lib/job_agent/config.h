@@ -175,7 +175,6 @@ class TJobControllerConfig
 {
 public:
     TResourceLimitsConfigPtr ResourceLimits;
-    NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration WaitingJobsTimeout;
     TDuration GetJobSpecsTimeout;
     TDuration TotalConfirmationPeriod;

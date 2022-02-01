@@ -1412,6 +1412,12 @@ private:
 
     void AbortJobWithPartiallyReceivedJobInfo(TJobId jobId);
 
+    template <class TJobSummaryType>
+    std::unique_ptr<TJobSummaryType> MergeJobSummariesIfNeeded(
+        std::unique_ptr<TJobSummary> schedulerJobSummary,
+        std::unique_ptr<TJobSummary> nodeJobSummary,
+        bool needMerge);
+
     NYTree::IYPathServicePtr BuildZombieOrchid();
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
