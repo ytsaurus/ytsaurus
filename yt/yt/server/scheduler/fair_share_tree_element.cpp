@@ -2781,10 +2781,10 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
 {
     YT_VERIFY(Mutable_);
 
-    PendingJobCount_ = Controller_->GetPendingJobCount();
+    PendingJobCount_ = Controller_->GetPendingJobCount().GetJobCountFor(TreeId_);
     DetailedMinNeededJobResources_ = Controller_->GetDetailedMinNeededJobResources();
     AggregatedMinNeededJobResources_ = Controller_->GetAggregatedMinNeededJobResources();
-    TotalNeededResources_ = Controller_->GetNeededResources();
+    TotalNeededResources_ = Controller_->GetNeededResources().GetNeededResourcesFor(TreeId_);
 
     UnschedulableReason_ = ComputeUnschedulableReason();
     ResourceUsageAtUpdate_ = GetInstantResourceUsage();

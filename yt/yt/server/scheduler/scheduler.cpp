@@ -1331,7 +1331,7 @@ public:
     {
         bool shouldFlush = false;
         bool shouldSuspend = false;
-        TJobResources neededResources;
+        TCompositeNeededResources neededResources;
         if (maybeMaterializeResult) {
             // Operation was materialized from scratch.
             shouldSuspend = maybeMaterializeResult->Suspend;
@@ -1345,7 +1345,7 @@ public:
         }
 
         if (scheduleOperationInSingleTree) {
-            auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources);
+            auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources.DefaultResources);
 
             std::vector<TString> treeIdsToUnregister;
             for (const auto& [treeId, treeRuntimeParameters] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {

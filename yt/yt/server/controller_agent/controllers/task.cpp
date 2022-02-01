@@ -58,7 +58,7 @@ using std::placeholders::_2;
 
 TTask::TTask()
     : Logger(ControllerLogger)
-    , CachedPendingJobCount_(-1)
+    , CachedPendingJobCount_{.DefaultCount = -1}
     , CachedTotalJobCount_(-1)
     , CompetitiveJobManager_(
         std::bind(&TTask::OnSpeculativeJobScheduled, this, _1),
@@ -72,7 +72,7 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptor> streamDescrip
     , TaskHost_(taskHost.Get())
     , StreamDescriptors_(std::move(streamDescriptors))
     , InputChunkMapping_(New<TInputChunkMapping>(EChunkMappingMode::Sorted))
-    , CachedPendingJobCount_(0)
+    , CachedPendingJobCount_{}
     , CachedTotalJobCount_(0)
     , CompetitiveJobManager_(
         std::bind(&TTask::OnSpeculativeJobScheduled, this, _1),
@@ -99,7 +99,8 @@ void TTask::Initialize()
 void TTask::Prepare()
 {
     Logger.AddTag("Task: %v", GetTitle());
-    TentativeTreeEligibility_ = TTentativeTreeEligibility(TaskHost_->GetSpec()->TentativeTreeEligibility, Logger);
+    const auto& spec = TaskHost_->GetSpec();
+    TentativeTreeEligibility_ = TTentativeTreeEligibility(spec->TentativePoolTrees, spec->TentativeTreeEligibility, Logger);
 
     if (IsInputDataWeightHistogramSupported()) {
         EstimatedInputDataWeightHistogram_ = CreateHistogram();
@@ -137,21 +138,26 @@ TVertexDescriptorList TTask::GetAllVertexDescriptors() const
     return {GetVertexDescriptor()};
 }
 
-int TTask::GetPendingJobCount() const
+TCompositePendingJobCount TTask::GetPendingJobCount() const
 {
     if (!IsActive()) {
-        return 0;
+        return TCompositePendingJobCount{};
     }
 
-    return GetChunkPoolOutput()->GetJobCounter()->GetPending() + CompetitiveJobManager_.GetPendingSpeculativeJobCount();
+    int jobCount = GetChunkPoolOutput()->GetJobCounter()->GetPending() + CompetitiveJobManager_.GetPendingSpeculativeJobCount();
+    return TCompositePendingJobCount{.DefaultCount = jobCount, .CountByPoolTree = TentativeTreeEligibility_.GetPendingJobCount()};
 }
 
-int TTask::GetPendingJobCountDelta()
+TCompositePendingJobCount TTask::GetPendingJobCountDelta()
 {
-    int oldValue = CachedPendingJobCount_;
-    int newValue = GetPendingJobCount();
+    auto oldValue = CachedPendingJobCount_;
+    auto newValue = GetPendingJobCount();
     CachedPendingJobCount_ = newValue;
     return newValue - oldValue;
+}
+
+bool TTask::HasNoPendingJobs() const {
+    return GetPendingJobCount() == TCompositePendingJobCount{};
 }
 
 int TTask::GetTotalJobCount() const
@@ -181,20 +187,29 @@ const TProgressCounterPtr& TTask::GetJobCounter() const
     return GetChunkPoolOutput()->GetJobCounter();
 }
 
-TJobResources TTask::GetTotalNeededResourcesDelta()
+TCompositeNeededResources TTask::GetTotalNeededResourcesDelta()
 {
     auto oldValue = CachedTotalNeededResources_;
     auto newValue = GetTotalNeededResources();
     CachedTotalNeededResources_ = newValue;
-    newValue -= oldValue;
-    return newValue;
+    return newValue - oldValue;
 }
 
-TJobResources TTask::GetTotalNeededResources() const
+TCompositeNeededResources TTask::GetTotalNeededResources() const
 {
-    i64 count = GetPendingJobCount();
+    auto jobCount = GetPendingJobCount();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
-    return count == 0 ? TJobResources() : GetMinNeededResources().ToJobResources() * count;
+    TCompositeNeededResources result;
+
+    if (jobCount.DefaultCount != 0) {
+        result.DefaultResources = GetMinNeededResources().ToJobResources() * static_cast<i64>(jobCount.DefaultCount);
+    }
+    for (const auto& [tree, count] : jobCount.CountByPoolTree) {
+        if (count != 0) {
+            result.ResourcesByPoolTree[tree] = GetMinNeededResources().ToJobResources() * static_cast<i64>(count);
+        }
+    }
+    return result;
 }
 
 bool TTask::IsStderrTableEnabled() const
@@ -1024,7 +1039,7 @@ void TTask::UpdateRunningJobStatistics(TJobletPtr joblet, const TRunningJobSumma
 
     if (jobSummary.Statistics) {
         JobSplitter_->OnJobRunning(jobSummary);
-        if (GetPendingJobCount() == 0) {
+        if (HasNoPendingJobs()) {
             auto verdict = JobSplitter_->ExamineJob(jobId);
             if (verdict == EJobSplitterVerdict::Split) {
                 YT_LOG_DEBUG("Job is going to be split (JobId: %v)", jobId);
@@ -1556,7 +1571,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
 {
     if (!CachedMinNeededResources_) {
         // NB: Don't call GetMinNeededResourcesHeavy if there are no pending jobs.
-        if (GetPendingJobCount() == 0) {
+        if (HasNoPendingJobs()) {
             return TJobResourcesWithQuota{};
         }
         CachedMinNeededResources_ = GetMinNeededResourcesHeavy();
@@ -1789,7 +1804,7 @@ int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const T
 
     auto splitJobCount = JobSplitter_->EstimateJobCount(jobSummary, unreadRowCount);
 
-    if (GetPendingJobCount() > 0) {
+    if (!HasNoPendingJobs()) {
         splitJobCount = 1;
     }
 

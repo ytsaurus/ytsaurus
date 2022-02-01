@@ -705,7 +705,7 @@ void TOperationControllerImpl::UpdateMinNeededJobResources()
     YT_LOG_DEBUG("Min needed job resources update request enqueued");
 }
 
-TJobResources TOperationControllerImpl::GetNeededResources() const
+TCompositeNeededResources TOperationControllerImpl::GetNeededResources() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -719,7 +719,7 @@ TJobResourcesWithQuotaList TOperationControllerImpl::GetMinNeededJobResources() 
     return ControllerRuntimeData_->MinNeededJobResources();
 }
 
-int TOperationControllerImpl::GetPendingJobCount() const
+TCompositePendingJobCount TOperationControllerImpl::GetPendingJobCount() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

@@ -80,7 +80,7 @@ void ToProto(NProto::TPrepareOperationResult* resultProto, const TOperationContr
 struct TOperationControllerMaterializeResult
 {
     bool Suspend = false;
-    TJobResources InitialNeededResources;
+    NScheduler::TCompositeNeededResources InitialNeededResources;
     TJobResources InitialAggregatedMinNeededResources;
 };
 
@@ -107,7 +107,7 @@ struct TOperationControllerReviveResult
     bool RevivedFromSnapshot = false;
     std::vector<TRevivedJob> RevivedJobs;
     THashSet<TString> RevivedBannedTreeIds;
-    TJobResources NeededResources;
+    NScheduler::TCompositeNeededResources NeededResources;
     NScheduler::TControllerEpoch ControllerEpoch;
 };
 
@@ -468,7 +468,7 @@ struct IOperationController
     /*!
      *  \note Thread affinity: any
      */
-    virtual TJobResources GetNeededResources() const = 0;
+    virtual NScheduler::TCompositeNeededResources GetNeededResources() const = 0;
 
     //! Initiates updating min needed resources estimates.
     //! Note that the actual update may happen in background.
@@ -487,7 +487,7 @@ struct IOperationController
     /*!
      *  \note Thread affinity: any
      */
-    virtual int GetPendingJobCount() const = 0;
+    virtual NScheduler::TCompositePendingJobCount GetPendingJobCount() const = 0;
 
     //! Invokes controller finalization due to aborted or expired transaction.
     virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) = 0;

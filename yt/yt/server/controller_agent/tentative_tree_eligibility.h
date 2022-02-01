@@ -25,7 +25,7 @@ namespace NYT::NControllerAgent {
 class TTentativeTreeEligibility
 {
 public:
-    TTentativeTreeEligibility(const NScheduler::TTentativeTreeEligibilityConfigPtr& config, const NLogging::TLogger& logger);
+    TTentativeTreeEligibility(std::optional<THashSet<TString>> tentativeTrees, const NScheduler::TTentativeTreeEligibilityConfigPtr& config, const NLogging::TLogger& logger);
 
     // For persistence only.
     TTentativeTreeEligibility();
@@ -49,6 +49,8 @@ public:
 
     void LogTentativeTreeStatistics() const;
 
+    THashMap<TString, int> GetPendingJobCount() const;
+
 private:
     using TDurationSummary = TAvgSummary<TDuration>;
 
@@ -56,6 +58,8 @@ private:
 
     // Tentative job durations - by pool trees.
     THashMap<TString, TDurationSummary> Durations_;
+
+    THashSet<TString> TentativeTrees_;
 
     int SampleJobCount_ = -1;
     double MaxTentativeTreeJobDurationRatio_ = -1.0;

@@ -34,7 +34,7 @@ NScheduler::EOperationState TOperation::GetState() const
 
 std::optional<NScheduler::EUnschedulableReason> TOperation::CheckUnschedulable() const
 {
-    if (Controller_->GetPendingJobCount() == 0) {
+    if (Controller_->GetPendingJobCount().DefaultCount == 0) {
         return NScheduler::EUnschedulableReason::NoPendingJobs;
     }
 

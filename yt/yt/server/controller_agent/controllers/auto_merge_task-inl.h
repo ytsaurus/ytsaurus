@@ -17,15 +17,18 @@ class TAutoMergeableOutputMixin
 public:
     using TUnderlyingTask::TUnderlyingTask;
 
-    virtual int GetPendingJobCount() const override
+    virtual NScheduler::TCompositePendingJobCount GetPendingJobCount() const override
     {
-        if (CanScheduleJob_) {
-            return std::min(
-                TUnderlyingTask::GetPendingJobCount(),
-                this->TaskHost_->GetAutoMergeDirector()->GetTaskPendingJobCountLimit());
-        } else {
-            return 0;
+        if (!CanScheduleJob_) {
+            return NScheduler::TCompositePendingJobCount{};
         }
+
+        auto result = TUnderlyingTask::GetPendingJobCount();
+        // NB: automerge works only in regular computation.
+        result.DefaultCount = std::min(
+            result.DefaultCount,
+            this->TaskHost_->GetAutoMergeDirector()->GetTaskPendingJobCountLimit());
+        return result;
     }
 
     virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* /*context*/) override

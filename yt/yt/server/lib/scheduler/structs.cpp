@@ -1,5 +1,7 @@
 #include "structs.h"
 
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NScheduler {
@@ -104,6 +106,210 @@ void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node)
 {
     Deserialize(preemptedFor.JobId, node->AsMap()->GetChildOrThrow("job_id"));
     Deserialize(preemptedFor.OperationId, node->AsMap()->GetChildOrThrow("operation_id"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int TCompositePendingJobCount::GetJobCountFor(const TString& tree) const
+{
+    auto it = CountByPoolTree.find(tree);
+    return it != CountByPoolTree.end()
+        ? it->second
+        : DefaultCount;
+}
+
+void TCompositePendingJobCount::Persist(const TStreamPersistenceContext &context)
+{
+    using NYT::Persist;
+    Persist(context, DefaultCount);
+    Persist(context, CountByPoolTree);
+}
+
+void Serialize(const TCompositePendingJobCount& jobCount, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("absolute").Value(jobCount.DefaultCount)
+            .Item("count_by_pool_tree").Value(jobCount.CountByPoolTree)
+        .EndMap();
+}
+
+void FormatValue(TStringBuilderBase* builder, const TCompositePendingJobCount& jobCount, TStringBuf /* format */)
+{
+    builder->AppendFormat("{DefaultCount: %v, CountByPoolTree: %v}",
+        jobCount.DefaultCount,
+        jobCount.CountByPoolTree);
+}
+
+bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
+{
+    if (lhs.DefaultCount != rhs.DefaultCount) {
+        return false;
+    }
+
+    if (lhs.CountByPoolTree.size() != lhs.CountByPoolTree.size()) {
+        return false;
+    }
+
+    for (const auto& [tree, lhsCount] : lhs.CountByPoolTree) {
+        auto rhsIt = rhs.CountByPoolTree.find(tree);
+        if (rhsIt == rhs.CountByPoolTree.end()) {
+            return false;
+        }
+        if (lhsCount != rhsIt->second) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool operator != (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
+{
+    return !(lhs == rhs);
+}
+
+TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
+{
+    TCompositePendingJobCount result;
+    result.DefaultCount = lhs.DefaultCount + rhs.DefaultCount;
+    for (const auto& [tree, lhsCount] : lhs.CountByPoolTree) {
+        auto rhsIt = rhs.CountByPoolTree.find(tree);
+        if (rhsIt == rhs.CountByPoolTree.end()) {
+            result.CountByPoolTree[tree] = lhsCount;
+        } else {
+            result.CountByPoolTree[tree] = lhsCount + rhsIt->second;
+        }
+    }
+
+    for (const auto& [tree, rhsCount] : rhs.CountByPoolTree) {
+        if (result.CountByPoolTree.find(tree) == result.CountByPoolTree.end()) {
+            result.CountByPoolTree[tree] = rhsCount;
+        }
+    }
+
+    return result;
+}
+
+TCompositePendingJobCount operator - (const TCompositePendingJobCount& count)
+{
+    TCompositePendingJobCount result;
+    result.DefaultCount = -count.DefaultCount;
+    for (const auto& [tree, countPerTree] : count.CountByPoolTree) {
+        result.CountByPoolTree[tree] = -countPerTree;
+    }
+
+    return result;
+}
+
+TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
+{
+    return lhs + (-rhs);
+}
+
+void ToProto(NProto::TCompositePendingJobCount* protoPendingJobCount, const TCompositePendingJobCount& pendingJobCount)
+{
+    protoPendingJobCount->set_default_count(pendingJobCount.DefaultCount);
+
+    auto protoMap = protoPendingJobCount->mutable_count_per_pool_tree();
+    for (const auto& [tree, count] : pendingJobCount.CountByPoolTree) {
+        (*protoMap)[tree] = count;
+    }
+}
+
+void FromProto(TCompositePendingJobCount* pendingJobCount, const NProto::TCompositePendingJobCount& protoPendingJobCount)
+{
+    pendingJobCount->DefaultCount = protoPendingJobCount.default_count();
+
+    for (const auto& [tree, count] : protoPendingJobCount.count_per_pool_tree()) {
+        pendingJobCount->CountByPoolTree[tree] = count;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TJobResources& TCompositeNeededResources::GetNeededResourcesFor(const TString& tree) const
+{
+    auto it = ResourcesByPoolTree.find(tree);
+    return it != ResourcesByPoolTree.end()
+        ? it->second
+        : DefaultResources;
+}
+
+void TCompositeNeededResources::Persist(const TStreamPersistenceContext &context)
+{
+    using NYT::Persist;
+    Persist(context, DefaultResources);
+    Persist(context, ResourcesByPoolTree);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /* format */)
+{
+    builder->AppendFormat("{DefaultResources: %v, ResourcesByPoolTree: %v}",
+        neededResources.DefaultResources,
+        neededResources.ResourcesByPoolTree);
+}
+
+TCompositeNeededResources operator - (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs)
+{
+    return lhs + (-rhs);
+}
+
+TCompositeNeededResources operator + (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs)
+{
+    TCompositeNeededResources result;
+    result.DefaultResources = lhs.DefaultResources + rhs.DefaultResources;
+    for (const auto& [tree, lhsResources] : lhs.ResourcesByPoolTree) {
+        auto rhsIt = rhs.ResourcesByPoolTree.find(tree);
+        if (rhsIt == rhs.ResourcesByPoolTree.end()) {
+            result.ResourcesByPoolTree[tree] = lhsResources;
+        } else {
+            result.ResourcesByPoolTree[tree] = lhsResources + rhsIt->second;
+        }
+    }
+
+    for (const auto& [tree, rhsResources] : rhs.ResourcesByPoolTree) {
+        if (result.ResourcesByPoolTree.find(tree) == result.ResourcesByPoolTree.end()) {
+            result.ResourcesByPoolTree[tree] = rhsResources;
+        }
+    }
+
+    return result;
+}
+
+TCompositeNeededResources operator - (const TCompositeNeededResources& resources)
+{
+    TCompositeNeededResources result;
+    result.DefaultResources = -resources.DefaultResources;
+    for (const auto& [tree, resourcesPerTree] : resources.ResourcesByPoolTree) {
+        result.ResourcesByPoolTree[tree] = -resourcesPerTree;
+    }
+
+    return result;
+}
+
+TString FormatResources(const TCompositeNeededResources& resources)
+{
+    return Format("{DefaultResources: %v, ResourcesByPoolTree: %v}", resources.DefaultResources, resources.ResourcesByPoolTree);
+}
+
+void ToProto(NControllerAgent::NProto::TCompositeNeededResources* protoNeededResources, const TCompositeNeededResources& neededResources)
+{
+    using namespace NProto;
+    ToProto(protoNeededResources->mutable_default_resources(), neededResources.DefaultResources);
+
+    auto protoMap = protoNeededResources->mutable_resources_per_pool_tree();
+    for (const auto& [tree, resources] : neededResources.ResourcesByPoolTree) {
+        ToProto(&(*protoMap)[tree], resources);
+    }
+}
+
+void FromProto(TCompositeNeededResources* neededResources, const NControllerAgent::NProto::TCompositeNeededResources& protoNeededResources)
+{
+    FromProto(&neededResources->DefaultResources, protoNeededResources.default_resources());
+
+    for (const auto& [tree, resources] : protoNeededResources.resources_per_pool_tree()) {
+        FromProto(&neededResources->ResourcesByPoolTree[tree], resources);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

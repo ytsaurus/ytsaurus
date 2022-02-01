@@ -21,8 +21,8 @@ public:
     void IncreaseConcurrentScheduleJobCalls(int nodeShardId);
     void IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId);
 
-    int GetPendingJobCount() const;
-    TJobResources GetNeededResources() const;
+    TCompositePendingJobCount GetPendingJobCount() const;
+    TCompositeNeededResources GetNeededResources() const;
     TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
     TJobResources GetAggregatedMinNeededJobResources() const;
 

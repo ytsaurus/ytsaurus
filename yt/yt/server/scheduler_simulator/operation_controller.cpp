@@ -185,13 +185,13 @@ public:
     void OnBucketCompleted(TJobBucket* deactivatedBucket) override;
 
     //! Returns the number of jobs the controller still needs to start right away.
-    int GetPendingJobCount() const override;
+    TCompositePendingJobCount GetPendingJobCount() const override;
 
     //! Returns the mode which says how to preempt jobs of this operation.
     EPreemptionMode GetPreemptionMode() const override;
 
     //! Returns the total resources that are additionally needed.
-    TJobResources GetNeededResources() const override;
+    TCompositeNeededResources GetNeededResources() const override;
 
     void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override;
 
@@ -346,10 +346,10 @@ void TSimulatorOperationController::OnBucketCompleted(TJobBucket* deactivatedBuc
     YT_VERIFY(false);
 }
 
-int TSimulatorOperationController::GetPendingJobCount() const
+TCompositePendingJobCount TSimulatorOperationController::GetPendingJobCount() const
 {
     auto guard = Guard(Lock_);
-    return PendingJobCount_;
+    return TCompositePendingJobCount{.DefaultCount = PendingJobCount_};
 }
 
 EPreemptionMode TSimulatorOperationController::GetPreemptionMode() const
@@ -357,10 +357,10 @@ EPreemptionMode TSimulatorOperationController::GetPreemptionMode() const
     return ConvertTo<TOperationSpecBasePtr>(OperationDescription_->Spec)->PreemptionMode;
 }
 
-TJobResources TSimulatorOperationController::GetNeededResources() const
+TCompositeNeededResources TSimulatorOperationController::GetNeededResources() const
 {
     auto guard = Guard(Lock_);
-    return NeededResources_;
+    return TCompositeNeededResources{.DefaultResources = NeededResources_};
 }
 
 void TSimulatorOperationController::OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)

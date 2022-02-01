@@ -76,8 +76,15 @@ void FromProto(TOperationInfo* operationInfo, const NProto::TOperationInfo& oper
     }
 
     auto controllerData = New<TControllerRuntimeData>();
-    controllerData->SetPendingJobCount(operationInfoProto.pending_job_count());
-    controllerData->SetNeededResources(FromProto<TJobResources>(operationInfoProto.needed_resources()));
+
+    TCompositePendingJobCount pendingJobCount;
+    FromProto(&pendingJobCount, operationInfoProto.composite_pending_job_count());
+    controllerData->SetPendingJobCount(std::move(pendingJobCount));
+
+    TCompositeNeededResources neededResources;
+    FromProto(&neededResources, operationInfoProto.composite_needed_resources());
+    controllerData->SetNeededResources(std::move(neededResources));
+
     controllerData->MinNeededJobResources() = FromProto<TJobResourcesWithQuotaList>(operationInfoProto.min_needed_job_resources());
     operationInfo->ControllerRuntimeData = std::move(controllerData);
 }

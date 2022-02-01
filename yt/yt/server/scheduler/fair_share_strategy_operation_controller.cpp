@@ -46,12 +46,12 @@ void TFairShareStrategyOperationController::IncreaseScheduleJobCallsSinceLastUpd
     shard.ScheduleJobCallsSinceLastUpdate.fetch_add(1, std::memory_order_relaxed);
 }
 
-int TFairShareStrategyOperationController::GetPendingJobCount() const
+TCompositePendingJobCount TFairShareStrategyOperationController::GetPendingJobCount() const
 {
     return Controller_->GetPendingJobCount();
 }
 
-TJobResources TFairShareStrategyOperationController::GetNeededResources() const
+TCompositeNeededResources TFairShareStrategyOperationController::GetNeededResources() const
 {
     return Controller_->GetNeededResources();
 }
@@ -64,7 +64,7 @@ TJobResourcesWithQuotaList TFairShareStrategyOperationController::GetDetailedMin
 TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededJobResources() const
 {
     // Min needed resources must be less than total needed resources of operation. See YT-9363.
-    auto result = GetNeededResources();
+    auto result = GetNeededResources().DefaultResources;
     for (const auto& jobResources : GetDetailedMinNeededJobResources()) {
         result = Min(result, jobResources.ToJobResources());
     }

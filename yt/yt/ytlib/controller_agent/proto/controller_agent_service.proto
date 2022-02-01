@@ -29,6 +29,11 @@ message TTreeTaggedJobMetrics
     optional TJobMetrics metrics = 2;
 }
 
+message TCompositeNeededResources {
+    optional NScheduler.NProto.TJobResources default_resources = 1;
+    map<string, NScheduler.NProto.TJobResources> resources_per_pool_tree = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetOperationInfo
@@ -164,7 +169,7 @@ message TMaterializeOperationResult
 {
     // Set to true if suspend_operation_after_materialization is set.
     required bool suspend = 1;
-    required NScheduler.NProto.TJobResources initial_needed_resources = 2;
+    required TCompositeNeededResources initial_composite_needed_resources = 2;
     required NScheduler.NProto.TJobResources initial_aggregated_min_needed_resources = 3;
 }
 
@@ -201,7 +206,7 @@ message TReviveOperationResult
     required bool revived_from_snapshot = 2;
     repeated TRevivedJob revived_jobs = 3;
     repeated string revived_banned_tree_ids = 4;
-    required NScheduler.NProto.TJobResources needed_resources = 5;
+    required TCompositeNeededResources composite_needed_resources = 5;
     required int32 controller_epoch = 6;
 }
 

@@ -259,8 +259,8 @@ public:
     TCancelableContextPtr GetCancelableContext() const override;
     IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
-    int GetPendingJobCount() const override;
-    TJobResources GetNeededResources() const override;
+    NScheduler::TCompositePendingJobCount GetPendingJobCount() const override;
+    NScheduler::TCompositeNeededResources GetNeededResources() const override;
 
     NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
 
@@ -1041,11 +1041,11 @@ private:
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;
 
-    std::atomic<int> CachedPendingJobCount = {0};
+    TAtomicObject<NScheduler::TCompositePendingJobCount> CachedPendingJobCount = {};
     int CachedTotalJobCount = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock);
-    TJobResources CachedNeededResources;
+    NScheduler::TCompositeNeededResources CachedNeededResources;
 
     TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededJobResources;
 
@@ -1289,7 +1289,7 @@ private:
 
     TJobResources GetAggregatedMinNeededJobResources() const;
 
-    void IncreaseNeededResources(const TJobResources& resourcesDelta);
+    void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
 
     void IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const NScheduler::TDiskQuota& quota);
 

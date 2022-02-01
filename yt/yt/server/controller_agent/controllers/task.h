@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
+#include <yt/yt/server/lib/scheduler/structs.h>
+
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 #include <yt/yt/server/lib/controller_agent/read_range_registry.h>
@@ -94,16 +96,17 @@ public:
     //! with the vertex descriptor and a task level in brackets (if applicable).
     virtual TString GetTitle() const;
 
-    virtual int GetPendingJobCount() const;
-    int GetPendingJobCountDelta();
+    virtual NScheduler::TCompositePendingJobCount GetPendingJobCount() const;
+    NScheduler::TCompositePendingJobCount GetPendingJobCountDelta();
+    bool HasNoPendingJobs() const;
 
     virtual int GetTotalJobCount() const;
     int GetTotalJobCountDelta();
 
     const TProgressCounterPtr& GetJobCounter() const;
 
-    virtual TJobResources GetTotalNeededResources() const;
-    TJobResources GetTotalNeededResourcesDelta();
+    virtual NScheduler::TCompositeNeededResources GetTotalNeededResources() const;
+    NScheduler::TCompositeNeededResources GetTotalNeededResourcesDelta();
 
     bool IsStderrTableEnabled() const;
 
@@ -371,12 +374,12 @@ protected:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd3);
 
-    int CachedPendingJobCount_;
+    NScheduler::TCompositePendingJobCount CachedPendingJobCount_;
     int CachedTotalJobCount_;
 
     std::vector<std::optional<i64>> MaximumUsedTmpfsSizes_;
 
-    TJobResources CachedTotalNeededResources_;
+    NScheduler::TCompositeNeededResources CachedTotalNeededResources_;
     mutable std::optional<TExtendedJobResources> CachedMinNeededResources_;
 
     bool CompletedFired_ = false;

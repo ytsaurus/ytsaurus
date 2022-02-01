@@ -258,7 +258,7 @@ void TOperation::SetFinished()
     }
     Alerts_.clear();
 }
-    
+
 bool TOperation::GetUnregistering() const
 {
     return Unregistering_;
@@ -289,7 +289,7 @@ std::optional<EUnschedulableReason> TOperation::CheckUnschedulable() const
         return EUnschedulableReason::Suspended;
     }
 
-    if (Controller_->GetPendingJobCount() == 0) {
+    if (Controller_->GetPendingJobCount() == TCompositePendingJobCount{}) {
         return EUnschedulableReason::NoPendingJobs;
     }
 
@@ -355,7 +355,7 @@ void TOperation::SetRunningInStrategy()
 {
     RunningInStrategy_= true;
 };
-    
+
 std::optional<TJobResources> TOperation::GetInitialAggregatedMinNeededResources() const
 {
     return InitialAggregatedMinNeededResources_;
@@ -405,7 +405,7 @@ bool TOperation::SetAlert(EOperationAlertType alertType, const TError& error)
     alert.Error = error;
     NConcurrency::TDelayedExecutor::CancelAndClear(alert.ResetCookie);
     ShouldFlush_ = true;
-    
+
     return true;
 }
 

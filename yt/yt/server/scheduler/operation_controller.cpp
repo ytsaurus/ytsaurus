@@ -21,18 +21,50 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError CheckPendingJobCountAndNeededResources(int pendingJobCount, const NVectorHdrf::TJobResources& neededResources)
+{
+    bool hasPendingJobs = pendingJobCount > 0;
+    if (!Dominates(neededResources, TJobResources())) {
+        return TError("Controller has reported negative needed resources")
+            << TErrorAttribute("needed_resources", neededResources);
+    }
+    if (hasPendingJobs != (neededResources != TJobResources())) {
+        return TError("Controller has reported inconsistent values for pending job count and needed resources")
+            << TErrorAttribute("pending_job_count", pendingJobCount)
+            << TErrorAttribute("needed_resources", neededResources);
+    }
+    return TError();
+}
+
 TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData)
 {
-    bool hasPendingJobs = runtimeData->GetPendingJobCount() > 0;
-    if (!Dominates(runtimeData->GetNeededResources(), TJobResources())) {
-        return TError("Controller has reported negative needed resources")
-            << TErrorAttribute("needed_resources", runtimeData->GetNeededResources());
+    auto compositePendingJobCount = runtimeData->GetPendingJobCount();
+    auto compositeNeededResources = runtimeData->GetNeededResources();
+    auto error = CheckPendingJobCountAndNeededResources(compositePendingJobCount.DefaultCount, compositeNeededResources.DefaultResources);
+    if (!error.IsOK()) {
+        return error;
     }
-    if (hasPendingJobs != (runtimeData->GetNeededResources() != TJobResources())) {
-        return TError("Controller has reported inconsistent values for pending job count and needed resources")
-            << TErrorAttribute("pending_job_count", runtimeData->GetPendingJobCount())
-            << TErrorAttribute("needed_resources", runtimeData->GetNeededResources());
+
+    if (compositePendingJobCount.CountByPoolTree.size() != compositeNeededResources.ResourcesByPoolTree.size()) {
+            return TError("Controller has reported inconsistent pending job count and needed resources")
+                << TErrorAttribute("pending_job_count_by_tree", compositePendingJobCount.CountByPoolTree)
+                << TErrorAttribute("needed_resources_by_tree", compositeNeededResources.ResourcesByPoolTree);
     }
+
+    for (const auto& [tree, jobCount] : compositePendingJobCount.CountByPoolTree) {
+        auto resourcesIt = compositeNeededResources.ResourcesByPoolTree.find(tree);
+        if (resourcesIt == compositeNeededResources.ResourcesByPoolTree.end()) {
+            return TError("Controller has reported pending job count without needed resources")
+                << TErrorAttribute("pending_job_count", jobCount)
+                << TErrorAttribute("pool_tree", tree);
+        }
+
+        error = CheckPendingJobCountAndNeededResources(jobCount, resourcesIt->second);
+        if (!error.IsOK()) {
+            return error;
+        }
+    }
+
     for (const auto& jobResources : runtimeData->MinNeededJobResources()) {
         if (!Dominates(jobResources.ToJobResources(), TJobResources())) {
             return TError("Controller has reported negative min needed job resources element")
@@ -85,7 +117,7 @@ void FromProto(TOperationControllerPrepareResult* result, const NControllerAgent
 void FromProto(TOperationControllerMaterializeResult* result, const NControllerAgent::NProto::TMaterializeOperationResult& resultProto)
 {
     result->Suspend = resultProto.suspend();
-    result->InitialNeededResources = FromProto<TJobResources>(resultProto.initial_needed_resources());
+    result->InitialNeededResources = FromProto<TCompositeNeededResources>(resultProto.initial_composite_needed_resources());
     result->InitialAggregatedMinNeededResources = FromProto<TJobResources>(resultProto.initial_aggregated_min_needed_resources());
 }
 
@@ -122,7 +154,7 @@ void FromProto(
         result->RevivedJobs.push_back(job);
     }
     result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
-    result->NeededResources = FromProto<TJobResources>(resultProto.needed_resources());
+    result->NeededResources = FromProto<TCompositeNeededResources>(resultProto.composite_needed_resources());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
