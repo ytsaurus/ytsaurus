@@ -640,9 +640,10 @@ private:
 
             // Request header block.
             if (Overlayed_) {
-                auto req = proxy.GetBlockSet();
+                auto req = proxy.GetBlockRange();
                 ToProto(req->mutable_chunk_id(), partChunkId);
-                req->add_block_indexes(0);
+                req->set_first_block_index(0);
+                req->set_block_count(1);
                 ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
 
                 futures.push_back(req->Invoke().Apply(
@@ -689,7 +690,7 @@ private:
 
     void OnGetHeaderBlockResponse(
         const TChunkReplicaDescriptor& replica,
-        const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError)
+        const TDataNodeServiceProxy::TErrorOrRspGetBlockRangePtr& rspOrError)
     {
         if (Header_) {
             return;
@@ -717,6 +718,14 @@ private:
             YT_LOG_WARNING(rspOrError, "Error parsing journal chunk header block (Replica: %v)",
                 replica);
             ChunkMetaInnerErrors_.push_back(TError("Error parsing journal chunk header block received from replica %v", replica)
+                << rspOrError);
+            return;
+        }
+
+        if (!header.has_first_row_index()) {
+            YT_LOG_WARNING(rspOrError, "Received journal chunk header block without first row index (Replica: %v)",
+                replica);
+            ChunkMetaInnerErrors_.push_back(TError("Received journal chunk header block without first row index from replica %v", replica)
                 << rspOrError);
             return;
         }
