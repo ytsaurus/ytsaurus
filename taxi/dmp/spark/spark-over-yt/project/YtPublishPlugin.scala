@@ -40,7 +40,7 @@ object YtPublishPlugin extends AutoPlugin {
       override def publish(proxyName: String, log: sbt.Logger)(implicit yt: YtClient): Unit = {
         val link = s"$remoteDir/$linkName"
         log.info(s"Link $originalPath to $link..")
-        yt.linkNode(originalPath, link)
+        yt.linkNode(originalPath, link).join()
       }
     }
 
@@ -72,11 +72,11 @@ object YtPublishPlugin extends AutoPlugin {
         val exists = yt.existsNode(dst).join().booleanValue()
         if (!exists) {
           log.info(s"Create document $dst at YT cluster $proxyName")
-          yt.createNode(new CreateNode(dst, ObjectType.Document))
+          yt.createNode(new CreateNode(dst, ObjectType.Document)).join()
         }
         val ysonForPublish = yson.resolveSymlinks(yt)
         log.info(s"Upload document $ysonForPublish to YT cluster $proxyName $dst..")
-        yt.setNode(dst, ysonForPublish.toYTree)
+        yt.setNode(dst, ysonForPublish.toYTree).join()
 
         log.info(s"Finished upload document to YT cluster $proxyName $dst..")
       }
@@ -110,12 +110,12 @@ object YtPublishPlugin extends AutoPlugin {
       ttlMillis.foreach { ttl =>
         request.setAttributes(java.util.Map.of("expiration_timeout", YTree.integerNode(ttl)));
       }
-      yt.createNode(request)
+      yt.createNode(request).join()
     } else {
       ttlMillis.foreach { ttl =>
         log.info(s"Updating expiration timeout for map_node $dir")
         val request = new SetNode(YPath.simple(dir).attribute("expiration_timeout"), YTree.integerNode(ttl))
-        yt.setNode(request)
+        yt.setNode(request).join()
       }
     }
   }
