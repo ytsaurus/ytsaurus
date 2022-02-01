@@ -70,6 +70,32 @@ inline bool TCypressNodeIdComparer::Compare(const TCypressNode* lhs, const TCypr
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+T TVersionedBuiltinAttributeTraits<T>::ToRaw(T value)
+{
+    return std::move(value);
+}
+
+template <class T>
+T TVersionedBuiltinAttributeTraits<T>::FromRaw(T value)
+{
+    return std::move(value);
+}
+
+template <class T>
+T* TVersionedBuiltinAttributeTraits<NObjectServer::TStrongObjectPtr<T>>::ToRaw(const NObjectServer::TStrongObjectPtr<T>& value)
+{
+    return value.Get();
+}
+
+template <class T>
+NObjectServer::TStrongObjectPtr<T> TVersionedBuiltinAttributeTraits<NObjectServer::TStrongObjectPtr<T>>::FromRaw(T* value)
+{
+    return NObjectServer::TStrongObjectPtr<T>(value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
 void TVersionedBuiltinAttribute<T>::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -77,67 +103,70 @@ void TVersionedBuiltinAttribute<T>::Persist(const NCellMaster::TPersistenceConte
 }
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::Persist(const NCypressServer::TCopyPersistenceContext& context)
+void TVersionedBuiltinAttribute<T>::Save(TBeginCopyContext& context) const
 {
-    using NYT::Persist;
-    Persist(context, BoxedValue_);
+    using NYT::Save;
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
+        if (BoxedValue_) {
+            Save(context, std::optional<TRawVersionedBuiltinAttributeType<T>>(TVersionedBuiltinAttributeTraits<T>::ToRaw(*BoxedValue_)));
+        } else {
+            Save(context, std::optional<TRawVersionedBuiltinAttributeType<T>>());
+        }
+    } else {
+        Save(context, BoxedValue_);
+    }
 }
 
 template <class T>
-std::optional<T> TVersionedBuiltinAttribute<T>::Set(T value)
+void TVersionedBuiltinAttribute<T>::Load(TEndCopyContext& context)
 {
-    if constexpr (std::is_pointer_v<T>) {
+    using NYT::Load;
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
+        if (auto optionalValue = Load<std::optional<TRawVersionedBuiltinAttributeType<T>>>(context)) {
+            BoxedValue_ = TVersionedBuiltinAttributeTraits<T>::FromRaw(*optionalValue);
+        } else {
+            BoxedValue_ = std::nullopt;
+        }
+    } else {
+        Load(context, BoxedValue_);
+    }
+}
+
+template <class T>
+void TVersionedBuiltinAttribute<T>::Set(T value)
+{
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
         // nullptrs are not allowed; Remove() should be used instead.
         YT_VERIFY(value);
     }
 
-    auto result = ToOptional();
     BoxedValue_ = std::move(value);
-    return result;
 }
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::SetOrReset(T value)
+void TVersionedBuiltinAttribute<T>::Reset()
 {
-    if constexpr (std::is_pointer_v<T>) {
-        if (value) {
-            Set(std::move(value));
-        } else {
-            Reset();
-        }
-    } else {
-        Set(std::move(value));
-    }
-}
-
-template <class T>
-std::optional<T> TVersionedBuiltinAttribute<T>::Reset()
-{
-    auto result = ToOptional();
-    if constexpr (std::is_pointer_v<T>) {
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
         BoxedValue_ = std::nullopt;
     } else {
         BoxedValue_ = TNullVersionedBuiltinAttribute{};
     }
-    return result;
 }
 
 template <class T>
-std::optional<T> TVersionedBuiltinAttribute<T>::Remove()
+void TVersionedBuiltinAttribute<T>::Remove()
 {
-    auto result = ToOptional();
-    if constexpr (std::is_pointer_v<T>) {
-        BoxedValue_ = nullptr;
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
+        BoxedValue_ = TVersionedBuiltinAttributeTraits<T>::FromRaw(nullptr);
     } else {
         BoxedValue_ = TTombstonedVersionedBuiltinAttribute{};
     }
-    return result;
 }
 
 template <class T>
 bool TVersionedBuiltinAttribute<T>::IsNull() const
 {
-    if constexpr (std::is_pointer_v<T>) {
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
         return !BoxedValue_.has_value();
     } else {
         return std::holds_alternative<TNullVersionedBuiltinAttribute>(BoxedValue_);
@@ -147,8 +176,8 @@ bool TVersionedBuiltinAttribute<T>::IsNull() const
 template <class T>
 bool TVersionedBuiltinAttribute<T>::IsTombstoned() const
 {
-    if constexpr (std::is_pointer_v<T>) {
-        return BoxedValue_ && *BoxedValue_ == nullptr;
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
+        return BoxedValue_ && TVersionedBuiltinAttributeTraits<T>::ToRaw(*BoxedValue_) == nullptr;
     } else {
         return std::holds_alternative<TTombstonedVersionedBuiltinAttribute>(BoxedValue_);
     }
@@ -157,58 +186,58 @@ bool TVersionedBuiltinAttribute<T>::IsTombstoned() const
 template <class T>
 bool TVersionedBuiltinAttribute<T>::IsSet() const
 {
-    if constexpr (std::is_pointer_v<T>) {
-        return BoxedValue_ && *BoxedValue_ != nullptr;
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
+        return BoxedValue_ && TVersionedBuiltinAttributeTraits<T>::ToRaw(*BoxedValue_) != nullptr;
     } else {
         return std::holds_alternative<T>(BoxedValue_);
     }
 }
 
 template <class T>
-T TVersionedBuiltinAttribute<T>::Unbox() const
+TRawVersionedBuiltinAttributeType<T> TVersionedBuiltinAttribute<T>::Unbox() const
 {
-    if constexpr (std::is_pointer_v<T>) {
-        auto* result = *BoxedValue_;
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
+        const auto& result = *BoxedValue_;
         YT_VERIFY(result);
-        return result;
+        return TVersionedBuiltinAttributeTraits<T>::ToRaw(result);
     } else {
         auto* result = std::get_if<T>(&BoxedValue_);
         YT_VERIFY(result);
-        return *result;
+        return TVersionedBuiltinAttributeTraits<T>::ToRaw(*result);
     }
 }
 
 template <class T>
-std::optional<T> TVersionedBuiltinAttribute<T>::ToOptional() const
+std::optional<TRawVersionedBuiltinAttributeType<T>> TVersionedBuiltinAttribute<T>::ToOptional() const
 {
     return IsSet() ? std::make_optional(Unbox()) : std::nullopt;
 }
 
 template <class T>
 template <class TOwner>
-/*static*/ T TVersionedBuiltinAttribute<T>::Get(
+/*static*/ TRawVersionedBuiltinAttributeType<T> TVersionedBuiltinAttribute<T>::Get(
     TVersionedBuiltinAttribute<T> TOwner::*member,
     const TOwner* node)
 {
     auto result = TryGet(member, node);
     YT_VERIFY(result);
-    return *result;
+    return TVersionedBuiltinAttributeTraits<T>::ToRaw(*result);
 }
 
 template <class T>
 template <class TOwner>
-/*static*/ T TVersionedBuiltinAttribute<T>::Get(
+/*static*/ TRawVersionedBuiltinAttributeType<T> TVersionedBuiltinAttribute<T>::Get(
     const TVersionedBuiltinAttribute<T>* (TOwner::*memberGetter)() const,
     const TOwner* node)
 {
     auto result = TryGet(memberGetter, node);
     YT_VERIFY(result);
-    return *result;
+    return TVersionedBuiltinAttributeTraits<T>::ToRaw(*result);
 }
 
 template <class T>
 template <class TOwner>
-/*static*/ std::optional<T> TVersionedBuiltinAttribute<T>::TryGet(
+/*static*/ std::optional<TRawVersionedBuiltinAttributeType<T>> TVersionedBuiltinAttribute<T>::TryGet(
     TVersionedBuiltinAttribute<T> TOwner::*member,
     const TOwner* node)
 {
@@ -231,7 +260,7 @@ template <class TOwner>
 
 template <class T>
 template <class TOwner>
-/*static*/ std::optional<T> TVersionedBuiltinAttribute<T>::TryGet(
+/*static*/ std::optional<TRawVersionedBuiltinAttributeType<T>> TVersionedBuiltinAttribute<T>::TryGet(
     const TVersionedBuiltinAttribute<T>* (TOwner::*memberGetter)() const,
     const TOwner* node)
 {
@@ -266,7 +295,7 @@ void TVersionedBuiltinAttribute<T>::Merge(const TVersionedBuiltinAttribute& from
             Remove();
         }
     } else if (!from.IsNull()) {
-        Set(from.Unbox());
+        Set(TVersionedBuiltinAttributeTraits<T>::FromRaw(from.Unbox()));
     } // NB: null attributes are ignored.
 }
 

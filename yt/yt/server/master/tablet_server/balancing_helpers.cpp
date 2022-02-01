@@ -35,7 +35,7 @@ TTabletSizeConfig GetTabletSizeConfig(const TTableNode* table)
     i64 maxTabletSize;
     i64 desiredTabletSize = 0;
 
-    const auto& bundleConfig = table->GetTabletCellBundle()->TabletBalancerConfig();
+    const auto& bundleConfig = table->TabletCellBundle()->TabletBalancerConfig();
     const auto& tableConfig = table->TabletBalancerConfig();
     const auto statistics = table->ComputeTotalStatistics();
     i64 tableSize = table->GetInMemoryMode() == EInMemoryMode::Compressed
@@ -83,7 +83,7 @@ TTabletSizeConfig GetTabletSizeConfig(const TTableNode* table)
 
     // Balancer would not create too many tablets unless desired_tablet_count is set.
     if (!tableConfig->DesiredTabletCount) {
-        i64 maxTabletCount = table->GetTabletCellBundle()->Cells().size() *
+        i64 maxTabletCount = table->TabletCellBundle()->Cells().size() *
             bundleConfig->TabletToCellRatio;
         auto tabletSizeLimit = DivCeil(tableSize, maxTabletCount);
         if (desiredTabletSize < tabletSizeLimit) {

@@ -315,7 +315,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
 
     // NB: Dynamic table should have a bundle during creation for accounting to work properly.
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
-    tabletManager->SetTabletCellBundle(clonedTrunkNode, trunkSourceNode->GetTabletCellBundle());
+    tabletManager->SetTabletCellBundle(clonedTrunkNode, trunkSourceNode->TabletCellBundle().Get());
 
     if (sourceNode->IsDynamic()) {
         tabletManager->CloneTable(
@@ -354,7 +354,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
 
     using NYT::Save;
     auto* trunkNode = node->GetTrunkNode();
-    Save(*context, trunkNode->GetTabletCellBundle());
+    Save(*context, trunkNode->TabletCellBundle());
 
     Save(*context, node->GetSchema());
 
@@ -381,8 +381,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
 
     using NYT::Load;
 
-    auto* bundle = Load<TTabletCellBundle*>(*context);
-    if (bundle) {
+    if (auto* bundle = Load<TTabletCellBundle*>(*context)) {
         const auto& objectManager = this->Bootstrap_->GetObjectManager();
         objectManager->ValidateObjectLifeStage(bundle);
         tabletManager->SetTabletCellBundle(node, bundle);

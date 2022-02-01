@@ -118,7 +118,7 @@ public:
         auto size = GetTabletBalancingSize(tablet, Bootstrap_->GetTabletManager());
         auto bounds = GetTabletSizeConfig(tablet->GetTable());
         if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
-            auto bundleId = tablet->GetTable()->GetTabletCellBundle()->GetId();
+            auto bundleId = tablet->GetTable()->TabletCellBundle()->GetId();
             TabletIdQueue_[bundleId].push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
             QueueSizeGauge_.Update(++TotalQueueSize_);
@@ -321,7 +321,7 @@ private:
             tablet->GetId(),
             srcCell->GetId(),
             targetCellId,
-            table->GetTabletCellBundle()->GetName(),
+            table->TabletCellBundle()->GetName(),
             correlationId);
 
         TReqCreateTabletAction request;
@@ -352,7 +352,7 @@ private:
             tabletIds,
             newTabletCount,
             size,
-            table->GetTabletCellBundle()->GetName(),
+            table->TabletCellBundle()->GetName(),
             correlationId);
 
         TReqCreateTabletAction request;

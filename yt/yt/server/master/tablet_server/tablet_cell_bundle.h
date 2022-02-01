@@ -76,6 +76,8 @@ public:
     void OnProfiling(TTabletCellBundleProfilingCounters* counters);
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TTabletCellBundle)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer

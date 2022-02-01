@@ -71,7 +71,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const 
     static const THashSet<TString> SupportedInheritableAttributes{
         "compression_codec",
         "erasure_codec",
-        "media"
+        "media",
         "primary_medium",
         "replication_factor",
         "vital",
