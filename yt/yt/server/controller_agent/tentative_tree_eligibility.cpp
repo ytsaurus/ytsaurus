@@ -10,9 +10,11 @@ using namespace NLogging;
 ///////////////////////////////////////////////////////////////////////////////
 
 TTentativeTreeEligibility::TTentativeTreeEligibility(
+    std::optional<THashSet<TString>> tentativeTrees,
     const NScheduler::TTentativeTreeEligibilityConfigPtr& config,
     const TLogger& logger)
-    : SampleJobCount_(config->SampleJobCount)
+    : TentativeTrees_(std::move(tentativeTrees.value_or(THashSet<TString>())))
+    , SampleJobCount_(config->SampleJobCount)
     , MaxTentativeTreeJobDurationRatio_(config->MaxTentativeJobDurationRatio)
     , MinJobDuration_(config->MinJobDuration)
     , Logger(logger)
@@ -136,6 +138,11 @@ void TTentativeTreeEligibility::LogTentativeTreeStatistics() const
         NonTentativeTreeDuration_.GetCount(),
         NonTentativeTreeDuration_.GetAvg(),
         treeAverageJobDurations);
+}
+
+THashMap<TString, int> TTentativeTreeEligibility::GetPendingJobCount() const
+{
+    return THashMap<TString, int>();
 }
 
 void TTentativeTreeEligibility::UpdateDurations(

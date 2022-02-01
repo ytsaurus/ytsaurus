@@ -86,7 +86,7 @@ void ToProto(NProto::TPrepareOperationResult* resultProto, const TOperationContr
 void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationControllerMaterializeResult& result)
 {
     resultProto->set_suspend(result.Suspend);
-    ToProto(resultProto->mutable_initial_needed_resources(), result.InitialNeededResources);
+    ToProto(resultProto->mutable_initial_composite_needed_resources(), result.InitialNeededResources);
     ToProto(resultProto->mutable_initial_aggregated_min_needed_resources(), result.InitialAggregatedMinNeededResources);
 }
 
@@ -109,7 +109,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
         jobProto->set_node_address(job.NodeAddress);
     }
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
-    ToProto(resultProto->mutable_needed_resources(), result.NeededResources);
+    ToProto(resultProto->mutable_composite_needed_resources(), result.NeededResources);
     resultProto->set_controller_epoch(result.ControllerEpoch);
 }
 
@@ -275,7 +275,7 @@ public:
         Underlying_->Resume();
     }
 
-    int GetPendingJobCount() const override
+    TCompositePendingJobCount GetPendingJobCount() const override
     {
         return Underlying_->GetPendingJobCount();
     }
@@ -285,7 +285,7 @@ public:
         return Underlying_->IsRunning();
     }
 
-    TJobResources GetNeededResources() const override
+    TCompositeNeededResources GetNeededResources() const override
     {
         return Underlying_->GetNeededResources();
     }

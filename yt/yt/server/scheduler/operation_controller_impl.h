@@ -70,9 +70,9 @@ public:
 
     void UpdateMinNeededJobResources() override;
 
-    TJobResources GetNeededResources() const override;
+    TCompositeNeededResources GetNeededResources() const override;
     TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
-    int GetPendingJobCount() const override;
+    TCompositePendingJobCount GetPendingJobCount() const override;
     EPreemptionMode GetPreemptionMode() const override;
 
 private:
@@ -99,7 +99,7 @@ private:
     TPromise<TOperationControllerMaterializeResult> PendingMaterializeResult_;
     TPromise<TOperationControllerReviveResult> PendingReviveResult_;
     TPromise<TOperationControllerCommitResult> PendingCommitResult_;
-    
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     bool EnqueueJobEvent(TSchedulerToAgentJobEvent&& event);

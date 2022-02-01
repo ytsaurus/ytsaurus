@@ -15,8 +15,8 @@ class TControllerRuntimeData
     : public TRefCounted
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(int, PendingJobCount);
-    DEFINE_BYVAL_RW_PROPERTY(TJobResources, NeededResources);
+    DEFINE_BYVAL_RW_PROPERTY(TCompositePendingJobCount, PendingJobCount);
+    DEFINE_BYVAL_RW_PROPERTY(TCompositeNeededResources, NeededResources);
     DEFINE_BYREF_RW_PROPERTY(TJobResourcesWithQuotaList, MinNeededJobResources);
 };
 
@@ -46,7 +46,7 @@ struct IOperationControllerStrategyHost
         const TString& treeId) = 0;
 
     //! Returns the total resources that are additionally needed.
-    virtual TJobResources GetNeededResources() const = 0;
+    virtual TCompositeNeededResources GetNeededResources() const = 0;
 
     //! Initiates updating min needed resources estimates.
     //! Note that the actual update may happen in background.
@@ -56,7 +56,7 @@ struct IOperationControllerStrategyHost
     virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const = 0;
 
     //! Returns the number of jobs the controller is able to start right away.
-    virtual int GetPendingJobCount() const = 0;
+    virtual TCompositePendingJobCount GetPendingJobCount() const = 0;
 
     //! Returns the mode which says how to preempt jobs of this operation.
     virtual EPreemptionMode GetPreemptionMode() const = 0;
@@ -93,7 +93,7 @@ void FromProto(TOperationControllerPrepareResult* result, const NControllerAgent
 struct TOperationControllerMaterializeResult
 {
     bool Suspend = false;
-    TJobResources InitialNeededResources;
+    TCompositeNeededResources InitialNeededResources;
     TJobResources InitialAggregatedMinNeededResources;
 };
 
@@ -107,7 +107,7 @@ struct TOperationControllerReviveResult
     bool RevivedFromSnapshot = false;
     std::vector<TJobPtr> RevivedJobs;
     THashSet<TString> RevivedBannedTreeIds;
-    TJobResources NeededResources;
+    TCompositeNeededResources NeededResources;
 };
 
 void FromProto(

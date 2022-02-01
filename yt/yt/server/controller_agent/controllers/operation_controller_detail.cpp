@@ -3923,7 +3923,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         bool hasNonTrivialTasks = false;
         bool hasEnoughResources = false;
         for (const auto& task : Tasks) {
-            if (task->GetPendingJobCount() == 0) {
+            if (task->HasNoPendingJobs()) {
                 continue;
             }
             hasNonTrivialTasks = true;
@@ -4554,7 +4554,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
     }
 
     for (const auto& task : Tasks) {
-        if (task->GetPendingJobCount() == 0) {
+        if (task->HasNoPendingJobs()) {
             continue;
         }
 
@@ -4734,9 +4734,9 @@ void TOperationControllerBase::RegisterTask(TTaskPtr task)
 
 void TOperationControllerBase::UpdateTask(const TTaskPtr& task)
 {
-    int oldPendingJobCount = CachedPendingJobCount;
-    int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
-    CachedPendingJobCount = newPendingJobCount;
+    auto oldPendingJobCount = CachedPendingJobCount.Load();
+    auto newPendingJobCount = CachedPendingJobCount.Load() + task->GetPendingJobCountDelta();
+    CachedPendingJobCount.Store(newPendingJobCount);
 
     int oldTotalJobCount = CachedTotalJobCount;
     int newTotalJobCount = CachedTotalJobCount + task->GetTotalJobCountDelta();
@@ -4797,7 +4797,7 @@ void TOperationControllerBase::DoScheduleJob(
         return;
     }
 
-    if (GetPendingJobCount() == 0) {
+    if (GetPendingJobCount() == TCompositePendingJobCount{}) {
         YT_LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
         return;
@@ -4870,7 +4870,7 @@ void TOperationControllerBase::TryScheduleJob(
             }
         }
 
-        if (task->GetPendingJobCount() == 0) {
+        if (task->HasNoPendingJobs()) {
             UpdateTask(task);
             continue;
         }
@@ -4987,30 +4987,30 @@ void TOperationControllerBase::Cancel()
     YT_LOG_INFO("Operation controller canceled");
 }
 
-int TOperationControllerBase::GetPendingJobCount() const
+TCompositePendingJobCount TOperationControllerBase::GetPendingJobCount() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     // Avoid accessing the state while not prepared.
     if (!IsPrepared()) {
-        return 0;
+        return TCompositePendingJobCount{};
     }
 
     // NB: For suspended operations we still report proper pending job count
     // but zero demand.
     if (!IsRunning()) {
-        return 0;
+        return TCompositePendingJobCount{};
     }
 
-    return CachedPendingJobCount;
+    return CachedPendingJobCount.Load();
 }
 
-void TOperationControllerBase::IncreaseNeededResources(const TJobResources& resourcesDelta)
+void TOperationControllerBase::IncreaseNeededResources(const TCompositeNeededResources& resourcesDelta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(CachedNeededResourcesLock);
-    CachedNeededResources += resourcesDelta;
+    CachedNeededResources = CachedNeededResources + resourcesDelta;
 }
 
 void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const TDiskQuota& delta)
@@ -5045,7 +5045,7 @@ void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::opti
         }).Via(GetInvoker()));
 }
 
-TJobResources TOperationControllerBase::GetNeededResources() const
+TCompositeNeededResources TOperationControllerBase::GetNeededResources() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -5067,7 +5067,7 @@ void TOperationControllerBase::SafeUpdateMinNeededJobResources()
     THashMap<EJobType, TJobResourcesWithQuota> minNeededJobResources;
 
     for (const auto& task : Tasks) {
-        if (task->GetPendingJobCount() == 0) {
+        if (task->HasNoPendingJobs()) {
             UpdateTask(task);
             continue;
         }
@@ -5104,7 +5104,7 @@ void TOperationControllerBase::SafeUpdateMinNeededJobResources()
 
 TJobResources TOperationControllerBase::GetAggregatedMinNeededJobResources() const
 {
-    auto result = GetNeededResources();
+    auto result = GetNeededResources().DefaultResources;
     for (const auto& jobResources : GetMinNeededJobResources()) {
         result = Min(result, jobResources.ToJobResources());
     }
@@ -9783,7 +9783,14 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, IntermediateOutputCellTagList);
     Persist(context, CellTagToRequiredOutputChunkListCount_);
     Persist(context, CellTagToRequiredDebugChunkListCount_);
-    Persist(context, CachedPendingJobCount);
+    if (context.IsSave()) {
+        auto pendingJobCount = CachedPendingJobCount.Load();
+        Persist(context, pendingJobCount);
+    } else {
+        TCompositePendingJobCount pendingJobCount;
+        Persist(context, pendingJobCount);
+        CachedPendingJobCount.Store(pendingJobCount);
+    }
     Persist(context, CachedNeededResources);
     Persist(context, ChunkOriginMap);
     Persist(context, JobletMap);

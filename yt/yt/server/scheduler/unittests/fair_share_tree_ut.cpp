@@ -266,13 +266,13 @@ public:
 
     MOCK_METHOD(void, OnNonscheduledJobAborted, (TJobId, EAbortReason, const TString&), (override));
 
-    TJobResources GetNeededResources() const override
+    TCompositeNeededResources GetNeededResources() const override
     {
         TJobResources totalResources;
         for (const auto& resources : JobResourcesList) {
             totalResources += resources.ToJobResources();
         }
-        return totalResources;
+        return TCompositeNeededResources{.DefaultResources = totalResources};
     }
 
     void UpdateMinNeededJobResources() override
@@ -296,9 +296,10 @@ public:
         return minNeededResourcesList;
     }
 
-    int GetPendingJobCount() const override
+    TCompositePendingJobCount GetPendingJobCount() const override
     {
-        return JobResourcesList.size();
+        int count = JobResourcesList.size();
+        return TCompositePendingJobCount{.DefaultCount = count};
     }
 
     EPreemptionMode PreemptionMode = EPreemptionMode::Normal;

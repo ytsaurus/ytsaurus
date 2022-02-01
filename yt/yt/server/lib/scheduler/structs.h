@@ -95,4 +95,53 @@ void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCompositePendingJobCount
+{
+    int DefaultCount = 0;
+    THashMap<TString, int> CountByPoolTree = {};
+
+    int GetJobCountFor(const TString& tree) const;
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+void Serialize(const TCompositePendingJobCount& jobCount, NYson::IYsonConsumer* consumer);
+
+void FormatValue(TStringBuilderBase* builder, const TCompositePendingJobCount& jobCount, TStringBuf /* format */);
+
+bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
+bool operator != (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
+
+TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
+TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
+TCompositePendingJobCount operator - (const TCompositePendingJobCount& count);
+
+void ToProto(NProto::TCompositePendingJobCount* protoPendingJobCount, const TCompositePendingJobCount& pendingJobCount);
+void FromProto(TCompositePendingJobCount* pendingJobCount, const NProto::TCompositePendingJobCount& protoPendingJobCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCompositeNeededResources
+{
+    NVectorHdrf::TJobResources DefaultResources = {};
+    THashMap<TString, NVectorHdrf::TJobResources> ResourcesByPoolTree = {};
+
+    const TJobResources& GetNeededResourcesFor(const TString& tree) const;
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /* format */);
+
+TCompositeNeededResources operator + (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
+TCompositeNeededResources operator - (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
+TCompositeNeededResources operator - (const TCompositeNeededResources& rhs);
+
+TString FormatResources(const TCompositeNeededResources& resources);
+
+void ToProto(NControllerAgent::NProto::TCompositeNeededResources* protoNeededResources, const TCompositeNeededResources& neededResources);
+void FromProto(TCompositeNeededResources* neededResources, const NControllerAgent::NProto::TCompositeNeededResources& protoNeededResources);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler
