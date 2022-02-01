@@ -979,6 +979,11 @@ public:
 
         dynamicOrchidService->AddChild("operations", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
+            if (!treeSnapshot) {
+                BuildYsonFluently(consumer).BeginMap()
+                .EndMap();
+                return;
+            }
 
             const auto buildOperationInfo = [&] (TFluentMap fluent, const TSchedulerOperationElement* const operation) {
                 fluent
@@ -1005,18 +1010,31 @@ public:
 
         dynamicOrchidService->AddChild("config", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
+            if (!treeSnapshot) {
+                BuildYsonFluently(consumer).BeginMap()
+                .EndMap();
+                return;
+            }
 
             BuildYsonFluently(consumer).Value(treeSnapshot->TreeConfig());
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
         dynamicOrchidService->AddChild("resource_usage", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
+            if (!treeSnapshot) {
+                BuildYsonFluently(consumer).Value(TJobResources());
+                return;
+            }
 
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceUsage());
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
         dynamicOrchidService->AddChild("resource_limits", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
+            if (!treeSnapshot) {
+                BuildYsonFluently(consumer).Value(TJobResources());
+                return;
+            }
 
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceLimits());
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
@@ -1030,6 +1048,11 @@ public:
 
         dynamicOrchidService->AddChild("pools", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
+            if (!treeSnapshot) {
+                BuildYsonFluently(consumer).BeginMap()
+                .EndMap();
+                return;
+            }
 
             BuildYsonFluently(consumer).BeginMap()
                 .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), std::move(treeSnapshot)))
@@ -1038,6 +1061,11 @@ public:
 
         dynamicOrchidService->AddChild("resource_distribution_info", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
+            if (!treeSnapshot) {
+                BuildYsonFluently(consumer).BeginMap()
+                .EndMap();
+                return;
+            }
 
             BuildYsonFluently(consumer).BeginMap()
                 .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshot->RootElement()))
@@ -2972,7 +3000,7 @@ private:
         auto treeSnapshot = GetTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
-            
+
         auto operationResourceUsageMap = THashMap<TOperationId, TJobResources>(treeSnapshot->EnabledOperationMap().size());
         auto poolResourceUsageMap = THashMap<TString, TJobResources>(treeSnapshot->PoolMap().size());
 
