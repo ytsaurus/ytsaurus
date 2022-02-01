@@ -602,7 +602,7 @@ public:
         // NB: May be called multiple times for the same #changelogId.
         MultiplexedChangelogIdToCleanResult_.emplace(changelogId, NewPromise<void>());
         auto path = GetMultiplexedChangelogPath(changelogId);
-        return WaitFor(MultiplexedChangelogDispatcher_->OpenChangelog(path, Config_))
+        return WaitFor(MultiplexedChangelogDispatcher_->OpenChangelog(changelogId, path, Config_))
             .ValueOrThrow();
     }
 
@@ -738,7 +738,7 @@ private:
             .AsyncVia(MultiplexedChangelogDispatcher_->GetInvoker())
             .Run();
 
-            SetMultiplexedChangelog(CreateLazyChangelog(futureMultiplexedChangelog), newId);
+            SetMultiplexedChangelog(CreateLazyChangelog(newId, futureMultiplexedChangelog), newId);
         }
 
         return appendResult;
@@ -759,6 +759,7 @@ private:
             id);
 
         auto changelog = WaitFor(MultiplexedChangelogDispatcher_->CreateChangelog(
+            id,
             GetMultiplexedChangelogPath(id),
             /* meta */ {},
             Config_))
@@ -1061,8 +1062,9 @@ private:
             NProfiling::TEventTimerGuard timingGuard(Location_->GetPerformanceCounters().JournalChunkCreateTime);
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = WaitFor(SplitChangelogDispatcher_->CreateChangelog(
+                /*id*/ -1,
                 fileName,
-                /* meta */ {},
+                /*meta*/ {},
                 GetSplitChangelogConfig(enableMultiplexing)))
                 .ValueOrThrow();
         }
@@ -1083,7 +1085,7 @@ private:
         {
             NProfiling::TEventTimerGuard timingGuard(Location_->GetPerformanceCounters().JournalChunkOpenTime);
             auto fileName = Location_->GetChunkPath(chunkId);
-            changelog = WaitFor(SplitChangelogDispatcher_->OpenChangelog(fileName, HighLatencySplitChangelogConfig_))
+            changelog = WaitFor(SplitChangelogDispatcher_->OpenChangelog(/*id*/ -1, fileName, HighLatencySplitChangelogConfig_))
                 .ValueOrThrow();
         }
 

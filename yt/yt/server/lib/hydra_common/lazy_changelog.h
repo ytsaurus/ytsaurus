@@ -17,7 +17,9 @@ namespace NYT::NHydra {
  *  The underlying changelog must be constructed empty, non-sealed.
  *  This is assumed while answering the relevant requests.
  */
-IChangelogPtr CreateLazyChangelog(TFuture<IChangelogPtr> futureChangelog);
+IChangelogPtr CreateLazyChangelog(
+    int changelogId,
+    TFuture<IChangelogPtr> futureChangelog);
 
 ////////////////////////////////////////////////////////////////////////////////
 

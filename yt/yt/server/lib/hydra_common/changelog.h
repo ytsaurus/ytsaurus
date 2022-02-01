@@ -20,6 +20,12 @@ namespace NYT::NHydra {
 struct IChangelog
     : public virtual TRefCounted
 {
+    //! Returns the changelog id.
+    /*!
+     *  Some implementations lack meaningful id and return -1.
+     */
+    virtual int GetId() const = 0;
+
     //! Returns the meta.
     /*!
      *  Thread affinity: any
