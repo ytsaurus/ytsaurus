@@ -1,6 +1,11 @@
 #pragma once
 
-#include "yson_struct.h"
+#include "yson_serialize_common.h"
+
+#include <yt/yt/core/yson/public.h>
+#include <yt/yt/core/ypath/public.h>
+#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NYTree {
 
@@ -98,7 +103,6 @@ struct IYsonStructMeta
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-template <class TStruct>
 class TYsonStructMeta
     : public IYsonStructMeta
 {

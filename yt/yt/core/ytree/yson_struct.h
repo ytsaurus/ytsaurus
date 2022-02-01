@@ -105,7 +105,6 @@ private:
 
     friend class TYsonStructRegistry;
 
-    template <class TStruct>
     friend class TYsonStructMeta;
 
     friend class TYsonStruct;
