@@ -356,9 +356,9 @@ bool operator ==(const TOwningKeyBound& lhs, const TOwningKeyBound& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 // Common implementation for owning case and non-owning case over row buffer.
-// Returns pair {prefixKeyLength, isInclusive} describing how to transform
+// Returns pair {prefixKeyLength, inclusive flag} describing how to transform
 // legacy key into key bound.
-std::pair<int, bool> KeyBoundFromLegacyRowImpl(TUnversionedRow row, bool isUpper, int keyLength)
+std::pair<int, bool> GetBoundPrefixAndInclusiveness(TUnversionedRow row, bool isUpper, int keyLength)
 {
     YT_VERIFY(row);
 
@@ -416,7 +416,7 @@ TOwningKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int key
         return TOwningKeyBound::MakeUniversal(isUpper);
     }
 
-    auto [prefixLength, isInclusive] = KeyBoundFromLegacyRowImpl(row, isUpper, keyLength);
+    auto [prefixLength, isInclusive] = GetBoundPrefixAndInclusiveness(row, isUpper, keyLength);
     return TOwningKeyBound::FromRow(
         TUnversionedOwningRow(row.Begin(), row.Begin() + prefixLength),
         isInclusive,
@@ -429,7 +429,7 @@ TKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength
         return TKeyBound::MakeUniversal(isUpper);
     }
 
-    auto [prefixLength, isInclusive] = KeyBoundFromLegacyRowImpl(row, isUpper, keyLength);
+    auto [prefixLength, isInclusive] = GetBoundPrefixAndInclusiveness(row, isUpper, keyLength);
     YT_VERIFY(prefixLength <= static_cast<int>(row.GetCount()));
     row = rowBuffer->CaptureRow(MakeRange(row.Begin(), prefixLength));
 

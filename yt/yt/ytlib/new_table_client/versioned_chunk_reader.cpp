@@ -103,7 +103,7 @@ std::vector<TSpanMatching> DoBuildReadWindows(
     TRange<TItem> items,
     TPredicate pred)
 {
-    const auto& blockLastKeys = chunkMeta->LegacyBlockLastKeys();
+    const auto& blockLastKeys = chunkMeta->BlockLastKeys();
     const auto& blockMeta = chunkMeta->DataBlockMeta();
 
     std::vector<TSpanMatching> readWindows;
@@ -155,18 +155,26 @@ std::vector<TSpanMatching> DoBuildReadWindows(
 
 std::vector<TSpanMatching> BuildReadWindows(
     TRange<TRowRange> keyRanges,
-    const TCachedVersionedChunkMetaPtr& chunkMeta)
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    int keyColumnCount)
 {
     struct TPredicate
     {
+        const int CommonKeyPrefix;
+        const int KeyColumnCount;
+
         bool operator() (const TRowRange* itemIt, const TLegacyKey* shardIt) const
         {
-            return itemIt->second <= *shardIt;
+            return !TestKeyWithWidening(
+                ToKeyRef(*shardIt, CommonKeyPrefix),
+                MakeKeyBoundRef(itemIt->second, true, KeyColumnCount));
         }
 
         bool operator() (const TLegacyKey* shardIt, const TRowRange* itemIt) const
         {
-            return *shardIt < itemIt->first;
+            return !TestKeyWithWidening(
+                ToKeyRef(*shardIt, CommonKeyPrefix),
+                MakeKeyBoundRef(itemIt->first, false, KeyColumnCount));
         }
     };
 
@@ -174,12 +182,16 @@ std::vector<TSpanMatching> BuildReadWindows(
         YT_VERIFY(rowRange.first <= rowRange.second);
     }
 
-    return DoBuildReadWindows(chunkMeta, keyRanges, TPredicate{});
+    return DoBuildReadWindows(
+        chunkMeta,
+        keyRanges,
+        TPredicate{chunkMeta->GetChunkKeyColumnCount(), keyColumnCount});
 }
 
 std::vector<TSpanMatching> BuildReadWindows(
     TRange<TLegacyKey> keys,
-    const TCachedVersionedChunkMetaPtr& chunkMeta)
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    int /*keyColumnCount*/)
 {
     // Strong typedef.
     struct TItem
@@ -190,21 +202,27 @@ std::vector<TSpanMatching> BuildReadWindows(
 
     struct TPredicate
     {
+        const int CommonKeyPrefix;
+
         bool operator() (const TItem* itemIt, const TLegacyKey* shardIt) const
         {
-            return *itemIt <= *shardIt;
+            return CompareWithWidening(
+                ToKeyRef(*shardIt, CommonKeyPrefix),
+                ToKeyRef(*itemIt)) >= 0;
         }
 
         bool operator() (const TLegacyKey* shardIt, const TItem* itemIt) const
         {
-            return *shardIt < *itemIt;
+            return CompareWithWidening(
+                ToKeyRef(*shardIt, CommonKeyPrefix),
+                ToKeyRef(*itemIt)) < 0;
         }
     };
 
     return DoBuildReadWindows(
         chunkMeta,
         MakeRange(static_cast<const TItem*>(keys.begin()), keys.size()),
-        TPredicate{});
+        TPredicate{chunkMeta->GetChunkKeyColumnCount()});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -541,7 +559,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TWallTimer BuildReadWindowsTimer;
     auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
 
-    auto windowsList = BuildReadWindows(readItems, chunkMeta);
+    auto windowsList = BuildReadWindows(readItems, chunkMeta, tableSchema->GetKeyColumnCount());
     readerStatistics->BuildReadWindowsTime = BuildReadWindowsTimer.GetElapsedTime();
 
     auto valuesIdMapping = chunkColumnMapping

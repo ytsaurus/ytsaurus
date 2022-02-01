@@ -21,7 +21,6 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     TSharedRef block,
     const TDataBlockMeta& meta,
     TTableSchemaPtr chunkSchema,
-    int /*chunkKeyColumnCount*/,
     int keyColumnCount,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
     const TKeyComparer& keyComparer,
@@ -45,7 +44,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     YT_VERIFY(Meta_.row_count() > 0);
     YT_VERIFY(KeyColumnCount_ >= ChunkKeyColumnCount_);
 
-    for (int id = 0; id < ChunkColumnCount_; ++id) {
+    for (int id = 0; id < chunkSchema->GetColumnCount(); ++id) {
         const auto& columnSchema = chunkSchema->Columns()[id];
         ColumnHunkFlags_[id] = columnSchema.MaxInlineHunkSize().operator bool();
         ColumnAggregateFlags_[id] = columnSchema.Aggregate().operator bool();
@@ -108,11 +107,16 @@ bool TSimpleVersionedBlockReader::SkipToRowIndex(i64 rowIndex)
     return JumpToRowIndex(rowIndex);
 }
 
-bool TSimpleVersionedBlockReader::SkipToKey(TLegacyKey key)
+bool TSimpleVersionedBlockReader::SkipToKey(TLegacyKey bound)
 {
     YT_VERIFY(!Closed_);
 
-    if (KeyComparer_(GetKey(), key) >= 0) {
+    auto inBound = [&] (TUnversionedRow key) -> bool {
+        // Key is already widened here.
+        return CompareKeys(key, bound, KeyComparer_.Get()) >= 0;
+    };
+
+    if (inBound(GetKey())) {
         // We are already further than pivot key.
         return true;
     }
@@ -122,7 +126,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(TLegacyKey key)
         Meta_.row_count(),
         [&] (int index) -> bool {
             YT_VERIFY(JumpToRowIndex(index));
-            return KeyComparer_(GetKey(), key) < 0;
+            return !inBound(GetKey());
         });
 
     return JumpToRowIndex(index);
@@ -484,16 +488,16 @@ THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockRe
     const NProto::TDataBlockMeta& meta,
     const std::vector<bool>& compositeColumnFlags,
     const std::vector<int>& chunkToReaderIdMapping,
-    int chunkKeyColumnCount,
-    int keyColumnCount,
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix,
     TTimestamp timestamp)
     : THorizontalBlockReader(
         block,
         meta,
         compositeColumnFlags,
         chunkToReaderIdMapping,
-        chunkKeyColumnCount,
-        TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending)))
+        sortOrders,
+        commonKeyPrefix)
     , Timestamp_(timestamp)
 { }
 

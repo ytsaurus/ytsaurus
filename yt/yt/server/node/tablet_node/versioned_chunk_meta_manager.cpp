@@ -86,24 +86,21 @@ public:
         auto cookie = BeginInsert(key);
         if (cookie.IsActive()) {
             // TODO(savrus,psushin) Move call to dispatcher?
-            return TCachedVersionedChunkMeta::Load(
-                std::move(chunkReader),
-                chunkReadOptions,
-                schema,
-                {} /* columnRenameDescriptors */,
-                MemoryUsageTracker_)
+            return chunkReader->GetMeta(chunkReadOptions)
+                .Apply(BIND(&TCachedVersionedChunkMeta::Create))
                 .ApplyUnique(BIND(
-                    [cookie = std::move(cookie), key, prepareColumnarMeta]
+                    [cookie = std::move(cookie), memoryUsageTracker = MemoryUsageTracker_, key, prepareColumnarMeta]
                     (TErrorOr<TCachedVersionedChunkMetaPtr>&& metaOrError) mutable
                 {
                     if (metaOrError.IsOK()) {
-                        auto value = std::move(metaOrError.Value());
+                        auto meta = std::move(metaOrError.Value());
+                        meta->TrackMemory(memoryUsageTracker);
 
-                        if (prepareColumnarMeta && value->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-                            value->PrepareColumnarMeta();
+                        if (prepareColumnarMeta && meta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+                            meta->PrepareColumnarMeta();
                         }
 
-                        auto result = New<TVersionedChunkMetaCacheEntry>(key, std::move(value));
+                        auto result = New<TVersionedChunkMetaCacheEntry>(key, std::move(meta));
                         cookie.EndInsert(result);
                         return result;
                     }

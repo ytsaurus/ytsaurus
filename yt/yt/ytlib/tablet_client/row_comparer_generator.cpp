@@ -4,6 +4,8 @@
 #include <yt/yt/client/table_client/llvm_types.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/misc/sync_cache.h>
+
 #include <yt/yt/library/codegen/module.h>
 #include <yt/yt/library/codegen/llvm_migrate_helpers.h>
 #include <yt/yt/library/codegen/routine_registry.h>
@@ -65,8 +67,8 @@ private:
     Value* CreateCmp(Value* lhs, Value* rhs, EValueType type, bool isLessThan);
     Value* CreateMin(Value* lhs, Value* rhs,  EValueType type);
 
-    void BuildCmp(Value* lhs, Value* rhs, EValueType type);
-    void BuildStringCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData);
+    void BuildCmp(Value* lhs, Value* rhs, EValueType type, int index);
+    void BuildStringCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index);
     void BuildIterationLimitCheck(Value* length, int index);
     void BuildSentinelTypeCheck(Value* type);
     void BuildMainLoop(
@@ -372,16 +374,13 @@ void TComparerBuilder::BuildUUComparer(TString& functionName)
     SetInsertPoint(CreateBB("entry"));
     auto args = Function_->arg_begin();
     Value* lhsKeys = ConvertToPointer(args);
-    Value* lhsLength = ConvertToPointer(++args);
     Value* rhsKeys = ConvertToPointer(++args);
-    Value* rhsLength = ConvertToPointer(++args);
+    Value* length = ConvertToPointer(++args);
     YT_VERIFY(++args == Function_->arg_end());
-    auto length = CreateMin(lhsLength, rhsLength, EValueType::Int64);
     auto lhsBuilder = TUnversionedValueBuilder(*this, lhsKeys);
     auto rhsBuilder = TUnversionedValueBuilder(*this, rhsKeys);
     BuildMainLoop(lhsBuilder, rhsBuilder, length);
-    auto lengthDifference = CreateSub(lhsLength, rhsLength);
-    CreateRet(lengthDifference);
+    CreateRet(getInt32(0));
 }
 
 BasicBlock* TComparerBuilder::CreateBB(const Twine& name)
@@ -410,24 +409,24 @@ Value* TComparerBuilder::CreateMin(Value* lhs, Value* rhs, EValueType type)
     return CreateSelect(CreateCmp(lhs, rhs, type, true), lhs, rhs);
 }
 
-void TComparerBuilder::BuildCmp(Value* lhs, Value* rhs, EValueType type)
+void TComparerBuilder::BuildCmp(Value* lhs, Value* rhs, EValueType type, int index)
 {
     auto* trueBB = CreateBB("cmp.lower");
     auto* falseBB = CreateBB("cmp.not.lower");
     CreateCondBr(CreateCmp(lhs, rhs, type, true), trueBB, falseBB);
     SetInsertPoint(trueBB);
-    CreateRet(getInt32(-1));
+    CreateRet(getInt32(-(index + 1)));
     SetInsertPoint(falseBB);
 
     trueBB = CreateBB("cmp.greater");
     falseBB = CreateBB("cmp.equal");
     CreateCondBr(CreateCmp(lhs, rhs, type, false), trueBB, falseBB);
     SetInsertPoint(trueBB);
-    CreateRet(getInt32(1));
+    CreateRet(getInt32(index + 1));
     SetInsertPoint(falseBB);
 }
 
-void TComparerBuilder::BuildStringCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData)
+void TComparerBuilder::BuildStringCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index)
 {
     auto* minLength = CreateZExt(
         CreateMin(lhsLength, rhsLength, EValueType::Int64),
@@ -443,9 +442,9 @@ void TComparerBuilder::BuildStringCmp(Value* lhsLength, Value* lhsData, Value* r
     auto* falseBB = CreateBB("memcmp.is.zero");
     CreateCondBr(CreateICmpNE(memcmpResult, getInt32(0)), trueBB, falseBB);
     SetInsertPoint(trueBB);
-    CreateRet(memcmpResult);
+    CreateRet(CreateSelect(CreateICmpSGT(memcmpResult, getInt32(0)), getInt32(index + 1), getInt32(-(index + 1))));
     SetInsertPoint(falseBB);
-    BuildCmp(lhsLength, rhsLength, EValueType::Int64);
+    BuildCmp(lhsLength, rhsLength, EValueType::Int64, index);
 }
 
 void TComparerBuilder::BuildIterationLimitCheck(Value* iterationsLimit, int index)
@@ -490,7 +489,7 @@ void TComparerBuilder::BuildMainLoop(
 
         auto* lhsType = lhsBuilder.GetType(index);
         auto* rhsType = rhsBuilder.GetType(index);
-        BuildCmp(lhsType, rhsType, EValueType::Uint64);
+        BuildCmp(lhsType, rhsType, EValueType::Uint64, index);
         BuildSentinelTypeCheck(lhsType);
 
         auto type = KeyColumnTypes_[index];
@@ -499,11 +498,11 @@ void TComparerBuilder::BuildMainLoop(
             auto* rhsLength = rhsBuilder.GetStringLength(index);
             auto* lhsData = lhsBuilder.GetStringData(index);
             auto* rhsData = rhsBuilder.GetStringData(index);
-            BuildStringCmp(lhsLength, lhsData, rhsLength, rhsData);
+            BuildStringCmp(lhsLength, lhsData, rhsLength, rhsData, index);
         } else {
             auto* lhs = lhsBuilder.GetData(index, type);
             auto* rhs = rhsBuilder.GetData(index, type);
-            BuildCmp(lhs, rhs, type);
+            BuildCmp(lhs, rhs, type, index);
         }
         CreateBr(NextBB_);
         SetInsertPoint(NextBB_);

@@ -1997,6 +1997,19 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row)
+{
+    return MakeRange(row.Begin(), row.End());
+}
+
+TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row, int prefix)
+{
+    YT_VERIFY(prefix <= static_cast<int>(row.GetCount()));
+    return MakeRange(row.Begin(), prefix);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FormatValue(TStringBuilderBase* builder, TUnversionedRow row, TStringBuf format)
 {
     if (row) {

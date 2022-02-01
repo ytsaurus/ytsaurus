@@ -629,13 +629,11 @@ protected:
         auto options = New<TChunkReaderOptions>();
         options->DynamicTable = true;
 
-        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
-            MemoryReader_,
-            /* chunkReadOptions */ {},
-            Schema_);
+        auto asyncCachedMeta = MemoryReader_->GetMeta(/* chunkReadOptions */ {})
+            .Apply(BIND(&TCachedVersionedChunkMeta::Create));
+
         auto chunkMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
-        chunkMeta->InitBlockLastKeys(GetColumnNames(sortColumns));
 
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),

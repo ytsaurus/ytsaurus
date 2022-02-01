@@ -122,7 +122,7 @@ struct ISchemalessColumnReader
 
 std::unique_ptr<ISchemalessColumnReader> CreateSchemalessColumnReader(
     const NProto::TColumnMeta& meta,
-    const std::vector<NTableClient::TColumnIdMapping>& idMapping);
+    const std::vector<int>& idMapping);
 
 ////////////////////////////////////////////////////////////////////////////////
 

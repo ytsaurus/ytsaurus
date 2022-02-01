@@ -83,16 +83,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(lukyan): Use THorizontalSchemalessVersionedBlockReader
 class TVersionedReaderAdapter
     : public TVersionedReaderAdapterBase<TUnversionedRow, ISchemafulUnversionedReaderPtr>
 {
 public:
     TVersionedReaderAdapter(
         ISchemafulUnversionedReaderPtr underlyingReader,
-        TTableSchemaPtr schema,
+        int keyColumnCount,
         TTimestamp timestamp)
         : TVersionedReaderAdapterBase(std::move(underlyingReader))
-        , KeyColumnCount_(schema->GetKeyColumnCount())
+        , KeyColumnCount_(keyColumnCount)
         , Timestamp_(timestamp)
     { }
 
@@ -163,7 +164,7 @@ IVersionedReaderPtr CreateVersionedReaderAdapter(
     }
 
     auto reader = createReader(schema, filter);
-    return New<TVersionedReaderAdapter>(std::move(reader), schema, timestamp);
+    return New<TVersionedReaderAdapter>(std::move(reader), schema->GetKeyColumnCount(), timestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

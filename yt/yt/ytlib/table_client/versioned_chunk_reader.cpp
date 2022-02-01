@@ -78,9 +78,7 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TChunkReaderMemoryManagerPtr& memoryManager,
-        TKeyComparer keyComparer = [] (auto lhs, auto rhs) {
-            return CompareRows(lhs, rhs);
-        });
+        TKeyComparer keyComparer = {});
 
     TFuture<void> Open() override
     {
@@ -159,6 +157,7 @@ public:
     TSimpleVersionedRangeChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
+        int keyColumnCount,
         const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
@@ -182,6 +181,8 @@ public:
             timestamp,
             produceAllVersions,
             memoryManager)
+        , KeyColumnCount_(keyColumnCount)
+        , CommonKeyPrefix_(ChunkMeta_->GetChunkKeyColumnCount())
         , Ranges_(std::move(ranges))
         , ClippingRange_(singletonClippingRange)
     {
@@ -226,8 +227,8 @@ public:
         auto hasHunkColumns = ChunkMeta_->GetChunkSchema()->HasHunkColumns();
 
         while (rows.size() < rows.capacity()) {
-            if (CheckKeyLimit_ && KeyComparer_(
-                BlockReader_->GetKey(), GetCurrentRangeUpperKey()) >= 0)
+            if (CheckKeyLimit_ &&
+                CompareKeys(BlockReader_->GetKey(), GetCurrentRangeUpperKey(), KeyComparer_.Get()) >= 0)
             {
                 if (++RangeIndex_ < Ranges_.Size()) {
                     if (!BlockReader_->SkipToKey(GetCurrentRangeLowerKey())) {
@@ -273,6 +274,8 @@ public:
     }
 
 private:
+    const int KeyColumnCount_;
+    const int CommonKeyPrefix_;
     std::vector<size_t> BlockIndexes_;
     size_t NextBlockIndex_ = 0;
     TSharedRange<TRowRange> Ranges_;
@@ -312,31 +315,40 @@ private:
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
         const auto& blockMetaExt = ChunkMeta_->DataBlockMeta();
-        const auto& blockIndexKeys = ChunkMeta_->LegacyBlockLastKeys();
+        const auto& blockLastKeys = ChunkMeta_->BlockLastKeys();
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
 
         int rangeIndex = 0;
-        auto blocksIt = blockIndexKeys.begin();
+        auto blocksIt = blockLastKeys.begin();
 
         while (rangeIndex != std::ssize(Ranges_)) {
-            blocksIt = std::lower_bound(
-                blocksIt,
-                blockIndexKeys.end(),
-                GetRangeLowerKey(rangeIndex));
+            auto lowerBound = MakeKeyBoundRef(GetRangeLowerKey(rangeIndex), false, KeyColumnCount_);
+            auto upperBound = MakeKeyBoundRef(GetRangeUpperKey(rangeIndex), true, KeyColumnCount_);
 
-            auto blockKeysEnd = std::lower_bound(
+            blocksIt = BinarySearch(
                 blocksIt,
-                blockIndexKeys.end(),
-                GetRangeUpperKey(rangeIndex));
+                blockLastKeys.end(),
+                [&] (const TUnversionedRow* blocksIt) {
+                    return !TestKeyWithWidening(ToKeyRef(*blocksIt, CommonKeyPrefix_), lowerBound);
+                });
 
-            if (blockKeysEnd != blockIndexKeys.end()) {
+            auto blockKeysEnd = BinarySearch(
+                blocksIt,
+                blockLastKeys.end(),
+                [&] (const TUnversionedRow* blocksIt) {
+                    return TestKeyWithWidening(ToKeyRef(*blocksIt, CommonKeyPrefix_), upperBound);
+                });
+
+            if (blockKeysEnd != blockLastKeys.end()) {
                 auto saved = rangeIndex;
                 rangeIndex = BinarySearch(
                     rangeIndex,
                     static_cast<int>(Ranges_.size()),
                     [&] (int index) {
-                        return GetRangeUpperKey(index) <= *blockKeysEnd;
+                        return !TestKeyWithWidening(
+                            ToKeyRef(*blockKeysEnd, CommonKeyPrefix_),
+                            MakeKeyBoundRef(GetRangeUpperKey(index), true, KeyColumnCount_));
                     });
 
                 ++blockKeysEnd;
@@ -346,7 +358,7 @@ private:
             }
 
             for (auto it = blocksIt; it < blockKeysEnd; ++it) {
-                int blockIndex = std::distance(blockIndexKeys.begin(), it);
+                int blockIndex = std::distance(blockLastKeys.begin(), it);
                 BlockIndexes_.push_back(blockIndex);
                 auto& blockMeta = blockMetaExt->data_blocks(blockIndex);
                 int priority = blocks.size();
@@ -367,17 +379,17 @@ private:
     {
         int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
         CheckBlockUpperKeyLimit(
-            ChunkMeta_->LegacyBlockLastKeys()[chunkBlockIndex],
+            ChunkMeta_->BlockLastKeys()[chunkBlockIndex],
             GetCurrentRangeUpperKey(),
-            ChunkMeta_->GetKeyColumnCount());
+            KeyColumnCount_,
+            CommonKeyPrefix_);
 
         YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
         BlockReader_.reset(new TSimpleVersionedBlockReader(
             CurrentBlock_.Get().ValueOrThrow().Data,
             ChunkMeta_->DataBlockMeta()->data_blocks(chunkBlockIndex),
             ChunkMeta_->GetChunkSchema(),
-            ChunkMeta_->GetChunkKeyColumnCount(),
-            ChunkMeta_->GetKeyColumnCount(),
+            KeyColumnCount_,
             SchemaIdMapping_,
             KeyComparer_,
             Timestamp_,
@@ -408,6 +420,7 @@ public:
     TSimpleVersionedLookupChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
+        int keyColumnCount,
         const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
@@ -432,6 +445,8 @@ public:
             produceAllVersions,
             memoryManager,
             std::move(keyComparer))
+        , KeyColumnCount_(keyColumnCount)
+        , CommonKeyPrefix_(ChunkMeta_->GetChunkKeyColumnCount())
         , Keys_(keys)
         , KeyFilterTest_(Keys_.Size(), true)
     {
@@ -541,6 +556,9 @@ public:
     }
 
 private:
+    const int KeyColumnCount_;
+    const int CommonKeyPrefix_;
+
     const TSharedRange<TLegacyKey> Keys_;
 
     std::vector<bool> KeyFilterTest_;
@@ -552,25 +570,38 @@ private:
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
         const auto& blockMetaExt = ChunkMeta_->DataBlockMeta();
-        const auto& blockIndexKeys = ChunkMeta_->LegacyBlockLastKeys();
+        const auto& blockLastKeys = ChunkMeta_->BlockLastKeys();
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
 
         auto keyIt = Keys_.begin();
-        auto blocksIt = blockIndexKeys.begin();
+        auto blocksIt = blockLastKeys.begin();
 
         while (keyIt != Keys_.end()) {
-            blocksIt = std::lower_bound(
+            blocksIt = BinarySearch(
                 blocksIt,
-                blockIndexKeys.end(),
-                *keyIt);
+                blockLastKeys.end(),
+                [&] (const TUnversionedRow* blocksIt) {
+                    return CompareWithWidening(
+                        ToKeyRef(*blocksIt, CommonKeyPrefix_),
+                        ToKeyRef(*keyIt)) < 0;
+                });
 
-            if (blocksIt != blockIndexKeys.end()) {
+            if (blocksIt != blockLastKeys.end()) {
                 auto saved = keyIt;
-                keyIt = std::upper_bound(keyIt, Keys_.end(), *blocksIt);
+
+                keyIt = BinarySearch(
+                    keyIt,
+                    Keys_.end(),
+                    [&] (const TUnversionedRow* keyIt) {
+                        return CompareWithWidening(
+                            ToKeyRef(*blocksIt, CommonKeyPrefix_),
+                            ToKeyRef(*keyIt)) >= 0;
+                    });
+
                 YT_VERIFY(keyIt > saved);
 
-                int blockIndex = std::distance(blockIndexKeys.begin(), blocksIt);
+                int blockIndex = std::distance(blockLastKeys.begin(), blocksIt);
                 BlockIndexes_.push_back(blockIndex);
                 auto& blockMeta = blockMetaExt->data_blocks(blockIndex);
                 int priority = blocks.size();
@@ -601,8 +632,7 @@ private:
             CurrentBlock_.Get().ValueOrThrow().Data,
             ChunkMeta_->DataBlockMeta()->data_blocks(chunkBlockIndex),
             ChunkMeta_->GetChunkSchema(),
-            ChunkMeta_->GetChunkKeyColumnCount(),
-            ChunkMeta_->GetKeyColumnCount(),
+            KeyColumnCount_,
             SchemaIdMapping_,
             KeyComparer_,
             Timestamp_,
@@ -625,7 +655,8 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
-        const TSortColumns& sortColumns,
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
@@ -637,7 +668,8 @@ public:
             dataSource,
             std::move(config),
             std::move(underlyingReader),
-            sortColumns,
+            sortOrders,
+            commonKeyPrefix,
             std::move(blockCache),
             chunkReadOptions,
             [] (int) { YT_ABORT(); }, // Rows should not be skipped in versioned reader.
@@ -652,38 +684,41 @@ public:
         YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedColumnar);
         YT_VERIFY(PerformanceCounters_);
 
-        KeyColumnReaders_.resize(ChunkMeta_->GetKeyColumnCount());
+        const auto& chunkSchema = ChunkMeta_->GetChunkSchema();
+        const auto& columnMeta = ChunkMeta_->ColumnMeta();
+
+        KeyColumnReaders_.resize(sortOrders.size());
         for (int keyColumnIndex = 0;
-             keyColumnIndex < ChunkMeta_->GetChunkKeyColumnCount();
+             keyColumnIndex < chunkSchema->GetKeyColumnCount();
              ++keyColumnIndex)
         {
             auto columnReader = CreateUnversionedColumnReader(
-                ChunkMeta_->GetChunkSchema()->Columns()[keyColumnIndex],
-                ChunkMeta_->ColumnMeta()->columns(keyColumnIndex),
+                chunkSchema->Columns()[keyColumnIndex],
+                columnMeta->columns(keyColumnIndex),
                 keyColumnIndex,
                 keyColumnIndex,
-                ESortOrder::Ascending);
+                sortOrders[keyColumnIndex]);
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();
             TBase::Columns_.emplace_back(std::move(columnReader), keyColumnIndex);
         }
 
         // Null readers for wider keys.
-        for (int keyColumnIndex = ChunkMeta_->GetChunkKeyColumnCount();
+        for (int keyColumnIndex = chunkSchema->GetKeyColumnCount();
              keyColumnIndex < std::ssize(KeyColumnReaders_);
              ++keyColumnIndex)
         {
             auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyColumnIndex,
                 keyColumnIndex,
-                ESortOrder::Ascending);
+                sortOrders[keyColumnIndex]);
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();
             TBase::Columns_.emplace_back(std::move(columnReader));
         }
 
         for (const auto& idMapping : SchemaIdMapping_) {
             auto columnReader = CreateVersionedColumnReader(
-                ChunkMeta_->GetChunkSchema()->Columns()[idMapping.ChunkSchemaIndex],
-                ChunkMeta_->ColumnMeta()->columns(idMapping.ChunkSchemaIndex),
+                chunkSchema->Columns()[idMapping.ChunkSchemaIndex],
+                columnMeta->columns(idMapping.ChunkSchemaIndex),
                 idMapping.ReaderSchemaIndex);
 
             ValueColumnReaders_.push_back(columnReader.get());
@@ -735,10 +770,12 @@ class TRowBuilderBase
 public:
     TRowBuilderBase(
         TCachedVersionedChunkMetaPtr chunkMeta,
+        int keyColumnCount,
         const std::vector<IVersionedColumnReader*>& valueColumnReaders,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp)
         : ChunkMeta_(std::move(chunkMeta))
+        , KeyColumnCount_(keyColumnCount)
         , ValueColumnReaders_(valueColumnReaders)
         , SchemaIdMapping_(schemaIdMapping)
         , Timestamp_(timestamp)
@@ -762,6 +799,7 @@ public:
 
 protected:
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
+    const int KeyColumnCount_;
     const std::vector<IVersionedColumnReader*>& ValueColumnReaders_;
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
     const TTimestamp Timestamp_;
@@ -779,12 +817,14 @@ class TLookupRowBuilderBase
 public:
     TLookupRowBuilderBase(
         TCachedVersionedChunkMetaPtr chunkMeta,
+        int keyColumnCount,
         const std::vector<IUnversionedColumnReader*>& keyColumnReaders,
         const std::vector<IVersionedColumnReader*>& valueColumnReaders,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp)
         : TRowBuilderBase(
             std::move(chunkMeta),
+            keyColumnCount,
             valueColumnReaders,
             schemaIdMapping,
             timestamp)
@@ -809,9 +849,11 @@ public:
     {
         YT_VERIFY(!TimestampReader_);
 
-        int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
+        const auto& columnMeta = ChunkMeta_->ColumnMeta();
+
+        int timestampReaderIndex = columnMeta->columns().size() - 1;
         TimestampReader_ = new TScanTransactionTimestampReader(
-            ChunkMeta_->ColumnMeta()->columns(timestampReaderIndex),
+            columnMeta->columns(timestampReaderIndex),
             Timestamp_);
         return std::unique_ptr<IColumnReaderBase>(TimestampReader_);
     }
@@ -860,7 +902,7 @@ public:
                     // Reserve space for key, to compare with #UpperLimit_.
                     rows->push_back(TMutableVersionedRow::Allocate(
                         &Pool_,
-                        ChunkMeta_->GetKeyColumnCount(),
+                        KeyColumnCount_,
                         0,
                         0,
                         0));
@@ -869,7 +911,7 @@ public:
                 // Allocate according to schema.
                 auto row = TMutableVersionedRow::Allocate(
                     &Pool_,
-                    ChunkMeta_->GetKeyColumnCount(),
+                    KeyColumnCount_,
                     hasWriteTimestamp ? valueCountPerRow[index] : 0,
                     hasWriteTimestamp ? 1 : 0,
                     hasDeleteTimestamp ? 1 : 0);
@@ -973,7 +1015,7 @@ public:
 
             auto row = TMutableVersionedRow::Allocate(
                 &Pool_,
-                ChunkMeta_->GetKeyColumnCount(),
+                KeyColumnCount_,
                 valueCountPerRow[index],
                 TimestampReader_->GetWriteTimestampCount(rowIndex),
                 TimestampReader_->GetDeleteTimestampCount(rowIndex));
@@ -1041,7 +1083,8 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
-        const TSortColumns& sortColumns,
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         TSharedRange<TRowRange> ranges,
@@ -1054,7 +1097,8 @@ public:
             chunkMeta,
             dataSource,
             std::move(underlyingReader),
-            sortColumns,
+            sortOrders,
+            commonKeyPrefix,
             std::move(blockCache),
             chunkReadOptions,
             schemaIdMapping,
@@ -1063,6 +1107,7 @@ public:
             memoryManager)
         , RowBuilder_(
             chunkMeta,
+            sortOrders.Size(),
             ValueColumnReaders_,
             SchemaIdMapping_,
             timestamp)
@@ -1071,8 +1116,8 @@ public:
         LegacyLowerLimit_.SetLegacyKey(TLegacyOwningKey(ranges[0].first));
         LegacyUpperLimit_.SetLegacyKey(TLegacyOwningKey(ranges[0].second));
 
-        LowerLimit_ = ReadLimitFromLegacyReadLimit(LegacyLowerLimit_, /* isUpper */ false, Comparator_.GetLength());
-        UpperLimit_ = ReadLimitFromLegacyReadLimit(LegacyUpperLimit_, /* isUpper */ true, Comparator_.GetLength());
+        LowerLimit_ = ReadLimitFromLegacyReadLimit(LegacyLowerLimit_, /* isUpper */ false, SortOrders_.size());
+        UpperLimit_ = ReadLimitFromLegacyReadLimit(LegacyUpperLimit_, /* isUpper */ true, SortOrders_.size());
 
         int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
@@ -1253,7 +1298,7 @@ public:
         // Allocate according to schema.
         auto row = TMutableVersionedRow::Allocate(
             &Pool_,
-            ChunkMeta_->GetKeyColumnCount(),
+            KeyColumnCount_,
             hasWriteTimestamp ? valueCount : 0,
             hasWriteTimestamp ? 1 : 0,
             hasDeleteTimestamp ? 1 : 0);
@@ -1336,7 +1381,7 @@ public:
         // Allocate according to schema.
         auto row = TMutableVersionedRow::Allocate(
             &Pool_,
-            ChunkMeta_->GetKeyColumnCount(),
+            KeyColumnCount_,
             writeTimestampCount > 0 ? valueCount : 0,
             writeTimestampCount,
             deleteTimestampCount);
@@ -1400,7 +1445,8 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         const std::optional<NChunkClient::TDataSource>& dataSource,
         IChunkReaderPtr underlyingReader,
-        const TSortColumns& sortColumns,
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         const TSharedRange<TLegacyKey>& keys,
@@ -1413,7 +1459,8 @@ public:
             chunkMeta,
             dataSource,
             std::move(underlyingReader),
-            sortColumns,
+            sortOrders,
+            commonKeyPrefix,
             std::move(blockCache),
             chunkReadOptions,
             schemaIdMapping,
@@ -1423,6 +1470,7 @@ public:
         , HasHunkColumns_(ChunkMeta_->GetChunkSchema()->HasHunkColumns())
         , RowBuilder_(
             chunkMeta,
+            sortOrders.size(),
             KeyColumnReaders_,
             ValueColumnReaders_,
             SchemaIdMapping_,
@@ -1463,12 +1511,12 @@ public:
             bool found = false;
             if (RowIndexes_[NextKeyIndex_] < ChunkMeta_->Misc().row_count()) {
                 auto key = Keys_[NextKeyIndex_];
-                YT_VERIFY(static_cast<int>(key.GetCount()) == ChunkMeta_->GetKeyColumnCount());
+                YT_VERIFY(static_cast<int>(key.GetCount()) == std::ssize(KeyColumnReaders_));
 
                 // Reading row.
                 i64 lowerRowIndex = KeyColumnReaders_[0]->GetCurrentRowIndex();
                 i64 upperRowIndex = KeyColumnReaders_[0]->GetBlockUpperRowIndex();
-                for (int i = 0; i < ChunkMeta_->GetKeyColumnCount(); ++i) {
+                for (int i = 0; i < std::ssize(KeyColumnReaders_); ++i) {
                     std::tie(lowerRowIndex, upperRowIndex) = KeyColumnReaders_[i]->GetEqualRange(
                         key[i],
                         lowerRowIndex,
@@ -1708,6 +1756,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             reader = New<TSimpleVersionedRangeChunkReader>(
                 std::move(config),
                 chunkMeta,
+                chunkState->TableSchema->GetKeyColumnCount(),
                 chunkState->DataSource,
                 std::move(chunkReader),
                 blockCache,
@@ -1725,13 +1774,17 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             YT_VERIFY(!ranges.Empty());
             IVersionedReaderPtr unwrappedReader;
 
+            auto sortOrders = GetSortOrders(chunkState->TableSchema->GetSortColumns());
+            int chunkKeyColumnCount = chunkMeta->GetChunkSchema()->GetKeyColumnCount();
+
             if (timestamp == AllCommittedTimestamp) {
                 unwrappedReader = New<TColumnarVersionedRangeChunkReader<TCompactionColumnarRowBuilder>>(
                     std::move(config),
                     chunkMeta,
                     chunkState->DataSource,
                     std::move(chunkReader),
-                    chunkState->TableSchema->GetSortColumns(),
+                    sortOrders,
+                    chunkKeyColumnCount,
                     blockCache,
                     chunkReadOptions,
                     getCappedBounds(),
@@ -1745,7 +1798,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     chunkMeta,
                     chunkState->DataSource,
                     std::move(chunkReader),
-                    chunkState->TableSchema->GetSortColumns(),
+                    sortOrders,
+                    chunkKeyColumnCount,
                     blockCache,
                     chunkReadOptions,
                     getCappedBounds(),
@@ -1773,6 +1827,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             }
 
             YT_VERIFY(!ranges.Empty());
+
+            // TODO(lukyan): Use THorizontalSchemalessVersionedBlockReader instead of
+            // SchemafulReaderAdapter and VersionedReaderAdapter
 
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 auto options = New<TTableReaderOptions>();
@@ -1889,6 +1946,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             reader = New<TSimpleVersionedLookupChunkReader>(
                 std::move(config),
                 chunkMeta,
+                chunkState->TableSchema->GetKeyColumnCount(),
                 chunkState->DataSource,
                 std::move(chunkReader),
                 blockCache,
@@ -1906,13 +1964,18 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             if (produceAllVersions) {
                 YT_VERIFY(columnFilter.IsUniversal());
             }
+
+            auto sortOrders = GetSortOrders(chunkState->TableSchema->GetSortColumns());
+            int chunkKeyColumnCount = chunkMeta->GetChunkSchema()->GetKeyColumnCount();
+
             if (produceAllVersions) {
                 reader = New<TColumnarVersionedLookupChunkReader<TLookupAllVersionsColumnarRowBuilder>>(
                     std::move(config),
                     chunkMeta,
                     chunkState->DataSource,
                     std::move(chunkReader),
-                    chunkState->TableSchema->GetSortColumns(),
+                    sortOrders,
+                    chunkKeyColumnCount,
                     blockCache,
                     chunkReadOptions,
                     keys,
@@ -1926,7 +1989,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     chunkMeta,
                     chunkState->DataSource,
                     std::move(chunkReader),
-                    chunkState->TableSchema->GetSortColumns(),
+                    sortOrders,
+                    chunkKeyColumnCount,
                     blockCache,
                     chunkReadOptions,
                     keys,

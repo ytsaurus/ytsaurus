@@ -5,6 +5,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
+#include <yt/yt/client/table_client/comparator.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +29,8 @@ struct TChunkState
 
     NChunkClient::IBlockCachePtr BlockCache;
     NChunkClient::NProto::TChunkSpec ChunkSpec;
+    // TODO(lukyan): Remove CachedVersionedChunkMeta because it is specific to versioned readers.
+    // Not used in many other readers.
     TCachedVersionedChunkMetaPtr ChunkMeta;
     NTransactionClient::TTimestamp OverrideTimestamp;
     IChunkLookupHashTablePtr LookupHashTable;

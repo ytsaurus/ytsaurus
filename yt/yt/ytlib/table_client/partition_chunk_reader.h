@@ -58,6 +58,7 @@ private:
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
     const int PartitionTag_;
+    std::vector<ESortOrder> SortOrders_;
 
     NProto::TDataBlockMetaExt BlockMetaExt_;
     std::vector<int> ChunkToReaderIdMapping_;

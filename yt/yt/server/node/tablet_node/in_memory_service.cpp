@@ -41,6 +41,14 @@ static const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkData final
+{
+    std::vector<NChunkClient::TBlock> Blocks;
+    TMemoryUsageTrackerGuard MemoryTrackerGuard;
+};
+
+using TChunkDataPtr = TIntrusivePtr<TChunkData>;
+
 class TInterceptingBlockCache
 {
 public:
@@ -55,13 +63,11 @@ public:
 
         auto guard = Guard(SpinLock_);
 
-        TInMemoryChunkDataPtr data;
+        TChunkDataPtr data;
 
         auto it = ChunkIdToData_.find(chunkId);
         if (it == ChunkIdToData_.end()) {
-            data = New<TInMemoryChunkData>();
-
-            data->InMemoryMode = Mode_;
+            data = New<TChunkData>();
 
             auto guardOrError = TMemoryUsageTrackerGuard::TryAcquire(
                 Bootstrap_
@@ -84,7 +90,6 @@ public:
             ChunkIdToData_[chunkId] = data;
         } else {
             data = it->second;
-            YT_VERIFY(data->InMemoryMode == Mode_);
         }
 
         if (std::ssize(data->Blocks) <= id.BlockIndex) {
@@ -101,16 +106,20 @@ public:
         if (data->MemoryTrackerGuard) {
             data->MemoryTrackerGuard.IncrementSize(block.Size());
         }
-        YT_VERIFY(!data->ChunkMeta);
 
         return TError();
     }
 
-    TInMemoryChunkDataPtr ExtractChunkData(TChunkId chunkId)
+    TChunkDataPtr ExtractChunkData(TChunkId chunkId)
     {
         auto guard = Guard(SpinLock_);
         auto it = ChunkIdToData_.find(chunkId);
         return it == ChunkIdToData_.end() ? nullptr : it->second;
+    }
+
+    EInMemoryMode GetInMemoryMode() const
+    {
+        return Mode_;
     }
 
 private:
@@ -118,7 +127,7 @@ private:
     IBootstrap* const Bootstrap_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
+    THashMap<TChunkId, TChunkDataPtr> ChunkIdToData_;
 };
 
 DECLARE_REFCOUNTED_STRUCT(TInMemorySession)
@@ -238,13 +247,21 @@ private:
                     break;
                 }
 
-                auto asyncResult = BIND(&IInMemoryManager::FinalizeChunk, Bootstrap_->GetInMemoryManager())
+                auto meta = New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta(index)));
+
+                auto versionedChunkMeta = NTableClient::TCachedVersionedChunkMeta::Create(meta);
+
+                auto asyncResult = BIND(&CreateInMemoryChunkData)
                     .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                     .Run(
                         chunkId,
-                        std::move(chunkData),
-                        New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta(index))),
-                        tabletSnapshot);
+                        session->GetInMemoryMode(),
+                        0,
+                        chunkData->Blocks,
+                        versionedChunkMeta,
+                        tabletSnapshot,
+                        std::move(chunkData->MemoryTrackerGuard))
+                    .Apply(BIND(&IInMemoryManager::FinalizeChunk, Bootstrap_->GetInMemoryManager(), chunkId));
 
                 asyncResults.push_back(std::move(asyncResult));
             }

@@ -229,7 +229,7 @@ struct TTypeErasedRow;
 class TKeyBound;
 class TOwningKeyBound;
 
-using TKeyComparer = std::function<int(TLegacyKey, TLegacyKey)>;
+class TKeyComparer;
 
 struct TColumnRenameDescriptor;
 using TColumnRenameDescriptors = std::vector<TColumnRenameDescriptor>;

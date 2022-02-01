@@ -148,6 +148,9 @@ bool operator ==(const TOwningKeyBound& lhs, const TOwningKeyBound& rhs);
 
 // Interop functions.
 
+//! Returns significant prefix length and inclusiveness.
+std::pair<int, bool> GetBoundPrefixAndInclusiveness(TUnversionedRow row, bool isUpper, int keyLength);
+
 //! Convert legacy key bound expressed as a row possibly containing Min/Max to owning key bound.
 //! NB: key length is needed to properly distinguish if K + [min] is an inclusive K or exclusive K.
 TOwningKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength);

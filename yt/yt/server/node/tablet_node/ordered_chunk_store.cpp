@@ -312,7 +312,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
     }
 
     auto chunkReader = CreateCacheReader(
-        chunkState->ChunkMeta->GetChunkId(),
+        GetChunkId(),
         chunkState->BlockCache);
 
     auto underlyingReader = CreateSchemafulChunkReader(

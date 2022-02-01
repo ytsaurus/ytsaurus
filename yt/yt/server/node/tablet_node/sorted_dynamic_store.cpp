@@ -2036,16 +2036,15 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             std::move(chunkMeta),
             TBlock::Wrap(blocks));
 
-        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
-            chunkReader,
-            /* chunkReadOptions */ {},
-            Schema_,
-            /* columnRenameDescriptors */ {},
-            MemoryTracker_
-                ? MemoryTracker_->WithCategory(EMemoryCategory::VersionedChunkMeta)
-                : GetNullMemoryUsageTracker());
+        auto asyncCachedMeta = chunkReader->GetMeta(/* chunkReadOptions */ {})
+            .Apply(BIND(&TCachedVersionedChunkMeta::Create));
+
         auto cachedMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
+
+        if (MemoryTracker_) {
+            cachedMeta->TrackMemory(MemoryTracker_->WithCategory(EMemoryCategory::VersionedChunkMeta));
+        }
 
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), StoreId_);

@@ -32,15 +32,15 @@ public:
         const NProto::TDataBlockMeta& meta,
         const std::vector<bool>& compositeColumnFlags,
         const std::vector<int>& chunkToReaderIdMapping,
-        int chunkComparatorLength,
-        const TComparator& comparator,
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix,
         int extraColumnCount = 0);
 
     bool NextRow();
 
     bool SkipToRowIndex(i64 rowIndex);
-    bool SkipToKeyBound(const TKeyBound& lowerBound);
-    bool SkipToKey(const TLegacyKey key);
+    bool SkipToKeyBound(const TKeyBoundRef& lowerBound);
+    bool SkipToKey(TUnversionedRow lowerBound);
 
     bool JumpToRowIndex(i64 rowIndex);
 
@@ -57,13 +57,13 @@ private:
 
     // Maps chunk name table ids to client name table ids.
     std::vector<int> ChunkToReaderIdMapping_;
-
     std::vector<bool> CompositeColumnFlags_;
 
     // If chunk key column count is smaller than key column count, key is extended with Nulls.
     // If chunk key column count is larger than key column count, key is trimmed.
-    const int ChunkComparatorLength_;
-    const TComparator Comparator_;
+
+    const TRange<ESortOrder> SortOrders_;
+    const int CommonKeyPrefix_;
 
     // Count of extra row values, that are allocated and reserved
     // to be filled by upper levels (e.g. table_index).
@@ -84,6 +84,8 @@ private:
     NYson::TStatelessLexer Lexer_;
 
     TUnversionedValue TransformAnyValue(TUnversionedValue value);
+    int GetChunkKeyColumnCount() const;
+    int GetKeyColumnCount() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

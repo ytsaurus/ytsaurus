@@ -30,27 +30,27 @@ THorizontalBlockReader::THorizontalBlockReader(
     const NProto::TDataBlockMeta& meta,
     const std::vector<bool>& compositeColumnFlags,
     const std::vector<int>& chunkToReaderIdMapping,
-    int chunkComparatorLength,
-    const TComparator& comparator,
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix,
     int extraColumnCount)
     : Block_(block)
     , Meta_(meta)
     , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
     , CompositeColumnFlags_(compositeColumnFlags)
-    , ChunkComparatorLength_(chunkComparatorLength)
-    , Comparator_(comparator)
+    , SortOrders_(sortOrders.begin(), sortOrders.end())
+    , CommonKeyPrefix_(commonKeyPrefix)
     , ExtraColumnCount_(extraColumnCount)
 {
-    YT_VERIFY(Comparator_.GetLength() >= ChunkComparatorLength_);
+    YT_VERIFY(GetKeyColumnCount() >= GetChunkKeyColumnCount());
     YT_VERIFY(Meta_.row_count() > 0);
 
-    auto keyDataSize = GetUnversionedRowByteSize(Comparator_.GetLength());
+    auto keyDataSize = GetUnversionedRowByteSize(GetKeyColumnCount());
     KeyBuffer_.reserve(keyDataSize);
-    Key_ = TMutableUnversionedRow::Create(KeyBuffer_.data(), Comparator_.GetLength());
+    Key_ = TMutableUnversionedRow::Create(KeyBuffer_.data(), GetKeyColumnCount());
 
     // NB: First key of the block will be initialized below during JumpToRowIndex(0) call.
     // Nulls here are used to widen chunk's key to comparator length.
-    for (int index = 0; index < Comparator_.GetLength(); ++index) {
+    for (int index = 0; index < GetKeyColumnCount(); ++index) {
         Key_[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
 
@@ -73,12 +73,14 @@ bool THorizontalBlockReader::SkipToRowIndex(i64 rowIndex)
     return JumpToRowIndex(rowIndex);
 }
 
-bool THorizontalBlockReader::SkipToKeyBound(const TKeyBound& lowerBound)
+bool THorizontalBlockReader::SkipToKeyBound(const TKeyBoundRef& lowerBound)
 {
-    YT_VERIFY(lowerBound);
-    YT_VERIFY(!lowerBound.IsUpper);
+    auto inBound = [&] (TUnversionedRow row) -> bool {
+        // Key is already widened here.
+        return TestKey(ToKeyRef(row), lowerBound, SortOrders_);
+    };
 
-    if (Comparator_.TestKey(GetKey(), lowerBound)) {
+    if (inBound(GetLegacyKey())) {
         return true;
     }
 
@@ -89,18 +91,18 @@ bool THorizontalBlockReader::SkipToKeyBound(const TKeyBound& lowerBound)
         Meta_.row_count(),
         [&] (i64 index) {
             YT_VERIFY(JumpToRowIndex(index));
-            return !Comparator_.TestKey(GetKey(), lowerBound);
+            return !inBound(GetLegacyKey());
         });
 
     return JumpToRowIndex(index);
 }
 
-bool THorizontalBlockReader::SkipToKey(const TLegacyKey key)
+bool THorizontalBlockReader::SkipToKey(TUnversionedRow lowerBound)
 {
-    auto keyBound = KeyBoundFromLegacyRow(key, /* isUpper */ false, Comparator_.GetLength());
-    return SkipToKeyBound(keyBound);
+    return SkipToKeyBound(MakeKeyBoundRef(lowerBound, /* upper */ false, GetKeyColumnCount()));
 }
 
+// TODO(lukyan): Keep one versiond of get key.
 TLegacyKey THorizontalBlockReader::GetLegacyKey() const
 {
     return Key_;
@@ -108,7 +110,7 @@ TLegacyKey THorizontalBlockReader::GetLegacyKey() const
 
 TKey THorizontalBlockReader::GetKey() const
 {
-    return TKey::FromRowUnchecked(Key_, Comparator_.GetLength());
+    return TKey::FromRowUnchecked(Key_, GetKeyColumnCount());
 }
 
 TUnversionedValue THorizontalBlockReader::TransformAnyValue(TUnversionedValue value)
@@ -124,6 +126,16 @@ TUnversionedValue THorizontalBlockReader::TransformAnyValue(TUnversionedValue va
     }
 
     return value;
+}
+
+int THorizontalBlockReader::GetChunkKeyColumnCount() const
+{
+    return CommonKeyPrefix_;
+}
+
+int THorizontalBlockReader::GetKeyColumnCount() const
+{
+    return SortOrders_.Size();
 }
 
 TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
@@ -157,19 +169,19 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         TUnversionedValue value;
         currentPointer += ReadRowValue(currentPointer, &value);
 
-        if (ChunkToReaderIdMapping_[value.Id] >= Comparator_.GetLength()) {
+        if (ChunkToReaderIdMapping_[value.Id] >= GetKeyColumnCount()) {
             ++valueCount;
         }
     }
 
     auto versionedRow = TMutableVersionedRow::Allocate(
         memoryPool,
-        Comparator_.GetLength(),
+        GetKeyColumnCount(),
         valueCount,
         1,
         0);
 
-    for (int index = 0; index < Comparator_.GetLength(); ++index) {
+    for (int index = 0; index < GetKeyColumnCount(); ++index) {
         versionedRow.BeginKeys()[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
 
@@ -179,7 +191,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
         int id = ChunkToReaderIdMapping_[value.Id];
-        if (id >= Comparator_.GetLength()) {
+        if (id >= GetKeyColumnCount()) {
             value = TransformAnyValue(value);
             value.Id = id;
             *currentValue = MakeVersionedValue(value, timestamp);
@@ -212,10 +224,10 @@ bool THorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
     CurrentPointer_ = Data_.Begin() + offset;
 
     CurrentPointer_ += ReadVarUint32(CurrentPointer_, &ValueCount_);
-    YT_VERIFY(static_cast<int>(ValueCount_) >= ChunkComparatorLength_);
+    YT_VERIFY(static_cast<int>(ValueCount_) >= GetChunkKeyColumnCount());
 
     const char* ptr = CurrentPointer_;
-    for (int i = 0; i < ChunkComparatorLength_; ++i) {
+    for (int i = 0; i < GetChunkKeyColumnCount(); ++i) {
         auto* currentKeyValue = Key_.Begin() + i;
         ptr += ReadRowValue(ptr, currentKeyValue);
         if (currentKeyValue->Type == EValueType::Any

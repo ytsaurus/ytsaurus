@@ -96,8 +96,8 @@ protected:
             Meta,
             compositeColumnFlags,
             idMapping,
-            TComparator().GetLength(),
-            TComparator());
+            {},
+            0);
 
         CheckResult(blockReader, std::vector<TUnversionedRow>{expectedRow});
     }
@@ -138,8 +138,8 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
         Meta,
         std::vector<bool>{},
         idMapping,
-        TComparator().GetLength(),
-        TComparator());
+        {},
+        0);
 
     CheckResult(blockReader, rows);
 }
@@ -157,14 +157,14 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
         6,
         7};
 
-    TComparator comparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+    std::vector<ESortOrder> sortOrders(2, ESortOrder::Ascending);
     THorizontalBlockReader blockReader(
         Data,
         Meta,
         std::vector<bool>{},
         idMapping,
-        comparator.GetLength(),
-        comparator);
+        sortOrders,
+        sortOrders.size());
 
     {
         TUnversionedOwningRowBuilder builder;
@@ -226,14 +226,14 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
     // Reorder value columns in reading schema.
     std::vector<int> idMapping = {0, 1};
 
-    TComparator comparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+    std::vector<ESortOrder> sortOrders(2, ESortOrder::Ascending);
     THorizontalBlockReader blockReader(
         Data,
         Meta,
         std::vector<bool>{},
         idMapping,
-        comparator.GetLength(),
-        comparator);
+        sortOrders,
+        sortOrders.size());
 
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(42));
@@ -247,15 +247,14 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
     // Reorder value columns in reading schema.
     std::vector<int> idMapping = {0, 1};
 
-    TComparator chunkComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
-    TComparator tableComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+    std::vector<ESortOrder> sortOrders(2, ESortOrder::Ascending);
     THorizontalBlockReader blockReader(
         Data,
         Meta,
         std::vector<bool>{},
         idMapping,
-        chunkComparator.GetLength(),
-        tableComparator);
+        sortOrders,
+        1);
 
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(42));

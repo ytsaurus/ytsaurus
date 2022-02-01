@@ -26,6 +26,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkLookupHashTable)
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkLookupHashTablePtr CreateChunkLookupHashTable(
+    NChunkClient::TChunkId chunkId,
     int startBlockIndex,
     const std::vector<NChunkClient::TBlock>& blocks,
     const TCachedVersionedChunkMetaPtr& chunkMeta,

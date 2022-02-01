@@ -20,9 +20,9 @@ public:
     TSchemalessSegmentReader(
         TRef data,
         const TSegmentMeta& meta,
-        const std::vector<TColumnIdMapping>& idMapping)
+        const std::vector<int>& chunkToReaderIdMapping)
         : Meta_(meta)
-        , IdMapping_(idMapping)
+        , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
         , SegmentStartRowIndex_(meta.chunk_row_count() - meta.row_count())
     {
         const char* ptr = data.Begin();
@@ -63,7 +63,7 @@ public:
                         Lexer_);
                 }
 
-                auto id = IdMapping_[value.Id].ReaderSchemaIndex;
+                auto id = ChunkToReaderIdMapping_[value.Id];
                 if (id >= 0) {
                     value.Id = id;
                     *rows[rowIndex].End() = value;
@@ -85,7 +85,7 @@ public:
 
 private:
     const NProto::TSegmentMeta& Meta_;
-    const std::vector<TColumnIdMapping>& IdMapping_;
+    const std::vector<int>& ChunkToReaderIdMapping_;
 
     const i64 SegmentStartRowIndex_;
 
@@ -124,9 +124,9 @@ class TSchemalessColumnReader
 public:
     TSchemalessColumnReader(
         const TColumnMeta& meta,
-        const std::vector<TColumnIdMapping>& idMapping)
+        const std::vector<int>& chunkToReaderIdMapping)
         : TColumnReaderBase(meta)
-        , IdMapping_(idMapping)
+        , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
     { }
 
     void ReadValues(TMutableRange<TMutableUnversionedRow> rows) override
@@ -143,7 +143,7 @@ public:
 
 private:
     std::unique_ptr<TSchemalessSegmentReader> SegmentReader_;
-    std::vector<TColumnIdMapping> IdMapping_;
+    std::vector<int> ChunkToReaderIdMapping_;
 
 
     ISegmentReaderBase* GetCurrentSegmentReader() const override
@@ -161,7 +161,7 @@ private:
         SegmentReader_ = std::make_unique<TSchemalessSegmentReader>(
             TRef(Block_.Begin() + CurrentSegmentMeta().offset(), CurrentSegmentMeta().size()),
             CurrentSegmentMeta(),
-            IdMapping_);
+            ChunkToReaderIdMapping_);
     }
 };
 
@@ -169,9 +169,9 @@ private:
 
 std::unique_ptr<ISchemalessColumnReader> CreateSchemalessColumnReader(
     const TColumnMeta& meta,
-    const std::vector<TColumnIdMapping>& idMapping)
+    const std::vector<int>& chunkToReaderIdMapping)
 {
-    return std::make_unique<TSchemalessColumnReader>(meta, idMapping);
+    return std::make_unique<TSchemalessColumnReader>(meta, chunkToReaderIdMapping);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

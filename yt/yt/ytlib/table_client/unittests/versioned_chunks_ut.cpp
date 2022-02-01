@@ -177,9 +177,7 @@ protected:
         GetRowAndResetWriter();
     }
 
-    TKeyComparer KeyComparer_ = [] (TLegacyKey lhs, TLegacyKey rhs) {
-        return CompareRows(lhs, rhs);
-    };
+    TKeyComparer KeyComparer_;
 
     void DoTest(bool testNewReader = false)
     {
@@ -193,11 +191,8 @@ protected:
 
         WriteManyRows();
 
-
-        auto chunkMeta = TCachedVersionedChunkMeta::Load(
-            MemoryReader,
-            /* chunkReadOptions */ {},
-            Schema)
+        auto chunkMeta = MemoryReader->GetMeta(/* chunkReadOptions */ {})
+            .Apply(BIND(&TCachedVersionedChunkMeta::Create))
             .Get()
             .ValueOrThrow();
 
@@ -305,6 +300,7 @@ protected:
 
             EXPECT_TRUE(chunkReader->Open().Get().IsOK());
             EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
+
             CheckResult(&expected, chunkReader);
         }
     }
@@ -424,10 +420,8 @@ protected:
             memoryWriter->GetChunkMeta(),
             memoryWriter->GetBlocks());
 
-        auto chunkMeta = TCachedVersionedChunkMeta::Load(
-            memoryReader,
-            /* chunkReadOptions */ {},
-            readSchema)
+        auto chunkMeta = memoryReader->GetMeta(/* chunkReadOptions */ {})
+            .Apply(BIND(&TCachedVersionedChunkMeta::Create))
             .Get()
             .ValueOrThrow();
 
