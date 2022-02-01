@@ -1660,7 +1660,7 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
             spec->Networks = {*spec->NetworkName};
             spec->NetworkName.reset();
         }
-        
+
         if (!spec->ClusterName && !spec->ClusterConnection) {
             THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified");
         }

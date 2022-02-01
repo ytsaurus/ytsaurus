@@ -63,7 +63,7 @@ void TYsonStructRegistry::Initialize(TStruct* target)
     }
 
     auto metaConstructor = [] {
-        auto result = new TYsonStructMeta<TStruct>();
+        auto result = new TYsonStructMeta();
         NSan::MarkAsIntentionallyLeaked(result);
 
         // NB: Here initialization of TYsonStructMeta of particular struct takes place.
@@ -86,7 +86,7 @@ void TYsonStructRegistry::Initialize(TStruct* target)
         return result;
     };
 
-    static TYsonStructMeta<TStruct>* meta = metaConstructor();
+    static TYsonStructMeta* meta = metaConstructor();
     target->Meta_ = meta;
 }
 

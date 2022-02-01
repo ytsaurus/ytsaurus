@@ -69,6 +69,7 @@ static const int MaxYPathResolveIterations = 256;
 
 DECLARE_REFCOUNTED_CLASS(TYsonSerializable)
 DECLARE_REFCOUNTED_CLASS(TYsonStruct)
+DECLARE_REFCOUNTED_CLASS(TYsonStructBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
