@@ -31,8 +31,9 @@ type Oplet struct {
 
 	speclet yson.RawValue
 
-	pendingRestart bool
-	pendingFlush   bool
+	pendingRestart            bool
+	pendingFlush              bool
+	pendingUpdateOpParameters bool
 
 	acl       []yt.ACE
 	pool      *string
@@ -44,6 +45,13 @@ func (oplet *Oplet) setError(err error) {
 	oplet.l.Debug("operation is in error state", log.Error(err))
 	oplet.pendingFlush = true
 	oplet.err = err
+}
+
+func (oplet *Oplet) clearError() {
+	if oplet.err != nil {
+		oplet.err = nil
+		oplet.pendingFlush = true
+	}
 }
 
 func (oplet *Oplet) setYTOpID(id yt.OperationID) {
@@ -61,6 +69,16 @@ func (oplet *Oplet) setPendingRestart(reason string) {
 	oplet.l.Info("setting pendingRestart", log.String("reason", reason))
 }
 
+func (oplet *Oplet) setPendingUpdateOpParameters(reason string) {
+	if oplet.pendingUpdateOpParameters {
+		oplet.l.Info("pendingUpdateOpParameters is already set", log.String("reason", reason))
+		return
+	}
+
+	oplet.pendingUpdateOpParameters = true
+	oplet.l.Info("setting pendingUpdateOpParameters", log.String("reason", reason))
+}
+
 type Agent struct {
 	ytc        yt.Client
 	l          log.Logger
@@ -75,8 +93,10 @@ type Agent struct {
 	// nodeCh receives events of form "particular node in root has changed revision"
 	nodeCh <-chan []ypath.Path
 
-	// pendingAliases contains all aliases that should be updated from Cypress attributes.
-	pendingAliases map[string]struct{}
+	// pendingUpdateFromNode contains all aliases that should be updated from Cypress attributes.
+	pendingUpdateFromNode map[string]struct{}
+	// pendingUpdateACLFromNode contains all aliases that should be updated from access node.
+	pendingUpdateACLFromNode map[string]struct{}
 
 	started   bool
 	ctx       context.Context
@@ -159,6 +179,8 @@ func (a *Agent) restartOp(oplet *Oplet) {
 	if err != nil {
 		oplet.setError(err)
 		return
+	} else {
+		oplet.clearError()
 	}
 
 	oplet.l.Info("operation started", log.String("operation_id", opID.String()),
@@ -167,9 +189,29 @@ func (a *Agent) restartOp(oplet *Oplet) {
 	oplet.setYTOpID(opID)
 
 	oplet.pendingRestart = false
+	oplet.pendingUpdateOpParameters = false
 
 	oplet.IncarnationIndex++
 	oplet.pendingFlush = true
+}
+
+func (a *Agent) updateOpParameters(oplet *Oplet) {
+	oplet.l.Debug("updating operation parameters")
+
+	err := a.ytc.UpdateOperationParameters(
+		a.ctx,
+		oplet.YTOpID,
+		map[string]interface{}{
+			"acl": oplet.acl,
+		},
+		nil)
+
+	if err != nil {
+		oplet.l.Error("error updating operation parameters", log.Error(err))
+		oplet.setError(err)
+	} else {
+		oplet.pendingUpdateOpParameters = false
+	}
 }
 
 func (a *Agent) flushOp(oplet *Oplet) {
@@ -262,13 +304,25 @@ func (a *Agent) pass() {
 
 	// Update pending operations from attributes.
 
-	for alias := range a.pendingAliases {
+	for alias := range a.pendingUpdateFromNode {
 		oplet := a.aliasToOp[alias]
 		err := a.updateFromAttrs(oplet, alias)
 		if err != nil {
 			a.l.Error("error updating operation from attributes", log.String("alias", alias), log.Error(err))
 		} else {
-			delete(a.pendingAliases, alias)
+			delete(a.pendingUpdateFromNode, alias)
+		}
+	}
+
+	// Update pending operations from access node.
+
+	for alias := range a.pendingUpdateACLFromNode {
+		oplet := a.aliasToOp[alias]
+		err := a.updateACLFromNode(oplet)
+		if err != nil {
+			a.l.Error("error updating acl from node", log.String("alias", alias), log.Error(err))
+		} else {
+			delete(a.pendingUpdateACLFromNode, alias)
 		}
 	}
 
@@ -278,6 +332,14 @@ func (a *Agent) pass() {
 	for _, op := range a.aliasToOp {
 		if op.pendingRestart {
 			a.restartOp(op)
+		}
+	}
+
+	// Update op parameters.
+
+	for _, op := range a.aliasToOp {
+		if op.pendingUpdateOpParameters {
+			a.updateOpParameters(op)
 		}
 	}
 
@@ -298,6 +360,7 @@ func (a *Agent) pass() {
 		if err != nil {
 			op.setError(err)
 			op.setPendingRestart("error getting operation info")
+			continue
 		}
 
 		a.l.Debug("operation found",
@@ -361,10 +424,11 @@ loop:
 		case paths := <-a.nodeCh:
 			for _, path := range paths {
 				tokens := tokenize(path)
-				if len(tokens) != 1 {
-					continue
+				if len(tokens) == 1 {
+					a.pendingUpdateFromNode[tokens[0]] = struct{}{}
+				} else if len(tokens) == 2 && tokens[1] == "access" {
+					a.pendingUpdateACLFromNode[tokens[0]] = struct{}{}
 				}
-				a.pendingAliases[tokens[0]] = struct{}{}
 			}
 		case <-ticker.C:
 			a.pass()
@@ -431,6 +495,11 @@ func (a *Agent) unregisterOplet(oplet *Oplet) {
 	oplet.l.Info("operation unregistered")
 }
 
+func (a *Agent) getACLFromNode(alias string) (acl []yt.ACE, err error) {
+	err = a.ytc.GetNode(a.ctx, a.config.Root.Child(alias).Child("access").Attr("acl"), &acl, nil)
+	return
+}
+
 func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 	l := log.With(a.l, log.String("alias", alias))
 	l.Info("updating operations from node attributes")
@@ -438,7 +507,6 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 	// Collect full attributes of the node.
 
 	var node struct {
-		ACL              []yt.ACE       `yson:"strawberry_acl"`
 		OperationID      yt.OperationID `yson:"strawberry_operation_id"`
 		IncarnationIndex int            `yson:"strawberry_incarnation_index"`
 		Speclet          yson.RawValue  `yson:"strawberry_speclet"`
@@ -449,7 +517,7 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 
 	// Keep in sync with structure above.
 	attributes := []string{
-		"strawberry_operation_id", "strawberry_acl", "strawberry_incarnation_index",
+		"strawberry_operation_id", "strawberry_incarnation_index",
 		"strawberry_speclet", "strawberry_family", "strawberry_stage", "strawberry_pool",
 	}
 
@@ -492,10 +560,6 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 	l.Debug("node attributes collected and validated")
 
 	if oplet != nil {
-		if !reflect.DeepEqual(oplet.acl, node.ACL) {
-			oplet.acl = node.ACL
-			oplet.setPendingRestart("ACL change")
-		}
 		if !reflect.DeepEqual(oplet.pool, node.Pool) {
 			oplet.pool = node.Pool
 			oplet.setPendingRestart("Pool change")
@@ -511,8 +575,14 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 		// - agent2 starts and registers new oplet for the operation
 		// Correct way to handle that is to compare ACL, pool and speclet from operation runtime information
 		// with the intended values.
+
+		acl, err := a.getACLFromNode(alias)
+		if err != nil {
+			return err
+		}
+
 		newOplet := a.newOplet(alias, a.controller, CypressState{
-			ACL:              node.ACL,
+			ACL:              acl,
 			OperationID:      node.OperationID,
 			IncarnationIndex: node.IncarnationIndex,
 			Speclet:          node.Speclet,
@@ -526,16 +596,37 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 	return nil
 }
 
+func (a *Agent) updateACLFromNode(oplet *Oplet) error {
+	// Acl updated for nonexistent oplet, ignore it.
+	if oplet == nil {
+		return nil
+	}
+
+	newACL, err := a.getACLFromNode(oplet.Alias)
+	if err != nil {
+		return err
+	}
+
+	if !reflect.DeepEqual(oplet.acl, newACL) {
+		oplet.acl = newACL
+		oplet.setPendingUpdateOpParameters("ACL change")
+	}
+
+	return nil
+}
+
 func (a *Agent) Start() {
 	if a.started {
 		return
 	}
+
 	a.l.Info("starting agent")
 	a.started = true
 	a.ctx, a.cancelCtx = context.WithCancel(context.Background())
 
 	a.aliasToOp = make(map[string]*Oplet)
-	a.pendingAliases = make(map[string]struct{})
+	a.pendingUpdateFromNode = make(map[string]struct{})
+	a.pendingUpdateACLFromNode = make(map[string]struct{})
 
 	a.nodeCh = TrackChildren(a.ctx, a.config.Root, time.Millisecond*1000, a.ytc, a.l)
 
@@ -566,7 +657,8 @@ func (a *Agent) Stop() {
 
 	a.ctx = nil
 	a.aliasToOp = nil
-	a.pendingAliases = nil
+	a.pendingUpdateFromNode = nil
+	a.pendingUpdateACLFromNode = nil
 	a.nodeCh = nil
 	a.started = false
 	a.l.Info("agent stopped")
