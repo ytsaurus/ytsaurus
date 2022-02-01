@@ -323,7 +323,7 @@ def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, al
     if other_columns_field is not None and not allow_other_columns:
         raise YtError(
             "Field of type OtherColumns is allowed only on top level",
-            attributes={"field_name": field._name},
+            attributes={"field_name": field.name},
         )
     return StructSchema(
         py_schema_fields,
