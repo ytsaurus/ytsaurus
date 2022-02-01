@@ -2074,7 +2074,6 @@ private:
             it = StartedJobCounter_.emplace(
                 std::move(key),
                 ControllerAgentProfiler
-                    .WithGlobal()
                     .WithTag("job_type", FormatEnum(jobType))
                     .WithTag(ProfilingPoolTreeKey, treeId)
                     .Counter("/jobs/started_job_count")).first;
@@ -2094,7 +2093,6 @@ private:
             it = CompletedJobCounter_.emplace(
                 std::move(key),
                 ControllerAgentProfiler
-                    .WithGlobal()
                     .WithTag("job_type", FormatEnum(jobType))
                     .WithTag("interrupt_reason", FormatEnum(interruptReason))
                     .WithTag(ProfilingPoolTreeKey, treeId)
@@ -2114,7 +2112,6 @@ private:
             it = FailedJobCounter_.emplace(
                 std::move(key),
                 ControllerAgentProfiler
-                    .WithGlobal()
                     .WithTag("job_type", FormatEnum(jobType))
                     .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
                     .Counter("/jobs/failed_job_count")).first;
@@ -2135,7 +2132,6 @@ private:
             it = AbortedJobByErrorCounter_.emplace(
                 std::move(key),
                 ControllerAgentProfiler
-                    .WithGlobal()
                     .WithTag("job_type", FormatEnum(jobType))
                     .WithTag("job_error", FormatEnum(errorCode))
                     .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
@@ -2158,7 +2154,6 @@ private:
                 it = AbortedJobCounter_.emplace(
                     std::move(key),
                     ControllerAgentProfiler
-                        .WithGlobal()
                         .WithTag("job_type", FormatEnum(jobType))
                         .WithTag("abort_reason", FormatEnum(abortReason))
                         .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
