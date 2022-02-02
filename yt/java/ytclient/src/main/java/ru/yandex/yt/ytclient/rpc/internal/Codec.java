@@ -2,6 +2,10 @@ package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -13,12 +17,11 @@ import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
 
+import javax.annotation.Nullable;
+
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
-
-import ru.yandex.misc.ExceptionUtils;
-import ru.yandex.misc.io.IoUtils;
 
 class NoneCodec extends Codec {
     static Codec instance = new NoneCodec();
@@ -210,15 +213,15 @@ class ZlibCodec extends Codec {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             baos.write(header);
             encoder = new DeflaterOutputStream(baos, new Deflater(level));
-            IoUtils.copy(new ByteArrayInputStream(src), encoder);
+            copy(new ByteArrayInputStream(src), encoder);
             encoder.flush();
             encoder.close();
             return baos.toByteArray();
-        } catch (Exception e) {
-            throw ExceptionUtils.translate(e);
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
         } finally {
             if (encoder != null) {
-                IoUtils.closeQuietly(encoder);
+                closeQuietly(encoder);
             }
         }
     }
@@ -236,7 +239,7 @@ class ZlibCodec extends Codec {
             long uncompressedSize = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).getLong();
             decoder = new InflaterInputStream(bais);
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            IoUtils.copy(decoder, baos);
+            copy(decoder, baos);
             byte[] result = baos.toByteArray();
 
             if (result.length != uncompressedSize) {
@@ -244,11 +247,42 @@ class ZlibCodec extends Codec {
             }
 
             return result;
-        } catch (Exception e) {
-            throw ExceptionUtils.translate(e);
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
         } finally {
-            if (decoder != null) {
-                IoUtils.closeQuietly(decoder);
+           closeQuietly(decoder);
+        }
+    }
+
+    private static long copy(InputStream inputStream, OutputStream outputStream) {
+        try {
+            byte[] bytes = new byte[0x10000];
+            long totalCopied = 0;
+            for (; ; ) {
+                int count = inputStream.read(bytes);
+                if (count < 0) {
+                    return totalCopied;
+                }
+
+                outputStream.write(bytes, 0, count);
+                totalCopied += count;
+            }
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private static void closeQuietly(@Nullable Closeable closeable) {
+        if (closeable != null) {
+            try {
+                closeable.close();
+            } catch (Throwable ex) {
+                if (ex instanceof VirtualMachineError) {
+                    // outer instanceof for performance (to not make 3 comparisons for most cases)
+                    if (ex instanceof OutOfMemoryError || ex instanceof InternalError || ex instanceof UnknownError) {
+                        throw (VirtualMachineError) ex;
+                    }
+                }
             }
         }
     }
