@@ -57,6 +57,8 @@ private:
     int CumulativeAlienConfigVersion_ = 0;
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TChaosCell)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosServer

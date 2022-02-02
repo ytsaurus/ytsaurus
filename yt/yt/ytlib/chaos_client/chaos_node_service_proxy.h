@@ -15,6 +15,7 @@ public:
     DEFINE_RPC_PROXY(TChaosNodeServiceProxy, ChaosNodeService,
         .SetProtocolVersion(1));
 
+    DEFINE_RPC_PROXY_METHOD(NProto, GenerateReplicationCardId);
     DEFINE_RPC_PROXY_METHOD(NProto, CreateReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, RemoveReplicationCard);
     DEFINE_RPC_PROXY_METHOD(NProto, GetReplicationCard);

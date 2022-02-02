@@ -16,6 +16,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/cell_server/cell_bundle_proxy.h>
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
@@ -44,13 +45,20 @@ public:
 private:
     using TBase = TCellBundleProxy;
 
-    void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosOptions)
+        const auto* cellBundle = GetThisImpl<TChaosCellBundle>();
+
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosOptions)
             .SetReplicated(true)
             .SetMandatory(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MetadataCellId)
+            .SetWritable(true)
+            .SetRemovable(true)
+            .SetReplicated(true)
+            .SetPresent(IsObjectAlive(cellBundle->GetMetadataCell())));
 
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -63,6 +71,15 @@ private:
                     .Value(cellBundle->GetChaosOptions());
                 return true;
 
+            case EInternedAttributeKey::MetadataCellId:
+                if (const auto* metadataCell = cellBundle->GetMetadataCell()) {
+                    BuildYsonFluently(consumer)
+                        .Value(metadataCell->GetId());
+                    return true;
+                } else {
+                    return false;
+                }
+
             default:
                 break;
         }
@@ -72,7 +89,42 @@ private:
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
+        auto* cellBundle = GetThisImpl<TChaosCellBundle>();
+
+        switch (key) {
+            case EInternedAttributeKey::MetadataCellId: {
+                auto metadataCellId = ConvertTo<TChaosCellId>(value);
+                const auto& cellManager = Bootstrap_->GetTamedCellManager();
+                auto* metadataCell = cellManager->GetCellOrThrow(metadataCellId);
+                if (metadataCell->GetCellBundle() != cellBundle) {
+                    THROW_ERROR_EXCEPTION("Cell %v belongs to a different bundle %Qv",
+                        metadataCell->GetCellBundle()->GetName());
+                }
+                cellBundle->SetMetadataCell(metadataCell->As<TChaosCell>());
+                return true;
+            }
+
+            default:
+                break;
+        }
+
         return TBase::SetBuiltinAttribute(key, value);
+    }
+
+    bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
+    {
+        auto* cellBundle = GetThisImpl<TChaosCellBundle>();
+
+        switch (key) {
+            case EInternedAttributeKey::MetadataCellId:
+                cellBundle->SetMetadataCell(nullptr);
+                return true;
+
+            default:
+                break;
+        }
+
+        return TBase::RemoveBuiltinAttribute(key);
     }
 };
 

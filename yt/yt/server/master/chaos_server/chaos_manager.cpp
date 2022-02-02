@@ -8,6 +8,7 @@
 #include "chaos_cell_type_handler.h"
 #include "chaos_cell_bundle.h"
 #include "chaos_cell_bundle_type_handler.h"
+#include "chaos_replicated_table_node.h"
 #include "chaos_replicated_table_node_type_handler.h"
 #include "private.h"
 
@@ -24,6 +25,11 @@
 #include <yt/yt/server/master/object_server/public.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node.h>
+
+#include <yt/yt/server/lib/hive/helpers.h>
+
+#include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
 
@@ -31,9 +37,14 @@ namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
 using namespace NCellServer;
+using namespace NTransactionServer;
+using namespace NCypressServer;
 using namespace NCellarClient;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NChaosClient;
+using namespace NTableClient;
+using namespace NCypressClient;
 
 using NYT::FromProto;
 
@@ -64,6 +75,8 @@ public:
             ESyncSerializationPriority::Keys,
             "ChaosManager.Keys",
             BIND(&TChaosManager::SaveKeys, Unretained(this)));
+
+        RegisterMethod(BIND(&TChaosManager::HydraUpdateAlienCellPeers, Unretained(this)));
     }
 
     void Initialize() override
@@ -82,7 +95,11 @@ public:
         cellManager->SubscribeCellCreated(BIND(&TChaosManager::OnCellCreated, MakeWeak(this)));
         cellManager->SubscribeCellDecommissionStarted(BIND(&TChaosManager::OnCellDecommissionStarted, MakeWeak(this)));
 
-        RegisterMethod(BIND(&TChaosManager::HydraUpdateAlienCellPeers, Unretained(this)));
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraPrepareCreateReplicationCard, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraCommitCreateReplicationCard, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraAbortCreateReplicationCard, MakeStrong(this))));
     }
 
     const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const override
@@ -106,10 +123,40 @@ public:
         return cell;
     }
 
-    TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name) const override
+    TChaosCellBundle* FindChaosCellBundle(TChaosCellBundleId id) override
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        auto* bundle = cellManager->FindCellBundle(id);
+        if (!bundle) {
+            return nullptr;
+        }
+        return bundle->GetType() == EObjectType::ChaosCellBundle
+            ? bundle->As<TChaosCellBundle>()
+            : nullptr;
+    }
+
+    TChaosCellBundle* GetChaosCellBundleOrThrow(TChaosCellBundleId id) override
+    {
+        auto* bundle = FindChaosCellBundle(id);
+        if (!bundle) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No such chaos cell bundle %v",
+                id);
+        }
+        return bundle;
+    }
+
+    TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(name, ECellarType::Chaos, true);
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(cellBundle);
+        }
+
         return cellBundle->As<TChaosCellBundle>();
     }
 
@@ -127,6 +174,17 @@ public:
             THROW_ERROR_EXCEPTION("No chaos cell with tag %v is known", cellTag);
         }
         return cell;
+    }
+
+    void SetChaosCellBundle(TChaosReplicatedTableNode* node, TChaosCellBundle* cellBundle) override
+    {
+        YT_VERIFY(node->IsTrunk());
+        YT_VERIFY(cellBundle);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(cellBundle, NYTree::EPermission::Use);
+
+        node->ChaosCellBundle().Assign(cellBundle);
     }
 
 private:
@@ -211,6 +269,53 @@ private:
         }
     }
 
+    void HydraPrepareCreateReplicationCard(
+        TTransaction* /*transaction*/,
+        NChaosClient::NProto::TReqCreateReplicationCard* /*request*/,
+        bool /*persistent*/)
+    { }
+
+    void HydraCommitCreateReplicationCard(
+        TTransaction* /*transaction*/,
+        NChaosClient::NProto::TReqCreateReplicationCard* request)
+    {
+        auto replicationCardId = FromProto<TReplicationCardId>(request->hint_id());
+        auto tableId = FromProto<TTableId>(request->table_id());
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* trunkTable = cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId));
+        if (trunkTable->GetType() != EObjectType::ChaosReplicatedTable) {
+            THROW_ERROR_EXCEPTION("Chaos replicated table %v has invalid type: expected %Qlv, actual %Qlv",
+                tableId,
+                EObjectType::ChaosReplicatedTable,
+                trunkTable->GetType());
+            return;
+        }
+
+        auto updateNode = [&] (TTransaction* transaction) {
+            if (auto* node = cypressManager->FindNode(trunkTable, transaction)) {
+                auto* tableNode = node->As<TChaosReplicatedTableNode>();
+                tableNode->SetReplicationCardId(replicationCardId);
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card assigned to chaos replicated table (TableId: %v, ReplicationCardId: %v)",
+                    TVersionedNodeId(tableId, GetObjectId(transaction)),
+                    replicationCardId);
+            }
+        };
+
+        updateNode(nullptr);
+
+        const auto& lockingState = trunkTable->LockingState();
+        for (auto* lock : lockingState.AcquiredLocks) {
+            updateNode(lock->GetTransaction());
+        }
+    }
+
+    void HydraAbortCreateReplicationCard(
+        TTransaction* /*transaction*/,
+        NChaosClient::NProto::TReqCreateReplicationCard* /*request*/)
+    { }
+
+
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         Save(context, *AlienClusterRegistry_);
@@ -231,6 +336,7 @@ private:
 
         AlienClusterRegistry_->Clear();
     }
+
 
     void OnLeaderActive() override
     {
@@ -257,6 +363,7 @@ private:
             AlienCellSynchronizer_->Stop();
         }
     }
+
 
     const TDynamicChaosManagerConfigPtr& GetDynamicConfig() const
     {

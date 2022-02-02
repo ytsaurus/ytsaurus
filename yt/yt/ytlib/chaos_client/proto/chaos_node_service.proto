@@ -5,8 +5,23 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCreateReplicationCard
+message TReqGenerateReplicationCardId
 { }
+
+message TRspGenerateReplicationCardId
+{
+    required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateReplicationCard
+{
+    optional NYT.NProto.TGuid hint_id = 1; // NChaosClient::TReplicationCardId
+    optional NYT.NProto.TGuid table_id = 2; // NTableClient::TTableId
+    optional string table_path = 3;
+    optional string table_cluster_name = 4;
+}
 
 message TRspCreateReplicationCard
 {

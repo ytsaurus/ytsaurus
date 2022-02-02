@@ -44,6 +44,15 @@ public:
             options);
     }
 
+    std::optional<TNodeId> CreateNode(
+        EObjectType type,
+        const TYPath& path,
+        const TCreateNodeOptions& options) override
+    {
+        auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
+        return Client_->CreateNodeImpl(type, path, *attributes, options);
+    }
+
     std::optional<TYsonString> GetNode(
         const TYPath& path,
         const TGetNodeOptions& options) override

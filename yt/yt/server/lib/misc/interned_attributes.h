@@ -58,6 +58,7 @@
     XX(CellIds, cell_ids) \
     XX(CellTag, cell_tag) \
     XX(ChangelogAccountViolatedResourceLimits, changelog_account_violated_resource_limits) \
+    XX(ChaosCellBundle, chaos_cell_bundle) \
     XX(ChaosOptions, chaos_options) \
     XX(ChildCount, child_count) \
     XX(ChildIds, child_ids) \
@@ -258,6 +259,7 @@
     XX(Members, members) \
     XX(MemoryUsage, memory_usage) \
     XX(MergeJobRateLimit, merge_job_rate_limit) \
+    XX(MetadataCellId, metadata_cell_id) \
     XX(MetaSize, meta_size) \
     XX(MeteringTags, metering_tags) \
     XX(MinChildHeapSize, min_child_heap_size) \

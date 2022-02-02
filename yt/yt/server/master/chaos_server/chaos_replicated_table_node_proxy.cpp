@@ -1,5 +1,8 @@
 #include "chaos_replicated_table_node_proxy.h"
+
 #include "chaos_replicated_table_node.h"
+#include "chaos_cell_bundle.h"
+#include "chaos_manager.h"
 
 #include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
 
@@ -45,6 +48,12 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
+        const auto* impl = GetThisImpl();
+
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundle)
+            .SetWritable(true)
+            .SetReplicated(true)
+            .SetPresent(impl->ChaosCellBundle().IsAlive()));
         descriptors->push_back(EInternedAttributeKey::ReplicationCardId);
         descriptors->push_back(EInternedAttributeKey::OwnsReplicationCard);
         descriptors->push_back(EInternedAttributeKey::Era);
@@ -54,17 +63,27 @@ private:
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
-        const auto* impl = GetThisImpl();
+        const auto* node = GetThisImpl();
+        const auto* trunkNode = node->GetTrunkNode();
 
         switch (key) {
+            case EInternedAttributeKey::ChaosCellBundle:
+                if (const auto& bundle = trunkNode->ChaosCellBundle()) {
+                    BuildYsonFluently(consumer)
+                        .Value(bundle->GetName());
+                    return true;
+                } else {
+                    return false;
+                }
+
             case EInternedAttributeKey::ReplicationCardId:
                 BuildYsonFluently(consumer)
-                    .Value(impl->GetReplicationCardId());
+                    .Value(node->GetReplicationCardId());
                 return true;
 
             case EInternedAttributeKey::OwnsReplicationCard:
                 BuildYsonFluently(consumer)
-                    .Value(impl->GetOwnsReplicationCard());
+                    .Value(node->GetOwnsReplicationCard());
                 return true;
 
             default:
@@ -77,6 +96,20 @@ private:
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         switch (key) {
+            case EInternedAttributeKey::ChaosCellBundle: {
+                ValidateNoTransaction();
+
+                auto name = ConvertTo<TString>(value);
+
+                const auto& chaosManager = Bootstrap_->GetChaosManager();
+                auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
+
+                auto* lockedImpl = LockThisImpl();
+                chaosManager->SetChaosCellBundle(lockedImpl, cellBundle);
+
+                return true;
+            }
+
             case EInternedAttributeKey::OwnsReplicationCard: {
                 ValidateNoTransaction();
                 auto* lockedImpl = LockThisImpl();

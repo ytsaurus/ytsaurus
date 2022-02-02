@@ -28,6 +28,9 @@
 #include <yt/yt/server/master/chunk_server/helpers.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
 
+#include <yt/yt/server/master/chaos_server/chaos_cell.h>
+#include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
+
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
@@ -95,6 +98,7 @@ using namespace NCypressClient;
 using namespace NCypressServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
+using namespace NChaosServer;
 using namespace NHydra;
 using namespace NNodeTrackerClient::NProto;
 using namespace NNodeTrackerClient;
@@ -240,10 +244,10 @@ public:
         auto* cellBundle = CellBundleMap_.Insert(cellBundleId, std::move(holder));
 
         cellBundle->SetName(name);
+        cellBundle->SetOptions(std::move(options));
 
         EmplaceOrCrash(NameToCellBundleMap_[cellBundle->GetCellarType()], cellBundle->GetName(), cellBundle);
         InsertOrCrash(CellBundlesPerTypeMap_[cellBundle->GetCellarType()], cellBundle);
-        cellBundle->SetOptions(std::move(options));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
@@ -639,6 +643,14 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(cellBundle);
         cell->SetCellBundle(nullptr);
+
+        if (cell->GetType() == EObjectType::ChaosCell) {
+            auto* chaosCell = cell->As<TChaosCell>();
+            auto* chaosCellBundle = cellBundle->As<TChaosCellBundle>();
+            if (chaosCellBundle->GetMetadataCell() == chaosCell) {
+                chaosCellBundle->SetMetadataCell(nullptr);
+            }
+        }
 
         auto* area = cell->GetArea();
         EraseOrCrash(area->Cells(), cell);

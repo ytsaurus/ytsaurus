@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_server/public.h>
 
+#include <yt/yt/server/master/object_server/public.h>
+
 #include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
@@ -40,6 +42,9 @@ using TChaosCellId = NCellServer::TTamedCellId;
 
 DECLARE_ENTITY_TYPE(TChaosCellBundle, TChaosCellBundleId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChaosCell, TChaosCellId, NObjectClient::TDirectObjectIdHash)
+
+DECLARE_MASTER_OBJECT_TYPE(TChaosCellBundle)
+DECLARE_MASTER_OBJECT_TYPE(TChaosCell)
 
 constexpr int TypicalAlienPeerCount = 2;
 

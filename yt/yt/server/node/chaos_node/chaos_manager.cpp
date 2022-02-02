@@ -8,6 +8,8 @@
 #include "replication_card.h"
 #include "slot_manager.h"
 
+#include <yt/yt/server/node/chaos_node/transaction_manager.h>
+
 #include <yt/server/node/chaos_node/chaos_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
@@ -19,6 +21,8 @@
 #include <yt/yt/server/lib/chaos_node/config.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/hive/helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -88,6 +92,7 @@ public:
             "ChaosManager.Values",
             BIND(&TChaosManager::SaveValues, Unretained(this)));
 
+        RegisterMethod(BIND(&TChaosManager::HydraGenerateReplicationCardId, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCreateReplicationCard, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRemoveReplicationCard, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraUpdateCoordinatorCells, Unretained(this)));
@@ -103,7 +108,13 @@ public:
     }
 
     void Initialize() override
-    { }
+    {
+        const auto& transactionManager = Slot_->GetTransactionManager();
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraPrepareCreateReplicationCard, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraCommitCreateReplicationCard, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraAbortCreateReplicationCard, MakeStrong(this))));
+    }
 
     IYPathServicePtr GetOrchidService() const override
     {
@@ -111,45 +122,73 @@ public:
     }
 
 
-    void CreateReplicationCard(const TCreateReplicationCardContextPtr& context) override
+    void GenerateReplicationCardId(const TCtxGenerateReplicationCardIdPtr& context) override
     {
-        auto mutation = CreateMutation(HydraManager_, context);
-        mutation->SetAllowLeaderForwarding(true);
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraGenerateReplicationCardId,
+            this);
         mutation->CommitAndReply(context);
     }
 
-    void RemoveReplicationCard(const TRemoveReplicationCardContextPtr& context) override
+    void CreateReplicationCard(const TCtxCreateReplicationCardPtr& context) override
     {
-        auto mutation = CreateMutation(HydraManager_, context);
-        mutation->SetAllowLeaderForwarding(true);
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraCreateReplicationCard,
+            this);
         mutation->CommitAndReply(context);
     }
 
-    void CreateTableReplica(const TCreateTableReplicaContextPtr& context) override
+    void RemoveReplicationCard(const TCtxRemoveReplicationCardPtr& context) override
     {
-        auto mutation = CreateMutation(HydraManager_, context);
-        mutation->SetAllowLeaderForwarding(true);
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraRemoveReplicationCard,
+            this);
         mutation->CommitAndReply(context);
     }
 
-    void RemoveTableReplica(const TRemoveTableReplicaContextPtr& context) override
+    void CreateTableReplica(const TCtxCreateTableReplicaPtr& context) override
     {
-        auto mutation = CreateMutation(HydraManager_, context);
-        mutation->SetAllowLeaderForwarding(true);
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraCreateTableReplica,
+            this);
         mutation->CommitAndReply(context);
     }
 
-    void AlterTableReplica(const TAlterTableReplicaContextPtr& context) override
+    void RemoveTableReplica(const TCtxRemoveTableReplicaPtr& context) override
     {
-        auto mutation = CreateMutation(HydraManager_, context);
-        mutation->SetAllowLeaderForwarding(true);
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraRemoveTableReplica,
+            this);
         mutation->CommitAndReply(context);
     }
 
-    void UpdateTableReplicaProgress(const TUpdateTableReplicaProgressContextPtr& context) override
+    void AlterTableReplica(const TCtxAlterTableReplicaPtr& context) override
     {
-        auto mutation = CreateMutation(HydraManager_, context);
-        mutation->SetAllowLeaderForwarding(true);
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraAlterTableReplica,
+            this);
+        mutation->CommitAndReply(context);
+    }
+
+    void UpdateTableReplicaProgress(const TCtxUpdateTableReplicaProgressPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraUpdateTableReplicaProgress,
+            this);
         mutation->CommitAndReply(context);
     }
 
@@ -314,25 +353,83 @@ private:
     }
 
 
-    void HydraCreateReplicationCard(
-        const TCreateReplicationCardContextPtr& /*context*/,
-        NChaosClient::NProto::TReqCreateReplicationCard* /*request*/,
-        NChaosClient::NProto::TRspCreateReplicationCard* response)
+    void HydraGenerateReplicationCardId(
+        const TCtxGenerateReplicationCardIdPtr& context,
+        NChaosClient::NProto::TReqGenerateReplicationCardId* /*request*/,
+        NChaosClient::NProto::TRspGenerateReplicationCardId* response)
     {
         auto replicationCardId = GenerateNewReplicationCardId();
-        auto replicationCardHolder = std::make_unique<TReplicationCard>(replicationCardId);
-        auto* replicationCard = replicationCardHolder.get();
-        ReplicationCardMap_.Insert(replicationCardId, std::move(replicationCardHolder));
 
         ToProto(response->mutable_replication_card_id(), replicationCardId);
+
+        if (context) {
+            context->SetResponseInfo("ReplicationCardId: %v",
+                replicationCardId);
+        }
+    }
+
+    TReplicationCardId CreateReplicationCardImpl(NChaosClient::NProto::TReqCreateReplicationCard* request)
+    {
+        auto hintId = FromProto<TReplicationCardId>(request->hint_id());
+        auto replicationCardId = hintId ? hintId : GenerateNewReplicationCardId();
+
+        auto tableId = FromProto<TTableId>(request->table_id());
+        if (tableId && TypeFromId(tableId) != EObjectType::ChaosReplicatedTable) {
+            THROW_ERROR_EXCEPTION("Malformed chaos replicated table id %v",
+                tableId);
+        }
+
+        auto replicationCardHolder = std::make_unique<TReplicationCard>(replicationCardId);
+
+        auto* replicationCard = replicationCardHolder.get();
+        replicationCard->SetTableId(tableId);
+        replicationCard->SetTablePath(request->table_path());
+        replicationCard->SetTableClusterName(request->table_cluster_name());
+
+        ReplicationCardMap_.Insert(replicationCardId, std::move(replicationCardHolder));
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card created (ReplicationCardId: %v, ReplicationCard: %v)",
             replicationCardId,
             *replicationCard);
+
+        return replicationCardId;
     }
 
+    void HydraCreateReplicationCard(
+        const TCtxCreateReplicationCardPtr& context,
+        NChaosClient::NProto::TReqCreateReplicationCard* request,
+        NChaosClient::NProto::TRspCreateReplicationCard* response)
+    {
+        auto replicationCardId = CreateReplicationCardImpl(request);
+
+        ToProto(response->mutable_replication_card_id(), replicationCardId);
+
+        if (context) {
+            context->SetResponseInfo("ReplicationCardId: %v",
+                replicationCardId);
+        }
+    }
+
+    void HydraPrepareCreateReplicationCard(
+        TTransaction* /*transaction*/,
+        NChaosClient::NProto::TReqCreateReplicationCard* /*request*/,
+        bool /*persistent*/)
+    { }
+
+    void HydraCommitCreateReplicationCard(
+        TTransaction* /*transaction*/,
+        NChaosClient::NProto::TReqCreateReplicationCard* request)
+    {
+        CreateReplicationCardImpl(request);
+    }
+
+    void HydraAbortCreateReplicationCard(
+        TTransaction* /*transaction*/,
+        NChaosClient::NProto::TReqCreateReplicationCard* /*request*/)
+    { }
+
     void HydraRemoveReplicationCard(
-        const TRemoveReplicationCardContextPtr& /*context*/,
+        const TCtxRemoveReplicationCardPtr& /*context*/,
         NChaosClient::NProto::TReqRemoveReplicationCard* request,
         NChaosClient::NProto::TRspRemoveReplicationCard* /*response*/)
     {
@@ -347,7 +444,7 @@ private:
     }
 
     void HydraCreateTableReplica(
-        const TCreateTableReplicaContextPtr& /*context*/,
+        const TCtxCreateTableReplicaPtr& context,
         NChaosClient::NProto::TReqCreateTableReplica* request,
         NChaosClient::NProto::TRspCreateTableReplica* response)
     {
@@ -403,18 +500,26 @@ private:
             .State = ETableReplicaState::Disabled
         });
 
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (ReplicationCardId: %v, ReplicaId: %v)",
+            replicationCardId,
+            newReplicaId);
+
         if (replicaInfo.State == ETableReplicaState::Enabling) {
             RevokeShortcuts(replicationCard);
         }
 
         ToProto(response->mutable_replica_id(), newReplicaId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (ReplicationCardId: %v, ReplicaId: %v)",
-            replicationCardId,
-            newReplicaId);
+        if (context) {
+            context->SetResponseInfo("ReplicaId: %v",
+                newReplicaId);
+        }
     }
 
-    void HydraRemoveTableReplica(NChaosClient::NProto::TReqRemoveTableReplica* request)
+    void HydraRemoveTableReplica(
+        const TCtxRemoveTableReplicaPtr& /*context*/,
+        NChaosClient::NProto::TReqRemoveTableReplica* request,
+        NChaosClient::NProto::TRspRemoveTableReplica* /*response*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<NChaosClient::TReplicaId>(request->replica_id());
@@ -436,10 +541,13 @@ private:
             replicaId);
     }
 
-    void HydraAlterTableReplica(NChaosClient::NProto::TReqAlterTableReplica* request)
+    void HydraAlterTableReplica(
+        const TCtxAlterTableReplicaPtr& /*context*/,
+        NChaosClient::NProto::TReqAlterTableReplica* request,
+        NChaosClient::NProto::TRspAlterTableReplica* /*response*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto replicaId = FromProto<NTableClient::TTableId>(request->replica_id());
+        auto replicaId = FromProto<TTableId>(request->replica_id());
 
         std::optional<ETableReplicaMode> mode;
         if (request->has_mode()) {
@@ -493,14 +601,14 @@ private:
             }
         }
 
-        if (revoke) {
-            RevokeShortcuts(replicationCard);
-        }
-
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica altered (ReplicationCardId: %v, ReplicaId: %v, Replica: %v)",
             replicationCardId,
             replicaId,
             *replicaInfo);
+
+        if (revoke) {
+            RevokeShortcuts(replicationCard);
+        }
     }
 
     void HydraRspGrantShortcuts(NChaosNode::NProto::TRspGrantShortcuts* request)
@@ -827,16 +935,19 @@ private:
             removedCells);
     }
 
-    void HydraUpdateTableReplicaProgress(NChaosClient::NProto::TReqUpdateTableReplicaProgress* request)
+    void HydraUpdateTableReplicaProgress(
+        const TCtxUpdateTableReplicaProgressPtr& /*context*/,
+        NChaosClient::NProto::TReqUpdateTableReplicaProgress* request,
+        NChaosClient::NProto::TRspUpdateTableReplicaProgress* /*response*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto replicaId = FromProto<NTableClient::TTableId>(request->replica_id());
+        auto replicaId = FromProto<TTableId>(request->replica_id());
         auto newProgress = FromProto<TReplicationProgress>(request->replication_progress());
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication progress (ReplicationCardId: %v, ReplicaId: %v, ReplicationProgress: %v, NewProgress: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication progress (ReplicationCardId: %v, ReplicaId: %v, OldProgress: %v, NewProgress: %v)",
             replicationCardId,
             replicaId,
             replicaInfo->ReplicationProgress,
@@ -844,7 +955,7 @@ private:
 
         NChaosClient::UpdateReplicationProgress(&replicaInfo->ReplicationProgress, newProgress);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (ReplicationCardId: %v, ReplicaId: %v, Progress: %v",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (ReplicationCardId: %v, ReplicaId: %v, Progress: %v)",
             replicationCardId,
             replicaId,
             replicaInfo->ReplicationProgress);

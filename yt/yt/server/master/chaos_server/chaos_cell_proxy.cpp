@@ -37,11 +37,11 @@ public:
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        TBase::ListSystemAttributes(descriptors);
-
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AlienConfigVersions)
             .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::DescriptorConfigVersion);
+
+        TBase::ListSystemAttributes(descriptors);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override

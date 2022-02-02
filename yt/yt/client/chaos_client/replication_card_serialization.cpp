@@ -97,14 +97,23 @@ struct TSerializableReplicationCard
     THashMap<TString, TReplicaInfo> Replicas;
     std::vector<NObjectClient::TCellId> CoordinatorCellIds;
     TReplicationEra Era;
+    TTableId TableId;
+    TYPath TablePath;
+    TString TableClusterName;
 
     TSerializableReplicationCard()
     {
         RegisterParameter("replicas", Replicas);
         RegisterParameter("coordinator_cell_ids", CoordinatorCellIds)
-            .Optional();
+            .Default();
         RegisterParameter("era", Era)
             .Default(0);
+        RegisterParameter("table_id", TableId)
+            .Default();
+        RegisterParameter("table_path", TablePath)
+            .Default();
+        RegisterParameter("table_cluster_name", TableClusterName)
+            .Default();
     }
 };
 
@@ -143,6 +152,9 @@ void DeserializeImpl(TReplicationCard& replicationCard, TSerializableReplication
     }
     replicationCard.CoordinatorCellIds = std::move(serializable->CoordinatorCellIds);
     replicationCard.Era = serializable->Era;
+    replicationCard.TableId = serializable->TableId;
+    replicationCard.TablePath = serializable->TablePath;
+    replicationCard.TableClusterName = serializable->TableClusterName;
 }
 
 void Deserialize(TReplicationProgress& replicationProgress, INodePtr node)
@@ -266,7 +278,10 @@ void Serialize(
             fluent
                 .Item("coordinator_cell_ids").Value(replicationCard.CoordinatorCellIds);
         })
-        .Item("era").Value(replicationCard.Era);
+        .Item("era").Value(replicationCard.Era)
+        .Item("table_id").Value(replicationCard.TableId)
+        .Item("table_path").Value(replicationCard.TablePath)
+        .Item("table_cluster_name").Value(replicationCard.TableClusterName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -347,7 +362,6 @@ void ToProto(
     const TReplicationCard& replicationCard,
     const TReplicationCardFetchOptions& options)
 {
-    protoReplicationCard->set_era(replicationCard.Era);
     for (const auto& [replicaId, replicaInfo] : SortHashMapByKeys(replicationCard.Replicas)) {
         auto* protoReplicaEntry = protoReplicationCard->add_replicas();
         ToProto(protoReplicaEntry->mutable_id(), replicaId);
@@ -356,6 +370,10 @@ void ToProto(
     if (options.IncludeCoordinators) {
         ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), replicationCard.CoordinatorCellIds);
     }
+    protoReplicationCard->set_era(replicationCard.Era);
+    ToProto(protoReplicationCard->mutable_table_id(), replicationCard.TableId);
+    protoReplicationCard->set_table_path(replicationCard.TablePath);
+    protoReplicationCard->set_table_cluster_name(replicationCard.TableClusterName);
 }
 
 void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TReplicationCard& protoReplicationCard)
@@ -367,6 +385,9 @@ void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TR
     }
     FromProto(&replicationCard->CoordinatorCellIds, protoReplicationCard.coordinator_cell_ids());
     replicationCard->Era = protoReplicationCard.era();
+    replicationCard->TableId = FromProto<TTableId>(protoReplicationCard.table_id());
+    replicationCard->TablePath = protoReplicationCard.table_path();
+    replicationCard->TableClusterName = protoReplicationCard.table_cluster_name();
 }
 
 void ToProto(

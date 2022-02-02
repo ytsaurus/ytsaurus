@@ -1,5 +1,6 @@
 #include "chaos_cell_bundle.h"
 
+#include "chaos_cell.h"
 #include "config.h"
 
 namespace NYT::NChaosServer {
@@ -24,6 +25,7 @@ void TChaosCellBundle::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, *ChaosOptions_);
+    Save(context, MetadataCell_);
 }
 
 void TChaosCellBundle::Load(TLoadContext& context)
@@ -32,6 +34,9 @@ void TChaosCellBundle::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, *ChaosOptions_);
+    if (context.GetVersion() >= EMasterReign::AutoCreateReplicationCard) {
+        Load(context, MetadataCell_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

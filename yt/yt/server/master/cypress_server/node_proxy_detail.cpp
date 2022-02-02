@@ -31,6 +31,9 @@
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
+#include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
+#include <yt/yt/server/master/chaos_server/chaos_manager.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -79,6 +82,7 @@ using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
+using namespace NChaosServer;
 using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1986,6 +1990,10 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
         .SetPresent(hasInheritableAttributes && node->HasTabletCellBundle())
         .SetWritable(true)
         .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundle)
+        .SetPresent(hasInheritableAttributes && node->HasChaosCellBundle())
+        .SetWritable(true)
+        .SetRemovable(true));
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -2037,6 +2045,18 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAtt
 
         case EInternedAttributeKey::TabletCellBundle: {
             auto optionalBundle = node->TryGetTabletCellBundle();
+            if (!optionalBundle) {
+                break;
+            }
+            const auto& bundle = *optionalBundle;
+            YT_VERIFY(bundle);
+            BuildYsonFluently(consumer)
+                .Value(bundle->GetName());
+            return true;
+        }
+
+        case EInternedAttributeKey::ChaosCellBundle: {
+            auto optionalBundle = node->TryGetChaosCellBundle();
             if (!optionalBundle) {
                 break;
             }
@@ -2103,6 +2123,18 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
             node->SetTabletCellBundle(TTabletCellBundlePtr(newBundle));
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ChaosCellBundle: {
+            ValidateNoTransaction();
+
+            auto name = ConvertTo<TString>(value);
+
+            const auto& chaosManager = Bootstrap_->GetChaosManager();
+            auto* newBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
+            node->SetChaosCellBundle(TChaosCellBundlePtr(newBundle));
 
             return true;
         }
@@ -2277,6 +2309,13 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
         case EInternedAttributeKey::TabletCellBundle: {
             ValidateNoTransaction();
             node->RemoveTabletCellBundle();
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ChaosCellBundle: {
+            ValidateNoTransaction();
+            node->RemoveChaosCellBundle();
             return true;
         }
 
@@ -2372,6 +2411,15 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
         return ConvertToYsonString((*optionalCellBundle)->GetName());
     }
 
+    if (key == "chaos_cell_bundle") {
+        auto optionalCellBundle = InheritedAttributes_.ChaosCellBundle.ToOptional();
+        if (!optionalCellBundle) {
+            return {};
+        }
+        YT_VERIFY(*optionalCellBundle);
+        return ConvertToYsonString((*optionalCellBundle)->GetName());
+    }
+
     return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
 }
 
@@ -2417,6 +2465,14 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
         InheritedAttributes_.TabletCellBundle.Set(TTabletCellBundlePtr(bundle));
+        return;
+    }
+
+    if (key == "chaos_cell_bundle") {
+        auto bundleName = ConvertTo<TString>(value);
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        auto* bundle = chaosManager->GetChaosCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
+        InheritedAttributes_.ChaosCellBundle.Set(TChaosCellBundlePtr(bundle));
         return;
     }
 

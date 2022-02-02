@@ -63,6 +63,9 @@ struct TReplicationCard
     THashMap<TReplicaId, TReplicaInfo> Replicas;
     std::vector<NObjectClient::TCellId> CoordinatorCellIds;
     TReplicationEra Era;
+    NTableClient::TTableId TableId;
+    NYPath::TYPath TablePath;
+    TString TableClusterName;
 
     //! Returns pointer to replica with a given id, nullptr if none.
     TReplicaInfo* FindReplica(TReplicaId replicaId);

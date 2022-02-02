@@ -45,6 +45,9 @@ message TReplicationCard
     repeated TReplicaEntry replicas = 1;
     repeated NYT.NProto.TGuid coordinator_cell_ids = 2;
     required uint64 era = 3;
+    optional NYT.NProto.TGuid table_id = 4;
+    optional string table_path = 5;
+    optional string table_cluster_name = 6;
 }
 
 message TUpstreamReplicationCard
