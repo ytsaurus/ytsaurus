@@ -372,6 +372,8 @@ public:
                         << TError::FromSystem();
                 }
             }
+        } else {
+            launcher->SetCoreDumpHandler(std::nullopt);
         }
 
         if (Options_.HostName) {

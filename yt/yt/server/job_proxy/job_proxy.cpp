@@ -1034,7 +1034,13 @@ void TJobProxy::CheckMemoryUsage()
 {
     i64 jobProxyMemoryUsage = 0;
     try {
-        jobProxyMemoryUsage = GetProcessMemoryUsage().Rss;
+        auto memoryUsage = GetProcessMemoryUsage();
+        // RSS from /proc/pid/statm includes all pages resident to current process,
+        // including memory-mapped files and shared memory.
+        // Since there typically are multiple instances of job proxy on the host sharing the same binary
+        // we don't want to account shared pages overhead on every job. Moreover, this memory is not accounted by
+        // controller agent during memory consumption estimation.
+        jobProxyMemoryUsage = memoryUsage.Rss - memoryUsage.Shared;
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to get process memory usage");
         return;

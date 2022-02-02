@@ -194,6 +194,10 @@ void TTcpDispatcher::TImpl::CollectSensors(ISensorWriter* writer)
         writer->AddCounter("/encoder_errors", counters.EncoderErrors);
         writer->AddCounter("/decoder_errors", counters.DecoderErrors);
     });
+
+    if (Config_->NetworkBandwidth) {
+        writer->AddGauge("/network_bandwidth_limit", *Config_->NetworkBandwidth);
+    }
 }
 
 void TTcpDispatcher::TImpl::OnLivenessCheck()

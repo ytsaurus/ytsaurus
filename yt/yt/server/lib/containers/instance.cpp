@@ -179,9 +179,14 @@ public:
         Spec_.CurrentWorkingDirectory = pwd;
     }
 
-    void SetCoreDumpHandler(const TString& handler) override
+    void SetCoreDumpHandler(const std::optional<TString>& handler) override
     {
-        Spec_.CoreCommand = handler;
+        if (handler) {
+            Spec_.CoreCommand = *handler;
+            Spec_.EnableCoreDumps = true;
+        } else {
+            Spec_.EnableCoreDumps = false;
+        }
     }
 
     void SetRoot(const TRootFS& rootFS) override

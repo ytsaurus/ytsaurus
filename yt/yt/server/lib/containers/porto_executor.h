@@ -86,6 +86,8 @@ struct TRunnableContainerSpec
     std::optional<TString> User;
     std::optional<int> GroupId;
 
+    bool EnableCoreDumps = true;
+
     std::optional<i64> ThreadLimit;
 
     std::optional<TString> HostName;

@@ -17,6 +17,9 @@ class TTcpDispatcherConfig
 public:
     int ThreadPoolSize;
 
+    //! Used for profiling export and alerts.
+    std::optional<i64> NetworkBandwidth;
+
     TTcpDispatcherConfig();
     TTcpDispatcherConfigPtr ApplyDynamic(const TTcpDispatcherDynamicConfigPtr& dynamicConfig) const;
 };
