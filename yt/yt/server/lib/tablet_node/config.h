@@ -196,7 +196,9 @@ class TTabletStoreReaderConfig
 public:
     bool PreferLocalReplicas;
 
-    TTabletStoreReaderConfig();
+    REGISTER_YSON_STRUCT(TTabletStoreReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletStoreReaderConfig)
@@ -648,7 +650,12 @@ DEFINE_REFCOUNTED_TYPE(TReplicatorHintConfig)
 class TTabletHunkWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
     , public NTableClient::THunkChunkPayloadWriterConfig
-{ };
+{
+    REGISTER_YSON_STRUCT(TTabletHunkWriterConfig)
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TTabletHunkWriterConfig)
 

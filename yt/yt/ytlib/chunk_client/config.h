@@ -39,14 +39,7 @@ public:
     //! Advertise current host as a P2P peer.
     bool EnableP2P;
 
-    TRemoteReaderOptions()
-    {
-        RegisterParameter("allow_fetching_seeds_from_master", AllowFetchingSeedsFromMaster)
-            .Default(true);
-
-        RegisterParameter("enable_p2p", EnableP2P)
-            .Default(false);
-    }
+    TRemoteReaderOptions();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
@@ -54,22 +47,16 @@ DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteWriterOptions
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     bool AllowAllocatingNewTargetNodes;
     TString MediumName;
     TPlacementId PlacementId;
 
-    TRemoteWriterOptions()
-    {
-        RegisterParameter("allow_allocating_new_target_nodes", AllowAllocatingNewTargetNodes)
-            .Default(true);
-        RegisterParameter("medium_name", MediumName)
-            .Default(DefaultStoreMediumName);
-        RegisterParameter("placement_id", PlacementId)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TRemoteWriterOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteWriterOptions)
@@ -82,11 +69,7 @@ class TDispatcherDynamicConfig
 public:
     std::optional<int> ChunkReaderPoolSize;
 
-    TDispatcherDynamicConfig()
-    {
-        RegisterParameter("chunk_reader_pool_size", ChunkReaderPoolSize)
-            .Optional();
-    }
+    TDispatcherDynamicConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TDispatcherDynamicConfig)
@@ -100,19 +83,9 @@ public:
     static constexpr int DefaultChunkReaderPoolSize = 8;
     int ChunkReaderPoolSize;
 
-    TDispatcherConfig()
-    {
-        RegisterParameter("chunk_reader_pool_size", ChunkReaderPoolSize)
-            .Default(DefaultChunkReaderPoolSize);
-    }
+    TDispatcherConfig();
 
-    TDispatcherConfigPtr ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const
-    {
-        auto mergedConfig = New<TDispatcherConfig>();
-        mergedConfig->ChunkReaderPoolSize = dynamicConfig->ChunkReaderPoolSize.value_or(ChunkReaderPoolSize);
-        mergedConfig->Postprocess();
-        return mergedConfig;
-    }
+    TDispatcherConfigPtr ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
@@ -146,27 +119,9 @@ public:
 
     NChunkClient::TConsistentReplicaPlacementHash ConsistentChunkReplicaPlacementHash;
 
-    TMultiChunkWriterOptions()
-    {
-        RegisterParameter("replication_factor", ReplicationFactor)
-            .GreaterThanOrEqual(1)
-            .Default(DefaultReplicationFactor);
-        RegisterParameter("account", Account);
-        RegisterParameter("chunks_vital", ChunksVital)
-            .Default(true);
-        RegisterParameter("chunks_movable", ChunksMovable)
-            .Default(true);
-        RegisterParameter("validate_resource_usage_increase", ValidateResourceUsageIncrease)
-            .Default(true);
-        RegisterParameter("erasure_codec", ErasureCodec)
-            .Default(NErasure::ECodec::None);
-        RegisterParameter("table_index", TableIndex)
-            .Default(InvalidTableIndex);
-        RegisterParameter("table_schema", TableSchema)
-            .Default();
-        RegisterParameter("chunk_consistent_replica_placement_hash", ConsistentChunkReplicaPlacementHash)
-            .Default(NChunkClient::NullConsistentReplicaPlacementHash);
-    }
+    REGISTER_YSON_STRUCT(TMultiChunkWriterOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterOptions)
@@ -179,11 +134,7 @@ class TMultiChunkReaderOptions
 public:
     bool KeepInMemory;
 
-    TMultiChunkReaderOptions()
-    {
-        RegisterParameter("keep_in_memory", KeepInMemory)
-            .Default(false);
-    }
+    TMultiChunkReaderOptions();
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderOptions)
@@ -199,17 +150,9 @@ public:
     bool AllowUnknownExtensions;
     std::optional<i64> MaxBlockCount;
 
-    TMetaAggregatingWriterOptions()
-    {
-        RegisterParameter("enable_skynet_sharing", EnableSkynetSharing)
-            .Default(false);
-        RegisterParameter("max_heavy_columns", MaxHeavyColumns)
-            .Default(0);
-        RegisterParameter("allow_unknown_extensions", AllowUnknownExtensions)
-            .Default(false);
-        RegisterParameter("max_block_count", MaxBlockCount)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TMetaAggregatingWriterOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMetaAggregatingWriterOptions)
@@ -223,13 +166,7 @@ public:
     TSlruCacheConfigPtr CompressedData;
     TSlruCacheConfigPtr UncompressedData;
 
-    TBlockCacheConfig()
-    {
-        RegisterParameter("compressed_data", CompressedData)
-            .DefaultNew();
-        RegisterParameter("uncompressed_data", UncompressedData)
-            .DefaultNew();
-    }
+    TBlockCacheConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockCacheConfig)
@@ -240,9 +177,7 @@ class TClientChunkMetaCacheConfig
     : public TSlruCacheConfig
 {
 public:
-    TClientChunkMetaCacheConfig(i64 capacity = 0)
-        : TSlruCacheConfig(capacity)
-    { }
+    TClientChunkMetaCacheConfig(i64 capacity = 0);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientChunkMetaCacheConfig)
@@ -256,13 +191,7 @@ public:
     TSlruCacheDynamicConfigPtr CompressedData;
     TSlruCacheDynamicConfigPtr UncompressedData;
 
-    TBlockCacheDynamicConfig()
-    {
-        RegisterParameter("compressed_data", CompressedData)
-            .DefaultNew();
-        RegisterParameter("uncompressed_data", UncompressedData)
-            .DefaultNew();
-    }
+    TBlockCacheDynamicConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockCacheDynamicConfig)
@@ -276,13 +205,7 @@ public:
     //! Number of chunks scratched per one LocateChunks.
     int MaxChunksPerRequest;
 
-    TChunkScraperConfig()
-    {
-        RegisterParameter("max_chunks_per_request", MaxChunksPerRequest)
-            .Default(10000)
-            .GreaterThan(0)
-            .LessThan(100000);
-    }
+    TChunkScraperConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkScraperConfig)
@@ -296,12 +219,7 @@ public:
     //! Maximum number of chunks to export/import per request.
     int MaxTeleportChunksPerRequest;
 
-    TChunkTeleporterConfig()
-    {
-        RegisterParameter("max_teleport_chunks_per_request", MaxTeleportChunksPerRequest)
-            .GreaterThan(0)
-            .Default(5000);
-    }
+    TChunkTeleporterConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
@@ -315,11 +233,7 @@ public:
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
-    TMediumDirectorySynchronizerConfig()
-    {
-        RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Seconds(60));
-    }
+    TMediumDirectorySynchronizerConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)
@@ -367,50 +281,7 @@ public:
     //! Will open and read with DirectIO (unless already opened w/o DirectIO or disabled via location config).
     bool UseDirectIO;
 
-    TChunkFragmentReaderConfig()
-    {
-        RegisterParameter("chunk_replica_locator_expiration_timeout", ChunkReplicaLocatorExpirationTimeout)
-            .Default(TDuration::Minutes(30));
-        RegisterParameter("peer_info_expiration_timeout", PeerInfoExpirationTimeout)
-            .Default(TDuration::Minutes(30));
-
-        RegisterParameter("seeds_expiration_timeout", SeedsExpirationTimeout)
-            .Default(TDuration::Seconds(3));
-
-        RegisterParameter("periodic_update_delay", PeriodicUpdateDelay)
-            .GreaterThan(TDuration::Zero())
-            .Default(TDuration::Seconds(10));
-
-        RegisterParameter("net_queue_size_factor", NetQueueSizeFactor)
-            .Default(0.5);
-        RegisterParameter("disk_queue_size_factor", DiskQueueSizeFactor)
-            .Default(1.0);
-
-        RegisterParameter("probe_chunk_set_rpc_timeout", ProbeChunkSetRpcTimeout)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("get_chunk_fragment_set_rpc_timeout", GetChunkFragmentSetRpcTimeout)
-            .Default(TDuration::Seconds(15));
-
-        RegisterParameter("get_chunk_fragment_multiplexing_parallelism", GetChunkFragmentSetMultiplexingParallelism)
-            .GreaterThan(0)
-            .Default(1);
-
-        RegisterParameter("max_retry_count", MaxRetryCount)
-            .GreaterThanOrEqual(1)
-            .Default(3);
-        RegisterParameter("retry_backoff_time", RetryBackoffTime)
-            .Default(TDuration::MilliSeconds(10));
-
-        RegisterParameter("evict_after_successful_access_time", EvictAfterSuccessfulAccessTime)
-            .Default(TDuration::Seconds(30));
-
-        RegisterParameter("suspicious_node_grace_period", SuspiciousNodeGracePeriod)
-            .Default(TDuration::Minutes(5));
-
-        RegisterParameter("use_direct_io", UseDirectIO)
-            .Default(false)
-            .DontSerializeDefault();
-    }
+    TChunkFragmentReaderConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkFragmentReaderConfig)

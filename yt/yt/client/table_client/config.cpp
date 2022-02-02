@@ -36,21 +36,21 @@ TRetentionConfig::TRetentionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReaderConfig::TChunkReaderConfig()
+void TChunkReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("sampling_mode", SamplingMode)
+    registrar.Parameter("sampling_mode", &TThis::SamplingMode)
         .Default();
 
-    RegisterParameter("sampling_rate", SamplingRate)
+    registrar.Parameter("sampling_rate", &TThis::SamplingRate)
         .Default()
         .InRange(0, 1);
 
-    RegisterParameter("sampling_seed", SamplingSeed)
+    registrar.Parameter("sampling_seed", &TThis::SamplingSeed)
         .Default();
 
-    RegisterPostprocessor([&] {
-        if (SamplingRate && !SamplingMode) {
-            SamplingMode = ESamplingMode::Row;
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->SamplingRate && !config->SamplingMode) {
+            config->SamplingMode = ESamplingMode::Row;
         }
     });
 }
@@ -65,63 +65,63 @@ TChunkWriterTestingOptions::TChunkWriterTestingOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkWriterConfig::TChunkWriterConfig()
+void TChunkWriterConfig::Register(TRegistrar registrar)
 {
     // Allow very small blocks for testing purposes.
-    RegisterParameter("block_size", BlockSize)
+    registrar.Parameter("block_size", &TThis::BlockSize)
         .GreaterThan(0)
         .Default(16_MB);
 
-    RegisterParameter("max_buffer_size", MaxBufferSize)
+    registrar.Parameter("max_buffer_size", &TThis::MaxBufferSize)
         .GreaterThan(0)
         .Default(16_MB);
 
-    RegisterParameter("max_row_weight", MaxRowWeight)
+    registrar.Parameter("max_row_weight", &TThis::MaxRowWeight)
         .GreaterThanOrEqual(5_MB)
         .LessThanOrEqual(MaxRowWeightLimit)
         .Default(16_MB);
 
-    RegisterParameter("max_key_weight", MaxKeyWeight)
+    registrar.Parameter("max_key_weight", &TThis::MaxKeyWeight)
         .GreaterThan(0)
         .LessThanOrEqual(MaxKeyWeightLimit)
         .Default(16_KB);
 
-    RegisterParameter("max_data_weight_between_blocks", MaxDataWeightBetweenBlocks)
+    registrar.Parameter("max_data_weight_between_blocks", &TThis::MaxDataWeightBetweenBlocks)
         .GreaterThan(0)
         .Default(2_GB);
 
-    RegisterParameter("max_key_filter_size", MaxKeyFilterSize)
+    registrar.Parameter("max_key_filter_size", &TThis::MaxKeyFilterSize)
         .GreaterThan(0)
         .LessThanOrEqual(1_MB)
         .Default(64_KB);
 
-    RegisterParameter("sample_rate", SampleRate)
+    registrar.Parameter("sample_rate", &TThis::SampleRate)
         .GreaterThan(0)
         .LessThanOrEqual(0.001)
         .Default(0.0001);
 
-    RegisterParameter("key_filter_false_positive_rate", KeyFilterFalsePositiveRate)
+    registrar.Parameter("key_filter_false_positive_rate", &TThis::KeyFilterFalsePositiveRate)
         .GreaterThan(0)
         .LessThanOrEqual(1.0)
         .Default(0.03);
 
-    RegisterParameter("testing_options", TestingOptions)
+    registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReaderConfig::TTableReaderConfig()
+void TTableReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
+    registrar.Parameter("suppress_access_tracking", &TThis::SuppressAccessTracking)
         .Default(false);
-    RegisterParameter("suppress_expiration_timeout_renewal", SuppressExpirationTimeoutRenewal)
+    registrar.Parameter("suppress_expiration_timeout_renewal", &TThis::SuppressExpirationTimeoutRenewal)
         .Default(false);
-    RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
+    registrar.Parameter("unavailable_chunk_strategy", &TThis::UnavailableChunkStrategy)
         .Default(EUnavailableChunkStrategy::Restore);
-    RegisterParameter("max_read_duration", MaxReadDuration)
+    registrar.Parameter("max_read_duration", &TThis::MaxReadDuration)
         .Default();
-    RegisterParameter("dynamic_store_reader", DynamicStoreReader)
+    registrar.Parameter("dynamic_store_reader", &TThis::DynamicStoreReader)
         .DefaultNew();
 }
 
@@ -186,66 +186,66 @@ TChunkReaderOptions::TChunkReaderOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkWriterOptions::TChunkWriterOptions()
+void TChunkWriterOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("validate_sorted", ValidateSorted)
+    registrar.Parameter("validate_sorted", &TThis::ValidateSorted)
         .Default(true);
-    RegisterParameter("validate_row_weight", ValidateRowWeight)
+    registrar.Parameter("validate_row_weight", &TThis::ValidateRowWeight)
         .Default(false);
-    RegisterParameter("validate_key_weight", ValidateKeyWeight)
+    registrar.Parameter("validate_key_weight", &TThis::ValidateKeyWeight)
         .Default(false);
-    RegisterParameter("validate_duplicate_ids", ValidateDuplicateIds)
+    registrar.Parameter("validate_duplicate_ids", &TThis::ValidateDuplicateIds)
         .Default(false);
-    RegisterParameter("validate_column_count", ValidateColumnCount)
+    registrar.Parameter("validate_column_count", &TThis::ValidateColumnCount)
         .Default(false);
-    RegisterParameter("validate_unique_keys", ValidateUniqueKeys)
+    registrar.Parameter("validate_unique_keys", &TThis::ValidateUniqueKeys)
         .Default(false);
-    RegisterParameter("explode_on_validation_error", ExplodeOnValidationError)
+    registrar.Parameter("explode_on_validation_error", &TThis::ExplodeOnValidationError)
         .Default(false);
-    RegisterParameter("optimize_for", OptimizeFor)
+    registrar.Parameter("optimize_for", &TThis::OptimizeFor)
         .Default(EOptimizeFor::Lookup);
-    RegisterParameter("evaluate_computed_columns", EvaluateComputedColumns)
+    registrar.Parameter("evaluate_computed_columns", &TThis::EvaluateComputedColumns)
         .Default(true);
-    RegisterParameter("enable_skynet_sharing", EnableSkynetSharing)
+    registrar.Parameter("enable_skynet_sharing", &TThis::EnableSkynetSharing)
         .Default(false);
-    RegisterParameter("return_boundary_keys", ReturnBoundaryKeys)
+    registrar.Parameter("return_boundary_keys", &TThis::ReturnBoundaryKeys)
         .Default(true);
-    RegisterParameter("cast_any_to_composite", CastAnyToCompositeNode)
+    registrar.Parameter("cast_any_to_composite", &TThis::CastAnyToCompositeNode)
         .Default();
-    RegisterParameter("schema_modification", SchemaModification)
+    registrar.Parameter("schema_modification", &TThis::SchemaModification)
         .Default(ETableSchemaModification::None);
-    RegisterParameter("max_heavy_columns", MaxHeavyColumns)
+    registrar.Parameter("max_heavy_columns", &TThis::MaxHeavyColumns)
         .Default(0);
 
-    RegisterPostprocessor([&] {
-        if (ValidateUniqueKeys && !ValidateSorted) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->ValidateUniqueKeys && !config->ValidateSorted) {
             THROW_ERROR_EXCEPTION("\"validate_unique_keys\" is allowed to be true only if \"validate_sorted\" is true");
         }
 
-        if (CastAnyToCompositeNode) {
+        if (config->CastAnyToCompositeNode) {
             try {
-                CastAnyToComposite = NYTree::ConvertTo<bool>(CastAnyToCompositeNode);
+                config->CastAnyToComposite = NYTree::ConvertTo<bool>(config->CastAnyToCompositeNode);
             } catch (const std::exception&) {
                 // COMPAT: Do nothing for backward compatibility.
             }
         }
 
-        switch (SchemaModification) {
+        switch (config->SchemaModification) {
             case ETableSchemaModification::None:
                 break;
 
             case ETableSchemaModification::UnversionedUpdate:
-                if (!ValidateSorted || !ValidateUniqueKeys) {
+                if (!config->ValidateSorted || !config->ValidateUniqueKeys) {
                     THROW_ERROR_EXCEPTION(
                         "\"schema_modification\" is allowed to be %Qlv only if "
                         "\"validate_sorted\" and \"validate_unique_keys\" are true",
-                        SchemaModification);
+                        config->SchemaModification);
                 }
                 break;
 
             case ETableSchemaModification::UnversionedUpdateUnsorted:
                 THROW_ERROR_EXCEPTION("\"schema_modification\" is not allowed to be %Qlv",
-                    SchemaModification);
+                    config->SchemaModification);
 
             default:
                 YT_ABORT();

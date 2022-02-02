@@ -83,7 +83,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
     Options.EnableRowIndex = ControlAttributes->EnableRowIndex;
     Options.EnableRangeIndex = ControlAttributes->EnableRangeIndex;
     Options.EnableTabletIndex = ControlAttributes->EnableTabletIndex;
-    Options.Config = UpdateYsonSerializable(
+    Options.Config = UpdateYsonStruct(
         context->GetConfig()->TableReader,
         TableReader);
 
@@ -180,7 +180,7 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
     }
     Options.Ping = true;
 
-    auto config = UpdateYsonSerializable(
+    auto config = UpdateYsonStruct(
         context->GetConfig()->TableReader,
         TableReader);
 
@@ -265,7 +265,7 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 {
     auto transaction = AttachTransaction(context, false);
 
-    auto config = UpdateYsonSerializable(
+    auto config = UpdateYsonStruct(
         context->GetConfig()->TableWriter,
         TableWriter);
 
@@ -721,7 +721,7 @@ TInsertRowsCommand::TInsertRowsCommand()
 
 void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
 {
-    auto config = UpdateYsonSerializable(
+    auto config = UpdateYsonStruct(
         context->GetConfig()->TableWriter,
         TableWriter);
 
@@ -803,7 +803,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
 
     tableInfo->ValidateDynamic();
 
-    auto config = UpdateYsonSerializable(
+    auto config = UpdateYsonStruct(
         context->GetConfig()->TableWriter,
         TableWriter);
 
@@ -1001,7 +1001,7 @@ TDeleteRowsCommand::TDeleteRowsCommand()
 
 void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
 {
-    auto config = UpdateYsonSerializable(
+    auto config = UpdateYsonStruct(
         context->GetConfig()->TableWriter,
         TableWriter);
 
@@ -1060,7 +1060,7 @@ TLockRowsCommand::TLockRowsCommand()
 
 void TLockRowsCommand::DoExecute(ICommandContextPtr context)
 {
-    auto config = UpdateYsonSerializable(
+    auto config = UpdateYsonStruct(
         context->GetConfig()->TableWriter,
         TableWriter);
 

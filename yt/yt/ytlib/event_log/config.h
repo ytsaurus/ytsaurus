@@ -16,7 +16,9 @@ public:
     NYPath::TYPath Path;
     TDuration PendingRowsFlushPeriod;
 
-    TEventLogManagerConfig();
+    REGISTER_YSON_STRUCT(TEventLogManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TEventLogManagerConfig)

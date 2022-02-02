@@ -18,7 +18,12 @@ namespace NYT::NTableClient {
 class TTableWriterOptions
     : public TChunkWriterOptions
     , public NChunkClient::TMultiChunkWriterOptions
-{ };
+{
+    REGISTER_YSON_STRUCT(TTableWriterOptions);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TTableWriterOptions)
 
@@ -30,13 +35,9 @@ class TBlobTableWriterConfig
 public:
     i64 MaxPartSize;
 
-    TBlobTableWriterConfig()
-    {
-        RegisterParameter("max_part_size", MaxPartSize)
-            .Default(4_MB)
-            .GreaterThanOrEqual(1_MB)
-            .LessThanOrEqual(MaxRowWeightLimit);
-    }
+    REGISTER_YSON_STRUCT(TBlobTableWriterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobTableWriterConfig)
@@ -51,15 +52,9 @@ public:
     TDuration FlushPeriod;
     i64 RowBufferChunkSize;
 
-    TBufferedTableWriterConfig()
-    {
-        RegisterParameter("retry_backoff_time", RetryBackoffTime)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("flush_period", FlushPeriod)
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("row_buffer_chunk_size", RowBufferChunkSize)
-            .Default(64_KB);
-    }
+    REGISTER_YSON_STRUCT(TBufferedTableWriterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBufferedTableWriterConfig)
@@ -87,17 +82,7 @@ public:
 
     EColumnarStatisticsFetcherMode ColumnarStatisticsFetcherMode;
 
-    TTableColumnarStatisticsCacheConfig()
-    {
-        RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
-            .Default(100'000);
-        RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
-            .Default(10'000);
-        RegisterParameter("fetcher", Fetcher)
-            .DefaultNew();
-        RegisterParameter("columnar_statistics_fetcher_mode", ColumnarStatisticsFetcherMode)
-            .Default(EColumnarStatisticsFetcherMode::Fallback);
-    }
+    TTableColumnarStatisticsCacheConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableColumnarStatisticsCacheConfig);
@@ -105,18 +90,15 @@ DEFINE_REFCOUNTED_TYPE(TTableColumnarStatisticsCacheConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class THunkChunkPayloadWriterConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Writer will be aiming for blocks of approximately this size.
     i64 DesiredBlockSize;
 
-    THunkChunkPayloadWriterConfig()
-    {
-        RegisterParameter("desired_block_size", DesiredBlockSize)
-            .GreaterThan(0)
-            .Default(1_MBs);
-    }
+    REGISTER_YSON_STRUCT(THunkChunkPayloadWriterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(THunkChunkPayloadWriterConfig)
@@ -130,15 +112,7 @@ public:
     int MaxHunkCountPerRead;
     i64 MaxTotalHunkLengthPerRead;
 
-    TBatchHunkReaderConfig()
-    {
-        RegisterParameter("max_hunk_count_per_read", MaxHunkCountPerRead)
-            .GreaterThan(0)
-            .Default(10'000);
-        RegisterParameter("max_total_hunk_length_per_read", MaxTotalHunkLengthPerRead)
-            .GreaterThan(0)
-            .Default(16_MB);
-    }
+    TBatchHunkReaderConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBatchHunkReaderConfig)

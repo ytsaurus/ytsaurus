@@ -16,9 +16,11 @@ class TFileChunkWriterConfig
 public:
     i64 BlockSize;
 
-    TFileChunkWriterConfig()
+    REGISTER_YSON_STRUCT(TFileChunkWriterConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("block_size", BlockSize)
+        registrar.Parameter("block_size", &TThis::BlockSize)
             .Default(16_MB)
             .GreaterThan(0);
     }

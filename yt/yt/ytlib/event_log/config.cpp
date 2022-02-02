@@ -4,13 +4,13 @@ namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEventLogManagerConfig::TEventLogManagerConfig()
+void TEventLogManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
-    RegisterParameter("path", Path)
+    registrar.Parameter("path", &TThis::Path)
         .Default();
-    RegisterParameter("pending_rows_flush_period", PendingRowsFlushPeriod)
+    registrar.Parameter("pending_rows_flush_period", &TThis::PendingRowsFlushPeriod)
         .Default(TDuration::Seconds(1));
 }
 

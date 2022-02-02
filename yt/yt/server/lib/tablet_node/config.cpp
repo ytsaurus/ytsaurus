@@ -324,9 +324,9 @@ TTransactionManagerConfig::TTransactionManagerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletStoreReaderConfig::TTabletStoreReaderConfig()
+void TTabletStoreReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("prefer_local_replicas", PreferLocalReplicas)
+    registrar.Parameter("prefer_local_replicas", &TThis::PreferLocalReplicas)
         .Default(true);
 }
 

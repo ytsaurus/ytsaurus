@@ -247,7 +247,7 @@ TTableWriterConfigPtr TSimpleJobBase::GetWriterConfig(const TTableOutputSpec& ou
         ? ioConfig->DynamicTableWriter
         : ioConfig->TableWriter;
     if (outputSpec.has_table_writer_config()) {
-        config = UpdateYsonSerializable(
+        config = UpdateYsonStruct(
             config,
             ConvertTo<INodePtr>(TYsonString(outputSpec.table_writer_config())));
     }

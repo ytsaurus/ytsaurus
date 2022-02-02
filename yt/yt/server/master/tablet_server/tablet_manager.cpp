@@ -3449,7 +3449,7 @@ private:
 
         // Parse and prepare store reader config.
         try {
-            result.StoreReaderConfig = UpdateYsonSerializable(
+            result.StoreReaderConfig = UpdateYsonStruct(
                 GetDynamicConfig()->StoreChunkReader,
                 // TODO(babenko): rename to store_chunk_reader
                 tableAttributes.FindYson(EInternedAttributeKey::ChunkReader.Unintern()));
@@ -3503,7 +3503,7 @@ private:
                 config->UploadReplicationFactor = replicationFactor;
             }
 
-            result.StoreWriterConfig = UpdateYsonSerializable(
+            result.StoreWriterConfig = UpdateYsonStruct(
                 config,
                 // TODO(babenko): rename to store_chunk_writer
                 tableAttributes.FindYson(EInternedAttributeKey::ChunkWriter.Unintern()));
@@ -3518,7 +3518,7 @@ private:
             config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
             config->UploadReplicationFactor = replicationFactor;
 
-            result.HunkWriterConfig = UpdateYsonSerializable(
+            result.HunkWriterConfig = UpdateYsonStruct(
                 config,
                 tableAttributes.FindYson(EInternedAttributeKey::HunkChunkWriter.Unintern()));
         } catch (const std::exception& ex) {

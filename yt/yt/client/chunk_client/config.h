@@ -11,13 +11,15 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFetchChunkSpecConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;
 
-    TFetchChunkSpecConfig();
+    REGISTER_YSON_STRUCT(TFetchChunkSpecConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFetchChunkSpecConfig)
@@ -25,7 +27,7 @@ DEFINE_REFCOUNTED_TYPE(TFetchChunkSpecConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFetcherConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TDuration NodeRpcTimeout;
@@ -38,7 +40,9 @@ public:
 
     int MaxChunksPerNodeFetch;
 
-    TFetcherConfig();
+    REGISTER_YSON_STRUCT(TFetcherConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFetcherConfig)
@@ -46,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TFetcherConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockReordererConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     bool EnableBlockReordering;
@@ -55,7 +59,9 @@ public:
     //! Used only for testing purposes.
     bool ShuffleBlocks;
 
-    TBlockReordererConfig();
+    REGISTER_YSON_STRUCT(TBlockReordererConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockReordererConfig)
@@ -68,7 +74,9 @@ class TChunkSliceFetcherConfig
 public:
     int MaxSlicesPerFetch;
 
-    TChunkSliceFetcherConfig();
+    REGISTER_YSON_STRUCT(TChunkSliceFetcherConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkSliceFetcherConfig)
@@ -86,7 +94,9 @@ public:
     bool ComputeChecksum;
     int CompressionConcurrency;
 
-    TEncodingWriterConfig();
+    REGISTER_YSON_STRUCT(TEncodingWriterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TEncodingWriterConfig)
@@ -94,7 +104,7 @@ DEFINE_REFCOUNTED_TYPE(TEncodingWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReaderConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Timeout for a block request.
@@ -213,10 +223,12 @@ public:
     bool BanPeersPermanently;
 
     //! For testing purposes.
-    //! If |true| network throttlers will be applied even in case of requests to local host. 
+    //! If |true| network throttlers will be applied even in case of requests to local host.
     bool EnableLocalThrottling;
 
-    TReplicationReaderConfig();
+    REGISTER_YSON_STRUCT(TReplicationReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
@@ -233,7 +245,9 @@ public:
     TDuration ReplicationReaderTimeout;
     TDuration ReplicationReaderFailureTimeout;
 
-    TErasureReaderConfig();
+    REGISTER_YSON_STRUCT(TErasureReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TErasureReaderConfig)
@@ -241,7 +255,7 @@ DEFINE_REFCOUNTED_TYPE(TErasureReaderConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockFetcherConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Prefetch window size (in bytes).
@@ -253,7 +267,9 @@ public:
     //! If |True| block fetcher will try to fetch block from local uncompressed block cache.
     bool UseUncompressedBlockCache;
 
-    TBlockFetcherConfig();
+    REGISTER_YSON_STRUCT(TBlockFetcherConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcherConfig)
@@ -270,7 +286,9 @@ public:
     i64 MaxBufferSize;
     int MaxParallelReaders;
 
-    TMultiChunkReaderConfig();
+    REGISTER_YSON_STRUCT(TMultiChunkReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
@@ -327,9 +345,11 @@ public:
 
     std::optional<TDuration> TestingDelay;
 
-    TReplicationWriterConfig();
-
     int GetDirectUploadNodeCount();
+
+    REGISTER_YSON_STRUCT(TReplicationWriterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationWriterConfig)
@@ -337,8 +357,7 @@ DEFINE_REFCOUNTED_TYPE(TReplicationWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TErasureWriterConfig
-    : public virtual NYTree::TYsonSerializable
-    , public virtual TBlockReordererConfig
+    : public virtual TBlockReordererConfig
 {
 public:
     i64 ErasureWindowSize;
@@ -347,7 +366,9 @@ public:
     bool EnableErasureTargetNodeReallocation;
     bool ErasureStoreOriginalBlockChecksums;
 
-    TErasureWriterConfig();
+    REGISTER_YSON_STRUCT(TErasureWriterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TErasureWriterConfig)
@@ -363,7 +384,9 @@ public:
     i64 DesiredChunkWeight;
     i64 MaxMetaSize;
 
-    TMultiChunkWriterConfig();
+    REGISTER_YSON_STRUCT(TMultiChunkWriterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterConfig)
@@ -371,13 +394,15 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEncodingWriterOptions
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     NCompression::ECodec CompressionCodec;
     bool ChunksEden;
 
-    TEncodingWriterOptions();
+    REGISTER_YSON_STRUCT(TEncodingWriterOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TEncodingWriterOptions)
