@@ -97,6 +97,7 @@ DEFINE_ENUM(EMasterReign,
     ((SystemBlocks)                                                 (1929))  // akozhikhov
     ((RefCountedInheritableAttributes)                              (1930))  // babenko
     ((AutoCreateReplicationCard)                                    (1931))  // babenko
+    ((RebalancerKillingMergeJobsFix)                                (1932))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

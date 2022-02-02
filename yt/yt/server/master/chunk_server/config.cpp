@@ -134,6 +134,54 @@ TDynamicDataNodeTrackerConfig::TDynamicDataNodeTrackerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TChunkTreeBalancerSettingsPtr = TIntrusivePtr<TChunkTreeBalancerSettings>;
+
+void TChunkTreeBalancerSettings::RegisterParameters(
+    int maxChunkTreeRank,
+    int minChunkListSize,
+    int maxChunkListSize,
+    double minChunkListToChunkRatio)
+{
+    RegisterParameter("max_chunk_tree_rank", MaxChunkTreeRank)
+        .GreaterThan(0)
+        .Default(maxChunkTreeRank);
+    RegisterParameter("min_chunk_list_size", MinChunkListSize)
+        .GreaterThan(0)
+        .Default(minChunkListSize);
+    RegisterParameter("max_chunk_list_size", MaxChunkListSize)
+        .GreaterThan(0)
+        .Default(maxChunkListSize);
+    RegisterParameter("min_chunk_list_to_chunk_ratio", MinChunkListToChunkRatio)
+        .GreaterThan(0)
+        .Default(minChunkListToChunkRatio);
+}
+
+TChunkTreeBalancerSettingsPtr TChunkTreeBalancerSettings::NewWithStrictDefaults()
+{
+    auto result = New<TChunkTreeBalancerSettings>();
+    result->RegisterParameters(32, 1024, 2048, 0.01);
+    return result;
+}
+
+TChunkTreeBalancerSettingsPtr TChunkTreeBalancerSettings::NewWithPermissiveDefaults()
+{
+    auto result = New<TChunkTreeBalancerSettings>();
+    result->RegisterParameters(64, 1024, 4096, 0.05);
+    return result;
+}
+
+TChunkTreeBalancerSettingsPtr TDynamicChunkTreeBalancerConfig::GetSettingsForMode(EChunkTreeBalancerMode mode)
+{
+    switch (mode) {
+        case EChunkTreeBalancerMode::Permissive:
+            return PermissiveSettings;
+        case EChunkTreeBalancerMode::Strict:
+            return StrictSettings;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDynamicAllyReplicaManagerConfig::TDynamicAllyReplicaManagerConfig()
 {
     RegisterParameter("enable_ally_replica_announcement", EnableAllyReplicaAnnouncement)
@@ -364,6 +412,9 @@ TDynamicChunkManagerConfig::TDynamicChunkManagerConfig()
         .Default(TDuration::Minutes(15));
 
     RegisterParameter("data_node_tracker", DataNodeTracker)
+        .DefaultNew();
+
+    RegisterParameter("chunk_tree_balancer", ChunkTreeBalancer)
         .DefaultNew();
 
     RegisterParameter("chunk_merger", ChunkMerger)

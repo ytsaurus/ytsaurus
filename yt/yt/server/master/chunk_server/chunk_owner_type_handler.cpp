@@ -20,6 +20,7 @@
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
 #include <yt/yt/server/master/file_server/file_node.h>
 
@@ -71,7 +72,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const 
     static const THashSet<TString> SupportedInheritableAttributes{
         "compression_codec",
         "erasure_codec",
-        "media",
+        "media"
         "primary_medium",
         "replication_factor",
         "vital",
@@ -406,7 +407,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     if (topmostCommit && !isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
         // Rebalance when the topmost transaction commits.
-        chunkManager->RebalanceChunkTree(newOriginatingChunkList);
+        chunkManager->RebalanceChunkTree(newOriginatingChunkList, EChunkTreeBalancerMode::Permissive);
 
         if (originatingNode->GetChunkMergerMode() != EChunkMergerMode::None) {
             chunkManager->ScheduleChunkMerge(originatingNode);

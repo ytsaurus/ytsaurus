@@ -179,7 +179,7 @@ public:
 
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, NTabletServer::TTablet* tablet);
 
-    void RebalanceChunkTree(TChunkList* chunkList);
+    void RebalanceChunkTree(TChunkList* chunkList, EChunkTreeBalancerMode settingsMode);
 
     void UnstageChunk(TChunk* chunk);
     void UnstageChunkList(TChunkList* chunkList, bool recursive);

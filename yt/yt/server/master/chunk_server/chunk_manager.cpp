@@ -164,6 +164,11 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
+    const TDynamicChunkTreeBalancerConfigPtr& GetConfig() const override
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ChunkTreeBalancer;
+    }
+
     void RefObject(TObject* object) override
     {
         Bootstrap_->GetObjectManager()->RefObject(object);
@@ -1302,10 +1307,11 @@ public:
         }
     }
 
-    void RebalanceChunkTree(TChunkList* chunkList)
+    void RebalanceChunkTree(TChunkList* chunkList, EChunkTreeBalancerMode settingsMode)
     {
-        if (!ChunkTreeBalancer_.IsRebalanceNeeded(chunkList))
+        if (!ChunkTreeBalancer_.IsRebalanceNeeded(chunkList, settingsMode)) {
             return;
+        }
 
         YT_PROFILE_TIMING("/chunk_server/chunk_tree_rebalance_time") {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk tree rebalancing started (RootId: %v)",
@@ -5086,9 +5092,9 @@ TDynamicStore* TChunkManager::CreateDynamicStore(TDynamicStoreId storeId, TTable
     return Impl_->CreateDynamicStore(storeId, tablet);
 }
 
-void TChunkManager::RebalanceChunkTree(TChunkList* chunkList)
+void TChunkManager::RebalanceChunkTree(TChunkList* chunkList, EChunkTreeBalancerMode settingsMode)
 {
-    Impl_->RebalanceChunkTree(chunkList);
+    Impl_->RebalanceChunkTree(chunkList, settingsMode);
 }
 
 void TChunkManager::ClearChunkList(TChunkList* chunkList)

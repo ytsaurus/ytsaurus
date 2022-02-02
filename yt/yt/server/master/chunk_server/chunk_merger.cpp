@@ -1615,6 +1615,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     chunkOwner->SetChunkList(newRootChunkList);
     chunkOwner->SnapshotStatistics() = newRootChunkList->Statistics().ToDataStatistics();
 
+    // TODO(aleksandra-zh): Move to HydraFinalizeChunkMergeSessions?
     if (chunkOwner->IsForeign()) {
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
@@ -1655,6 +1656,30 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         if (result == EMergeSessionResult::TransientFailure || (result == EMergeSessionResult::OK && nodeTouched)) {
             // TODO(shakurov): "RescheduleMerge"?
             ScheduleMerge(nodeId);
+            continue;
+        }
+
+        auto* oldRootChunkList = chunkOwner->GetChunkList();
+        const auto& children = oldRootChunkList->Children();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
+        chunkManager->AttachToChunkList(
+            newRootChunkList,
+            children);
+
+        chunkManager->RebalanceChunkTree(newRootChunkList, EChunkTreeBalancerMode::Strict);
+
+        chunkOwner->SetChunkList(newRootChunkList);
+        newRootChunkList->AddOwningNode(chunkOwner);
+        oldRootChunkList->RemoveOwningNode(chunkOwner);
+        chunkOwner->SnapshotStatistics() = newRootChunkList->Statistics().ToDataStatistics();
+        if (chunkOwner->IsForeign()) {
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            tableManager->ScheduleStatisticsUpdate(
+                chunkOwner,
+                /*updateDataStatistics*/ true,
+                /*updateTabletStatistics*/ false,
+                /*useNativeContentRevisionCas*/ true);
         }
     }
 }

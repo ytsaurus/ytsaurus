@@ -1,8 +1,10 @@
 #include "chunk_tree_balancer.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
+#include "config.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
 #include <stack>
 
@@ -13,19 +15,19 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkTreeBalancer::TChunkTreeBalancer(
-    IChunkTreeBalancerCallbacksPtr callbacks,
-    const TChunkTreeBalancerSettings& settings)
+    IChunkTreeBalancerCallbacksPtr callbacks)
     : Callbacks_(callbacks)
-    , Settings_(settings)
 { }
 
-bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root)
+bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerMode settingsMode)
 {
     if (!root->Parents().Empty()) {
         return false;
     }
 
-    if (std::ssize(root->Children()) > Settings_.MaxChunkListSize) {
+    const auto& settings = GetConfig()->GetSettingsForMode(settingsMode);
+
+    if (std::ssize(root->Children()) > settings->MaxChunkListSize) {
         return true;
     }
 
@@ -35,12 +37,12 @@ bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root)
         return true;
     }
 
-    if (statistics.Rank > Settings_.MaxChunkTreeRank) {
+    if (statistics.Rank > settings->MaxChunkTreeRank) {
         return true;
     }
 
     if (statistics.ChunkListCount > 2 &&
-        statistics.ChunkListCount > statistics.ChunkCount * Settings_.MinChunkListToChunkRatio)
+        statistics.ChunkListCount > statistics.ChunkCount * settings->MinChunkListToChunkRatio)
     {
         return true;
     }
@@ -151,11 +153,12 @@ void TChunkTreeBalancer::AppendChild(
 {
     // Can we reuse the last chunk list?
     bool merge = false;
+    const auto& settings = GetConfig()->GetSettingsForMode(EChunkTreeBalancerMode::Strict);
     if (!children->empty()) {
         auto* lastChild = children->back()->AsChunkList();
-        if (std::ssize(lastChild->Children()) < Settings_.MinChunkListSize) {
-            YT_ASSERT(lastChild->Statistics().Rank <= 1);
-            YT_ASSERT(std::ssize(lastChild->Children()) <= Settings_.MaxChunkListSize);
+        if (std::ssize(lastChild->Children()) < settings->MinChunkListSize) {
+            YT_VERIFY(lastChild->Statistics().Rank <= 1);
+            YT_VERIFY(std::ssize(lastChild->Children()) <= settings->MaxChunkListSize);
             Callbacks_->FlushObjectUnrefs();
             if (Callbacks_->GetObjectRefCounter(lastChild) > 0) {
                 // We want to merge to this chunk list but it is shared.
@@ -173,7 +176,7 @@ void TChunkTreeBalancer::AppendChild(
     if (!merge) {
         if (child->GetType() == EObjectType::ChunkList) {
             auto* chunkList = child->AsChunkList();
-            if (std::ssize(chunkList->Children()) <= Settings_.MaxChunkListSize) {
+            if (std::ssize(chunkList->Children()) <= settings->MaxChunkListSize) {
                 Callbacks_->FlushObjectUnrefs();
                 YT_VERIFY(Callbacks_->GetObjectRefCounter(chunkList) > 0);
                 children->push_back(child);
@@ -200,8 +203,9 @@ void TChunkTreeBalancer::MergeChunkTrees(
     Callbacks_->FlushObjectUnrefs();
     YT_VERIFY(Callbacks_->GetObjectRefCounter(lastChunkList) == 0);
 
-    YT_ASSERT(lastChunkList->Statistics().Rank <= 1);
-    YT_ASSERT(std::ssize(lastChunkList->Children()) < Settings_.MinChunkListSize);
+    YT_VERIFY(lastChunkList->Statistics().Rank <= 1);
+    const auto& settings = GetConfig()->GetSettingsForMode(EChunkTreeBalancerMode::Strict);
+    YT_VERIFY(std::ssize(lastChunkList->Children()) < settings->MinChunkListSize);
 
     switch (child->GetType()) {
         case EObjectType::Chunk:
@@ -213,21 +217,21 @@ void TChunkTreeBalancer::MergeChunkTrees(
 
         case EObjectType::ChunkList: {
             auto* chunkList = child->AsChunkList();
-            if (std::ssize(lastChunkList->Children()) + std::ssize(chunkList->Children()) <= Settings_.MaxChunkListSize) {
+            if (std::ssize(lastChunkList->Children()) + std::ssize(chunkList->Children()) <= settings->MaxChunkListSize) {
                 // Just appending the chunk list to the last chunk list.
                 Callbacks_->AttachToChunkList(lastChunkList, chunkList->Children());
             } else {
                 // The chunk list is too large. We have to copy chunks by blocks.
                 int mergedCount = 0;
                 while (mergedCount < std::ssize(chunkList->Children())) {
-                    if (std::ssize(lastChunkList->Children()) >= Settings_.MinChunkListSize) {
+                    if (std::ssize(lastChunkList->Children()) >= settings->MinChunkListSize) {
                         // The last chunk list is too large. Creating a new one.
-                        YT_ASSERT(std::ssize(lastChunkList->Children()) == Settings_.MinChunkListSize);
+                        YT_VERIFY(std::ssize(lastChunkList->Children()) == settings->MinChunkListSize);
                         lastChunkList = Callbacks_->CreateChunkList();
                         children->push_back(lastChunkList);
                     }
                     int count = std::min(
-                        Settings_.MinChunkListSize - lastChunkList->Children().size(),
+                        settings->MinChunkListSize - lastChunkList->Children().size(),
                         chunkList->Children().size() - mergedCount);
                     Callbacks_->AttachToChunkList(
                         lastChunkList,
@@ -242,6 +246,11 @@ void TChunkTreeBalancer::MergeChunkTrees(
         default:
             YT_ABORT();
     }
+}
+
+const TDynamicChunkTreeBalancerConfigPtr& TChunkTreeBalancer::GetConfig() const
+{
+    return Callbacks_->GetConfig();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

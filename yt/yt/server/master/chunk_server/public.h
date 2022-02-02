@@ -126,6 +126,7 @@ DECLARE_REFCOUNTED_CLASS(TConsistentChunkPlacement)
 
 DECLARE_REFCOUNTED_CLASS(TChunkManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicDataNodeTrackerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicChunkTreeBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkAutotomizerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkMergerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerTestingConfig)
@@ -214,6 +215,14 @@ DEFINE_ENUM(EChunkLocationState,
     ((Online)  (1))
     // Belongs to a node that is online but does not report presence of this location.
     ((Dangling)(2))
+);
+
+DEFINE_ENUM(EChunkTreeBalancerMode,
+    // Strict is considered to be the default mode.
+    ((Strict)           (0))
+    // Permissive mode allows chunk tree to have higher rank,
+    // more chunks per chunk list and higher chunks to chunk lists ratio.
+    ((Permissive)       (1))
 );
 
 using TChunkRepairQueue = std::list<TChunkPtrWithIndexes> ;
