@@ -1920,16 +1920,18 @@ private:
             return nullptr;
         };
 
-        // XXX(eshcherbin): Do we really need a fine-grained preemption reason enum?
-        // I think just "Preemption" would be fine, given we also add an elaborate preemption reason string later.
+        // TODO(eshcherbin): Use a separate tag for specifying preemptive scheduling stage.
+        // Bloating |EJobPreemptionReason| is unwise.
         auto preemptionReason = [&] {
             switch (targetOperationPreemptionPriority) {
                 case EOperationPreemptionPriority::Regular:
-                case EOperationPreemptionPriority::SsdRegular:
                     return EJobPreemptionReason::Preemption;
+                case EOperationPreemptionPriority::SsdRegular:
+                    return EJobPreemptionReason::SsdPreemption;
                 case EOperationPreemptionPriority::Aggressive:
-                case EOperationPreemptionPriority::SsdAggressive:
                     return EJobPreemptionReason::AggressivePreemption;
+                case EOperationPreemptionPriority::SsdAggressive:
+                    return EJobPreemptionReason::SsdAggressivePreemption;
                 default:
                     YT_ABORT();
             }

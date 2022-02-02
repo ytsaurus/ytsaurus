@@ -17,6 +17,8 @@ from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_node_path, scheduler_orchid_default_pool_tree_path,
     scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path)
 
+from yt_helpers import profiler_factory
+
 from yt.packages.six.moves import range
 
 from yt.test_helpers import are_almost_equal
@@ -1261,6 +1263,23 @@ class TestSsdPriorityPreemption(YTEnvSetup):
             },
         })
 
+    def _run_sleeping_vanilla_with_unpreemptable_jobs_at_ssd_nodes(self):
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes:
+            if TestSsdPriorityPreemption.SSD_NODE_TAG in get("//sys/cluster_nodes/{}/@tags".format(node)):
+                set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "tag")
+
+        op = run_sleeping_vanilla(job_count=8, spec={"scheduling_tag_filter": "tag"})
+        wait(lambda: self._get_op_cpu_usage(op) == 4.0)
+
+        time.sleep(0.5)
+        for node in nodes:
+            if TestSsdPriorityPreemption.SSD_NODE_TAG not in get("//sys/cluster_nodes/{}/@tags".format(node)):
+                set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "tag")
+        wait(lambda: self._get_op_cpu_usage(op) == 8.0)
+
+        return op
+
     def _run_sleeping_vanilla_with_ssd(self, **kwargs):
         task_patch = kwargs.pop("task_patch", dict())
         task_patch["disk_request"] = {
@@ -1286,19 +1305,7 @@ class TestSsdPriorityPreemption(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_regular_ssd_priority_preemption(self):
-        nodes = ls("//sys/cluster_nodes")
-        for node in nodes:
-            if TestSsdPriorityPreemption.SSD_NODE_TAG in get("//sys/cluster_nodes/{}/@tags".format(node)):
-                set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "tag")
-
-        blocking_op = run_sleeping_vanilla(job_count=8, spec={"scheduling_tag_filter": "tag"})
-        wait(lambda: self._get_op_cpu_usage(blocking_op) == 4.0)
-
-        time.sleep(0.5)
-        for node in nodes:
-            if TestSsdPriorityPreemption.SSD_NODE_TAG not in get("//sys/cluster_nodes/{}/@tags".format(node)):
-                set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "tag")
-        wait(lambda: self._get_op_cpu_usage(blocking_op) == 8.0)
+        self._run_sleeping_vanilla_with_unpreemptable_jobs_at_ssd_nodes()
 
         op = self._run_sleeping_vanilla_with_ssd(job_count=4)
         wait(lambda: self._get_op_starvation_status(op) == "starving")
@@ -1418,3 +1425,18 @@ class TestSsdPriorityPreemption(YTEnvSetup):
 
         with pytest.raises(YtResponseError):
             update_pool_tree_config_option("default", "ssd_priority_preemption/enable", True)
+
+    @authors("eshcherbin")
+    def test_profiling(self):
+        update_pool_tree_config_option("default", "ssd_priority_preemption/enable", True)
+
+        blocking_op = self._run_sleeping_vanilla_with_unpreemptable_jobs_at_ssd_nodes()
+
+        ssd_preemption_aborted_job_counter = profiler_factory().at_scheduler().counter(
+            "scheduler/pools/preempted_job_resources/cpu",
+            tags={"preemption_reason": "ssd_preemption", "tree": "default", "pool": "root"})
+
+        self._run_sleeping_vanilla_with_ssd()
+        wait(lambda: blocking_op.get_job_count("aborted", verbose=True) > 0)
+
+        wait(lambda: ssd_preemption_aborted_job_counter.get_delta() > 0.0)
