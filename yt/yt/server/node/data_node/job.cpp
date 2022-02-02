@@ -34,6 +34,7 @@
 #include <yt/yt/ytlib/chunk_client/meta_aggregating_writer.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/erasure_adaptive_repair.h>
 #include <yt/yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/yt/ytlib/chunk_client/erasure_part_writer.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -880,15 +881,14 @@ private:
             }
         }
 
+        auto partChunkId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
         if (partReplicas.empty()) {
-            THROW_ERROR_EXCEPTION("No source replicas for part %v",
-                partIndex);
+            return NChunkClient::CreateUnavailablePartReader(partChunkId);
         }
 
         auto options = New<TRemoteReaderOptions>();
         options->AllowFetchingSeedsFromMaster = false;
 
-        auto partChunkId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
         auto reader = CreateReplicationReader(
             Config_->RepairReader,
             options,
@@ -934,6 +934,64 @@ private:
             /* trafficMeter */ nullptr,
             Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::RepairOut));
         return writer;
+    }
+
+    TFuture<void> StartChunkRepairJob(
+        NErasure::ICodec* codec,
+        const NErasure::TPartIndexList& erasedPartIndexes,
+        const TClientChunkReadOptions& chunkReadOptions,
+        const std::vector<IChunkWriterPtr>& writers)
+    {
+        auto adaptiveRepairConfig = GetDynamicConfig();
+
+        if (adaptiveRepairConfig->EnableAutoRepair) {
+            YT_LOG_INFO("Executing adaptive chunk repair (ReplicationReaderSpeedLimitPerSec: %v, "
+                "SlowReaderExpirationTimeout: %v, ReplicationReaderTimeout: %v, ReplicationReaderFailureTimeout: %v)",
+                adaptiveRepairConfig->ReplicationReaderSpeedLimitPerSec,
+                adaptiveRepairConfig->SlowReaderExpirationTimeout,
+                adaptiveRepairConfig->ReplicationReaderTimeout,
+                adaptiveRepairConfig->ReplicationReaderFailureTimeout);
+
+            std::vector<IChunkReaderAllowingRepairPtr> readers;
+            for (int partIndex = 0; partIndex < codec->GetTotalPartCount(); ++partIndex) {
+                readers.push_back(CreateReader(partIndex));
+            }
+            return NChunkClient::AdaptiveRepairErasedParts(
+                ChunkId_,
+                codec,
+                adaptiveRepairConfig,
+                erasedPartIndexes,
+                readers,
+                BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
+                chunkReadOptions,
+                Logger);
+        }
+
+        // Legacy: make single repair attempt.
+        auto repairPartIndexes = codec->GetRepairIndices(erasedPartIndexes);
+        if (!repairPartIndexes) {
+            THROW_ERROR_EXCEPTION("Codec is unable to repair the chunk");
+        }
+
+        NErasure::TPartIndexSet availableReplicas;
+        for (auto replica : SourceReplicas_) {
+            availableReplicas.set(replica.GetReplicaIndex());
+        }
+
+        std::vector<IChunkReaderAllowingRepairPtr> readers;
+        for (int partIndex : *repairPartIndexes) {
+            if (!availableReplicas.test(partIndex)) {
+                THROW_ERROR_EXCEPTION("No source replicas for part %v", partIndex);
+            }
+            readers.push_back(CreateReader(partIndex));
+        }
+
+        return NChunkClient::RepairErasedParts(
+            codec,
+            erasedPartIndexes,
+            readers,
+            writers,
+            chunkReadOptions);
     }
 
     void DoRun() override
@@ -989,22 +1047,11 @@ private:
             auto chunkType = TypeFromId(ChunkId_);
             switch (chunkType) {
                 case EObjectType::ErasureChunk: {
-                    auto repairPartIndexes = codec->GetRepairIndices(erasedPartIndexes);
-                    if (!repairPartIndexes) {
-                        THROW_ERROR_EXCEPTION("Codec is unable to repair the chunk");
-                    }
-
-                    std::vector<IChunkReaderAllowingRepairPtr> readers;
-                    for (int partIndex : *repairPartIndexes) {
-                        readers.push_back(CreateReader(partIndex));
-                    }
-
-                    future = NChunkClient::RepairErasedParts(
+                    future = StartChunkRepairJob(
                         codec,
                         erasedPartIndexes,
-                        readers,
-                        writers,
-                        chunkReadOptions);
+                        chunkReadOptions,
+                        writers);
                     break;
                 }
 
@@ -1034,6 +1081,12 @@ private:
             WaitFor(future)
                 .ThrowOnError();
         }
+    }
+
+    TErasureReaderConfigPtr GetDynamicConfig() const
+    {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        return dynamicConfigManager->GetConfig()->DataNode->AdaptiveChunkRepairJob;
     }
 };
 

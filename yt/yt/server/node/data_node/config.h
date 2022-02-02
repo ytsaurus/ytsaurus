@@ -718,6 +718,8 @@ public:
 
     TDuration IOStatisticsUpdateTimeout;
 
+    NChunkClient::TErasureReaderConfigPtr AdaptiveChunkRepairJob;
+
     TDataNodeDynamicConfig();
 };
 
