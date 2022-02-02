@@ -44,7 +44,9 @@ public enum RpcErrorCode {
     AllWritesDisabled(1703),
     TableMountInfoNotReady(1707),
 
-    OperationProgressOutdated(1911);
+    OperationProgressOutdated(1911),
+
+    NoSuchTransaction(11000);
 
     @SuppressWarnings("checkstyle:VisibilityModifier")
     public final int code;

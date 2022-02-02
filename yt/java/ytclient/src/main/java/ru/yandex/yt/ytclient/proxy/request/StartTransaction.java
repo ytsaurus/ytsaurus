@@ -2,18 +2,26 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
+
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
+import ru.yandex.yt.ytree.TAttributeDictionary;
 
 /**
  * Request for starting transaction.
@@ -44,6 +52,10 @@ public class StartTransaction
     @Nullable Atomicity atomicity;
     @Nullable Durability durability;
     @Nullable Duration pingPeriod = Duration.ofSeconds(5);
+    @Nullable Duration failedPingRetryPeriod;
+    final Map<String, YTreeNode> attributes = new HashMap<>();
+
+    @Nullable Consumer<Exception> onPingFailed;
 
     public StartTransaction(TransactionType type) {
         this(type, type == TransactionType.Tablet);
@@ -130,6 +142,42 @@ public class StartTransaction
     }
 
     /**
+     * Set failed ping retry period.
+     *
+     * If transaction ping fails, it will retry with this period
+     * @see #setPingPeriod
+     */
+    public StartTransaction setFailedPingRetryPeriod(@Nullable Duration failedPingRetryPeriod) {
+        this.failedPingRetryPeriod = failedPingRetryPeriod;
+        return this;
+    }
+
+    /**
+     * Get failed ping retry period.
+     */
+    public Optional<Duration> getFailedPingRetryPeriod() {
+        return Optional.ofNullable(failedPingRetryPeriod);
+    }
+
+    /**
+     * Set operation executed on ping failure
+     *
+     * @param onPingFailed operation, which will be executed
+     */
+    public StartTransaction setOnPingFailed(@Nullable Consumer<Exception> onPingFailed) {
+        this.onPingFailed = onPingFailed;
+        return this;
+    }
+
+    /**
+     * Get operation executed on ping failure.
+     * @see #setOnPingFailed
+     */
+    public Optional<Consumer<Exception>> getOnPingFailed() {
+        return Optional.ofNullable(onPingFailed);
+    }
+
+    /**
      * Set deadline.
      *
      * If deadline is set transaction will be forcefully aborted upon reaching it.
@@ -206,7 +254,7 @@ public class StartTransaction
     /**
      * Set durability of transaction.
      *
-     * By default durability SYNC is used.
+     * By default, durability SYNC is used.
      *
      * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables#sohrannost">
      *     documentation
@@ -246,6 +294,16 @@ public class StartTransaction
         return sticky;
     }
 
+    public StartTransaction setAttributes(@Nonnull Map<String, YTreeNode> attributes) {
+        this.attributes.clear();
+        this.attributes.putAll(attributes);
+        return this;
+    }
+
+    public Map<String, YTreeNode> getAttributes() {
+        return Collections.unmodifiableMap(attributes);
+    }
+
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqStartTransaction.Builder, ?> builder) {
         builder.body().setType(type.getProtoValue());
@@ -274,6 +332,14 @@ public class StartTransaction
         }
         if (durability != null) {
             builder.body().setDurability(durability.getProtoValue());
+        }
+        if (!attributes.isEmpty()) {
+            final TAttributeDictionary.Builder attributesBuilder = builder.body().getAttributesBuilder();
+            for (Map.Entry<String, YTreeNode> entry : attributes.entrySet()) {
+                attributesBuilder.addAttributesBuilder()
+                        .setKey(entry.getKey())
+                        .setValue(ByteString.copyFrom(entry.getValue().toBinary()));
+            }
         }
     }
 
