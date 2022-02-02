@@ -19,6 +19,8 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <library/cpp/yt/exception/exception.h>
+
 #include <util/system/error.h>
 #include <util/system/thread.h>
 
@@ -305,8 +307,14 @@ TError::TErrorOr(TError&& other) noexcept
 
 TError::TErrorOr(const std::exception& ex)
 {
-    const auto* errorEx = dynamic_cast<const TErrorException*>(&ex);
-    if (errorEx) {
+    if (const auto* compositeException = dynamic_cast<const TCompositeException*>(&ex)) {
+        try {
+            std::rethrow_exception(compositeException->GetInnerException());
+        } catch (const std::exception& innerEx) {
+            *this = TError(NYT::EErrorCode::Generic, compositeException->GetMesage())
+                << TError(innerEx);
+        }
+    } else if (const auto* errorEx = dynamic_cast<const TErrorException*>(&ex)) {
         *this = errorEx->Error();
     } else {
         *this = TError(NYT::EErrorCode::Generic, ex.what());

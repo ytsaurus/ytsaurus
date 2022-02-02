@@ -81,14 +81,44 @@ TEST(TErrorTest, TruncateLarge)
 {
     auto error = TError("Some long long error");
     error.MutableAttributes()->Set("my_attr", "Some long long attr");
-    
+
     auto truncatedError = error.Truncate(/*maxInnerErrorCount*/ 2, /*stringLimit*/ 10);
     EXPECT_EQ(error.GetCode(), truncatedError.GetCode());
     EXPECT_EQ("Some long ...<message truncated>", truncatedError.GetMessage());
     EXPECT_EQ("...<attribute truncated>...", truncatedError.Attributes().Get<TString>("my_attr"));
 }
 
+TEST(TErrorTest, YTExceptionToError)
+{
+    try {
+        throw TSimpleException("message");
+    } catch (const std::exception& ex) {
+        TError error(ex);
+        EXPECT_EQ(NYT::EErrorCode::Generic, error.GetCode());
+        EXPECT_EQ("message", error.GetMessage());
+    }
+}
+
+TEST(TErrorTest, CompositeYTExceptionToError)
+{
+    try {
+        try {
+            throw TSimpleException("inner message");
+        } catch (const std::exception& ex) {
+            throw TCompositeException(ex, "outer message");
+        }
+    } catch (const std::exception& ex) {
+        TError outerError(ex);
+        EXPECT_EQ(NYT::EErrorCode::Generic, outerError.GetCode());
+        EXPECT_EQ("outer message", outerError.GetMessage());
+        EXPECT_EQ(1, std::ssize(outerError.InnerErrors()));
+        const auto& innerError = outerError.InnerErrors()[0];
+        EXPECT_EQ(NYT::EErrorCode::Generic, innerError.GetCode());
+        EXPECT_EQ("inner message", innerError.GetMessage());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace
 } // namespace NYT
