@@ -110,6 +110,8 @@ DEFINE_ENUM(EJobSchedulingStage,
 DEFINE_ENUM(EJobPreemptionReason,
     (Preemption)
     (AggressivePreemption)
+    (SsdPreemption)
+    (SsdAggressivePreemption)
     (GracefulPreemption)
     (ResourceOvercommit)
     (ResourceLimitsViolated)
