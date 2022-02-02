@@ -674,9 +674,19 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
 
     RegisterParameter("chunk_autotomizer", ChunkAutotomizer)
         .DefaultNew();
-    
+
     RegisterParameter("io_statistics_update_timeout", IOStatisticsUpdateTimeout)
         .Default(TDuration::Seconds(10));
+
+    RegisterParameter("adaptive_chunk_repair_job", AdaptiveChunkRepairJob)
+        .Optional();
+
+    RegisterPostprocessor([&] {
+        if (!AdaptiveChunkRepairJob) {
+            AdaptiveChunkRepairJob = New<NChunkClient::TErasureReaderConfig>();
+            AdaptiveChunkRepairJob->EnableAutoRepair = false;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

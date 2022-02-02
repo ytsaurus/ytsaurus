@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
-    remove, exists,
+    remove, exists, update_nodes_dynamic_config,
     insert_rows, lookup_rows, write_file, read_table, write_table, map, sort,
     sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table,
     get_singular_chunk_id, set_node_banned, set_banned_flag, create_dynamic_table, raises_yt_error)
@@ -259,7 +259,15 @@ class TestErasure(TestErasureBase):
     def test_repair_on_spot_failed(self, erasure_codec):
         self._test_repair_on_spot(False, erasure_codec)
 
-    def _test_repair(self, codec, replica_count, data_replica_count):
+    def _test_repair(self, codec, replica_count, data_replica_count, adaptive_repair):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "adaptive_chunk_repair_job": {
+                    "enable_auto_repair": adaptive_repair,
+                },
+            }
+        })
+
         remove("//tmp/table", force=True)
         create("table", "//tmp/table")
         set("//tmp/table/@erasure_codec", codec)
@@ -282,24 +290,29 @@ class TestErasure(TestErasureBase):
             set_node_banned(r, False)
 
     @authors("ignat")
-    def test_reed_solomon_6_3_repair(self):
-        self._test_repair("reed_solomon_6_3", 9, 6)
+    @pytest.mark.parametrize("adaptive_repair", [False, True])
+    def test_reed_solomon_6_3_repair(self, adaptive_repair):
+        self._test_repair("reed_solomon_6_3", 9, 6, adaptive_repair)
 
     @authors("psushin", "ignat")
-    def test_lrc_repair(self):
-        self._test_repair("lrc_12_2_2", 16, 12)
+    @pytest.mark.parametrize("adaptive_repair", [False, True])
+    def test_lrc_repair(self, adaptive_repair):
+        self._test_repair("lrc_12_2_2", 16, 12, adaptive_repair)
 
     @authors("akozhikhov")
-    def test_reed_solomon_3_3_repair(self):
-        self._test_repair("reed_solomon_3_3", 6, 3)
+    @pytest.mark.parametrize("adaptive_repair", [False, True])
+    def test_reed_solomon_3_3_repair(self, adaptive_repair):
+        self._test_repair("reed_solomon_3_3", 6, 3, adaptive_repair)
 
     @authors("akozhikhov")
-    def test_isa_reed_solomon_6_3_repair(self):
-        self._test_repair("isa_reed_solomon_6_3", 9, 6)
+    @pytest.mark.parametrize("adaptive_repair", [False, True])
+    def test_isa_reed_solomon_6_3_repair(self, adaptive_repair):
+        self._test_repair("isa_reed_solomon_6_3", 9, 6, adaptive_repair)
 
     @authors("akozhikhov")
-    def test_isa_lrc_repair(self):
-        self._test_repair("isa_lrc_12_2_2", 16, 12)
+    @pytest.mark.parametrize("adaptive_repair", [False, True])
+    def test_isa_lrc_repair(self, adaptive_repair):
+        self._test_repair("isa_lrc_12_2_2", 16, 12, adaptive_repair)
 
     @authors("psushin", "ignat")
     def test_map(self):

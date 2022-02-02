@@ -105,6 +105,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Creates dummy object that returns error on reading attempt.
+IChunkReaderAllowingRepairPtr CreateUnavailablePartReader(TChunkId chunkId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient
 
 #define ERASURE_ADAPTIVE_REPAIR_INL_H_

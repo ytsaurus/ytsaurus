@@ -2,6 +2,9 @@
 
 #include <yt/yt/client/chunk_client/config.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_reader_allowing_repair.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -181,6 +184,68 @@ NErasure::TPartIndexList TAdaptiveErasureRepairingSession::ToReadersIndexList(NE
         }
     }
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnavailablePartReader
+    : public IChunkReaderAllowingRepair
+{
+public:
+    TUnavailablePartReader(TChunkId chunkId)
+        : ChunkId_(chunkId)
+    { }
+
+    TFuture<TRefCountedChunkMetaPtr> GetMeta(
+        const TClientChunkReadOptions& /*options*/,
+        std::optional<int> /*partitionTag*/,
+        const std::optional<std::vector<int>>& /*extensionTag*/) override
+    {
+        return MakeFuture<TRefCountedChunkMetaPtr>(MakeError());
+    }
+
+    TChunkId GetChunkId() const override
+    {
+        return ChunkId_;
+    }
+
+    TFuture<std::vector<TBlock>> ReadBlocks(
+        const TClientChunkReadOptions& /*options*/,
+        const std::vector<int>& /*blockIndices*/,
+        std::optional<i64> /*estimatedSize*/) override
+    {
+        return MakeFuture<std::vector<TBlock>>(MakeError());
+    }
+
+    TFuture<std::vector<TBlock>> ReadBlocks(
+        const TClientChunkReadOptions& /*options*/,
+        int /*firstblockIndex*/,
+        int /*blockCount*/,
+        std::optional<i64> /*estimatedSize*/) override
+    {
+        return MakeFuture<std::vector<TBlock>>(MakeError());
+    }
+
+    TInstant GetLastFailureTime() const override
+    {
+        return TInstant::Now();
+    }
+
+    void SetSlownessChecker(TCallback<TError(i64, TDuration)> /*slownessChecker*/) override
+    { }
+
+    static TError MakeError()
+    {
+        return TError("Part is unavailable");
+    }
+
+private:
+    TChunkId ChunkId_;
+};
+
+IChunkReaderAllowingRepairPtr CreateUnavailablePartReader(TChunkId chunkId)
+{
+    return New<TUnavailablePartReader>(chunkId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
