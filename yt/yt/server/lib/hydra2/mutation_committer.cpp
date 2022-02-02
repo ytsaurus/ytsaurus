@@ -439,7 +439,7 @@ void TLeaderCommitter::DrainQueue()
 {
     auto popMutationQueue = [&] () {
         const auto& mutation = MutationQueue_.front();
-        MutationQueueDataSize_ += sizeof(mutation) + mutation->SerializedMutation.Size();
+        MutationQueueDataSize_ -= sizeof(mutation) + mutation->SerializedMutation.Size();
         MutationQueue_.pop_front();
     };
 
