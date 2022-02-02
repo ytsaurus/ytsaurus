@@ -2639,19 +2639,20 @@ def get_first_chunk_id(path, **kwargs):
     return get(path + "/@chunk_ids/0", **kwargs)
 
 
-def get_applied_node_dynamic_config(node):
-    return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/applied_config".format(node))
+def get_applied_node_dynamic_config(node, driver=None):
+    return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/applied_config".format(node),
+               driver=driver)
 
 
 # Implements config.update(new_config) for dynamic nodes config and waits for config apply
 # assuming the only nodes config filter is `%true`.
-def update_nodes_dynamic_config(new_config):
-    current_config = get("//sys/cluster_nodes/@config")
+def update_nodes_dynamic_config(new_config, driver=None):
+    current_config = get("//sys/cluster_nodes/@config", driver=driver)
     current_config["%true"].update(new_config)
-    set("//sys/cluster_nodes/@config", current_config)
+    set("//sys/cluster_nodes/@config", current_config, driver=driver)
 
-    for node in ls("//sys/cluster_nodes"):
-        wait(lambda: get_applied_node_dynamic_config(node) == current_config["%true"])
+    for node in ls("//sys/cluster_nodes", driver=driver):
+        wait(lambda: get_applied_node_dynamic_config(node, driver) == current_config["%true"])
 
 
 def update_controller_agent_config(path, value, wait_for_update=True):
