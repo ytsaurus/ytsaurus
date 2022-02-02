@@ -30,7 +30,9 @@ struct IInstanceLauncher
     virtual void SetStdOut(const TString& outPath) = 0;
     virtual void SetStdErr(const TString& errorPath) = 0;
     virtual void SetCwd(const TString& pwd) = 0;
-    virtual void SetCoreDumpHandler(const TString& handler) = 0;
+
+    // Null core dump handler implies disabled core dumps.
+    virtual void SetCoreDumpHandler(const std::optional<TString>& handler) = 0;
     virtual void SetRoot(const TRootFS& rootFS) = 0;
 
     virtual void SetThreadLimit(i64 threadLimit) = 0;

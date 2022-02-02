@@ -8,6 +8,9 @@ TTcpDispatcherConfig::TTcpDispatcherConfig()
 {
     RegisterParameter("thread_pool_size", ThreadPoolSize)
         .Default(8);
+
+    RegisterParameter("network_bandwidth", NetworkBandwidth)
+        .Default(std::nullopt);
 }
 
 TTcpDispatcherConfigPtr TTcpDispatcherConfig::ApplyDynamic(

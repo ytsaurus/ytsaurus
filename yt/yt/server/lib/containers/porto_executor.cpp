@@ -481,12 +481,19 @@ private:
             }
         }
 
+        {
+            auto* ulimit = portoSpec.mutable_ulimit()->add_ulimit();
+            ulimit->set_type("core");
+            if (spec.EnableCoreDumps) {
+                ulimit->set_unlimited(true);
+            } else {
+                ulimit->set_hard(0);
+                ulimit->set_soft(0);
+            }
+        }
+
         // Set some universal defaults.
         portoSpec.set_oom_is_fatal(false);
-
-        auto* ulimit = portoSpec.mutable_ulimit()->add_ulimit();
-        ulimit->set_type("core");
-        ulimit->set_unlimited(true);
 
         ExecuteApiCall(
             [&] { return Api_->CreateFromSpec(portoSpec, {}, start); },

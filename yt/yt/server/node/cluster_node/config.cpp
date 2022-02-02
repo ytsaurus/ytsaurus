@@ -390,6 +390,10 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         if (!config->MasterConnector->SyncDirectoriesOnConnect) {
             config->MasterConnector->SyncDirectoriesOnConnect = config->DataNode->SyncDirectoriesOnConnect;
         }
+
+        if (!config->TcpDispatcher->NetworkBandwidth) {
+            config->TcpDispatcher->NetworkBandwidth = config->NetworkBandwidth;
+        }
     });
 }
 
