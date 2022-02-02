@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
@@ -41,9 +41,8 @@ import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcError;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
@@ -63,10 +62,12 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     private final boolean sticky;
     private final TransactionalOptions transactionalOptions;
     private final Duration pingPeriod;
+    private final Duration failedPingRetryPeriod;
     private final ScheduledExecutorService executor;
     private final CompletableFuture<Void> transactionCompleteFuture = new CompletableFuture<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.ACTIVE);
     private final AbstractQueue<CompletableFuture<Void>> modifyRowsResults = new ConcurrentLinkedQueue<>();
+    private final Consumer<Exception> onPingFailed;
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     ApiServiceTransaction(
@@ -79,6 +80,33 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
             Duration pingPeriod,
             ScheduledExecutorService executor
     ) {
+        this(
+                client,
+                id,
+                startTimestamp,
+                ping,
+                pingAncestors,
+                sticky,
+                pingPeriod,
+                null,
+                executor,
+                null
+        );
+    }
+
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    ApiServiceTransaction(
+            ApiServiceClientImpl client,
+            GUID id,
+            YtTimestamp startTimestamp,
+            boolean ping,
+            boolean pingAncestors,
+            boolean sticky,
+            Duration pingPeriod,
+            Duration failedPingRetryPeriod,
+            ScheduledExecutorService executor,
+            Consumer<Exception> onPingFailed
+    ) {
         this.client = client;
         this.id = Objects.requireNonNull(id);
         this.startTimestamp = Objects.requireNonNull(startTimestamp);
@@ -86,36 +114,13 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         this.sticky = sticky;
         this.transactionalOptions = new TransactionalOptions(id, sticky);
         this.pingPeriod = pingPeriod;
+        this.failedPingRetryPeriod = isValidPingPeriod(failedPingRetryPeriod) ? failedPingRetryPeriod : pingPeriod;
         this.executor = executor;
+        this.onPingFailed = onPingFailed;
 
-        if (pingPeriod != null && !pingPeriod.isZero() && !pingPeriod.isNegative()) {
+        if (isValidPingPeriod(pingPeriod)) {
             executor.schedule(this::runPeriodicPings, pingPeriod.toMillis(), TimeUnit.MILLISECONDS);
         }
-    }
-
-    @SuppressWarnings("checkstyle:ParameterNumber")
-    ApiServiceTransaction(
-            RpcClient rpcClient,
-            RpcOptions rpcOptions,
-            GUID id,
-            YtTimestamp startTimestamp,
-            boolean ping,
-            boolean pingAncestors,
-            boolean sticky,
-            Duration pingPeriod,
-            ScheduledExecutorService executor,
-            Executor heavyExecutor
-    ) {
-        this(
-                new ApiServiceClientImpl(Objects.requireNonNull(rpcClient), rpcOptions, heavyExecutor),
-                id,
-                startTimestamp,
-                ping,
-                pingAncestors,
-                sticky,
-                pingPeriod,
-                executor
-        );
     }
 
 
@@ -164,16 +169,27 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         }
 
         ping().whenComplete((unused, ex) -> {
-            final int noSuchTransactionCode = 11000;
-            if (ex instanceof RpcError) {
-                if (((RpcError) ex).matches(noSuchTransactionCode)) {
-                    return;
+            long nextPingDelayMs;
+
+            if (ex == null) {
+                nextPingDelayMs = pingPeriod.toMillis();
+            } else {
+                nextPingDelayMs = failedPingRetryPeriod.toMillis();
+
+                if (onPingFailed != null) {
+                    onPingFailed.accept(ex instanceof Exception ? (Exception) ex : new RuntimeException(ex));
+                }
+                if (ex instanceof RpcError) {
+                    if (((RpcError) ex).matches(RpcErrorCode.NoSuchTransaction.getCode())) {
+                        return;
+                    }
                 }
             }
+
             if (!isPingableState()) {
                 return;
             }
-            executor.schedule(this::runPeriodicPings, pingPeriod.toMillis(), TimeUnit.MILLISECONDS);
+            executor.schedule(this::runPeriodicPings, nextPingDelayMs, TimeUnit.MILLISECONDS);
         });
     }
 
@@ -394,5 +410,9 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     @Nullable
     String getRpcProxyAddress() {
         return client.getRpcProxyAddress();
+    }
+
+    private static boolean isValidPingPeriod(Duration pingPeriod) {
+        return pingPeriod != null && !pingPeriod.isZero() && !pingPeriod.isNegative();
     }
 }
