@@ -31,7 +31,7 @@ TReadFileCommand::TReadFileCommand()
 
 void TReadFileCommand::DoExecute(ICommandContextPtr context)
 {
-    Options.Config = UpdateYsonSerializable(
+    Options.Config = UpdateYsonStruct(
         context->GetConfig()->FileReader,
         FileReader);
 
@@ -93,7 +93,7 @@ TWriteFileCommand::TWriteFileCommand()
 
 void TWriteFileCommand::DoExecute(ICommandContextPtr context)
 {
-    Options.Config = UpdateYsonSerializable(
+    Options.Config = UpdateYsonStruct(
         context->GetConfig()->FileWriter,
         FileWriter);
     Options.ComputeMD5 = ComputeMD5;

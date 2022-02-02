@@ -227,7 +227,7 @@ void TUserJobWriteController::Init()
             ? ioConfig->DynamicTableWriter
             : ioConfig->TableWriter;
         if (outputSpec.has_table_writer_config()) {
-            writerConfig = UpdateYsonSerializable(
+            writerConfig = UpdateYsonStruct(
                 writerConfig,
                 ConvertTo<INodePtr>(TYsonString(outputSpec.table_writer_config())));
         }

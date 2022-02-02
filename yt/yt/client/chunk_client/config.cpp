@@ -6,208 +6,208 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFetchChunkSpecConfig::TFetchChunkSpecConfig()
+void TFetchChunkSpecConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+    registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)
         .GreaterThan(0)
         .Default(100000);
-    RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+    registrar.Parameter("max_chunks_per_locate_request", &TThis::MaxChunksPerLocateRequest)
         .GreaterThan(0)
         .Default(10000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFetcherConfig::TFetcherConfig()
+void TFetcherConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
+    registrar.Parameter("node_rpc_timeout", &TThis::NodeRpcTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("node_ban_duration", NodeBanDuration)
+    registrar.Parameter("node_ban_duration", &TThis::NodeBanDuration)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("backoff_time", BackoffTime)
+    registrar.Parameter("backoff_time", &TThis::BackoffTime)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("max_chunks_per_node_fetch", MaxChunksPerNodeFetch)
+    registrar.Parameter("max_chunks_per_node_fetch", &TThis::MaxChunksPerNodeFetch)
         .Default(300);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockReordererConfig::TBlockReordererConfig()
+void TBlockReordererConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_block_reordering", EnableBlockReordering)
+    registrar.Parameter("enable_block_reordering", &TThis::EnableBlockReordering)
         .Default(false);
 
-    RegisterParameter("shuffle_blocks", ShuffleBlocks)
+    registrar.Parameter("shuffle_blocks", &TThis::ShuffleBlocks)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkSliceFetcherConfig::TChunkSliceFetcherConfig()
+void TChunkSliceFetcherConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_slices_per_fetch", MaxSlicesPerFetch)
+    registrar.Parameter("max_slices_per_fetch", &TThis::MaxSlicesPerFetch)
         .GreaterThan(0)
         .Default(10'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEncodingWriterConfig::TEncodingWriterConfig()
+void TEncodingWriterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("encode_window_size", EncodeWindowSize)
+    registrar.Parameter("encode_window_size", &TThis::EncodeWindowSize)
         .Default(16_MB)
         .GreaterThan(0);
-    RegisterParameter("default_compression_ratio", DefaultCompressionRatio)
+    registrar.Parameter("default_compression_ratio", &TThis::DefaultCompressionRatio)
         .Default(0.2);
-    RegisterParameter("verify_compression", VerifyCompression)
+    registrar.Parameter("verify_compression", &TThis::VerifyCompression)
         .Default(true);
-    RegisterParameter("compute_checksum", ComputeChecksum)
+    registrar.Parameter("compute_checksum", &TThis::ComputeChecksum)
         .Default(true);
-    RegisterParameter("compression_concurrency", CompressionConcurrency)
+    registrar.Parameter("compression_concurrency", &TThis::CompressionConcurrency)
         .Default(1)
         .GreaterThan(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicationReaderConfig::TReplicationReaderConfig()
+void TReplicationReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
+    registrar.Parameter("block_rpc_timeout", &TThis::BlockRpcTimeout)
         .Default(TDuration::Seconds(120));
-    RegisterParameter("block_rpc_hedging_delay", BlockRpcHedgingDelay)
+    registrar.Parameter("block_rpc_hedging_delay", &TThis::BlockRpcHedgingDelay)
         .Default();
-    RegisterParameter("cancel_primary_block_rpc_request_on_hedging", CancelPrimaryBlockRpcRequestOnHedging)
+    registrar.Parameter("cancel_primary_block_rpc_request_on_hedging", &TThis::CancelPrimaryBlockRpcRequestOnHedging)
         .Default(false);
-    RegisterParameter("lookup_rpc_timeout", LookupRpcTimeout)
+    registrar.Parameter("lookup_rpc_timeout", &TThis::LookupRpcTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("meta_rpc_timeout", MetaRpcTimeout)
+    registrar.Parameter("meta_rpc_timeout", &TThis::MetaRpcTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("meta_rpc_hedging_delay", MetaRpcHedgingDelay)
+    registrar.Parameter("meta_rpc_hedging_delay", &TThis::MetaRpcHedgingDelay)
         .Default();
-    RegisterParameter("probe_rpc_timeout", ProbeRpcTimeout)
+    registrar.Parameter("probe_rpc_timeout", &TThis::ProbeRpcTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("probe_peer_count", ProbePeerCount)
+    registrar.Parameter("probe_peer_count", &TThis::ProbePeerCount)
         .Default(3)
         .GreaterThan(0);
-    RegisterParameter("seeds_timeout", SeedsTimeout)
+    registrar.Parameter("seeds_timeout", &TThis::SeedsTimeout)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("retry_count", RetryCount)
+    registrar.Parameter("retry_count", &TThis::RetryCount)
         .Default(20);
-    RegisterParameter("fail_on_no_seeds", FailOnNoSeeds)
+    registrar.Parameter("fail_on_no_seeds", &TThis::FailOnNoSeeds)
         .Default(false);
-    RegisterParameter("min_backoff_time", MinBackoffTime)
+    registrar.Parameter("min_backoff_time", &TThis::MinBackoffTime)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("max_backoff_time", MaxBackoffTime)
+    registrar.Parameter("max_backoff_time", &TThis::MaxBackoffTime)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("backoff_time_multiplier", BackoffTimeMultiplier)
+    registrar.Parameter("backoff_time_multiplier", &TThis::BackoffTimeMultiplier)
         .GreaterThan(1)
         .Default(1.5);
-    RegisterParameter("pass_count", PassCount)
+    registrar.Parameter("pass_count", &TThis::PassCount)
         .Default(500);
-    RegisterParameter("fetch_from_peers", FetchFromPeers)
+    registrar.Parameter("fetch_from_peers", &TThis::FetchFromPeers)
         .Default(true);
-    RegisterParameter("peer_expiration_timeout", PeerExpirationTimeout)
+    registrar.Parameter("peer_expiration_timeout", &TThis::PeerExpirationTimeout)
         .Default(TDuration::Seconds(300));
-    RegisterParameter("populate_cache", PopulateCache)
+    registrar.Parameter("populate_cache", &TThis::PopulateCache)
         .Default(true);
-    RegisterParameter("prefer_local_host", PreferLocalHost)
+    registrar.Parameter("prefer_local_host", &TThis::PreferLocalHost)
         .Default(false);
-    RegisterParameter("prefer_local_rack", PreferLocalRack)
+    registrar.Parameter("prefer_local_rack", &TThis::PreferLocalRack)
         .Default(false);
-    RegisterParameter("prefer_local_data_center", PreferLocalDataCenter)
+    registrar.Parameter("prefer_local_data_center", &TThis::PreferLocalDataCenter)
         .Default(true);
-    RegisterParameter("max_ban_count", MaxBanCount)
+    registrar.Parameter("max_ban_count", &TThis::MaxBanCount)
         .Default(5);
-    RegisterParameter("disk_queue_size_factor", DiskQueueSizeFactor)
+    registrar.Parameter("disk_queue_size_factor", &TThis::DiskQueueSizeFactor)
         .Default(1.0);
-    RegisterParameter("net_queue_size_factor", NetQueueSizeFactor)
+    registrar.Parameter("net_queue_size_factor", &TThis::NetQueueSizeFactor)
         .Default(0.5);
-    RegisterParameter("enable_workload_fifo_scheduling", EnableWorkloadFifoScheduling)
+    registrar.Parameter("enable_workload_fifo_scheduling", &TThis::EnableWorkloadFifoScheduling)
         .Default(true);
-    RegisterParameter("retry_timeout", RetryTimeout)
+    registrar.Parameter("retry_timeout", &TThis::RetryTimeout)
         .Default(TDuration::Minutes(3));
-    RegisterParameter("session_timeout", SessionTimeout)
+    registrar.Parameter("session_timeout", &TThis::SessionTimeout)
         .Default(TDuration::Minutes(20));
-    RegisterParameter("lookup_sleep_duration", LookupSleepDuration)
+    registrar.Parameter("lookup_sleep_duration", &TThis::LookupSleepDuration)
         .Default(TDuration::MilliSeconds(25));
-    RegisterParameter("single_pass_iteration_limit_for_lookup", SinglePassIterationLimitForLookup)
+    registrar.Parameter("single_pass_iteration_limit_for_lookup", &TThis::SinglePassIterationLimitForLookup)
         .Default(2);
-    RegisterParameter("lookup_request_peer_count", LookupRequestPeerCount)
+    registrar.Parameter("lookup_request_peer_count", &TThis::LookupRequestPeerCount)
         .GreaterThan(0)
         .Default(5);
-    RegisterParameter("lookup_request_pass_count", LookupRequestPassCount)
+    registrar.Parameter("lookup_request_pass_count", &TThis::LookupRequestPassCount)
         .GreaterThan(0)
         .Default(10);
-    RegisterParameter("lookup_request_retry_count", LookupRequestRetryCount)
+    registrar.Parameter("lookup_request_retry_count", &TThis::LookupRequestRetryCount)
         .GreaterThan(0)
         .Default(5);
-    RegisterParameter("use_async_block_cache", UseAsyncBlockCache)
+    registrar.Parameter("use_async_block_cache", &TThis::UseAsyncBlockCache)
         .Default(false);
-    RegisterParameter("use_block_cache", UseBlockCache)
+    registrar.Parameter("use_block_cache", &TThis::UseBlockCache)
         .Default(true);
-    RegisterParameter("suspicious_node_grace_period", SuspiciousNodeGracePeriod)
+    registrar.Parameter("suspicious_node_grace_period", &TThis::SuspiciousNodeGracePeriod)
         .Default();
-    RegisterParameter("prolonged_discard_seeds_delay", ProlongedDiscardSeedsDelay)
+    registrar.Parameter("prolonged_discard_seeds_delay", &TThis::ProlongedDiscardSeedsDelay)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("enable_chunk_meta_cache", EnableChunkMetaCache)
+    registrar.Parameter("enable_chunk_meta_cache", &TThis::EnableChunkMetaCache)
         .Default(true);
-    RegisterParameter("ban_peers_permanently", BanPeersPermanently)
+    registrar.Parameter("ban_peers_permanently", &TThis::BanPeersPermanently)
         .Default(true);
-    RegisterParameter("enable_local_throttling", EnableLocalThrottling)
+    registrar.Parameter("enable_local_throttling", &TThis::EnableLocalThrottling)
         .Default(false);
 
-    RegisterPostprocessor([&] {
+    registrar.Postprocessor([] (TThis* config) {
         // Seems unreasonable to make backoff greater than half of total session timeout.
-        MaxBackoffTime = std::min(MaxBackoffTime, SessionTimeout / 2);
-        RetryTimeout = std::min(RetryTimeout, SessionTimeout);
+        config->MaxBackoffTime = std::min(config->MaxBackoffTime, config->SessionTimeout / 2);
+        config->RetryTimeout = std::min(config->RetryTimeout, config->SessionTimeout);
 
         // Rpc timeout should not exceed session timeout.
-        BlockRpcTimeout = std::min(BlockRpcTimeout, RetryTimeout);
-        LookupRpcTimeout = std::min(LookupRpcTimeout, RetryTimeout);
-        MetaRpcTimeout = std::min(MetaRpcTimeout, RetryTimeout);
-        ProbeRpcTimeout = std::min(ProbeRpcTimeout, RetryTimeout);
+        config->BlockRpcTimeout = std::min(config->BlockRpcTimeout, config->RetryTimeout);
+        config->LookupRpcTimeout = std::min(config->LookupRpcTimeout, config->RetryTimeout);
+        config->MetaRpcTimeout = std::min(config->MetaRpcTimeout, config->RetryTimeout);
+        config->ProbeRpcTimeout = std::min(config->ProbeRpcTimeout, config->RetryTimeout);
 
         // These are supposed to be not greater than PassCount and RetryCount.
-        LookupRequestPassCount = std::min(LookupRequestPassCount, PassCount);
-        LookupRequestRetryCount = std::min(LookupRequestRetryCount, RetryCount);
+        config->LookupRequestPassCount = std::min(config->LookupRequestPassCount, config->PassCount);
+        config->LookupRequestRetryCount = std::min(config->LookupRequestRetryCount, config->RetryCount);
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErasureReaderConfig::TErasureReaderConfig()
+void TErasureReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_auto_repair", EnableAutoRepair)
+    registrar.Parameter("enable_auto_repair", &TThis::EnableAutoRepair)
         .Default(true);
-    RegisterParameter("replication_reader_speed_limit_per_sec", ReplicationReaderSpeedLimitPerSec)
+    registrar.Parameter("replication_reader_speed_limit_per_sec", &TThis::ReplicationReaderSpeedLimitPerSec)
         .Default(5_MB);
-    RegisterParameter("slow_reader_expiration_timeout", SlowReaderExpirationTimeout)
+    registrar.Parameter("slow_reader_expiration_timeout", &TThis::SlowReaderExpirationTimeout)
         .Default(TDuration::Minutes(2));
-    RegisterParameter("replication_reader_timeout", ReplicationReaderTimeout)
+    registrar.Parameter("replication_reader_timeout", &TThis::ReplicationReaderTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("replication_reader_failure_timeout", ReplicationReaderFailureTimeout)
+    registrar.Parameter("replication_reader_failure_timeout", &TThis::ReplicationReaderFailureTimeout)
         .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockFetcherConfig::TBlockFetcherConfig()
+void TBlockFetcherConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("window_size", WindowSize)
+    registrar.Parameter("window_size", &TThis::WindowSize)
         .Default(20_MB)
         .GreaterThan(0);
-    RegisterParameter("group_size", GroupSize)
+    registrar.Parameter("group_size", &TThis::GroupSize)
         .Default(15_MB)
         .GreaterThan(0);
 
-    RegisterParameter("use_uncompressed_block_cache", UseUncompressedBlockCache)
+    registrar.Parameter("use_uncompressed_block_cache", &TThis::UseUncompressedBlockCache)
         .Default(true);
 
-    RegisterPostprocessor([&] {
-        if (GroupSize > WindowSize) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->GroupSize > config->WindowSize) {
             THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
         }
     });
@@ -215,19 +215,19 @@ TBlockFetcherConfig::TBlockFetcherConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMultiChunkReaderConfig::TMultiChunkReaderConfig()
+void TMultiChunkReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_buffer_size", MaxBufferSize)
+    registrar.Parameter("max_buffer_size", &TThis::MaxBufferSize)
         .GreaterThan(0L)
         .LessThanOrEqual(10_GB)
         .Default(100_MB);
-    RegisterParameter("max_parallel_readers", MaxParallelReaders)
+    registrar.Parameter("max_parallel_readers", &TThis::MaxParallelReaders)
         .GreaterThanOrEqual(1)
         .LessThanOrEqual(1000)
         .Default(512);
 
-    RegisterPostprocessor([&] () {
-        if (MaxBufferSize < 2 * WindowSize) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MaxBufferSize < 2 * config->WindowSize) {
             THROW_ERROR_EXCEPTION("\"max_buffer_size\" cannot be less than twice \"window_size\"");
         }
     });
@@ -235,65 +235,65 @@ TMultiChunkReaderConfig::TMultiChunkReaderConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicationWriterConfig::TReplicationWriterConfig()
+void TReplicationWriterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("send_window_size", SendWindowSize)
+    registrar.Parameter("send_window_size", &TThis::SendWindowSize)
         .Default(32_MB)
         .GreaterThan(0);
-    RegisterParameter("group_size", GroupSize)
+    registrar.Parameter("group_size", &TThis::GroupSize)
         .Default(10_MB)
         .GreaterThan(0);
-    RegisterParameter("node_channel", NodeChannel)
+    registrar.Parameter("node_channel", &TThis::NodeChannel)
         .DefaultNew();
-    RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
+    registrar.Parameter("node_rpc_timeout", &TThis::NodeRpcTimeout)
         .Default(TDuration::Seconds(300));
-    RegisterParameter("upload_replication_factor", UploadReplicationFactor)
+    registrar.Parameter("upload_replication_factor", &TThis::UploadReplicationFactor)
         .GreaterThanOrEqual(1)
         .Default(2);
-    RegisterParameter("ban_failed_nodes", BanFailedNodes)
+    registrar.Parameter("ban_failed_nodes", &TThis::BanFailedNodes)
         .Default(true);
-    RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
+    registrar.Parameter("min_upload_replication_factor", &TThis::MinUploadReplicationFactor)
         .Default(2)
         .GreaterThanOrEqual(1);
-    RegisterParameter("direct_upload_node_count", DirectUploadNodeCount)
+    registrar.Parameter("direct_upload_node_count", &TThis::DirectUploadNodeCount)
         .Default();
-    RegisterParameter("prefer_local_host", PreferLocalHost)
+    registrar.Parameter("prefer_local_host", &TThis::PreferLocalHost)
         .Default(true);
-    RegisterParameter("node_ping_interval", NodePingPeriod)
+    registrar.Parameter("node_ping_interval", &TThis::NodePingPeriod)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("populate_cache", PopulateCache)
+    registrar.Parameter("populate_cache", &TThis::PopulateCache)
         .Default(false);
-    RegisterParameter("sync_on_close", SyncOnClose)
+    registrar.Parameter("sync_on_close", &TThis::SyncOnClose)
         .Default(true);
-    RegisterParameter("enable_direct_io", EnableDirectIO)
+    registrar.Parameter("enable_direct_io", &TThis::EnableDirectIO)
         .Default(false);
-    RegisterParameter("enable_early_finish", EnableEarlyFinish)
+    registrar.Parameter("enable_early_finish", &TThis::EnableEarlyFinish)
         .Default(false);
-    RegisterParameter("allocate_write_targets_backoff_time", AllocateWriteTargetsBackoffTime)
+    registrar.Parameter("allocate_write_targets_backoff_time", &TThis::AllocateWriteTargetsBackoffTime)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("allocate_write_targets_retry_count", AllocateWriteTargetsRetryCount)
+    registrar.Parameter("allocate_write_targets_retry_count", &TThis::AllocateWriteTargetsRetryCount)
         .Default(10);
 
-    RegisterParameter("testing_delay", TestingDelay)
+    registrar.Parameter("testing_delay", &TThis::TestingDelay)
         .Default();
 
-    RegisterPreprocessor([&] () {
-        NodeChannel->RetryBackoffTime = TDuration::Seconds(10);
-        NodeChannel->RetryAttempts = 100;
+    registrar.Preprocessor([] (TThis* config) {
+        config->NodeChannel->RetryBackoffTime = TDuration::Seconds(10);
+        config->NodeChannel->RetryAttempts = 100;
     });
 
-    RegisterPostprocessor([&] {
-        if (!DirectUploadNodeCount) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->DirectUploadNodeCount) {
             return;
         }
 
-        if (*DirectUploadNodeCount < 1) {
+        if (*config->DirectUploadNodeCount < 1) {
             THROW_ERROR_EXCEPTION("\"direct_upload_node_count\" cannot be less that 1");
         }
     });
 
-    RegisterPostprocessor([&] () {
-        if (SendWindowSize < GroupSize) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->SendWindowSize < config->GroupSize) {
             THROW_ERROR_EXCEPTION("\"send_window_size\" cannot be less than \"group_size\"");
         }
     });
@@ -311,36 +311,36 @@ int TReplicationWriterConfig::GetDirectUploadNodeCount()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErasureWriterConfig::TErasureWriterConfig()
+void TErasureWriterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_erasure_target_node_reallocation", EnableErasureTargetNodeReallocation)
+    registrar.Parameter("enable_erasure_target_node_reallocation", &TThis::EnableErasureTargetNodeReallocation)
         .Default(false);
 
-    RegisterParameter("erasure_window_size", ErasureWindowSize)
+    registrar.Parameter("erasure_window_size", &TThis::ErasureWindowSize)
         .Default(8_MB)
         .GreaterThan(0);
 
-    RegisterParameter("erasure_store_original_block_checksums", ErasureStoreOriginalBlockChecksums)
+    registrar.Parameter("erasure_store_original_block_checksums", &TThis::ErasureStoreOriginalBlockChecksums)
         .Default(false);
 
-    RegisterParameter("erasure_stripe_size", ErasureStripeSize)
+    registrar.Parameter("erasure_stripe_size", &TThis::ErasureStripeSize)
         .Default()
         .GreaterThan(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMultiChunkWriterConfig::TMultiChunkWriterConfig()
+void TMultiChunkWriterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("desired_chunk_size", DesiredChunkSize)
+    registrar.Parameter("desired_chunk_size", &TThis::DesiredChunkSize)
         .GreaterThan(0)
         .Default(2_GB);
 
-    RegisterParameter("desired_chunk_weight", DesiredChunkWeight)
+    registrar.Parameter("desired_chunk_weight", &TThis::DesiredChunkWeight)
         .GreaterThan(0)
         .Default(100_GB);
 
-    RegisterParameter("max_meta_size", MaxMetaSize)
+    registrar.Parameter("max_meta_size", &TThis::MaxMetaSize)
         .GreaterThan(0)
         .LessThanOrEqual(64_MB)
         .Default(30_MB);
@@ -348,11 +348,11 @@ TMultiChunkWriterConfig::TMultiChunkWriterConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEncodingWriterOptions::TEncodingWriterOptions()
+void TEncodingWriterOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("compression_codec", CompressionCodec)
+    registrar.Parameter("compression_codec", &TThis::CompressionCodec)
         .Default(NCompression::ECodec::None);
-    RegisterParameter("chunks_eden", ChunksEden)
+    registrar.Parameter("chunks_eden", &TThis::ChunksEden)
         .Default(false);
 }
 

@@ -212,10 +212,10 @@ TMultiplexedChangelogConfig::TMultiplexedChangelogConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TArtifactCacheReaderConfig::TArtifactCacheReaderConfig()
+void TArtifactCacheReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterPreprocessor([this] {
-        WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemArtifactCacheDownload);
+    registrar.Preprocessor([] (TThis* config) {
+        config->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemArtifactCacheDownload);
     });
 }
 

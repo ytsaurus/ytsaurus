@@ -247,7 +247,9 @@ class TArtifactCacheReaderConfig
     , public virtual NApi::TFileReaderConfig
 {
 public:
-    TArtifactCacheReaderConfig();
+    REGISTER_YSON_STRUCT(TArtifactCacheReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
@@ -340,7 +342,12 @@ DEFINE_REFCOUNTED_TYPE(TVolumeManagerConfig)
 class TRepairReaderConfig
     : public virtual NChunkClient::TReplicationReaderConfig
     , public virtual NJournalClient::TChunkReaderConfig
-{ };
+{
+    REGISTER_YSON_STRUCT(TRepairReaderConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 

@@ -22,14 +22,9 @@ public:
     //! before starting slow path in hope to run fast path.
     TDuration SlowPathDelay;
 
-    TChunkReaderConfig()
-    {
-        RegisterParameter("replica_data_size_read_threshold", ReplicaDataSizeReadThreshold)
-            .Default(1_MB);
+    REGISTER_YSON_STRUCT(TChunkReaderConfig);
 
-        RegisterParameter("slow_path_delay", SlowPathDelay)
-            .Default(TDuration::Seconds(5));
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderConfig)

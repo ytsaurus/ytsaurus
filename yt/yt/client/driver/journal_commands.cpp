@@ -57,7 +57,7 @@ void TReadJournalCommand::DoExecute(ICommandContextPtr context)
         THROW_ERROR_EXCEPTION("Reading multiple ranges is not supported in journals");
     }
 
-    Options.Config = UpdateYsonSerializable(
+    Options.Config = UpdateYsonStruct(
         context->GetConfig()->JournalReader,
         JournalReader);
 
@@ -279,7 +279,7 @@ TWriteJournalCommand::TWriteJournalCommand()
 
 void TWriteJournalCommand::DoExecute(ICommandContextPtr context)
 {
-    Options.Config = UpdateYsonSerializable(
+    Options.Config = UpdateYsonStruct(
         context->GetConfig()->JournalWriter,
         JournalWriter);
 

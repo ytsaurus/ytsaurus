@@ -46,12 +46,14 @@ public:
     std::optional<double> SamplingRate;
     std::optional<ui64> SamplingSeed;
 
-    TChunkReaderConfig();
-
     static TChunkReaderConfigPtr GetDefault()
     {
         return LeakyRefCountedSingleton<TChunkReaderConfig>();
     }
+
+    REGISTER_YSON_STRUCT(TChunkReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderConfig)
@@ -96,7 +98,9 @@ public:
 
     TChunkWriterTestingOptionsPtr TestingOptions;
 
-    TChunkWriterConfig();
+    REGISTER_YSON_STRUCT(TChunkWriterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkWriterConfig)
@@ -115,7 +119,9 @@ public:
 
     NTabletClient::TRetryingRemoteDynamicStoreReaderConfigPtr DynamicStoreReader;
 
-    TTableReaderConfig();
+    REGISTER_YSON_STRUCT(TTableReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableReaderConfig)
@@ -125,7 +131,12 @@ DEFINE_REFCOUNTED_TYPE(TTableReaderConfig)
 class TTableWriterConfig
     : public TChunkWriterConfig
     , public NChunkClient::TMultiChunkWriterConfig
-{ };
+{
+    REGISTER_YSON_STRUCT(TTableWriterConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TTableWriterConfig)
 
@@ -207,9 +218,11 @@ public:
     //! Maximum number of heavy columns in approximate statistics.
     int MaxHeavyColumns;
 
-    TChunkWriterOptions();
-
     void EnableValidationOptions();
+
+    REGISTER_YSON_STRUCT(TChunkWriterOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkWriterOptions)
