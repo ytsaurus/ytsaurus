@@ -1324,6 +1324,9 @@ private:
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             schedulerJobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
+        SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+            schedulerJobSpecExt->mutable_extensions(),
+            BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
         auto connectionConfig = CloneYsonSerializable(GetRemoteConnectionConfig());
         if (Networks_) {

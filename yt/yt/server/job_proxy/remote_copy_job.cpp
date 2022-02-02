@@ -23,6 +23,9 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
@@ -31,6 +34,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -55,6 +59,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NTableClient;
 using namespace NApi;
 using namespace NErasure;
+using namespace NTracing;
 
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
@@ -77,6 +82,10 @@ public:
         , WriterConfig_(CloneYsonSerializable(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter))
         , RemoteCopyQueue_(New<TActionQueue>("RemoteCopy"))
         , CopySemaphore_(New<TAsyncSemaphore>(RemoteCopyJobSpecExt_.concurrency()))
+        , InputTraceContext_(CreateTraceContextFromCurrent("TableReader"))
+        , InputFinishGuard_(InputTraceContext_)
+        , OutputTraceContext_(CreateTraceContextFromCurrent("TableWriter"))
+        , OutputFinishGuard_(OutputTraceContext_)
     {
         YT_VERIFY(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
@@ -99,6 +108,17 @@ public:
 
     void Initialize() override
     {
+        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
+        YT_VERIFY(std::ssize(dataSourceDirectory->DataSources()) == 1);
+        PackBaggageFromDataSource(InputTraceContext_, dataSourceDirectory->DataSources()[0]);
+
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+            auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
+            YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
+            PackBaggageFromDataSink(OutputTraceContext_, dataSinkDirectory->DataSinks()[0]);
+        }
+
         WriterOptionsTemplate_ = ConvertTo<TTableWriterOptionsPtr>(
             TYsonString(SchedulerJobSpecExt_.output_table_specs(0).table_writer_options()));
         OutputChunkListId_ = FromProto<TChunkListId>(
@@ -272,6 +292,11 @@ private:
 
     // For dynamic tables only.
     std::vector<TChunkSpec> WrittenChunks_;
+
+    TTraceContextPtr InputTraceContext_;
+    TTraceContextFinishGuard InputFinishGuard_;
+    TTraceContextPtr OutputTraceContext_;
+    TTraceContextFinishGuard OutputFinishGuard_;
 
     NChunkClient::TSessionId CreateOutputChunk(const TChunkSpec& inputChunkSpec)
     {
@@ -470,6 +495,8 @@ private:
             WaitFor(suspendableInvoker->Suspend())
                 .ThrowOnError();
 
+            TCurrentTraceContextGuard guard(OutputTraceContext_);
+
             std::vector<TFuture<void>> closeReplicaWriterResults;
             for (int partIndex = 0; partIndex < std::ssize(copyFutures); ++partIndex) {
                 auto copyResult = copyResults[partIndex];
@@ -488,6 +515,8 @@ private:
         } else {
             WaitFor(AllSucceeded(copyFutures))
                 .ThrowOnError();
+
+            TCurrentTraceContextGuard guard(OutputTraceContext_);
 
             std::vector<TFuture<void>> closeReplicaWriterResults;
             closeReplicaWriterResults.reserve(writers.size());
@@ -577,6 +606,8 @@ private:
         const TChunkReplicaWithMediumList& targetReplicas,
         const TNodeDirectoryPtr& nodeDirectory)
     {
+        TCurrentTraceContextGuard guard(OutputTraceContext_);
+
         auto repairPartIndicies = *erasureCodec->GetRepairIndices(erasedPartIndicies);
 
         YT_LOG_INFO("Failed to copy some of the chunk parts, starting repair (ErasedPartIndicies: %v, RepairPartIndicies: %v)",
@@ -734,6 +765,8 @@ private:
         const TDeferredChunkMetaPtr& chunkMeta,
         NChunkClient::TSessionId outputSessionId)
     {
+        TCurrentTraceContextGuard guard(OutputTraceContext_);
+
         WaitFor(writer->Close(chunkMeta))
             .ThrowOnError();
         TChunkInfo chunkInfo = writer->GetChunkInfo();
@@ -795,6 +828,8 @@ private:
         IChunkWriterPtr writer,
         const std::vector<i64>& blockSizes)
     {
+        TCurrentTraceContextGuard guard(InputTraceContext_);
+
         auto acquireSemaphoreGuard = [&] {
             while (true) {
                 auto guard = TAsyncSemaphoreGuard::TryAcquire(CopySemaphore_);
@@ -809,8 +844,12 @@ private:
 
         auto semaphoreGuard = acquireSemaphoreGuard();
 
-        auto error = WaitFor(writer->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening writer");
+        {
+            TCurrentTraceContextGuard guard(OutputTraceContext_);
+
+            auto error = WaitFor(writer->Open());
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening writer");
+        }
 
         int blockCount = static_cast<int>(blockSizes.size());
 
@@ -853,9 +892,13 @@ private:
 
             CopiedSize_ += blocksSize;
 
-            if (!writer->WriteBlocks(blocks)) {
-                auto result = WaitFor(writer->GetReadyEvent());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error writing block");
+            {
+                TCurrentTraceContextGuard guard(OutputTraceContext_);
+
+                if (!writer->WriteBlocks(blocks)) {
+                    auto result = WaitFor(writer->GetReadyEvent());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error writing block");
+                }
             }
 
             DataStatistics_.set_compressed_data_size(DataStatistics_.compressed_data_size() + blocksSize);
@@ -867,6 +910,8 @@ private:
     // Request input chunk meta. Input and output chunk metas are the same.
     TDeferredChunkMetaPtr GetChunkMeta(const std::vector<IChunkReaderAllowingRepairPtr>& readers)
     {
+        TCurrentTraceContextGuard guard(InputTraceContext_);
+
         // In erasure chunks some of the parts might be unavailable, but they all have the same meta,
         // so we try to get meta from all of the readers simultaneously.
         std::vector<TFuture<TRefCountedChunkMetaPtr>> asyncResults;
