@@ -139,6 +139,52 @@ DEFINE_REFCOUNTED_TYPE(TDynamicDataNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkTreeBalancerSettings
+    : public NYTree::TYsonSerializable
+{
+    int MaxChunkTreeRank = 32;
+    int MinChunkListSize = 1024;
+    int MaxChunkListSize = 2048;
+    double MinChunkListToChunkRatio = 0.01;
+
+    using TChunkTreeBalancerSettingsPtr = TIntrusivePtr<TChunkTreeBalancerSettings>;
+
+    void RegisterParameters(
+        int maxChunkTreeRank,
+        int minChunkListSize,
+        int maxChunkListSize,
+        double minChunkListToChunkRatio);
+
+    static TChunkTreeBalancerSettingsPtr NewWithStrictDefaults();
+
+    static TChunkTreeBalancerSettingsPtr NewWithPermissiveDefaults();
+};
+
+class TDynamicChunkTreeBalancerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    using TChunkTreeBalancerSettingsPtr = TIntrusivePtr<TChunkTreeBalancerSettings>;
+
+    TChunkTreeBalancerSettingsPtr StrictSettings;
+    TChunkTreeBalancerSettingsPtr PermissiveSettings;
+
+    TDynamicChunkTreeBalancerConfig()
+    {
+        RegisterParameter("strict", StrictSettings)
+            .Default(TChunkTreeBalancerSettings::NewWithStrictDefaults());
+
+        RegisterParameter("permissive", PermissiveSettings)
+            .Default(TChunkTreeBalancerSettings::NewWithPermissiveDefaults());
+    }
+
+    TChunkTreeBalancerSettingsPtr GetSettingsForMode(EChunkTreeBalancerMode mode);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChunkTreeBalancerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicAllyReplicaManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -380,6 +426,8 @@ public:
     bool EnablePerNodeIncrementalHeartbeatProfiling;
 
     TDynamicDataNodeTrackerConfigPtr DataNodeTracker;
+
+    TDynamicChunkTreeBalancerConfigPtr ChunkTreeBalancer;
 
     TDynamicChunkMergerConfigPtr ChunkMerger;
 

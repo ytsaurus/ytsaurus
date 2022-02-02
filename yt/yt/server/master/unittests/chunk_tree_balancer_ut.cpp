@@ -2,6 +2,7 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/server/master/chunk_server/config.h>
 #include <yt/yt/server/master/chunk_server/chunk.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/chunk_tree_balancer.h>
@@ -61,8 +62,14 @@ class TChunkTreeBalancerCallbacksMock
 {
 public:
     explicit TChunkTreeBalancerCallbacksMock(std::vector<std::unique_ptr<TChunkList>>* chunkLists)
-        : ChunkLists_(chunkLists)
+        : Config_(New<TDynamicChunkTreeBalancerConfig>())
+        , ChunkLists_(chunkLists)
     { }
+
+    const TDynamicChunkTreeBalancerConfigPtr& GetConfig() const override
+    {
+        return Config_;
+    }
 
     void RefObject(NObjectServer::TObject* object) override
     {
@@ -134,6 +141,7 @@ public:
     }
 
 private:
+    const TDynamicChunkTreeBalancerConfigPtr Config_;
     std::vector<std::unique_ptr<TChunkList>>* ChunkLists_;
 };
 
@@ -163,7 +171,8 @@ TEST(ChunkTreeBalancer, Chain)
     TChunkTreeBalancer balancer(bootstrap);
 
     EXPECT_EQ(ChainSize, root->Statistics().ChunkListCount);
-    ASSERT_TRUE(balancer.IsRebalanceNeeded(root));
+    ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
+    ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
     balancer.Rebalance(root);
     EXPECT_EQ(2, root->Statistics().ChunkListCount);
 }
@@ -193,7 +202,8 @@ TEST(ChunkTreeBalancer, ManyChunkLists)
     TChunkTreeBalancer balancer(bootstrap);
 
     EXPECT_EQ(ChunkListCount + 1, root->Statistics().ChunkListCount);
-    ASSERT_TRUE(balancer.IsRebalanceNeeded(root));
+    ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
+    ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
     balancer.Rebalance(root);
     EXPECT_EQ(2, root->Statistics().ChunkListCount);
 }
@@ -204,7 +214,6 @@ TEST(ChunkTreeBalancer, EmptyChunkLists)
 
     std::vector<std::unique_ptr<TChunkList>> chunkListStorage;
     auto bootstrap = New<TChunkTreeBalancerCallbacksMock>(&chunkListStorage);
-
     std::vector<TChunkTree*> chunkLists;
     auto root = bootstrap->CreateChunkList();
     bootstrap->RefObject(root);
@@ -218,9 +227,44 @@ TEST(ChunkTreeBalancer, EmptyChunkLists)
     TChunkTreeBalancer balancer(bootstrap);
 
     EXPECT_EQ(2 * ChunkListCount + 1, root->Statistics().ChunkListCount);
-    ASSERT_TRUE(balancer.IsRebalanceNeeded(root));
+    ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
+    ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
     balancer.Rebalance(root);
     EXPECT_EQ(1, root->Statistics().ChunkListCount);
+}
+
+TEST(ChunkTreeBalancer, PermissiveMode)
+{
+    // If Permissive or Strict mode values were changed these parameters might need to be changed as well.
+    constexpr int ChunkListCount = 2;
+    constexpr int ChunkCount = 35;
+
+    std::vector<std::unique_ptr<TChunk>> chunkStorage;
+    std::vector<std::unique_ptr<TChunkList>> chunkListStorage;
+    auto bootstrap = New<TChunkTreeBalancerCallbacksMock>(&chunkListStorage);
+    auto createChunk = [&] () -> TChunk* {
+        chunkStorage.push_back(CreateChunk());
+        return chunkStorage.back().get();
+    };
+
+    std::vector<TChunkTree*> chunkLists;
+    auto root = bootstrap->CreateChunkList();
+    bootstrap->RefObject(root);
+    for (int i = 0; i < ChunkListCount; ++i) {
+        auto subRoot = bootstrap->CreateChunkList();
+        for (int j = 0; j < ChunkCount; ++j) {
+            AttachToChunkList(subRoot, {createChunk()});
+        }
+        chunkLists.push_back(subRoot);
+    }
+    AttachToChunkList(root, chunkLists);
+
+    TChunkTreeBalancer balancer(bootstrap);
+
+    EXPECT_EQ(ChunkCount * 2, root->Statistics().ChunkCount);
+    EXPECT_EQ(ChunkListCount + 1, root->Statistics().ChunkListCount);
+    ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
+    ASSERT_FALSE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

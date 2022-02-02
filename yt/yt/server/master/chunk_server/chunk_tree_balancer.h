@@ -10,17 +10,6 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkTreeBalancerSettings
-{
-    // NB: Changing these values will invalidate all changelogs!
-    int MaxChunkTreeRank = 32;
-    int MinChunkListSize = 1024;
-    int MaxChunkListSize = 2048;
-    double MinChunkListToChunkRatio = 0.01;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IChunkTreeBalancerCallbacks
     : public virtual TRefCounted
 {
@@ -31,6 +20,7 @@ struct IChunkTreeBalancerCallbacks
 
     virtual void ScheduleRequisitionUpdate(TChunkTree* chunkTree) = 0;
 
+    virtual const TDynamicChunkTreeBalancerConfigPtr& GetConfig() const = 0;
     virtual TChunkList* CreateChunkList() = 0;
     virtual void ClearChunkList(TChunkList* chunkList) = 0;
     virtual void AttachToChunkList(
@@ -52,16 +42,13 @@ DEFINE_REFCOUNTED_TYPE(IChunkTreeBalancerCallbacks)
 class TChunkTreeBalancer
 {
 public:
-    explicit TChunkTreeBalancer(
-        IChunkTreeBalancerCallbacksPtr callbacks,
-        const TChunkTreeBalancerSettings& settings = TChunkTreeBalancerSettings());
+    explicit TChunkTreeBalancer(IChunkTreeBalancerCallbacksPtr callbacks);
 
-    bool IsRebalanceNeeded(TChunkList* root);
+    bool IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerMode settingsMode);
     void Rebalance(TChunkList* root);
 
 private:
     const IChunkTreeBalancerCallbacksPtr Callbacks_;
-    const TChunkTreeBalancerSettings Settings_;
 
     void MergeChunkTrees(
         std::vector<TChunkTree*>* children,
@@ -75,6 +62,7 @@ private:
         std::vector<TChunkTree*>* children,
         TChunkTree* child);
 
+    const TDynamicChunkTreeBalancerConfigPtr& GetConfig() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
