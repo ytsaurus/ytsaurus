@@ -207,7 +207,7 @@ void TInvokerQueue<TQueueImpl>::Invoke(
     QueueImpl_.Enqueue(std::move(action));
 
     if (!Running_.load(std::memory_order_relaxed)) {
-        DrainConsumer();
+        DrainProducer();
         YT_LOG_TRACE(
             "Queue had been shut down, incoming action ignored (Callback: %v)",
             callback.GetHandle());
