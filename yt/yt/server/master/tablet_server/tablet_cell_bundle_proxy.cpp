@@ -23,6 +23,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/cell_server/cell_bundle_proxy.h>
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
@@ -42,6 +43,7 @@ namespace NYT::NTabletServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
+using namespace NCellarClient;
 using namespace NCellServer;
 using namespace NChunkServer;
 using namespace NTableServer;

@@ -40,6 +40,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TCoordinators, Coordinators);
 
     DEFINE_BYVAL_RW_PROPERTY(NChaosClient::TReplicationEra, Era, NChaosClient::InitialReplicationEra);
+    DEFINE_BYVAL_RW_PROPERTY(NTableClient::TTableId, TableId);
+    DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, TablePath);
+    DEFINE_BYVAL_RW_PROPERTY(TString, TableClusterName);
 
     NChaosClient::TReplicaInfo* FindReplica(NChaosClient::TReplicaId replicaId);
     NChaosClient::TReplicaInfo* GetReplicaOrThrow(NChaosClient::TReplicaId replicaId);

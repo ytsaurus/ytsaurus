@@ -16,6 +16,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NChaosClient;
+using namespace NTableClient;
 using namespace NHydra;
 using namespace NConcurrency;
 
@@ -73,6 +74,9 @@ private:
 
         auto req = proxy.CreateReplicationCard();
         Client_->SetMutationId(req, options);
+        ToProto(req->mutable_table_id(), attributes->Get<TTableId>("table_id", {}));
+        req->set_table_path(attributes->Get<TYPath>("table_path", {}));
+        req->set_table_cluster_name(attributes->Get<TString>("table_cluster_name", {}));
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();

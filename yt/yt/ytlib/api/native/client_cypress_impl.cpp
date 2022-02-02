@@ -662,6 +662,36 @@ private:
 
 } // namespace
 
+TNodeId TClient::CreateNodeImpl(
+    EObjectType type,
+    const TYPath& path,
+    const IAttributeDictionary& attributes,
+    const TCreateNodeOptions& options)
+{
+    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+    SetPrerequisites(batchReq, options);
+
+    auto req = TCypressYPathProxy::Create(path);
+    SetTransactionId(req, options, true);
+    SetMutationId(req, options);
+    req->set_type(static_cast<int>(type));
+    req->set_recursive(options.Recursive);
+    req->set_ignore_existing(options.IgnoreExisting);
+    req->set_lock_existing(options.LockExisting);
+    req->set_force(options.Force);
+    req->set_ignore_type_mismatch(options.IgnoreTypeMismatch);
+    ToProto(req->mutable_node_attributes(), attributes);
+    batchReq->AddRequest(req);
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+    auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>(0)
+        .ValueOrThrow();
+    return FromProto<TNodeId>(rsp->node_id());
+}
+
 TYsonString TClient::DoGetNode(
     const TYPath& path,
     const TGetNodeOptions& options)
@@ -770,30 +800,12 @@ TNodeId TClient::DoCreateNode(
     EObjectType type,
     const TCreateNodeOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-    auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
-    SetPrerequisites(batchReq, options);
-
-    auto req = TCypressYPathProxy::Create(path);
-    SetTransactionId(req, options, true);
-    SetMutationId(req, options);
-    req->set_type(static_cast<int>(type));
-    req->set_recursive(options.Recursive);
-    req->set_ignore_existing(options.IgnoreExisting);
-    req->set_lock_existing(options.LockExisting);
-    req->set_force(options.Force);
-    req->set_ignore_type_mismatch(options.IgnoreTypeMismatch);
-    if (options.Attributes) {
-        ToProto(req->mutable_node_attributes(), *options.Attributes);
+    for (const auto& handler : TypeHandlers_) {
+        if (auto result = handler->CreateNode(type, path, options)) {
+            return *result;
+        }
     }
-    batchReq->AddRequest(req);
-
-    auto batchRsp = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
-    auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>(0)
-        .ValueOrThrow();
-    return FromProto<TNodeId>(rsp->node_id());
+    YT_ABORT();
 }
 
 TLockNodeResult TClient::DoLockNode(

@@ -13,6 +13,8 @@
 
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
+#include <yt/yt/server/master/chaos_server/chaos_manager.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -21,6 +23,7 @@ using namespace NObjectServer;
 using namespace NChunkServer;
 using namespace NObjectServer;
 using namespace NTabletServer;
+using namespace NChaosServer;
 using namespace NTableClient;
 using namespace NTableServer;
 using namespace NTransactionServer;
@@ -112,6 +115,12 @@ template <>
 TTabletCellBundle* TEndCopyContext::GetObject(TObjectId id)
 {
     return Bootstrap_->GetTabletManager()->GetTabletCellBundleOrThrow(id);
+}
+
+template <>
+TChaosCellBundle* TEndCopyContext::GetObject(TObjectId id)
+{
+    return Bootstrap_->GetChaosManager()->GetChaosCellBundleOrThrow(id);
 }
 
 template <>

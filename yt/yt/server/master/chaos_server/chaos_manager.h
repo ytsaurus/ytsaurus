@@ -23,7 +23,11 @@ struct IChaosManager
     virtual TChaosCell* FindChaosCellByTag(NObjectClient::TCellTag cellTag) const = 0;
     virtual TChaosCell* GetChaosCellByTagOrThrow(NObjectClient::TCellTag cellTag) const = 0;
 
-    virtual TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name) const = 0;
+    virtual TChaosCellBundle* FindChaosCellBundle(TChaosCellId id) = 0;
+    virtual TChaosCellBundle* GetChaosCellBundleOrThrow(TChaosCellBundleId id) = 0;
+    virtual TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly) const = 0;
+
+    virtual void SetChaosCellBundle(TChaosReplicatedTableNode* node, TChaosCellBundle* cellBundle) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

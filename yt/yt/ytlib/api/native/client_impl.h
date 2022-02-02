@@ -523,6 +523,7 @@ private:
     friend class TChaosTableReplicaTypeHandler;
     friend class TTableCollocationTypeHandler;
     friend class TTabletActionTypeHandler;
+    friend class TChaosReplicatedTableTypeHandler;
     friend class TDefaultTypeHandler;
 
     const IConnectionPtr Connection_;
@@ -608,6 +609,11 @@ private:
         NObjectClient::TCellTag cellTag,
         const NYTree::IAttributeDictionary& attributes,
         const TCreateObjectOptions& options);
+    NCypressClient::TNodeId CreateNodeImpl(
+        NCypressClient::EObjectType type,
+        const NYPath::TYPath& path,
+        const NYTree::IAttributeDictionary& attributes,
+        const TCreateNodeOptions& options);
 
     IUnversionedRowsetPtr DoLookupRows(
         const NYPath::TYPath& path,
@@ -981,7 +987,7 @@ private:
         NYTree::EPermission permission,
         const NYTree::INodePtr& acl,
         const TCheckPermissionByAclOptions& options);
-        TCheckPermissionResult CheckPermissionImpl(
+    TCheckPermissionResult CheckPermissionImpl(
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = {});

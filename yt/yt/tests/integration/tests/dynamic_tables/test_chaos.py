@@ -34,13 +34,18 @@ class ChaosTestBase(DynamicTablesBase):
             peer_cluster_names = self.get_cluster_names()
         return create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=meta_cluster_names)
 
-    def _sync_create_chaos_bundle_and_cell(self, peer_cluster_names=None, meta_cluster_names=[]):
+    def _sync_create_chaos_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[]):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
-        self._create_chaos_cell_bundle(peer_cluster_names=peer_cluster_names, meta_cluster_names=meta_cluster_names)
         cell_id = generate_chaos_cell_id()
-        sync_create_chaos_cell("c", cell_id, peer_cluster_names, meta_cluster_names=meta_cluster_names)
+        sync_create_chaos_cell(name, cell_id, peer_cluster_names, meta_cluster_names=meta_cluster_names)
         return cell_id
+
+    def _sync_create_chaos_bundle_and_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[]):
+        if peer_cluster_names is None:
+            peer_cluster_names = self.get_cluster_names()
+        self._create_chaos_cell_bundle(name=name, peer_cluster_names=peer_cluster_names, meta_cluster_names=meta_cluster_names)
+        return self._sync_create_chaos_cell(name=name, peer_cluster_names=peer_cluster_names, meta_cluster_names=meta_cluster_names)
 
     def _list_chaos_nodes(self, driver=None):
         nodes = ls("//sys/cluster_nodes", attributes=["state", "flavors"], driver=driver)
@@ -689,11 +694,14 @@ class TestChaos(ChaosTestBase):
             create("chaos_replicated_table", "//tmp/crt", attributes={"replication_card_id": "1-2-3-4"})
 
     @authors("babenko")
-    def test_chaos_replicated_table(self):
+    def test_chaos_replicated_table_with_explicit_card_id(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         card_id = create_replication_card(chaos_cell_id=cell_id)
 
-        create("chaos_replicated_table", "//tmp/crt", attributes={"replication_card_id": card_id})
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": "c",
+            "replication_card_id": card_id
+        })
         assert get("//tmp/crt/@type") == "chaos_replicated_table"
         assert get("//tmp/crt/@replication_card_id") == card_id
         assert get("//tmp/crt/@owns_replication_card")
@@ -726,11 +734,13 @@ class TestChaos(ChaosTestBase):
         card_id = create_replication_card(chaos_cell_id=cell_id)
 
         create("chaos_replicated_table", "//tmp/crt", attributes={
-            "replication_card_id": card_id
+            "replication_card_id": card_id,
+            "chaos_cell_bundle": "c"
         })
         create("chaos_replicated_table", "//tmp/crt_view", attributes={
             "replication_card_id": card_id,
-            "owns_replication_card": False
+            "owns_replication_card": False,
+            "chaos_cell_bundle": "c"
         })
 
         assert get("//tmp/crt/@owns_replication_card")
@@ -856,6 +866,78 @@ class TestChaos(ChaosTestBase):
         _check(keys[:1], 1)
         _check(keys[1:], 1)
         _check(keys, 1)
+
+    @authors("savrus")
+    def test_replication_card_attributes(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        TABLE_ID = "1-2-4b6-3"
+        TABLE_PATH = "//path/to/table"
+        TABLE_CLUSTER_NAME = "remote0"
+
+        card_id = create_replication_card(chaos_cell_id=cell_id, attributes={
+            "table_id": TABLE_ID,
+            "table_path": TABLE_PATH,
+            "table_cluster_name": TABLE_CLUSTER_NAME
+        })
+
+        attributes = get("#{0}/@".format(card_id))
+        assert attributes["table_id"] == TABLE_ID
+        assert attributes["table_path"] == TABLE_PATH
+        assert attributes["table_cluster_name"] == TABLE_CLUSTER_NAME
+
+    @authors("savrus")
+    def test_metadata_chaos_cell(self):
+        self._create_chaos_cell_bundle(name="c1")
+        self._create_chaos_cell_bundle(name="c2")
+
+        assert not exists("//sys/chaos_cell_bundles/c1/@metadata_cell_id")
+
+        with pytest.raises(YtError, match="No cell with id .* is known"):
+            set("//sys/chaos_cell_bundles/c1/@metadata_cell_id", "1-2-3-4")
+
+        cell_id1 = self._sync_create_chaos_cell(name="c1")
+        set("//sys/chaos_cell_bundles/c1/@metadata_cell_id", cell_id1)
+        assert get("#{0}/@ref_counter".format(cell_id1)) == 1
+
+        cell_id2 = self._sync_create_chaos_cell(name="c1")
+        set("//sys/chaos_cell_bundles/c1/@metadata_cell_id", cell_id2)
+        assert get("#{0}/@ref_counter".format(cell_id2)) == 1
+
+        remove("//sys/chaos_cell_bundles/c1/@metadata_cell_id")
+        assert not exists("//sys/chaos_cell_bundles/c1/@metadata_cell_id")
+
+        cell_id3 = self._sync_create_chaos_cell(name="c2")
+        with pytest.raises(YtError, match="Cell .* belongs to a different bundle .*"):
+            set("//sys/chaos_cell_bundles/c1/@metadata_cell_id", cell_id3)
+
+    @authors("babenko")
+    def test_chaos_replicated_table_with_implicit_card_id(self):
+        with pytest.raises(YtError, match=".* is neither speficied nor inherited.*"):
+            create("chaos_replicated_table", "//tmp/crt")
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+
+        with pytest.raises(YtError, match="Chaos cell bundle .* has no associated metadata chaos cell"):
+            create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle"})
+
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        table_id = create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle"})
+
+        assert get("//tmp/crt/@type") == "chaos_replicated_table"
+        assert get("//tmp/crt/@owns_replication_card")
+
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        assert exists("#{0}".format(card_id))
+        card = get("#{0}/@".format(card_id))
+        assert card["table_id"] == table_id
+        assert card["table_path"] == "//tmp/crt"
+        assert card["table_cluster_name"] == "primary"
+
+        remove("//tmp/crt")
+        wait(lambda: not exists("#{0}".format(card_id)))
 
 
 ##################################################################

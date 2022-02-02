@@ -15,12 +15,21 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NTabletClient;
+using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<TObjectId> TNullTypeHandler::CreateObject(
     EObjectType /*type*/,
     const TCreateObjectOptions& /*options*/)
+{
+    return {};
+}
+
+std::optional<TNodeId> TNullTypeHandler::CreateNode(
+    EObjectType /*type*/,
+    const TYPath& /*path*/,
+    const TCreateNodeOptions& /*options*/)
 {
     return {};
 }

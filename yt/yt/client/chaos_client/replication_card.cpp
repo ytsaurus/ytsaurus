@@ -88,10 +88,13 @@ TString ToString(const TReplicaInfo& replicaInfo)
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Era: %v, Replicas: %v, CoordinatorCellIds: %v}",
+    builder->AppendFormat("{Era: %v, Replicas: %v, CoordinatorCellIds: %v, TableId: %v, TablePath: %v, TableClusterName: %v}",
         replicationCard.Era,
         replicationCard.Replicas,
-        replicationCard.CoordinatorCellIds);
+        replicationCard.CoordinatorCellIds,
+        replicationCard.TableId,
+        replicationCard.TablePath,
+        replicationCard.TableClusterName);
 }
 
 TString ToString(const TReplicationCard& replicationCard)

@@ -5,7 +5,6 @@
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/core/misc/format.h>
-#include <yt/yt/core/misc/ref_tracked.h>
 
 namespace NYT::NChaosNode {
 
@@ -45,6 +44,9 @@ void TReplicationCard::Save(TSaveContext& context) const
     Save(context, CurrentReplicaIdIndex_);
     Save(context, Coordinators_);
     Save(context, Era_);
+    Save(context, TableId_);
+    Save(context, TablePath_);
+    Save(context, TableClusterName_);
 }
 
 void TReplicationCard::Load(TLoadContext& context)
@@ -55,14 +57,20 @@ void TReplicationCard::Load(TLoadContext& context)
     Load(context, CurrentReplicaIdIndex_);
     Load(context, Coordinators_);
     Load(context, Era_);
+    Load(context, TableId_);
+    Load(context, TablePath_);
+    Load(context, TableClusterName_);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Id: %v, Replicas: %v, Era: %v}",
+    builder->AppendFormat("{Id: %v, Replicas: %v, Era: %v, TableId: %v, TablePath: %v, TableClusterName: %v}",
         replicationCard.GetId(),
         replicationCard.Replicas(),
-        replicationCard.GetEra());
+        replicationCard.GetEra(),
+        replicationCard.GetTableId(),
+        replicationCard.GetTablePath(),
+        replicationCard.GetTableClusterName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

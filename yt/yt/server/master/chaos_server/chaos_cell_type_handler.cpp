@@ -1,3 +1,5 @@
+#include "chaos_cell_type_handler.h"
+
 #include "chaos_cell.h"
 #include "chaos_cell_proxy.h"
 #include "chaos_manager.h"

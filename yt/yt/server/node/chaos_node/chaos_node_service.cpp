@@ -46,6 +46,7 @@ public:
     {
         YT_VERIFY(Slot_);
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateReplicationCardId));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
@@ -57,6 +58,14 @@ public:
 
 private:
     const IChaosSlotPtr Slot_;
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GenerateReplicationCardId)
+    {
+        context->SetRequestInfo();
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->GenerateReplicationCardId(std::move(context));
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, CreateReplicationCard)
     {
@@ -93,6 +102,9 @@ private:
 
         auto* protoReplicationCard = response->mutable_replication_card();
         protoReplicationCard->set_era(replicationCard->GetEra());
+        ToProto(protoReplicationCard->mutable_table_id(), replicationCard->GetTableId());
+        protoReplicationCard->set_table_path(replicationCard->GetTablePath());
+        protoReplicationCard->set_table_cluster_name(replicationCard->GetTableClusterName());
 
         std::vector<TCellId> coordinators;
         if (fetchOptions.IncludeCoordinators) {

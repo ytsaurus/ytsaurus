@@ -20,6 +20,10 @@ struct ITypeHandler
     virtual std::optional<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,
         const TCreateObjectOptions& options) = 0;
+    virtual std::optional<NCypressClient::TNodeId> CreateNode(
+        NCypressClient::EObjectType type,
+        const NYPath::TYPath& path,
+        const TCreateNodeOptions& options) = 0;
     virtual std::optional<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
         const TGetNodeOptions& options) = 0;

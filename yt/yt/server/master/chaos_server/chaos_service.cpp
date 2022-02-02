@@ -101,7 +101,7 @@ private:
             cellBundleName);
 
         const auto& chaosManager = Bootstrap_->GetChaosManager();
-        auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(cellBundleName);
+        auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(cellBundleName, /*activeLifeStageOnly*/ true);
         for (const auto* cell : cellBundle->Cells()) {
             ToProto(response->add_cell_descriptors(), cell->GetDescriptor());
         }

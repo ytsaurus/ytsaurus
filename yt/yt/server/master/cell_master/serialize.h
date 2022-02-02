@@ -96,6 +96,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkWeightStatisticsHistogram)                               (1928))  // h0pless
     ((SystemBlocks)                                                 (1929))  // akozhikhov
     ((RefCountedInheritableAttributes)                              (1930))  // babenko
+    ((AutoCreateReplicationCard)                                    (1931))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

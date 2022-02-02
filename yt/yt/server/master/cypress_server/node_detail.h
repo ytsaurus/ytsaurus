@@ -617,6 +617,7 @@ protected:
 #define FOR_EACH_INHERITABLE_ATTRIBUTE(process) \
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
     process(TabletCellBundle, tablet_cell_bundle) \
+    process(ChaosCellBundle, chaos_cell_bundle) \
     process(PrimaryMediumIndex, primary_medium) \
     process(Media, media)
 
@@ -641,6 +642,7 @@ public:
         TVersionedBuiltinAttribute<int> ReplicationFactor;
         TVersionedBuiltinAttribute<bool> Vital;
         TVersionedBuiltinAttribute<NTabletServer::TTabletCellBundlePtr> TabletCellBundle;
+        TVersionedBuiltinAttribute<NChaosServer::TChaosCellBundlePtr> ChaosCellBundle;
         TVersionedBuiltinAttribute<NTransactionClient::EAtomicity> Atomicity;
         TVersionedBuiltinAttribute<NTransactionClient::ECommitOrdering> CommitOrdering;
         TVersionedBuiltinAttribute<NTabletClient::EInMemoryMode> InMemoryMode;

@@ -1,6 +1,9 @@
 #include "chaos_replicated_table_node_type_handler.h"
+
+#include "chaos_cell_bundle.h"
 #include "chaos_replicated_table_node.h"
 #include "chaos_replicated_table_node_proxy.h"
+#include "chaos_manager.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cypress_server/node_detail.h>
@@ -60,18 +63,48 @@ private:
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
-        auto replicationCardId = context.ExplicitAttributes->GetAndRemove<TReplicationCardId>("replication_card_id");
-        if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
+        auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
+
+        auto optionalChaosCellBundleName = combinedAttributes->FindAndRemove<TString>("chaos_cell_bundle");
+        if (!optionalChaosCellBundleName) {
+            THROW_ERROR_EXCEPTION("\"chaos_cell_bundle\" is neither speficied nor inherited");
+        }
+
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        auto* chaosCellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(*optionalChaosCellBundleName, /*activeLifeStageOnly*/ true);
+
+        auto replicationCardId = combinedAttributes->GetAndRemove<TReplicationCardId>("replication_card_id", {});
+        if (replicationCardId && TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
             THROW_ERROR_EXCEPTION("Malformed replication card id");
         }
 
-        auto ownsReplicationCard = context.ExplicitAttributes->GetAndRemove<bool>("owns_replication_card", true);
+        auto ownsReplicationCard = combinedAttributes->GetAndRemove<bool>("owns_replication_card", true);
 
-        auto implHolder = TCypressNodeTypeHandlerBase::DoCreate(id, context);
-        implHolder->SetReplicationCardId(replicationCardId);
-        implHolder->SetOwnsReplicationCard(ownsReplicationCard);
+        auto nodeHolder = TCypressNodeTypeHandlerBase::DoCreate(id, context);
+        auto* node = nodeHolder.get();
 
-        return implHolder;
+        try {
+            node->SetReplicationCardId(replicationCardId);
+            node->SetOwnsReplicationCard(ownsReplicationCard);
+            chaosManager->SetChaosCellBundle(node, chaosCellBundle);
+            return nodeHolder;
+        } catch (const std::exception&) {
+            this->Destroy(node);
+            throw;
+        }
+    }
+
+    bool IsSupportedInheritableAttribute(const TString& key) const override
+    {
+        static const THashSet<TString> SupportedInheritableAttributes{
+            "chaos_cell_bundle"
+        };
+
+        if (SupportedInheritableAttributes.contains(key)) {
+            return true;
+        }
+
+        return TCypressNodeTypeHandlerBase::IsSupportedInheritableAttribute(key);
     }
 
     void PostReplicationCardRemovalRequest(TChaosReplicatedTableNode* node)
@@ -134,8 +167,12 @@ private:
     {
         TCypressNodeTypeHandlerBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        chaosManager->SetChaosCellBundle(clonedTrunkNode, sourceNode->ChaosCellBundle().Get());
+
         clonedTrunkNode->SetReplicationCardId(sourceNode->GetReplicationCardId());
-        clonedTrunkNode->SetOwnsReplicationCard(sourceNode->GetOwnsReplicationCard());
+        // NB: Cannot share ownership.
+        clonedTrunkNode->SetOwnsReplicationCard(false);
     }
 
     void DoBeginCopy(
@@ -145,6 +182,7 @@ private:
         TCypressNodeTypeHandlerBase::DoBeginCopy(node, context);
 
         using NYT::Save;
+        Save(*context, node->ChaosCellBundle());
         Save(*context, node->GetReplicationCardId());
         Save(*context, node->GetOwnsReplicationCard());
     }
@@ -157,6 +195,11 @@ private:
         TCypressNodeTypeHandlerBase::DoEndCopy(trunkNode, context, factory);
 
         using NYT::Load;
+
+        auto* chaosCellBundle = Load<TChaosCellBundle*>(*context);
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        chaosManager->SetChaosCellBundle(trunkNode, chaosCellBundle);
+
         trunkNode->SetReplicationCardId(Load<TReplicationCardId>(*context));
         trunkNode->SetOwnsReplicationCard(Load<bool>(*context));
     }

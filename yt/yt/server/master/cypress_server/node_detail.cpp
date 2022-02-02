@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/master/object_server/yson_intern_registry.h>
 
+#include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NCypressServer {
@@ -520,6 +522,9 @@ void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceCon
     Persist(context, PrimaryMediumIndex);
     Persist(context, Media);
     Persist(context, TabletCellBundle);
+    if (context.GetVersion() >= EMasterReign::AutoCreateReplicationCard) {
+        Persist(context, ChaosCellBundle);
+    }
 }
 
 void TCompositeNodeBase::TAttributes::Persist(const NCypressServer::TCopyPersistenceContext& context)

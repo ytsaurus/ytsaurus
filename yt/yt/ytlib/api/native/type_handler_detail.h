@@ -13,6 +13,10 @@ public:
     std::optional<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,
         const TCreateObjectOptions& options) override;
+    std::optional<NCypressClient::TNodeId> CreateNode(
+        NCypressClient::EObjectType type,
+        const NYPath::TYPath& path,
+        const TCreateNodeOptions& options) override;
     std::optional<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
         const TGetNodeOptions& options) override;

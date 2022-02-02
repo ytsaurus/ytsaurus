@@ -25,6 +25,7 @@ class TChaosCellBundle
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TChaosHydraConfigPtr, ChaosOptions);
+    DEFINE_BYVAL_RW_PROPERTY(TChaosCell*, MetadataCell);
 
 public:
     explicit TChaosCellBundle(TChaosCellBundleId id);
@@ -32,6 +33,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TChaosCellBundle)
 
 ////////////////////////////////////////////////////////////////////////////////
 

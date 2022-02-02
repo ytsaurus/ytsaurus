@@ -12,6 +12,7 @@
 #include "chaos_table_replica_type_handler.h"
 #include "table_collocation_type_handler.h"
 #include "tablet_action_type_handler.h"
+#include "chaos_replicated_table_type_handler.h"
 
 #include <yt/yt/client/tablet_client/public.h>
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -96,6 +97,7 @@ TClient::TClient(
     , TypeHandlers_{
         CreateReplicatedTableReplicaTypeHandler(this),
         CreateReplicationCardTypeHandler(this),
+        CreateChaosReplicatedTableTypeHandler(this),
         CreateChaosTableReplicaTypeHandler(this),
         CreateTableCollocationTypeHandler(this),
         CreateTabletActionTypeHandler(this),

@@ -76,7 +76,6 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Slot_->GetTransactionManager();
-
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraPrepareReplicatedCommit, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraCommitReplicatedCommit, MakeStrong(this))),
@@ -425,7 +424,7 @@ private:
             auto era = it->second.Era;
 
             SendRevokeShortcutsResponse(chaosCellId, {{replicationCardId, era}});
-            EraseShortcut(replicationCardId); 
+            EraseShortcut(replicationCardId);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcut revoked (ReplicationCardId: %v, Era: %v)",
                 replicationCardId,
@@ -485,7 +484,7 @@ private:
                 .Item("suspended").Value(Suspended_)
             .EndMap();
     }
-    
+
     void BuildReplicationCardOrchidYson(TShortcut* shortcut, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
