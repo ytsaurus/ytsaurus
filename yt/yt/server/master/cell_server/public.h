@@ -71,13 +71,13 @@ using TCellSet = TCompactVector<std::pair<const TCellBase*, int>, NCellarClient:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((NodeDecommissioned)           (1401))
     ((NodeBanned)                   (1402))
     ((NodeTabletSlotsDisabled)      (1403))
     ((NodeFilterMismatch)           (1404))
     ((CellDidNotAppearWithinTimeout)(1405))
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

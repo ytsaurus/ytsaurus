@@ -92,12 +92,12 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((NewJobsForbidden)              (24))
 );
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((AgentCallFailed)                            (4400))
     ((NoOnlineNodeToScheduleJob)                  (4410))
     ((MaterializationFailed)                      (4415))
     ((OperationControllerMemoryLimitExceeded)     (4416))
-    ((IncarnationMismatch)                       (4417))
+    ((IncarnationMismatch)                        (4417))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

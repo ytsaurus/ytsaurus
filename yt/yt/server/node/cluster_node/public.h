@@ -36,7 +36,7 @@ using TMasterEpoch = int;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((UnrecognizedConfigOption)              (2500))
 );
 

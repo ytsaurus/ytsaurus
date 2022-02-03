@@ -35,7 +35,7 @@ DEFINE_ENUM(ELockState,
     ((Acquired)  (1))
 );
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((SameTransactionLockConflict)         (400))
     ((DescendantTransactionLockConflict)   (401))
     ((ConcurrentTransactionLockConflict)   (402))

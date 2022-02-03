@@ -105,7 +105,7 @@ DECLARE_REFCOUNTED_STRUCT(TP2PChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((LocalChunkReaderFailed)    (1300))
     ((LayerUnpackingFailed)      (1301))
 );

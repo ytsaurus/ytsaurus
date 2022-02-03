@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/yt/core/misc/error_code.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT::NExecNode {
@@ -16,7 +18,7 @@ using NJobTrackerClient::EJobPhase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((ConfigCreationFailed)          (1100))
     ((AbortByScheduler)              (1101))
     ((ResourceOverdraft)             (1102))

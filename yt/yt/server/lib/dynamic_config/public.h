@@ -1,5 +1,6 @@
 #pragma once
 
+#include <yt/yt/core/misc/error_code.h>
 #include <yt/yt/core/misc/intrusive_ptr.h>
 
 namespace NYT::NDynamicConfig {
@@ -11,7 +12,7 @@ DECLARE_REFCOUNTED_CLASS(TDynamicConfigManagerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((FailedToFetchDynamicConfig)            (2600))
     ((DuplicateMatchingDynamicConfigs)       (2601))
     ((UnrecognizedDynamicConfigOption)       (2602))

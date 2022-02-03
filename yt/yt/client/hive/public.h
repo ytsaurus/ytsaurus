@@ -31,7 +31,7 @@ struct TTimestampMap;
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionParticipant)
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((MailboxNotCreatedYet)    (2200))
     ((ParticipantUnregistered) (2201))
 );

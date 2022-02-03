@@ -36,7 +36,7 @@ DEFINE_ENUM(EUserWorkloadCategory,
     (Realtime)
 );
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((TooManyConcurrentRequests)                         (1900))
     ((JobArchiveUnavailable)                             (1910))
     ((RetriableArchiveError)                             (1911))

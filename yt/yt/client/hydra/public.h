@@ -20,7 +20,7 @@ DEFINE_ENUM(EPeerState,
     ((Leading)                    (6))
 );
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((NoSuchSnapshot)              (600))
     ((NoSuchChangelog)             (601))
     ((InvalidEpoch)                (602))

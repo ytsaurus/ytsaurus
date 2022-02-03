@@ -6,7 +6,7 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((MemoryLimitExceeded)       (1200))
     ((MemoryCheckFailed)         (1201))
     ((JobTimeLimitExceeded)      (1202))

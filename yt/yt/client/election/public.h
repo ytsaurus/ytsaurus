@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/core/misc/error_code.h>
+
 #include <library/cpp/yt/misc/enum.h>
 #include <library/cpp/yt/misc/guid.h>
 
@@ -18,7 +20,7 @@ extern const TCellId NullCellId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((InvalidState)  (800))
     ((InvalidLeader) (801))
     ((InvalidEpoch)  (802))

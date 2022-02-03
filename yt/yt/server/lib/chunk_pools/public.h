@@ -27,7 +27,7 @@ DECLARE_REFCOUNTED_STRUCT(IMultiChunkPoolOutput)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkPool)
 DECLARE_REFCOUNTED_STRUCT(IChunkPoolJobSplittingHost)
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((DataSliceLimitExceeded)             (2000))
     ((MaxDataWeightPerJobExceeded)        (2001))
     ((MaxPrimaryDataWeightPerJobExceeded) (2002))
