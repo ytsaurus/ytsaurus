@@ -2081,7 +2081,7 @@ private:
                         TError(
                             NChunkClient::EErrorCode::MissingExtension,
                             "Columnar statistics chunk meta extension missing"));
-                    return;
+                    continue;
                 }
                 const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
 
@@ -2094,7 +2094,7 @@ private:
                     nameTable = TNameTable::FromSchema(FromProto<TTableSchema>(schemaExt));
                 }
 
-                for (const auto &columnName: columnNames[index]) {
+                for (const auto& columnName: columnNames[index]) {
                     auto id = nameTable->FindId(columnName);
                     if (id && *id < columnarStatisticsExt.data_weights().size()) {
                         subresponse->add_data_weights(columnarStatisticsExt.data_weights(*id));
