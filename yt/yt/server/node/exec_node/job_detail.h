@@ -287,6 +287,10 @@ private:
 
     bool JobProxyCompleted_ = false;
 
+    // Tracing.
+    NTracing::TTraceContextPtr TraceContext_;
+    NTracing::TTraceContextFinishGuard FinishGuard_;
+
     // Helpers.
 
     template <class... U>

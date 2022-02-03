@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -13,6 +15,8 @@
 
 #include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
 
+#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
+
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/client/api/operation_archive_schema.h>
@@ -24,12 +28,15 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
+#include <yt/yt/client/misc/io_tags.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/ypath/token.h>
 
+#include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <util/string/ascii.h>
@@ -50,6 +57,8 @@ using namespace NTransactionClient;
 using namespace NSecurityClient;
 using namespace NLogging;
 using namespace NRpc;
+using namespace NJobTrackerClient::NProto;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -693,6 +702,24 @@ TError CheckPoolName(const TString& poolName, EPoolNameValidationLevel validatio
 void ValidatePoolName(const TString& poolName, EPoolNameValidationLevel validationLevel)
 {
     CheckPoolName(poolName, validationLevel).ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PackBaggageFromJobSpec(
+    const NTracing::TTraceContextPtr& traceContext,
+    const TJobSpec& jobSpec,
+    TOperationId operationId,
+    TJobId jobId)
+{
+    auto baggage = traceContext->UnpackOrCreateBaggage();
+    const auto& schedulerJobSpecExt = jobSpec.GetExtension(NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto ioTags = NYTree::FromProto(schedulerJobSpecExt.io_tags());
+    baggage->MergeFrom(*ioTags);
+    AddTagToBaggage(baggage, ERawIOTag::OperationId, ToString(operationId));
+    AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(jobId));
+    AddTagToBaggage(baggage, EAggregateIOTag::JobType, ToString(static_cast<EJobType>(jobSpec.type())));
+    traceContext->PackBaggage(baggage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

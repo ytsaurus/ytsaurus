@@ -83,6 +83,7 @@ using namespace NConcurrency;
 using namespace NApi;
 using namespace NFormats;
 using namespace NLogging;
+using namespace NTracing;
 
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
@@ -921,6 +922,11 @@ private:
             artifactDownloadOptions->EnableP2P = true;
 
             auto artifactCacheReaderConfig = GetArtifactCacheReaderConfig();
+
+            TTraceContextPtr traceContext(CreateTraceContextFromCurrent("ChunkReader"));
+            TTraceContextGuard guard(traceContext);
+
+            PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSource>(key.data_source()));
 
             auto chunkReader = CreateReplicationReader(
                 artifactCacheReaderConfig,
