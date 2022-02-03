@@ -14,11 +14,7 @@ class TTracingConfig
 public:
     bool SendBaggage;
 
-    TTracingConfig()
-    {
-        RegisterParameter("send_baggage", SendBaggage)
-            .Default(true);
-    }
+    TTracingConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TTracingConfig)

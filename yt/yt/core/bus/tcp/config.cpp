@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/core/net/address.h>
+
 namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,6 +89,24 @@ TTcpBusConfig::TTcpBusConfig()
         .Default(true);
     RegisterParameter("generate_checksums", GenerateChecksums)
         .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTcpBusClientConfig::TTcpBusClientConfig()
+{
+    RegisterParameter("address", Address)
+        .Default();
+    RegisterParameter("network_name", NetworkName)
+        .Default();
+    RegisterParameter("unix_domain_socket_path", UnixDomainSocketPath)
+        .Default();
+
+    RegisterPostprocessor([&] () {
+        if (!Address && !UnixDomainSocketPath) {
+            THROW_ERROR_EXCEPTION("\"address\" and \"unix_domain_socket_path\" cannot be both missing");
+        }
+    });
 }
 
 TTcpBusClientConfigPtr TTcpBusClientConfig::CreateTcp(const TString& address)

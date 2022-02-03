@@ -14,15 +14,7 @@ class TThroughputThrottlerConfig
 public:
     explicit TThroughputThrottlerConfig(
         std::optional<double> limit = std::nullopt,
-        TDuration period = TDuration::MilliSeconds(1000))
-    {
-        RegisterParameter("limit", Limit)
-            .Default(limit)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("period", Period)
-            .Default(period);
-    }
-
+        TDuration period = TDuration::MilliSeconds(1000));
     //! Limit on average throughput (per sec). Null means unlimited.
     std::optional<double> Limit;
 
@@ -44,13 +36,7 @@ class TRelativeThroughputThrottlerConfig
 public:
     explicit TRelativeThroughputThrottlerConfig(
         std::optional<double> limit = std::nullopt,
-        TDuration period = TDuration::MilliSeconds(1000))
-        : TThroughputThrottlerConfig(limit, period)
-    {
-        RegisterParameter("relative_limit", RelativeLimit)
-            .InRange(0.0, 1.0)
-            .Default();
-    }
+        TDuration period = TDuration::MilliSeconds(1000));
 
     std::optional<double> RelativeLimit;
 };

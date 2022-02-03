@@ -1,6 +1,10 @@
 #include "helpers.h"
 #include "config.h"
 
+#include <yt/yt/core/compression/codec.h>
+
+#include <yt/yt/core/crypto/config.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 
@@ -8,8 +12,6 @@
 #include <yt/yt_proto/yt/core/misc/proto/error.pb.h>
 
 #include <yt/yt/core/ytree/node.h>
-
-#include <yt/yt/core/compression/codec.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/byte_buffer.h>
