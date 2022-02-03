@@ -13,7 +13,7 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((PrerequisiteCheckFailed)                   (1000))
     ((InvalidObjectLifeStage)                    (1001))
     ((CrossCellAdditionalPath)                   (1002))

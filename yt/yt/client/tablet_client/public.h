@@ -44,7 +44,7 @@ DEFINE_ENUM(ETableReplicaContentType,
     ((External) (2))
 );
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((TransactionLockConflict)                (1700))
     ((NoSuchTablet)                           (1701))
     ((NoSuchCell)                             (1721))

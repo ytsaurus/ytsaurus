@@ -46,7 +46,7 @@ static const TString LastAttributesUpdateTimeAttribute = "last_attributes_update
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((NoSuchGroup)     (2300))
     ((NoSuchMember)    (2301))
     ((InvalidGroupId)  (2302))

@@ -3,6 +3,8 @@
 // TODO(ignat): migrate to enum class
 #include <library/cpp/yt/misc/enum.h>
 
+#include <yt/yt/core/misc/error_code.h>
+
 namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +20,7 @@ DEFINE_ENUM(EIntegralGuaranteeType,
     (Relaxed)
 );
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((PoolTreeGuaranteesOvercommit) (29000))
 );
 

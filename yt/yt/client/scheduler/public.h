@@ -44,7 +44,7 @@ DEFINE_ENUM(EOperationState,
     (Failed)
 );
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((NoSuchOperation)                        (200))
     ((InvalidOperationState)                  (201))
     ((TooManyOperations)                      (202))

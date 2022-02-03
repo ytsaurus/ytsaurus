@@ -11,7 +11,7 @@ DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
+DEFINE_ERROR_ENUM(
     ((NoSuchThrottler)          (2400))
     ((UnexpectedThrottlerMode)  (2401))
 );
