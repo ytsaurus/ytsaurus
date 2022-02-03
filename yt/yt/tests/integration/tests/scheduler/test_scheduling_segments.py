@@ -740,9 +740,19 @@ class TestSchedulingSegments(YTEnvSetup):
 
         op.wait_for_fresh_snapshot()
 
+        def wait_and_get_incarnation(agent):
+            incarnation_id = None
+
+            def check():
+                incarnation_id = get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent), default=None)
+                return incarnation_id is not None
+
+            wait(check)
+            return incarnation_id
+
         agent_to_incarnation = {}
         for agent in ls("//sys/controller_agents/instances"):
-            agent_to_incarnation[agent] = get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent))
+            agent_to_incarnation[agent] = wait_and_get_incarnation(agent)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             set("//sys/scheduler/config/scheduling_segments_initialization_timeout", 30000)
