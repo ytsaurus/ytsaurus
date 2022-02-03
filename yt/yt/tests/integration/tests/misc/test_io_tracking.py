@@ -1297,6 +1297,66 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
 
         assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
 
+    @authors("gepardo")
+    @pytest.mark.parametrize("chunk_count", [1, 2])
+    def test_file_artifacts(self, chunk_count):
+        table_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        create("file", "//tmp/script.sh")
+        write_table("//tmp/table_in", table_data)
+        if chunk_count == 1:
+            write_file("//tmp/script.sh", b"#!/bin/sh\nexec cat\n")
+        else:
+            write_file("//tmp/script.sh", b"#!/bin/sh\n")
+            write_file("<append=%true>//tmp/script.sh", b"exec cat\n")
+        raw_events, _ = self.wait_for_events(raw_count=1 + chunk_count, from_barrier=from_barrier)
+        for event in raw_events:
+            assert event["data_node_method@"] == "FinishChunk"
+
+        assert len(get("//tmp/script.sh/@chunk_ids")) == chunk_count
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = yt_commands.map(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            command="sh script.sh",
+            file="//tmp/script.sh",
+        )
+        raw_events, _ = self.wait_for_events(raw_count=2 + chunk_count, from_barrier=from_barrier)
+
+        read_paths = []
+        write_paths = []
+        for event in raw_events:
+            assert event["pool_tree@"] == "default"
+            assert event["operation_id"] == op.id
+            assert event["operation_type@"] == "Map"
+            assert "job_id" in event
+            assert event["job_type@"] == "Map"
+            assert event["task_name@"] == "map"
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
+            assert event["user@"] in ["root", "job:root"]
+            assert "object_id" in event
+            assert event["account@"] == "tmp"
+            if event["data_node_method@"] == "FinishChunk":
+                write_paths.append(event["object_path"])
+            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
+                read_paths.append(event["object_path"])
+            else:
+                assert False
+        assert sorted(read_paths) == ["//tmp/script.sh"] * chunk_count + ["//tmp/table_in"]
+        assert sorted(write_paths) == ["//tmp/table_out"]
+
+        assert read_table("//tmp/table_out") == table_data
+
 ##################################################################
 
 

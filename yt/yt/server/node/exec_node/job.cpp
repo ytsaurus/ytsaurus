@@ -93,6 +93,7 @@ using namespace NCoreDump;
 using namespace NNet;
 using namespace NProfiling;
 using namespace NContainers;
+using namespace NTracing;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
@@ -136,8 +137,12 @@ TJob::TJob(
         OperationId_,
         GetType()))
     , ResourceUsage_(resourceUsage)
+    , TraceContext_(CreateTraceContextFromCurrent("Job"))
+    , FinishGuard_(TraceContext_)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_);
 
     TrafficMeter_->Start();
 
@@ -170,6 +175,8 @@ TJob::~TJob()
 void TJob::Start()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    TCurrentTraceContextGuard guard(TraceContext_);
 
     if (JobPhase_ != EJobPhase::Created) {
         YT_LOG_DEBUG("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
