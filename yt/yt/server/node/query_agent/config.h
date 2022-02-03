@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/query_client/config.h>
 
+#include <yt/yt/core/misc/cache_config.h>
+
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NQueryAgent {

@@ -2,13 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ypath/public.h>
+#include <yt/yt/core/https/public.h>
 
 #include <yt/yt/core/misc/cache_config.h>
-
-#include <yt/yt/core/concurrency/config.h>
-
-#include <yt/yt/core/https/config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -24,15 +20,7 @@ public:
     TDuration OptimisticCacheTtl;
     TDuration ErrorTtl;
 
-    TAuthCacheConfig()
-    {
-        RegisterParameter("cache_ttl", CacheTtl)
-            .Default(TDuration::Minutes(5));
-        RegisterParameter("optimistic_cache_ttl", OptimisticCacheTtl)
-            .Default(TDuration::Hours(1));
-        RegisterParameter("error_ttl", ErrorTtl)
-            .Default(TDuration::Seconds(15));
-    }
+    TAuthCacheConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TAuthCacheConfig)
@@ -54,27 +42,7 @@ public:
     TDuration BackoffTimeout;
     bool UseLowercaseLogin;
 
-    TDefaultBlackboxServiceConfig()
-    {
-        RegisterParameter("http_client", HttpClient)
-            .DefaultNew();
-        RegisterParameter("host", Host)
-            .Default("blackbox.yandex-team.ru");
-        RegisterParameter("port", Port)
-            .Default(443);
-        RegisterParameter("secure", Secure)
-            .Default(true);
-        RegisterParameter("blackbox_service_id", BlackboxServiceId)
-            .Default("blackbox");
-        RegisterParameter("request_timeout", RequestTimeout)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("attempt_timeout", AttemptTimeout)
-            .Default(TDuration::Seconds(10));
-        RegisterParameter("backoff_timeout", BackoffTimeout)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("use_lowercase_login", UseLowercaseLogin)
-            .Default(true);
-    }
+    TDefaultBlackboxServiceConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)
@@ -107,38 +75,7 @@ public:
     int TvmToolPort = 0;
     TString TvmToolAuthToken;
 
-    TDefaultTvmServiceConfig()
-    {
-        RegisterParameter("use_tvm_tool", UseTvmTool)
-            .Default(false);
-        RegisterParameter("client_self_id", ClientSelfId)
-            .Default(0);
-        RegisterParameter("client_disk_cache_dir", ClientDiskCacheDir)
-            .Optional();
-        RegisterParameter("tvm_host", TvmHost)
-            .Optional();
-        RegisterParameter("tvm_port", TvmPort)
-            .Optional();
-        RegisterParameter("client_enable_user_ticket_checking", ClientEnableUserTicketChecking)
-            .Default(false);
-        RegisterParameter("client_blackbox_env", ClientBlackboxEnv)
-            .Default("ProdYateam");
-        RegisterParameter("client_enable_service_ticket_fetching", ClientEnableServiceTicketFetching)
-            .Default(false);
-        RegisterParameter("client_self_secret", ClientSelfSecret)
-            .Optional();
-        RegisterParameter("client_dst_map", ClientDstMap)
-            .Optional();
-        RegisterParameter("client_enable_service_ticket_checking", ClientEnableServiceTicketChecking)
-            .Default(false);
-
-        RegisterParameter("tvm_tool_self_alias", TvmToolSelfAlias)
-            .Optional();
-        RegisterParameter("tvm_tool_port", TvmToolPort)
-            .Optional();
-        RegisterParameter("tvm_tool_auth_token", TvmToolAuthToken)
-            .Optional();
-    }
+    TDefaultTvmServiceConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TDefaultTvmServiceConfig)
@@ -153,14 +90,7 @@ public:
     bool EnableScopeCheck;
     bool GetUserTicket;
 
-    TBlackboxTokenAuthenticatorConfig()
-    {
-        RegisterParameter("scope", Scope);
-        RegisterParameter("enable_scope_check", EnableScopeCheck)
-            .Default(true);
-        RegisterParameter("get_user_ticket", GetUserTicket)
-            .Default(true);
-    }
+    TBlackboxTokenAuthenticatorConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
@@ -174,13 +104,7 @@ public:
     THashSet<TString> Scopes;
     bool EnableScopeCheck;
 
-    TBlackboxTicketAuthenticatorConfig()
-    {
-        RegisterParameter("scopes", Scopes)
-            .Optional();
-        RegisterParameter("enable_scope_check", EnableScopeCheck)
-            .Default(false);
-    }
+    TBlackboxTicketAuthenticatorConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxTicketAuthenticatorConfig)
@@ -193,11 +117,7 @@ class TCachingTokenAuthenticatorConfig
 public:
     TAuthCacheConfigPtr Cache;
 
-    TCachingTokenAuthenticatorConfig()
-    {
-        RegisterParameter("cache", Cache)
-            .DefaultNew();
-    }
+    TCachingTokenAuthenticatorConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
@@ -222,16 +142,7 @@ public:
 
     bool Secure;
 
-    TCypressTokenAuthenticatorConfig()
-    {
-        RegisterParameter("root_path", RootPath)
-            .Default("//sys/tokens");
-        RegisterParameter("realm", Realm)
-            .Default("cypress");
-
-        RegisterParameter("secure", Secure)
-            .Default(false);
-    }
+    TCypressTokenAuthenticatorConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
@@ -260,19 +171,7 @@ public:
 
     bool GetUserTicket;
 
-    TBlackboxCookieAuthenticatorConfig()
-    {
-        RegisterParameter("domain", Domain)
-            .Default("yt.yandex-team.ru");
-
-        RegisterParameter("csrf_secret", CsrfSecret)
-            .Default();
-        RegisterParameter("csrf_token_ttl", CsrfTokenTtl)
-            .Default(DefaultCsrfTokenTtl);
-
-        RegisterParameter("get_user_ticket", GetUserTicket)
-            .Default(true);
-    }
+    TBlackboxCookieAuthenticatorConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
@@ -285,11 +184,7 @@ class TCachingCookieAuthenticatorConfig
 public:
     TAuthCacheConfigPtr Cache;
 
-    TCachingCookieAuthenticatorConfig()
-    {
-        RegisterParameter("cache", Cache)
-            .DefaultNew();
-    }
+    TCachingCookieAuthenticatorConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
@@ -317,23 +212,7 @@ public:
     TString VaultServiceId;
     TString Consumer;
 
-    TDefaultSecretVaultServiceConfig()
-    {
-        RegisterParameter("host", Host)
-            .Default("vault-api.passport.yandex.net");
-        RegisterParameter("port", Port)
-            .Default(443);
-        RegisterParameter("secure", Secure)
-            .Default(true);
-        RegisterParameter("http_client", HttpClient)
-            .DefaultNew();
-        RegisterParameter("request_timeout", RequestTimeout)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("vault_service_id", VaultServiceId)
-            .Default("yav");
-        RegisterParameter("consumer", Consumer)
-            .Optional();
-    }
+    TDefaultSecretVaultServiceConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TDefaultSecretVaultServiceConfig)
@@ -348,20 +227,7 @@ public:
     int MaxSubrequestsPerRequest;
     NConcurrency::TThroughputThrottlerConfigPtr RequestsThrottler;
 
-    TBatchingSecretVaultServiceConfig()
-    {
-        RegisterParameter("batch_delay", BatchDelay)
-            .Default(TDuration::MilliSeconds(100));
-        RegisterParameter("max_subrequests_per_request", MaxSubrequestsPerRequest)
-            .Default(100)
-            .GreaterThan(0);
-        RegisterParameter("requests_throttler", RequestsThrottler)
-            .DefaultNew();
-
-        RegisterPreprocessor([&] {
-            RequestsThrottler->Limit = 100;
-        });
-    }
+    TBatchingSecretVaultServiceConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBatchingSecretVaultServiceConfig)
@@ -374,18 +240,7 @@ class TCachingSecretVaultServiceConfig
 public:
     TAsyncExpiringCacheConfigPtr Cache;
 
-    TCachingSecretVaultServiceConfig()
-    {
-        RegisterParameter("cache", Cache)
-            .DefaultNew();
-
-        RegisterPreprocessor([&] {
-            Cache->RefreshTime = std::nullopt;
-            Cache->ExpireAfterAccessTime = TDuration::Seconds(60);
-            Cache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(60);
-            Cache->ExpireAfterFailedUpdateTime = TDuration::Seconds(60);
-        });
-    }
+    TCachingSecretVaultServiceConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingSecretVaultServiceConfig)
@@ -404,50 +259,13 @@ public:
     NAuth::TDefaultTvmServiceConfigPtr TvmService;
     NAuth::TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
 
-    TString GetCsrfSecret() const
-    {
-        if (BlackboxCookieAuthenticator &&
-            BlackboxCookieAuthenticator->CsrfSecret)
-        {
-            return *BlackboxCookieAuthenticator->CsrfSecret;
-        }
+    TString GetCsrfSecret() const;
 
-        return TString();
-    }
-
-    TInstant GetCsrfTokenExpirationTime() const
-    {
-        if (BlackboxCookieAuthenticator) {
-            return TInstant::Now() - BlackboxCookieAuthenticator->CsrfTokenTtl;
-        }
-
-        return TInstant::Now() - DefaultCsrfTokenTtl;
-    }
+    TInstant GetCsrfTokenExpirationTime() const;
 
     REGISTER_YSON_STRUCT(TAuthenticationManagerConfig);
 
-    static void Register(TRegistrar registrar)
-    {
-        // COMPAT(prime@)
-        registrar.Parameter("require_authentication", &TThis::RequireAuthentication)
-            .Alias("enable_authentication")
-            .Default(true);
-        registrar.Parameter("blackbox_token_authenticator", &TThis::BlackboxTokenAuthenticator)
-            .Alias("token_authenticator")
-            .Optional();
-        registrar.Parameter("blackbox_cookie_authenticator", &TThis::BlackboxCookieAuthenticator)
-            .Alias("cookie_authenticator")
-            .DefaultNew();
-        registrar.Parameter("blackbox_service", &TThis::BlackboxService)
-            .Alias("blackbox")
-            .DefaultNew();
-        registrar.Parameter("cypress_token_authenticator", &TThis::CypressTokenAuthenticator)
-            .Optional();
-        registrar.Parameter("tvm_service", &TThis::TvmService)
-            .Optional();
-        registrar.Parameter("blackbox_ticket_authenticator", &TThis::BlackboxTicketAuthenticator)
-            .Optional();
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAuthenticationManagerConfig)

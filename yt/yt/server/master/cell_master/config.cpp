@@ -42,6 +42,8 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/transaction_client/config.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NCellMaster {
