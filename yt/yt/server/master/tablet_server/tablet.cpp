@@ -379,7 +379,7 @@ TString ToString(const TTabletStatistics& tabletStatistics, const TChunkManagerP
 {
     TStringStream output;
     TYsonWriter writer(&output, EYsonFormat::Text);
-    New<TSerializableTabletStatistics>(tabletStatistics, chunkManager)->Save(&writer, true);
+    New<TSerializableTabletStatistics>(tabletStatistics, chunkManager)->Save(&writer);
     writer.Flush();
     return output.Str();
 }

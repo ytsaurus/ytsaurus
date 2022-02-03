@@ -1070,9 +1070,9 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchem
                     if (expectedValue.Type == EValueType::Any || expectedValue.Type == EValueType::Composite) {
                         // Slow path.
                         auto expectedYson = TYsonString(expectedValue.AsString());
-                        auto expectedStableYson = ConvertToYsonStringStable(ConvertToNode(expectedYson));
+                        auto expectedStableYson = ConvertToYsonString(ConvertToNode(expectedYson));
                         auto yson = TYsonString(value.AsString());
-                        auto stableYson = ConvertToYsonStringStable(ConvertToNode(yson));
+                        auto stableYson = ConvertToYsonString(ConvertToNode(yson));
                         EXPECT_EQ(expectedStableYson, stableYson);
                     } else {
                         // Fast path.

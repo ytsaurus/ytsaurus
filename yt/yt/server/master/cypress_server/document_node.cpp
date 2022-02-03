@@ -26,7 +26,7 @@ void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
     TCypressNode::Save(context);
 
     using NYT::Save;
-    auto serializedValue = ConvertToYsonStringStable(Value_);
+    auto serializedValue = ConvertToYsonString(Value_);
     Save(context, serializedValue.ToString());
 }
 

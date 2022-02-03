@@ -460,8 +460,6 @@ void Deserialize(IMapNodePtr& value, NYson::TYsonPullParserCursor* cursor);
 void Deserialize(IListNodePtr& value, NYson::TYsonPullParserCursor* cursor);
 void Deserialize(IEntityNodePtr& value, NYson::TYsonPullParserCursor* cursor);
 
-NYson::TYsonString ConvertToYsonStringStable(const INodePtr& node);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree

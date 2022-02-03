@@ -318,19 +318,6 @@ DESERIALIZE_TYPED(Entity)
 
 #undef DESERIALIZE_TYPED
 
-TYsonString ConvertToYsonStringStable(const INodePtr& node)
-{
-    TStringStream stream;
-    TBufferedBinaryYsonWriter writer(&stream);
-    VisitTree(
-        node,
-        &writer,
-        true, // truth matters :)
-        std::nullopt);
-    writer.Flush();
-    return TYsonString(stream.Str());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void Deserialize(INodePtr& value, NYson::TYsonPullParserCursor* cursor)

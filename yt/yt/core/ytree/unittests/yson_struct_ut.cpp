@@ -910,7 +910,7 @@ TEST(TYsonStructTest, ParameterTuplesAndContainers)
     original.UnorderedMap = { {"12345", 8}, {"XXX", 9}, {"XYZ", 42} };
     original.UnorderedMultiSet = { 1U, 2U, 1U, 0U, 0U };
 
-    Deserialize(deserialized, ConvertToNode(ConvertToYsonStringStable(original)));
+    Deserialize(deserialized, ConvertToNode(ConvertToYsonString(original)));
 
     EXPECT_EQ(original.Vector, deserialized.Vector);
     EXPECT_EQ(original.Array, deserialized.Array);
