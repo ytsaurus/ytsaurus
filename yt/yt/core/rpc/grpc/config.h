@@ -2,7 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/core/crypto/config.h>
+#include <yt/yt/core/crypto/public.h>
+
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc_security_constants.h>
 
@@ -17,13 +19,7 @@ public:
     NCrypto::TPemBlobConfigPtr PrivateKey;
     NCrypto::TPemBlobConfigPtr CertChain;
 
-    TSslPemKeyCertPairConfig()
-    {
-        RegisterParameter("private_key", PrivateKey)
-            .Optional();
-        RegisterParameter("cert_chain", CertChain)
-            .Optional();
-    }
+    TSslPemKeyCertPairConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSslPemKeyCertPairConfig)
@@ -48,14 +44,7 @@ public:
     std::vector<TSslPemKeyCertPairConfigPtr> PemKeyCertPairs;
     EClientCertificateRequest ClientCertificateRequest;
 
-    TServerCredentialsConfig()
-    {
-        RegisterParameter("pem_root_certs", PemRootCerts)
-            .Optional();
-        RegisterParameter("pem_key_cert_pairs", PemKeyCertPairs);
-        RegisterParameter("client_certificate_request", ClientCertificateRequest)
-            .Default(EClientCertificateRequest::RequestAndRequireClientCertificateAndVerify);
-    }
+    TServerCredentialsConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerCredentialsConfig)
@@ -69,12 +58,7 @@ public:
     TString Address;
     TServerCredentialsConfigPtr Credentials;
 
-    TServerAddressConfig()
-    {
-        RegisterParameter("address", Address);
-        RegisterParameter("credentials", Credentials)
-            .Optional();
-    }
+    TServerAddressConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerAddressConfig)
@@ -88,12 +72,7 @@ public:
     std::vector<TServerAddressConfigPtr> Addresses;
     THashMap<TString, NYTree::INodePtr> GrpcArguments;
 
-    TServerConfig()
-    {
-        RegisterParameter("addresses", Addresses);
-        RegisterParameter("grpc_arguments", GrpcArguments)
-            .Default();
-    }
+    TServerConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerConfig)
@@ -107,13 +86,7 @@ public:
     NCrypto::TPemBlobConfigPtr PemRootCerts;
     TSslPemKeyCertPairConfigPtr PemKeyCertPair;
 
-    TChannelCredentialsConfig()
-    {
-        RegisterParameter("pem_root_certs", PemRootCerts)
-            .Optional();
-        RegisterParameter("pem_key_cert_pair", PemKeyCertPair)
-            .Optional();
-    }
+    TChannelCredentialsConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChannelCredentialsConfig)
@@ -128,14 +101,7 @@ public:
     TChannelCredentialsConfigPtr Credentials;
     THashMap<TString, NYTree::INodePtr> GrpcArguments;
 
-    TChannelConfig()
-    {
-        RegisterParameter("address", Address);
-        RegisterParameter("credentials", Credentials)
-            .Optional();
-        RegisterParameter("grpc_arguments", GrpcArguments)
-            .Default();
-    }
+    TChannelConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChannelConfig)

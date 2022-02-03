@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <yt/yt/core/net/config.h>
-#include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
@@ -94,21 +93,7 @@ public:
     std::optional<TString> NetworkName;
     std::optional<TString> UnixDomainSocketPath;
 
-    TTcpBusClientConfig()
-    {
-        RegisterParameter("address", Address)
-            .Default();
-        RegisterParameter("network_name", NetworkName)
-            .Default();
-        RegisterParameter("unix_domain_socket_path", UnixDomainSocketPath)
-            .Default();
-
-        RegisterPostprocessor([&] () {
-            if (!Address && !UnixDomainSocketPath) {
-                THROW_ERROR_EXCEPTION("\"address\" and \"unix_domain_socket_path\" cannot be both missing");
-            }
-        });
-    }
+    TTcpBusClientConfig();
 
     static TTcpBusClientConfigPtr CreateTcp(const TString& address);
     static TTcpBusClientConfigPtr CreateTcp(const TString& address, const TString& network);
