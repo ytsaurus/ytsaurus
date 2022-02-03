@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/client/api/client.h>
-
 #include <yt/yt/core/misc/cache_config.h>
 
 #include <yt/yt/core/rpc/config.h>
@@ -24,28 +22,10 @@ public:
     TDuration MasterCacheExpireAfterFailedUpdateTime;
     std::optional<int> MasterCacheStickyGroupSize;
 
-    TObjectAttributeCacheConfig()
-    {
-        RegisterParameter("read_from", ReadFrom)
-            .Default(NApi::EMasterChannelKind::Follower);
-        RegisterParameter("master_cache_expire_after_successful_update_time", MasterCacheExpireAfterSuccessfulUpdateTime)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("master_cache_expire_after_failed_update_time", MasterCacheExpireAfterFailedUpdateTime)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("master_cache_cache_sticky_group_size", MasterCacheStickyGroupSize)
-            .Default();
-    }
+    TObjectAttributeCacheConfig();
 
     // TODO(max42): eliminate this by proper inheritance.
-    NApi::TMasterReadOptions GetMasterReadOptions()
-    {
-        return NApi::TMasterReadOptions{
-            .ReadFrom = ReadFrom,
-            .ExpireAfterSuccessfulUpdateTime = MasterCacheExpireAfterSuccessfulUpdateTime,
-            .ExpireAfterFailedUpdateTime = MasterCacheExpireAfterFailedUpdateTime,
-            .CacheStickyGroupSize = MasterCacheStickyGroupSize
-        };
-    }
+    NApi::TMasterReadOptions GetMasterReadOptions();
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectAttributeCacheConfig)
@@ -58,15 +38,7 @@ class TObjectServiceCacheConfig
 public:
     double TopEntryByteRateThreshold;
 
-    TObjectServiceCacheConfig()
-    {
-        RegisterPreprocessor([&] {
-            Capacity = 1_GB;
-        });
-
-        RegisterParameter("top_entry_byte_rate_threshold", TopEntryByteRateThreshold)
-            .Default(10_KB);
-    }
+    TObjectServiceCacheConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheConfig)
@@ -79,11 +51,7 @@ class TObjectServiceCacheDynamicConfig
 public:
     std::optional<double> TopEntryByteRateThreshold;
 
-    TObjectServiceCacheDynamicConfig()
-    {
-        RegisterParameter("top_entry_byte_rate_threshold", TopEntryByteRateThreshold)
-            .Optional();
-    }
+    TObjectServiceCacheDynamicConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheDynamicConfig)
@@ -98,15 +66,7 @@ public:
     double CacheTtlRatio;
     i64 EntryByteRateLimit;
 
-    TCachingObjectServiceConfig()
-    {
-        RegisterParameter("cache_ttl_ratio", CacheTtlRatio)
-            .InRange(0, 1)
-            .Default(0.5);
-        RegisterParameter("entry_byte_rate_limit", EntryByteRateLimit)
-            .GreaterThan(0)
-            .Default(10_MB);
-    }
+    TCachingObjectServiceConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceConfig)
@@ -121,15 +81,7 @@ public:
     std::optional<double> CacheTtlRatio;
     std::optional<i64> EntryByteRateLimit;
 
-    TCachingObjectServiceDynamicConfig()
-    {
-        RegisterParameter("cache_ttl_ratio", CacheTtlRatio)
-            .InRange(0, 1)
-            .Optional();
-        RegisterParameter("entry_byte_rate_limit", EntryByteRateLimit)
-            .GreaterThan(0)
-            .Optional();
-    }
+    TCachingObjectServiceDynamicConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceDynamicConfig)
@@ -145,19 +97,7 @@ public:
     double BackoffMultiplier;
     int RetryCount;
 
-    TReqExecuteBatchWithRetriesConfig()
-    {
-        RegisterParameter("base_backoff", StartBackoff)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("max_backoff", MaxBackoff)
-            .Default(TDuration::Seconds(20));
-        RegisterParameter("backoff_multiplier", BackoffMultiplier)
-            .GreaterThanOrEqual(1)
-            .Default(2);
-        RegisterParameter("retry_count", RetryCount)
-            .GreaterThanOrEqual(0)
-            .Default(5);
-    }
+    TReqExecuteBatchWithRetriesConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TReqExecuteBatchWithRetriesConfig)
@@ -172,15 +112,7 @@ public:
     std::optional<TString> Name;
     TString Slug;
 
-    TAbcConfig() {
-        RegisterParameter("id", Id)
-            .GreaterThan(0);
-        RegisterParameter("name", Name)
-            .Default()
-            .NonEmpty();
-        RegisterParameter("slug", Slug)
-            .NonEmpty();
-    }
+    TAbcConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TAbcConfig)

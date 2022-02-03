@@ -12,6 +12,7 @@
 #include <yt/yt/core/http/http.h>
 
 #include <yt/yt/core/https/client.h>
+#include <yt/yt/core/https/config.h>
 
 #include <yt/yt/core/json/json_parser.h>
 

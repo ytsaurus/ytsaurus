@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NNodeTrackerClient {
@@ -18,18 +16,7 @@ public:
     TDuration ExpireAfterSuccessfulUpdateTime;
     TDuration ExpireAfterFailedUpdateTime;
 
-    TNodeDirectorySynchronizerConfig()
-    {
-        RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Minutes(2));
-
-        RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
-            .Alias("success_expiration_time")
-            .Default(TDuration::Minutes(2));
-        RegisterParameter("expire_after_failed_update_time", ExpireAfterFailedUpdateTime)
-            .Alias("failure_expiration_time")
-            .Default(TDuration::Minutes(2));
-    }
+    TNodeDirectorySynchronizerConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeDirectorySynchronizerConfig)

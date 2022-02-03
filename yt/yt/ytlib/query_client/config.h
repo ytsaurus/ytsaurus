@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/cache_config.h>
+#include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
@@ -16,16 +16,7 @@ class TExecutorConfig
 public:
     TSlruCacheConfigPtr CGCache;
 
-    TExecutorConfig()
-    {
-        RegisterParameter("cg_cache", CGCache)
-            .DefaultNew();
-
-        RegisterPreprocessor([&] () {
-            CGCache->Capacity = 512;
-            CGCache->ShardCount = 1;
-        });
-    }
+    TExecutorConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecutorConfig)
@@ -38,16 +29,7 @@ class TColumnEvaluatorCacheConfig
 public:
     TSlruCacheConfigPtr CGCache;
 
-    TColumnEvaluatorCacheConfig()
-    {
-        RegisterParameter("cg_cache", CGCache)
-            .DefaultNew();
-
-        RegisterPreprocessor([&] () {
-            CGCache->Capacity = 512;
-            CGCache->ShardCount = 1;
-        });
-    }
+    TColumnEvaluatorCacheConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCacheConfig)
@@ -60,11 +42,7 @@ class TColumnEvaluatorCacheDynamicConfig
 public:
     TSlruCacheDynamicConfigPtr CGCache;
 
-    TColumnEvaluatorCacheDynamicConfig()
-    {
-        RegisterParameter("cg_cache", CGCache)
-            .DefaultNew();
-    }
+    TColumnEvaluatorCacheDynamicConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCacheDynamicConfig)

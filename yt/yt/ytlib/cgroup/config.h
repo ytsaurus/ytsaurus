@@ -14,19 +14,7 @@ class TCGroupConfig
 public:
     std::vector<TString> SupportedCGroups;
 
-    TCGroupConfig()
-    {
-        RegisterParameter("supported_cgroups", SupportedCGroups)
-            .Default();
-
-        RegisterPostprocessor([&] () {
-            for (const auto& type : SupportedCGroups) {
-                if (!IsValidCGroupType(type)) {
-                    THROW_ERROR_EXCEPTION("Invalid cgroup type %Qv", type);
-                }
-            }
-        });
-    }
+    TCGroupConfig();
 
     bool IsCGroupSupported(const TString& cgroupType) const;
 };
