@@ -207,8 +207,6 @@ void Serialize(const TYsonStructBase& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TYsonStructBase& value, NYTree::INodePtr node);
 void Deserialize(TYsonStructBase& value, NYson::TYsonPullParserCursor* cursor);
 
-NYson::TYsonString ConvertToYsonStringStable(const TYsonStructBase& value);
-
 template <class T>
 TIntrusivePtr<T> UpdateYsonStruct(
     const TIntrusivePtr<T>& obj,

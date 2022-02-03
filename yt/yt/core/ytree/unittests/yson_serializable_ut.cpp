@@ -796,7 +796,7 @@ TEST_P(TYsonSerializableParseTest, ParameterTuplesAndContainers)
     original->UnorderedMap = { {"12345", 8}, {"XXX", 9}, {"XYZ", 42} };
     original->UnorderedMultiSet = { 1U, 2U, 1U, 0U, 0U };
 
-    auto deserialized = Load<TTestClass>(ConvertToYsonStringStable(*original));
+    auto deserialized = Load<TTestClass>(ConvertToYsonString(*original));
 
     EXPECT_EQ(original->Vector, deserialized->Vector);
     EXPECT_EQ(original->Array, deserialized->Array);
@@ -1069,6 +1069,66 @@ TEST(TYsonSerializableTest, TestPreprocessorsEffectsOnNestedStructsArePreservedO
     auto deserialized = ConvertTo<TIntrusivePtr<TYsonSerializableWithNestedStructsAndPreprocessors>>(testInput);
     EXPECT_EQ(deserialized->YsonSerializable->IntValue, 10);
     EXPECT_EQ(deserialized->YsonStruct->IntValue, 10);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYsonSerializableTest, TestStable)
+{
+    class TInner
+        : public NYTree::TYsonSerializable
+    {
+    public:
+        int A;
+        int B;
+        int C;
+        int D;
+        int Q;
+
+        TInner()
+        {
+            RegisterParameter("b", B)
+                .Default(2);
+            RegisterParameter("a", A)
+                .Default(1);
+            RegisterParameter("c", C)
+                .Default(3);
+            RegisterParameter("q", Q)
+                .Default(9);
+            RegisterParameter("d", D)
+                .Default(4);
+        }
+    };
+
+    class TOuter
+        : public TYsonSerializable
+    {
+    public:
+        TIntrusivePtr<TInner> Inner;
+        TOuter()
+        {
+            RegisterParameter("inner", Inner)
+                .DefaultNew();
+        }
+    };
+
+    {
+        auto outer = New<TOuter>();
+        auto output = ConvertToYsonString(*outer, NYson::EYsonFormat::Text);
+
+        auto result = BuildYsonStringFluently(NYson::EYsonFormat::Text)
+            .BeginMap()
+                .Item("inner").BeginMap()
+                    .Item("a").Value(1)
+                    .Item("b").Value(2)
+                    .Item("c").Value(3)
+                    .Item("d").Value(4)
+                    .Item("q").Value(9)
+                .EndMap()
+            .EndMap();
+
+        EXPECT_EQ(result, output);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

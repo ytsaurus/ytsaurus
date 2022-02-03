@@ -149,9 +149,7 @@ public:
 
     void SetDefaults();
 
-    void Save(
-        NYson::IYsonConsumer* consumer,
-        bool stable = false) const;
+    void Save(NYson::IYsonConsumer* consumer) const;
 
     IMapNodePtr GetUnrecognized() const;
     IMapNodePtr GetUnrecognizedRecursively() const;
@@ -211,8 +209,6 @@ THashMap<TString, TIntrusivePtr<T>> CloneYsonSerializables(const THashMap<TStrin
 void Serialize(const TYsonSerializableLite& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TYsonSerializableLite& value, NYTree::INodePtr node);
 void Deserialize(TYsonSerializableLite& value, NYson::TYsonPullParserCursor* cursor);
-
-NYson::TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value);
 
 template <class T>
 TIntrusivePtr<T> UpdateYsonSerializable(

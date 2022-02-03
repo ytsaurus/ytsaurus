@@ -216,27 +216,11 @@ void TYsonSerializableLite::Load(
     }
 }
 
-void TYsonSerializableLite::Save(
-    IYsonConsumer* consumer,
-    bool stable) const
+void TYsonSerializableLite::Save(IYsonConsumer* consumer) const
 {
-    std::vector<std::pair<TString, IParameterPtr>> parameters;
-    for (const auto& pair : Parameters) {
-        parameters.push_back(pair);
-    }
-
-    if (stable) {
-        typedef std::pair<TString, IParameterPtr> TPair;
-        std::sort(
-            parameters.begin(),
-            parameters.end(),
-            [] (const TPair& lhs, const TPair& rhs) {
-                return lhs.first < rhs.first;
-            });
-    }
-
     consumer->OnBeginMap();
-    for (const auto& [name, parameter] : parameters) {
+
+    for (const auto& [name, parameter] : SortHashMapByKeys(Parameters)) {
         if (!parameter->CanOmitValue()) {
             consumer->OnKeyedItem(name);
             parameter->Save(consumer);
@@ -244,7 +228,9 @@ void TYsonSerializableLite::Save(
     }
 
     if (Unrecognized) {
-        for (const auto& [key, child] : Unrecognized->GetChildren()) {
+        auto children = Unrecognized->GetChildren();
+        SortByFirst(children);
+        for (const auto& [key, child] : children) {
             consumer->OnKeyedItem(key);
             Serialize(child, consumer);
         }
@@ -366,17 +352,6 @@ void Deserialize(TYsonSerializableLite& value, NYson::TYsonPullParserCursor* cur
     value.Load(cursor);
 }
 
-TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value)
-{
-    TStringStream output;
-    TBufferedBinaryYsonWriter writer(&output);
-    value.Save(
-        &writer,
-        true); // truth matters :)
-    writer.Flush();
-    return TYsonString(output.Str());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_REFCOUNTED_TYPE(TYsonSerializable);
@@ -394,7 +369,7 @@ using namespace NYTree;
 
 void TBinaryYsonSerializer::Save(TStreamSaveContext& context, const TYsonSerializableLite& obj)
 {
-    auto str = ConvertToYsonStringStable(obj);
+    auto str = ConvertToYsonString(obj);
     NYT::Save(context, str);
 }
 

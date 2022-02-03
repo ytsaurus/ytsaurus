@@ -14,7 +14,7 @@ using namespace NYTree;
 TString CanonizeYson(TStringBuf input)
 {
     auto node = ConvertToNode(TYsonString(input));
-    auto binaryYson = ConvertToYsonStringStable(node);
+    auto binaryYson = ConvertToYsonString(node);
 
     TStringStream out;
     {

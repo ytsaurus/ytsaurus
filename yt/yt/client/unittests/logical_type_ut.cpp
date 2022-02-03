@@ -409,7 +409,7 @@ TEST(TLogicalTypeTest, TestIsComparable) {
 TString CanonizeYsonString(TString input)
 {
     auto node = ConvertToNode(TYsonString(input));
-    auto binaryYson = ConvertToYsonStringStable(node);
+    auto binaryYson = ConvertToYsonString(node);
 
     TStringStream out;
     {

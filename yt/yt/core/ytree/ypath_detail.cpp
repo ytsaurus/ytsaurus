@@ -898,7 +898,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 
                     auto oldWholeNode = ConvertToNode(oldWholeYson);
                     SyncYPathSet(oldWholeNode, TYPath(tokenizer.GetInput()), newYson);
-                    auto newWholeYson = ConvertToYsonStringStable(oldWholeNode);
+                    auto newWholeYson = ConvertToYsonString(oldWholeNode);
 
                     if (!GuardedSetBuiltinAttribute(internedKey, newWholeYson)) {
                         ThrowCannotSetBuiltinAttribute(key);
@@ -923,7 +923,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 
                     auto wholeNode = ConvertToNode(oldWholeYson);
                     SyncYPathSet(wholeNode, TYPath(tokenizer.GetInput()), newYson);
-                    auto newWholeYson = ConvertToYsonStringStable(wholeNode);
+                    auto newWholeYson = ConvertToYsonString(wholeNode);
 
                     customAttributes->SetYson(key, newWholeYson);
                 }
@@ -1027,7 +1027,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
 
                     auto customNode = ConvertToNode(customYson);
                     SyncYPathRemove(customNode, TYPath(tokenizer.GetInput()), /*recursive*/ true, force);
-                    auto updatedCustomYson = ConvertToYsonStringStable(customNode);
+                    auto updatedCustomYson = ConvertToYsonString(customNode);
 
                     customAttributes->SetYson(key, updatedCustomYson);
                 } else {
@@ -1062,7 +1062,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
 
                     auto builtinNode = ConvertToNode(builtinYson);
                     SyncYPathRemove(builtinNode, TYPath(tokenizer.GetInput()));
-                    auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);
+                    auto updatedSystemYson = ConvertToYsonString(builtinNode);
 
                     if (!GuardedSetBuiltinAttribute(internedKey, updatedSystemYson)) {
                         ThrowCannotSetBuiltinAttribute(key);

@@ -172,17 +172,6 @@ void Deserialize(TYsonStructBase& value, TYsonPullParserCursor* cursor)
     value.Load(cursor);
 }
 
-TYsonString ConvertToYsonStringStable(const TYsonStructBase& value)
-{
-    TStringStream output;
-    TBufferedBinaryYsonWriter writer(&output);
-    value.Save(
-        &writer,
-        true); // truth matters :)
-    writer.Flush();
-    return TYsonString(output.Str());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_REFCOUNTED_TYPE(TYsonStruct);
@@ -200,7 +189,7 @@ using namespace NYTree;
 
 void TBinaryYsonStructSerializer::Save(TStreamSaveContext& context, const TYsonStructBase& obj)
 {
-    auto str = ConvertToYsonStringStable(obj);
+    auto str = ConvertToYsonString(obj);
     NYT::Save(context, str);
 }
 
