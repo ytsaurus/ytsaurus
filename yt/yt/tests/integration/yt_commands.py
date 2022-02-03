@@ -1936,11 +1936,10 @@ def create_replication_card(chaos_cell_id, **kwargs):
     return execute_command("create", kwargs, parse_yson=True)
 
 
-def create_chaos_table_replica(replication_card_id, cluster_name, replica_path, **kwargs):
+def create_chaos_table_replica(cluster_name, replica_path, **kwargs):
     kwargs["type"] = "chaos_table_replica"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
-    kwargs["attributes"]["replication_card_id"] = replication_card_id
     kwargs["attributes"]["cluster_name"] = cluster_name
     kwargs["attributes"]["replica_path"] = replica_path
     return execute_command("create", kwargs, parse_yson=True)
