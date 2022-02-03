@@ -1,6 +1,7 @@
 #include "journal_commands.h"
 #include "config.h"
 
+#include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/journal_reader.h>
 #include <yt/yt/client/api/journal_writer.h>
 

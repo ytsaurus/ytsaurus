@@ -2,6 +2,7 @@
 #include "config.h"
 #include "helpers.h"
 
+#include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>
 
