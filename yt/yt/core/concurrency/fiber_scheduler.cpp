@@ -62,9 +62,6 @@ void SwitchFromThread(TFiberPtr target);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(lukyan): Merge with TFiberContext?
-thread_local TFiberScheduler* CurrentThread = nullptr;
-
 // Non POD TLS sometimes does not work correctly in dynamic library.
 struct TFiberContext
 {
@@ -72,12 +69,12 @@ struct TFiberContext
     TClosure AfterSwitch;
     TFiberPtr ResumerFiber;
     TFiberPtr CurrentFiber;
+    TFiberScheduler* FiberThread = nullptr;
 
     TRefCountedGaugePtr WaitingFibersCounter;
 };
 
 static thread_local TFiberContext* FiberContext;
-static thread_local bool FiberShutdown;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,14 +96,12 @@ void TFiberScheduler::ThreadMain()
             GetThreadName());
 
         TFiberContext fiberContext;
-
+        fiberContext.FiberThread = this;
         fiberContext.WaitingFibersCounter = New<TRefCountedGauge>(
             NProfiling::TRegistry{"/action_queue"}.WithTag("thread", ThreadGroupName_).WithHot());
 
-        CurrentThread = this;
         FiberContext = &fiberContext;
         auto finally = Finally([] {
-            CurrentThread = nullptr;
             FiberContext = nullptr;
         });
 
@@ -271,6 +266,11 @@ Y_NO_INLINE TFiberPtr& CurrentFiber()
     return FiberContext ? FiberContext->CurrentFiber : NullFiberPtr;
 }
 
+Y_NO_INLINE TFiberScheduler* GetFiberThread()
+{
+    return FiberContext->FiberThread;
+}
+
 Y_NO_INLINE void SetAfterSwitch(TClosure&& closure)
 {
     YT_VERIFY(!AfterSwitch());
@@ -382,10 +382,8 @@ private:
             TFiberContext fiberContext;
             FiberContext = &fiberContext;
 
-            FiberShutdown = true;
             auto finally = Finally([] {
                 FiberContext = nullptr;
-                FiberShutdown = false;
             });
 
             for (const auto& fiber : fibers) {
@@ -411,16 +409,13 @@ void FiberMain()
     }
 
     auto* currentFiber = CurrentFiber().Get();
-    TFiberScheduler* threadThis = nullptr;
+    TFiberScheduler* fiberThread = nullptr;
 
     // Break loop to terminate fiber
-    while (!FiberShutdown) {
+    while (fiberThread = GetFiberThread()) {
         YT_VERIFY(!ResumerFiber());
 
-        threadThis = CurrentThread;
-        YT_VERIFY(threadThis);
-
-        auto callback = threadThis->OnExecute();
+        auto callback = fiberThread->OnExecute();
 
         if (callback) {
              try {
