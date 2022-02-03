@@ -74,16 +74,20 @@ class ChaosTestBase(DynamicTablesBase):
         wait(_check)
         return get("#{0}/@".format(card_id))
 
-    def _create_chaos_table_replica(self, card_id, replica):
+    def _create_chaos_table_replica(self, replica, replication_card_id=None, table_path=None):
         attributes = {
             "content_type": replica["content_type"],
             "mode": replica["mode"],
             "enabled": replica.get("enabled", False)
         }
-        return create_chaos_table_replica(card_id, replica["cluster_name"], replica["replica_path"], attributes=attributes)
+        if replication_card_id is not None:
+            attributes["replication_card_id"] = replication_card_id
+        if table_path is not None:
+            attributes["table_path"] = table_path
+        return create_chaos_table_replica(replica["cluster_name"], replica["replica_path"], attributes=attributes)
 
-    def _create_chaos_table_replicas(self, card_id, replicas):
-        return [self._create_chaos_table_replica(card_id, replica) for replica in replicas]
+    def _create_chaos_table_replicas(self, replication_card_id, replicas):
+        return [self._create_chaos_table_replica(replica, replication_card_id=replication_card_id) for replica in replicas]
 
     def _create_replica_tables(self, replication_card_id, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
         for replica, replica_id in zip(replicas, replica_ids):
@@ -938,6 +942,26 @@ class TestChaos(ChaosTestBase):
 
         remove("//tmp/crt")
         wait(lambda: not exists("#{0}".format(card_id)))
+
+    @authors("babenko")
+    def test_create_chaos_table_replica_for_chaos_replicated_table(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        card_id = create_replication_card(chaos_cell_id=cell_id)
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": "c",
+            "replication_card_id": card_id
+        })
+
+        replica = {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "replica_path": "//tmp/r0"}
+        replica_id = self._create_chaos_table_replica(replica, table_path="//tmp/crt")
+
+        attributes = get("#{0}/@".format(replica_id))
+        assert attributes["type"] == "chaos_table_replica"
+        assert attributes["id"] == replica_id
+        assert attributes["replication_card_id"] == card_id
+        assert attributes["replica_path"] == "//tmp/r0"
+        assert attributes["cluster_name"] == "remote_0"
 
 
 ##################################################################

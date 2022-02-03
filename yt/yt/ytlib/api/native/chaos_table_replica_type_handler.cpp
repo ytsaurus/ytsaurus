@@ -108,7 +108,7 @@ private:
     {
         auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
 
-        auto replicationCardId = attributes->Get<TReplicationCardId>("replication_card_id");
+        auto replicationCardId = GetReplicationCardIdForNewReplica(attributes);
         auto clusterName = attributes->Get<TString>("cluster_name");
         auto replicaPath = attributes->Get<TString>("replica_path");
         auto contentType = attributes->Get<ETableReplicaContentType>("content_type", ETableReplicaContentType::Data);
@@ -131,6 +131,45 @@ private:
             .ValueOrThrow();
 
         return FromProto<TReplicaId>(rsp->replica_id());
+    }
+
+    TReplicationCardId GetReplicationCardIdForNewReplica(const IAttributeDictionaryPtr& attributes)
+    {
+        auto optionalReplicationCardId = attributes->Find<TReplicationCardId>("replication_card_id");
+        auto optionalTablePath = attributes->Find<TYPath>("table_path");
+        if (optionalReplicationCardId && optionalTablePath) {
+            THROW_ERROR_EXCEPTION("Cannot specify both \"replication_card_id\" and \"table_path\"");
+        }
+        if (!optionalReplicationCardId && !optionalTablePath) {
+            THROW_ERROR_EXCEPTION("Must specify either \"replication_card_id\" or \"table_path\"");
+        }
+
+        if (optionalReplicationCardId) {
+            return *optionalReplicationCardId;
+        }
+        if (optionalTablePath) {
+            return GetReplicationCardIdFromTablePath(*optionalTablePath);
+        }
+        YT_ABORT();
+    }
+
+    TReplicationCardId GetReplicationCardIdFromTablePath(const TYPath& tablePath)
+    {
+        TGetNodeOptions options;
+        options.Attributes = {"type", "replication_card_id"};
+        auto yson = WaitFor(Client_->GetNode(tablePath + "/@", options))
+            .ValueOrThrow();
+
+        auto attributes = ConvertToAttributes(yson);
+        auto type = attributes->Get<EObjectType>("type");
+        if (type != EObjectType::ChaosReplicatedTable) {
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                tablePath,
+                EObjectType::ChaosReplicatedTable,
+                type);
+        }
+
+        return attributes->Get<TReplicationCardId>("replication_card_id");
     }
 
     void DoRemoveObject(TReplicaId replicaId, const TRemoveNodeOptions& options) override
