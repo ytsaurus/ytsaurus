@@ -178,7 +178,7 @@ def extract_metric_distribution(row, metric, target):
     timestamp = row["timestamp"]
     pools = row[target]
     result = {target: {}, "timestamp": timestamp}
-    for pool in pools.iteritems():
+    for pool in pools.items():
         name = pool[0]
         metric_value = pool[1][metric]
         if metric_value != 0:
@@ -192,7 +192,7 @@ def extract_metric_distribution(row, metric, target):
 def resource_usage_sum(resource_usages):
     result = defaultdict(int)
     for resource_usage in resource_usages:
-        for resource, value in resource_usage.iteritems():
+        for resource, value in resource_usage.items():
             result[resource] += value
     return dict(result)
 
@@ -337,7 +337,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         create_pool("test_pool", attributes={"resource_limits": resource_limits})
 
         self._prepare_tables()
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         write_table("//tmp/t_in", data)
 
         op = map(
@@ -382,30 +382,30 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         output.sort(key=lambda x: date_string_to_datetime(x["start_time"]))
         assert len(output) == 1
         operation_id = output[0]["operation_id"]
-        with open(simulator_files_path["simulator_input_yson_file"], "w") as fout:
+        with open(simulator_files_path["simulator_input_yson_file"], "wb") as fout:
             yson.dump(output, fout, yson_type="list_fragment")
 
-        with open(simulator_files_path["simulator_input_yson_file"]) as fin:
+        with open(simulator_files_path["simulator_input_yson_file"], "rb") as fin:
             subprocess.check_call(
                 [CONVERTER_BINARY, simulator_files_path["simulator_input_bin_file"]],
                 stdin=fin,
             )
 
         self._set_scheduler_simulator_config_params(simulator_files_path)
-        with open(simulator_files_path["scheduler_simulator_config_yson_file"], "w") as fout:
+        with open(simulator_files_path["scheduler_simulator_config_yson_file"], "wb") as fout:
             fout.write(yson.dumps(self.scheduler_simulator_config))
 
-        with open(simulator_files_path["node_groups_yson_file"], "w") as fout:
+        with open(simulator_files_path["node_groups_yson_file"], "wb") as fout:
             yson.dump(node_groups, fout)
 
-        with open(simulator_files_path["pools_test_yson_file"], "w") as fout:
+        with open(simulator_files_path["pools_test_yson_file"], "wb") as fout:
             yson.dump(pools_config, fout)
 
         scheduler_config = self.Env.configs["scheduler"][0]["scheduler"]
-        with open(simulator_files_path["scheduler_config_yson_file"], "w") as fout:
+        with open(simulator_files_path["scheduler_config_yson_file"], "wb") as fout:
             yson.dump(scheduler_config, fout)
 
-        with open(simulator_files_path["simulator_input_bin_file"]) as fin:
+        with open(simulator_files_path["simulator_input_bin_file"], "rb") as fin:
             subprocess.check_call(
                 [
                     SIMULATOR_BINARY,
@@ -492,7 +492,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             if usage_pools["pools"]["test_pool"] != usage_operations["operations"][operation_id]:
                 self.fair_share_info_error_count += 1
         self.operations_resource_usage = resource_usage_sum(
-            operation["resource_usage"] for operation in item["operations"].itervalues()
+            operation["resource_usage"] for operation in item["operations"].values()
         )
 
     def _parse_nodes_info(self, item):
@@ -504,7 +504,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
         for node_group in node_groups:
             node_group_count = 0
-            for node_info in nodes.itervalues():
+            for node_info in nodes.values():
                 if node_info["tags"] == node_group["tags"] and resources_equal(
                     node_info["resource_limits"], node_group["resource_limits"]
                 ):
@@ -513,15 +513,15 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             assert node_group["count"] == node_group_count
 
         self.nodes_info_count += 1
-        nodes_resource_usage = resource_usage_sum(node_info["resource_usage"] for node_info in nodes.itervalues())
+        nodes_resource_usage = resource_usage_sum(node_info["resource_usage"] for node_info in nodes.values())
         if not resources_equal(nodes_resource_usage, self.operations_resource_usage):
             self.nodes_info_error_count += 1
 
     def _get_simulator_event_log(self):
         simulator_data_dir = os.path.join(self.Env.path, "simulator_data")
         simulator_files_path = self._get_simulator_files_path(simulator_data_dir)
-        with open(simulator_files_path["scheduler_event_log_file"]) as fin:
-            return yson.load(fin, "list_fragment")
+        with open(simulator_files_path["scheduler_event_log_file"], "rb") as fin:
+            return list(yson.load(fin, "list_fragment"))
 
 
 @authors("mrkastep")
@@ -543,7 +543,7 @@ class TestSchedulerSimulatorWithRemoteEventLog(TestSchedulerSimulator):
         }
 
     def _get_simulator_event_log(self):
-        return list(sorted(read_table("//tmp/event_log"), key=lambda r: r["timestamp"]))
+        return sorted(read_table("//tmp/event_log"), key=lambda r: r["timestamp"])
 
     @classmethod
     def _get_cluster_connection(cls):
