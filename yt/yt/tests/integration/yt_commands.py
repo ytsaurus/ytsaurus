@@ -2654,19 +2654,19 @@ def update_nodes_dynamic_config(new_config, driver=None):
         wait(lambda: get_applied_node_dynamic_config(node, driver) == current_config["%true"])
 
 
-def update_controller_agent_config(path, value, wait_for_update=True):
+def update_controller_agent_config(path, value, wait_for_orchid=True):
     set("//sys/controller_agents/config/" + path, value, recursive=True)
-    if wait_for_update:
+    if wait_for_orchid:
         for agent in ls("//sys/controller_agents/instances"):
             orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)
             wait(lambda: get("{}/{}".format(orchid_config_path, path)) == value)
 
 
-def update_scheduler_config(path, value):
+def update_scheduler_config(path, value, wait_for_orchid=True):
     set("//sys/scheduler/config/" + path, value, recursive=True)
     orchid_path = "{}/{}".format("//sys/scheduler/orchid/scheduler/config", path)
-    wait(lambda: exists(orchid_path))
-    wait(lambda: get(orchid_path) == value)
+    if wait_for_orchid:
+        wait(lambda: get(orchid_path, default=None) == value)
 
 
 def update_pool_tree_config_option(tree, option, value, wait_for_orchid=True):

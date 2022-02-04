@@ -1086,7 +1086,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
 
         op.wait_for_fresh_snapshot()
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            update_controller_agent_config("enable_master_resource_usage_accounting", True, wait_for_update=False)
+            update_controller_agent_config("enable_master_resource_usage_accounting", True, wait_for_orchid=False)
 
         wait(lambda: op.get_state() == "running")
 
