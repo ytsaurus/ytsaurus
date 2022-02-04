@@ -5,13 +5,13 @@ from __future__ import print_function
 from .conftest import authors
 from .helpers import set_config_option
 
-import yt.logger as logger
 import yt.wrapper as yt
+
+from flaky import flaky
 
 import pytest
 import sys
 import time
-import threading
 
 
 get_time = time.monotonic if hasattr(time, 'monotonic') else time.time
@@ -110,6 +110,7 @@ class TestPingFailedModes(object):
             reproduce_transaction_loss()
 
     @authors("marat-khalili")
+    @flaky(max_runs=3)
     def test_send_signal(self):
         with set_config_option("ping_failed_mode", "send_signal"):
             with pytest.raises(yt.YtTransactionPingError):
