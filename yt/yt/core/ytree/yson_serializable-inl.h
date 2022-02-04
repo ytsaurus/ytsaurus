@@ -495,7 +495,7 @@ void LoadFromCursor(
 // For all classes except descendants of TYsonSerializableLite and their intrusive pointers
 // we do not attempt to extract unrecognzied members. C++ prohibits function template specialization
 // so we have to deal with static struct members.
-template <class T, class = void>
+template <class T>
 struct TGetUnrecognizedRecursively
 {
     static IMapNodePtr Do(const T& /*parameter*/)
@@ -504,21 +504,21 @@ struct TGetUnrecognizedRecursively
     }
 };
 
-template <class T>
-struct TGetUnrecognizedRecursively<T, std::enable_if_t<std::is_base_of<TYsonSerializableLite, T>::value>>
+template <IsYsonStructOrYsonSerializable T>
+struct TGetUnrecognizedRecursively<T>
 {
     static IMapNodePtr Do(const T& parameter)
     {
-        return parameter.GetUnrecognizedRecursively();
+        return parameter.GetRecursiveUnrecognized();
     }
 };
 
-template <class T>
-struct TGetUnrecognizedRecursively<T, std::enable_if_t<std::is_base_of<TYsonSerializableLite, typename T::TUnderlying>::value>>
+template <IsYsonStructOrYsonSerializable T>
+struct TGetUnrecognizedRecursively<TIntrusivePtr<T>>
 {
-    static IMapNodePtr Do(const T& parameter)
+    static IMapNodePtr Do(const TIntrusivePtr<T>& parameter)
     {
-        return parameter ? parameter->GetUnrecognizedRecursively() : nullptr;
+        return parameter ? parameter->GetRecursiveUnrecognized() : nullptr;
     }
 };
 
