@@ -113,6 +113,23 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonSerializableWithSimpleYsonStruct
+    : public TYsonSerializable
+{
+public:
+    TIntrusivePtr<TSimpleYsonStruct> YsonStruct;
+
+    TYsonSerializableWithSimpleYsonStruct()
+    {
+        SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+
+        RegisterParameter("yson_struct", YsonStruct)
+            .DefaultNew();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // {LoadFromNode}
 using TYsonSerializableParseTestParameter = std::tuple<bool>;
 
@@ -351,6 +368,23 @@ TEST_P(TYsonSerializableParseTest, UnrecognizedRecursive)
     auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
     auto deserializedConfig = ConvertTo<TTestConfigPtr>(output);
     EXPECT_TRUE(AreNodesEqual(ConvertToNode(config), ConvertToNode(deserializedConfig)));
+}
+
+TEST_P(TYsonSerializableParseTest, UnrecognizedWithNestedYsonStruct)
+{
+    auto configNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("yson_struct").BeginMap()
+                .Item("unrecognized").Value(1)
+            .EndMap()
+        .EndMap();
+
+    auto config = Load<TYsonSerializableWithSimpleYsonStruct>(configNode->AsMap());
+
+    auto unrecognized = config->GetRecursiveUnrecognized();
+    EXPECT_EQ(
+        ConvertToYsonString(configNode, EYsonFormat::Text).AsStringBuf(),
+        ConvertToYsonString(unrecognized, EYsonFormat::Text).AsStringBuf());
 }
 
 TEST_P(TYsonSerializableParseTest, MissingRequiredParameter)

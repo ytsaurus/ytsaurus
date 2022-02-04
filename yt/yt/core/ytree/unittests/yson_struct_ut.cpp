@@ -119,10 +119,30 @@ public:
     int IntValue;
 
     REGISTER_YSON_STRUCT(TSimpleYsonStruct);
+
     static void Register(TRegistrar registrar)
     {
         registrar.Parameter("int_value", &TSimpleYsonStruct::IntValue)
             .Default(1);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYsonStructWithSimpleYsonSerializable
+    : public TYsonStruct
+{
+public:
+    TIntrusivePtr<TSimpleYsonSerializable> YsonSerializable;
+
+    REGISTER_YSON_STRUCT(TYsonStructWithSimpleYsonSerializable);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+
+        registrar.Parameter("yson_serializable", &TYsonStructWithSimpleYsonSerializable::YsonSerializable)
+            .DefaultNew();
     }
 };
 
@@ -406,6 +426,23 @@ TEST_P(TYsonStructParseTest, UnrecognizedRecursiveTwoLevelNesting)
         .EndMap();
 
     auto config = Load<TConfigWithTwoLevelNesting>(configNode->AsMap());
+
+    auto unrecognized = config->GetRecursiveUnrecognized();
+    EXPECT_EQ(
+        ConvertToYsonString(configNode, EYsonFormat::Text).AsStringBuf(),
+        ConvertToYsonString(unrecognized, EYsonFormat::Text).AsStringBuf());
+}
+
+TEST_P(TYsonStructParseTest, UnrecognizedWithNestedYsonSerializable)
+{
+    auto configNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("yson_serializable").BeginMap()
+                .Item("unrecognized").Value(1)
+            .EndMap()
+        .EndMap();
+
+    auto config = Load<TYsonStructWithSimpleYsonSerializable>(configNode->AsMap());
 
     auto unrecognized = config->GetRecursiveUnrecognized();
     EXPECT_EQ(
