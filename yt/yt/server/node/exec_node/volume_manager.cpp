@@ -1356,7 +1356,10 @@ public:
         IPortoExecutorPtr tmpfsExecutor,
         IBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            New<TSlruCacheConfig>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction),
+            New<TSlruCacheConfig>(
+                config->EnableLayersCache
+                ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
+                : 0),
             ExecNodeProfiler.WithPrefix("/layer_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)

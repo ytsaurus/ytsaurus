@@ -417,6 +417,10 @@ b"""
             enabled = %false;
         };
 
+        volume_manager = {
+            enable_layers_cache = %false;
+        };
+
         sync_directories_on_connect = %true;
     };
 

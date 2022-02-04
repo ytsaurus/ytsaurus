@@ -279,9 +279,12 @@ TVolumeManagerConfig::TVolumeManagerConfig()
 
     RegisterParameter("layer_locations", LayerLocations);
 
+    RegisterParameter("enable_layers_cache", EnableLayersCache)
+        .Default(true);
+
     RegisterParameter("cache_capacity_fraction", CacheCapacityFraction)
         .Default(0.8)
-        .GreaterThan(0)
+        .GreaterThanOrEqual(0)
         .LessThanOrEqual(1);
 
     RegisterParameter("layer_import_concurrency", LayerImportConcurrency)

@@ -324,6 +324,7 @@ class TVolumeManagerConfig
 public:
     NContainers::TPortoExecutorConfigPtr PortoExecutor;
     std::vector<TLayerLocationConfigPtr> LayerLocations;
+    bool EnableLayersCache;
     double CacheCapacityFraction;
     int LayerImportConcurrency;
 
