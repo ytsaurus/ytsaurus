@@ -94,6 +94,9 @@ private:
                 .Item("id").Value(replicaId)
                 .Item("type").Value(EObjectType::ChaosTableReplica)
                 .Item("replication_card_id").Value(replicationCardId)
+                .Item("table_id").Value(card->TableId)
+                .Item("table_path").Value(card->TablePath)
+                .Item("table_cluster_name").Value(card->TableClusterName)
                 .Do([&] (auto fluent) {
                     Serialize(
                         *replicaInfo,
