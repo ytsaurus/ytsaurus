@@ -3,10 +3,15 @@ from yt_env_setup import YTEnvSetup, find_ut_file, skip_if_rpc_driver_backend
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    authors, wait, create, ls, get, move, create_user, make_ace,
+    authors, create_dynamic_table, wait, create, ls, get, move, create_user, make_ace,
     insert_rows, select_rows,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, WaitFailed)
 
+from yt_type_helpers import (
+    make_column,
+    make_sorted_column,
+    optional_type,
+)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -1498,6 +1503,34 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/t", long_yson_rows)
         actual = select_rows(r"a, any_to_yson_string(b) as b_str from [//tmp/t] where a = 13")
         assert expected == actual
+
+    @authors("ermolovd")
+    def test_join_different_types(self):
+        sync_create_cells(1)
+
+        tt = "//tmp/t"
+        tj = "//tmp/j"
+
+        create_dynamic_table(tt, schema=[
+            make_sorted_column("key", optional_type("int16")),
+            make_column("value", "string")
+        ])
+
+        create_dynamic_table(tj, schema=[
+            make_sorted_column("key", "int32"),
+            make_column("value_value", "string"),
+        ])
+
+        sync_mount_table(tt)
+        sync_mount_table(tj)
+
+        insert_rows(tt, [{"key": i, "value": str(i)} for i in xrange(5)])
+        insert_rows(tj, [{"key": i, "value_value": "{0}_{0}".format(str(i))} for i in xrange(10)])
+
+        expected = [{"key": i, "value": str(i), "value_value": "{0}_{0}".format(str(i))} for i in xrange(5)]
+
+        actual = select_rows("* from [//tmp/t] join [//tmp/j] using key")
+        assert_items_equal(actual, expected)
 
 
 class TestQueryRpcProxy(TestQuery):
