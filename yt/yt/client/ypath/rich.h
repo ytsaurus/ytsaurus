@@ -146,6 +146,9 @@ public:
     // "chunk_sort_columns"
     std::optional<NTableClient::TSortColumns> GetChunkSortColumns() const;
 
+    // "cluster"
+    std::optional<TString> GetCluster() const;
+
 private:
     TYPath Path_;
     NYTree::IAttributeDictionaryPtr Attributes_;
