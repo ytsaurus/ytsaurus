@@ -338,24 +338,22 @@ TUnversionedRow BuildOrderedByIdTableRow(
     if (request.Alerts) {
         builder.AddValue(MakeUnversionedAnyValue(request.Alerts.AsStringBuf(), index.Alerts));
     }
-    if (version >= 17) {
-        if (request.UnrecognizedSpec) {
-            builder.AddValue(MakeUnversionedAnyValue(request.UnrecognizedSpec.AsStringBuf(), index.UnrecognizedSpec));
-        }
-        if (request.FullSpec) {
-            builder.AddValue(MakeUnversionedAnyValue(request.FullSpec.AsStringBuf(), index.FullSpec));
-        }
+    if (request.UnrecognizedSpec) {
+        builder.AddValue(MakeUnversionedAnyValue(request.UnrecognizedSpec.AsStringBuf(), index.UnrecognizedSpec));
+    }
+    if (request.FullSpec) {
+        builder.AddValue(MakeUnversionedAnyValue(request.FullSpec.AsStringBuf(), index.FullSpec));
     }
 
-    if (version >= 22 && request.RuntimeParameters) {
+    if (request.RuntimeParameters) {
         builder.AddValue(MakeUnversionedAnyValue(request.RuntimeParameters.AsStringBuf(), index.RuntimeParameters));
     }
 
-    if (version >= 27 && request.SlotIndexPerPoolTree) {
+    if (request.SlotIndexPerPoolTree) {
         builder.AddValue(MakeUnversionedAnyValue(request.SlotIndexPerPoolTree.AsStringBuf(), index.SlotIndexPerPoolTree));
     }
 
-    if (version >= 35 && request.TaskNames) {
+    if (request.TaskNames) {
         builder.AddValue(MakeUnversionedAnyValue(request.TaskNames.AsStringBuf(), index.TaskNames));
     }
 
@@ -375,7 +373,7 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     const TRowBufferPtr& rowBuffer,
     const TArchiveOperationRequest& request,
     const TOrderedByStartTimeTableDescriptor::TIndex& index,
-    int version)
+    int /* version */)
 {
     // All any and string values passed to MakeUnversioned* functions MUST be alive till
     // they are captured in row buffer (they are not owned by unversioned value or builder).
@@ -403,16 +401,14 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     builder.AddValue(MakeUnversionedStringValue(request.AuthenticatedUser, index.AuthenticatedUser));
     builder.AddValue(MakeUnversionedStringValue(filterFactors, index.FilterFactors));
 
-    if (version >= 24) {
-        if (pools) {
-            builder.AddValue(MakeUnversionedAnyValue(pools.AsStringBuf(), index.Pools));
-        }
-        if (request.BriefProgress) {
-            builder.AddValue(MakeUnversionedBooleanValue(HasFailedJobs(request.BriefProgress), index.HasFailedJobs));
-        }
+    if (pools) {
+        builder.AddValue(MakeUnversionedAnyValue(pools.AsStringBuf(), index.Pools));
+    }
+    if (request.BriefProgress) {
+        builder.AddValue(MakeUnversionedBooleanValue(HasFailedJobs(request.BriefProgress), index.HasFailedJobs));
     }
 
-    if (version >= 30 && acl) {
+    if (acl) {
         builder.AddValue(MakeUnversionedAnyValue(acl.AsStringBuf(), index.Acl));
     }
 
@@ -1086,7 +1082,7 @@ private:
             }
 
             // operation_aliases rows
-            if (ArchiveVersion_ >= 26) {
+            {
                 TOperationAliasesTableDescriptor desc;
                 auto rowBuffer = New<TRowBuffer>(TOperationAliasesTag{});
                 std::vector<TUnversionedRow> rows;
