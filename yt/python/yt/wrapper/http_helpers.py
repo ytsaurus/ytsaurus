@@ -223,11 +223,11 @@ def raise_for_token(response, request_info):
         response_headers=dict(**response.headers),
         params=request_info["params"])
     raise YtTokenError(
-	"Your request {0} has failed to authenticate at {1}. "
-	"Make sure that you have provided an OAuth token with the request. "
-	"In case you do not have a valid token, please refer to oauth.yt.yandex.net for obtaining one. "
-	"If the error persists and system keeps rejecting your token, "
-	"please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
+        "Your request {0} has failed to authenticate at {1}. "
+        "Make sure that you have provided an OAuth token with the request. "
+        "In case you do not have a valid token, please refer to oauth.yt.yandex.net for obtaining one. "
+        "If the error persists and system keeps rejecting your token, "
+        "please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
         .format(request_id, proxy),
         inner_errors=[error_exc])
 
@@ -368,6 +368,7 @@ class RequestRetrier(Retrier):
 
     def except_action(self, error, attempt):
         logging_params = {
+            "request_headers": hide_auth_headers(dict(self.headers)),
             "request_id": self.request_id,
         }
         if isinstance(error, YtError):
