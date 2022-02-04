@@ -2503,7 +2503,15 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                     NAst::InferColumnName(referenceExpr->Reference));
             }
 
-            if (*selfColumn->LogicalType != *foreignColumn->LogicalType) {
+            if (!NTableClient::IsV1Type(selfColumn->LogicalType) || !NTableClient::IsV1Type(foreignColumn->LogicalType)) {
+                THROW_ERROR_EXCEPTION("Cannot join column %Qv of nonsimple type",
+                    NAst::InferColumnName(referenceExpr->Reference))
+                    << TErrorAttribute("self_type", selfColumn->LogicalType)
+                    << TErrorAttribute("foreign_type", foreignColumn->LogicalType);
+            }
+
+            // N.B. When we try join optional<int32> and int16 columns it must work.
+            if (NTableClient::GetWireType(selfColumn->LogicalType) != NTableClient::GetWireType(foreignColumn->LogicalType)) {
                 THROW_ERROR_EXCEPTION("Column %Qv type mismatch in join",
                     NAst::InferColumnName(referenceExpr->Reference))
                     << TErrorAttribute("self_type", selfColumn->LogicalType)
