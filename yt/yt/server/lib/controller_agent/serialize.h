@@ -16,6 +16,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 22.1 start here
     ((RefactorStatistics)                   (300801))
     ((AddTotalJobStatistics)                (300802))
+    ((NeededResourcesByPoolTree)            (300803))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
