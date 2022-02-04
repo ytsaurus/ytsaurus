@@ -866,12 +866,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
         raw_events.sort(key=lambda event: event["data_node_method@"])
 
-        operation_type = "Map" if op_type in ["map", "ordered_map"] else "Reduce"
-        job_type = {
-            "map": "Map",
-            "ordered_map": "OrderedMap",
-            "reduce": "SortedReduce",
-        }[op_type]
+        operation_type = "map" if op_type in ["map", "ordered_map"] else "reduce"
         task_name = {
             "map": "map",
             "ordered_map": "ordered_map",
@@ -883,7 +878,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             assert event["operation_id"] == op.id
             assert event["operation_type@"] == operation_type
             assert "job_id" in event
-            assert event["job_type@"] == job_type
+            assert event["job_type@"] == task_name
             assert event["task_name@"] == task_name
 
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
@@ -943,18 +938,12 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         )
         raw_events, _ = self.wait_for_events(raw_count=3, from_barrier=from_barrier)
 
-        job_type = {
-            "unordered": "UnorderedMerge",
-            "ordered": "OrderedMerge",
-            "sorted": "SortedMerge",
-        }[merge_mode]
-
         for event in raw_events:
             assert event["pool_tree@"] == "default"
             assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "Merge"
+            assert event["operation_type@"] == "merge"
             assert "job_id" in event
-            assert event["job_type@"] == job_type
+            assert event["job_type@"] == merge_mode + "_merge"
             assert event["task_name@"] == merge_mode + "_merge"
             assert event["bytes"] > 0
             assert event["io_requests"] > 0
@@ -1013,9 +1002,9 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         for event in raw_events:
             assert event["pool_tree@"] == "default"
             assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "Erase"
+            assert event["operation_type@"] == "erase"
             assert "job_id" in event
-            assert event["job_type@"] == "OrderedMerge"
+            assert event["job_type@"] == "ordered_merge"
             assert event["task_name@"] == "ordered_merge"
             assert event["bytes"] > 0
             assert event["io_requests"] > 0
@@ -1067,7 +1056,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         )
         raw_events, _ = self.wait_for_events(raw_count=13, from_barrier=from_barrier)
 
-        merge_job_type = "ShallowMerge" if merge_type == "shallow" else "UnorderedMerge"
+        merge_job_type = "shallow_merge" if merge_type == "shallow" else "unordered_merge"
         read_event_count = 0
         write_event_count = 0
         map_event_count = 0
@@ -1076,7 +1065,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         for event in raw_events:
             assert event["pool_tree@"] == "default"
             assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "Map"
+            assert event["operation_type@"] == "map"
             assert "job_id" in event
             assert event["bytes"] > 0
             assert event["io_requests"] > 0
@@ -1094,7 +1083,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
                 assert event["job_type@"] == merge_job_type
             else:
                 map_event_count += 1
-                assert event["job_type@"] == "Map"
+                assert event["job_type@"] == "map"
 
             if is_read:
                 read_event_count += 1
@@ -1171,14 +1160,12 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         write_auto_merge_events = []
         read_event_count = 0
         write_event_count = 0
-        operation_type = "Map" if op_type == "map" else "Reduce"
-        job_type = "Map" if op_type == "map" else "SortedReduce"
-        merge_job_type = "ShallowMerge" if merge_type == "shallow" else "UnorderedMerge"
+        merge_job_type = "shallow_merge" if merge_type == "shallow" else "unordered_merge"
         task_name = "map" if op_type == "map" else "sorted_reduce"
         for event in raw_events:
             assert event["pool_tree@"] == "default"
             assert event["operation_id"] == op.id
-            assert event["operation_type@"] == operation_type
+            assert event["operation_type@"] == op_type
             assert "job_id" in event
             assert event["bytes"] > 0
             assert event["io_requests"] > 0
@@ -1189,7 +1176,7 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
             if is_auto_merge:
                 assert event["job_type@"] == merge_job_type
             else:
-                assert event["job_type@"] == job_type
+                assert event["job_type@"] == task_name
             if event["data_node_method@"] in {"GetBlockSet", "GetBlockRange"}:
                 read_event_count += 1
                 if is_auto_merge:
@@ -1270,12 +1257,12 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         for event in raw_events:
             assert event["pool_tree@"] == "default"
             assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "MapReduce"
+            assert event["operation_type@"] == "map_reduce"
             assert "job_id" in event
             assert event["bytes"] > 0
             assert event["io_requests"] > 0
             assert event["user@"] == "job:root"
-        assert {event["job_type@"] for event in raw_events} == {"PartitionMap", "PartitionReduce"}
+        assert {event["job_type@"] for event in raw_events} == {"partition_map", "partition_reduce"}
         assert {event["task_name@"] for event in raw_events} == {"partition_map(0)", "partition_reduce"}
 
         read_events = [event for event in raw_events if event["data_node_method@"] == "GetBlockSet"]
@@ -1337,9 +1324,9 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         for event in raw_events:
             assert event["pool_tree@"] == "default"
             assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "Map"
+            assert event["operation_type@"] == "map"
             assert "job_id" in event
-            assert event["job_type@"] == "Map"
+            assert event["job_type@"] == "map"
             assert event["task_name@"] == "map"
             assert event["bytes"] > 0
             assert event["io_requests"] > 0
@@ -1394,9 +1381,9 @@ class TestRemoteCopyIOTrackingBase(TestNodeIOTrackingBase):
     def _check_remote_copy_tags(self, event, op):
         assert event["pool_tree@"] == "default"
         assert event["operation_id"] == op.id
-        assert event["operation_type@"] == "RemoteCopy"
+        assert event["operation_type@"] == "remote_copy"
         assert "job_id" in event
-        assert event["job_type@"] == "RemoteCopy"
+        assert event["job_type@"] == "remote_copy"
         assert event["task_name@"] == "remote_copy"
         assert event["bytes"] > 0
         assert event["io_requests"] > 0

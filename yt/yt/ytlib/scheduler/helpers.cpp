@@ -718,7 +718,7 @@ void PackBaggageFromJobSpec(
     baggage->MergeFrom(*ioTags);
     AddTagToBaggage(baggage, ERawIOTag::OperationId, ToString(operationId));
     AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(jobId));
-    AddTagToBaggage(baggage, EAggregateIOTag::JobType, ToString(static_cast<EJobType>(jobSpec.type())));
+    AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(static_cast<EJobType>(jobSpec.type())));
     traceContext->PackBaggage(baggage);
 }
 
