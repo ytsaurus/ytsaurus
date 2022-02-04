@@ -11,7 +11,7 @@ from yt_commands import (
     create, ls, get, set, remove, exists, create_pool, read_table, write_table,
     map, run_test_vanilla, run_sleeping_vanilla, get_job,
     sync_create_cells, update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option,
-    update_op_parameters, create_test_tables, retry, create_medium)
+    update_scheduler_config, update_op_parameters, create_test_tables, retry, create_medium)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_node_path, scheduler_orchid_default_pool_tree_path,
@@ -600,8 +600,8 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_job_preemption_order(self):
-        set("//sys/scheduler/config/min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1})
-        set("//sys/scheduler/config/operation_hangup_check_period", 1000000000)
+        update_scheduler_config("min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1}, wait_for_orchid=False)
+        update_scheduler_config("operation_hangup_check_period", 1000000000)
 
         create_pool("production", attributes={"strong_guarantee_resources": {"cpu": 3.0}})
         create_pool(
@@ -1264,6 +1264,10 @@ class TestSsdPriorityPreemption(YTEnvSetup):
         })
 
     def _run_sleeping_vanilla_with_unpreemptable_jobs_at_ssd_nodes(self):
+        # NB: Needed to disable sanity checks.
+        update_controller_agent_config("safe_online_node_count", TestSsdPriorityPreemption.NUM_NODES + 1)
+        update_scheduler_config("operation_hangup_check_period", 1000000000)
+
         nodes = ls("//sys/cluster_nodes")
         for node in nodes:
             if TestSsdPriorityPreemption.SSD_NODE_TAG in get("//sys/cluster_nodes/{}/@tags".format(node)):
