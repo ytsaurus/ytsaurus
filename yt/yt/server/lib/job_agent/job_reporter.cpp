@@ -112,18 +112,15 @@ public:
             builder.AddValue(MakeUnversionedAnyValue(*Statistics_.Error(), index.Error));
         }
         if (Statistics_.Statistics()) {
-            constexpr int Lz4AndBriefStatisticsVersion = 36;
-            if (ReportStatisticsLz4_ && archiveVersion >= Lz4AndBriefStatisticsVersion) {
+            if (ReportStatisticsLz4_) {
                 auto codec = NCompression::GetCodec(NCompression::ECodec::Lz4);
                 statisticsLz4 = ToString(codec->Compress(TSharedRef::FromString(*Statistics_.Statistics())));
                 builder.AddValue(MakeUnversionedStringValue(statisticsLz4, index.StatisticsLz4));
             } else {
                 builder.AddValue(MakeUnversionedAnyValue(*Statistics_.Statistics(), index.Statistics));
             }
-            if (archiveVersion >= Lz4AndBriefStatisticsVersion) {
-                briefStatisticsYsonString = BuildBriefStatistics(ConvertToNode(TYsonStringBuf(*Statistics_.Statistics())));
-                builder.AddValue(MakeUnversionedAnyValue(briefStatisticsYsonString.AsStringBuf(), index.BriefStatistics));
-            }
+            briefStatisticsYsonString = BuildBriefStatistics(ConvertToNode(TYsonStringBuf(*Statistics_.Statistics())));
+            builder.AddValue(MakeUnversionedAnyValue(briefStatisticsYsonString.AsStringBuf(), index.BriefStatistics));
         }
         if (Statistics_.Events()) {
             builder.AddValue(MakeUnversionedAnyValue(*Statistics_.Events(), index.Events));
@@ -131,40 +128,31 @@ public:
         if (Statistics_.StderrSize()) {
             builder.AddValue(MakeUnversionedUint64Value(*Statistics_.StderrSize(), index.StderrSize));
         }
-        if (archiveVersion >= 31 && Statistics_.CoreInfos()) {
+        if (Statistics_.CoreInfos()) {
             coreInfosYsonString = ConvertToYsonString(*Statistics_.CoreInfos());
             builder.AddValue(MakeUnversionedAnyValue(coreInfosYsonString.AsStringBuf(), index.CoreInfos));
         }
-        if (archiveVersion >= 18) {
-            builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), index.UpdateTime));
-        }
-        if (archiveVersion >= 20 && Statistics_.Spec()) {
+        builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), index.UpdateTime));
+        if (Statistics_.Spec()) {
             builder.AddValue(MakeUnversionedBooleanValue(Statistics_.Spec().operator bool(), index.HasSpec));
         }
         if (Statistics_.FailContext()) {
-            if (archiveVersion >= 23) {
-                builder.AddValue(MakeUnversionedUint64Value(Statistics_.FailContext()->size(), index.FailContextSize));
-            } else if (archiveVersion >= 21) {
-                builder.AddValue(MakeUnversionedBooleanValue(Statistics_.FailContext().operator bool(), index.HasFailContext));
-            }
+            builder.AddValue(MakeUnversionedUint64Value(Statistics_.FailContext()->size(), index.FailContextSize));
         }
-        if (archiveVersion >= 32 && Statistics_.JobCompetitionId()) {
+        if (Statistics_.JobCompetitionId()) {
             jobCompetitionIdString = ToString(Statistics_.JobCompetitionId());
             builder.AddValue(MakeUnversionedStringValue(jobCompetitionIdString, index.JobCompetitionId));
         }
-        if (archiveVersion >= 33 && Statistics_.HasCompetitors().has_value()) {
+        if (Statistics_.HasCompetitors().has_value()) {
             builder.AddValue(MakeUnversionedBooleanValue(Statistics_.HasCompetitors().value(), index.HasCompetitors));
         }
-        // COMPAT(gritukan)
-        if (archiveVersion >= 34 && Statistics_.ExecAttributes()) {
+        if (Statistics_.ExecAttributes()) {
             builder.AddValue(MakeUnversionedAnyValue(*Statistics_.ExecAttributes(), index.ExecAttributes));
         }
-        // COMPAT(gritukan)
-        if (archiveVersion >= 35 && Statistics_.TaskName()) {
+        if (Statistics_.TaskName()) {
             builder.AddValue(MakeUnversionedStringValue(*Statistics_.TaskName(), index.TaskName));
         }
-        // COMPAT(levysotsky)
-        if (archiveVersion >= 37 && Statistics_.TreeId()) {
+        if (Statistics_.TreeId()) {
             builder.AddValue(MakeUnversionedStringValue(*Statistics_.TreeId(), index.PoolTree));
         }
         // COMPAT(levysotsky)

@@ -26,16 +26,11 @@ struct TArchiveOperationRequest
     NYson::TYsonString Result;
     NYson::TYsonString Events;
     NYson::TYsonString Alerts;
-    // Archive version >= 17
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
-    // Archive version >= 22
     NYson::TYsonString RuntimeParameters;
-    // Archive version >= 26
     std::optional<TString> Alias;
-    // Archive version >= 27
     NYson::TYsonString SlotIndexPerPoolTree;
-    // Archive version >= 35
     NYson::TYsonString TaskNames;
     // Archive version >= 40
     NYson::TYsonString ExperimentAssignments;
