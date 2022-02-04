@@ -1755,7 +1755,6 @@ private:
                 DecoratedAutomaton_,
                 LeaderLease_,
                 &PreliminaryMutationQueue_,
-                changelogId,
                 changelog,
                 epochContext->ReachableState,
                 epochContext.Get(),
@@ -1816,7 +1815,7 @@ private:
                 .Run())
                 .ThrowOnError();
 
-            epochContext->LeaderCommitter->Start(changelogId);
+            epochContext->LeaderCommitter->Start();
 
             epochContext->HeartbeatMutationCommitExecutor->Start();
         } catch (const std::exception& ex) {

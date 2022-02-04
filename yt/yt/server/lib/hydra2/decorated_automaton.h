@@ -260,7 +260,6 @@ private:
     const IInvokerPtr SystemInvoker_;
     const NHydra::ISnapshotStorePtr SnapshotStore_;
     const NHydra::TStateHashCheckerPtr StateHashChecker_;
-    const IChangelogDiscarderPtr ChangelogDiscarder_;
 
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};

@@ -171,60 +171,6 @@ TUserLockGuard::TUserLockGuard(TDecoratedAutomatonPtr automaton)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChangelogDiscarder
-    : public IChangelogDiscarder
-{
-public:
-    explicit TChangelogDiscarder(const TLogger& logger)
-        : Logger(logger)
-    { }
-
-    void CloseChangelog(TFuture<IChangelogPtr> changelogFuture, int changelogId) override
-    {
-        if (!changelogFuture) {
-            return;
-        }
-
-        changelogFuture.Apply(BIND([this, this_ = MakeStrong(this), changelogId] (const TErrorOr<IChangelogPtr>& changelogOrError) {
-            if (changelogOrError.IsOK()) {
-                CloseChangelog(changelogOrError.Value(), changelogId);
-            } else {
-                YT_LOG_INFO(changelogOrError,
-                    "Changelog allocation failed but it is already discarded, ignored (ChangelogId: %v)",
-                    changelogId);
-            }
-        }));
-    }
-
-    void CloseChangelog(const IChangelogPtr& changelog, int changelogId) override
-    {
-        if (!changelog) {
-            return;
-        }
-
-        // NB: Changelog is captured into a closure to prevent
-        // its destruction before closing.
-        changelog->Close()
-            .Apply(BIND(&TChangelogDiscarder::OnChangelogDiscarded, MakeStrong(this), changelog, changelogId));
-    }
-
-private:
-    const TLogger Logger;
-
-    void OnChangelogDiscarded(IChangelogPtr /*changelog*/, int changelogId, const TError& error)
-    {
-        if (error.IsOK()) {
-            YT_LOG_DEBUG("Changelog closed successfully (ChangelogId: %v)",
-                changelogId);
-        } else {
-            YT_LOG_WARNING(error, "Failed to close changelog (ChangelogId: %v)",
-                changelogId);
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDecoratedAutomaton::TSystemInvoker
     : public TInvokerWrapper
 {
@@ -721,7 +667,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(std::move(snapshotStore))
     , StateHashChecker_(std::move(stateHashChecker))
-    , ChangelogDiscarder_(New<TChangelogDiscarder>(Logger))
     , BatchCommitTimer_(profiler.Timer("/batch_commit_time"))
     , SnapshotLoadTime_(profiler.TimeGauge("/snapshot_load_time"))
     , ForkCounters_(New<TForkCounters>(profiler))
