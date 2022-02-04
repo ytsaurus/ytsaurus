@@ -630,6 +630,11 @@ std::optional<TSortColumns> TRichYPath::GetChunkSortColumns() const
     return FindAttribute<TSortColumns>(*this, "chunk_sort_columns");
 }
 
+std::optional<TString> TRichYPath::GetCluster() const
+{
+    return FindAttribute<TString>(*this, "cluster");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ConvertToString(const TRichYPath& path, EYsonFormat ysonFormat)

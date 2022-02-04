@@ -410,6 +410,55 @@ TEST_F(TYPathTest, IgnoreAmpersand3)
     Check("/map&/@attr", "value");
 }
 
+TEST_F(TYPathTest, Cluster)
+{
+    {
+        auto path = TRichYPath::Parse("mycluster://home/mytable");
+        EXPECT_EQ("//home/mytable", path.GetPath());
+        EXPECT_EQ("mycluster", path.GetCluster());
+    }
+
+    {
+        auto path = TRichYPath::Parse(" <> mycluster://home/mytable");
+        EXPECT_EQ("//home/mytable", path.GetPath());
+        EXPECT_EQ("mycluster", path.GetCluster());
+    }
+
+    {
+        auto path = TRichYPath::Parse("long-cluster-name://home/long-table-name");
+        EXPECT_EQ("//home/long-table-name", path.GetPath());
+        EXPECT_EQ("long-cluster-name", path.GetCluster());
+    }
+
+    {
+        auto path = TRichYPath::Parse("//home/mytable");
+        EXPECT_EQ("//home/mytable", path.GetPath());
+        EXPECT_FALSE(path.GetCluster().has_value());
+    }
+
+    {
+        auto path = TRichYPath::Parse("//path:with:colons/my:table");
+        EXPECT_EQ("//path:with:colons/my:table", path.GetPath());
+        EXPECT_FALSE(path.GetCluster().has_value());
+    }
+
+    {
+        auto path = TRichYPath::Parse("//path-with-dashes/my-table");
+        EXPECT_EQ("//path-with-dashes/my-table", path.GetPath());
+        EXPECT_FALSE(path.GetCluster().has_value());
+    }
+
+    {
+        auto path = TRichYPath::Parse("bad+cluster!name://home/mytable");
+        EXPECT_EQ("bad+cluster!name://home/mytable", path.GetPath());
+        EXPECT_FALSE(path.GetCluster().has_value());
+    }
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(TRichYPath::Parse("://home/mytable"),
+        std::exception,
+        "cannot be empty");
+}
+
 TEST_F(TYPathTest, NewReadRanges)
 {
     TComparator comparatorAsc1({ESortOrder::Ascending});
