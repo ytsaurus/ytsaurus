@@ -1316,10 +1316,6 @@ private:
                 const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
                 tabletNodeTracker->ProcessHeartbeat(node, &req, &rsp, /* legacyFullHeartbeat */ true);
             }
-
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node online (NodeId: %v, Address: %v)",
-                nodeId,
-                node->GetDefaultAddress());
         }
     }
 
