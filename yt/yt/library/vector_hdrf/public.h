@@ -20,7 +20,7 @@ DEFINE_ENUM(EIntegralGuaranteeType,
     (Relaxed)
 );
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((PoolTreeGuaranteesOvercommit) (29000))
 );
 

@@ -39,7 +39,7 @@ TString ToString(const TErrorCodeRegistry::TErrorCodeInfo& errorCodeInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DEFINE_ERROR_ENUM(seq) \
+#define YT_DEFINE_ERROR_ENUM(seq) \
     DEFINE_ENUM(EErrorCode, seq); \
     ATTRIBUTE_USED inline const void* ErrorEnum_EErrorCode = [] { \
         for (auto errorCode : ::NYT::TEnumTraits<EErrorCode>::GetDomainValues()) { \

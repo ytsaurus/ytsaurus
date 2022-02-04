@@ -8,7 +8,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((Global1) (-5))
     ((Global2) (-6))
 );
@@ -17,7 +17,7 @@ namespace NExternalWorld {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((X) (-11))
     ((Y) (-22))
     ((Z) (-33))
@@ -38,7 +38,7 @@ namespace NInternalLittleWorld {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((A) (-1))
     ((B) (-2))
     ((C) (-3))
@@ -53,7 +53,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((Kek)     (-57))
     ((Haha)    (-179))
     ((Muahaha) (-1543))

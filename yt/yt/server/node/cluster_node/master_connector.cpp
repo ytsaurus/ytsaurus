@@ -53,6 +53,7 @@ using namespace NDataNode;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectClient;
+using namespace NProfiling;
 using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -300,12 +301,41 @@ private:
         std::vector<TError> alerts;
         PopulateAlerts_.Fire(&alerts);
 
+        ExportAlerts(alerts);
+
         for (const auto& dynamicAlert : alerts) {
             YT_VERIFY(!dynamicAlert.IsOK());
             YT_LOG_WARNING(dynamicAlert, "Dynamic alert registered");
         }
 
         return alerts;
+    }
+
+    void ExportAlerts(const std::vector<TError>& alerts) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (alerts.empty()) {
+            return;
+        }
+
+        THashSet<int> codes;
+        for (const auto& alert : alerts) {
+            TraverseError(alert, [&codes] (const TError& error, int /*depth*/) {
+                codes.insert(error.GetCode());
+            });
+        }
+
+        TSensorBuffer buffer;
+        for (const auto code : codes) {
+            auto errorCodeInfo = TErrorCodeRegistry::Get()->Get(code);
+            {
+                TWithTagGuard guard(&buffer, "error_code", ToString(errorCodeInfo));
+                buffer.AddGauge("/alerts", 1);
+            }
+        }
+
+        Bootstrap_->GetBufferedProducer()->Update(std::move(buffer));
     }
 
     void UpdateHostName(const std::optional<TString>& hostName)

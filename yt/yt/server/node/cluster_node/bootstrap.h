@@ -71,6 +71,8 @@ struct IBootstrapBase
     virtual const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetAnnounceChunkReplicaRpsOutThrottler() const = 0;
 
+    virtual const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const = 0;
+
     // Config stuff.
     virtual const TClusterNodeConfigPtr& GetConfig() const = 0;
     virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
@@ -210,6 +212,8 @@ public:
 
     const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override;
     const NConcurrency::IThroughputThrottlerPtr& GetAnnounceChunkReplicaRpsOutThrottler() const override;
+
+    const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const override;
 
     const TClusterNodeConfigPtr& GetConfig() const override;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;

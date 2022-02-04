@@ -25,7 +25,7 @@ DECLARE_REFCOUNTED_STRUCT(IShellManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((ShellExited)          (1800))
     ((ShellManagerShutDown) (1801))
 );

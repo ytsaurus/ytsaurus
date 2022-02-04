@@ -123,7 +123,7 @@ DEFINE_ENUM(EOptimizeFor,
     ((Scan)    (1))
 );
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((SortOrderViolation)         (301))
     ((InvalidDoubleValue)         (302))
     ((IncomparableType)           (303))

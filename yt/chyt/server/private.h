@@ -197,7 +197,7 @@ using TQueryId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((SubqueryDataWeightLimitExceeded) (2900))
 );
 

@@ -15,6 +15,8 @@ from yt_commands import (
     sync_create_cells,
 )
 
+from yt_helpers import profiler_factory
+
 import yt_error_codes
 
 import yt.yson as yson
@@ -467,3 +469,36 @@ class TestNodeDynamicConfig(YTEnvSetup):
             "effective_config/tablet_node/security_manager/resource_limits_cache/expire_after_access_time"
         )
         wait(lambda: get(key.format(nodes[0])) == 10, ignore_exceptions=True)
+
+    @authors("achulkov2")
+    def test_alert_solomon_export(self):
+        nodes = ls("//sys/cluster_nodes")
+
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[0]), ["nodeA"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[1]), ["nodeB"])
+
+        config = {
+            "nodeA": {
+                "config_annotation": 55,
+            },
+            "nodeB": {
+                "some_unrecognized_option": 42,
+            }
+        }
+        set("//sys/cluster_nodes/@config", config)
+
+        def check():
+            profiler_a = profiler_factory().at_node(nodes[0])
+            gauge1 = profiler_a.get(
+                "cluster_node/alerts",
+                {"error_code": "NYT::EErrorCode::Generic"})
+            gauge2 = profiler_a.get(
+                "cluster_node/alerts",
+                {"error_code": "NYT::NDynamicConfig::EErrorCode::InvalidDynamicConfig"})
+            profiler_b = profiler_factory().at_node(nodes[1])
+            gauge3 = profiler_b.get(
+                "cluster_node/alerts",
+                {"error_code": "NYT::NDynamicConfig::EErrorCode::UnrecognizedDynamicConfigOption"})
+            return gauge1 == gauge2 == gauge3 == 1.0
+
+        wait(check)

@@ -95,7 +95,7 @@ DEFINE_ENUM(ENodeType,
     (Composite)
 );
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((ResolveError)                        (500))
     ((AlreadyExists)                       (501))
     ((MaxChildCountViolation)              (502))

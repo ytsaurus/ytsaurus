@@ -12,7 +12,7 @@ DECLARE_REFCOUNTED_CLASS(TDynamicConfigManagerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((FailedToFetchDynamicConfig)            (2600))
     ((DuplicateMatchingDynamicConfigs)       (2601))
     ((UnrecognizedDynamicConfigOption)       (2602))

@@ -92,7 +92,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((NewJobsForbidden)              (24))
 );
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((AgentCallFailed)                            (4400))
     ((NoOnlineNodeToScheduleJob)                  (4410))
     ((MaterializationFailed)                      (4415))
