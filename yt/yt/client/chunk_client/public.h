@@ -26,7 +26,7 @@ class TMediumDirectory;
 
 } // namespace NProto
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((AllTargetNodesFailed)                  (700))
     ((SendBlocksFailed)                      (701))
     ((NoSuchSession)                         (702))

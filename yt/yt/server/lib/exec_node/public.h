@@ -18,7 +18,7 @@ using NJobTrackerClient::EJobPhase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((ConfigCreationFailed)          (1100))
     ((AbortByScheduler)              (1101))
     ((ResourceOverdraft)             (1102))

@@ -313,6 +313,11 @@ public:
         return AnnounceChunkReplicaRpsOutThrottler_;
     }
 
+    const TBufferedProducerPtr& GetBufferedProducer() const override
+    {
+        return BufferedProducer_;
+    }
+
     const TClusterNodeConfigPtr& GetConfig() const override
     {
         return Config_;
@@ -637,6 +642,7 @@ private:
     TNodeMemoryTrackerPtr MemoryUsageTracker_;
     TNodeResourceManagerPtr NodeResourceManager_;
     TDiskTrackerPtr DiskTracker_;
+    TBufferedProducerPtr BufferedProducer_;
 
     TFairThrottlerPtr InThrottler_;
     IThroughputThrottlerPtr DefaultInThrottler_;
@@ -737,6 +743,9 @@ private:
 
         DiskTracker_ = New<TDiskTracker>();
         ClusterNodeProfiler.AddProducer("", DiskTracker_);
+
+        BufferedProducer_ = New<TBufferedProducer>();
+        ClusterNodeProfiler.AddProducer("", BufferedProducer_);
 
         MasterCacheQueue_ = New<TActionQueue>("MasterCache");
         StorageHeavyThreadPool_ = New<TThreadPool>(
@@ -1292,6 +1301,11 @@ const IThroughputThrottlerPtr& TBootstrapBase::GetReadRpsOutThrottler() const
 const IThroughputThrottlerPtr& TBootstrapBase::GetAnnounceChunkReplicaRpsOutThrottler() const
 {
     return Bootstrap_->GetAnnounceChunkReplicaRpsOutThrottler();
+}
+
+const TBufferedProducerPtr& TBootstrapBase::GetBufferedProducer() const
+{
+    return Bootstrap_->GetBufferedProducer();
 }
 
 const TClusterNodeConfigPtr& TBootstrapBase::GetConfig() const

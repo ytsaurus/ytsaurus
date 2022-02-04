@@ -34,7 +34,7 @@ DEFINE_ENUM(EDeliveryTrackingLevel,
     (Full)
 );
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((TransportError)               (100))
 );
 

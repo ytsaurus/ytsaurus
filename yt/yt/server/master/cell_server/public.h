@@ -71,7 +71,7 @@ using TCellSet = TCompactVector<std::pair<const TCellBase*, int>, NCellarClient:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((NodeDecommissioned)           (1401))
     ((NodeBanned)                   (1402))
     ((NodeTabletSlotsDisabled)      (1403))

@@ -21,7 +21,7 @@ constexpr int CurrentWireFormatVersion = 1;
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(babenko): get rid of this in favor of NRpc::EErrorCode::PeerBanned
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((ProxyBanned) (2100))
 );
 

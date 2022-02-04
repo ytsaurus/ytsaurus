@@ -25,7 +25,7 @@ class TNodeDirectory;
 
 } // namespace NProto
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((NoSuchNode)        (1600))
     ((InvalidState)      (1601))
     ((NoSuchNetwork)     (1602))

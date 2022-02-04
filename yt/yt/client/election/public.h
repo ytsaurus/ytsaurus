@@ -20,7 +20,7 @@ extern const TCellId NullCellId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((InvalidState)  (800))
     ((InvalidLeader) (801))
     ((InvalidEpoch)  (802))

@@ -173,7 +173,7 @@ using IFairSchedulerPtr = TIntrusivePtr<IFairScheduler<TTask>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((OK)                    (0))
     ((Generic)               (1))
     ((Canceled)              (2))

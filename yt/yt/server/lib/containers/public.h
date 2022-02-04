@@ -7,7 +7,7 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((FailedToStartContainer)  (14000))
 );
 

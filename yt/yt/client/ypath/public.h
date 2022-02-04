@@ -8,7 +8,7 @@ namespace NYT::NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((InvalidReadRange)    (2700))
 );
 

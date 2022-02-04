@@ -58,7 +58,7 @@ DEFINE_ENUM(EAceInheritanceMode,
     ((ImmediateDescendantsOnly)(3))  // ACE applies to immediate (direct) descendants only.
 );
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((AuthenticationError)          (900))
     ((AuthorizationError)           (901))
     ((AccountLimitExceeded)         (902))

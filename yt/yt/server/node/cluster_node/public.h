@@ -36,7 +36,7 @@ using TMasterEpoch = int;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ERROR_ENUM(
+YT_DEFINE_ERROR_ENUM(
     ((UnrecognizedConfigOption)              (2500))
 );
 
