@@ -69,6 +69,27 @@ TFuture<void> TCommitterBase::DoCommitMutations(std::vector<TPendingMutationPtr>
         .Run(std::move(mutations), EpochContext_->Term);
 }
 
+
+void TCommitterBase::CloseChangelog(const IChangelogPtr& changelog)
+{
+    if (!Config_->CloseChangelogs || !changelog) {
+        return;
+    }
+
+    // NB: Changelog is captured into a closure to prevent
+    // its destruction before closing.
+    changelog->Close()
+        .Apply(BIND([this, this_ = MakeStrong(this), changelog = changelog] (const TError& error) {
+            if (error.IsOK()) {
+                YT_LOG_DEBUG("Changelog closed successfully (ChangelogId: %v)",
+                    changelog->GetId());
+            } else {
+                YT_LOG_WARNING(error, "Failed to close changelog (ChangelogId: %v)",
+                    changelog->GetId());
+            }
+        }));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderCommitter::TLeaderCommitter(
@@ -77,7 +98,6 @@ TLeaderCommitter::TLeaderCommitter(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TLeaderLeasePtr leaderLease,
     TMpscQueue<TMutationDraft>* queue,
-    int changelogId,
     IChangelogPtr changelog,
     TReachableState reachableState,
     TEpochContext* epochContext,
@@ -107,7 +127,6 @@ TLeaderCommitter::TLeaderCommitter(
 {
     PeerStates_.assign(CellManager_->GetTotalPeerCount(), {-1, -1});
 
-    ChangelogId_ = changelogId;
     Changelog_ = std::move(changelog);
 
     auto selfId = CellManager_->GetSelfPeerId();
@@ -187,13 +206,12 @@ void TLeaderCommitter::SerializeMutations()
     MaybeSendBatch();
 }
 
-void TLeaderCommitter::Start(int changelogId)
+void TLeaderCommitter::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LastRandomSeed_ = DecoratedAutomaton_->GetRandomSeed();
-    YT_VERIFY(changelogId == ChangelogId_);
-    LoggedVersion_ = {changelogId, 0};
+    LoggedVersion_ = {Changelog_->GetId(), 0};
 
     auto sequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
     YT_VERIFY(CommittedState_.SequenceNumber == sequenceNumber);
@@ -216,6 +234,8 @@ void TLeaderCommitter::Stop()
         }
     }
 
+    CloseChangelog(Changelog_);
+
     MutationQueue_.clear();
     MutationQueueDataSize_ = 0;
 
@@ -237,7 +257,7 @@ void TLeaderCommitter::Flush()
             continue;
         }
 
-        auto followerState = PeerStates_[followerId];
+        auto& followerState = PeerStates_[followerId];
         if (!MutationQueue_.empty() && followerState.NextExpectedSequenceNumber < MutationQueue_.front()->SequenceNumber) {
             if (followerState.NextExpectedSequenceNumber == -1) {
                 // This is ok, it actually means that follower hasn't received initial ping (and hasn't recovered) yet,
@@ -257,6 +277,8 @@ void TLeaderCommitter::Flush()
                 ToProto(req->mutable_reason(), error);
 
                 req->Invoke();
+
+                followerState = {-1, -1};
                 continue;
             }
         }
@@ -604,7 +626,8 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& result)
     }
 
     auto changelogId = LoggedVersion_.SegmentId + 1;
-    YT_VERIFY(changelogId == ChangelogId_ + 1);
+    YT_VERIFY(Changelog_);
+    YT_VERIFY(changelogId == Changelog_->GetId() + 1);
 
     auto changelog = WaitFor(EpochContext_->ChangelogStore->OpenChangelog(changelogId))
         .ValueOrThrow();
@@ -625,17 +648,21 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& result)
     LastSnapshotInfo_->Checksums.resize(CellManager_->GetTotalPeerCount());
     LastSnapshotInfo_->HasReply.resize(CellManager_->GetTotalPeerCount());
 
+    auto oldChangelog = Changelog_;
+
     LoggedVersion_ = LoggedVersion_.Rotate();
-    ChangelogId_ = changelogId;
     Changelog_ = changelog;
     YT_VERIFY(Changelog_->GetRecordCount() == 0);
 
+    CloseChangelog(oldChangelog);
+
     BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
         .AsyncVia(EpochContext_->EpochUserAutomatonInvoker)
-        .Run(ChangelogId_, selfState.LastLoggedSequenceNumber)
+        .Run(Changelog_->GetId(), selfState.LastLoggedSequenceNumber)
         .Apply(
-            BIND(&TLeaderCommitter::OnLocalSnapshotBuilt, MakeStrong(this), ChangelogId_)
+            BIND(&TLeaderCommitter::OnLocalSnapshotBuilt, MakeStrong(this), Changelog_->GetId())
             .AsyncVia(EpochContext_->EpochControlInvoker));
+
 }
 
 void TLeaderCommitter::LogMutation(TMutationDraft&& mutationDraft)
@@ -828,31 +855,21 @@ void TFollowerCommitter::RegisterNextChangelog(int id, IChangelogPtr changelog)
     YT_LOG_INFO("Changelog registered (ChangelogId: %v)", id);
 }
 
-void TFollowerCommitter::PrepareNextChangelog(TVersion version)
+IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
 {
-    YT_LOG_INFO("Preparing changelog (Version: %v)", version);
-
     auto changelogId = version.SegmentId;
-    YT_VERIFY(ChangelogId_ < changelogId);
 
-    if (Changelog_) {
-        // We should somehow make sure that we start a new changelog with (N, 0).
-        // However we might be writing to an existing changelog (when follower joins a working quorum).
-        YT_VERIFY(version.RecordId == 0);
-    }
-
-    // TODO: WriteChangelogsAtFollowers.
+    // TODO(aleksandra-zh): WriteChangelogsAtFollowers.
     while (!NextChangelogs_.empty() && NextChangelogs_.begin()->first < changelogId) {
         NextChangelogs_.erase(NextChangelogs_.begin());
     }
 
     auto it = NextChangelogs_.find(changelogId);
     if (it != NextChangelogs_.end()) {
-        ChangelogId_ = it->first;
-        Changelog_ = it->second;
+        auto changelog = it->second;
         YT_LOG_INFO("Changelog found in next changelogs (Version: %v)", version);
         NextChangelogs_.erase(it);
-        return;
+        return changelog;
     }
 
     YT_LOG_INFO("Cannot find changelog in next changelogs, creating (Version: %v, Term: %v)",
@@ -868,17 +885,16 @@ void TFollowerCommitter::PrepareNextChangelog(TVersion version)
     }
 
     if (auto changelog = openFuture.Value()) {
-        if (ChangelogId_ != -1) {
+        if (Changelog_) {
+            // TODO(aleksandra-zh): we actually should promote changelog's term here.
             YT_LOG_WARNING("Changelog opened, but it should not exist (OldChangelogId: %v, ChangelogId: %v)",
-                ChangelogId_,
+                Changelog_->GetId(),
                 changelogId);
             // There is a verify above that checks that mutation has version N:0 if it is not the first changelog,
             // so this should be valid as well.
             YT_VERIFY(changelog->GetRecordCount() == 0);
         }
-        ChangelogId_ = changelogId;
-        Changelog_ = changelog;
-        return;
+        return changelog;
     }
 
     YT_LOG_INFO("Cannot open changelog, creating (ChangelogId: %v, Term: %v)",
@@ -895,8 +911,27 @@ void TFollowerCommitter::PrepareNextChangelog(TVersion version)
         createFuture.ThrowOnError();
     }
 
-    ChangelogId_ = changelogId;
-    Changelog_ = createFuture.Value();
+    return createFuture.Value();
+}
+
+void TFollowerCommitter::PrepareNextChangelog(TVersion version)
+{
+    YT_LOG_INFO("Preparing changelog (Version: %v)", version);
+
+    auto changelogId = version.SegmentId;
+    if (Changelog_) {
+        YT_VERIFY(Changelog_->GetId() < changelogId);
+
+        // We should somehow make sure that we start a new changelog with (N, 0).
+        // However we might be writing to an existing changelog (when follower joins a working quorum).
+        YT_VERIFY(version.RecordId == 0);
+    }
+
+    auto nextChangelog = GetNextChangelog(version);
+    if (Changelog_) {
+        CloseChangelog(Changelog_);
+    }
+    Changelog_ = nextChangelog;
 }
 
 TFuture<void> TFollowerCommitter::GetLastLoggedMutationFuture()
@@ -923,7 +958,7 @@ TFuture<void> TFollowerCommitter::LogMutations()
         AcceptedMutations_.pop();
 
         auto version = mutation->Version;
-        if (version.SegmentId != ChangelogId_) {
+        if (!Changelog_ || version.SegmentId != Changelog_->GetId()) {
             PrepareNextChangelog(version);
         }
 
@@ -1004,6 +1039,10 @@ void TFollowerCommitter::CommitMutations(i64 committedSequenceNumber)
 void TFollowerCommitter::Stop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    for (const auto& [id, changelog] : NextChangelogs_) {
+        CloseChangelog(changelog);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

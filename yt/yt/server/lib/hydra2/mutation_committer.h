@@ -55,6 +55,7 @@ protected:
         NProfiling::TProfiler profiler);
 
     TFuture<void> DoCommitMutations(std::vector<TPendingMutationPtr> mutations);
+    void CloseChangelog(const NHydra::IChangelogPtr& changelog);
 
     const NHydra::TDistributedHydraManagerConfigPtr Config_;
     const NHydra::TDistributedHydraManagerOptions Options_;
@@ -68,7 +69,6 @@ protected:
     NHydra::NProto::TMutationHeader MutationHeader_;
     TFuture<void> LastLoggedMutationFuture_ = VoidFuture;
 
-    int ChangelogId_ = -1;
     NHydra::IChangelogPtr Changelog_;
 
     DEFINE_BYVAL_RO_PROPERTY(i64, SelfCommittedSequenceNumber);
@@ -93,7 +93,6 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderLeasePtr leaderLease,
         TMpscQueue<TMutationDraft>* queue,
-        int changelogId,
         NHydra::IChangelogPtr changelog,
         TReachableState reachableState,
         TEpochContext* epochContext,
@@ -110,7 +109,7 @@ public:
 
     void SetReadOnly();
 
-    void Start(int changelogId);
+    void Start();
     void Stop();
 
     //! Raised each time a checkpoint is needed.
@@ -240,6 +239,7 @@ private:
 
     TCompactFlatMap<int, NHydra::IChangelogPtr, 4> NextChangelogs_;
 
+    NHydra::IChangelogPtr GetNextChangelog(TVersion version);
     void PrepareNextChangelog(TVersion version);
 
     void DoAcceptMutation(const TSharedRef& recordData);
