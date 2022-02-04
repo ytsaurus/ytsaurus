@@ -114,14 +114,24 @@ TEventTimerGuard::TEventTimerGuard(TEventTimer timer)
     , StartTime_(GetCpuInstant())
 { }
 
+TEventTimerGuard::TEventTimerGuard(TTimeGauge timeGauge)
+    : TimeGauge_(std::move(timeGauge))
+    , StartTime_(GetCpuInstant())
+{ }
+
 TEventTimerGuard::~TEventTimerGuard()
 {
-    if (!Timer_) {
+    if (!Timer_ && !TimeGauge_) {
         return;
     }
 
-    auto now = GetCpuInstant();
-    Timer_.Record(CpuDurationToDuration(now - StartTime_));
+    auto duration = CpuDurationToDuration(GetCpuInstant() - StartTime_);
+    if (Timer_) {
+        Timer_.Record(duration);
+    }
+    if (TimeGauge_) {
+        TimeGauge_.Update(duration);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
