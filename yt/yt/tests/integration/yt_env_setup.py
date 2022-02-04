@@ -38,6 +38,7 @@ import sys
 import logging
 import decorator
 import functools
+import shutil
 
 from time import sleep, time
 from threading import Thread
@@ -47,7 +48,7 @@ SANDBOX_ROOTDIR = None
 ##################################################################
 
 
-def prepare_yatest_environment(need_suid, artifact_components=None):
+def prepare_yatest_environment(need_suid, artifact_components=None, force_create_environment=False):
     yt.logger.LOGGER.setLevel(logging.DEBUG)
     artifact_components = artifact_components or {}
 
@@ -71,6 +72,9 @@ def prepare_yatest_environment(need_suid, artifact_components=None):
         artifact_components.pop("trunk")
 
     bin_path = os.path.join(destination, "bin")
+
+    if force_create_environment and os.path.exists(destination):
+        shutil.rmtree(destination)
 
     if not os.path.exists(destination):
         os.makedirs(destination)
@@ -215,6 +219,7 @@ class YTEnvSetup(object):
     DRIVER_BACKEND = "native"
     NODE_PORT_SET_SIZE = None
     ARTIFACT_COMPONENTS = {}
+    FORCE_CREATE_ENVIRONMENT = False
     NUM_CELL_BALANCERS = 0
     NUM_QUEUE_AGENTS = 0
 
@@ -429,7 +434,10 @@ class YTEnvSetup(object):
         cls.liveness_checkers.append(log_rotator)
 
         # The following line initializes SANDBOX_ROOTDIR.
-        cls.bin_path = prepare_yatest_environment(need_suid=need_suid, artifact_components=cls.ARTIFACT_COMPONENTS)
+        cls.bin_path = prepare_yatest_environment(
+            need_suid=need_suid,
+            artifact_components=cls.ARTIFACT_COMPONENTS,
+            force_create_environment=cls.FORCE_CREATE_ENVIRONMENT)
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         cls.run_id = None

@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
     authors, print_debug, run_test_vanilla, wait, exists,
     with_breakpoint, release_breakpoint, sync_create_cells)
@@ -14,6 +14,22 @@ import pytest
 ##################################################################
 
 
+def replace_binaries_with_trunk_version(bin_path):
+    scheduler_path = os.path.join(bin_path, "ytserver-scheduler")
+    controller_agent_path = os.path.join(bin_path, "ytserver-controller-agent")
+    ytserver_all_trunk_path = yatest.common.binary_path("yt/yt/packages/tests_package/ytserver-all")
+
+    print_debug("Removing {} and {}".format(scheduler_path, controller_agent_path))
+    os.remove(scheduler_path)
+    os.remove(controller_agent_path)
+
+    print_debug("Symlinking {} to {}".format(ytserver_all_trunk_path, scheduler_path))
+    os.symlink(ytserver_all_trunk_path, scheduler_path)
+
+    print_debug("Symlinking {} to {}".format(ytserver_all_trunk_path, controller_agent_path))
+    os.symlink(ytserver_all_trunk_path, controller_agent_path)
+
+
 def check_running_operation(lookup_in_archive=False):
     op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
 
@@ -26,7 +42,9 @@ def check_running_operation(lookup_in_archive=False):
     yield
 
     wait(lambda: op.get_state() == "running")
-    wait(lambda: op.get_running_jobs(verbose=True).keys() == job_ids)
+
+    # Clean start
+    wait(lambda: op.get_running_jobs(verbose=True).keys() != job_ids)
 
     release_breakpoint()
 
@@ -49,9 +67,11 @@ class TestSchedulerUpdate(YTEnvSetup):
     }
 
     ARTIFACT_COMPONENTS = {
-        "21_3": ["master"],
-        "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "node", "job-proxy", "exec", "tools"],
+        "21_3": ["master", "scheduler", "controller-agent"],
+        "trunk": ["proxy", "http-proxy", "node", "job-proxy", "exec", "tools"],
     }
+
+    FORCE_CREATE_ENVIRONMENT = True
 
     @authors("ignat")
     def test(self):
@@ -61,13 +81,8 @@ class TestSchedulerUpdate(YTEnvSetup):
         for s in checker_state_list:
             next(s)
 
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            scheduler_path = os.path.join(self.bin_path, "ytserver-scheduler")
-            ytserver_all_trunk_path = yatest.common.binary_path("yt/yt/packages/tests_package/ytserver-all")
-            print_debug("Removing {}".format(scheduler_path))
-            os.remove(scheduler_path)
-            print_debug("Symlinking {} to {}".format(ytserver_all_trunk_path, scheduler_path))
-            os.symlink(ytserver_all_trunk_path, scheduler_path)
+        with Restarter(self.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE]):
+            replace_binaries_with_trunk_version(self.bin_path)
 
         for s in checker_state_list:
             with pytest.raises(StopIteration):
@@ -104,9 +119,11 @@ class TestSchedulerUpdateWithOperationsCleaner(YTEnvSetup):
     }
 
     ARTIFACT_COMPONENTS = {
-        "21_3": ["master"],
-        "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "node", "job-proxy", "exec", "tools"],
+        "21_3": ["master", "scheduler", "controller-agent"],
+        "trunk": ["proxy", "http-proxy", "node", "job-proxy", "exec", "tools"],
     }
+
+    FORCE_CREATE_ENVIRONMENT = True
 
     def setup_method(self, method):
         super(TestSchedulerUpdateWithOperationsCleaner, self).setup_method(method)
@@ -123,13 +140,8 @@ class TestSchedulerUpdateWithOperationsCleaner(YTEnvSetup):
         for s in checker_state_list:
             next(s)
 
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            scheduler_path = os.path.join(self.bin_path, "ytserver-scheduler")
-            ytserver_all_trunk_path = yatest.common.binary_path("yt/yt/packages/tests_package/ytserver-all")
-            print_debug("Removing {}".format(scheduler_path))
-            os.remove(scheduler_path)
-            print_debug("Symlinking {} to {}".format(ytserver_all_trunk_path, scheduler_path))
-            os.symlink(ytserver_all_trunk_path, scheduler_path)
+        with Restarter(self.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE]):
+            replace_binaries_with_trunk_version(self.bin_path)
 
         for s in checker_state_list:
             with pytest.raises(StopIteration):
