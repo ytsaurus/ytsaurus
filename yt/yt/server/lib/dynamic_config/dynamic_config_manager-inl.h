@@ -36,7 +36,9 @@ TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
         BIND(&TDynamicConfigManagerBase<TConfig>::DoUpdateConfig, MakeWeak(this)),
         Config_->UpdatePeriod))
     , Logger(DynamicConfigLogger.WithTag("DynamicConfigManagerName: %v", Options_.Name))
-{ }
+{
+    AppliedConfig_->Postprocess();
+}
 
 template <typename TConfig>
 TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
