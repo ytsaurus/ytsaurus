@@ -531,21 +531,11 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "tasks": {
                     "task_a": {
                         "job_count": 1,
-                        "command": " ; ".join(
-                            [
-                                events_on_fs().notify_event_cmd("job_started_a"),
-                                events_on_fs().wait_event_cmd("finish_a"),
-                            ]
-                        ),
+                        "command": events_on_fs().notify_event_cmd("job_started_a") + " ; sleep 1000",
                     },
                     "task_b": {
                         "job_count": 1,
-                        "command": " ; ".join(
-                            [
-                                events_on_fs().notify_event_cmd("job_started_b"),
-                                events_on_fs().wait_event_cmd("finish_b"),
-                            ]
-                        ),
+                        "command": events_on_fs().notify_event_cmd("job_started_b") + " ; sleep 1000",
                     },
                 },
                 "fail_on_job_restart": True,
@@ -557,8 +547,6 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert len(jobs) == 2
         job_id, other_job_id = jobs
         abort_job(job_id)
-        events_on_fs().notify_event("finish_a")
-        events_on_fs().notify_event("finish_b")
 
         wait(lambda: op.get_state() == "failed")
 
