@@ -119,11 +119,13 @@ class TEventTimerGuard
 {
 public:
     explicit TEventTimerGuard(TEventTimer timer);
+    explicit TEventTimerGuard(TTimeGauge gauge);
     TEventTimerGuard(TEventTimerGuard&& other) = default;
     ~TEventTimerGuard();
 
 private:
     TEventTimer Timer_;
+    TTimeGauge TimeGauge_;
     TCpuInstant StartTime_;
 };
 
