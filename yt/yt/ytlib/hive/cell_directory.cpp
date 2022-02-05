@@ -46,7 +46,7 @@ TAddressMap ToAddressMap(const TCellPeerConfig& config, const TNetworkPreference
     if (config.Address) {
         result.reserve(networks.size() + 1);
         for (const auto& network : networks) {
-            YT_VERIFY(result.emplace(network, *config.Address).second);
+            EmplaceOrCrash(result, network, *config.Address);
         }
         // Default network must always be present in address map.
         result.emplace(DefaultNetworkName, *config.Address);
@@ -91,10 +91,10 @@ TCellConfigPtr TCellDescriptor::ToConfig(const TNetworkPreferenceList& networks)
 
 TCellInfo TCellDescriptor::ToInfo() const
 {
-    TCellInfo info;
-    info.CellId = CellId;
-    info.ConfigVersion = ConfigVersion;
-    return info;
+    return TCellInfo{
+        .CellId = CellId,
+        .ConfigVersion = ConfigVersion
+    };
 }
 
 void ToProto(NProto::TCellPeerDescriptor* protoDescriptor, const TCellPeerDescriptor& descriptor)
@@ -269,43 +269,45 @@ public:
         auto guard = ReaderGuard(SpinLock_);
 
         TSynchronizationResult result;
-        auto trySynchronize = [&] (bool trackMissingCells) {
-            result = {};
 
-            THashMap<TCellId, const TEntry*> missingMap;
-            if (trackMissingCells) {
-                for (const auto& [cellId, entry] : CellIdToEntry_) {
-                    YT_VERIFY(missingMap.emplace(cellId, &entry).second);
+        int foundKnownCells = 0;
+        for (const auto& knownCell : knownCells) {
+            auto cellId = knownCell.CellId;
+            if (auto it = CellIdToEntry_.find(cellId)) {
+                const auto& entry = it->second;
+                if (knownCell.ConfigVersion < entry.Descriptor.ConfigVersion) {
+                    result.ReconfigureRequests.push_back({entry.Descriptor, knownCell.ConfigVersion});
                 }
+                ++foundKnownCells;
+            } else {
+                // NB: Currently we never request to unregister chaos cells; cf. YT-16393.
+                if (TypeFromId(cellId) != EObjectType::ChaosCell) {
+                    result.UnregisterRequests.push_back({
+                        .CellId = cellId
+                    });
+                }
+            }
+        }
+
+        // In most cases there are no missing cells in #knownCells.
+        // Thus we may defer constructing #missingMap until we actually discover one.
+        if (foundKnownCells < std::ssize(CellIdToEntry_)) {
+            THashMap<TCellId, const TEntry*> missingMap;
+
+            for (const auto& [cellId, entry] : CellIdToEntry_) {
+                EmplaceOrCrash(missingMap, cellId, &entry);
             }
 
             for (const auto& knownCell : knownCells) {
-                auto cellId = knownCell.CellId;
-                if (auto it = CellIdToEntry_.find(cellId)) {
-                    if (trackMissingCells) {
-                        YT_VERIFY(missingMap.erase(cellId) == 1);
-                    }
-                    const auto& entry = it->second;
-                    if (knownCell.ConfigVersion < entry.Descriptor.ConfigVersion) {
-                        result.ReconfigureRequests.push_back({entry.Descriptor, knownCell.ConfigVersion});
-                    }
-                } else {
-                    if (!trackMissingCells) {
-                        return false;
-                    }
-                    result.UnregisterRequests.push_back({cellId});
-                }
+                missingMap.erase(knownCell.CellId);
             }
 
             for (auto [cellId, entry] : missingMap) {
-                result.ReconfigureRequests.push_back({entry->Descriptor, -1});
+                result.ReconfigureRequests.push_back({
+                    .NewDescriptor = entry->Descriptor,
+                    .OldConfigVersion = -1
+                });
             }
-
-            return true;
-        };
-
-        if (!trySynchronize(knownCells.size() < CellIdToEntry_.size())) {
-            YT_VERIFY(trySynchronize(true));
         }
 
         return result;

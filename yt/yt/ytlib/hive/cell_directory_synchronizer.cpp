@@ -31,11 +31,11 @@ public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
         ICellDirectoryPtr cellDirectory,
-        TCellIdList cellIdsToSyncCells,
+        TCellIdList sourceOfTruthCellIds,
         const NLogging::TLogger& logger)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
-        , CellIdsToSyncCells_(std::move(cellIdsToSyncCells))
+        , SourceOfTruthCellIds_(std::move(sourceOfTruthCellIds))
         , Logger(logger)
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
@@ -70,7 +70,7 @@ public:
 private:
     const TCellDirectorySynchronizerConfigPtr Config_;
     const ICellDirectoryPtr CellDirectory_;
-    const TCellIdList CellIdsToSyncCells_;
+    const TCellIdList SourceOfTruthCellIds_;
 
     const NLogging::TLogger Logger;
     const TPeriodicExecutorPtr SyncExecutor_;
@@ -107,20 +107,27 @@ private:
         try {
             YT_LOG_DEBUG("Started synchronizing cell directory");
 
-            auto cellId = CellIdsToSyncCells_[RandomGenerator_.Generate<size_t>() % CellIdsToSyncCells_.size()];
+            auto cellId = SourceOfTruthCellIds_[RandomGenerator_.Generate<size_t>() % SourceOfTruthCellIds_.size()];
             auto channel = CellDirectory_->GetChannelByCellIdOrThrow(cellId, NHydra::EPeerKind::Follower);
-            THiveServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Config_->SyncRpcTimeout);
+            THiveServiceProxy proxy(std::move(channel));
 
             auto req = proxy.SyncCells();
-            ToProto(req->mutable_known_cells(), CellDirectory_->GetRegisteredCells());
+            req->SetTimeout(Config_->SyncRpcTimeout);
+            for (const auto& cellInfo : CellDirectory_->GetRegisteredCells()) {
+                if (TypeFromId(cellInfo.CellId) != EObjectType::MasterCell) {
+                    ToProto(req->add_known_cells(), cellInfo);
+                }
+            }
 
             auto rsp = WaitFor(req->Invoke())
                 .ValueOrThrow();
 
             for (const auto& info : rsp->cells_to_unregister()) {
                 auto cellId = FromProto<TCellId>(info.cell_id());
-                CellDirectory_->UnregisterCell(cellId);
+                // NB: Currently we never unregister chaos cells; cf. YT-16393.
+                if (TypeFromId(cellId) != EObjectType::ChaosCell) {
+                    CellDirectory_->UnregisterCell(cellId);
+                }
             }
 
             for (const auto& info : rsp->cells_to_reconfigure()) {
@@ -158,13 +165,13 @@ private:
 ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     ICellDirectoryPtr cellDirectory,
-    TCellIdList cellIdsToSyncCells,
+    TCellIdList sourceOfTruthCellIds,
     const NLogging::TLogger& logger)
 {
     return New<TCellDirectorySynchronizer>(
         std::move(config),
         std::move(cellDirectory),
-        std::move(cellIdsToSyncCells),
+        std::move(sourceOfTruthCellIds),
         logger);
 }
 
