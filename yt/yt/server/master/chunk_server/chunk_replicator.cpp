@@ -2738,8 +2738,7 @@ void TChunkReplicator::OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig
     RequisitionUpdateExecutor_->SetPeriod(GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
     FinishedRequisitionTraverseFlushExecutor_->SetPeriod(GetDynamicConfig()->FinishedChunkListsRequisitionTraverseFlushPeriod);
 
-    if (oldConfig && // Otherwise we're at startup.
-        !GetDynamicConfig()->ConsistentReplicaPlacement->Enable &&
+    if (!GetDynamicConfig()->ConsistentReplicaPlacement->Enable &&
         oldConfig->ChunkManager->ConsistentReplicaPlacement->Enable)
     {
         InconsistentlyPlacedChunks_.clear();
