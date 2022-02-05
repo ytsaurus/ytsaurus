@@ -8,7 +8,8 @@ from .cypress_commands import get
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .errors import (
     YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict,
-    YtNoSuchTablet, YtTabletNotMounted, YtResponseError, YtRowIsBlocked, YtBlockedRowWaitTimeout)
+    YtNoSuchTablet, YtTabletNotMounted, YtResponseError, YtRowIsBlocked, YtBlockedRowWaitTimeout,
+    YtNoSuchCell)
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
@@ -122,6 +123,7 @@ def get_dynamic_table_retriable_errors():
             YtTabletNotMounted,
             YtRowIsBlocked,
             YtBlockedRowWaitTimeout,
+            YtNoSuchCell,
         ])
 
 class DynamicTableRequestRetrier(Retrier):

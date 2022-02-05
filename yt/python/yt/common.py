@@ -297,6 +297,10 @@ class YtError(Exception):
         """Tablet is not mounted."""
         return self.contains_code(1702)
 
+    def is_no_such_cell(self):
+        """No such cell."""
+        return self.contains_code(1721)
+
     def is_all_target_nodes_failed(self):
         """Failed to write chunk since all target nodes have failed."""
         return self.contains_code(700)

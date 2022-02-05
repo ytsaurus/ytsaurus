@@ -79,6 +79,8 @@ def create_response_error(underlying_error):
         error = YtRowIsBlocked(underlying_error)
     elif sample_error.is_blocked_row_wait_timeout():
         error = YtBlockedRowWaitTimeout(underlying_error)
+    elif sample_error.is_no_such_cell():
+        error = YtNoSuchCell(underlying_error)
     else:
         error = sample_error
     return error
@@ -176,8 +178,12 @@ class YtTabletNotMounted(YtResponseError):
     """Tablet is not mounted error"""
     pass
 
+class YtNoSuchCell(YtResponseError):
+    """No such cell error"""
+    pass
+
 class YtTransportError(YtResponseError):
-    """Transpotr error"""
+    """Transport error"""
     pass
 
 class YtProxyUnavailable(YtError):
