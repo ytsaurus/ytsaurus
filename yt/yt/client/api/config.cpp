@@ -78,7 +78,7 @@ TPersistentQueuePollerConfig::TPersistentQueuePollerConfig()
 void TJournalWriterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_batch_row_count", &TThis::MaxBatchRowCount)
-        .Default(10'000);
+        .Default(256);
     registrar.Parameter("max_batch_data_size", &TThis::MaxBatchDataSize)
         .Default(16_MB);
     registrar.Parameter("max_batch_delay", &TThis::MaxBatchDelay)
