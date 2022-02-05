@@ -547,6 +547,10 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
+            if (aborted) {
+                return;
+            }
+
             auto requestId = requestControl->GetRequestId();
             auto* bucket = GetBucketForRequest(requestId);
 
@@ -568,10 +572,6 @@ private:
 
                 requestControl->ProfileTimeout();
                 responseHandler = requestControl->Finalize(guard);
-            }
-
-            if (aborted) {
-                return;
             }
 
             auto error = TError(NYT::EErrorCode::Timeout, "Request acknowledgement timed out");
