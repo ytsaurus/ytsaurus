@@ -63,7 +63,7 @@ TEST(TestCancelableRunWithBoundedConcurrency, TestCancelation)
     std::atomic<int> canceledCount = 0;
 
     std::vector<TCallback<TFuture<void>()>> callbacks;
-    for (int i = 0; i < 20; ++i) {
+    for (int i = 0; i < 9; ++i) {
         callbacks.push_back(BIND([&] {
             if (x++ < 5) {
                 return VoidFuture;
@@ -82,14 +82,14 @@ TEST(TestCancelableRunWithBoundedConcurrency, TestCancelation)
         std::move(callbacks),
         /*concurrencyLimit*/ 5);
 
-    while (x < 10) {
+    while (x < 9) {
         Sleep(TDuration::MilliSeconds(10));
     }
 
     future.Cancel(TError("Canceled"));
 
-    EXPECT_EQ(x, 10);
-    EXPECT_EQ(canceledCount, 5);
+    EXPECT_EQ(x, 9);
+    EXPECT_EQ(canceledCount, 4);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

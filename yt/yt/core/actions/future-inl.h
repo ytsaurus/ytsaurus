@@ -2344,7 +2344,7 @@ private:
     std::optional<TError> CancelationError_;
     std::vector<TFuture<void>> Futures_;
     std::vector<TErrorOr<T>> Results_;
-    int CurrentIndex_;
+    i64 CurrentIndex_;
     int FinishedCount_ = 0;
 
 
@@ -2410,7 +2410,7 @@ private:
         }
 
         // NB: Setting of CancelationError_ disallows modification of CurrentIndex_ and Futures_.
-        for (int index = 0; index < CurrentIndex_; ++index) {
+        for (int index = 0; index < std::min(ssize(Futures_), CurrentIndex_); ++index) {
             Futures_[index].Cancel(wrappedError);
         }
 
