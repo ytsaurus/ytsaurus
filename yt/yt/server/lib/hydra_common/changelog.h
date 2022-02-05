@@ -135,6 +135,9 @@ struct IChangelogStore
      */
     virtual TFuture<IChangelogPtr> OpenChangelog(int id) = 0;
 
+    //! Removes an existing changelog.
+    virtual TFuture<void> RemoveChangelog(int id) = 0;
+
     // Extension methods.
 
     //! Opens an existing changelog.

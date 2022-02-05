@@ -1,6 +1,7 @@
 #include "private.h"
 #include "local_changelog_store.h"
 #include "file_changelog_dispatcher.h"
+#include "file_helpers.h"
 #include "serialize.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
@@ -13,6 +14,8 @@
 
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/fs.h>
+
+#include <yt/yt/core//concurrency/action_queue.h>
 
 namespace NYT::NHydra {
 
@@ -40,7 +43,6 @@ TString GetChangelogPath(const TString& path, int id)
 
 } // namespace
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLocalChangelogStoreLock
@@ -57,8 +59,28 @@ public:
         return CurrentEpoch_.load() == epoch;
     }
 
+    TFuture<void> CheckAcquired(ui64 epoch) const
+    {
+        if (!IsAcquired(epoch)) {
+            return MakeFuture<void>(MakeLockExpiredError());
+        }
+        return {};
+    }
+
+    void ValidateAcquire(ui64 epoch) const
+    {
+        if (!IsAcquired(epoch)) {
+            THROW_ERROR(MakeLockExpiredError());
+        }
+    }
+
 private:
     std::atomic<ui64> CurrentEpoch_ = 0;
+
+    static TError MakeLockExpiredError()
+    {
+        return TError("Local changelog store lock expired");
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreLock)
@@ -172,10 +194,7 @@ private:
 
     TFuture<void> CheckLock() const
     {
-        if (!Lock_->IsAcquired(Epoch_)) {
-            return MakeFuture<void>(TError("Changelog store lock expired"));
-        }
-        return {};
+        return Lock_->CheckAcquired(Epoch_);
     }
 };
 
@@ -258,54 +277,55 @@ class TLocalChangelogStoreFactory
 {
 public:
     TLocalChangelogStoreFactory(
-        const NIO::IIOEnginePtr& ioEngine,
+        NIO::IIOEnginePtr ioEngine,
         TFileChangelogStoreConfigPtr config,
         const TString& threadName,
         const NProfiling::TProfiler& profiler)
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
-        , IOEngine_(ioEngine)
-        , Config_(config)
+        , IOEngine_(std::move(ioEngine))
+        , Config_(std::move(config))
         , Dispatcher_(CreateFileChangelogDispatcher(
             IOEngine_,
             Config_,
             threadName,
             profiler))
+        , Invoker_(Dispatcher_->GetInvoker())
+        , BoundedConcurrencyInvoker_(CreateBoundedConcurrencyInvoker(Invoker_, 1))
         , Logger(HydraLogger.WithTag("Path: %v", Config_->Path))
     { }
-
-    void Start()
-    {
-        YT_LOG_DEBUG("Preparing changelog store");
-
-        NFS::MakeDirRecursive(Config_->Path);
-        NFS::CleanTempFiles(Config_->Path);
-    }
 
     TFuture<IChangelogPtr> CreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
     {
         return BIND(&TLocalChangelogStoreFactory::DoCreateChangelog, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(BoundedConcurrencyInvoker_)
             .Run(id, epoch, meta);
     }
 
     TFuture<IChangelogPtr> OpenChangelog(int id, ui64 epoch)
     {
         return BIND(&TLocalChangelogStoreFactory::DoOpenChangelog, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(Invoker_)
+            .Run(id, epoch);
+    }
+
+    TFuture<void> RemoveChangelog(int id, ui64 epoch)
+    {
+        return BIND(&TLocalChangelogStoreFactory::DoRemoveChangelog, MakeStrong(this))
+            .AsyncVia(BoundedConcurrencyInvoker_)
             .Run(id, epoch);
     }
 
     TFuture<IChangelogStorePtr> Lock() override
     {
         return BIND(&TLocalChangelogStoreFactory::DoLock, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(BoundedConcurrencyInvoker_)
             .Run();
     }
 
     TFuture<int> GetLatestChangelogId(ui64 epoch)
     {
         return BIND(&TLocalChangelogStoreFactory::DoGetLatestChangelogId, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(BoundedConcurrencyInvoker_)
             .Run(epoch);
     }
 
@@ -314,13 +334,20 @@ private:
     const TFileChangelogStoreConfigPtr Config_;
     const IFileChangelogDispatcherPtr Dispatcher_;
 
+    const IInvokerPtr Invoker_;
+    const IInvokerPtr BoundedConcurrencyInvoker_;
+
     const TLocalChangelogStoreLockPtr Lock_ = New<TLocalChangelogStoreLock>();
 
     const NLogging::TLogger Logger;
 
+    bool Initialized_ = false;
 
-    IChangelogPtr DoCreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
+
+    TFuture<IChangelogPtr> DoCreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
     {
+        Lock_->ValidateAcquire(epoch);
+
         auto cookie = BeginInsert(id);
         if (!cookie.IsActive()) {
             THROW_ERROR_EXCEPTION("Trying to create an already existing changelog %v",
@@ -332,20 +359,25 @@ private:
         try {
             auto underlyingChangelog = WaitFor(Dispatcher_->CreateChangelog(id, path, meta, Config_))
                 .ValueOrThrow();
+
+            YT_LOG_INFO("Local changelog created (ChangelogId: %v, Epoch: %v)",
+                id,
+                epoch);
+
             auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Error creating changelog %v",
+            YT_LOG_FATAL(ex, "Error creating changelog (Path: %v)",
                 path);
         }
 
-        auto cachedChangelog = WaitFor(cookie.GetValue())
-            .ValueOrThrow();
-        return New<TEpochBoundLocalChangelog>(epoch, Lock_, std::move(cachedChangelog));
+        return MakeEpochBoundLocalChangelog(epoch, cookie.GetValue());
     }
 
-    IChangelogPtr DoOpenChangelog(int id, ui64 epoch)
+    TFuture<IChangelogPtr> DoOpenChangelog(int id, ui64 epoch)
     {
+        Lock_->ValidateAcquire(epoch);
+
         auto cookie = BeginInsert(id);
         if (cookie.IsActive()) {
             auto path = GetChangelogPath(Config_->Path, id);
@@ -358,6 +390,11 @@ private:
                 try {
                     auto underlyingChangelog = WaitFor(Dispatcher_->OpenChangelog(id, path, Config_))
                         .ValueOrThrow();
+
+                    YT_LOG_INFO("Local changelog opened (ChangelogId: %v, Epoch: %v)",
+                        id,
+                        epoch);
+
                     auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
@@ -367,15 +404,34 @@ private:
             }
         }
 
-        auto cachedChangelog = WaitFor(cookie.GetValue())
-            .ValueOrThrow();
+        return MakeEpochBoundLocalChangelog(epoch, cookie.GetValue());
+    }
 
-        return New<TEpochBoundLocalChangelog>(epoch, Lock_, std::move(cachedChangelog));
+    void DoRemoveChangelog(int id, ui64 epoch)
+    {
+        Lock_->ValidateAcquire(epoch);
+
+        auto path = GetChangelogPath(Config_->Path, id);
+        RemoveChangelogFiles(path);
+
+        YT_LOG_INFO("Local changelog removed (ChangelogId: %v, Epoch: %v)",
+            id,
+            epoch);
     }
 
     IChangelogStorePtr DoLock()
     {
         try {
+            if (!Initialized_) {
+                WaitFor(BIND(&TLocalChangelogStoreFactory::DoInitialize, MakeStrong(this))
+                    .AsyncVia(IOEngine_->GetAuxPoolInvoker())
+                    .Run())
+                    .ThrowOnError();
+                Initialized_ = true;
+            }
+
+            YT_LOG_INFO("Locking local changelog store");
+
             WaitFor(Dispatcher_->FlushChangelogs())
                 .ThrowOnError();
 
@@ -383,6 +439,12 @@ private:
 
             auto reachableVersion = ComputeReachableVersion(epoch);
             auto electionPriority = ComputeElectionPriority(epoch);
+
+            YT_LOG_INFO("Local changelog store locked (Epoch: %v, ReachableVersion: %v, ElectionPriority: %v)",
+                epoch,
+                reachableVersion,
+                electionPriority);
+
             return CreateStore(reachableVersion, electionPriority, epoch);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error locking local changelog store %v",
@@ -391,7 +453,27 @@ private:
         }
     }
 
-    IChangelogStorePtr CreateStore(TVersion reachableVersion, TElectionPriority electionPriority, ui64 epoch);
+    void DoInitialize()
+    {
+        YT_LOG_INFO("Initializing local changelog store");
+
+        NFS::MakeDirRecursive(Config_->Path);
+        NFS::CleanTempFiles(Config_->Path);
+
+        YT_LOG_INFO("Local changelog store initialized");
+    }
+
+    IChangelogStorePtr CreateStore(
+        TVersion reachableVersion,
+        TElectionPriority electionPriority,
+        ui64 epoch);
+
+    TFuture<IChangelogPtr> MakeEpochBoundLocalChangelog(ui64 epoch, const TFuture<TCachedLocalChangelogPtr>& future)
+    {
+        return future.Apply(BIND([epoch, lock = Lock_] (const TCachedLocalChangelogPtr& cachedChangelog) -> IChangelogPtr {
+            return New<TEpochBoundLocalChangelog>(epoch, lock, cachedChangelog);
+        }));
+    }
 
     int DoGetLatestChangelogId(ui64 /*epoch*/) const
     {
@@ -403,14 +485,18 @@ private:
             if (extension != ChangelogExtension) {
                 continue;
             }
+
             auto name = NFS::GetFileNameWithoutExtension(fileName);
-            try {
-                int id = FromString<int>(name);
-                if (id > latestId || latestId == InvalidSegmentId) {
-                    latestId = id;
-                }
-            } catch (const std::exception&) {
-                YT_LOG_WARNING("Found unrecognized file in changelog store (FileName: %v)", fileName);
+
+            int id;
+            if (!TryFromString<int>(name, id)) {
+                YT_LOG_WARNING("Found unrecognized file in local changelog store (FileName: %v)",
+                    fileName);
+                continue;
+            }
+
+            if (id > latestId || latestId == InvalidSegmentId) {
+                latestId = id;
             }
         }
 
@@ -422,7 +508,7 @@ private:
         int latestId = DoGetLatestChangelogId(epoch);
 
         if (latestId == InvalidSegmentId) {
-            return TVersion();
+            return {};
         }
 
         try {
@@ -430,7 +516,7 @@ private:
                 .ValueOrThrow();
             return TVersion(latestId, changelog->GetRecordCount());
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Error computing reachable version for changelog %v",
+            YT_LOG_FATAL(ex, "Error computing reachable version for changelog (Path: %v)",
                 GetChangelogPath(Config_->Path, latestId));
         }
     }
@@ -449,7 +535,8 @@ private:
                 int id = FromString<int>(name);
                 ids.push_back(id);
             } catch (const std::exception&) {
-                YT_LOG_WARNING("Found unrecognized file in changelog store (FileName: %v)", fileName);
+                YT_LOG_WARNING("Found unrecognized file in local changelog store (FileName: %v)",
+                    fileName);
             }
         }
 
@@ -468,13 +555,15 @@ private:
 
                 auto recordCount = changelog->GetRecordCount();
                 if (recordCount == 0) {
-                    YT_LOG_DEBUG("Skipping empty changelog (ChangelogId: %v)", id);
+                    YT_LOG_DEBUG("Skipping empty changelog (ChangelogId: %v)",
+                        id);
                     continue;
                 }
 
                 YT_LOG_DEBUG("Nonempty changelog found (ChangelogId: %v, RecordCount: %v)",
                     id,
                     recordCount);
+
                 auto asyncRecordsData = changelog->Read(
                     0,
                     1,
@@ -482,8 +571,9 @@ private:
                 auto recordsData = WaitFor(asyncRecordsData)
                     .ValueOrThrow();
 
-                if (recordsData.size() == 0) {
-                    THROW_ERROR_EXCEPTION("Read zero records in changelog %v", id);
+                if (recordsData.empty()) {
+                    THROW_ERROR_EXCEPTION("Read zero records in changelog %v",
+                        id);
                 }
 
                 TMutationHeader header;
@@ -494,7 +584,7 @@ private:
                 YT_VERIFY(currentTerm >= 0);
                 return {currentTerm, meta.term(), id, header.sequence_number() + recordCount - 1};
             } catch (const std::exception& ex) {
-                YT_LOG_FATAL(ex, "Error computing election priority for changelog %v",
+                YT_LOG_FATAL(ex, "Error computing election priority for changelog (Path: %v)",
                     GetChangelogPath(Config_->Path, id));
             }
         }
@@ -552,6 +642,11 @@ public:
         return Factory_->OpenChangelog(id, Epoch_);
     }
 
+    TFuture<void> RemoveChangelog(int id) override
+    {
+        return Factory_->RemoveChangelog(id, Epoch_);
+    }
+
     void Abort() override
     { }
 
@@ -579,13 +674,11 @@ IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
     const TString& threadName,
     const NProfiling::TProfiler& profiler)
 {
-    auto store = New<TLocalChangelogStoreFactory>(
+    return New<TLocalChangelogStoreFactory>(
         CreateIOEngine(config->IOEngineType, config->IOConfig),
         config,
         threadName,
         profiler);
-    store->Start();
-    return store;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

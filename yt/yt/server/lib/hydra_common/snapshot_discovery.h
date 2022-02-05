@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/yt/server/lib/hydra_common/public.h>
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include "public.h"
+#include "snapshot.h"
 
 #include <yt/yt/ytlib/election/public.h>
 
