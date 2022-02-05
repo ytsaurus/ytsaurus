@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/server/lib/hydra_common/public.h>
+#include "public.h"
 
 #include <yt/yt/client/api/public.h>
 

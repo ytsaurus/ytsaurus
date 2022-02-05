@@ -115,6 +115,13 @@ public:
             .Run(id);
     }
 
+    TFuture<void> RemoveChangelog(int id) override
+    {
+        return BIND(&TRemoteChangelogStore::DoRemoveChangelog, MakeStrong(this))
+            .AsyncVia(GetHydraIOInvoker())
+            .Run(id);
+    }
+
     void Abort() override
     {
         if (PrerequisiteTransaction_) {
@@ -135,16 +142,15 @@ private:
 
     const TLogger Logger;
 
+
     IChangelogPtr DoCreateChangelog(int id, const NProto::TChangelogMeta& meta)
     {
         auto path = GetChangelogPath(Path_, id);
         try {
+            ValidateWritable();
+
             YT_LOG_DEBUG("Creating remote changelog (ChangelogId: %v)",
                 id);
-
-            if (!PrerequisiteTransaction_) {
-                THROW_ERROR_EXCEPTION("Changelog store is read-only");
-            }
 
             ResourceLimitsManager_->ValidateResourceLimits(
                 Options_->ChangelogAccount,
@@ -167,11 +173,11 @@ private:
                 options.Attributes = std::move(attributes);
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 
-                auto asyncResult = Client_->CreateNode(
+                auto future = Client_->CreateNode(
                     path,
                     EObjectType::Journal,
                     options);
-                WaitFor(asyncResult)
+                WaitFor(future)
                     .ThrowOnError();
             }
 
@@ -179,7 +185,7 @@ private:
                 id,
                 meta.term());
 
-            return CreateRemoteChangelog(
+            return MakeRemoteChangelog(
                 id,
                 path,
                 meta,
@@ -222,13 +228,17 @@ private:
                 recordCount = attributes.Get<int>("quorum_row_count");
                 term = attributes.Get<int>("term", 0);
             }
-            YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v, Term: %v)",
-                id,
-                term);
+            YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
+                id);
 
             TChangelogMeta meta;
             meta.set_term(term);
-            return CreateRemoteChangelog(
+
+            YT_LOG_DEBUG("Remote changelog opened (ChangelogId: %v, Term: %v)",
+                id,
+                meta.term());
+
+            return MakeRemoteChangelog(
                 id,
                 path,
                 std::move(meta),
@@ -242,7 +252,34 @@ private:
         }
     }
 
-    IChangelogPtr CreateRemoteChangelog(
+    void DoRemoveChangelog(int id)
+    {
+        auto path = GetChangelogPath(Path_, id);
+        try {
+            ValidateWritable();
+
+            YT_LOG_DEBUG("Removing remote changelog (ChangelogId: %v)",
+                id);
+
+            {
+                TRemoveNodeOptions options;
+                options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
+
+                WaitFor(Client_->RemoveNode(path, options))
+                    .ThrowOnError();
+            }
+
+            YT_LOG_DEBUG("Remote changelog removed (ChangelogId: %v)",
+                id);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error removing remote changelog")
+                << TErrorAttribute("changelog_path", path)
+                << ex;
+        }
+    }
+
+
+    IChangelogPtr MakeRemoteChangelog(
         int id,
         TYPath path,
         TChangelogMeta meta,
@@ -274,6 +311,13 @@ private:
         options.Counters = Counters_;
 
         return options;
+    }
+
+    void ValidateWritable()
+    {
+        if (!PrerequisiteTransaction_) {
+            THROW_ERROR_EXCEPTION("Changelog store is read-only");
+        }
     }
 
 
@@ -610,7 +654,7 @@ private:
             }
         });
 
-        YT_LOG_DEBUG("No unsealed changelogs in store");
+        YT_LOG_DEBUG("No unsealed changelogs in remote store");
     }
 
     TVersion ComputeReachableVersion()
