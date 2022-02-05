@@ -190,26 +190,12 @@ public:
             ChannelFactory_,
             GetNetworks(),
             Logger);
-        CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
-        for (const auto& cellConfig : Config_->SecondaryMasters) {
-            CellDirectory_->ReconfigureCell(cellConfig);
-        }
-
-        // For signlecell clusters we have to sync with primary cell.
-        // For multicell clusters we sync with random secondary cell to reduce
-        // load on primary cell.
-        TCellIdList cellIdsToSyncCells;
-        if (Config_->CellDirectorySynchronizer->SyncCellsWithSecondaryMasters) {
-            cellIdsToSyncCells = MasterCellDirectory_->GetSecondaryMasterCellIds();
-        }
-        if (cellIdsToSyncCells.empty()) {
-            cellIdsToSyncCells.push_back(GetPrimaryMasterCellId());
-        }
+        ConfigureMasterCells();
 
         CellDirectorySynchronizer_ = CreateCellDirectorySynchronizer(
             Config_->CellDirectorySynchronizer,
             CellDirectory_,
-            std::move(cellIdsToSyncCells),
+            GetCellDirectorySynchronizerSourceOfTruthCellIds(),
             Logger);
 
         if (Options_.BlockCache) {
@@ -628,6 +614,29 @@ private:
 
     std::atomic<bool> Terminated_ = false;
 
+
+    void ConfigureMasterCells()
+    {
+        CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
+        for (const auto& cellConfig : Config_->SecondaryMasters) {
+            CellDirectory_->ReconfigureCell(cellConfig);
+        }
+    }
+
+    TCellIdList GetCellDirectorySynchronizerSourceOfTruthCellIds()
+    {
+        // For single-cell clusters we have to sync with the primary cell.
+        // For multicell clusters we sync with a random secondary cell each time
+        // to reduce load on the primary cell.
+        TCellIdList cellIds;
+        if (Config_->CellDirectorySynchronizer->SyncCellsWithSecondaryMasters) {
+            cellIds = MasterCellDirectory_->GetSecondaryMasterCellIds();
+        }
+        if (cellIds.empty()) {
+            cellIds.push_back(GetPrimaryMasterCellId());
+        }
+        return cellIds;
+    }
 
     void BuildOrchid(IYsonConsumer* consumer)
     {

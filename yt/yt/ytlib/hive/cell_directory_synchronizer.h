@@ -31,7 +31,7 @@ DEFINE_REFCOUNTED_TYPE(ICellDirectorySynchronizer)
 ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     ICellDirectoryPtr cellDirectory,
-    NObjectClient::TCellIdList cellIdsToSyncCells,
+    NObjectClient::TCellIdList sourceOrTruthCellIds,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

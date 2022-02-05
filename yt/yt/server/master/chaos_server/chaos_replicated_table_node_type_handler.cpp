@@ -129,7 +129,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Sending replication card removal request to chaos cell (ReplicationCardId: %v, ChaosCellId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Sending replication card removal request to chaos cell (TableId: %v, ReplicationCardId: %v, ChaosCellId: %v)",
+            node->GetId(),
             node->GetReplicationCardId(),
             chaosCell->GetId());
 
