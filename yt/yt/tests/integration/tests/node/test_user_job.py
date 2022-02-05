@@ -363,6 +363,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             )
 
     @authors("ignat")
+    @pytest.mark.skipif(is_asan_build(), reason="Memore dependent tests are not working under ASAN")
     def test_memory_reserve_and_tmpfs(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
