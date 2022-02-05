@@ -1341,7 +1341,7 @@ const TDynamicChunkMergerConfigPtr& TChunkMerger::GetDynamicConfig() const
     return configManager->GetConfig()->ChunkManager->ChunkMerger;
 }
 
-void TChunkMerger::OnDynamicConfigChanged(TDynamicClusterConfigPtr)
+void TChunkMerger::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 

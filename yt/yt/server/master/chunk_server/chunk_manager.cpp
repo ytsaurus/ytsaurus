@@ -4758,19 +4758,16 @@ private:
 
         ConsistentChunkPlacement_->SetChunkReplicaCount(newCrpConfig->ReplicasPerChunk);
 
-        if (oldConfig) {
-            const auto& oldCrpConfig = oldConfig->ChunkManager->ConsistentReplicaPlacement;
-            if (newCrpConfig->Enable != oldCrpConfig->Enable) {
-                // Storing a set of CRP-enabled chunks separately would've enabled
-                // us refreshing only what's actually necessary here. But it still
-                // seems not enough of a reason to.
-                ScheduleGlobalChunkRefresh();
-            }
-        } // Don't schedule refresh on leader switches - it's already scheduled from elsewhere.
+        const auto& oldCrpConfig = oldConfig->ChunkManager->ConsistentReplicaPlacement;
+        if (newCrpConfig->Enable != oldCrpConfig->Enable) {
+            // Storing a set of CRP-enabled chunks separately would've enabled
+            // us refreshing only what's actually necessary here. But it still
+            // seems not enough of a reason to.
+            ScheduleGlobalChunkRefresh();
+        }
 
-        if (oldConfig &&
-            oldConfig->ChunkManager->EnablePerNodeIncrementalHeartbeatProfiling !=
-                GetDynamicConfig()->EnablePerNodeIncrementalHeartbeatProfiling)
+        if (oldConfig->ChunkManager->EnablePerNodeIncrementalHeartbeatProfiling !=
+            GetDynamicConfig()->EnablePerNodeIncrementalHeartbeatProfiling)
         {
             if (GetDynamicConfig()->EnablePerNodeIncrementalHeartbeatProfiling) {
                 TotalIncrementalHeartbeatCounters_.reset();

@@ -4509,8 +4509,7 @@ private:
         TabletBalancer_->Reconfigure(config->TabletBalancer);
 
         // COMPAT(ifsmirnov)
-        if (oldConfig &&
-            !oldConfig->TabletManager->AccumulatePreloadPendingStoreCountCorrectly &&
+        if (!oldConfig->TabletManager->AccumulatePreloadPendingStoreCountCorrectly &&
             config->AccumulatePreloadPendingStoreCountCorrectly)
         {
             YT_LOG_DEBUG("Recomputing statistics of all tablet cells");
