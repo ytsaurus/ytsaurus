@@ -96,7 +96,7 @@ class TestOrchidOnSchedulerRestart(YTEnvSetup):
         "scheduler": {
             "fair_share_update_period": 500,
             "testing_options": {
-                "enable_random_master_disconnection": True,
+                "enable_random_master_disconnection": False,
                 "random_master_disconnection_max_backoff": 2000,
                 "finish_operation_transition_delay": 1000,
             },
@@ -106,15 +106,20 @@ class TestOrchidOnSchedulerRestart(YTEnvSetup):
     @authors("pogorelov")
     def test_orchid_on_scheduler_restarts(self):
         create_pool("pool")
-        for _ in range(50):
-            try:
-                get(scheduler_new_orchid_pool_tree_path("default") + "/resource_usage", verbose=False)
-                get(scheduler_new_orchid_pool_tree_path("default") + "/resource_distribution_info", verbose=False)
-                get(scheduler_new_orchid_pool_tree_path("default") + "/pools", verbose=False)
-                get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits", verbose=False)
-                get(scheduler_new_orchid_pool_tree_path("default") + "/config", verbose=False)
-                get(scheduler_new_orchid_pool_tree_path("default") + "/operations", verbose=False)
-                get(scheduler_new_orchid_pool_tree_path("default") + "/operations_by_pool", verbose=False)
-            except:
-                pass
-            time.sleep(0.1)
+        try:
+            set("//sys/scheduler/config/testing_options", {"enable_random_master_disconnection": True})
+            for _ in range(50):
+                try:
+                    get(scheduler_new_orchid_pool_tree_path("default") + "/resource_usage", verbose=False)
+                    get(scheduler_new_orchid_pool_tree_path("default") + "/resource_distribution_info", verbose=False)
+                    get(scheduler_new_orchid_pool_tree_path("default") + "/pools", verbose=False)
+                    get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits", verbose=False)
+                    get(scheduler_new_orchid_pool_tree_path("default") + "/config", verbose=False)
+                    get(scheduler_new_orchid_pool_tree_path("default") + "/operations", verbose=False)
+                    get(scheduler_new_orchid_pool_tree_path("default") + "/operations_by_pool", verbose=False)
+                except:
+                    pass
+                time.sleep(0.1)
+        finally:
+            set("//sys/scheduler/config/testing_options", {})
+            time.sleep(2)
