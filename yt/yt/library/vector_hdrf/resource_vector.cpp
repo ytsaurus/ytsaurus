@@ -10,24 +10,22 @@ TResourceVector TResourceVector::FromJobResources(
     double zeroDivByZero,
     double oneDivByZero)
 {
-    TResourceVector result = {};
-    int resourceId = 0;
-    auto update = [&](auto resourceValue, auto resourceLimit) {
+    TResourceVector resultVector = {};
+    auto update = [&] (auto resourceValue, auto resourceLimit, double& result) {
         if (static_cast<double>(resourceLimit) == 0.0) {
             if (static_cast<double>(resourceValue) == 0.0) {
-                result[resourceId] = zeroDivByZero;
+                result = zeroDivByZero;
             } else {
-                result[resourceId] = oneDivByZero;
+                result = oneDivByZero;
             }
         } else {
-            result[resourceId] = static_cast<double>(resourceValue) / static_cast<double>(resourceLimit);
+            result = static_cast<double>(resourceValue) / static_cast<double>(resourceLimit);
         }
-        ++resourceId;
     };
-    #define XX(name, Name) update(resources.Get##Name(), totalLimits.Get##Name());
-    ITERATE_JOB_RESOURCES(XX)
+    #define XX(name, Name, resourceIndex) update(resources.Get##Name(), totalLimits.Get##Name(), resultVector[resourceIndex]);
+    ITERATE_JOB_RESOURCES_WITH_INDEX(XX)
     #undef XX
-    return result;
+    return resultVector;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

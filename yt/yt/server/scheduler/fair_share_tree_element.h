@@ -1139,10 +1139,11 @@ private:
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasons;
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;
         TEnumIndexedVector<EJobResourceType, std::atomic<int>> MinNeededResourcesUnsatisfiedCount;
+        char Padding1[64];
         TEnumIndexedVector<EDeactivationReason, int> DeactivationReasonsLocal;
         TEnumIndexedVector<EDeactivationReason, int> DeactivationReasonsFromLastNonStarvingTimeLocal;
         TEnumIndexedVector<EJobResourceType, int> MinNeededResourcesUnsatisfiedCountLocal;
-        char Padding[64];
+        char Padding2[64];
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
     TInstant LastStateShardsUpdateTime_ = TInstant();
@@ -1388,7 +1389,10 @@ private:
     std::optional<EDeactivationReason> CheckBlocked(const ISchedulingContextPtr& schedulingContext) const;
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
 
-    void OnOperationDeactivated(TScheduleJobsContext* context, EDeactivationReason reason);
+    void OnOperationDeactivated(
+        TScheduleJobsContext* context,
+        EDeactivationReason reason,
+        bool considerInOperationCounter);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerOperationElement)
