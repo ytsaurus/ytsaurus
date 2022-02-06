@@ -1,4 +1,4 @@
-#include "job_resource_helpers.h"
+#include "job_resources_helpers.h"
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
