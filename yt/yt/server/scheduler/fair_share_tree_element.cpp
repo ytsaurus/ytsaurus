@@ -2545,10 +2545,15 @@ TEnumIndexedVector<EJobResourceType, int> TSchedulerOperationElement::GetMinNeed
     return OperationElementSharedState_->GetMinNeededResourcesUnsatisfiedCount();
 }
 
-void TSchedulerOperationElement::OnOperationDeactivated(TScheduleJobsContext* context, EDeactivationReason reason)
+void TSchedulerOperationElement::OnOperationDeactivated(
+    TScheduleJobsContext* context,
+    EDeactivationReason reason,
+    bool considerInOperationCounter)
 {
     ++context->StageState()->DeactivationReasons[reason];
-    OperationElementSharedState_->OnOperationDeactivated(*context, reason);
+    if (considerInOperationCounter) {
+        OperationElementSharedState_->OnOperationDeactivated(*context, reason);
+    }
 }
 
 TEnumIndexedVector<EDeactivationReason, int> TSchedulerOperationElement::GetDeactivationReasons() const
@@ -2968,14 +2973,38 @@ void TSchedulerOperationElement::CheckForDeactivation(
     TScheduleJobsContext* context,
     EOperationPreemptionPriority targetOperationPreemptionPriority)
 {
-    auto onOperationDeactivated = [&] (EDeactivationReason reason) {
-        OnOperationDeactivated(context, reason);
+    auto onOperationDeactivated = [&] (EDeactivationReason reason, bool considerInOperationCounter = true) {
+        OnOperationDeactivated(context, reason, considerInOperationCounter);
     };
 
     auto& attributes = context->DynamicAttributesFor(this);
 
     // Reset operation element activeness (it can be active after scheduling without preepmtion).
     attributes.Active = false;
+
+    if (targetOperationPreemptionPriority != EOperationPreemptionPriority::None &&
+        targetOperationPreemptionPriority != context->GetOperationPreemptionPriority(this))
+    {
+        auto deactivationReason = [&] {
+            YT_VERIFY(targetOperationPreemptionPriority != EOperationPreemptionPriority::None);
+
+            // TODO(eshcherbin): Somehow get rid of these deactivation reasons.
+            switch (targetOperationPreemptionPriority) {
+                case EOperationPreemptionPriority::Regular:
+                    return EDeactivationReason::IsNotEligibleForPreemptiveScheduling;
+                case EOperationPreemptionPriority::SsdRegular:
+                    return EDeactivationReason::IsNotEligibleForSsdPreemptiveScheduling;
+                case EOperationPreemptionPriority::Aggressive:
+                    return EDeactivationReason::IsNotEligibleForAggressivelyPreemptiveScheduling;
+                case EOperationPreemptionPriority::SsdAggressive:
+                    return EDeactivationReason::IsNotEligibleForSsdAggressivelyPreemptiveScheduling;
+                default:
+                    YT_ABORT();
+            }
+        }();
+        onOperationDeactivated(deactivationReason);
+        return;
+    }
 
     if (!IsAlive()) {
         onOperationDeactivated(EDeactivationReason::IsNotAlive);
@@ -3008,30 +3037,6 @@ void TSchedulerOperationElement::CheckForDeactivation(
     if (!IsSchedulingSegmentCompatibleWithNode(context->SchedulingContext()->GetSchedulingSegment(), nodeModule))
     {
         onOperationDeactivated(EDeactivationReason::IncompatibleSchedulingSegment);
-        return;
-    }
-
-    if (targetOperationPreemptionPriority != EOperationPreemptionPriority::None &&
-        targetOperationPreemptionPriority != context->GetOperationPreemptionPriority(this))
-    {
-        auto deactivationReason = [&] {
-            YT_VERIFY(targetOperationPreemptionPriority != EOperationPreemptionPriority::None);
-
-            // TODO(eshcherbin): Somehow get rid of these deactivation reasons.
-            switch (targetOperationPreemptionPriority) {
-                case EOperationPreemptionPriority::Regular:
-                    return EDeactivationReason::IsNotEligibleForPreemptiveScheduling;
-                case EOperationPreemptionPriority::SsdRegular:
-                    return EDeactivationReason::IsNotEligibleForSsdPreemptiveScheduling;
-                case EOperationPreemptionPriority::Aggressive:
-                    return EDeactivationReason::IsNotEligibleForAggressivelyPreemptiveScheduling;
-                case EOperationPreemptionPriority::SsdAggressive:
-                    return EDeactivationReason::IsNotEligibleForSsdAggressivelyPreemptiveScheduling;
-                default:
-                    YT_ABORT();
-            }
-        }();
-        onOperationDeactivated(deactivationReason);
         return;
     }
 
@@ -3109,8 +3114,8 @@ void TSchedulerOperationElement::DeactivateOperation(TScheduleJobsContext* conte
     YT_VERIFY(attributes.Active);
     attributes.Active = false;
     GetMutableParent()->UpdateChild(context->ChildHeapMap(), this);
-    UpdateAncestorsDynamicAttributes(context, /* deltaResourceUsage */ TJobResources());
-    OnOperationDeactivated(context, reason);
+    UpdateAncestorsDynamicAttributes(context, /*deltaResourceUsage*/ TJobResources());
+    OnOperationDeactivated(context, reason, /*considerInOperationCounter*/ true);
 }
 
 void TSchedulerOperationElement::ActivateOperation(TScheduleJobsContext* context)

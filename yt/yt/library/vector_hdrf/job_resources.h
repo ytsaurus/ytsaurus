@@ -50,6 +50,13 @@ public:
     XX(user_memory,           Memory) \
     XX(network,               Network)
 
+#define ITERATE_JOB_RESOURCES_WITH_INDEX(XX) \
+    XX(user_slots,            UserSlots, 0) \
+    XX(cpu,                   Cpu,       1) \
+    XX(gpu,                   Gpu,       2) \
+    XX(user_memory,           Memory,    3) \
+    XX(network,               Network,   4)
+
 // NB(antonkikh): Resource types must be numbered from 0 to N - 1.
 DEFINE_ENUM(EJobResourceType,
     (UserSlots)
