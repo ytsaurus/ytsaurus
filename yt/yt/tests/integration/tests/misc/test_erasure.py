@@ -116,7 +116,7 @@ class TestErasureBase(YTEnvSetup):
 
 
 class TestErasure(TestErasureBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     def _do_test_simple(self, erasure_codec):
         create("table", "//tmp/table")
