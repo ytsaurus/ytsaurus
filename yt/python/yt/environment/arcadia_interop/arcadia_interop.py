@@ -90,24 +90,21 @@ PROGRAMS = [("master", "master/bin"),
             ("queue-agent", "queue_agent/bin")]
 
 def prepare_yt_binaries(destination,
-                        source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=True,
+                        source_prefix="", arcadia_root=None, inside_arcadia=None,
                         use_from_package=False, package_dir=None, copy_ytserver_all=False, ytserver_all_suffix=None,
                         need_suid=False, component_whitelist=None):
-    if use_ytserver_all:
-        if use_from_package:
-            if package_dir is None:
-                package_dir = "yt/yt"
-            ytserver_all = search_binary_path("ytserver-all", build_path_dir=package_dir)
-        else:
-            ytserver_all = get_binary_path("ytserver-all", arcadia_root, build_path_dir="yt")
-        if copy_ytserver_all:
-            ytserver_all_destination = os.path.join(destination, "ytserver-all")
-            if ytserver_all_suffix is not None:
-                ytserver_all_destination += "." + ytserver_all_suffix
-            shutil.copy(ytserver_all, ytserver_all_destination)
-            ytserver_all = ytserver_all_destination
+    if use_from_package:
+        if package_dir is None:
+            package_dir = "yt/yt"
+        ytserver_all = search_binary_path("ytserver-all", build_path_dir=package_dir)
     else:
-        assert not use_from_package
+        ytserver_all = get_binary_path("ytserver-all", arcadia_root, build_path_dir="yt")
+    if copy_ytserver_all:
+        ytserver_all_destination = os.path.join(destination, "ytserver-all")
+        if ytserver_all_suffix is not None:
+            ytserver_all_destination += "." + ytserver_all_suffix
+        shutil.copy(ytserver_all, ytserver_all_destination)
+        ytserver_all = ytserver_all_destination
 
     programs = PROGRAMS
 
@@ -115,16 +112,11 @@ def prepare_yt_binaries(destination,
         programs = [(component, path) for component, path in programs if component in component_whitelist]
 
     for binary, server_dir in programs:
-        if use_ytserver_all:
-            dst_path = os.path.join(destination, "ytserver-" + binary)
-            if copy_ytserver_all:
-                os.link(ytserver_all, dst_path)
-            else:
-                os.symlink(ytserver_all, dst_path)
+        dst_path = os.path.join(destination, "ytserver-" + binary)
+        if copy_ytserver_all:
+            os.link(ytserver_all, dst_path)
         else:
-            binary_path = get_binary_path("ytserver-{0}".format(binary), arcadia_root)
-            dst_path = os.path.join(destination, "ytserver-" + binary)
-            os.symlink(binary_path, dst_path)
+            os.symlink(ytserver_all, dst_path)
 
     if need_suid:
         insert_sudo_wrapper(destination)
