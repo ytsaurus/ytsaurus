@@ -17,6 +17,8 @@
 
 #include <yt/yt/core//concurrency/action_queue.h>
 
+#include <util/string/strip.h>
+
 namespace NYT::NHydra {
 
 using namespace NConcurrency;
@@ -39,6 +41,20 @@ TString GetChangelogPath(const TString& path, int id)
     return NFS::CombinePaths(
         path,
         Format("%09d.%v", id, ChangelogExtension));
+}
+
+TString GetTermFileName(const TString& path)
+{
+    return NFS::CombinePaths(
+        path,
+        TermFileName);
+}
+
+TString GetLockFileName(const TString& path)
+{
+    return NFS::CombinePaths(
+        path,
+        LockFileName);
 }
 
 } // namespace
@@ -294,6 +310,18 @@ public:
         , Logger(HydraLogger.WithTag("Path: %v", Config_->Path))
     { }
 
+    int GetTerm()
+    {
+        return Term_.load();
+    }
+
+    TFuture<void> SetTerm(int term)
+    {
+        return BIND(&TLocalChangelogStoreFactory::DoSetTerm, MakeStrong(this))
+            .AsyncVia(BoundedConcurrencyInvoker_)
+            .Run(term);
+    }
+
     TFuture<IChangelogPtr> CreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
     {
         return BIND(&TLocalChangelogStoreFactory::DoCreateChangelog, MakeStrong(this))
@@ -342,7 +370,19 @@ private:
     const NLogging::TLogger Logger;
 
     bool Initialized_ = false;
+    std::optional<TFileHandle> LockFileHandle_;
+    std::atomic<int> Term_ = -1;
 
+
+    void DoSetTerm(int term)
+    {
+        WaitFor(BIND(&TLocalChangelogStoreFactory::WriteTerm, MakeStrong(this))
+            .AsyncVia(IOEngine_->GetAuxPoolInvoker())
+            .Run(term))
+            .ThrowOnError();
+
+        Term_.store(term);
+    }
 
     TFuture<IChangelogPtr> DoCreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
     {
@@ -423,7 +463,7 @@ private:
     {
         try {
             if (!Initialized_) {
-                WaitFor(BIND(&TLocalChangelogStoreFactory::DoInitialize, MakeStrong(this))
+                WaitFor(BIND(&TLocalChangelogStoreFactory::Initialize, MakeStrong(this))
                     .AsyncVia(IOEngine_->GetAuxPoolInvoker())
                     .Run())
                     .ThrowOnError();
@@ -440,10 +480,11 @@ private:
             auto reachableVersion = ComputeReachableVersion(epoch);
             auto electionPriority = ComputeElectionPriority(epoch);
 
-            YT_LOG_INFO("Local changelog store locked (Epoch: %v, ReachableVersion: %v, ElectionPriority: %v)",
+            YT_LOG_INFO("Local changelog store locked (Epoch: %v, ReachableVersion: %v, ElectionPriority: %v, Term: %v)",
                 epoch,
                 reachableVersion,
-                electionPriority);
+                electionPriority,
+                GetTerm());
 
             return CreateStore(reachableVersion, electionPriority, epoch);
         } catch (const std::exception& ex) {
@@ -453,12 +494,23 @@ private:
         }
     }
 
-    void DoInitialize()
+    int DoGetLatestChangelogId(ui64 /*epoch*/)
+    {
+        return WaitFor(BIND(&TLocalChangelogStoreFactory::ComputeLatestChangelogId, MakeStrong(this))
+            .AsyncVia(IOEngine_->GetAuxPoolInvoker())
+            .Run())
+            .ValueOrThrow();
+    }
+
+
+    void Initialize()
     {
         YT_LOG_INFO("Initializing local changelog store");
 
         NFS::MakeDirRecursive(Config_->Path);
+        AcquireLock();
         NFS::CleanTempFiles(Config_->Path);
+        Term_ = ReadTerm();
 
         YT_LOG_INFO("Local changelog store initialized");
     }
@@ -473,34 +525,6 @@ private:
         return future.Apply(BIND([epoch, lock = Lock_] (const TCachedLocalChangelogPtr& cachedChangelog) -> IChangelogPtr {
             return New<TEpochBoundLocalChangelog>(epoch, lock, cachedChangelog);
         }));
-    }
-
-    int DoGetLatestChangelogId(ui64 /*epoch*/) const
-    {
-        int latestId = InvalidSegmentId;
-
-        auto fileNames = NFS::EnumerateFiles(Config_->Path);
-        for (const auto& fileName : fileNames) {
-            auto extension = NFS::GetFileExtension(fileName);
-            if (extension != ChangelogExtension) {
-                continue;
-            }
-
-            auto name = NFS::GetFileNameWithoutExtension(fileName);
-
-            int id;
-            if (!TryFromString<int>(name, id)) {
-                YT_LOG_WARNING("Found unrecognized file in local changelog store (FileName: %v)",
-                    fileName);
-                continue;
-            }
-
-            if (id > latestId || latestId == InvalidSegmentId) {
-                latestId = id;
-            }
-        }
-
-        return latestId;
     }
 
     TVersion ComputeReachableVersion(ui64 epoch)
@@ -591,6 +615,85 @@ private:
 
         return {};
     }
+
+    int ComputeLatestChangelogId()
+    {
+        int latestId = InvalidSegmentId;
+
+        auto fileNames = NFS::EnumerateFiles(Config_->Path);
+        for (const auto& fileName : fileNames) {
+            auto extension = NFS::GetFileExtension(fileName);
+            if (extension != ChangelogExtension) {
+                continue;
+            }
+
+            auto name = NFS::GetFileNameWithoutExtension(fileName);
+
+            int id;
+            if (!TryFromString<int>(name, id)) {
+                YT_LOG_WARNING("Found unrecognized file in local changelog store (FileName: %v)",
+                    fileName);
+                continue;
+            }
+
+            if (id > latestId || latestId == InvalidSegmentId) {
+                latestId = id;
+            }
+        }
+
+        return latestId;
+    }
+
+    void AcquireLock()
+    {
+        auto fileName = GetLockFileName(Config_->Path);
+        LockFileHandle_.emplace(fileName, RdWr | CreateAlways);
+        if (LockFileHandle_->Flock(LOCK_EX | LOCK_NB) != 0) {
+            YT_LOG_FATAL("Cannot lock local changelog store");
+        }
+    }
+
+    int ReadTerm()
+    {
+        auto fileName = GetTermFileName(Config_->Path);
+
+        try {
+            if (!NFS::Exists(fileName)) {
+                WriteTerm(0);
+                return 0;
+            }
+
+            auto termString = TUnbufferedFileInput(fileName).ReadAll();
+            auto strippedTermString = StripString(termString, [] (const char* ch) {
+                return *ch == '\n' || *ch == ' ';
+            });
+            return FromString<int>(strippedTermString);
+        } catch (const std::exception& ex) {
+            YT_LOG_FATAL(ex, "Error reading term from local changelog store (Path: %v)",
+                Config_->Path);
+        }
+    }
+
+    void WriteTerm(int term)
+    {
+        auto fileName = GetTermFileName(Config_->Path);
+        auto tempFileName = GetTermFileName(Config_->Path) + NFS::TempFileSuffix;
+
+        try {
+            auto termString = Format("%v\n", term);
+
+            {
+                TUnbufferedFileOutput output(tempFileName);
+                output.Write(termString);
+                output.Flush();
+            }
+
+            NFS::Rename(tempFileName, fileName);
+        } catch (const std::exception& ex) {
+            YT_LOG_FATAL(ex, "Error writing term to local changelog store (Path: %v)",
+                Config_->Path);
+        }
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreFactory)
@@ -615,6 +718,16 @@ public:
     bool IsReadOnly() const override
     {
         return false;
+    }
+
+    std::optional<int> GetTerm() const override
+    {
+        return Factory_->GetTerm();
+    }
+
+    TFuture<void> SetTerm(int term) override
+    {
+        return Factory_->SetTerm(term);
     }
 
     TFuture<int> GetLatestChangelogId() const override
@@ -666,7 +779,11 @@ IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(
     TElectionPriority electionPriority,
     ui64 epoch)
 {
-    return New<TLocalChangelogStore>(this, epoch, reachableVersion, electionPriority);
+    return New<TLocalChangelogStore>(
+        this,
+        epoch,
+        reachableVersion,
+        electionPriority);
 }
 
 IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(

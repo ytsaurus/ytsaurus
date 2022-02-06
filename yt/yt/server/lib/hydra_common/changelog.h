@@ -103,6 +103,19 @@ struct IChangelogStore
     //! This is possible for remote stores instantiated by non-voting tablet cells.
     virtual bool IsReadOnly() const = 0;
 
+    //! Returns the current term.
+    //! If the store is read-only then |std::nullopt| is returned.
+    /*!
+     *  This is initially loaded from a persistent storage and is updated via #SetTerm.
+     */
+    virtual std::optional<int> GetTerm() const = 0;
+
+    //! Asynchronously updates the term in persitent storage.
+    /*!
+     *  Once the update succeeds, #GetTerm starts returning a new value.
+     */
+    virtual TFuture<void> SetTerm(int term) = 0;
+
     //! Returns the maximum existing changelog id.
     virtual TFuture<int> GetLatestChangelogId() const = 0;
 

@@ -24,7 +24,7 @@ YT_DEFINE_ERROR_ENUM(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! File suffix for temporary files.
-const char* const TempFileSuffix = "~";
+constexpr auto TempFileSuffix = TStringBuf("~");
 
 //! Returns |true| if a given path points to an existing file or directory.
 bool Exists(const TString& path);
