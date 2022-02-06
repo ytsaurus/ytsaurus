@@ -1273,6 +1273,7 @@ class TestBulkInsert(DynamicTablesBase):
 
 @authors("ifsmirnov")
 class TestUnversionedUpdateFormat(DynamicTablesBase):
+    NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -1984,8 +1985,6 @@ class TestUnversionedUpdateFormatRpcProxy(TestUnversionedUpdateFormat):
 
 
 class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
-    NUM_TEST_PARTITIONS = 2
-
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_ROLES = {
