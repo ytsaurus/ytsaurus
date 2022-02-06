@@ -533,6 +533,8 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
 
 
 class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
+    NUM_TEST_PARTITIONS = 2
+
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
