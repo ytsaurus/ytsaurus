@@ -213,7 +213,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
 ##################################################################
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 5
 
     @authors("ifsmirnov")
     def test_merge_rows_on_flush_removes_row(self):
@@ -1740,12 +1740,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
-    NUM_TEST_PARTITIONS = 5
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
-    NUM_TEST_PARTITIONS = 5
     ENABLE_TMP_PORTAL = True
 
 
