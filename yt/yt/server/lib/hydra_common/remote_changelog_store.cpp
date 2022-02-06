@@ -34,6 +34,7 @@ using namespace NApi;
 using namespace NLogging;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectClient;
 using namespace NHydra::NProto;
 using namespace NTabletClient;
@@ -48,9 +49,9 @@ DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreFactory)
 
 namespace {
 
-TYPath GetChangelogPath(const TYPath& path, int id)
+TYPath GetChangelogPath(const TYPath& storePath, int id)
 {
-    return Format("%v/%09d", path, id);
+    return Format("%v/%09d", storePath, id);
 }
 
 } // namespace
@@ -68,6 +69,7 @@ public:
         ITransactionPtr prerequisiteTransaction,
         std::optional<TVersion> reachableVersion,
         std::optional<TElectionPriority> electionPriority,
+        std::optional<int> term,
         const TJournalWriterPerformanceCounters& counters)
         : Config_(std::move(config))
         , Options_(std::move(options))
@@ -79,11 +81,24 @@ public:
         , ElectionPriority_(electionPriority)
         , Counters_(counters)
         , Logger(HydraLogger.WithTag("Path: %v", Path_))
+        , Term_(term)
     { }
 
     bool IsReadOnly() const override
     {
         return !PrerequisiteTransaction_;
+    }
+
+    std::optional<int> GetTerm() const override
+    {
+        return Term_.load();
+    }
+
+    TFuture<void> SetTerm(int term) override
+    {
+        return BIND(&TRemoteChangelogStore::DoSetTerm, MakeStrong(this))
+            .AsyncVia(GetHydraIOInvoker())
+            .Run(term);
     }
 
     std::optional<TVersion> GetReachableVersion() const override
@@ -142,6 +157,32 @@ private:
 
     const TLogger Logger;
 
+    std::atomic<std::optional<int>> Term_;
+
+
+    void DoSetTerm(int term)
+    {
+        try {
+            ValidateWritable();
+
+            YT_LOG_DEBUG("Setting remote changelog store term (Term: %v)",
+                term);
+
+            TSetNodeOptions options;
+            options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
+            WaitFor(Client_->SetNode(Path_ + "/@term", ConvertToYsonString(term), options))
+                .ThrowOnError();
+
+            Term_.store(term);
+
+            YT_LOG_DEBUG("Remote changelog store term set (Term: %v)",
+                term);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error set remote changelog store term")
+                << TErrorAttribute("store_path", Path_)
+                << ex;
+        }
+    }
 
     IChangelogPtr DoCreateChangelog(int id, const NProto::TChangelogMeta& meta)
     {
@@ -160,26 +201,24 @@ private:
                 Options_->SnapshotAccount,
                 Options_->SnapshotPrimaryMedium);
 
-            {
-                TCreateNodeOptions options;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("erasure_codec", Options_->ChangelogErasureCodec);
-                attributes->Set("replication_factor", Options_->ChangelogReplicationFactor);
-                attributes->Set("read_quorum", Options_->ChangelogReadQuorum);
-                attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
-                attributes->Set("account", Options_->ChangelogAccount);
-                attributes->Set("primary_medium", Options_->ChangelogPrimaryMedium);
-                attributes->Set("term", meta.term());
-                options.Attributes = std::move(attributes);
-                options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
+            TCreateNodeOptions options;
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("erasure_codec", Options_->ChangelogErasureCodec);
+            attributes->Set("replication_factor", Options_->ChangelogReplicationFactor);
+            attributes->Set("read_quorum", Options_->ChangelogReadQuorum);
+            attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
+            attributes->Set("account", Options_->ChangelogAccount);
+            attributes->Set("primary_medium", Options_->ChangelogPrimaryMedium);
+            attributes->Set("term", meta.term());
+            options.Attributes = std::move(attributes);
+            options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 
-                auto future = Client_->CreateNode(
-                    path,
-                    EObjectType::Journal,
-                    options);
-                WaitFor(future)
-                    .ThrowOnError();
-            }
+            auto future = Client_->CreateNode(
+                path,
+                EObjectType::Journal,
+                options);
+            WaitFor(future)
+                .ThrowOnError();
 
             YT_LOG_DEBUG("Remote changelog created (ChangelogId: %v, Term: %v)",
                 id,
@@ -203,31 +242,27 @@ private:
     {
         auto path = GetChangelogPath(Path_, id);
         try {
-            int recordCount;
-            i64 dataSize;
-            int term;
-
             YT_LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
                 id);
-            {
-                TGetNodeOptions options;
-                options.Attributes = {"uncompressed_data_size", "quorum_row_count"};
-                auto result = WaitFor(Client_->GetNode(path, options));
-                if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    THROW_ERROR_EXCEPTION(
-                        NHydra::EErrorCode::NoSuchChangelog,
-                        "Changelog does not exist in remote store")
-                        << TErrorAttribute("changelog_path", Path_)
-                        << TErrorAttribute("store_id", id);
-                }
 
-                auto node = ConvertToNode(result.ValueOrThrow());
-                const auto& attributes = node->Attributes();
-
-                dataSize = attributes.Get<i64>("uncompressed_data_size");
-                recordCount = attributes.Get<int>("quorum_row_count");
-                term = attributes.Get<int>("term", 0);
+            TGetNodeOptions options;
+            options.Attributes = {"uncompressed_data_size", "quorum_row_count"};
+            auto result = WaitFor(Client_->GetNode(path, options));
+            if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR_EXCEPTION(
+                    NHydra::EErrorCode::NoSuchChangelog,
+                    "Changelog does not exist in remote store")
+                    << TErrorAttribute("changelog_path", Path_)
+                    << TErrorAttribute("store_id", id);
             }
+
+            auto node = ConvertToNode(result.ValueOrThrow());
+            const auto& attributes = node->Attributes();
+
+            auto dataSize = attributes.Get<i64>("uncompressed_data_size");
+            auto recordCount = attributes.Get<int>("quorum_row_count");
+            auto term = attributes.Get<int>("term", 0);
+
             YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
                 id);
 
@@ -261,13 +296,10 @@ private:
             YT_LOG_DEBUG("Removing remote changelog (ChangelogId: %v)",
                 id);
 
-            {
-                TRemoveNodeOptions options;
-                options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
-
-                WaitFor(Client_->RemoveNode(path, options))
-                    .ThrowOnError();
-            }
+            TRemoveNodeOptions options;
+            options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
+            WaitFor(Client_->RemoveNode(path, options))
+                .ThrowOnError();
 
             YT_LOG_DEBUG("Remote changelog removed (ChangelogId: %v)",
                 id);
@@ -574,11 +606,13 @@ private:
             ITransactionPtr prerequisiteTransaction;
             std::optional<TVersion> reachableVersion;
             std::optional<TElectionPriority> electionPriority;
+            std::optional<int> term;
             if (PrerequisiteTransactionId_) {
                 prerequisiteTransaction = CreatePrerequisiteTransaction();
                 TakeLock(prerequisiteTransaction);
                 reachableVersion = ComputeReachableVersion();
                 electionPriority = ComputeElectionPriority();
+                term = GetTerm();
             }
 
             return New<TRemoteChangelogStore>(
@@ -590,6 +624,7 @@ private:
                 prerequisiteTransaction,
                 reachableVersion,
                 electionPriority,
+                term,
                 Counters_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error locking remote changelog store %v",
@@ -701,6 +736,23 @@ private:
         });
 
         return priority;
+    }
+
+    int GetTerm()
+    {
+        YT_LOG_DEBUG("Requesting term from remote store");
+
+        TGetNodeOptions options;
+        options.Attributes = {"term"};
+        auto yson = WaitFor(MasterClient_->GetNode(Path_ + "/@", options))
+            .ValueOrThrow();
+        auto attributes = ConvertToAttributes(yson);
+        auto term = attributes->Get<int>("term", 0);
+
+        YT_LOG_DEBUG("Term received (Term: %v)",
+            term);
+
+        return term;
     }
 };
 
