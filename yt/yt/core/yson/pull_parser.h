@@ -129,10 +129,12 @@ public:
     // but process the complex value that starts from |previousItem|.
     void SkipComplexValue(const TYsonItem& previousItem);
     void TransferComplexValue(TCheckedInDebugYsonTokenWriter* writer, const TYsonItem& previousItem);
+    void TransferComplexValue(IYsonConsumer* consumer, const TYsonItem& previousItem);
 
     void SkipComplexValueOrAttributes(const TYsonItem& previousItem);
     void SkipAttributes(const TYsonItem& previousItem);
     void TransferAttributes(TCheckedInDebugYsonTokenWriter* writer, const TYsonItem& previousItem);
+    void TransferAttributes(IYsonConsumer* consumer, const TYsonItem& previousItem);
 
     Y_FORCE_INLINE size_t GetNestingLevel() const;
     Y_FORCE_INLINE bool IsOnValueBoundary(size_t nestingLevel) const;
@@ -170,13 +172,14 @@ public:
     // Non-optional version never returns 0.
     //
     // |Parse*Uint64AsVarint| writes the integer as varint
-    // to the memory location pointed by |out| and returns the number of written bytes.
+    // to the memory location pointed by |out|.
+    // Returns the number of written bytes.
     Y_FORCE_INLINE int ParseUint64AsVarint(char* out);
     Y_FORCE_INLINE int ParseOptionalUint64AsVarint(char* out);
 
     // |Parse*Int64AsZigzagVarint| zigzag encodes the integer and
     // writes it as varint to the memory location pointed by |out|.
-    // It returns the number of written bytes.
+    // Returns the number of written bytes.
     Y_FORCE_INLINE int ParseInt64AsZigzagVarint(char* out);
     Y_FORCE_INLINE int ParseOptionalInt64AsZigzagVarint(char* out);
 
@@ -196,12 +199,12 @@ public:
 
 private:
     template <typename TVisitor>
-    Y_FORCE_INLINE typename TVisitor::TResult NextImpl(TVisitor visitor);
+    Y_FORCE_INLINE typename TVisitor::TResult NextImpl(TVisitor* visitor);
 
     template <typename TVisitor>
-    void TraverseComplexValueOrAttributes(TVisitor visitor, bool stopAfterAttributes);
+    void TraverseComplexValueOrAttributes(TVisitor* visitor, bool stopAfterAttributes);
     template <typename TVisitor>
-    void TraverseComplexValueOrAttributes(TVisitor visitor, const TYsonItem& previousItem, bool stopAfterAttributes);
+    void TraverseComplexValueOrAttributes(TVisitor* visitor, const TYsonItem& previousItem, bool stopAfterAttributes);
 
     Y_FORCE_INLINE void MaybeSkipSemicolon();
 
@@ -274,8 +277,13 @@ public:
     void TransferAttributes(IYsonConsumer* consumer);
     void TransferAttributes(TCheckedInDebugYsonTokenWriter* writer);
 
+    // Start recording the bytes from parsed stream to |out|.
     void StartRecording(IOutputStream* out);
+
+    // Stop the recording.
     void CancelRecording();
+
+    // Record the current complex value and stop recording.
     void SkipComplexValueAndFinishRecording();
 
     // Returns |true| iff cursor is positioned over the beginning of the first
