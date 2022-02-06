@@ -3,6 +3,7 @@
 
 #include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/null_consumer.h>
 
 #include <yt/yt/core/misc/error.h>
 
@@ -197,6 +198,145 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYsonSyntaxCheckerTest, NestingLevel)
+{
+    NDetail::TYsonSyntaxChecker checker(EYsonType::Node, /*nestingLevelLimit*/ 10);
+
+    EXPECT_EQ(checker.GetNestingLevel(), 0U);
+
+    checker.OnBeginList();
+    EXPECT_EQ(checker.GetNestingLevel(), 1U);
+
+    checker.OnAttributesBegin();
+    EXPECT_EQ(checker.GetNestingLevel(), 2U);
+
+    checker.OnString();
+    EXPECT_EQ(checker.GetNestingLevel(), 2U);
+
+    checker.OnEquality();
+    EXPECT_EQ(checker.GetNestingLevel(), 2U);
+
+    checker.OnSimpleNonstring(EYsonItemType::Int64Value);
+    EXPECT_EQ(checker.GetNestingLevel(), 2U);
+
+    checker.OnAttributesEnd();
+    EXPECT_EQ(checker.GetNestingLevel(), 1U);
+
+    checker.OnString();
+    EXPECT_EQ(checker.GetNestingLevel(), 1U);
+
+    checker.OnSeparator();
+    EXPECT_EQ(checker.GetNestingLevel(), 1U);
+
+    checker.OnBeginMap();
+    EXPECT_EQ(checker.GetNestingLevel(), 2U);
+
+    checker.OnString();
+    EXPECT_EQ(checker.GetNestingLevel(), 2U);
+
+    checker.OnEquality();
+    EXPECT_EQ(checker.GetNestingLevel(), 2U);
+
+    checker.OnString();
+    EXPECT_EQ(checker.GetNestingLevel(), 2U);
+
+    checker.OnEndMap();
+    EXPECT_EQ(checker.GetNestingLevel(), 1U);
+
+    checker.OnEndList();
+    EXPECT_EQ(checker.GetNestingLevel(), 0U);
+
+    checker.OnFinish();
+    EXPECT_EQ(checker.GetNestingLevel(), 0U);
+}
+
+TEST(TYsonSyntaxCheckerTest, Boundaries)
+{
+    NDetail::TYsonSyntaxChecker checker(EYsonType::Node, /*nestingLevelLimit*/ 10);
+
+    checker.OnBeginList();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), true);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnAttributesBegin();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(2), false);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnString();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(2), true);
+    EXPECT_EQ(checker.IsOnKey(), true);
+
+    checker.OnEquality();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), false);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnSimpleNonstring(EYsonItemType::Int64Value);
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnAttributesEnd();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnString();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), true);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnSeparator();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), true);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnBeginMap();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(2), false);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnString();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(2), true);
+    EXPECT_EQ(checker.IsOnKey(), true);
+
+    checker.OnEquality();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(2), false);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnString();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(2), true);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnEndMap();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), false);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), true);
+    EXPECT_EQ(checker.IsOnValueBoundary(2), false);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnEndList();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), true);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), false);
+    EXPECT_EQ(checker.IsOnKey(), false);
+
+    checker.OnFinish();
+    EXPECT_EQ(checker.IsOnValueBoundary(0), true);
+    EXPECT_EQ(checker.IsOnValueBoundary(1), false);
+    EXPECT_EQ(checker.IsOnKey(), false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TYsonPullParserTest, Int)
 {
     EXPECT_EQ(GetYsonPullSignature(" 100500 "), "100500");
@@ -387,8 +527,24 @@ TEST(TYsonPullParserTest, Capture)
 
 TEST(TYsonPullParserTest, DepthLimitExceeded)
 {
-    EXPECT_NO_THROW(GetYsonPullSignature(TString(63, '[') + TString(63, ']')));
-    EXPECT_ANY_THROW(GetYsonPullSignature(TString(64, '[') + TString(64, ']')));
+    constexpr auto DepthLimit = DefaultYsonParserNestingLevelLimit;
+    EXPECT_NO_THROW(GetYsonPullSignature(TString(DepthLimit - 1, '[') + TString(DepthLimit - 1, ']')));
+    EXPECT_ANY_THROW(GetYsonPullSignature(TString(DepthLimit, '[') + TString(DepthLimit, ']')));
+}
+
+TEST(TYsonPullParserTest, DepthLimitInTransfer)
+{
+    constexpr auto DepthLimit = DefaultYsonParserNestingLevelLimit;
+
+    auto transfer = [] (TStringBuf yson) {
+        TMemoryInput input(yson);
+        TYsonPullParser parser(&input, EYsonType::Node);
+        TYsonPullParserCursor cursor(&parser);
+        cursor.TransferComplexValue(GetNullYsonConsumer());
+    };
+
+    EXPECT_NO_THROW(transfer(TString(DepthLimit - 1, '[') + TString(DepthLimit - 1, ']')));
+    EXPECT_ANY_THROW(transfer(TString(DepthLimit, '[') + TString(DepthLimit, ']')));
 }
 
 TEST(TYsonPullParserTest, ContextInExceptions)

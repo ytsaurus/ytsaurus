@@ -548,15 +548,15 @@ TEST_F(TYsonParserTest, MemoryLimitExceeded)
 
 TEST_F(TYsonParserTest, DepthLimitExceeded)
 {
-    constexpr int NestingLevelLimit = 64;
-    EXPECT_CALL(Mock, OnBeginList()).Times(2 * NestingLevelLimit - 2);
-    EXPECT_CALL(Mock, OnListItem()).Times(2 * NestingLevelLimit - 1);
-    EXPECT_CALL(Mock, OnEndList()).Times(NestingLevelLimit - 2);
+    constexpr auto DepthLimit = DefaultYsonParserNestingLevelLimit;
+    EXPECT_CALL(Mock, OnBeginList()).Times(2 * DepthLimit - 2);
+    EXPECT_CALL(Mock, OnListItem()).Times(2 * DepthLimit - 1);
+    EXPECT_CALL(Mock, OnEndList()).Times(DepthLimit - 2);
     EXPECT_CALL(Mock, OnInt64Scalar(1));
 
     auto yson = "[" +
-        TString(NestingLevelLimit - 2, '[') + "1" + TString(NestingLevelLimit - 2, ']') + ";" +
-        TString(NestingLevelLimit - 1, '[') + "1" + TString(NestingLevelLimit - 1, ']') +
+        TString(DepthLimit - 2, '[') + "1" + TString(DepthLimit - 2, ']') + ";" +
+        TString(DepthLimit - 1, '[') + "1" + TString(DepthLimit - 1, ']') +
         "]";
 
     EXPECT_THROW(Run(yson, EYsonType::Node, 1024), std::exception);

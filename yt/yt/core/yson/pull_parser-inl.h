@@ -512,7 +512,7 @@ std::optional<bool> TYsonPullParser::ParseOptionalBoolean()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TVisitor>
-typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor visitor)
+typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor* visitor)
 {
     using namespace NDetail;
 
@@ -522,94 +522,94 @@ typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor visitor)
             case BeginAttributesSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnAttributesBegin();
-                return visitor.OnBeginAttributes();
+                return visitor->OnBeginAttributes();
             case EndAttributesSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnAttributesEnd();
-                return visitor.OnEndAttributes();
+                return visitor->OnEndAttributes();
             case BeginMapSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnBeginMap();
-                return visitor.OnBeginMap();
+                return visitor->OnBeginMap();
             case EndMapSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnEndMap();
-                return visitor.OnEndMap();
+                return visitor->OnEndMap();
             case BeginListSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnBeginList();
-                return visitor.OnBeginList();
+                return visitor->OnBeginList();
             case EndListSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnEndList();
-                return visitor.OnEndList();
+                return visitor->OnEndList();
             case '"': {
                 Lexer_.Advance(1);
                 TStringBuf value = Lexer_.ReadQuotedString();
                 SyntaxChecker_.OnString();
-                return visitor.OnString(value);
+                return visitor->OnString(value);
             }
             case StringMarker: {
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnString();
                 TStringBuf value = Lexer_.ReadBinaryString();
-                return visitor.OnString(value);
+                return visitor->OnString(value);
             }
             case Int64Marker: {
                 Lexer_.Advance(1);
                 i64 value = Lexer_.ReadBinaryInt64();
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Int64Value);
-                return visitor.OnInt64(value);
+                return visitor->OnInt64(value);
             }
             case Uint64Marker: {
                 Lexer_.Advance(1);
                 ui64 value = Lexer_.ReadBinaryUint64();
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Uint64Value);
-                return visitor.OnUint64(value);
+                return visitor->OnUint64(value);
             }
             case DoubleMarker: {
                 Lexer_.Advance(1);
                 double value = Lexer_.ReadBinaryDouble();
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::DoubleValue);
-                return visitor.OnDouble(value);
+                return visitor->OnDouble(value);
             }
             case FalseMarker: {
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::BooleanValue);
-                return visitor.OnBoolean(false);
+                return visitor->OnBoolean(false);
             }
             case TrueMarker: {
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::BooleanValue);
-                return visitor.OnBoolean(true);
+                return visitor->OnBoolean(true);
             }
             case EntitySymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::EntityValue);
-                return visitor.OnEntity();
+                return visitor->OnEntity();
             case EndSymbol:
                 SyntaxChecker_.OnFinish();
-                return visitor.OnEndOfStream();
+                return visitor->OnEndOfStream();
             case '%': {
                 Lexer_.Advance(1);
                 ch = Lexer_.template GetChar<false>();
                 if (ch == 't' || ch == 'f') {
                     SyntaxChecker_.OnSimpleNonstring(EYsonItemType::BooleanValue);
-                    return visitor.OnBoolean(Lexer_.template ReadBoolean<false>());
+                    return visitor->OnBoolean(Lexer_.template ReadBoolean<false>());
                 } else {
                     SyntaxChecker_.OnSimpleNonstring(EYsonItemType::DoubleValue);
-                    return visitor.OnDouble(Lexer_.template ReadNanOrInf<false>());
+                    return visitor->OnDouble(Lexer_.template ReadNanOrInf<false>());
                 }
             }
             case '=':
                 SyntaxChecker_.OnEquality();
                 Lexer_.Advance(1);
-                visitor.OnEquality();
+                visitor->OnEquality();
                 continue;
             case ';':
                 SyntaxChecker_.OnSeparator();
                 Lexer_.Advance(1);
-                visitor.OnSeparator();
+                visitor->OnSeparator();
                 continue;
             default:
                 if (isspace(ch)) {
@@ -628,7 +628,7 @@ typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor visitor)
                                 << ex;
                         }
                         SyntaxChecker_.OnSimpleNonstring(EYsonItemType::DoubleValue);
-                        return visitor.OnDouble(value);
+                        return visitor->OnDouble(value);
                     } else if (numericResult == ENumericResult::Int64) {
                         i64 value;
                         try {
@@ -638,7 +638,7 @@ typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor visitor)
                                 << ex;
                         }
                         SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Int64Value);
-                        return visitor.OnInt64(value);
+                        return visitor->OnInt64(value);
                     } else if (numericResult == ENumericResult::Uint64) {
                         ui64 value;
                         try {
@@ -648,12 +648,12 @@ typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor visitor)
                                 << ex;
                         }
                         SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Uint64Value);
-                        return visitor.OnUint64(value);
+                        return visitor->OnUint64(value);
                     }
                 } else if (isalpha(ch) || ch == '_') {
                     TStringBuf value = Lexer_.template ReadUnquotedString<true>();
                     SyntaxChecker_.OnString();
-                    return visitor.OnString(value);
+                    return visitor->OnString(value);
                 } else {
                     THROW_ERROR_EXCEPTION("Unexpected %Qv while parsing node", ch);
                 }
@@ -662,52 +662,107 @@ typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor visitor)
 }
 
 template <typename TVisitor>
-void TYsonPullParser::TraverseComplexValueOrAttributes(TVisitor visitor, bool stopAfterAttributes)
+void TYsonPullParser::TraverseComplexValueOrAttributes(TVisitor* visitor, bool stopAfterAttributes)
 {
-    auto isAttributes = false;
-    auto isComposite = false;
-
-    class TV
-        : public TVisitor
+    class TForwardingVisitor
     {
     public:
         using TResult = typename TVisitor::TResult;
 
     public:
-        TV(TVisitor visitor, bool& isAttributes, bool& isComposite)
-            : TVisitor(visitor)
-            , IsAttributes_(isAttributes)
-            , IsComposite_(isComposite)
+        TForwardingVisitor(TVisitor* visitor)
+            : Underlying(visitor)
         { }
 
-        void OnBeginAttributes()
+        TResult OnBeginAttributes()
         {
-            IsAttributes_ = true;
-            IsComposite_ = true;
-            TVisitor::OnBeginAttributes();
+            IsAttributes = true;
+            IsComposite = true;
+            return Underlying->OnBeginAttributes();
         }
 
-        void OnBeginMap()
+        TResult OnEndAttributes()
         {
-            IsComposite_ = true;
-            TVisitor::OnBeginMap();
+            return Underlying->OnEndAttributes();
         }
 
-        void OnBeginList()
+        TResult OnBeginMap()
         {
-            IsComposite_ = true;
-            TVisitor::OnBeginList();
+            IsComposite = true;
+            return Underlying->OnBeginMap();
         }
 
-    private:
-        bool& IsAttributes_;
-        bool& IsComposite_;
+        TResult OnEndMap()
+        {
+            return Underlying->OnEndMap();
+        }
+
+        TResult OnBeginList()
+        {
+            IsComposite = true;
+            return Underlying->OnBeginList();
+        }
+
+        TResult OnEndList()
+        {
+            return Underlying->OnEndList();
+        }
+
+        TResult OnString(TStringBuf value)
+        {
+            return Underlying->OnString(value);
+        }
+
+        TResult OnInt64(i64 value)
+        {
+            return Underlying->OnInt64(value);
+        }
+
+        TResult OnUint64(ui64 value)
+        {
+            return Underlying->OnUint64(value);
+        }
+
+        TResult OnDouble(double value)
+        {
+            return Underlying->OnDouble(value);
+        }
+
+        TResult OnBoolean(bool value)
+        {
+            return Underlying->OnBoolean(value);
+        }
+
+        TResult OnEntity()
+        {
+            return Underlying->OnEntity();
+        }
+
+        TResult OnEndOfStream()
+        {
+            return Underlying->OnEndOfStream();
+        }
+
+        TResult OnEquality()
+        {
+            return Underlying->OnEquality();
+        }
+
+        TResult OnSeparator()
+        {
+            return Underlying->OnSeparator();
+        }
+
+    public:
+        TVisitor* const Underlying;
+        bool IsAttributes = false;
+        bool IsComposite = false;
     };
 
-    TV v(visitor, isAttributes, isComposite);
-    NextImpl(v);
+    TForwardingVisitor forwardingVisitor(visitor);
+    NextImpl(&forwardingVisitor);
 
-    if (!isComposite) {
+    if (!forwardingVisitor.IsComposite) {
         return;
     }
 
@@ -716,14 +771,14 @@ void TYsonPullParser::TraverseComplexValueOrAttributes(TVisitor visitor, bool st
         NextImpl(visitor);
     }
 
-    if (!stopAfterAttributes && isAttributes) {
+    if (!stopAfterAttributes && forwardingVisitor.IsAttributes) {
         TraverseComplexValueOrAttributes(visitor, stopAfterAttributes);
     }
 }
 
 template <typename TVisitor>
 void TYsonPullParser::TraverseComplexValueOrAttributes(
-    TVisitor visitor,
+    TVisitor* visitor,
     const TYsonItem& previousItem,
     bool stopAfterAttributes)
 {
@@ -736,38 +791,38 @@ void TYsonPullParser::TraverseComplexValueOrAttributes(
 
     switch (previousItem.GetType()) {
         case EYsonItemType::BeginAttributes:
-            visitor.OnBeginAttributes();
+            visitor->OnBeginAttributes();
             traverse();
             if (!stopAfterAttributes) {
                 TraverseComplexValueOrAttributes(visitor, stopAfterAttributes);
             }
             return;
         case EYsonItemType::BeginList:
-            visitor.OnBeginList();
+            visitor->OnBeginList();
             traverse();
             return;
         case EYsonItemType::BeginMap:
-            visitor.OnBeginMap();
+            visitor->OnBeginMap();
             traverse();
             return;
 
         case EYsonItemType::EntityValue:
-            visitor.OnEntity();
+            visitor->OnEntity();
             return;
         case EYsonItemType::BooleanValue:
-            visitor.OnBoolean(previousItem.UncheckedAsBoolean());
+            visitor->OnBoolean(previousItem.UncheckedAsBoolean());
             return;
         case EYsonItemType::Int64Value:
-            visitor.OnInt64(previousItem.UncheckedAsInt64());
+            visitor->OnInt64(previousItem.UncheckedAsInt64());
             return;
         case EYsonItemType::Uint64Value:
-            visitor.OnUint64(previousItem.UncheckedAsUint64());
+            visitor->OnUint64(previousItem.UncheckedAsUint64());
             return;
         case EYsonItemType::DoubleValue:
-            visitor.OnDouble(previousItem.UncheckedAsDouble());
+            visitor->OnDouble(previousItem.UncheckedAsDouble());
             return;
         case EYsonItemType::StringValue:
-            visitor.OnString(previousItem.UncheckedAsString());
+            visitor->OnString(previousItem.UncheckedAsString());
             return;
 
         case EYsonItemType::EndOfStream:

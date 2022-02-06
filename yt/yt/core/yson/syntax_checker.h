@@ -88,6 +88,14 @@ public:
     Y_FORCE_INLINE size_t GetNestingLevel() const;
     Y_FORCE_INLINE bool IsOnValueBoundary(size_t nestingLevel) const;
 
+    Y_FORCE_INLINE bool IsOnKey() const;
+
+    //
+    // If called right after OnSeparator, tells
+    // whether it is a list separator.
+    Y_FORCE_INLINE bool IsListSeparator() const;
+    // Y_FORCE_INLINE bool IsOnListItemStart(bool isSimple) const;
+
 private:
     template <bool isString>
     Y_FORCE_INLINE void OnSimple(EYsonItemType itemType);

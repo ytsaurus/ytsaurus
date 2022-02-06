@@ -262,6 +262,60 @@ bool TYsonSyntaxChecker::IsOnValueBoundary(size_t nestingLevel) const
     }
 }
 
+bool TYsonSyntaxChecker::IsOnKey() const
+{
+    switch (StateStack_.back()) {
+        case EYsonState::InsideMapFragmentExpectEquality:
+        case EYsonState::InsideMapExpectEquality:
+        case EYsonState::InsideAttributeMapExpectEquality:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool TYsonSyntaxChecker::IsListSeparator() const
+{
+    switch (StateStack_.back()) {
+        case EYsonState::InsideListFragmentExpectValue:
+        case EYsonState::InsideListExpectValue:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// bool TYsonSyntaxChecker::IsOnListItemStart(bool isSimple) const
+// {
+//     switch (StateStack_.back()) {
+//         case EYsonState::InsideListFragmentExpectSeparator:
+//         case EYsonState::InsideListExpectSeparator:
+//             // Simple list item.
+//             return isSimple;
+//         case EYsonState::InsideListFragmentExpectValue:
+//         case EYsonState::InsideListExpectValue:
+//         case EYsonState::InsideMapFragmentExpectKey:
+//         case EYsonState::InsideMapExpectKey: {
+//             // Possibly composite list item.
+//             if (StateStack_.size() < 2) {
+//                 return false;
+//             }
+//             auto previousState = StateStack_[StateStack_.size() - 2];
+//             return !isSimple && (previousState == EYsonState::InsideListExpectSeparator);
+//         }
+//         case EYsonState::InsideAttributeMapExpectKey: {
+//             // Possibly composite list item.
+//             if (StateStack_.size() < 2) {
+//                 return false;
+//             }
+//             auto previousState = StateStack_[StateStack_.size() - 2];
+//             return (previousState == EYsonState::InsideListExpectAttributelessValue);
+//         }
+//         default:
+//             return false;
+//     }
+// }
+
 template <bool isString>
 void TYsonSyntaxChecker::OnSimple(EYsonItemType itemType)
 {
