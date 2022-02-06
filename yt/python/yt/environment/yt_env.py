@@ -179,12 +179,11 @@ class YTInstance(object):
             self.custom_paths = None
 
         with push_front_env_path(self.bin_path):
-            # TODO(ignat): rename binaries -> binary_to_version
-            self._binaries = _get_yt_versions(custom_paths=self.custom_paths)
-        abi_versions = set(imap(lambda v: v.abi, self._binaries.values()))
+            self._binary_to_version = _get_yt_versions(custom_paths=self.custom_paths)
+        abi_versions = set(imap(lambda v: v.abi, self._binary_to_version.values()))
         self.abi_version = abi_versions.pop()
 
-        if "ytserver-master" not in self._binaries:
+        if "ytserver-master" not in self._binary_to_version:
             raise YtError("Failed to find YT binaries (ytserver-*) in $PATH. Make sure that YT is installed.")
 
         self._lock = RLock()
@@ -268,34 +267,38 @@ class YTInstance(object):
                 "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count)}
 
     def _prepare_environment(self, ports_generator, modify_configs_func):
-        # TODO(ignat): refactor this logging
+        service_infos = [
+            ("ytserver-clock", "clocks", self.yt_config.clock_count),
+            ("ytserver-discovery", "discovery servers", self.yt_config.discovery_server_count),
+            ("ytserver-master", "masters", "{} ({} nonvoting)".format(self.yt_config.master_count, self.yt_config.nonvoting_master_count)),
+            ("ytserver-timestamp-provider", "timestamp providers", self.yt_config.timestamp_provider_count),
+            ("ytserver-node", "nodes", "{} ({} chaos)".format(self.yt_config.node_count, self.yt_config.chaos_node_count)),
+            ("ytserver-master-cache", "master caches", self.yt_config.master_cache_count),
+            ("ytserver-scheduler", "schedulers", self.yt_config.scheduler_count),
+            ("ytserver-controller-agent", "controller agents", self.yt_config.controller_agent_count),
+            ("ytserver-cell-balancer", "cell balancers", self.yt_config.cell_balancer_count),
+            (None, "secondary cells", self.yt_config.secondary_cell_count),
+            ("queue-agent", "queue agents", self.yt_config.queue_agent_count),
+            ("ytserver-http-proxy", "HTTP proxies", self.yt_config.http_proxy_count),
+            ("ytserver-proxy", "RPC proxies", self.yt_config.rpc_proxy_count)
+        ]
+
         logger.info("Preparing cluster instance as follows:")
-        if "ytserver-clock" in self._binaries:
-            logger.info("  clocks                %d                 (version: %s)", self.yt_config.clock_count, self._binaries["ytserver-clock"].literal)
-        if "ytserver-discovery" in self._binaries:
-            logger.info("  discovery servers     %d                 (version: %s)", self.yt_config.discovery_server_count, self._binaries["ytserver-discovery"].literal)
-        logger.info("  masters               %d (%d nonvoting)   (version: %s)",
-                    self.yt_config.master_count, self.yt_config.nonvoting_master_count, self._binaries["ytserver-master"].literal)
-        if "ytserver-timestamp-provider" in self._binaries:
-            logger.info("  timestamp providers   %d                 (version: %s)", self.yt_config.timestamp_provider_count, self._binaries["ytserver-timestamp-provider"].literal)
-        logger.info("  nodes                 %d                 (version: %s)", self.yt_config.node_count, self._binaries["ytserver-node"].literal)
-        logger.info("  chaos nodes           %d",                               self.yt_config.chaos_node_count)
-        if "ytserver-master-cache" in self._binaries:
-            logger.info("  master caches         %d                 (version: %s)", self.yt_config.master_cache_count, self._binaries["ytserver-master-cache"].literal)
-        logger.info("  schedulers            %d                 (version: %s)", self.yt_config.scheduler_count, self._binaries["ytserver-scheduler"].literal)
-        logger.info("  controller agents     %d                 (version: %s)", self.yt_config.controller_agent_count, self._binaries["ytserver-controller-agent"].literal)
-        if "ytserver-cell-balancer" in self._binaries:
-            logger.info("  cell balancers        %d                 (version: %s)", self.yt_config.cell_balancer_count, self._binaries["ytserver-cell-balancer"].literal)
+        for binary, name, count in service_infos:
+            if isinstance(count, int) and count == 0:
+                continue
+            if binary is not None and binary not in self._binary_to_version:
+                continue
 
-        if self.yt_config.secondary_cell_count > 0:
-            logger.info("  secondary cells       %d", self.yt_config.secondary_cell_count)
+            count = str(count)
+            if binary is not None:
+                version = "(version: {})".format(self._binary_to_version[binary].literal)
+            else:
+                version = ""
 
-        if self.yt_config.queue_agent_count > 0:
-            logger.info("  queue agents          %d", self.yt_config.queue_agent_count)
+            logger.info("  {} {} {}".format(name.ljust(20), count.ljust(15), version))
 
-        logger.info("  HTTP proxies          %d                 (version: %s)", self.yt_config.http_proxy_count, self._binaries["ytserver-http-proxy"].literal)
-        logger.info("  RPC proxies           %d                 (version: %s)", self.yt_config.rpc_proxy_count, self._binaries["ytserver-proxy"].literal)
-        logger.info("  working dir           %s", self.yt_config.path)
+        logger.info("  {} {}".format("working dir".ljust(20), self.path.ljust(15)))
 
         if self.yt_config.master_count == 0:
             logger.warning("Master count is zero. Instance is not prepared.")
@@ -716,10 +719,10 @@ class YTInstance(object):
         :return: component version.
         :rtype BinaryVersion
         """
-        if component not in self._binaries:
+        if component not in self._binary_to_version:
             raise YtError("Component {} not found; available components are {}".format(
-                component, self._binaries.keys()))
-        return self._binaries[component]
+                component, self._binary_to_version.keys()))
+        return self._binary_to_version[component]
 
     def _configure_driver_logging(self):
         try:
