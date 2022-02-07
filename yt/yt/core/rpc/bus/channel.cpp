@@ -750,7 +750,8 @@ private:
             return &RequestBuckets_[requestId.Parts32[0] % BucketCount];
         }
 
-        IClientResponseHandlerPtr FindResponseHandler(TRequestId requestId)
+
+        std::pair<IClientResponseHandlerPtr, NTracing::TCurrentTraceContextGuard> FindResponseHandlerAndTraceContextGuard(TRequestId requestId)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
@@ -759,11 +760,11 @@ private:
 
             auto it = bucket->ActiveRequestMap.find(requestId);
             if (it == bucket->ActiveRequestMap.end()) {
-                return nullptr;
+                return {nullptr, NTracing::TCurrentTraceContextGuard(nullptr)};
             }
 
             const auto& requestControl = it->second;
-            return requestControl->GetResponseHandler(guard);
+            return {requestControl->GetResponseHandler(guard), requestControl->GetTraceContextGuard()};
         }
 
 
@@ -917,6 +918,8 @@ private:
                 bucket->ActiveRequestMap.erase(it);
             }
 
+            const auto traceContextGuard = requestControl->GetTraceContextGuard();
+
             {
                 TError error;
                 if (header.has_error()) {
@@ -953,7 +956,8 @@ private:
             auto sequenceNumber = header.sequence_number();
             auto attachments = std::vector<TSharedRef>(message.Begin() + 1, message.End());
 
-            auto responseHandler = FindResponseHandler(requestId);
+            auto [responseHandler, traceContextGuard] = FindResponseHandlerAndTraceContextGuard(requestId);
+
             if (!responseHandler) {
                 YT_LOG_ERROR("Received streaming payload for an unknown request; ignored (RequestId: %v)",
                     requestId);
@@ -1006,7 +1010,8 @@ private:
             auto requestId = FromProto<TRequestId>(header.request_id());
             auto readPosition = header.read_position();
 
-            auto responseHandler = FindResponseHandler(requestId);
+            auto [responseHandler, traceContextGuard] = FindResponseHandlerAndTraceContextGuard(requestId);
+            
             if (!responseHandler) {
                 YT_LOG_DEBUG("Received streaming feedback for an unknown request; ignored (RequestId: %v)",
                     requestId);
@@ -1139,6 +1144,7 @@ private:
             , Options_(options)
             , MethodMetadata_(Session_->GetMethodMetadata(Service_, Method_))
             , ResponseHandler_(std::move(responseHandler))
+            , TraceContext_()
         { }
 
         ~TClientRequestControl()
@@ -1175,6 +1181,11 @@ private:
         TDuration GetTotalTime() const
         {
             return TotalTime_;
+        }
+
+        NTracing::TCurrentTraceContextGuard GetTraceContextGuard() const
+        {
+            return TraceContext_.GetTraceContextGuard();
         }
 
         bool IsActive(const TGuard<NThreading::TSpinLock>&) const
@@ -1277,6 +1288,8 @@ private:
 
         NProfiling::TWallTimer Timer_;
         TDuration TotalTime_;
+
+        NYT::NTracing::TTraceContextHandler TraceContext_;
 
         TDuration DoProfile(NProfiling::TEventTimer& counter)
         {
