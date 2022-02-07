@@ -344,7 +344,7 @@ public:
         : TraceContext_(NTracing::GetCurrentTraceContext())
     { }
 
-    NTracing::TCurrentTraceContextGuard GetTraceContextGuard()
+    NTracing::TCurrentTraceContextGuard GetTraceContextGuard() const
     {
         return NTracing::TCurrentTraceContextGuard(TraceContext_);
     }
