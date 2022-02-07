@@ -654,10 +654,10 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(30));
 
     registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
-        .Default(TDuration::Seconds(15));
+        .Default(TDuration::Seconds(30));
 
     registrar.Parameter("incarnation_transaction_timeout", &TThis::IncarnationTransactionTimeout)
-        .Default(TDuration::Seconds(30));
+        .Default(TDuration::Seconds(60));
 
     registrar.Parameter("incarnation_transaction_ping_period", &TThis::IncarnationTransactionPingPeriod)
         .Default();
