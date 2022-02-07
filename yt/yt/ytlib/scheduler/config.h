@@ -1700,13 +1700,6 @@ TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters
     const TOperationFairShareTreeRuntimeParametersPtr& origin,
     const TOperationFairShareTreeRuntimeParametersUpdatePtr& update);
 
-//! Return new runtime parameters applying |update| to |origin|.
-//! |origin| object is not changed.
-//! NOTE: |origin| can not be |nullptr|.
-TOperationRuntimeParametersPtr UpdateRuntimeParameters(
-    const TOperationRuntimeParametersPtr& origin,
-    const TOperationRuntimeParametersUpdatePtr& update);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerConnectionConfig
