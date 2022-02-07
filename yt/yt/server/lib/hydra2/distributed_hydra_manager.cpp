@@ -1033,10 +1033,7 @@ private:
         auto changelog = OpenChangelogOrThrow(changelogId);
         auto meta = changelog->GetMeta();
 
-        // We can ingore snaphots terms here: if there is a snapshot built in term X,
-        // there is at least quorum peers with changelog with term X
-        // (at least one of them was created during initial changelog aqcuisition as a persistent vote).
-        return {changelogId, meta.term()};
+        return {changelogId, ChangelogStore_->GetTerm().value_or(0)};
     }
 
     std::vector<TSharedRef> ReadChangeLog(int changelogId, i64 startRecordId, i64 recordCount)
@@ -1282,11 +1279,8 @@ private:
                 .ThrowOnError();
         }
 
-        NHydra::NProto::TChangelogMeta meta;
-        meta.set_term(term);
-
         for (int i = currentChangelogId + 1; i <= changelogId; ++i) {
-            auto changelog = WaitFor(changelogStore->CreateChangelog(i, meta))
+            auto changelog = WaitFor(changelogStore->CreateChangelog(i, {}))
                 .ValueOrThrow();
             epochContext->FollowerCommitter->RegisterNextChangelog(i, changelog);
         }
@@ -1428,9 +1422,8 @@ private:
         auto getElectionPriority = [&] {
             if (controlState == EPeerState::Leading || controlState == EPeerState::Following) {
                 YT_VERIFY(ControlEpochContext_);
-                // it looks possible that last mutation's term might be < ControlEpochContext_->Term
-                // but for now lets pretend it is not
-                return TElectionPriority(ControlEpochContext_->Term, ControlEpochContext_->Term, DecoratedAutomaton_->GetReachableState());
+                // TODO(aleksandra-zh): our priority is logged state, not automaton.
+                return TElectionPriority(DecoratedAutomaton_->GetLastMutationTerm(), DecoratedAutomaton_->GetReachableState());
             } else {
                 return *ElectionPriority_;
             }
@@ -1508,7 +1501,7 @@ private:
         if (maxSnapshotId == InvalidSegmentId) {
             YT_LOG_INFO("No snapshots found");
             // Let's pretend we have snapshot 0.
-            return {0, 0, 0, 0};
+            return {0, 0, 0};
         }
 
         auto reader = SnapshotStore_->CreateReader(maxSnapshotId);
@@ -1521,11 +1514,10 @@ private:
             YT_LOG_INFO("No term in snapshot meta (SnapshotId: %v, SequenceNumber: %v)",
                 maxSnapshotId,
                 meta.sequence_number());
-            return {0, 0, maxSnapshotId, meta.sequence_number()};
+            return {0, maxSnapshotId, meta.sequence_number()};
         }
 
-        // TODO: think about this.
-        TElectionPriority electionPriority(meta.term(), meta.last_mutation_term(), meta.last_segment_id(), meta.sequence_number());
+        TElectionPriority electionPriority(meta.last_mutation_term(), meta.last_segment_id(), meta.sequence_number());
         YT_LOG_INFO(
             "The latest snapshot election priority is available (SnapshotId: %v, ElectionPriority: %v)",
             maxSnapshotId,
@@ -1544,12 +1536,12 @@ private:
                 *optionalElectionPriority);
             return *optionalElectionPriority;
         } else {
-            // meh
+            // TODO(aleksandra-zh): our priority is logged state.
             auto state = DecoratedAutomaton_->GetReachableState();
             YT_VERIFY(ControlEpochContext_);
             YT_LOG_INFO("Election priority is not available, using automaton state instead (AutomatonState: %v)",
                 state);
-            return {DecoratedAutomaton_->GetLastMutationTerm(), ControlEpochContext_->Term, state};
+            return {DecoratedAutomaton_->GetLastMutationTerm(), state};
         }
     }
 
@@ -1566,7 +1558,6 @@ private:
                 auto snapshotElectionPriority = GetSnapshotElectionPriority();
                 auto changelogElectionPriority = GetChangelogElectionPriority();
                 ElectionPriority_ = std::max(snapshotElectionPriority, changelogElectionPriority);
-                ElectionPriority_->Term = std::max(snapshotElectionPriority.Term, changelogElectionPriority.Term);
                 break;
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Error initializing persistent stores, backing off and retrying");
@@ -1667,13 +1658,14 @@ private:
             Config_,
             ControlEpochContext_->CellManager,
             selfChangelogId,
-            ElectionPriority_->Term);
+            ChangelogStore_->GetTerm().value_or(0));
         auto [changelogId, term] = WaitFor(asyncResult)
             .ValueOrThrow();
 
         auto newChangelogId = changelogId + 1;
         auto newTerm = term + 1;
 
+        ChangelogStore_->SetTerm(newTerm);
         ControlEpochContext_->Term = newTerm;
 
         // TODO: What kind of barrier should I have here (if any)?
@@ -2117,6 +2109,7 @@ private:
         // If we join an active quorum, we wont get an AcquireChangelog request from leader,
         // so we wont be able to promote our term there, so we have to do it here.
         // Looks safe.
+        ChangelogStore_->SetTerm(term);
         epochContext->Term = term;
 
         epochContext->Recovery = New<TRecovery>(
@@ -2157,7 +2150,7 @@ private:
         epochContext->CellManager = electionEpochContext->CellManager;
         epochContext->ChangelogStore = ChangelogStore_;
         epochContext->ReachableState = ElectionPriority_->ReachableState;
-        epochContext->Term = ElectionPriority_->Term;
+        epochContext->Term = ChangelogStore_->GetTerm().value_or(0);
         epochContext->LeaderId = electionEpochContext->LeaderId;
         epochContext->EpochId = electionEpochContext->EpochId;
         epochContext->CancelableContext = electionEpochContext->CancelableContext;

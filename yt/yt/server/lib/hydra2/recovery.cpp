@@ -197,9 +197,7 @@ void TRecovery::Recover(int term)
             YT_LOG_INFO("Changelog is missing and will be created (ChangelogId: %v)",
                 changelogId);
 
-            NHydra::NProto::TChangelogMeta meta;
-            meta.set_term(term);
-            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
+            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, {}))
                 .ValueOrThrow();
         }
 
@@ -213,7 +211,6 @@ void TRecovery::Recover(int term)
         }
 
         ++changelogId;
-        // verify term
     }
 
     auto automatonState = DecoratedAutomaton_->GetReachableState();
@@ -263,6 +260,24 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
         adjustedRemoteRecordCount);
 
     if (localRecordCount > adjustedRemoteRecordCount) {
+        auto latestChangelogId = WaitFor(ChangelogStore_->GetLatestChangelogId())
+            .ValueOrThrow();
+
+        for (int changelogToTruncateId = latestChangelogId; changelogToTruncateId > changelogId; --changelogToTruncateId) {
+            auto errorOrChangelogToTruncate = WaitFor(ChangelogStore_->TryOpenChangelog(changelogToTruncateId));
+            if (!errorOrChangelogToTruncate.IsOK()) {
+                YT_LOG_INFO("Changelog does not exist, skipping (ChangelogId: %v)",
+                    changelogToTruncateId);
+                continue;
+            }
+            auto changelogToTruncate = errorOrChangelogToTruncate.ValueOrThrow();
+            YT_LOG_INFO("Removing all records from changelog (ChangelogId: %v, RecordCount: %v)",
+                changelogToTruncateId,
+                changelogToTruncate->GetRecordCount());
+            auto result = WaitFor(changelogToTruncate->Truncate(0));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error truncating changelog");
+        }
+
         auto result = WaitFor(changelog->Truncate(adjustedRemoteRecordCount));
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error truncating changelog");
     } else if (localRecordCount < adjustedRemoteRecordCount) {
@@ -281,14 +296,11 @@ bool TRecovery::ReplayChangelog(IChangelogPtr changelog, int changelogId, i64 ta
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    const auto& meta = changelog->GetMeta();
-    auto changelogTerm = meta.term();
     auto changelogRecordCount = changelog->GetRecordCount();
-    YT_LOG_INFO("Replaying changelog %v (RecordCount: %v, TargetSequenceNumber: %v, Term: %v)",
+    YT_LOG_INFO("Replaying changelog (ChangelogId: %v, RecordCount: %v, TargetSequenceNumber: %v)",
         changelogId,
         changelogRecordCount,
-        targetSequenceNumber,
-        changelogTerm);
+        targetSequenceNumber);
 
     int currentRecordId = 0;
     auto automatonVersion = DecoratedAutomaton_->GetAutomatonVersion();
@@ -326,7 +338,7 @@ bool TRecovery::ReplayChangelog(IChangelogPtr changelog, int changelogId, i64 ta
 
         auto future = BIND([=, this_ = MakeStrong(this), recordsData = std::move(recordsData)] {
                 for (const auto& data : recordsData)  {
-                    DecoratedAutomaton_->ApplyMutationDuringRecovery(data, changelogTerm);
+                    DecoratedAutomaton_->ApplyMutationDuringRecovery(data);
                 }
             })
             .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)

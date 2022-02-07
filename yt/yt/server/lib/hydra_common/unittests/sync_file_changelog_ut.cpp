@@ -194,50 +194,6 @@ TSharedRef GenerateBlob(int size)
     return blob;
 }
 
-TEST_P(TSyncFileChangelogTest, Meta)
-{
-    TChangelogMeta meta;
-    meta.set_term(123);
-    auto record = GenerateBlob(2000);
-
-    {
-        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Create(meta, GetFormatParam());
-        changelog->Append(0, std::vector<TSharedRef>(1, record));
-        changelog->Flush();
-    }
-    {
-        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Open();
-        EXPECT_EQ(meta.term(), changelog->GetMeta().term());
-        EXPECT_EQ(1, changelog->GetRecordCount());
-        EXPECT_TRUE(TRef::AreBitwiseEqual(record, changelog->Read(0, 1, std::numeric_limits<i64>::max())[0]));
-    }
-}
-
-TEST_P(TSyncFileChangelogTest, MetaWithTruncate)
-{
-    TChangelogMeta meta;
-    meta.set_term(123);
-    auto record = GenerateBlob(2000);
-
-    {
-        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Create(meta, GetFormatParam());
-        changelog->Append(0, std::vector<TSharedRef>(1, record));
-        changelog->Flush();
-        changelog->Truncate(1);
-        changelog->Flush();
-    }
-    {
-        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Open();
-        EXPECT_EQ(meta.term(), changelog->GetMeta().term());
-        EXPECT_EQ(1, changelog->GetRecordCount());
-        EXPECT_TRUE(TRef::AreBitwiseEqual(record, changelog->Read(0, 1, std::numeric_limits<i64>::max())[0]));
-    }
-}
-
 TEST_P(TSyncFileChangelogTest, ReadWrite)
 {
     const int logRecordCount = 16;

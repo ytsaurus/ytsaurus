@@ -18,9 +18,7 @@ message TSnapshotMeta
 }
 
 message TChangelogMeta
-{
-    optional int32 term = 1;
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +33,7 @@ message TMutationHeader
     optional int32 reign = 8 [default = 0];
     required uint64 prev_random_seed = 9;
     required int64 sequence_number = 10;
+    optional int32 term = 11 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

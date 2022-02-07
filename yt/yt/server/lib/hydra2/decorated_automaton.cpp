@@ -70,6 +70,7 @@ TPendingMutation::TPendingMutation(
     ui64 randomSeed,
     ui64 prevRandomSeed,
     i64 sequenceNumber,
+    int term,
     TSharedRef serializedMutation,
     TPromise<NHydra::TMutationResponse> promise)
     : Version(version)
@@ -78,6 +79,7 @@ TPendingMutation::TPendingMutation(
     , RandomSeed(randomSeed)
     , PrevRandomSeed(prevRandomSeed)
     , SequenceNumber(sequenceNumber)
+    , Term(term)
     , SerializedMutation(serializedMutation)
     , LocalCommitPromise(std::move(promise))
 { }
@@ -850,7 +852,7 @@ void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
     State_ = EPeerState::Stopped;
 }
 
-void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordData, int term)
+void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordData)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -875,7 +877,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         header.sequence_number(),
         StateHash_);
 
-    DoApplyMutation(&mutationContext, mutationVersion, term);
+    DoApplyMutation(&mutationContext, mutationVersion, header.term());
 }
 
 TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutationRequest& request)
@@ -947,16 +949,16 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(int snapshotId
     return SnapshotParamsPromise_;
 }
 
-void TDecoratedAutomaton::ApplyMutations(const std::vector<TPendingMutationPtr>& mutations, int term)
+void TDecoratedAutomaton::ApplyMutations(const std::vector<TPendingMutationPtr>& mutations)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     for (const auto& mutation : mutations) {
-        ApplyMutation(mutation, term);
+        ApplyMutation(mutation);
     }
 }
 
-void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation, int term)
+void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     TForbidContextSwitchGuard contextSwitchGuard;
@@ -973,7 +975,7 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation, int
     auto commitPromise = mutation->LocalCommitPromise;
     {
         NTracing::TTraceContextGuard traceContextGuard(mutation->Request.TraceContext);
-        DoApplyMutation(&mutationContext, mutation->Version, term);
+        DoApplyMutation(&mutationContext, mutation->Version, mutation->Term);
     }
 
     if (commitPromise) {

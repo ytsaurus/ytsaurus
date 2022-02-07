@@ -5,6 +5,7 @@
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/lazy_changelog.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
+#include <yt/yt/server/lib/hydra_common/serialize.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
@@ -52,6 +53,26 @@ namespace {
 TYPath GetChangelogPath(const TYPath& storePath, int id)
 {
     return Format("%v/%09d", storePath, id);
+}
+
+std::vector<TSharedRef> ReadRecordsOrThrow(
+    const TYPath& path,
+    const TJournalReaderConfigPtr& config,
+    const IClientPtr& client,
+    int firstRecordId,
+    int maxRecords)
+{
+    TJournalReaderOptions options;
+    options.FirstRowIndex = firstRecordId;
+    options.RowCount = maxRecords;
+    options.Config = config;
+    auto reader = client->CreateJournalReader(path, options);
+
+    WaitFor(reader->Open())
+        .ThrowOnError();
+
+    return WaitFor(reader->Read())
+        .ValueOrThrow();
 }
 
 } // namespace
@@ -209,7 +230,6 @@ private:
             attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
             attributes->Set("account", Options_->ChangelogAccount);
             attributes->Set("primary_medium", Options_->ChangelogPrimaryMedium);
-            attributes->Set("term", meta.term());
             options.Attributes = std::move(attributes);
             options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 
@@ -220,9 +240,8 @@ private:
             WaitFor(future)
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Remote changelog created (ChangelogId: %v, Term: %v)",
-                id,
-                meta.term());
+            YT_LOG_DEBUG("Remote changelog created (ChangelogId: %v)",
+                id);
 
             return MakeRemoteChangelog(
                 id,
@@ -261,22 +280,17 @@ private:
 
             auto dataSize = attributes.Get<i64>("uncompressed_data_size");
             auto recordCount = attributes.Get<int>("quorum_row_count");
-            auto term = attributes.Get<int>("term", 0);
 
             YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
                 id);
 
-            TChangelogMeta meta;
-            meta.set_term(term);
-
-            YT_LOG_DEBUG("Remote changelog opened (ChangelogId: %v, Term: %v)",
-                id,
-                meta.term());
+            YT_LOG_DEBUG("Remote changelog opened (ChangelogId: %v)",
+                id);
 
             return MakeRemoteChangelog(
                 id,
                 path,
-                std::move(meta),
+                {},
                 recordCount,
                 dataSize,
                 /*createWriter*/ false);
@@ -503,17 +517,7 @@ private:
         std::vector<TSharedRef> DoRead(int firstRecordId, int maxRecords) const
         {
             try {
-                TJournalReaderOptions options;
-                options.FirstRowIndex = firstRecordId;
-                options.RowCount = maxRecords;
-                options.Config = Owner_->Config_->Reader;
-                auto reader = Owner_->Client_->CreateJournalReader(Path_, options);
-
-                WaitFor(reader->Open())
-                    .ThrowOnError();
-
-                return WaitFor(reader->Read())
-                    .ValueOrThrow();
+                return ReadRecordsOrThrow(Path_, Owner_->Config_->Reader, Owner_->Client_, firstRecordId, maxRecords);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error reading remote changelog")
                     << TErrorAttribute("changelog_path", Path_)
@@ -706,36 +710,47 @@ private:
         });
 
         if (latestId < 0) {
-            return TVersion();
+            return {};
         }
 
-        return TVersion(latestId, latestRowCount);
+        return {latestId, latestRowCount};
     }
 
     TElectionPriority ComputeElectionPriority()
     {
         ValidateChangelogsSealed();
 
-        TElectionPriority priority(0, 0, 0, 0);
-        ListChangelogs({"quorum_row_count", "sequence_number", "term"}, [&] (const INodePtr& item, int id) {
-            auto term = item->Attributes().Get<int>("term", 0);
-            // This is always reachable at largest changelog id, looks ok.
-            priority.Term = std::max(term, priority.Term);
-
-            // == for 0.
-            if (id >= priority.ReachableState.SegmentId) {
+        int latestId = -1;
+        int latestChangelogRecordCount = 0;
+        ListChangelogs({"quorum_row_count"}, [&] (const INodePtr& item, int id) {
+            if (id >= latestId) {
                 auto recordCount = item->Attributes().Get<i64>("quorum_row_count");
-                auto sequenceNumber = item->Attributes().Get<i64>("sequence_number", 0);
-
                 if (recordCount > 0) {
-                    priority.ReachableState.SegmentId = id;
-                    priority.ReachableState.SequenceNumber = sequenceNumber;
-                    priority.LastMutationTerm = term;
+                    latestId = id;
+                    latestChangelogRecordCount = recordCount;
                 }
             }
         });
 
-        return priority;
+        if (latestId == -1) {
+            return {};
+        }
+
+        auto path = GetChangelogPath(Path_, latestId);
+        auto records = ReadRecordsOrThrow(path, Config_->Reader, MasterClient_, 0, 1);
+
+        if (records.empty()) {
+            THROW_ERROR_EXCEPTION("Read zero records from nonempty changelog %v",
+                latestId);
+        }
+
+        TMutationHeader header;
+        TSharedRef requestData;
+        DeserializeMutationRecord(records[0], &header, &requestData);
+
+        // All mutations have the same term in one changelog.
+        // (Of course I am not actually sure in anything at this point, but this actually shoulbe true).
+        return {header.term(), latestId, header.sequence_number() + latestChangelogRecordCount - 1};
     }
 
     int GetTerm()

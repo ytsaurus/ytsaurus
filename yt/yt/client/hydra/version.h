@@ -33,19 +33,15 @@ struct TElectionPriority
     // Term is used to determine a new leader's term.
     // ReachableState.SegmentId is used as a hint for recovery.
 
-    // TODO(aleksandra-zh): Consider removing term from here.
-    int Term = 0;
     int LastMutationTerm = 0;
     TReachableState ReachableState;
 
     TElectionPriority() = default;
     TElectionPriority(
-        int term,
         int lastMutationTerm,
         int segmentId,
         i64 sequenceNumber) noexcept;
     TElectionPriority(
-        int term,
         int lastMutationTerm,
         TReachableState reachableState) noexcept;
 

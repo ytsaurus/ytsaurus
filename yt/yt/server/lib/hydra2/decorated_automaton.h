@@ -50,6 +50,7 @@ struct TPendingMutation final
         ui64 randomSeed,
         ui64 prevRandomSeed,
         i64 sequenceNumber,
+        int term,
         TSharedRef serializedMutation,
         TPromise<NHydra::TMutationResponse> promise = {});
 
@@ -59,6 +60,7 @@ struct TPendingMutation final
     ui64 RandomSeed;
     ui64 PrevRandomSeed;
     i64 SequenceNumber;
+    int Term;
     TSharedRef SerializedMutation;
     TPromise<NHydra::TMutationResponse> LocalCommitPromise;
 };
@@ -226,10 +228,10 @@ public:
 
     TFuture<NHydra::TRemoteSnapshotParams> BuildSnapshot(int snapshotId, i64 sequenceNumber);
 
-    void ApplyMutationDuringRecovery(const TSharedRef& recordData, int term);
+    void ApplyMutationDuringRecovery(const TSharedRef& recordData);
 
-    void ApplyMutations(const std::vector<TPendingMutationPtr>& mutations, int term);
-    void ApplyMutation(const TPendingMutationPtr& mutation, int term);
+    void ApplyMutations(const std::vector<TPendingMutationPtr>& mutations);
+    void ApplyMutation(const TPendingMutationPtr& mutation);
 
     TReign GetCurrentReign() const;
     EFinalRecoveryAction GetFinalRecoveryAction() const;
