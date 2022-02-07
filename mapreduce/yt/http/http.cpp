@@ -650,6 +650,9 @@ SOCKET TConnectionPool::DoConnect(TAddressCache::TAddressPtr address)
         }
 
         SetNonBlock(socket, true);
+        if (TConfig::Get()->SocketPriority) {
+            SetSocketPriority(socket, *TConfig::Get()->SocketPriority);
+        }
 
         if (connect(socket, info->ai_addr, info->ai_addrlen) == 0)
             return socket.Release();
