@@ -156,7 +156,8 @@ TCompositePendingJobCount TTask::GetPendingJobCountDelta()
     return newValue - oldValue;
 }
 
-bool TTask::HasNoPendingJobs() const {
+bool TTask::HasNoPendingJobs() const
+{
     return GetPendingJobCount() == TCompositePendingJobCount{};
 }
 

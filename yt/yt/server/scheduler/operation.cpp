@@ -289,7 +289,7 @@ std::optional<EUnschedulableReason> TOperation::CheckUnschedulable() const
         return EUnschedulableReason::Suspended;
     }
 
-    if (Controller_->GetPendingJobCount() == TCompositePendingJobCount{}) {
+    if (Controller_->GetNeededResources().DefaultResources.GetUserSlots() == 0) {
         return EUnschedulableReason::NoPendingJobs;
     }
 

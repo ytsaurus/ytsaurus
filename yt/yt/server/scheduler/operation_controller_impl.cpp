@@ -719,13 +719,6 @@ TJobResourcesWithQuotaList TOperationControllerImpl::GetMinNeededJobResources() 
     return ControllerRuntimeData_->MinNeededJobResources();
 }
 
-TCompositePendingJobCount TOperationControllerImpl::GetPendingJobCount() const
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return ControllerRuntimeData_->GetPendingJobCount();
-}
-
 EPreemptionMode TOperationControllerImpl::GetPreemptionMode() const
 {
     return PreemptionMode_;

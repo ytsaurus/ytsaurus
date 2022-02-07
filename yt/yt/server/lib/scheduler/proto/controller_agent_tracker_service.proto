@@ -30,19 +30,12 @@ message TOperationAlerts
     repeated TOperationAlert alerts = 1;
 }
 
-message TCompositePendingJobCount
-{
-    optional int32 default_count = 1;
-    map<string, int32> count_per_pool_tree = 2;
-}
-
 message TOperationInfo
 {
     optional NYT.NProto.TGuid operation_id = 1;
     repeated NYT.NControllerAgent.NProto.TTreeTaggedJobMetrics job_metrics = 2;
     optional TOperationAlerts alerts = 3;
     optional bytes suspicious_jobs = 4;
-    optional TCompositePendingJobCount composite_pending_job_count = 5;
     optional NYT.NControllerAgent.NProto.TCompositeNeededResources composite_needed_resources = 6;
     repeated TJobResourcesWithQuota min_needed_job_resources = 7;
 }

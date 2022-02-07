@@ -46,11 +46,6 @@ void TFairShareStrategyOperationController::IncreaseScheduleJobCallsSinceLastUpd
     shard.ScheduleJobCallsSinceLastUpdate.fetch_add(1, std::memory_order_relaxed);
 }
 
-TCompositePendingJobCount TFairShareStrategyOperationController::GetPendingJobCount() const
-{
-    return Controller_->GetPendingJobCount();
-}
-
 TCompositeNeededResources TFairShareStrategyOperationController::GetNeededResources() const
 {
     return Controller_->GetNeededResources();

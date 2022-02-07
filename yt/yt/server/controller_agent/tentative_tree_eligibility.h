@@ -25,7 +25,10 @@ namespace NYT::NControllerAgent {
 class TTentativeTreeEligibility
 {
 public:
-    TTentativeTreeEligibility(std::optional<THashSet<TString>> tentativeTrees, const NScheduler::TTentativeTreeEligibilityConfigPtr& config, const NLogging::TLogger& logger);
+    TTentativeTreeEligibility(
+        std::optional<THashSet<TString>> tentativeTrees,
+        const NScheduler::TTentativeTreeEligibilityConfigPtr& config,
+        const NLogging::TLogger& logger);
 
     // For persistence only.
     TTentativeTreeEligibility();

@@ -296,12 +296,6 @@ public:
         return minNeededResourcesList;
     }
 
-    TCompositePendingJobCount GetPendingJobCount() const override
-    {
-        int count = JobResourcesList.size();
-        return TCompositePendingJobCount{.DefaultCount = count};
-    }
-
     EPreemptionMode PreemptionMode = EPreemptionMode::Normal;
 
     EPreemptionMode GetPreemptionMode() const override

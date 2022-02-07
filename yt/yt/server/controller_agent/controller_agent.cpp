@@ -1539,7 +1539,6 @@ private:
                 protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().ToString());
             }
 
-            ToProto(protoOperation->mutable_composite_pending_job_count(), controller->GetPendingJobCount());
             ToProto(protoOperation->mutable_composite_needed_resources(), controller->GetNeededResources());
             ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
         }

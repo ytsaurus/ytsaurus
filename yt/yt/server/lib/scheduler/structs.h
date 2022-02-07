@@ -116,9 +116,6 @@ TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, cons
 TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
 TCompositePendingJobCount operator - (const TCompositePendingJobCount& count);
 
-void ToProto(NProto::TCompositePendingJobCount* protoPendingJobCount, const TCompositePendingJobCount& pendingJobCount);
-void FromProto(TCompositePendingJobCount* pendingJobCount, const NProto::TCompositePendingJobCount& protoPendingJobCount);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCompositeNeededResources
@@ -126,7 +123,7 @@ struct TCompositeNeededResources
     NVectorHdrf::TJobResources DefaultResources = {};
     THashMap<TString, NVectorHdrf::TJobResources> ResourcesByPoolTree = {};
 
-    const TJobResources& GetNeededResourcesFor(const TString& tree) const;
+    const TJobResources& GetNeededResourcesForTree(const TString& tree) const;
 
     void Persist(const TStreamPersistenceContext& context);
 };

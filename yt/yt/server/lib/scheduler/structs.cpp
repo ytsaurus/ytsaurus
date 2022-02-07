@@ -206,28 +206,9 @@ TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, cons
     return lhs + (-rhs);
 }
 
-void ToProto(NProto::TCompositePendingJobCount* protoPendingJobCount, const TCompositePendingJobCount& pendingJobCount)
-{
-    protoPendingJobCount->set_default_count(pendingJobCount.DefaultCount);
-
-    auto protoMap = protoPendingJobCount->mutable_count_per_pool_tree();
-    for (const auto& [tree, count] : pendingJobCount.CountByPoolTree) {
-        (*protoMap)[tree] = count;
-    }
-}
-
-void FromProto(TCompositePendingJobCount* pendingJobCount, const NProto::TCompositePendingJobCount& protoPendingJobCount)
-{
-    pendingJobCount->DefaultCount = protoPendingJobCount.default_count();
-
-    for (const auto& [tree, count] : protoPendingJobCount.count_per_pool_tree()) {
-        pendingJobCount->CountByPoolTree[tree] = count;
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-const TJobResources& TCompositeNeededResources::GetNeededResourcesFor(const TString& tree) const
+const TJobResources& TCompositeNeededResources::GetNeededResourcesForTree(const TString& tree) const
 {
     auto it = ResourcesByPoolTree.find(tree);
     return it != ResourcesByPoolTree.end()
