@@ -2131,7 +2131,7 @@ private:
             committedState,
             false,
             Logger);
-        epochContext->FollowerCommitter->SetLoggedSequenceNumber(committedState.SequenceNumber);
+        epochContext->FollowerCommitter->SetSequenceNumber(committedState.SequenceNumber);
 
         // Make sure we dont try to build the same snapshot twice.
         // (It does not always help, LoadSnapshot in decorated automaton explains why).
