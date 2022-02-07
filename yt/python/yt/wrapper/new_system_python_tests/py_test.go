@@ -79,6 +79,8 @@ type Testsuites struct {
 	Testsuites []Testsuite `xml:"testsuite"`
 }
 
+const contribPath = "yt/python/yt/wrapper/new_system_python_tests/contrib/"
+
 func PrepareBinaries(destination string) error {
 	var err error
 
@@ -146,41 +148,24 @@ func PrepareBinaries(destination string) error {
 }
 
 func GetPythonPaths(pythonVersion string) []string {
-	var contribPaths = []string{
-		"contrib/python/pytest",
-		"contrib/python/pytest-timeout",
-		"contrib/python/apipkg",
-		"contrib/python/six",
-		"contrib/python/execnet",
-		"contrib/python/flaky",
-		"contrib/python/atomicwrites",
-		"contrib/python/py",
-		"contrib/python/attrs",
-		"contrib/python/pluggy",
-		"contrib/python/more-itertools",
-		"contrib/python/pathlib2",
-		"contrib/python/funcsigs",
-		"contrib/python/scandir",
-		"contrib/python/contextlib2",
-		"contrib/python/configparser",
-	}
-
-	var contribPathsPy2 = []string{
-		"contrib/python/importlib-metadata/py2",
-		"contrib/python/more-itertools/py2",
-	}
-
-	var contribPathsPy35 = []string{
-		// Python3 uses py2 importlib-metadata since it is python3-compatible
-		// and contrib/python/importlib-metadata/py3 requires python3 with version >= 3.6
-		"contrib/python/importlib-metadata/py2",
-		"contrib/python/more-itertools/py2",
-	}
-
-	var contribPathsPy3 = []string{
-		"contrib/python/importlib-metadata/py3",
-		"contrib/python/more-itertools/py3",
-		"contrib/python/typing-extensions/src_py3",
+	var contribNames = []string{
+		"pytest",
+		"pytest-timeout",
+		"apipkg",
+		"six",
+		"execnet",
+		"flaky",
+		"atomicwrites",
+		"py",
+		"attrs",
+		"pluggy",
+		"more-itertools",
+		"pathlib2",
+		"funcsigs",
+		"scandir",
+		"contextlib2",
+		"configparser",
+		"importlib-metadata",
 	}
 
 	var sharedLibraries = []string{
@@ -190,24 +175,11 @@ func GetPythonPaths(pythonVersion string) []string {
 	}
 
 	pythonPaths := []string{}
-	for _, p := range contribPaths {
-		pythonPaths = append(pythonPaths, yatest.SourcePath(p))
+	for _, name := range contribNames {
+		pythonPaths = append(pythonPaths, yatest.SourcePath(contribPath+name))
 	}
-	for _, p := range sharedLibraries {
-		pythonPaths = append(pythonPaths, yatest.BuildPath(p))
-	}
-	if pythonVersion[:1] == "2" {
-		for _, p := range contribPathsPy2 {
-			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
-		}
-	} else if pythonVersion == "3.5" { // "3.5"
-		for _, p := range contribPathsPy35 {
-			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
-		}
-	} else { // >= 3.6
-		for _, p := range contribPathsPy3 {
-			pythonPaths = append(pythonPaths, yatest.SourcePath(p))
-		}
+	for _, path := range sharedLibraries {
+		pythonPaths = append(pythonPaths, yatest.BuildPath(path))
 	}
 	return pythonPaths
 }
@@ -292,7 +264,7 @@ func TestPyTest(t *testing.T) {
 	}
 
 	pytestArgs := []string{
-		yatest.SourcePath("contrib/python/pytest/pytest.py"),
+		yatest.SourcePath(path.Join(contribPath, "pytest/pytest.py")),
 		"--junit-xml=" + yatest.OutputPath("junit.xml"),
 		"--cache-clear",
 		"--debug",
