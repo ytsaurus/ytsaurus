@@ -1029,6 +1029,19 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: operation_scheduling_index_attempt_count.get_delta() == 1)
         wait(lambda: max_operation_scheduling_index.get_delta() == 1)
 
+    @authors("eshcherbin")
+    def test_started_job_count_profiling(self):
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+        started_job_counter = profiler.counter("scheduler/jobs/started_job_count")
+        started_vanilla_job_counter = profiler.counter("scheduler/jobs/started_job_count", tags={"job_type": "vanilla"})
+
+        time.sleep(3.0)
+        assert started_job_counter.get_delta() == started_vanilla_job_counter.get_delta() == 0
+
+        run_sleeping_vanilla()
+
+        wait(lambda: started_job_counter.get_delta() == started_vanilla_job_counter.get_delta() == 1)
+
 
 ##################################################################
 
