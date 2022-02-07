@@ -8,7 +8,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, with_breakpoint,
+    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint,
     ls, get, set, remove, exists, create_pool, create_pool_tree,
     create_data_center, create_rack, make_batch_request,
     execute_batch, get_batch_error,
@@ -717,15 +717,16 @@ class TestSchedulingSegments(YTEnvSetup):
         for segment in TestSchedulingSegments.SCHEDULING_SEGMENTS:
             wait(lambda: len(self._get_nodes_for_segment_in_tree(segment)) == 0)
 
-        blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        blocking_op = run_sleeping_vanilla(job_count=20, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 4, "enable_gpu_layers": False})
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
         op = run_test_vanilla(
-            with_breakpoint("BREAKPOINT"),
+            with_breakpoint("BREAKPOINT; sleep 1000"),
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False}
         )
 
         wait_breakpoint()
+        release_breakpoint()
 
         wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu")) == 1)
         wait(lambda: len(self._get_nodes_for_segment_in_tree("default")) == 0)
