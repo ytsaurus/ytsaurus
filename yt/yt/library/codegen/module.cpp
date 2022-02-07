@@ -158,6 +158,10 @@ public:
 
         llvm::TargetOptions targetOptions;
         targetOptions.EnableFastISel = true;
+        // YT-16394: Variable is not initialized inside LLVM and we get random offset outside allocated memory.
+        // Value -1 denotes that offset is not set and default value should be used.
+        // Default value is &tcbhead_t::stack_guard.
+        targetOptions.StackProtectorGuardOffset = -1;
 
         // Create engine.
         std::string what;
