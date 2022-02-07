@@ -3,6 +3,7 @@
 #include <mapreduce/yt/interface/node.h>
 #include <mapreduce/yt/interface/common.h>
 
+#include <util/generic/maybe.h>
 #include <util/generic/string.h>
 #include <util/datetime/base.h>
 
@@ -123,6 +124,9 @@ struct TConfig
     ETraceHttpRequestsMode TraceHttpRequestsMode = ETraceHttpRequestsMode::Never;
 
     TString SkynetApiHost;
+
+    // Sets SO_PRIORITY option on the socket
+    TMaybe<int> SocketPriority;
 
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
