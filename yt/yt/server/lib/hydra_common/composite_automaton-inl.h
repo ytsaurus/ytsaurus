@@ -66,7 +66,13 @@ void TCompositeAutomatonPart::RegisterMethod(
 {
     auto mutationHandler = BIND([=] (TMutationContext* context) {
         auto request = ObjectPool<TRequest>().Allocate();
-        DeserializeProtoWithEnvelope(request.get(), context->Request().Data);
+        auto* descriptor = Automaton_->GetMethodDescriptor(TRequest::default_instance().GetTypeName());
+        Automaton_->DeserializeRequestAndProfile(
+            request.get(),
+            context->Request().Data,
+            descriptor);
+
+        NProfiling::TWallTimer timer;
 
         try {
             callback.Run(request.get());
@@ -77,6 +83,7 @@ void TCompositeAutomatonPart::RegisterMethod(
             LogHandlerError(error);
             context->SetResponseData(NRpc::CreateErrorResponseMessage(error));
         }
+        descriptor->CumulativeExecuteTimeCounter.Add(timer.GetElapsedTime());
     });
 
     auto mutationName = TRequest::default_instance().GetTypeName();
@@ -95,8 +102,13 @@ void TCompositeAutomatonPart::RegisterMethod(
         auto request = ObjectPool<THandlerRequest>().Allocate();
         auto response = ObjectPool<THandlerResponse>().Allocate();
 
-        DeserializeProtoWithEnvelope(request.get(), context->Request().Data);
+        auto* descriptor = Automaton_->GetMethodDescriptor(THandlerRequest::default_instance().GetTypeName());
+        Automaton_->DeserializeRequestAndProfile(
+            request.get(),
+            context->Request().Data,
+            descriptor);
 
+        NProfiling::TWallTimer timer;
         try {
             callback.Run(nullptr, request.get(), response.get());
             context->SetResponseData(NRpc::CreateResponseMessage(*response));
@@ -105,6 +117,7 @@ void TCompositeAutomatonPart::RegisterMethod(
             LogHandlerError(error);
             context->SetResponseData(NRpc::CreateErrorResponseMessage(error));
         }
+        descriptor->CumulativeExecuteTimeCounter.Add(timer.GetElapsedTime());
     });
 
     auto mutationName = THandlerRequest::default_instance().GetTypeName();

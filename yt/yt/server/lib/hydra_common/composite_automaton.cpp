@@ -122,7 +122,10 @@ void TCompositeAutomatonPart::RegisterMethod(
     TCompositeAutomaton::TMethodDescriptor descriptor{
         callback,
         profiler.TimeCounter("/cumulative_mutation_time"),
+        profiler.TimeCounter("/cumulative_mutation_execute_time"),
+        profiler.TimeCounter("/cumulative_mutation_deserialize_time"),
         profiler.Counter("/mutation_count"),
+        profiler.Gauge("/mutation_request_size"),
         New<TProfilerTag>("mutation_type", type),
     };
     YT_VERIFY(Automaton_->MethodNameToDescriptor_.emplace(type, descriptor).second);
@@ -584,6 +587,17 @@ std::vector<TCompositeAutomatonPartPtr> TCompositeAutomaton::GetParts()
 void TCompositeAutomaton::LogHandlerError(const TError& error)
 {
     YT_LOG_DEBUG(error, "Error executing mutation handler");
+}
+
+void TCompositeAutomaton::DeserializeRequestAndProfile(
+    google::protobuf::MessageLite* requestMessage,
+    TRef requestData,
+    TMethodDescriptor* methodDescriptor)
+{
+    NProfiling::TWallTimer timer;
+    DeserializeProtoWithEnvelope(requestMessage, requestData);
+    methodDescriptor->CumulativeDeserializeTimeCounter.Add(timer.GetElapsedTime());
+    methodDescriptor->RequestSizeCounter.Update(requestData.size());
 }
 
 bool TCompositeAutomaton::IsRecovery() const
