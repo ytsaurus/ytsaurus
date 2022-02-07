@@ -942,16 +942,16 @@ def _parse_backup_manifest(*args):
     def _make_table_manifest(x):
         return {"source_path": x[0], "destination_path": x[1]}
 
-    if type(args[0]) == list:
+    if type(args[0]) in (list, tuple):
         return {
             "clusters": {
-                "primary": builtins.map(_make_table_manifest, args),
+                "primary": list(builtins.map(_make_table_manifest, args)),
             }
         }
     else:
         return {
             "clusters": {
-                cluster: builtins.map(_make_table_manifest, tables)
+                cluster: list(builtins.map(_make_table_manifest, tables))
                 for cluster, tables
                 in list(iteritems(args))
             }
