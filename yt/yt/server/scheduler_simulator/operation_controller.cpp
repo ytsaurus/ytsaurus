@@ -184,9 +184,6 @@ public:
     // Lock_ must be acquired.
     void OnBucketCompleted(TJobBucket* deactivatedBucket) override;
 
-    //! Returns the number of jobs the controller still needs to start right away.
-    TCompositePendingJobCount GetPendingJobCount() const override;
-
     //! Returns the mode which says how to preempt jobs of this operation.
     EPreemptionMode GetPreemptionMode() const override;
 
@@ -344,12 +341,6 @@ void TSimulatorOperationController::OnBucketCompleted(TJobBucket* deactivatedBuc
         }
     }
     YT_VERIFY(false);
-}
-
-TCompositePendingJobCount TSimulatorOperationController::GetPendingJobCount() const
-{
-    auto guard = Guard(Lock_);
-    return TCompositePendingJobCount{.DefaultCount = PendingJobCount_};
 }
 
 EPreemptionMode TSimulatorOperationController::GetPreemptionMode() const

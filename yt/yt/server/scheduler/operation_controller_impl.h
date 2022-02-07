@@ -72,7 +72,6 @@ public:
 
     TCompositeNeededResources GetNeededResources() const override;
     TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
-    TCompositePendingJobCount GetPendingJobCount() const override;
     EPreemptionMode GetPreemptionMode() const override;
 
 private:

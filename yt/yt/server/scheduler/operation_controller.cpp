@@ -21,47 +21,19 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError CheckPendingJobCountAndNeededResources(int pendingJobCount, const NVectorHdrf::TJobResources& neededResources)
-{
-    bool hasPendingJobs = pendingJobCount > 0;
-    if (!Dominates(neededResources, TJobResources())) {
-        return TError("Controller has reported negative needed resources")
-            << TErrorAttribute("needed_resources", neededResources);
-    }
-    if (hasPendingJobs != (neededResources != TJobResources())) {
-        return TError("Controller has reported inconsistent values for pending job count and needed resources")
-            << TErrorAttribute("pending_job_count", pendingJobCount)
-            << TErrorAttribute("needed_resources", neededResources);
-    }
-    return TError();
-}
-
 TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData)
 {
-    auto compositePendingJobCount = runtimeData->GetPendingJobCount();
     auto compositeNeededResources = runtimeData->GetNeededResources();
-    auto error = CheckPendingJobCountAndNeededResources(compositePendingJobCount.DefaultCount, compositeNeededResources.DefaultResources);
-    if (!error.IsOK()) {
-        return error;
+    if (!Dominates(compositeNeededResources.DefaultResources, TJobResources())) {
+        return TError("Controller has reported negative needed resources")
+            << TErrorAttribute("needed_resources", FormatResources(compositeNeededResources));
     }
 
-    if (compositePendingJobCount.CountByPoolTree.size() != compositeNeededResources.ResourcesByPoolTree.size()) {
-            return TError("Controller has reported inconsistent pending job count and needed resources")
-                << TErrorAttribute("pending_job_count_by_tree", compositePendingJobCount.CountByPoolTree)
-                << TErrorAttribute("needed_resources_by_tree", compositeNeededResources.ResourcesByPoolTree);
-    }
-
-    for (const auto& [tree, jobCount] : compositePendingJobCount.CountByPoolTree) {
-        auto resourcesIt = compositeNeededResources.ResourcesByPoolTree.find(tree);
-        if (resourcesIt == compositeNeededResources.ResourcesByPoolTree.end()) {
-            return TError("Controller has reported pending job count without needed resources")
-                << TErrorAttribute("pending_job_count", jobCount)
-                << TErrorAttribute("pool_tree", tree);
-        }
-
-        error = CheckPendingJobCountAndNeededResources(jobCount, resourcesIt->second);
-        if (!error.IsOK()) {
-            return error;
+    for (const auto& [tree, neededResources] : compositeNeededResources.ResourcesByPoolTree) {
+        if (!Dominates(neededResources, TJobResources())) {
+            return TError("Controller has reported negative needed resources")
+                << TErrorAttribute("pool_tree", tree)
+                << TErrorAttribute("needed_resources", FormatResources(compositeNeededResources));
         }
     }
 

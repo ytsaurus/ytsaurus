@@ -15,7 +15,6 @@ class TControllerRuntimeData
     : public TRefCounted
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TCompositePendingJobCount, PendingJobCount);
     DEFINE_BYVAL_RW_PROPERTY(TCompositeNeededResources, NeededResources);
     DEFINE_BYREF_RW_PROPERTY(TJobResourcesWithQuotaList, MinNeededJobResources);
 };
@@ -54,9 +53,6 @@ struct IOperationControllerStrategyHost
 
     //! Returns the cached min needed resources estimate.
     virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const = 0;
-
-    //! Returns the number of jobs the controller is able to start right away.
-    virtual TCompositePendingJobCount GetPendingJobCount() const = 0;
 
     //! Returns the mode which says how to preempt jobs of this operation.
     virtual EPreemptionMode GetPreemptionMode() const = 0;
