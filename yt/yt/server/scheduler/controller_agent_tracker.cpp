@@ -22,7 +22,10 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/lease_manager.h>
 
+#include <yt/yt/core/rpc/response_keeper.h>
+
 #include <yt/yt/core/yson/public.h>
+
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/build/build.h>
@@ -386,6 +389,10 @@ public:
         const auto& scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
+        if (Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
+            return;
+        }
+
         auto* request = &context->Request();
         auto* response = &context->Response();
 
@@ -493,6 +500,10 @@ public:
 
         const auto& scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
+
+        if (Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
+            return;
+        }
 
         auto* request = &context->Request();
         auto* response = &context->Response();
@@ -795,7 +806,7 @@ public:
         ] {
             const auto Logger = SchedulerLogger
                 .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
-            
+
             YT_LOG_DEBUG("Processing job events");
             for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
                 nodeShardInvokers[shardId]->Invoke(
@@ -866,6 +877,10 @@ public:
 
         const auto& scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
+
+        if (Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
+            return;
+        }
 
         auto* request = &context->Request();
         const auto& agentId = request->agent_id();
