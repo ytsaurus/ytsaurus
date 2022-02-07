@@ -783,13 +783,15 @@ i64 TFollowerCommitter::GetLoggedSequenceNumber() const
     return LoggedSequenceNumber_;
 }
 
-void TFollowerCommitter::SetLoggedSequenceNumber(i64 number)
+void TFollowerCommitter::SetSequenceNumber(i64 number)
 {
     LoggedSequenceNumber_ = number;
     YT_VERIFY(LoggedMutations_.empty());
 
     AcceptedSequenceNumber_ = number;
     YT_VERIFY(AcceptedMutations_.empty());
+
+    SelfCommittedSequenceNumber_ = number;
 }
 
 void TFollowerCommitter::AcceptMutations(

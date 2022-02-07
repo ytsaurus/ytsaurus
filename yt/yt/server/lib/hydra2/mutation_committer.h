@@ -71,8 +71,6 @@ protected:
 
     NHydra::IChangelogPtr Changelog_;
 
-    DEFINE_BYVAL_RO_PROPERTY(i64, SelfCommittedSequenceNumber);
-
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };
@@ -218,8 +216,8 @@ public:
     TFuture<void> GetLastLoggedMutationFuture();
 
     i64 GetLoggedSequenceNumber() const;
-    void SetLoggedSequenceNumber(i64 number);
     i64 GetExpectedSequenceNumber() const;
+    void SetSequenceNumber(i64 number);
 
     void RegisterNextChangelog(int id, NHydra::IChangelogPtr changelog);
 
@@ -234,6 +232,8 @@ private:
     // Logged, but not committed.
     std::queue<TPendingMutationPtr> LoggedMutations_;
     i64 LoggedSequenceNumber_ = 0;
+
+    i64 SelfCommittedSequenceNumber_ = -1;
 
     bool LoggingMutations_ = false;
 
