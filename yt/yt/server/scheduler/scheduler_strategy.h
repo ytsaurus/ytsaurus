@@ -156,7 +156,7 @@ struct ISchedulerStrategy
 
     //! Performs preemption for jobs of operation with enabled graceful preemption.
     virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
-    
+
     //! Notify strategy about job updates.
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
@@ -257,6 +257,14 @@ struct ISchedulerStrategy
         const TString& user,
         EOperationType operationType) = 0;
 
+    //! Return new runtime parameters applying |update| to |origin|.
+    //! |origin| object is not changed.
+    //! NOTE: |origin| can not be |nullptr|.
+    virtual TOperationRuntimeParametersPtr UpdateRuntimeParameters(
+        const TOperationRuntimeParametersPtr& origin,
+        const TOperationRuntimeParametersUpdatePtr& update,
+        const TString& user) = 0;
+
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;
 
@@ -293,7 +301,7 @@ struct ISchedulerStrategy
     virtual void ScanPendingOperations() = 0;
 
     virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
-    
+
     //! These methods are used for scheduling segments implementation.
     virtual TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const = 0;
 
@@ -302,7 +310,7 @@ struct ISchedulerStrategy
     virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatusesForNode(
         const TString& nodeAddress,
         const TBooleanFormulaTags& nodeTags) const = 0;
-    
+
     //! These OnFairShare*At methods used for testing purposes in simulator.
     //! Called periodically to collect the metrics of tree elements.
     virtual void OnFairShareProfilingAt(TInstant now) = 0;

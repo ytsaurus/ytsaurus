@@ -595,6 +595,45 @@ public:
         }
     }
 
+    TOperationRuntimeParametersPtr UpdateRuntimeParameters(
+        const TOperationRuntimeParametersPtr& origin,
+        const TOperationRuntimeParametersUpdatePtr& update,
+        const TString& user) override
+    {
+        YT_VERIFY(origin);
+        auto result = CloneYsonStruct(origin);
+        if (update->Acl) {
+            result->Acl = *update->Acl;
+        }
+        for (auto& [poolTree, treeParams] : result->SchedulingOptionsPerPoolTree) {
+            auto treeUpdateIt = update->SchedulingOptionsPerPoolTree.find(poolTree);
+            if (treeUpdateIt != update->SchedulingOptionsPerPoolTree.end()) {
+                treeParams = UpdateFairShareTreeRuntimeParameters(treeParams, treeUpdateIt->second);
+            }
+
+            // NB: root level attributes has higher priority.
+            if (update->Weight) {
+                treeParams->Weight = *update->Weight;
+            }
+            if (update->Pool) {
+                treeParams->Pool = GetTree(poolTree)->CreatePoolName(*update->Pool, user);
+            }
+        }
+
+        if (update->Annotations) {
+            auto annotationsPatch = *update->Annotations;
+            if (!result->Annotations) {
+                result->Annotations = annotationsPatch;
+            } else if (!annotationsPatch) {
+                result->Annotations = nullptr;
+            } else {
+                result->Annotations = NYTree::PatchNode(result->Annotations, annotationsPatch)->AsMap();
+            }
+        }
+
+        return result;
+    }
+
     TFuture<void> ValidateOperationRuntimeParameters(
         IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters,

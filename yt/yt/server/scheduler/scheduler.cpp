@@ -1069,7 +1069,7 @@ public:
         // Perform asynchronous validation of the new runtime parameters.
         {
             ValidateOperationRuntimeParametersUpdate(operation, update);
-            auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
+            auto newParams = Strategy_->UpdateRuntimeParameters(operation->GetRuntimeParameters(), update, operation->GetAuthenticatedUser());
             WaitFor(Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /* validatePools */ update->ContainsPool()))
                 .ThrowOnError();
             if (auto delay = operation->Spec()->TestingOperationOptions->DelayInsideValidateRuntimeParameters) {
@@ -1078,7 +1078,7 @@ public:
         }
 
         // We recalculate params, since original runtime params may change during asynchronous validation.
-        auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
+        auto newParams = Strategy_->UpdateRuntimeParameters(operation->GetRuntimeParameters(), update, operation->GetAuthenticatedUser());
         if (update->ContainsPool()) {
             Strategy_->ValidatePoolLimits(operation.Get(), newParams);
         }
@@ -2347,7 +2347,7 @@ private:
 
         LogEventFluently(&SchedulerStructuredLogger, ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
-        
+
         YT_LOG_INFO("Master connected for scheduler");
     }
 
@@ -2436,7 +2436,7 @@ private:
 
             YT_LOG_INFO("Finished disconnecting node shards");
         }
-        
+
         YT_LOG_INFO("Master disconnected for scheduler");
     }
 
@@ -4242,7 +4242,7 @@ private:
             MasterConnector_->Disconnect(result);
             return;
         }
-        
+
         YT_LOG_INFO("Revival descriptors are fetched (OperationCount: %v)", operations.size());
 
         for (const auto& operation : operations) {
