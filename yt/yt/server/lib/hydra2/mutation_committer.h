@@ -160,6 +160,8 @@ private:
     std::deque<TPendingMutationPtr> MutationQueue_;
 
     NProfiling::TSummary BatchSummarySize_;
+    NProfiling::TSummary MutationQueueSummarySize_;
+    NProfiling::TSummary MutationQueueSummaryDataSize_;
 
     void SerializeMutations();
     void Flush();

@@ -123,6 +123,8 @@ TLeaderCommitter::TLeaderCommitter(
     , CommittedState_(std::move(reachableState))
     , PreliminaryMutationQueue_(queue)
     , BatchSummarySize_(profiler.Summary("/mutation_batch_size"))
+    , MutationQueueSummarySize_(profiler.Summary("/mutation_queue_size"))
+    , MutationQueueSummaryDataSize_(profiler.Summary("/mutation_queue_data_size"))
 {
     PeerStates_.assign(CellManager_->GetTotalPeerCount(), {-1, -1});
 
@@ -236,7 +238,9 @@ void TLeaderCommitter::Stop()
     CloseChangelog(Changelog_);
 
     MutationQueue_.clear();
+    MutationQueueSummarySize_.Record(0);
     MutationQueueDataSize_ = 0;
+    MutationQueueSummaryDataSize_.Record(0);
 
     LastSnapshotInfo_ = std::nullopt;
     PeerStates_.clear();
@@ -462,6 +466,9 @@ void TLeaderCommitter::DrainQueue()
         const auto& mutation = MutationQueue_.front();
         MutationQueueDataSize_ -= sizeof(mutation) + mutation->SerializedMutation.Size();
         MutationQueue_.pop_front();
+
+        MutationQueueSummarySize_.Record(MutationQueue_.size());
+        MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
     };
 
     while (std::ssize(MutationQueue_) > Config_->MaxQueueMutationCount) {
@@ -718,6 +725,9 @@ void TLeaderCommitter::LogMutation(TMutationDraft&& mutationDraft)
 
     MutationQueueDataSize_ += sizeof(mutation) + mutation->SerializedMutation.Size();
     MutationQueue_.push_back(std::move(mutation));
+
+    MutationQueueSummarySize_.Record(MutationQueue_.size());
+    MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
 
     MaybeCheckpoint();
     MaybePromoteCommitedSequenceNumber();
