@@ -210,7 +210,11 @@ private:
     {
         TCallback<void(TMutationContext* context)> Callback;
         NProfiling::TTimeCounter CumulativeTimeCounter;
+        NProfiling::TTimeCounter CumulativeExecuteTimeCounter;
+        NProfiling::TTimeCounter CumulativeDeserializeTimeCounter;
         NProfiling::TCounter MutationCounter;
+        NProfiling::TGauge RequestSizeCounter;
+
         NYTProf::TProfilerTagPtr CpuProfilerTag;
     };
 
@@ -275,6 +279,10 @@ private:
     TMethodDescriptor* GetMethodDescriptor(const TString& mutationType);
     std::vector<TCompositeAutomatonPartPtr> GetParts();
     void LogHandlerError(const TError& error);
+    void DeserializeRequestAndProfile(
+        google::protobuf::MessageLite* requestMessage,
+        TRef requestData,
+        TMethodDescriptor* methodDescriptor);
 
     bool IsRecovery() const;
     bool IsMutationLoggingEnabled() const;
