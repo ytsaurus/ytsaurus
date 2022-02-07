@@ -285,8 +285,8 @@ TSimpleOperationIo CreateSimpleOperationIo(
         structuredJob,
         preparer,
         options,
-        GetStructuredInputs(spec),
-        GetStructuredOutputs(spec),
+        CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredInputs(spec)),
+        CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredOutputs(spec)),
         hints,
         nodeReaderFormat,
         GetColumnsUsedInOperation(spec));
@@ -457,6 +457,18 @@ static TVector<TString> GetJobsStderr(
     return result;
 }
 
+int CountIntermediateTables(const TStructuredJobTableList& tables)
+{
+    int result = 0;
+    for (const auto& table : tables) {
+        if (table.RichYPath) {
+            break;
+        }
+        ++result;
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -467,14 +479,14 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
     const IStructuredJob& structuredJob,
     const TOperationPreparer& preparer,
     const TOperationOptions& options,
-    const TVector<TStructuredTablePath>& structuredTablePathInputs,
-    const TVector<TStructuredTablePath>& structuredTablePathOutputs,
+    TStructuredJobTableList structuredInputs,
+    TStructuredJobTableList structuredOutputs,
     TUserJobFormatHints hints,
     ENodeReaderFormat nodeReaderFormat,
     const THashSet<TString>& columnsUsedInOperations)
 {
-    auto structuredInputs = CanonizeStructuredTableList(preparer.GetAuth(),  structuredTablePathInputs);
-    auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), structuredTablePathOutputs);
+    auto intermediateInputTableCount = CountIntermediateTables(structuredInputs);
+    auto intermediateOutputTableCount = CountIntermediateTables(structuredOutputs);
 
     auto jobSchemaInferenceResult = PrepareOperation(
         structuredJob,
@@ -491,7 +503,6 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
     TVector<TSmallJobFile> formatConfigList;
     TFormatBuilder formatBuilder(preparer.GetClientRetryPolicy(), preparer.GetAuth(), preparer.GetTransactionId(), options);
 
-    // Input format
     auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
         structuredJob,
         EIODirection::Input,
@@ -500,7 +511,6 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
         nodeReaderFormat,
         /* allowFormatFromTableAttribute = */ true);
 
-    // Output format
     auto [outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
         structuredJob,
         EIODirection::Output,
@@ -512,13 +522,13 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
     const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
 
     auto outputPaths = GetPathList(
-        structuredOutputs,
-        jobSchemaInferenceResult,
+        TStructuredJobTableList(structuredOutputs.begin() + intermediateOutputTableCount, structuredOutputs.end()),
+        TVector<TTableSchema>(jobSchemaInferenceResult.begin() + intermediateOutputTableCount, jobSchemaInferenceResult.end()),
         inferOutputSchema);
 
     auto inputPaths = GetPathList(
         ApplyProtobufColumnFilters(
-            structuredInputs,
+            TStructuredJobTableList(structuredInputs.begin() + intermediateInputTableCount, structuredInputs.end()),
             preparer,
             columnsUsedInOperations,
             options),

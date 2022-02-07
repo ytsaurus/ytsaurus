@@ -66,8 +66,8 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
     const IStructuredJob& structuredJob,
     const TOperationPreparer& preparer,
     const TOperationOptions& options,
-    const TVector<TStructuredTablePath>& structuredInputs,
-    const TVector<TStructuredTablePath>& structuredOutputs,
+    TStructuredJobTableList structuredInputs,
+    TStructuredJobTableList structuredOutputs,
     TUserJobFormatHints hints,
     ENodeReaderFormat nodeReaderFormat,
     const THashSet<TString>& columnsUsedInOperations);

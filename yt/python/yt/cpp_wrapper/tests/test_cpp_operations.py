@@ -2,6 +2,7 @@ from yt.python.yt.cpp_wrapper import CppJob
 
 import yt.wrapper as yt
 
+from yt.wrapper.table_commands import _try_get_schema
 from yt.common import YtError
 
 from yt.testlib import authors
@@ -58,8 +59,15 @@ def _prepare_logins_table():
     yt.write_table(IS_ROBOT_PATH, IS_ROBOT_CONTENT)
 
 
-def _check_emails_table(path, from_=0, to=len(STAFF_EXPECTED_RESULT)):
+def _check_emails_table(path, from_=0, to=len(STAFF_EXPECTED_RESULT), check_schema=False):
     assert list(yt.read_table(path)) == STAFF_EXPECTED_RESULT[from_:to]
+    if check_schema:
+        schema = _try_get_schema(path)
+        columns = schema.columns
+        assert len(columns) == 2
+        optional_string_type = {"type_name": "optional", "item": "string"}
+        assert columns[0].to_yson_type() == {"name": "name", "type_v3": optional_string_type}
+        assert columns[1].to_yson_type() == {"name": "email", "type_v3": optional_string_type}
 
 
 def _get_random_path():
@@ -90,7 +98,7 @@ class TestCppOperations(object):
             source_table=STAFF_UNSORTED_PATH,
             destination_table=output_table,
         )
-        _check_emails_table(output_table)
+        _check_emails_table(output_table, check_schema=True)
 
     @authors("egor-gutrov")
     def test_stateful_map_tnode(self):
@@ -236,7 +244,7 @@ class TestCppOperations(object):
         paths = [
             yt.TablePath(STAFF_UNSORTED_PATH, start_index=from_, end_index=to),
             yt.TablePath(
-                "<\"ranges\"=[{\"lower_limit\"={\"row_index\"=1;};\"upper_limit\"={\"row_index\"=2;};}];>"\
+                "<\"ranges\"=[{\"lower_limit\"={\"row_index\"=1;};\"upper_limit\"={\"row_index\"=2;};}];>"
                 "//tmp/cpp_wrapper_tests/staff_unsorted"
             ),
             yt.TablePath("//tmp/cpp_wrapper_tests/staff_unsorted[#{0}:#{1}]".format(from_, to)),
@@ -249,7 +257,7 @@ class TestCppOperations(object):
                 source_table=path,
                 destination_table=output_table,
             )
-            _check_emails_table(output_table, from_, to)
+            _check_emails_table(output_table, from_, to, check_schema=True)
 
     @authors("egor-gutrov")
     def test_lower_upper_key(self):
@@ -266,3 +274,33 @@ class TestCppOperations(object):
             destination_table=output_table,
         )
         assert list(yt.read_table(output_table)) == [{"name": "Arkady", "email": "ar_kady@yandex-team.ru"}]
+
+    @authors("egor-gutrov")
+    def test_map_reduce_protobuf(self):
+        mapper_output = _get_random_path()
+        reducer_output = _get_random_path()
+        yt.run_map_reduce(
+            CppJob("TNormalizeNameMapper", "iv"),
+            CppJob("TCountNamesReducer"),
+            source_table=STAFF_UNSORTED_PATH,
+            spec={"mapper_output_table_count": 1},
+            destination_table=[mapper_output, reducer_output],
+            reduce_by=["name"],
+        )
+        assert list(yt.read_table(mapper_output)) == [{"name": "ivan", "uid": 2}]
+        assert sorted(list(yt.read_table(reducer_output)), key=lambda x: x["name"]) == [
+            {"name": "arkady", "count": 1},
+            {"name": "ivan", "count": 1},
+            {"name": "r2 d2", "count": 1}
+        ]
+
+        mapper_output_columns = _try_get_schema(mapper_output).columns
+        assert len(mapper_output_columns) == 2
+        name_column = {"name": "name", "type_v3": {"type_name": "optional", "item": "string"}}
+        assert mapper_output_columns[0].to_yson_type() == name_column
+        assert mapper_output_columns[1].to_yson_type() == {"name": "uid", "type_v3": {"type_name": "optional", "item": "int64"}}
+
+        reducer_output_columns = _try_get_schema(reducer_output).columns
+        assert len(reducer_output_columns) == 2
+        assert reducer_output_columns[0].to_yson_type() == name_column
+        assert reducer_output_columns[1].to_yson_type() == {"name": "count", "type_v3": {"type_name": "optional", "item": "int64"}}
