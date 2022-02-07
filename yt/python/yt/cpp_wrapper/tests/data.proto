@@ -6,6 +6,12 @@ message TLoginRecord
     optional string Login = 2 [(NYT.column_name) = "login"];
 }
 
+message TNameUidRecord
+{
+    optional string Name = 1 [(NYT.column_name) = "name"];
+    optional int64 Uid = 2 [(NYT.column_name) = "uid"];
+}
+
 message TEmailRecord
 {
     optional string Name = 1 [(NYT.column_name) = "name"];
@@ -32,4 +38,10 @@ message THumanRecord {
 message TRobotRecord {
     optional int64 Uid = 1    [(NYT.column_name) = "uid"];
     optional string Login = 2 [(NYT.column_name) = "login"];
+}
+
+message TNameCountRecord
+{
+    optional string Name = 1 [(NYT.column_name) = "name"];
+    optional int64 Count = 2 [(NYT.column_name) = "count"];
 }

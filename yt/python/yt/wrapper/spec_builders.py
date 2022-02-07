@@ -1602,6 +1602,7 @@ class MapReduceSpecBuilder(SpecBuilder):
             mapper_output_tables[intermediate_stream_count:]
         self._set_tables(spec, input_tables, output_tables)
 
+        # TODO(egor-gutrov): fill intermediate_stream_schemas for CppJob
         if isinstance(command, TypedJob):
             intermediate_streams = []
             for intermediate_table_path in mapper_output_tables[:intermediate_stream_count]:

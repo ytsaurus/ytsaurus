@@ -39,11 +39,21 @@ TString GetJobStateString(const IStructuredJob& job)
     return result;
 }
 
-TVector<TStructuredTablePath> NodeToStructuredTablePaths(const TNode& node)
+TStructuredJobTableList NodeToStructuredTablePaths(const TNode& node, const TOperationPreparer& preparer)
 {
-    TVector<TStructuredTablePath> result;
+    int intermediateTableCount = 0;
+    TVector<TRichYPath> paths;
     for (const auto& inputNode : node.AsList()) {
-        result.emplace_back(inputNode.AsString());
+        if (inputNode.IsNull()) {
+            ++intermediateTableCount;
+        } else {
+            paths.emplace_back(inputNode.AsString());
+        }
+    }
+    paths = NRawClient::CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), paths);
+    TStructuredJobTableList result(intermediateTableCount, TStructuredJobTable::Intermediate(TUnspecifiedTableStructure()));
+    for (const auto& path : paths) {
+        result.emplace_back(TStructuredJobTable{TUnspecifiedTableStructure(), path});
     }
     return result;
 }
@@ -58,8 +68,9 @@ TString GetIOInfo(
 {
     auto client = NDetail::CreateClientImpl(cluster);
     TOperationPreparer preparer(client, GetGuid(transactionId));
-    auto structuredInputs = NodeToStructuredTablePaths(NodeFromYsonString(inputPaths));
-    auto structuredOutputs = NodeToStructuredTablePaths(NodeFromYsonString(outputPaths));
+
+    auto structuredInputs = NodeToStructuredTablePaths(NodeFromYsonString(inputPaths), preparer);
+    auto structuredOutputs = NodeToStructuredTablePaths(NodeFromYsonString(outputPaths), preparer);
 
     auto neededColumnsNode = NodeFromYsonString(neededColumns);
     THashSet<TString> columnsUsedInOperations;
@@ -71,8 +82,8 @@ TString GetIOInfo(
         job,
         preparer,
         TOperationOptions(),
-        structuredInputs,
-        structuredOutputs,
+        std::move(structuredInputs),
+        std::move(structuredOutputs),
         TUserJobFormatHints(),
         ENodeReaderFormat::Yson,
         columnsUsedInOperations);
@@ -81,6 +92,7 @@ TString GetIOInfo(
         .Item("input_format").Value(operationIo.InputFormat.Config)
         .Item("output_format").Value(operationIo.OutputFormat.Config)
         .Item("input_table_paths").List(operationIo.Inputs)
+        .Item("output_table_paths").List(operationIo.Outputs)
         .Item("small_files").DoListFor(
             operationIo.JobFiles.begin(),
             operationIo.JobFiles.end(),

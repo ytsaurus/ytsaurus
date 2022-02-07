@@ -71,7 +71,6 @@ class CppJob:
             tx_id = tx_id.encode("utf-8")
 
         needed_columns = group_by if group_by is not None else []
-
         cdef bytes patch = <bytes> GetIOInfo(
             cython.operator.dereference(job_ptr.Get()),
             cluster,
@@ -81,25 +80,42 @@ class CppJob:
             yson.dumps(needed_columns),
         )
         spec_patch = yson.loads(patch)
-        if "input_table_paths" in spec_patch:
-            # If a job has proto input, we can get table paths with column filters here.
-            input_table_paths = spec_patch["input_table_paths"]
-            if len(input_table_paths) != len(input_tables):
+
+        def count_intermediate(tables):
+            intermediate_count = 0
+            for table in tables:
+                if table is not None:
+                    break
+                intermediate_count += 1
+            return intermediate_count
+
+        def update_paths(old_paths, new_paths, type):
+            intermediate_count = count_intermediate(old_paths)
+            if len(old_paths) - intermediate_count != len(new_paths):
                 raise YtError(
-                    "Length of input_table_paths provided from Python ({0}) differs from C++ patch ({1})."\
+                    "Length of {0}_table_paths provided from Python ({1}) differs from C++ patch ({2})."\
                     " It's a bug. Contact yt@".format(
-                        len(input_tables),
-                        len(input_table_paths),
+                        type,
+                        len(old_paths) - intermediate_count,
+                        len(new_paths),
                     )
                 )
-            for index, table in enumerate(input_table_paths):
+            for index, table in enumerate(new_paths):
                 new_table_path = TablePath(table, client=client)
-                old_table_path = TablePath(input_tables[index], client=client)
+                old_table_path = TablePath(old_paths[intermediate_count + index], client=client)
 
                 new_table_path.attributes.update(old_table_path.attributes)
-                input_tables[index] = new_table_path
+                old_paths[intermediate_count + index] = new_table_path
 
+        if "input_table_paths" in spec_patch:
+            # If a job has proto input, we can get table paths with column filters here.
+            update_paths(input_tables, spec_patch["input_table_paths"], "input")
             del spec_patch["input_table_paths"]
+
+        if "output_table_paths" in spec_patch:
+            # We can get inferred schemas here
+            update_paths(output_tables, spec_patch["output_table_paths"], "output")
+            del spec_patch["output_table_paths"]
 
         return state, spec_patch
 
