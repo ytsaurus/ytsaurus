@@ -61,14 +61,17 @@ void DeserializeMutationRecord(
     NProto::TMutationHeader* mutationHeader,
     TSharedRef* mutationData)
 {
+    YT_VERIFY(recordData.size() >= sizeof (TFixedMutationHeader));
     auto* recordHeader = reinterpret_cast<const TFixedMutationHeader*>(recordData.Begin());
 
     size_t headerStartOffset = sizeof (TFixedMutationHeader);
     size_t headerEndOffset = headerStartOffset + recordHeader->HeaderSize;
+    YT_VERIFY(recordData.size() >= headerEndOffset);
     DeserializeProto(mutationHeader, recordData.Slice(headerStartOffset, headerEndOffset));
 
     size_t dataStartOffset = headerEndOffset;
     size_t dataEndOffset = dataStartOffset + recordHeader->DataSize;
+    YT_VERIFY(recordData.size() >= dataEndOffset);
     *mutationData = recordData.Slice(dataStartOffset, dataEndOffset);
 }
 

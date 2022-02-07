@@ -5,6 +5,7 @@
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/remote_changelog_store.h>
+#include <yt/yt/server/lib/hydra_common/serialize.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
@@ -62,7 +63,17 @@ public:
         constexpr static int RecordCount = 10;
         Records_.reserve(RecordCount);
         for (int recordIndex = 0; recordIndex < RecordCount; ++recordIndex) {
-            Records_.push_back(TSharedRef::FromString(ToString(recordIndex)));
+            NHydra::NProto::TMutationHeader mutationHeader;
+            mutationHeader.set_mutation_type("FakeMutationType");
+            mutationHeader.set_timestamp(ToProto<ui64>(TInstant::Now()));
+            mutationHeader.set_random_seed(123);
+            mutationHeader.set_segment_id(1);
+            mutationHeader.set_record_id(recordIndex);
+            mutationHeader.set_prev_random_seed(123);
+            mutationHeader.set_sequence_number(recordIndex + 100);
+            auto mutationData = TSharedRef::FromString(Format("data%v", recordIndex));
+            auto recordData = SerializeMutationRecord(mutationHeader, mutationData);
+            Records_.push_back(recordData);
         }
 
         Options_->ChangelogAccount = "sys";

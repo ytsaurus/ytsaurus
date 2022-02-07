@@ -29,15 +29,13 @@ TString ToString(TReachableState state)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TElectionPriority::TElectionPriority(int term, int lastMutationTerm, int segmentId, i64 sequenceNumber) noexcept
-    : Term(term)
-    , LastMutationTerm(lastMutationTerm)
+TElectionPriority::TElectionPriority(int lastMutationTerm, int segmentId, i64 sequenceNumber) noexcept
+    : LastMutationTerm(lastMutationTerm)
     , ReachableState(segmentId, sequenceNumber)
 { }
 
-TElectionPriority::TElectionPriority(int term, int lastMutationTerm, TReachableState reachableState) noexcept
-    : Term(term)
-    , LastMutationTerm(lastMutationTerm)
+TElectionPriority::TElectionPriority(int lastMutationTerm, TReachableState reachableState) noexcept
+    : LastMutationTerm(lastMutationTerm)
     , ReachableState(reachableState)
 { }
 
@@ -51,8 +49,7 @@ std::strong_ordering TElectionPriority::operator <=> (const TElectionPriority& o
 
 void FormatValue(TStringBuilderBase* builder, TElectionPriority priority, TStringBuf /* spec */)
 {
-    builder->AppendFormat("{Term: %v, MutationTerm: %v, State: %v}",
-        priority.Term,
+    builder->AppendFormat("{MutationTerm: %v, State: %v}",
         priority.LastMutationTerm,
         priority.ReachableState);
 }

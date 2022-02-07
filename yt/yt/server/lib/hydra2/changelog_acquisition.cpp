@@ -96,7 +96,7 @@ private:
         }
 
         futures.push_back(
-            AcquireLocalChangelog(ChangelogId_, EpochContext_->Term).Apply(
+            AcquireLocalChangelog(ChangelogId_).Apply(
                 BIND(&TAcquireChangelogSession::OnLocalChangelogAcquired, MakeStrong(this))
                     .AsyncVia(EpochContext_->EpochControlInvoker)));
 
@@ -105,7 +105,7 @@ private:
                 .Via(EpochContext_->EpochControlInvoker));
     }
 
-    TFuture<void> AcquireLocalChangelog(int changelogId, int term)
+    TFuture<void> AcquireLocalChangelog(int changelogId)
     {
         const auto& changelogStore = EpochContext_->ChangelogStore;
         auto currentChangelogId = WaitFor(changelogStore->GetLatestChangelogId())
@@ -118,13 +118,10 @@ private:
                     currentChangelogId));
         }
 
-        NHydra::NProto::TChangelogMeta meta;
-        // Questionable.
-        meta.set_term(term);
         for (int i = currentChangelogId + 1; i < changelogId; ++i) {
-            changelogStore->CreateChangelog(i, meta);
+            changelogStore->CreateChangelog(i, {});
         }
-        return changelogStore->CreateChangelog(changelogId, meta).AsVoid();
+        return changelogStore->CreateChangelog(changelogId, {}).AsVoid();
     }
 
     void OnRemoteChangelogAcquired(TPeerId id, const TInternalHydraServiceProxy::TErrorOrRspAcquireChangelogPtr& rspOrError)

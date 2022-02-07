@@ -66,9 +66,8 @@ TFuture<void> TCommitterBase::DoCommitMutations(std::vector<TPendingMutationPtr>
         .AsyncViaGuarded(
             EpochContext_->EpochUserAutomatonInvoker,
             TError("meh"))
-        .Run(std::move(mutations), EpochContext_->Term);
+        .Run(std::move(mutations));
 }
-
 
 void TCommitterBase::CloseChangelog(const IChangelogPtr& changelog)
 {
@@ -685,6 +684,7 @@ void TLeaderCommitter::LogMutation(TMutationDraft&& mutationDraft)
     MutationHeader_.set_record_id(LoggedVersion_.RecordId);
     MutationHeader_.set_prev_random_seed(LastRandomSeed_);
     MutationHeader_.set_sequence_number(selfState.LastLoggedSequenceNumber);
+    MutationHeader_.set_term(EpochContext_->Term);
     if (mutationDraft.Request.MutationId) {
         ToProto(MutationHeader_.mutable_mutation_id(), mutationDraft.Request.MutationId);
     }
@@ -700,6 +700,7 @@ void TLeaderCommitter::LogMutation(TMutationDraft&& mutationDraft)
         randomSeed,
         LastRandomSeed_,
         selfState.LastLoggedSequenceNumber,
+        EpochContext_->Term,
         recordData,
         std::move(mutationDraft.Promise));
 
@@ -840,6 +841,7 @@ void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)
             MutationHeader_.random_seed(),
             MutationHeader_.prev_random_seed(),
             MutationHeader_.sequence_number(),
+            MutationHeader_.term(),
             recordData));
 
     ++AcceptedSequenceNumber_;
@@ -888,7 +890,6 @@ IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
 
     if (auto changelog = openFuture.Value()) {
         if (Changelog_) {
-            // TODO(aleksandra-zh): we actually should promote changelog's term here.
             YT_LOG_WARNING("Changelog opened, but it should not exist (OldChangelogId: %v, ChangelogId: %v)",
                 Changelog_->GetId(),
                 changelogId);
@@ -903,9 +904,7 @@ IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
         changelogId,
         EpochContext_->Term);
 
-    NHydra::NProto::TChangelogMeta meta;
-    meta.set_term(EpochContext_->Term);
-    auto createFuture = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, meta));
+    auto createFuture = WaitFor(EpochContext_->ChangelogStore->CreateChangelog(changelogId, {}));
     if (!createFuture.IsOK()) {
         LoggingFailed_.Fire(TError("Error creating changelog")
             << TErrorAttribute("changelog_id", changelogId)
@@ -992,6 +991,7 @@ void TFollowerCommitter::OnMutationsLogged(int loggedCount, i64 lastMutationSequ
 
 TFuture<void> TFollowerCommitter::LogMutation(const TPendingMutationPtr& mutation)
 {
+    // TODO(aleksandra-zh): This is probably because of WriteChangelogsAtFollowers.
     if (!Changelog_) {
         return VoidFuture;
     }

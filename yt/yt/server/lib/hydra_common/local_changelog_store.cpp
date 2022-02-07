@@ -565,17 +565,11 @@ private:
         }
 
         std::sort(ids.begin(), ids.end(), std::greater<int>());
-        int currentTerm = -1;
         // Let's hope there are not a lot of empty changelogs.
         for (auto id : ids) {
             try {
                 auto changelog = WaitFor(OpenChangelog(id, epoch))
                     .ValueOrThrow();
-
-                if (currentTerm == -1) {
-                    auto meta = changelog->GetMeta();
-                    currentTerm = meta.term();
-                }
 
                 auto recordCount = changelog->GetRecordCount();
                 if (recordCount == 0) {
@@ -604,9 +598,9 @@ private:
                 TSharedRef requestData;
                 DeserializeMutationRecord(recordsData[0], &header, &requestData);
 
-                auto meta = changelog->GetMeta();
-                YT_VERIFY(currentTerm >= 0);
-                return {currentTerm, meta.term(), id, header.sequence_number() + recordCount - 1};
+                // All mutations have the same term in one changelog.
+                // (Of course I am not actually sure in anything at this point, but this actually shoulbe true).
+                return {header.term(), id, header.sequence_number() + recordCount - 1};
             } catch (const std::exception& ex) {
                 YT_LOG_FATAL(ex, "Error computing election priority for changelog (Path: %v)",
                     GetChangelogPath(Config_->Path, id));
