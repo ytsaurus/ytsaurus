@@ -87,7 +87,7 @@ class TestNodeIOTrackingBase(YTEnvSetup):
             assert aggregate_count is None or aggregate_count == len(aggregate_events)
         return raw_events, aggregate_events
 
-    def generate_large_data(self, row_len=50000, row_count=5):
+    def generate_large_data(self, row_len=10000, row_count=5):
         rnd = random.Random(42)
         # NB. The values are chosen in such a way so they cannot be compressed or deduplicated.
         large_data = [{
@@ -97,7 +97,7 @@ class TestNodeIOTrackingBase(YTEnvSetup):
         large_data_size = row_count * row_len
         return large_data, large_data_size
 
-    def generate_large_journal(self, row_len=50000, row_count=5):
+    def generate_large_journal(self, row_len=10000, row_count=5):
         rnd = random.Random(42)
         # NB. The values are chosen in such a way so they cannot be compressed or deduplicated.
         large_journal = [{"data": bytes(bytearray([rnd.randint(0, 255) for _ in range(row_len)]))} for _ in range(row_count)]
@@ -184,26 +184,26 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
             old_disk_space = get("//tmp/table/@resource_usage/disk_space")
             from_barrier = write_log_barrier(self.get_node_address())
-            write_table("<append=%true>//tmp/table", large_data)
-            _, aggregate_events = self.wait_for_events(aggregate_count=1, from_barrier=from_barrier)
+            write_table("<append=%true>//tmp/table", large_data, verbose=False)
+            raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
             new_disk_space = get("//tmp/table/@resource_usage/disk_space")
 
             min_data_bound = 0.95 * large_data_size
             max_data_bound = 1.05 * (new_disk_space - old_disk_space)
 
-            assert aggregate_events[0]["data_node_method@"] == "FinishChunk"
-            assert aggregate_events[0]["direction@"] == "write"
-            assert min_data_bound <= aggregate_events[0]["bytes"] <= max_data_bound
-            assert aggregate_events[0]["io_requests"] > 0
+            assert raw_events[0]["data_node_method@"] == "FinishChunk"
+            assert raw_events[0]["direction@"] == "write"
+            assert min_data_bound <= raw_events[0]["bytes"] <= max_data_bound
+            assert raw_events[0]["io_requests"] > 0
 
             from_barrier = write_log_barrier(self.get_node_address())
-            assert read_table("//tmp/table[#{}:]".format(i * len(large_data))) == large_data
-            _, aggregate_events = self.wait_for_events(aggregate_count=1, from_barrier=from_barrier)
+            assert read_table("//tmp/table[#{}:]".format(i * len(large_data)), verbose=False) == large_data
+            raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
 
-            assert aggregate_events[0]["data_node_method@"] == "GetBlockSet"
-            assert aggregate_events[0]["direction@"] == "read"
-            assert min_data_bound <= aggregate_events[0]["bytes"] <= max_data_bound
-            assert aggregate_events[0]["io_requests"] > 0
+            assert raw_events[0]["data_node_method@"] == "GetBlockSet"
+            assert raw_events[0]["direction@"] == "read"
+            assert min_data_bound <= raw_events[0]["bytes"] <= max_data_bound
+            assert raw_events[0]["io_requests"] > 0
 
     @authors("gepardo")
     def test_journal(self):
@@ -236,7 +236,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         create("journal", "//tmp/journal")
 
         for i in range(10):
-            large_journal, large_journal_size = self.generate_large_journal(row_len=200000)
+            large_journal, large_journal_size = self.generate_large_journal(row_len=20000)
             min_data_bound = 0.9 * large_journal_size
             max_data_bound = 1.1 * large_journal_size
 
@@ -394,7 +394,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
 
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         create("table", "//tmp/table", attributes={"replication_factor": self.NUM_NODES})
-        write_table("//tmp/table", large_data)
+        write_table("//tmp/table", large_data, verbose=False)
         chunk_id = get("//tmp/table/@chunk_ids")[0]
 
         def event_filter(event):
@@ -465,7 +465,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
 
         create("table", "//tmp/table")
         for row in large_data:
-            write_table("<append=true>//tmp/table", row)
+            write_table("<append=true>//tmp/table", row, verbose=False)
 
         disk_space = get("//tmp/table/@resource_usage/disk_space")
         min_data_bound = 0.95 * large_data_size
@@ -566,8 +566,8 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
         yt_commands.set("//tmp/table2/@account", "some_other_account")
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        write_table("//tmp/table1", data1)
-        write_table("//tmp/table2", data2)
+        write_table("//tmp/table1", data1, verbose=False)
+        write_table("//tmp/table2", data2, verbose=False)
         raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier,
                                              filter=lambda event: event.get("data_node_method@") == "FinishChunk")
 
@@ -606,14 +606,14 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
 
         create("table", "//tmp/table1", attributes={"optimize_for": optimize_for})
         create("table", "//tmp/table2", attributes={"optimize_for": optimize_for})
-        write_table("//tmp/table1", data1)
-        write_table("//tmp/table2", data2)
+        write_table("//tmp/table1", data1, verbose=False)
+        write_table("//tmp/table2", data2, verbose=False)
         yt_commands.set("//tmp/table1/@account", "gepardo")
         yt_commands.set("//tmp/table2/@account", "some_other_account")
 
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        assert read_table("//tmp/table2") == data2
-        assert read_table("//tmp/table1") == data1
+        assert read_table("//tmp/table2", verbose=False) == data2
+        assert read_table("//tmp/table1", verbose=False) == data1
         raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier,
                                              filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
 
