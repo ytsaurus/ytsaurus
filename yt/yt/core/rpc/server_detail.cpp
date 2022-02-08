@@ -286,6 +286,12 @@ const IAttributeDictionary& TServiceContextBase::GetEndpointAttributes() const
     return EmptyAttributes();
 }
 
+const TString& TServiceContextBase::GetEndpointDescription() const
+{
+    static const TString EmptyEndpointDescription;
+    return EmptyEndpointDescription;
+}
+
 std::optional<TInstant> TServiceContextBase::GetStartTime() const
 {
     return RequestHeader_->has_start_time()
@@ -451,6 +457,11 @@ TTcpDispatcherStatistics TServiceContextWrapper::GetBusStatistics() const
 const NYTree::IAttributeDictionary& TServiceContextWrapper::GetEndpointAttributes() const
 {
     return UnderlyingContext_->GetEndpointAttributes();
+}
+
+const TString& TServiceContextWrapper::GetEndpointDescription() const
+{
+    return UnderlyingContext_->GetEndpointDescription();
 }
 
 TSharedRefArray TServiceContextWrapper::GetRequestMessage() const

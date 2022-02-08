@@ -295,6 +295,11 @@ public:
         return ReplyBus_->GetEndpointAttributes();
     }
 
+    const TString& GetEndpointDescription() const override
+    {
+        return ReplyBus_->GetEndpointDescription();
+    }
+
     TRuntimeMethodInfo* GetRuntimeInfo() const
     {
         return RuntimeInfo_;

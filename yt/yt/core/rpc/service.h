@@ -56,6 +56,9 @@ struct IServiceContext
     //! Returns the attributes of the connected endpoint.
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
+    //! Returns the description of the connected endpoint.
+    virtual const TString& GetEndpointDescription() const = 0;
+
     //! Returns the instant when the current retry of request was issued by the client, if known.
     virtual std::optional<TInstant> GetStartTime() const = 0;
 
