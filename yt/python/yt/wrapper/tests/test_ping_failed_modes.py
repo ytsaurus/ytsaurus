@@ -20,7 +20,7 @@ get_time = time.monotonic if hasattr(time, 'monotonic') else time.time
 def reproduce_transaction_loss(
     must_interrupt_sleep=False,
     delay_time=1.5,
-    wait_time=3.0,
+    wait_time=5.0,
     proxy_request_timeout=0.1,
 ):
     with set_config_option("transaction_timeout", int(proxy_request_timeout * 1000)):
