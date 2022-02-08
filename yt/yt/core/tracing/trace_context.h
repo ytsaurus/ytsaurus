@@ -349,11 +349,16 @@ public:
         return NTracing::TCurrentTraceContextGuard(TraceContext_);
     }
 
+    void UpdateTraceContext() {
+        TraceContext_.Reset(NTracing::GetCurrentTraceContext());
+    }
+
 private:
-    const NTracing::TTraceContextPtr TraceContext_;
+    NTracing::TTraceContextPtr TraceContext_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT::NTracing
 
