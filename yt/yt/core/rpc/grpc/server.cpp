@@ -288,6 +288,11 @@ private:
         // TCompletionQueueTag overrides
         void Run(bool success, int cookie_) override
         {
+            const auto traceContextGuard = [&]() {
+                auto guard = Guard(TraceContextSpinLock_);
+                return TraceContextHandler_.GetTraceContextGuard();
+            }();
+
             auto cookie = static_cast<EServerCallCookie>(cookie_);
             switch (cookie) {
                 case EServerCallCookie::Normal:
@@ -369,6 +374,8 @@ private:
         grpc_slice ErrorMessageSlice_ = grpc_empty_slice();
         int RawCanceled_ = 0;
 
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TraceContextSpinLock_);
+        NTracing::TTraceContextHandler TraceContextHandler_;
 
         template <class TOps>
         void StartBatch(const TOps& ops, EServerCallCookie cookie)
@@ -894,6 +901,11 @@ private:
 
             YT_LOG_DEBUG("Sending response (RequestId: %v)",
                 RequestId_);
+
+            {
+                auto guard = Guard(TraceContextSpinLock_);
+                TraceContextHandler_.UpdateTraceContext();
+            }
 
             NRpc::NProto::TResponseHeader responseHeader;
             YT_VERIFY(TryParseResponseHeader(ResponseMessage_, &responseHeader));
