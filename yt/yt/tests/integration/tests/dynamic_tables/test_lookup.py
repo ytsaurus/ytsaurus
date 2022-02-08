@@ -31,6 +31,8 @@ import time
 
 
 class TestLookup(TestSortedDynamicTablesBase):
+    NUM_TEST_PARTITIONS = 2
+
     @authors("savrus")
     def test_lookup_repeated_keys(self):
         sync_create_cells(1)
