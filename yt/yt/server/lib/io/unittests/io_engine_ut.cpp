@@ -131,7 +131,7 @@ TEST_P(TIOEngineTest, ReadAll)
 
 TEST_P(TIOEngineTest, DirectIO)
 {
-    // TODO(babenko): direct IO is only supported by uring engine.
+    // TODO(babenko): unaligned direct IO is only supported by uring engine.
     if (GetIOEngineType() != EIOEngineType::Uring) {
         GTEST_SKIP();
     }
@@ -170,7 +170,7 @@ TEST_P(TIOEngineTest, DirectIO)
 
 TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
 {
-    // TODO(babenko): direct IO is only supported by uring engine.
+    // TODO(babenko): unaligned direct IO is only supported by uring engine.
     if (GetIOEngineType() != EIOEngineType::Uring) {
         GTEST_SKIP();
     }
@@ -199,6 +199,56 @@ TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
     AllSucceeded(std::move(futures))
         .Get()
         .ThrowOnError();
+}
+
+TEST_P(TIOEngineTest, DirectIOAligned)
+{
+    auto engine = CreateIOEngine();
+
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    constexpr auto S = 4_MB;
+    auto data = GenerateRandomBlob(S);
+
+    WriteFile(fileName, data);
+
+    auto file = engine->Open({fileName, RdOnly | DirectAligned})
+        .Get()
+        .ValueOrThrow();
+
+    auto read = [&] (std::vector<IIOEngine::TReadRequest> requests) {
+        for (auto& request : requests) {
+            request.Handle = file;
+        }
+        auto result = engine->Read(requests)
+            .Get()
+            .ValueOrThrow();
+
+        EXPECT_TRUE(result.OutputBuffers.size() == requests.size());
+        for (int index = 0; index < std::ssize(requests); ++index) {
+            const auto& request = requests[index];
+            EXPECT_TRUE(TRef::AreBitwiseEqual(
+                result.OutputBuffers[index],
+                data.Slice(request.Offset, request.Offset + request.Size)));
+        }
+    };
+
+    read({
+        {.Offset=16_KB, .Size=32_KB},
+        {.Offset=0, .Size=4_KB},
+        {.Offset=4_KB, .Size=32_KB},
+        {.Offset=S-4_KB, .Size=4_KB},
+    });
+
+    read({
+        {.Offset=0, .Size=S},
+    });
+
+    read({
+        {.Offset=0, .Size=1_MB},
+        {.Offset=2_MB, .Size=2_MB},
+    });
 }
 
 const char DefaultConfig[] =
