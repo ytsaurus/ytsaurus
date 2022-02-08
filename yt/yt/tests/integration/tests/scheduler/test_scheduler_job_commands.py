@@ -151,6 +151,7 @@ class TestJobProber(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT ; cat"),
         )
         job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(job_id, operation="spawn", term="screen-256color", height=50, width=132)
         shell_id = r["shell_id"]
@@ -186,6 +187,7 @@ class TestJobProber(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
         job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
             job_id,
@@ -213,7 +215,7 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
 
-        map(
+        op = map(
             track=False,
             label="poll_job_shell",
             in_="//tmp/t1",
@@ -221,6 +223,7 @@ class TestJobProber(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
         )
         job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
             job_id,
@@ -242,7 +245,7 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
 
-        map(
+        op = map(
             track=False,
             label="poll_job_shell",
             in_="//tmp/t1",
@@ -252,6 +255,8 @@ class TestJobProber(YTEnvSetup):
         )
 
         job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
+
         with pytest.raises(YtError):
             poll_job_shell(
                 job_id,
@@ -269,7 +274,7 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
 
-        map(
+        op = map(
             track=False,
             label="poll_job_shell",
             in_="//tmp/t1",
@@ -288,6 +293,7 @@ class TestJobProber(YTEnvSetup):
             },
         )
         job_id = wait_breakpoint()[0]
+        wait(lambda: op.get_job_phase(job_id) == "running")
 
         r = poll_job_shell(
             job_id,
