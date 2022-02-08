@@ -218,7 +218,8 @@ class SchemaConverterTest extends FlatSpec with Matchers
   it should "convert spark schema to yt one" in {
     import scala.collection.JavaConverters._
     def getColumn(name: String, t: String): YTreeMapNode = {
-      YTree.builder.beginMap.key("name").value(name).key("type").value(t).buildMap
+      YTree.builder.beginMap.key("name").value(name).key("type").value(t)
+        .key("required").value(false).buildMap
     }
     val res = ytLogicalSchema(sparkSchema, Seq.empty, Map.empty, typeV3Format = false)
     res shouldBe YTree.builder
