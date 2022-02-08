@@ -802,7 +802,7 @@ public:
                 // NB: Could be null.
                 wrappedThrottler->SetLeaderChannel(LeaderChannel_);
             }
-            EmplaceOrCrash(Throttlers_->Throttlers, throttlerId, wrappedThrottler);
+            Throttlers_->Throttlers[throttlerId] = std::move(wrappedThrottler);
 
             YT_LOG_DEBUG("Distributed throttler created (ThrottlerId: %v)", throttlerId);
         }
