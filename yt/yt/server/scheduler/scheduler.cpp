@@ -2450,6 +2450,7 @@ private:
     {
         LogEventFluently(&SchedulerStructuredLogger, logEventType)
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
+            .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1))
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
             .Item("error").Value(error)
@@ -3547,17 +3548,17 @@ private:
             }
         }
 
-        FinishOperation(operation);
-
-        YT_LOG_INFO("Operation completed (OperationId: %v)",
-             operationId);
-
         LogOperationFinished(
             operation,
             ELogEventType::OperationCompleted,
             TError(),
             operationProgress.Progress,
             operationProgress.Alerts);
+        
+        FinishOperation(operation);
+
+        YT_LOG_INFO("Operation completed (OperationId: %v)",
+             operationId);
     }
 
     void DoFailOperation(
