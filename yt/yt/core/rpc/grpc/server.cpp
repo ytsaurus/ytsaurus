@@ -291,7 +291,12 @@ private:
             auto cookie = static_cast<EServerCallCookie>(cookie_);
             switch (cookie) {
                 case EServerCallCookie::Normal:
-                    switch (Stage_) {
+                {
+                    const auto stage = [&] () {
+                        auto guard = Guard(SpinLock_);
+                        return Stage_;
+                    }();
+                    switch (stage) {
                         case EServerCallStage::Accept:
                             OnAccepted(success);
                             break;
@@ -312,7 +317,7 @@ private:
                             YT_ABORT();
                     }
                     break;
-
+                }
                 case EServerCallCookie::Close:
                     OnCloseReceived(success);
                     break;
