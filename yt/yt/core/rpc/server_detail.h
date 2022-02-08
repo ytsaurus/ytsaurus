@@ -30,6 +30,7 @@ public:
     TRequestId GetRequestId() const override;
     NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
     const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
+    const TString& GetEndpointDescription() const override;
 
     std::optional<TInstant> GetStartTime() const override;
     std::optional<TDuration> GetTimeout() const override;
@@ -168,6 +169,7 @@ public:
     NRpc::TRequestId GetRequestId() const override;
     NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const override;
     const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
+    const TString& GetEndpointDescription() const override;
 
     std::optional<TInstant> GetStartTime() const override;
     std::optional<TDuration> GetTimeout() const override;
