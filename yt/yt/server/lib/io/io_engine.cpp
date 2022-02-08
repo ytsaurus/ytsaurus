@@ -783,22 +783,10 @@ public:
         auto invoker = ThreadPool_.GetReadInvoker(category, sessionId);
 
         i64 paddedBytes = 0;
-        TSharedRefArray result;
-        std::vector<TMutableRef> buffers;
-        buffers.reserve(requests.size());
-        {
-            i64 totalSize = 0;
-            for (const auto& request : requests) {
-                totalSize += request.Size;
-                paddedBytes += GetPaddedSize(request.Offset, request.Size, DefaultPageSize);
-            }
-
-            TSharedRefArrayBuilder resultBuilder(requests.size(), totalSize, tagCookie);
-            for (const auto& request : requests) {
-                buffers.push_back(resultBuilder.AllocateAndAdd(request.Size));
-            }
-            result = resultBuilder.Finish();
+        for (const auto& request : requests) {
+            paddedBytes += GetPaddedSize(request.Offset, request.Size, DefaultPageSize);
         }
+        auto buffers = AllocateReadBuffers(requests, tagCookie);
 
         for (int index = 0; index < std::ssize(requests); ++index) {
             for (auto& slice : RequestSlicer_.Slice(std::move(requests[index]), buffers[index])) {
@@ -816,10 +804,10 @@ public:
         }
 
         TReadResponse response{
-            .OutputBuffers = result.ToVector(),
             .PaddedBytes = paddedBytes,
-            .IORequests = std::ssize(futures)
+            .IORequests = std::ssize(futures),
         };
+        response.OutputBuffers.assign(buffers.begin(), buffers.end());
 
         return AllSucceeded(std::move(futures))
             .Apply(BIND([response = std::move(response)] {
@@ -871,6 +859,40 @@ private:
     TThreadPool ThreadPool_;
     TRequestSlicer RequestSlicer_;
 
+
+    std::vector<TSharedMutableRef> AllocateReadBuffers(
+        const std::vector<TReadRequest>& requests,
+        TRefCountedTypeCookie tagCookie)
+    {
+        std::vector<TSharedMutableRef> results;
+        results.reserve(requests.size());
+        bool shouldBeAligned = std::any_of(
+            requests.begin(),
+            requests.end(),
+            [] (const TReadRequest& request) {
+                return request.Handle->IsOpenForDirectIO();
+            });
+
+        i64 totalSize = 0;
+        for (const auto& request : requests) {
+            totalSize += shouldBeAligned
+                ? AlignUp<i64>(request.Size, DefaultPageSize)
+                : request.Size;
+        }
+
+        auto buffer = shouldBeAligned
+            ? TSharedMutableRef::AllocatePageAligned(totalSize, false, tagCookie)
+            : TSharedMutableRef::Allocate(totalSize, false, tagCookie);
+
+        i64 offset = 0;
+        for (const auto& request : requests) {
+            results.push_back(buffer.Slice(offset, offset + request.Size));
+            offset += shouldBeAligned
+                ? AlignUp<i64>(request.Size, DefaultPageSize)
+                : request.Size;
+        }
+        return results;
+    }
 
     void DoRead(
         const TReadRequest& request,
