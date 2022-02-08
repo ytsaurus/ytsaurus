@@ -20,6 +20,7 @@ import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.WriteTransaction
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.YtTableFileSystem
+import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.serializers.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
@@ -792,6 +793,34 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
 
     a[SparkException] shouldBe thrownBy {
       spark.read.yt(table1, table2)
+    }
+  }
+
+  it should "generate nullable correct type_v1 schema" in {
+    def createMetadata(name: String, keyId: Long = -1): Metadata = {
+      new MetadataBuilder()
+        .putLong(MetadataFields.KEY_ID, keyId)
+        .putString(MetadataFields.ORIGINAL_NAME, name)
+        .build()
+    }
+
+    val data = Seq(
+      (1L, Some(true), 1.0, Some("1"), Array[Byte](56, 52)),
+      (3L, Some(false), 2.0, None, Array[Byte](56, 49))
+    )
+    withConf("spark.sql.schema.forcingNullableIfNoMetadata.enabled", "false") {
+      data
+        .toDF("a", "b", "c", "d", "e").coalesce(1)
+        .write.yt(tmpPath)
+
+      val res = spark.read.yt(tmpPath)
+
+      res.schema shouldBe StructType(Seq(
+        StructField("a", LongType, nullable = true, metadata = createMetadata("a")),
+        StructField("b", BooleanType, nullable = true, metadata = createMetadata("b")),
+        StructField("c", DoubleType, nullable = true, metadata = createMetadata("c")),
+        StructField("d", StringType, nullable = true, metadata = createMetadata("d")),
+        StructField("e", StringType, nullable = true, metadata = createMetadata("e"))))
     }
   }
 

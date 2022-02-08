@@ -3,6 +3,7 @@ package ru.yandex.spark.yt.serializers
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtTable
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
+import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBooleanNodeImpl
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
@@ -11,7 +12,7 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.TypeUtils.{isTuple, isVariant, isVariantOverTuple}
 import ru.yandex.spark.yt.serializers.YtLogicalType.getStructField
 import ru.yandex.spark.yt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
-import ru.yandex.yt.ytclient.tables.{ColumnSortOrder, TableSchema}
+import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, TableSchema}
 
 object SchemaConverter {
   object MetadataFields {
@@ -24,7 +25,9 @@ object SchemaConverter {
     if (fieldMap.containsKey("type_v3") && parsingTypeV3) {
       deserializeTypeV3(fieldMap.get("type_v3"))
     } else if (fieldMap.containsKey("type")) {
-      sparkTypeV1(fieldMap.get("type").stringValue())
+      val requiredAttribute = fieldMap.get("required")
+      val requiredValue = if (requiredAttribute != null) requiredAttribute.boolValue() else false
+      wrapNullable(sparkTypeV1(fieldMap.get("type").stringValue()), !requiredValue)
     } else {
       throw new NoSuchElementException("No parsable data type description")
     }
@@ -171,10 +174,12 @@ object SchemaConverter {
         .key("name").value(field.name)
       val fieldType = hint.getOrElse(field.name, ytLogicalTypeV3(field.dataType))
       if (typeV3Format) {
-        builder.key("type_v3")
-          .value(serializeTypeV3(wrapNullable(fieldType, field.nullable)))
+        builder
+          .key("type_v3").value(serializeTypeV3(wrapNullable(fieldType, field.nullable)))
       } else {
-        builder.key("type").value(serializeType(fieldType, isTableSchema))
+        builder
+          .key("type").value(serializeType(fieldType, isTableSchema))
+          .key("required").value(false)
       }
       if (sort) builder.key("sort_order").value(ColumnSortOrder.ASCENDING.getName)
       builder.buildMap
