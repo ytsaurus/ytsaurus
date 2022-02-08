@@ -235,15 +235,19 @@ private:
             }
             current += ContextSize;
             if (ContextSize < MaxContextSize) {
-                const auto size = std::min<size_t>(MaxContextSize - ContextSize, TBlockStream::End() - TBlockStream::Begin());
-                memcpy(current, TBlockStream::Begin(), size);
-                current += size;
+                const auto toCopy = std::min<size_t>(MaxContextSize - ContextSize, TBlockStream::End() - TBlockStream::Begin());
+                if (toCopy > 0) {
+                    memcpy(current, TBlockStream::Begin(), toCopy);
+                    current += toCopy;
+                }
             }
         } else {
             // Context is the beginning of the stream.
             const auto toCopy = std::min<size_t>(MaxContextSize, TBlockStream::End() - TBlockStream::Begin());
-            memcpy(current, TBlockStream::Begin(), toCopy);
-            current += toCopy;
+            if (toCopy > 0) {
+                memcpy(current, TBlockStream::Begin(), toCopy);
+                current += toCopy;
+            }
             *contextPosition = 0;
         }
         *contextSize = current - dest;
