@@ -205,6 +205,8 @@ void TJobProxy::SendHeartbeat()
         return;
     }
 
+    YT_LOG_DEBUG("Reporting heartbeat to supervisor");
+
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(job->GetProgress());
@@ -212,8 +214,6 @@ void TJobProxy::SendHeartbeat()
     req->set_stderr_size(job->GetStderrSize());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
-
-    YT_LOG_DEBUG("Supervisor heartbeat sent");
 }
 
 void TJobProxy::OnHeartbeatResponse(const TError& error)
@@ -224,7 +224,7 @@ void TJobProxy::OnHeartbeatResponse(const TError& error)
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
         YT_LOG_ERROR(error, "Error sending heartbeat to supervisor");
-        Exit(EJobProxyExitCode::HeartbeatFailed);
+        Abort(EJobProxyExitCode::HeartbeatFailed);
     }
 
     YT_LOG_DEBUG("Successfully reported heartbeat to supervisor");
@@ -263,13 +263,15 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
                 builder.AppendString(tableSpec.DebugString());
                 builder.AppendChar('\n');
             }
-            YT_LOG_DEBUG("Job spec %v input table specs\n%v", name, builder.Flush());
+            YT_LOG_DEBUG("Job spec %v input table specs:\n%v",
+                name,
+                builder.Flush());
         }
 
         // Node directory is huge and useless when debugging.
         schedulerJobSpecExt->clear_input_node_directory();
     }
-    YT_LOG_DEBUG("Job spec debug string\n%v", jobSpec.DebugString());
+    YT_LOG_DEBUG("Job spec:\n%v", jobSpec.DebugString());
 }
 
 void TJobProxy::RetrieveJobSpec()
@@ -279,10 +281,10 @@ void TJobProxy::RetrieveJobSpec()
     auto req = SupervisorProxy_->GetJobSpec();
     ToProto(req->mutable_job_id(), JobId_);
 
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
         YT_LOG_ERROR(rspOrError, "Failed to get job spec");
-        Exit(EJobProxyExitCode::GetJobSpecFailed);
+        Abort(EJobProxyExitCode::GetJobSpecFailed);
     }
 
     const auto& rsp = rspOrError.Value();
@@ -291,7 +293,7 @@ void TJobProxy::RetrieveJobSpec()
         YT_LOG_WARNING("Invalid job spec version (Expected: %v, Actual: %v)",
             GetJobSpecVersion(),
             rsp->job_spec().version());
-        Exit(EJobProxyExitCode::InvalidSpecVersion);
+        Abort(EJobProxyExitCode::InvalidSpecVersion);
     }
 
     JobSpecHelper_ = CreateJobSpecHelper(rsp->job_spec());
@@ -365,10 +367,9 @@ void TJobProxy::RetrieveJobSpec()
 void TJobProxy::Run()
 {
     auto startTime = Now();
-    auto resultOrError = BIND(&TJobProxy::DoRun, Unretained(this))
+    auto resultOrError = WaitFor(BIND(&TJobProxy::DoRun, MakeStrong(this))
         .AsyncVia(JobThread_->GetInvoker())
-        .Run()
-        .Get();
+        .Run());
     auto finishTime = Now();
 
     TJobResult result;
@@ -395,90 +396,23 @@ void TJobProxy::Run()
             .ThrowOnError();
     }
 
-    RpcServer_->Stop()
-        .WithTimeout(RpcServerShutdownTimeout)
-        .Get();
+    WaitFor(RpcServer_->Stop()
+        .WithTimeout(RpcServerShutdownTimeout))
+        .ThrowOnError();
 
-    if (auto job = FindJob()) {
-        auto failedChunkIds = job->GetFailedChunkIds();
-        if (!failedChunkIds.empty()) {
-            YT_LOG_INFO("Failed chunks found (ChunkIds: %v)",
-                failedChunkIds);
-        }
+    FillJobResult(&result);
 
-        // For erasure chunks, replace part id with whole chunk id.
-        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-        for (auto chunkId : failedChunkIds) {
-            auto actualChunkId = IsErasureChunkPartId(chunkId)
-                ? ErasureChunkIdFromPartId(chunkId)
-                : chunkId;
-            ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
-        }
-
-        auto interruptDescriptor = job->GetInterruptDescriptor();
-
-        if (!interruptDescriptor.UnreadDataSliceDescriptors.empty()) {
-            auto inputStatistics = GetTotalInputDataStatistics(job->GetStatistics());
-            if (inputStatistics.row_count() > 0) {
-                // NB(psushin): although we definitely have read some of the rows, the job may have made no progress,
-                // since all of these row are from foreign tables, and therefor the ReadDataSliceDescriptors is empty.
-                // Still we would like to treat such a job as interrupted, otherwise it may lead to an infinite sequence
-                // of jobs being aborted by splitter instead of interrupts.
-
-                ToProto(
-                    schedulerResultExt->mutable_unread_chunk_specs(),
-                    schedulerResultExt->mutable_chunk_spec_count_per_unread_data_slice(),
-                    schedulerResultExt->mutable_virtual_row_index_per_unread_data_slice(),
-                    interruptDescriptor.UnreadDataSliceDescriptors);
-                ToProto(
-                    schedulerResultExt->mutable_read_chunk_specs(),
-                    schedulerResultExt->mutable_chunk_spec_count_per_read_data_slice(),
-                    schedulerResultExt->mutable_virtual_row_index_per_read_data_slice(),
-                    interruptDescriptor.ReadDataSliceDescriptors);
-
-                schedulerResultExt->set_restart_needed(true);
-
-                YT_LOG_DEBUG(
-                    "Interrupt descriptor found (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
-                    interruptDescriptor.UnreadDataSliceDescriptors.size(),
-                    interruptDescriptor.ReadDataSliceDescriptors.size(),
-                    schedulerResultExt->ShortDebugString());
-            } else {
-                if (result.error().code() == 0) {
-                    ToProto(
-                        result.mutable_error(),
-                        TError(EErrorCode::JobNotPrepared, "Job did not read anything"));
-                }
-            }
-        }
-
-        const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
-        if (schedulerJobSpecExt.has_user_job_spec()) {
-            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            if (userJobSpec.has_restart_exit_code()) {
-                auto error = FromProto<TError>(result.error());
-                if (auto userJobFailedError = error.FindMatching(EErrorCode::UserJobFailed)) {
-                    auto processFailedError = userJobFailedError->FindMatching(EProcessErrorCode::NonZeroExitCode);
-                    if (processFailedError && processFailedError->Attributes().Get<int>("exit_code", 0) == userJobSpec.restart_exit_code()) {
-                        YT_LOG_DEBUG("Job exited with code that indicates job restart (ExitCode: %v)",
-                            userJobSpec.restart_exit_code());
-                        schedulerResultExt->set_restart_needed(true);
-                        ToProto(result.mutable_error(), TError());
-                    }
-                }
-            }
-        }
-    }
+    FillStderrResult(&result);
 
     auto statistics = ConvertToYsonString(GetStatistics());
 
-    EnsureStderrResult(&result);
+    ReportResult(
+        result,
+        statistics,
+        startTime,
+        finishTime);
 
-    ReportResult(result, statistics, startTime, finishTime);
-
-    if (auto tracer = GetGlobalTracer()) {
-        tracer->Stop();
-    }
+    Finalize();
 }
 
 IJobPtr TJobProxy::CreateBuiltinJob()
@@ -554,13 +488,12 @@ IJobProxyEnvironmentPtr TJobProxy::FindJobProxyEnvironment() const
 
 TJobResult TJobProxy::DoRun()
 {
-    IJobPtr job;
-
     RootSpan_ = TTraceContext::NewRoot("Job");
     RootSpan_->SetRecorded();
     RootSpan_->AddTag("yt.job_id", ToString(JobId_));
-
     TTraceContextGuard guard(RootSpan_);
+
+    IJobPtr job;
 
     try {
         SolomonExporter_ = New<TSolomonExporter>(
@@ -597,7 +530,7 @@ TJobResult TJobProxy::DoRun()
         CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuGuarantee_);
 
         if (Config_->JobThrottler) {
-            YT_LOG_DEBUG("Job throttling enabled");
+            YT_LOG_INFO("Job throttling enabled");
 
             InBandwidthThrottler_ = CreateInJobBandwidthThrottler(
                 Config_->JobThrottler,
@@ -617,7 +550,7 @@ TJobResult TJobProxy::DoRun()
                 GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
                 JobId_);
         } else {
-            YT_LOG_DEBUG("Job throttling disabled");
+            YT_LOG_INFO("Job throttling disabled");
 
             InBandwidthThrottler_ = GetUnlimitedThrottler();
             OutBandwidthThrottler_ = GetUnlimitedThrottler();
@@ -688,7 +621,7 @@ TJobResult TJobProxy::DoRun()
         OnSpawned();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to prepare job proxy");
-        Exit(EJobProxyExitCode::JobProxyPrepareFailed);
+        Abort(EJobProxyExitCode::JobProxyPrepareFailed);
     }
 
     job->PrepareArtifacts();
@@ -713,7 +646,7 @@ void TJobProxy::ReportResult(
 {
     if (!SupervisorProxy_) {
         YT_LOG_ERROR("Supervisor channel is not available");
-        Exit(EJobProxyExitCode::ResultReportFailed);
+        Abort(EJobProxyExitCode::ResultReportFailed);
     }
 
     auto req = SupervisorProxy_->OnJobFinished();
@@ -753,10 +686,10 @@ void TJobProxy::ReportResult(
         }
     }
 
-    auto rspOrError = req->Invoke().Get();
+    auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
         YT_LOG_ERROR(rspOrError, "Failed to report job result");
-        Exit(EJobProxyExitCode::ResultReportFailed);
+        Abort(EJobProxyExitCode::ResultReportFailed);
     }
 }
 
@@ -808,16 +741,16 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
 
     auto createRootFS = [&] () -> std::optional<TRootFS> {
         if (!Config_->RootPath) {
-            YT_LOG_DEBUG("Job is not using custom root fs");
+            YT_LOG_INFO("Job is not using custom rootfs");
             return std::nullopt;
         }
 
         if (Config_->TestRootFS) {
-            YT_LOG_DEBUG("Job is running in testing root fs mode");
+            YT_LOG_INFO("Job is running in testing rootfs mode");
             return std::nullopt;
         }
 
-        YT_LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
+        YT_LOG_DEBUG("Job is using custom rootfs (Path: %v)", Config_->RootPath);
 
         TRootFS rootFS {
             .RootPath = *Config_->RootPath,
@@ -933,10 +866,7 @@ void TJobProxy::OnResourcesUpdated(i64 memoryReserve, const TError& error)
 {
     if (!error.IsOK()) {
         YT_LOG_ERROR(error, "Failed to update resource usage");
-        if (auto job = FindJob()) {
-            job->Cleanup();
-        }
-        Exit(EJobProxyExitCode::ResourcesUpdateFailed);
+        Abort(EJobProxyExitCode::ResourcesUpdateFailed);
     }
 
     if (ApprovedMemoryReserve_ < memoryReserve) {
@@ -947,14 +877,14 @@ void TJobProxy::OnResourcesUpdated(i64 memoryReserve, const TError& error)
 
 void TJobProxy::ReleaseNetwork()
 {
-    YT_LOG_DEBUG("Releasing network");
+    YT_LOG_INFO("Releasing network");
     NetworkUsage_ = 0;
     UpdateResourceUsage();
 }
 
 void TJobProxy::OnPrepared()
 {
-    YT_LOG_DEBUG("Job prepared");
+    YT_LOG_INFO("Job prepared");
 
     auto req = SupervisorProxy_->OnJobPrepared();
     ToProto(req->mutable_job_id(), JobId_);
@@ -965,7 +895,7 @@ void TJobProxy::PrepareArtifact(
     const TString& artifactName,
     const TString& pipePath)
 {
-    YT_LOG_DEBUG("Asking node to prepare artifact (ArtifactName: %v, PipePath: %v)",
+    YT_LOG_INFO("Requesting node to prepare artifact (ArtifactName: %v, PipePath: %v)",
         artifactName,
         pipePath);
 
@@ -983,7 +913,7 @@ void TJobProxy::OnArtifactPreparationFailed(
     const TString& artifactPath,
     const TError& error)
 {
-    YT_LOG_DEBUG(error, "Artifact preparation failed (ArtifactName: %v, ArtifactPath: %v)",
+    YT_LOG_ERROR(error, "Artifact preparation failed (ArtifactName: %v, ArtifactPath: %v)",
         artifactName,
         artifactPath);
 
@@ -1093,7 +1023,7 @@ void TJobProxy::CheckMemoryUsage()
     }
     i64 memoryReserve = TotalMaxMemoryUsage_ + Config_->AheadMemoryReserve;
     if (RequestedMemoryReserve_ < memoryReserve) {
-        YT_LOG_DEBUG("Request node for memory usage increase (OldMemoryReserve: %v, NewMemoryReserve: %v)",
+        YT_LOG_DEBUG("Requesting node for memory usage increase (OldMemoryReserve: %v, NewMemoryReserve: %v)",
             RequestedMemoryReserve_.load(),
             memoryReserve);
         RequestedMemoryReserve_ = memoryReserve;
@@ -1101,7 +1031,84 @@ void TJobProxy::CheckMemoryUsage()
     }
 }
 
-void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
+void TJobProxy::FillJobResult(TJobResult* jobResult)
+{
+    auto job = FindJob();
+    if (!job) {
+        return;
+    }
+
+    auto failedChunkIds = job->GetFailedChunkIds();
+    if (!failedChunkIds.empty()) {
+        YT_LOG_INFO("Failed chunks found (ChunkIds: %v)",
+            failedChunkIds);
+    }
+
+    // For erasure chunks, replace part id with whole chunk id.
+    auto* schedulerResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    for (auto chunkId : failedChunkIds) {
+        auto actualChunkId = IsErasureChunkPartId(chunkId)
+            ? ErasureChunkIdFromPartId(chunkId)
+            : chunkId;
+        ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
+    }
+
+    auto interruptDescriptor = job->GetInterruptDescriptor();
+
+    if (!interruptDescriptor.UnreadDataSliceDescriptors.empty()) {
+        auto inputStatistics = GetTotalInputDataStatistics(job->GetStatistics());
+        if (inputStatistics.row_count() > 0) {
+            // NB(psushin): although we definitely have read some of the rows, the job may have made no progress,
+            // since all of these row are from foreign tables, and therefor the ReadDataSliceDescriptors is empty.
+            // Still we would like to treat such a job as interrupted, otherwise it may lead to an infinite sequence
+            // of jobs being aborted by splitter instead of interrupts.
+
+            ToProto(
+                schedulerResultExt->mutable_unread_chunk_specs(),
+                schedulerResultExt->mutable_chunk_spec_count_per_unread_data_slice(),
+                schedulerResultExt->mutable_virtual_row_index_per_unread_data_slice(),
+                interruptDescriptor.UnreadDataSliceDescriptors);
+            ToProto(
+                schedulerResultExt->mutable_read_chunk_specs(),
+                schedulerResultExt->mutable_chunk_spec_count_per_read_data_slice(),
+                schedulerResultExt->mutable_virtual_row_index_per_read_data_slice(),
+                interruptDescriptor.ReadDataSliceDescriptors);
+
+            schedulerResultExt->set_restart_needed(true);
+
+            YT_LOG_INFO(
+                "Interrupt descriptor found (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
+                interruptDescriptor.UnreadDataSliceDescriptors.size(),
+                interruptDescriptor.ReadDataSliceDescriptors.size(),
+                schedulerResultExt->ShortDebugString());
+        } else {
+            if (jobResult->error().code() == 0) {
+                ToProto(
+                    jobResult->mutable_error(),
+                    TError(EErrorCode::JobNotPrepared, "Job did not read anything"));
+            }
+        }
+    }
+
+    const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
+    if (schedulerJobSpecExt.has_user_job_spec()) {
+        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        if (userJobSpec.has_restart_exit_code()) {
+            auto error = FromProto<TError>(jobResult->error());
+            if (auto userJobFailedError = error.FindMatching(EErrorCode::UserJobFailed)) {
+                auto processFailedError = userJobFailedError->FindMatching(EProcessErrorCode::NonZeroExitCode);
+                if (processFailedError && processFailedError->Attributes().Get<int>("exit_code", 0) == userJobSpec.restart_exit_code()) {
+                    YT_LOG_INFO("Job exited with code that indicates job restart (ExitCode: %v)",
+                        userJobSpec.restart_exit_code());
+                    schedulerResultExt->set_restart_needed(true);
+                    ToProto(jobResult->mutable_error(), TError());
+                }
+            }
+        }
+    }
+}
+
+void TJobProxy::FillStderrResult(TJobResult* jobResult)
 {
     const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
     const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
@@ -1119,7 +1126,16 @@ void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
     }
 }
 
-void TJobProxy::Exit(EJobProxyExitCode exitCode)
+void TJobProxy::Finalize()
+{
+    SetJob(nullptr);
+
+    if (auto tracer = GetGlobalTracer()) {
+        tracer->Stop();
+    }
+}
+
+void TJobProxy::Abort(EJobProxyExitCode exitCode)
 {
     if (auto job = FindJob()) {
         job->Cleanup();

@@ -6,8 +6,8 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobPtr CreateOrderedMergeJob(IJobHost* host);
-IJobPtr CreateUnorderedMergeJob(IJobHost* host);
+IJobPtr CreateOrderedMergeJob(IJobHostPtr host);
+IJobPtr CreateUnorderedMergeJob(IJobHostPtr host);
 
 ////////////////////////////////////////////////////////////////////////////////
 

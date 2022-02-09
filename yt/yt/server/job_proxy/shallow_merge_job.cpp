@@ -51,7 +51,7 @@ class TShallowMergeJob
     : public TJob
 {
 public:
-    explicit TShallowMergeJob(IJobHost* host)
+    explicit TShallowMergeJob(IJobHostPtr host)
         : TJob(host)
         , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())
         , ShallowMergeJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TShallowMergeJobSpecExt::shallow_merge_job_spec_ext))
@@ -489,7 +489,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobPtr CreateShallowMergeJob(IJobHost *host)
+IJobPtr CreateShallowMergeJob(IJobHostPtr host)
 {
     return New<TShallowMergeJob>(host);
 }

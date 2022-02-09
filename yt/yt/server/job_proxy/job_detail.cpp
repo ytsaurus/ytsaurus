@@ -45,7 +45,7 @@ static const auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJob::TJob(IJobHost* host)
+TJob::TJob(IJobHostPtr host)
     : Host_(host)
     , StartTime_(TInstant::Now())
 {
@@ -122,7 +122,7 @@ TSharedRef TJob::DumpSensors()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleJobBase::TSimpleJobBase(IJobHost* host)
+TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
     : TJob(host)
     , JobSpec_(host->GetJobSpecHelper()->GetJobSpec())
     , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())

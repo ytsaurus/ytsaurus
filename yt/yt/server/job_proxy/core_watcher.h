@@ -64,7 +64,7 @@ public:
     TCoreWatcher(
         TCoreWatcherConfigPtr config,
         TString coreDirectoryPath,
-        IJobHost* jobHost,
+        IJobHostPtr jobHost,
         IInvokerPtr controlInvoker,
         NTableClient::TBlobTableWriterConfigPtr blobTableWriterConfig,
         NTableClient::TTableWriterOptionsPtr tableWriterOptions,
@@ -89,7 +89,7 @@ private:
 
     TString CoreDirectoryPath_;
 
-    const IJobHost* JobHost_;
+    const IJobHostPtr JobHost_;
     const NTableClient::TBlobTableWriterConfigPtr BlobTableWriterConfig_;
     const NTableClient::TTableWriterOptionsPtr TableWriterOptions_;
     const NCypressClient::TTransactionId Transaction_;

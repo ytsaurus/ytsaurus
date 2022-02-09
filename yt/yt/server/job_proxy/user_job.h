@@ -10,7 +10,7 @@ namespace NYT::NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobPtr CreateUserJob(
-    IJobHost* host,
+    IJobHostPtr host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
     NJobTrackerClient::TJobId jobId,
     const std::vector<int>& ports,

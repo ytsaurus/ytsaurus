@@ -39,7 +39,7 @@ class TMergeJob
     : public TSimpleJobBase
 {
 public:
-    TMergeJob(IJobHost* host, bool useParallelReader)
+    TMergeJob(IJobHostPtr host, bool useParallelReader)
         : TSimpleJobBase(host)
         , UseParallelReader_(useParallelReader)
     {
@@ -167,12 +167,12 @@ private:
     }
 };
 
-IJobPtr CreateOrderedMergeJob(IJobHost* host)
+IJobPtr CreateOrderedMergeJob(IJobHostPtr host)
 {
     return New<TMergeJob>(host, false);
 }
 
-IJobPtr CreateUnorderedMergeJob(IJobHost* host)
+IJobPtr CreateUnorderedMergeJob(IJobHostPtr host)
 {
     return New<TMergeJob>(host, true);
 }
