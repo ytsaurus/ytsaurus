@@ -27,6 +27,7 @@ TListOperationsCountingFilter::TListOperationsCountingFilter(const TListOperatio
 { }
 
 bool TListOperationsCountingFilter::Filter(
+    const std::optional<THashMap<TString, TString>>& poolTreeToPool,
     const std::optional<std::vector<TString>>& pools,
     TStringBuf user,
     EOperationState state,
@@ -34,6 +35,22 @@ bool TListOperationsCountingFilter::Filter(
     i64 count)
 {
     YT_VERIFY(Options_);
+
+    if (poolTreeToPool) {
+        for (const auto& [poolTree, pool] : *poolTreeToPool) {
+            if (!Options_->Pool || pool == *Options_->Pool) {
+                PoolTreeCounts[poolTree] += count;
+            }
+        }
+    }
+
+    if (Options_->PoolTree) {
+        if (!poolTreeToPool ||
+            !poolTreeToPool->contains(*Options_->PoolTree) ||
+            (Options_->Pool && poolTreeToPool->at(*Options_->PoolTree) != Options_->Pool)) {
+            return false;
+        }
+    }
 
     UserCounts[user] += count;
 
@@ -78,6 +95,9 @@ bool TListOperationsCountingFilter::FilterByFailedJobs(bool hasFailedJobs, i64 c
 
 void TListOperationsCountingFilter::MergeFrom(const TListOperationsCountingFilter& otherFilter)
 {
+    for (const auto& [poolTree, count] : otherFilter.PoolTreeCounts) {
+        PoolTreeCounts[poolTree] += count;
+    }
     for (const auto& [pool, count] : otherFilter.PoolCounts) {
         PoolCounts[pool] += count;
     }
@@ -427,6 +447,7 @@ public:
 
     void OnBeginOperation()
     {
+        PoolTreeToPool_.clear();
         Pools_.clear();
         HasAcl_ = false;
         SubstringFound_ = false;
@@ -560,13 +581,14 @@ public:
                 cursor->Next();
                 cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
                     YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
-                    cursor->Next();
+                    auto poolTree = ExtractTo<TString>(cursor);
                     cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
                         YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
                         auto innerKey = (*cursor)->UncheckedAsString();
                         if (innerKey == TStringBuf("pool")) {
                             cursor->Next();
                             Pools_.push_back(ExtractTo<TString>(cursor));
+                            PoolTreeToPool_.emplace(poolTree, Pools_.back());
                             SearchSubstring(Pools_.back());
                         } else {
                             cursor->Next();
@@ -659,6 +681,7 @@ private:
     NScheduler::EOperationState State_ = {};
     NScheduler::EOperationType Type_ = {};
     TString AuthenticatedUser_;
+    THashMap<TString, TString> PoolTreeToPool_;
     std::vector<TString> Pools_;
     bool HasAcl_ = false;
     TSerializableAccessControlList Acl_;
@@ -717,7 +740,7 @@ private:
             state = EOperationState::Running;
         }
 
-        return CountingFilter_->Filter(Pools_, AuthenticatedUser_, state, Type_, /* count = */ 1);
+        return CountingFilter_->Filter(PoolTreeToPool_, Pools_, AuthenticatedUser_, state, Type_, /* count = */ 1);
     }
 
     void OnAnnotations(TYsonPullParserCursor* cursor)

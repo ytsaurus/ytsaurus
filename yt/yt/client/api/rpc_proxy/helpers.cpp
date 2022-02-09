@@ -252,6 +252,12 @@ void ToProto(
     proto->Clear();
     NYT::ToProto(proto->mutable_operations(), result.Operations);
 
+    if (result.PoolTreeCounts) {
+        auto* poolTreeCounts = proto->mutable_pool_tree_counts()->mutable_entries();
+        for (const auto& entry: *result.PoolTreeCounts) {
+            (*poolTreeCounts)[entry.first] = entry.second;
+        }
+    }
     if (result.PoolCounts) {
         for (const auto& entry: *result.PoolCounts) {
             auto* newPoolCount = proto->mutable_pool_counts()->add_entries();
@@ -297,6 +303,16 @@ void FromProto(
     const NProto::TListOperationsResult& proto)
 {
     NYT::FromProto(&result->Operations, proto.operations());
+
+    if (proto.has_pool_tree_counts()) {
+        result->PoolTreeCounts.emplace();
+        for (const auto& [poolTree, count]: proto.pool_tree_counts().entries()) {
+            YT_VERIFY((*result->PoolTreeCounts)[poolTree] == 0);
+            (*result->PoolTreeCounts)[poolTree] = count;
+        }
+    } else {
+        result->PoolTreeCounts.reset();
+    }
 
     if (proto.has_pool_counts()) {
         result->PoolCounts.emplace();

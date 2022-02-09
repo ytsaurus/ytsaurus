@@ -1026,6 +1026,7 @@ struct TListOperationsOptions
     std::optional<NScheduler::EOperationState> StateFilter;
     std::optional<NScheduler::EOperationType> TypeFilter;
     std::optional<TString> SubstrFilter;
+    std::optional<TString> PoolTree;
     std::optional<TString> Pool;
     std::optional<bool> WithFailedJobs;
     bool IncludeArchive = false;
@@ -1218,6 +1219,7 @@ void Deserialize(TOperation& operation, NYTree::IAttributeDictionaryPtr attriubu
 struct TListOperationsResult
 {
     std::vector<TOperation> Operations;
+    std::optional<THashMap<TString, i64>> PoolTreeCounts;
     std::optional<THashMap<TString, i64>> PoolCounts;
     std::optional<THashMap<TString, i64>> UserCounts;
     std::optional<TEnumIndexedVector<NScheduler::EOperationState, i64>> StateCounts;

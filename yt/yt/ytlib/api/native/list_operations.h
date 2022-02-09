@@ -23,6 +23,7 @@ public:
     explicit TListOperationsCountingFilter(const TListOperationsOptions& options);
 
     bool Filter(
+        const std::optional<THashMap<TString, TString>>& poolTreeToPool,
         const std::optional<std::vector<TString>>& pools,
         TStringBuf user,
         NScheduler::EOperationState state,
@@ -33,6 +34,7 @@ public:
     void MergeFrom(const TListOperationsCountingFilter& otherFilter);
 
 public:
+    THashMap<TString, i64> PoolTreeCounts;
     THashMap<TString, i64> PoolCounts;
     THashMap<TString, i64> UserCounts;
     TEnumIndexedVector<NScheduler::EOperationState, i64> StateCounts;

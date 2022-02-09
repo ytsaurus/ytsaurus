@@ -153,6 +153,8 @@ TListOperationsCommand::TListOperationsCommand()
         .Optional();
     RegisterParameter("filter", Options.SubstrFilter)
         .Optional();
+    RegisterParameter("pool_tree", Options.PoolTree)
+        .Optional();
     RegisterParameter("pool", Options.Pool)
         .Optional();
     RegisterParameter("with_failed_jobs", Options.WithFailedJobs)
@@ -208,6 +210,13 @@ void TListOperationsCommand::DoExecute(ICommandContextPtr context)
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
             .Do(std::bind(&TListOperationsCommand::BuildOperations, this, result, std::placeholders::_1))
+            .DoIf(result.PoolTreeCounts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("pool_tree_counts").BeginMap()
+                .DoFor(*result.PoolTreeCounts, [] (TFluentMap fluent, const auto& item) {
+                    fluent.Item(item.first).Value(item.second);
+                })
+                .EndMap();
+            })
             .DoIf(result.PoolCounts.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("pool_counts").BeginMap()
                 .DoFor(*result.PoolCounts, [] (TFluentMap fluent, const auto& item) {

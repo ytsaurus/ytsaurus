@@ -194,18 +194,26 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
 
 namespace NDetail {
 
-std::vector<TString> GetPools(const IMapNodePtr& runtimeParameters)
+THashMap<TString, TString> GetPoolTreeToPool(const IMapNodePtr& runtimeParameters)
 {
     auto schedulingOptionsNode = runtimeParameters->FindChild("scheduling_options_per_pool_tree");
     if (!schedulingOptionsNode) {
         return {};
     }
 
-    std::vector<TString> pools;
+    THashMap<TString, TString> poolTreeToPool;
     for (const auto& [key, value] : schedulingOptionsNode->AsMap()->GetChildren()) {
-        pools.push_back(value->AsMap()->GetChildOrThrow("pool")->GetValue<TString>());
+        poolTreeToPool.emplace(key, value->AsMap()->GetChildOrThrow("pool")->GetValue<TString>());
     }
+    return poolTreeToPool;
+}
 
+std::vector<TString> GetPools(const IMapNodePtr& runtimeParameters)
+{
+    std::vector<TString> pools;
+    for (const auto& [_, pool] : GetPoolTreeToPool(runtimeParameters)) {
+        pools.push_back(pool);
+    }
     return pools;
 }
 
@@ -373,7 +381,7 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     const TRowBufferPtr& rowBuffer,
     const TArchiveOperationRequest& request,
     const TOrderedByStartTimeTableDescriptor::TIndex& index,
-    int /* version */)
+    int version)
 {
     // All any and string values passed to MakeUnversioned* functions MUST be alive till
     // they are captured in row buffer (they are not owned by unversioned value or builder).
@@ -382,11 +390,13 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     auto filterFactors = GetFilterFactors(request);
 
     TYsonString pools;
+    TYsonString poolTreeToPool;
     TYsonString acl;
 
     if (request.RuntimeParameters) {
         auto runtimeParametersNode = ConvertToNode(request.RuntimeParameters)->AsMap();
         pools = ConvertToYsonString(GetPools(runtimeParametersNode));
+        poolTreeToPool = ConvertToYsonString(GetPoolTreeToPool(runtimeParametersNode));
         if (auto aclNode = runtimeParametersNode->FindChild("acl")) {
             acl = ConvertToYsonString(aclNode);
         }
@@ -410,6 +420,10 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
 
     if (acl) {
         builder.AddValue(MakeUnversionedAnyValue(acl.AsStringBuf(), index.Acl));
+    }
+
+    if (version >= 44 && poolTreeToPool) {
+        builder.AddValue(MakeUnversionedAnyValue(poolTreeToPool.AsStringBuf(), index.PoolTreeToPool));
     }
 
     return rowBuffer->CaptureRow(builder.GetRow());

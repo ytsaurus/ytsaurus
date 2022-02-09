@@ -2504,6 +2504,9 @@ private:
         if (request->has_pool()) {
             options.Pool = request->pool();
         }
+        if (request->has_pool_tree()) {
+            options.PoolTree = request->pool_tree();
+        }
         if (request->has_with_failed_jobs()) {
             options.WithFailedJobs = request->with_failed_jobs();
         }
