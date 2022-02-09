@@ -196,10 +196,10 @@ private:
     {
         auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(poolName);
 
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Cache));
-        auto req = TYPathProxy::Get(path + "/@weight");
+        NApi::TGetNodeOptions options;
+        options.ReadFrom = NApi::EMasterChannelKind::Cache;
+        auto rspOrError = WaitFor(client->GetNode(path + "/@weight", options));
 
-        auto rspOrError = WaitFor(proxy.Execute(req));
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             return DefaultQLExecutionPoolWeight;
         }
@@ -210,9 +210,8 @@ private:
             return DefaultQLExecutionPoolWeight;
         }
 
-        const auto& rsp = rspOrError.Value();
         try {
-            return ConvertTo<double>(NYson::TYsonString(rsp->value()));
+            return ConvertTo<double>(rspOrError.Value());
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error parsing pool weight retrieved from Cypress, assuming default (Pool: %v)",
                 poolName);
