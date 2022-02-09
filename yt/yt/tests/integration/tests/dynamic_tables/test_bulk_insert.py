@@ -1004,7 +1004,14 @@ class TestBulkInsert(DynamicTablesBase):
                 _run_op()
 
             set("//sys/users/u/@enable_bulk_insert", True)
-            _run_op()
+
+            def check():
+                try:
+                    _run_op()
+                    return True
+                except:
+                    return False
+            wait(check)
         finally:
             _set_global_permit(True)
 

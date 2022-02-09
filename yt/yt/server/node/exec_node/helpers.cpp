@@ -6,6 +6,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -45,21 +46,13 @@ void FetchContentRevision(
     IBootstrap const* bootstrap,
     TUserObject* userObject)
 {
-    auto objectIdPath = FromObjectId(userObject->ObjectId);
+    TGetNodeOptions options;
+    options.ReadFrom = EMasterChannelKind::Cache;
 
-    TObjectServiceProxy proxy(bootstrap->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Cache));
-    auto batchReq = proxy.ExecuteBatch();
-    auto req = TYPathProxy::Get(objectIdPath + "/@content_revision");
-    ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString> {"content_revision"});
-    batchReq->AddRequest(req);
-
-    auto resultYson = WaitFor(batchReq->Invoke())
-        .ValueOrThrow()
-        ->GetResponse<TYPathProxy::TRspGet>(0)
-        .ValueOrThrow()
-        ->value();
-
-    userObject->ContentRevision = ConvertTo<NHydra::TRevision>(NYson::TYsonString(resultYson));
+    const auto& client = bootstrap->GetMasterClient();
+    auto rsp = WaitFor(client->GetNode(FromObjectId(userObject->ObjectId) + "/@content_revision"))
+        .ValueOrThrow();
+    userObject->ContentRevision = ConvertTo<NHydra::TRevision>(rsp);
 }
 
 } // namespace
@@ -134,6 +127,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         userObject.ContentRevision);
 
     const auto& client = bootstrap->GetMasterClient();
+    const auto& connection = client->GetNativeConnection();
 
     auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache, userObject.ExternalCellTag);
     TObjectServiceProxy proxy(channel);
@@ -143,6 +137,10 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     ToProto(req->mutable_ranges(), std::vector<TLegacyReadRange>{{}});
     SetSuppressAccessTracking(req, true);
     SetSuppressExpirationTimeoutRenewal(req, true);
+
+    TMasterReadOptions options;
+    options.ReadFrom = EMasterChannelKind::Cache;
+    SetCachingHeader(req, connection->GetConfig(), options);
     req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
     batchReq->AddRequest(req);
