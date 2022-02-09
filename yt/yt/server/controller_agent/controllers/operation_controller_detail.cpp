@@ -2875,16 +2875,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     const auto jobId = jobSummary->Id;
     const auto abandoned = jobSummary->Abandoned;
 
-    // TODO: Remove before commit
-    YT_LOG_DEBUG(
-        "Debug log: On job completed (JobId: %v, JobProxyCompleted: %v, State: %v, Abandned: %v, HasFullInfo: %v, HasStatistics: %v)",
-        jobId,
-        jobSummary->JobExecutionCompleted,
-        jobSummary->State,
-        abandoned,
-        HasFullFinishedJobInfo(jobId),
-        !!jobSummary->StatisticsYson);
-
     if (State != EControllerState::Running && State != EControllerState::Failing) {
         YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
         RemoveFinishedJobInfo(jobId);
@@ -3203,15 +3193,6 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     const auto jobId = jobSummary->Id;
 
-    // TODO: Remove before commit
-    YT_LOG_DEBUG(
-        "Debug log: On job aborted (JobId: %v, JobProxyCompleted: %v, State: %v, HasFullInfo: %v, HasStatistics: %v)",
-        jobId,
-        jobSummary->JobExecutionCompleted,
-        jobSummary->State,
-        HasFullFinishedJobInfo(jobId),
-        !!jobSummary->StatisticsYson);
-
     if (State != EControllerState::Running && State != EControllerState::Failing) {
         YT_LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
         RemoveFinishedJobInfo(jobId);
@@ -3271,18 +3252,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
             const auto& result = jobSummary->Result;
             const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             failedChunkIds = FromProto<std::vector<TChunkId>>(schedulerResultExt.failed_chunk_ids());
-
-            // TODO: Remove before commit
-            YT_LOG_DEBUG(
-                "Aborted job has failed chunks (JobId: %v, HasExtension: %v, FailedChunks: %v)",
-                jobId,
-                result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext),
-                failedChunkIds);
-        } else {
-            // TODO: Remove before commit
-            YT_LOG_DEBUG("Aborted job has not failed chunks (JobId: %v, AbortReason: %v)", jobId, abortReason);
         }
-
         taskJobResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
 
         bool retainJob = (abortReason == EAbortReason::UserRequest);
