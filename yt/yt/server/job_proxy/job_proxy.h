@@ -154,6 +154,7 @@ private:
     IJobProxyEnvironmentPtr FindJobProxyEnvironment() const;
 
     NJobTrackerClient::NProto::TJobResult DoRun();
+
     void SendHeartbeat();
     void OnHeartbeatResponse(const TError& error);
 
@@ -210,9 +211,11 @@ private:
 
     void CheckMemoryUsage();
 
-    void EnsureStderrResult(NJobTrackerClient::NProto::TJobResult* jobResult);
+    void FillJobResult(NJobTrackerClient::NProto::TJobResult* jobResult);
+    void FillStderrResult(NJobTrackerClient::NProto::TJobResult* jobResult);
 
-    void Exit(EJobProxyExitCode exitCode);
+    void Finalize();
+    void Abort(EJobProxyExitCode exitCode);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxy)

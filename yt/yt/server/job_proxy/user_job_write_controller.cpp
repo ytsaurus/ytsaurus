@@ -181,7 +181,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiplexingWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobWriteController::TUserJobWriteController(IJobHost* host)
+TUserJobWriteController::TUserJobWriteController(IJobHostPtr host)
     : Host_(host)
     , Logger(host->GetLogger())
 { }

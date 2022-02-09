@@ -35,7 +35,7 @@ class TPartitionJob
     : public TSimpleJobBase
 {
 public:
-    explicit TPartitionJob(IJobHost* host)
+    explicit TPartitionJob(IJobHostPtr host)
         : TSimpleJobBase(host)
         , PartitionJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext))
     { }
@@ -165,7 +165,7 @@ private:
     }
 };
 
-IJobPtr CreatePartitionJob(IJobHost* host)
+IJobPtr CreatePartitionJob(IJobHostPtr host)
 {
     return New<TPartitionJob>(host);
 }

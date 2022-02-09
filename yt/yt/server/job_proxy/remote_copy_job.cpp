@@ -74,7 +74,7 @@ class TRemoteCopyJob
     : public TJob
 {
 public:
-    explicit TRemoteCopyJob(IJobHost* host)
+    explicit TRemoteCopyJob(IJobHostPtr host)
         : TJob(host)
         , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())
         , RemoteCopyJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext))
@@ -939,7 +939,7 @@ private:
     }
 };
 
-IJobPtr CreateRemoteCopyJob(IJobHost* host)
+IJobPtr CreateRemoteCopyJob(IJobHostPtr host)
 {
     return New<TRemoteCopyJob>(host);
 }

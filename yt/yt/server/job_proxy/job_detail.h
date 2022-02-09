@@ -32,7 +32,7 @@ class TJob
     : public IJob
 {
 public:
-    explicit TJob(IJobHost* host);
+    explicit TJob(IJobHostPtr host);
 
     std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     TString GetStderr() override;
@@ -48,7 +48,7 @@ public:
     TSharedRef DumpSensors() override;
 
 protected:
-    IJobHost* Host_;
+    const IJobHostPtr Host_;
     const TInstant StartTime_;
 
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
@@ -60,7 +60,7 @@ class TSimpleJobBase
     : public TJob
 {
 public:
-    explicit TSimpleJobBase(IJobHost* host);
+    explicit TSimpleJobBase(IJobHostPtr host);
 
     void Initialize() override;
 

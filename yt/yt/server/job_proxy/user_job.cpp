@@ -159,7 +159,7 @@ class TUserJob
 {
 public:
     TUserJob(
-        IJobHost* host,
+        IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         TJobId jobId,
         const std::vector<int>& ports,
@@ -264,7 +264,7 @@ public:
 
     TJobResult Run() override
     {
-        YT_LOG_DEBUG("Starting job process");
+        YT_LOG_INFO("Starting job process");
 
         UserJobWriteController_->Init();
 
@@ -359,7 +359,7 @@ public:
 
             if (!coreResult.CoreInfos.empty()) {
                 for (const auto& coreInfo : coreResult.CoreInfos) {
-                    YT_LOG_DEBUG("Core file (Pid: %v, ExecutableName: %v, Size: %v)",
+                    YT_LOG_INFO("Core file found (Pid: %v, ExecutableName: %v, Size: %v)",
                         coreInfo.process_id(),
                         coreInfo.executable_name(),
                         coreInfo.size());
@@ -395,8 +395,7 @@ public:
 
     void Cleanup() override
     {
-        bool expected = true;
-        if (Prepared_.compare_exchange_strong(expected, false)) {
+        if (Prepared_.exchange(false)) {
             // Job has been prepared.
             CleanupUserProcesses();
         }
@@ -444,7 +443,7 @@ public:
         auto Logger = this->Logger
             .WithTag("ArtifactName: %v", artifactName);
 
-        YT_LOG_DEBUG("Preparing artifact");
+        YT_LOG_INFO("Preparing artifact");
 
         auto sandboxPath = NFS::CombinePaths(
             Host_->GetPreparationPath(),
@@ -476,14 +475,14 @@ public:
                     << TError::FromSystem();
             }
 
-            YT_LOG_DEBUG("Materializing artifact");
+            YT_LOG_INFO("Materializing artifact");
 
             constexpr ssize_t SpliceCopyBlockSize = 16_MB;
             Splice(pipeFile, artifactFile, SpliceCopyBlockSize);
 
             NFS::SetPermissions(artifactPath, permissions);
 
-            YT_LOG_DEBUG("Artifact materialized");
+            YT_LOG_INFO("Artifact materialized");
         } catch (const TSystemError& ex) {
             // For util functions.
             onError(TError::FromSystem(ex));
@@ -953,7 +952,7 @@ private:
                 } else {
                     auto pids = GetPidsForInerrupt();
 
-                    YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v, UserJobPids: %v)",
+                    YT_LOG_INFO("Sending interrup signal to user job (SignalName: %v, UserJobPids: %v)",
                         signal,
                         pids);
 
@@ -961,10 +960,11 @@ private:
                     signalerConfig->Pids = pids;
                     signalerConfig->SignalName = signal;
                     RunTool<TSignalerTool>(signalerConfig);
-                    YT_LOG_DEBUG("Interruption signal successfully sent");
+
+                    YT_LOG_INFO("Interrupt signal successfully sent");
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to send interruption signal to user job");
+                YT_LOG_WARNING(ex, "Failed to send interrupt signal to user job");
             }
         }
 
@@ -1064,7 +1064,7 @@ private:
             try {
                 auto input = CreateSyncAdapter(asyncInput);
                 PipeInputToOutput(input.get(), output, BufferSize);
-                YT_LOG_DEBUG("Data successfully read from pipe (Pipe: %v)", path);
+                YT_LOG_INFO("Data successfully read from pipe (Pipe: %v)", path);
             } catch (const std::exception& ex) {
                 auto error = wrappingError
                     << ex;
@@ -1142,7 +1142,7 @@ private:
 
     void PreparePipes()
     {
-        YT_LOG_DEBUG("Initializing pipes");
+        YT_LOG_INFO("Initializing pipes");
 
         // We use the following convention for designating input and output file descriptors
         // in job processes:
@@ -1185,7 +1185,7 @@ private:
 
         PrepareInputTablePipe();
 
-        YT_LOG_DEBUG("Pipes initialized");
+        YT_LOG_INFO("Pipes initialized");
     }
 
     void PrepareEnvironment()
@@ -1461,7 +1461,7 @@ private:
         });
 
         auto onProcessFinished = BIND([=, this_ = MakeStrong(this)] (const TError& userJobError) {
-            YT_LOG_DEBUG("Process finished (UserJobError: %v)", userJobError);
+            YT_LOG_INFO("Process finished (UserJobError: %v)", userJobError);
 
             OnIOErrorOrFinished(userJobError, "Job control process has finished, aborting");
 
@@ -1489,7 +1489,7 @@ private:
         auto processFinished = ProcessFinished_.Apply(onProcessFinished);
 
         // Wait until executor opens and dup named pipes.
-        YT_LOG_DEBUG("Wait for signal from executor");
+        YT_LOG_INFO("Waiting for signal from executor");
         ExecutorInfo_ = WaitFor(ExecutorPreparedPromise_.ToFuture())
             .ValueOrThrow();
 
@@ -1565,7 +1565,7 @@ private:
             memoryLimit);
 
         if (memoryUsage > memoryLimit && Config_->CheckUserJobMemoryLimit) {
-            YT_LOG_DEBUG("Memory limit exceeded");
+            YT_LOG_INFO("Memory limit exceeded");
             auto error = TError(
                 NJobProxy::EErrorCode::MemoryLimitExceeded,
                 "Memory limit exceeded")
@@ -1592,14 +1592,14 @@ private:
             blockIOStats.IOTotal > static_cast<ui64>(UserJobSpec_.iops_threshold()) &&
             !Woodpecker_)
         {
-            YT_LOG_DEBUG("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
+            YT_LOG_INFO("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
                 blockIOStats.IORead,
                 blockIOStats.IOTotal,
                 UserJobSpec_.iops_threshold());
             Woodpecker_ = true;
 
             if (UserJobSpec_.has_iops_throttler_limit()) {
-                YT_LOG_DEBUG("Set IO throttle (Iops: %v)", UserJobSpec_.iops_throttler_limit());
+                YT_LOG_INFO("Setting IO throttle (Iops: %v)", UserJobSpec_.iops_throttler_limit());
                 UserJobEnvironment_->SetIOThrottle(UserJobSpec_.iops_throttler_limit());
             }
         }
@@ -1642,7 +1642,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobPtr CreateUserJob(
-    IJobHost* host,
+    IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
     TJobId jobId,
     const std::vector<int>& ports,
@@ -1659,7 +1659,7 @@ IJobPtr CreateUserJob(
 #else
 
 IJobPtr CreateUserJob(
-    IJobHost* host,
+    IJobHostPtr host,
     const TUserJobSpec& UserJobSpec_,
     TJobId jobId,
     const std::vector<int>& ports,

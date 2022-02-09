@@ -35,9 +35,7 @@ class TSimpleSortJob
     : public TSimpleJobBase
 {
 public:
-    explicit TSimpleSortJob(IJobHost* host)
-        : TSimpleJobBase(host)
-    { }
+    using TSimpleJobBase::TSimpleJobBase;
 
     void Initialize() override
     {
@@ -133,7 +131,7 @@ private:
     }
 };
 
-IJobPtr CreateSimpleSortJob(IJobHost* host)
+IJobPtr CreateSimpleSortJob(IJobHostPtr host)
 {
     return New<TSimpleSortJob>(host);
 }
