@@ -92,6 +92,8 @@ struct TAbortedJobSummary
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
     bool AbortedByScheduler{};
 
+    bool AbortedByController{};
+
     inline static constexpr EJobState ExpectedState = EJobState::Aborted;
 };
 
@@ -144,6 +146,8 @@ std::unique_ptr<TJobSummaryType> SummaryCast(std::unique_ptr<TJobSummary> jobSum
 }
 
 bool ExpectsJobInfoFromNode(const TJobSummary& jobSummary) noexcept;
+
+bool ExpectsJobInfoFromNode(const TAbortedJobSummary& jobSummary) noexcept;
 
 ////////////////////////////////////////////////////////////////////////////////
 
