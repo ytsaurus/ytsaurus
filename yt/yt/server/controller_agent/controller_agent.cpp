@@ -265,6 +265,7 @@ public:
         , MemoryTagQueue_(New<TMemoryTagQueue>(
             Config_,
             Bootstrap_->GetControlInvoker()))
+        , JobMonitoringIndexManager_(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent)
     { }
 
     void Initialize()
@@ -456,6 +457,8 @@ public:
         CachedExecNodeDescriptorsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 
         JobReporter_->UpdateConfig(Config_->JobReporter);
+
+        JobMonitoringIndexManager_.SetMaxSize(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent);
     }
 
 
@@ -630,10 +633,7 @@ public:
 
         MasterConnector_->UnregisterOperation(operationId);
 
-        {
-            auto guard = TGuard(JobMonitoringIndexManagerLock_);
-            JobMonitoringIndexManager_.TryRemoveOperationJobs(operationId);
-        }
+        JobMonitoringIndexManager_.TryRemoveOperationJobs(operationId);
 
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
@@ -976,24 +976,34 @@ public:
 
     std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
     {
-        TGuard guard(JobMonitoringIndexManagerLock_);
+        auto index = JobMonitoringIndexManager_.TryAddJob(operationId, jobId);
 
-        if (JobMonitoringIndexManager_.GetSize() == Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent) {
-            guard.Release();
+        if (!index) {
+            YT_LOG_DEBUG(
+                "Failed to register job for monitoring: too many monitored jobs per controller agent "
+                "(OperationId: %v, JobId: %v, MaxMonitoredUserJobsPerAgent: %v)",
+                operationId,
+                jobId,
+                JobMonitoringIndexManager_.GetMaxSize());
+
             EnqueueJobMonitoringAlertUpdate();
             return std::nullopt;
         }
 
-        auto index = JobMonitoringIndexManager_.AddJob(operationId, jobId);
-        return Format("%v/%v", IncarnationId_, index);
+        auto descriptor = Format("%v/%v", IncarnationId_, *index);
+
+        YT_LOG_DEBUG("Registered job for monitoring (OperationId: %v, JobId: %v, MonitoringDescriptor: %v)",
+            operationId,
+            jobId,
+            descriptor);
+
+        return descriptor;
     }
 
     bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId)
     {
-        TGuard guard(JobMonitoringIndexManagerLock_);
         auto result = JobMonitoringIndexManager_.TryRemoveJob(operationId, jobId);
-        if (JobMonitoringIndexManager_.GetSize() == Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent - 1) {
-            guard.Release();
+        if (JobMonitoringIndexManager_.GetResidualCapacity() == 1) {
             EnqueueJobMonitoringAlertUpdate();
         }
         return result;
@@ -1003,8 +1013,7 @@ public:
     {
         BIND([&] {
             auto alert = TError();
-            TGuard guard(JobMonitoringIndexManagerLock_);
-            if (JobMonitoringIndexManager_.GetSize() == Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent) {
+            if (JobMonitoringIndexManager_.GetResidualCapacity() == 0) {
                 alert = TError(
                     "Limit of monitored user jobs per controller agent reached, "
                     "some jobs may be not monitored")
@@ -1093,7 +1102,6 @@ private:
 
     TMemoryWatchdogPtr MemoryWatchdog_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobMonitoringIndexManagerLock_);
     TJobMonitoringIndexManager JobMonitoringIndexManager_;
 
     TStartedJobCounter StartedJobCounter_;
