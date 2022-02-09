@@ -36,7 +36,7 @@ public class TokenAuthentication extends RpcClientWrapper {
     }
 
     private void patchHeader(TRequestHeader.Builder header) {
-        if (!header.hasUser()) {
+        if (!header.hasUser() && credentials.getUser() != null) {
             header.setUser(credentials.getUser());
         }
         if (!header.hasExtension(TCredentialsExt.credentialsExt)) {

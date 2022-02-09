@@ -20,6 +20,10 @@ public class TaggedType extends TiType {
         return item;
     }
 
+    public String getTag() {
+        return tag;
+    }
+
     @Override
     public String toString() {
         return String.format("Tagged<%s, %s>", item, Escape.quote(tag));
