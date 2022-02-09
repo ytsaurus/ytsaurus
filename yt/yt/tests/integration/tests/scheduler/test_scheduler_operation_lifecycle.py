@@ -1014,8 +1014,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     def test_scheduling_index_profiling(self):
-        run_sleeping_vanilla()
-
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
 
         tags = {"scheduling_index": "0", "scheduling_stage": "non_preemptive"}
@@ -1025,6 +1023,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         max_operation_scheduling_index = profiler.counter(
             "scheduler/max_operation_scheduling_index",
             tags=tags)
+
+        run_sleeping_vanilla()
 
         wait(lambda: operation_scheduling_index_attempt_count.get_delta() == 1)
         wait(lambda: max_operation_scheduling_index.get_delta() == 1)
