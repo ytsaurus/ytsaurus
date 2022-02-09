@@ -403,6 +403,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         self._test_text_filter(read_from)
         self._test_pool_filter(read_from)
         self._test_has_failed_jobs(read_from)
+        self._test_pool_tree_filter(read_from)
 
     def _test_type_filter(self, read_from):
         res = list_operations(
@@ -597,6 +598,45 @@ class _TestListOperationsBase(ListOperationsSetup):
             read_from=read_from,
         )
         assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
+
+    def _test_pool_tree_filter(self, read_from):
+        res = list_operations(
+            include_archive=self.include_archive,
+            from_time=self.op1.before_start_time,
+            to_time=self.op5.after_start_time,
+            read_from=read_from,
+            pool_tree="other",
+        )
+        assert res["user_counts"] == {"user3": 1}
+        assert res["pool_counts"] == {
+            "user3": 1,
+            "some_pool": 1,
+        }
+        assert res["state_counts"] == {"aborted": 1}
+        assert res["type_counts"] == {"reduce": 1}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 0
+        assert [op["id"] for op in res["operations"]] == [self.op4.id]
+        assert res["pool_tree_counts"] == {
+            "default": 5,
+            "other": 1,
+        }
+        res = list_operations(
+            include_archive=self.include_archive,
+            from_time=self.op1.before_start_time,
+            to_time=self.op5.after_start_time,
+            read_from=read_from,
+            pool_tree="default",
+            pool="some_pool",
+        )
+        assert res.get("user_counts", {}) == {}
+        assert res["pool_tree_counts"] == {"other": 1}
+        assert res.get("pool_counts", {}) == {}
+        assert res.get("state_counts", {}) == {}
+        assert res.get("type_counts", {}) == {}
+        if self.check_failed_jobs_count:
+            assert res.get("failed_jobs_count", 0) == 0
+        assert res.get("operations", []) == []
 
     @authors("levysotsky")
     def test_with_limit(self, read_from):

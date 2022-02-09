@@ -1016,6 +1016,9 @@ TFuture<TListOperationsResult> TClient::ListOperations(
     if (options.Pool) {
         req->set_pool(*options.Pool);
     }
+    if (options.PoolTree) {
+        req->set_pool_tree(*options.PoolTree);
+    }
     if (options.WithFailedJobs) {
         req->set_with_failed_jobs(*options.WithFailedJobs);
     }

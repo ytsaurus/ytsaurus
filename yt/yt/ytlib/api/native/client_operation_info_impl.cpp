@@ -1027,10 +1027,10 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         THROW_ERROR_EXCEPTION("Missing required parameter \"to_time\"");
     }
 
-    if (options.AccessFilter) {
-        constexpr int requiredVersion = 30;
+    if (options.PoolTree) {
+        constexpr int requiredVersion = 44;
         if (DoGetOperationsArchiveVersion() < requiredVersion) {
-            THROW_ERROR_EXCEPTION("\"access\" filter is not supported in operations archive of version < %v",
+            THROW_ERROR_EXCEPTION("\"pool_tree\" filter is not supported in operations archive of version < %v",
                 requiredVersion);
         }
     }
@@ -1065,10 +1065,12 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         auto poolIndex = builder.AddSelectExpression("pool");
         auto hasFailedJobsIndex = builder.AddSelectExpression("has_failed_jobs");
         auto countIndex = builder.AddSelectExpression("sum(1)", "count");
+        auto poolTreeToPoolIndex = builder.AddSelectExpression("pool_tree_to_pool_str");
 
         addCommonWhereConjuncts(&builder);
 
         builder.AddGroupByExpression("any_to_yson_string(pools)", "pools_str");
+        builder.AddGroupByExpression("any_to_yson_string(pool_tree_to_pool)", "pool_tree_to_pool_str");
         builder.AddGroupByExpression("authenticated_user");
         builder.AddGroupByExpression("state");
         builder.AddGroupByExpression("operation_type");
@@ -1084,6 +1086,11 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
             .ValueOrThrow();
 
         for (auto row : resultCounts.Rowset->GetRows()) {
+            std::optional<THashMap<TString, TString>> poolTreeToPool;
+            if (row[poolTreeToPoolIndex].Type != EValueType::Null) {
+                poolTreeToPool = ConvertTo<THashMap<TString, TString>>(
+                    TYsonString(FromUnversionedValue<TString>(row[poolTreeToPoolIndex])));
+            }
             std::optional<std::vector<TString>> pools;
             if (row[poolsIndex].Type != EValueType::Null) {
                 // NB: "any_to_yson_string" returns a string; cf. YT-12047.
@@ -1099,7 +1106,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
                 pools->push_back(FromUnversionedValue<TString>(row[poolIndex]));
             }
             auto count = FromUnversionedValue<i64>(row[countIndex]);
-            if (!countingFilter.Filter(pools, user, state, type, count)) {
+            if (!countingFilter.Filter(poolTreeToPool, pools, user, state, type, count)) {
                 continue;
             }
 
@@ -1148,6 +1155,16 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
 
     if (options.Pool) {
         builder.AddWhereConjunct(Format("list_contains(pools, %Qv) OR pool = %Qv", *options.Pool, *options.Pool));
+    }
+
+    if (options.PoolTree) {
+        TString query;
+        if (options.Pool) {
+            query = Format("try_get_string(pool_tree_to_pool, \"/%v\") = %Qv", *options.PoolTree, *options.Pool);
+        } else {
+            query = Format("NOT is_null(try_get_string(pool_tree_to_pool, \"/%v\"))", *options.PoolTree);
+        }
+        builder.AddWhereConjunct(query);
     }
 
     if (options.StateFilter) {
@@ -1380,6 +1397,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         result.StateCounts = std::move(countingFilter.StateCounts);
         result.TypeCounts = std::move(countingFilter.TypeCounts);
         result.FailedJobsCount = countingFilter.FailedJobsCount;
+        result.PoolTreeCounts = std::move(countingFilter.PoolTreeCounts);
     }
 
     return result;
