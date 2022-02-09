@@ -143,6 +143,10 @@ protected:
         } else {
             bootstrap->Run();
         }
+
+        // XXX(babenko): ASAN complains about memory leak on graceful exit.
+        // Must try to resolve them later.
+        _exit(0);
     }
 
 private:
