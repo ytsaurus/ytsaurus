@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,6 +10,7 @@ import javax.annotation.Nullable;
 public class YtCluster {
     // This option is set to true only in tests.
     static boolean normalizationLowersHostName = false;
+    static List<String> httpPrefixes = Arrays.asList("http://", "https://");
 
     final String balancerFqdn;
     int httpPort;
@@ -23,7 +25,7 @@ public class YtCluster {
             List<String> addresses,
             Optional<String> proxyRole
     ) {
-        this.name = name;
+        this.name = removeHttp(name);
         this.balancerFqdn = balancerFqdn;
         this.httpPort = httpPort;
         this.addresses = addresses;
@@ -60,6 +62,7 @@ public class YtCluster {
     }
 
     private static String getFqdnFromUnbracketed(String name) {
+        name = removeHttp(name);
         int index = name.indexOf(":");
         if (index < 0) {
             if (name.contains(".")) {
@@ -73,12 +76,22 @@ public class YtCluster {
     }
 
     static int getPort(String name) {
+        name = removeHttp(name);
         int index = name.lastIndexOf(":");
         if (index < 0) {
             return 80;
         } else {
             return Integer.parseInt(name.substring(index + 1));
         }
+    }
+
+    private static String removeHttp(String name) {
+        for (String prefix : httpPrefixes) {
+            if (name.startsWith(prefix)) {
+                return name.substring(prefix.length());
+            }
+        }
+        return name;
     }
 
     static @Nullable

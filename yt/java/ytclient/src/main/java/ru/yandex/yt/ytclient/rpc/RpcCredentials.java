@@ -38,7 +38,7 @@ public class RpcCredentials {
     }
 
     public boolean isEmpty() {
-        return user == null || token == null;
+        return token == null;
     }
 
     /**
