@@ -161,6 +161,8 @@ public:
 
     NJobProxy::TJobProxyDynamicConfigPtr JobProxy;
 
+    std::optional<bool> SendJobResultExtensionToScheduler;
+
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -208,6 +210,8 @@ public:
     TDuration JobProxyBuildInfoUpdatePeriod;
 
     bool DisableJobProxyProfiling;
+
+    bool SendJobResultExtensionToScheduler;
 
     REGISTER_YSON_STRUCT(TJobControllerConfig);
 

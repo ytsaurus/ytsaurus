@@ -118,8 +118,8 @@ TJob::TJob(
     , OperationId_(operationId)
     , Bootstrap_(bootstrap)
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
-    , ControllerAgentConnectorLease_(
-        Bootstrap_->GetControllerAgentConnectorPool()->CreateLeaseOnControllerAgentConnector(this))
+    , ControllerAgentConnector_(
+        Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(this))
     , Config_(Bootstrap_->GetConfig()->ExecNode)
     , Invoker_(Bootstrap_->GetJobInvoker())
     , StartTime_(TInstant::Now())
@@ -474,9 +474,9 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentDescr
     VERIFY_THREAD_AFFINITY(JobThread);
 
     ControllerAgentDescriptor_ = std::move(agentDescriptor);
-    ControllerAgentConnectorLease_ = Bootstrap_
+    ControllerAgentConnector_ = Bootstrap_
         ->GetControllerAgentConnectorPool()
-        ->CreateLeaseOnControllerAgentConnector(this);
+        ->GetControllerAgentConnector(this);
 }
 
 EJobType TJob::GetType() const
@@ -638,11 +638,35 @@ std::vector<int> TJob::GetPorts() const
     return Ports_;
 }
 
+TJobResult TJob::GetResultWithoutExtension() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_VERIFY(JobResultWithoutExtension_);
+
+    return *JobResultWithoutExtension_;
+}
+
+const std::optional<NScheduler::NProto::TSchedulerJobResultExt>& TJob::GetResultExtension() const noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return JobResultExtension_;
+}
+
 TJobResult TJob::GetResult() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return *JobResult_;
+    YT_VERIFY(JobResultWithoutExtension_);
+
+    auto result = *JobResultWithoutExtension_;
+    if (JobResultExtension_) {
+        *result.MutableExtension(
+            NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext) = *JobResultExtension_;
+    }
+
+    return result;
 }
 
 double TJob::GetProgress() const
@@ -998,6 +1022,13 @@ bool TJob::IsJobProxyCompleted() const noexcept
     return JobProxyCompleted_;
 }
 
+const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& TJob::GetControllerAgentConnector() const noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return ControllerAgentConnector_;
+}
+
 // Helpers.
 
 void TJob::SetJobState(EJobState state)
@@ -1073,8 +1104,8 @@ void TJob::DoSetResult(TJobResult jobResult)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobResult_) {
-        auto error = FromProto<TError>(JobResult_->error());
+    if (JobResultWithoutExtension_) {
+        auto error = FromProto<TError>(JobResultWithoutExtension_->error());
         if (!error.IsOK()) {
             // Job result with error is already set.
             return;
@@ -1097,7 +1128,13 @@ void TJob::DoSetResult(TJobResult jobResult)
         ToProto(jobResult.mutable_error(), error.Truncate());
     }
 
-    JobResult_ = jobResult;
+    if (jobResult.HasExtension(
+        NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext))
+    {
+        JobResultExtension_ = std::optional<NScheduler::NProto::TSchedulerJobResultExt>(std::move(*jobResult.ReleaseExtension(
+            NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext)));
+    }
+    JobResultWithoutExtension_ = std::move(jobResult);
     FinishTime_ = TInstant::Now();
 }
 
@@ -1394,10 +1431,11 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
 
     ValidateJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
     if (!error.IsOK()) {
-        auto initialJobError = FromProto<TError>(JobResult_->error());
+        auto initialJobError = FromProto<TError>(JobResultWithoutExtension_->error());
         YT_VERIFY(!initialJobError.IsOK());
-        // Reset JobResult_ to set it with checkError
-        JobResult_ = TJobResult();
+        // Reset JobResultWithoutExtension_ to set it with checkError
+        JobResultWithoutExtension_ = TJobResult();
+        JobResultExtension_.reset();
 
         auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Extra GPU check command failed")
             << error
@@ -1489,8 +1527,8 @@ void TJob::OnJobProxyFinished(const TError& error)
 
     YT_LOG_INFO("Job proxy finished");
 
-    auto currentError = JobResult_
-        ? FromProto<TError>(JobResult_->error())
+    auto currentError = JobResultWithoutExtension_
+        ? FromProto<TError>(JobResultWithoutExtension_->error())
         : TError();
     if (!currentError.IsOK() && UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
@@ -1568,26 +1606,26 @@ void TJob::Cleanup()
         .Run())
         .ThrowOnError();
 
-    YT_VERIFY(JobResult_);
+    YT_VERIFY(JobResultWithoutExtension_);
 
     // Copy info from traffic meter to statistics.
     auto statistics = ConvertTo<TStatistics>(StatisticsYson_);
     FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
     StatisticsYson_ = ConvertToYsonString(statistics);
 
-    auto error = FromProto<TError>(JobResult_->error());
+    auto error = FromProto<TError>(JobResultWithoutExtension_->error());
 
     if (error.IsOK()) {
         SetJobState(EJobState::Completed);
     } else if (IsFatalError(error)) {
         error.MutableAttributes()->Set("fatal", true);
-        ToProto(JobResult_->mutable_error(), error);
+        ToProto(JobResultWithoutExtension_->mutable_error(), error);
         SetJobState(EJobState::Failed);
     } else {
-        auto abortReason = GetAbortReason(*JobResult_);
+        auto abortReason = GetAbortReason();
         if (abortReason) {
             error.MutableAttributes()->Set("abort_reason", abortReason);
-            ToProto(JobResult_->mutable_error(), error);
+            ToProto(JobResultWithoutExtension_->mutable_error(), error);
             SetJobState(EJobState::Aborted);
         } else {
             SetJobState(EJobState::Failed);
@@ -2079,14 +2117,16 @@ TError TJob::BuildJobProxyError(const TError& spawnError)
     return jobProxyError;
 }
 
-std::optional<EAbortReason> TJob::GetAbortReason(const TJobResult& jobResult)
+std::optional<EAbortReason> TJob::GetAbortReason()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto resultError = FromProto<TError>(jobResult.error());
+    YT_VERIFY(JobResultWithoutExtension_);
 
-    if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
-        const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    auto resultError = FromProto<TError>(JobResultWithoutExtension_->error());
+
+    if (JobResultExtension_) {
+        const auto& schedulerResultExt = *JobResultExtension_;
 
         if (!resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) &&
             !resultError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) &&

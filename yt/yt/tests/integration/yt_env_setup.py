@@ -597,6 +597,11 @@ class YTEnvSetup(object):
 
             config["exec_agent"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
 
+            artifact_components_21_3 = cls.ARTIFACT_COMPONENTS.get("21_3", [])
+            if any(c in artifact_components_21_3 for c in ("node", "controller_agent", "scheduler")):
+                config["exec_agent"]["controller_agent_connector"]["send_job_result"] = False
+                config["exec_agent"]["job_controller"]["send_job_result_extension_to_scheduler"] = True
+
             config = cls.update_timestamp_provider_config(cluster_index, config)
             configs["node"][index] = config
             cls.modify_node_config(configs["node"][index])

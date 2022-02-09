@@ -110,6 +110,8 @@ public:
 
     std::vector<int> GetPorts() const override;
 
+    NJobTrackerClient::NProto::TJobResult GetResultWithoutExtension() const;
+    const std::optional<NScheduler::NProto::TSchedulerJobResultExt>& GetResultExtension() const noexcept;
     NJobTrackerClient::NProto::TJobResult GetResult() const override;
 
     double GetProgress() const override;
@@ -178,6 +180,8 @@ public:
 
     bool IsJobProxyCompleted() const noexcept;
 
+    const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& GetControllerAgentConnector() const noexcept;
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -186,7 +190,7 @@ private:
     IBootstrap* const Bootstrap_;
 
     TControllerAgentDescriptor ControllerAgentDescriptor_;
-    TControllerAgentConnectorPool::TControllerAgentConnectorLease ControllerAgentConnectorLease_;
+    TControllerAgentConnectorPool::TControllerAgentConnectorPtr ControllerAgentConnector_;
 
     const TExecNodeConfigPtr Config_;
     const IInvokerPtr Invoker_;
@@ -220,7 +224,8 @@ private:
 
     NJobAgent::TExecAttributes ExecAttributes_;
 
-    std::optional<NJobTrackerClient::NProto::TJobResult> JobResult_;
+    std::optional<NJobTrackerClient::NProto::TJobResult> JobResultWithoutExtension_;
+    std::optional<NScheduler::NProto::TSchedulerJobResultExt> JobResultExtension_;
 
     std::optional<TInstant> PrepareTime_;
     std::optional<TInstant> CopyTime_;
@@ -376,7 +381,7 @@ private:
     // Analyse results.
     static TError BuildJobProxyError(const TError& spawnError);
 
-    std::optional<NScheduler::EAbortReason> GetAbortReason(const NJobTrackerClient::NProto::TJobResult& jobResult);
+    std::optional<NScheduler::EAbortReason> GetAbortReason();
 
     bool IsFatalError(const TError& error);
 

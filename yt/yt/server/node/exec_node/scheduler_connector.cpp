@@ -140,11 +140,11 @@ void TSchedulerConnector::SendHeartbeat() noexcept
     if (!rspOrError.IsOK()) {
         HeartbeatInfo_.LastFailedHeartbeatTime = TInstant::Now();
         if (HeartbeatInfo_.FailedHeartbeatBackoffTime == TDuration::Zero()) {
-            HeartbeatInfo_.FailedHeartbeatBackoffTime = StaticConfig_->FailedHeartbeatBackoffStartTime;
+            HeartbeatInfo_.FailedHeartbeatBackoffTime = CurrentConfig_->FailedHeartbeatBackoffStartTime;
         } else {
             HeartbeatInfo_.FailedHeartbeatBackoffTime = std::min(
-                HeartbeatInfo_.FailedHeartbeatBackoffTime * StaticConfig_->FailedHeartbeatBackoffMultiplier,
-                StaticConfig_->FailedHeartbeatBackoffMaxTime);
+                HeartbeatInfo_.FailedHeartbeatBackoffTime * CurrentConfig_->FailedHeartbeatBackoffMultiplier,
+                CurrentConfig_->FailedHeartbeatBackoffMaxTime);
         }
         YT_LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler (BackoffTime: %v)",
             HeartbeatInfo_.FailedHeartbeatBackoffTime);

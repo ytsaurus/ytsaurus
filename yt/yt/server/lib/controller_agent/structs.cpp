@@ -28,6 +28,9 @@ void MergeJobSummaries(
     YT_VERIFY(schedulerJobSummary.Id == nodeJobSummary.Id);
 
     schedulerJobSummary.StatisticsYson = std::move(nodeJobSummary.StatisticsYson);
+    if (nodeJobSummary.Result.HasExtension(NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext)) {
+        schedulerJobSummary.Result = std::move(nodeJobSummary.Result);
+    }
 }
 
 } // namespace
@@ -117,24 +120,12 @@ TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgent
 {
     YT_VERIFY(event->has_abandoned());
     YT_VERIFY(event->has_interrupt_reason());
-    const auto& schedulerResultExt = Result.GetExtension(NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext);
-    YT_VERIFY(
-        (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
-        (InterruptReason != EInterruptReason::None && (
-            schedulerResultExt.unread_chunk_specs_size() != 0 ||
-            schedulerResultExt.restart_needed())));
     YT_VERIFY(State == ExpectedState);
 }
 
 TCompletedJobSummary::TCompletedJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
     : TJobSummary(status)
 {
-    const auto& schedulerResultExt = Result.GetExtension(NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext);
-    YT_VERIFY(
-        (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
-        (InterruptReason != EInterruptReason::None && (
-            schedulerResultExt.unread_chunk_specs_size() != 0 ||
-            schedulerResultExt.restart_needed())));
     YT_VERIFY(State == ExpectedState);
 }
 

@@ -23,31 +23,70 @@ class TControllerAgentConnectorPool
     : public TRefCounted
 {
 private:
-    class TControllerAgentConnectorBase
+    friend class TControllerAgentConnector;
+
+    class TControllerAgentConnector
         : public TRefCounted
-    { };
+    {
+    public:
+        TControllerAgentConnector(
+            TControllerAgentConnectorPool* controllerAgentConnectorPool,
+            TControllerAgentDescriptor controllerAgentDescriptor);
+        
+        NRpc::IChannelPtr GetChannel() const noexcept;
+        void SendOutOfBandHeartbeatIfNeeded();
+        void EnqueueFinishedJob(const TJobPtr& job);
+
+        void OnConfigUpdated();
+
+        ~TControllerAgentConnector();
+
+    private:
+        struct THeartbeatInfo
+        {
+            TInstant LastSentHeartbeatTime;
+            TInstant LastFailedHeartbeatTime;
+            TDuration FailedHeartbeatBackoffTime;
+        };
+        THeartbeatInfo HeartbeatInfo_;
+
+        TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
+        TControllerAgentDescriptor ControllerAgentDescriptor_;
+
+        NRpc::IChannelPtr Channel_;
+
+        const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
+
+        NConcurrency::IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
+
+        TDuration RunningJobInfoSendingBackoff_;
+        bool SendJobResult_ = false;
+
+        THashSet<TJobPtr> EnqueuedFinishedJobs_;
+        bool ShouldSendOutOfBand_ = false;
+
+        DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+        void SendHeartbeat();
+        void OnAgentIncarnationOutdated() noexcept;
+    };
 
 public:
-    using TControllerAgentConnectorLease = TIntrusivePtr<TControllerAgentConnectorBase>;
+    using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
 
     TControllerAgentConnectorPool(TControllerAgentConnectorConfigPtr config, IBootstrap* bootstrap);
 
     NRpc::IChannelPtr GetOrCreateChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
 
-    void EnqueueFinishedJob(const TJobPtr& job);
-
     void SendOutOfBandHeartbeatsIfNeeded();
 
-    TControllerAgentConnectorLease CreateLeaseOnControllerAgentConnector(const TJob* job);
+    TControllerAgentConnectorPtr GetControllerAgentConnector(const TJob* job);
 
     void OnDynamicConfigChanged(
         const TExecNodeDynamicConfigPtr& oldConfig,
         const TExecNodeDynamicConfigPtr& newConfig);
     
 private:
-    class TControllerAgentConnector;
-    friend class TControllerAgentConnector;
-
     //! TControllerAgentConnector object lifetime include lifetime of map entry, so we can use raw pointers here.
     THashMap<TControllerAgentDescriptor, TControllerAgentConnector*> ControllerAgentConnectors_;
 

@@ -2913,9 +2913,36 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TestingError, "Testing exception");
     }
 
+    auto joblet = GetJoblet(jobId);
+
     const auto& result = jobSummary->Result;
 
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    
+    {
+        bool restartNeeded = false;
+        if (schedulerResultExt.has_restart_needed()) {
+            restartNeeded = schedulerResultExt.restart_needed();
+        } else {
+            restartNeeded = schedulerResultExt.unread_chunk_specs_size() > 0;
+        }
+
+        if (restartNeeded) {
+            if (joblet->Revived) {
+                // NB: We lose the original interrupt reason during the revival,
+                // so we set it to Unknown.
+                jobSummary->InterruptReason = EInterruptReason::Unknown;
+            }
+        } else {
+            jobSummary->InterruptReason = EInterruptReason::None;
+        }
+
+        YT_VERIFY(
+            (jobSummary->InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
+            (jobSummary->InterruptReason != EInterruptReason::None && (
+                schedulerResultExt.unread_chunk_specs_size() != 0 ||
+                schedulerResultExt.restart_needed())));
+    }
 
     // Validate all node ids of the output chunks and populate the local node directory.
     // In case any id is not known, abort the job.
@@ -2942,8 +2969,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             InputNodeDirectory_->AddDescriptor(nodeId, *descriptor);
         }
     }
-
-    auto joblet = GetJoblet(jobId);
 
     // Controller should abort job if its competitor has already completed.
     auto maybeAbortReason = joblet->Task->ShouldAbortJob(joblet);
@@ -3178,6 +3203,15 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     const auto jobId = jobSummary->Id;
 
+    // TODO: Remove before commit
+    YT_LOG_DEBUG(
+        "Debug log: On job aborted (JobId: %v, JobProxyCompleted: %v, State: %v, HasFullInfo: %v, HasStatistics: %v)",
+        jobId,
+        jobSummary->JobExecutionCompleted,
+        jobSummary->State,
+        HasFullFinishedJobInfo(jobId),
+        !!jobSummary->StatisticsYson);
+
     if (State != EControllerState::Running && State != EControllerState::Failing) {
         YT_LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
         RemoveFinishedJobInfo(jobId);
@@ -3237,6 +3271,16 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
             const auto& result = jobSummary->Result;
             const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             failedChunkIds = FromProto<std::vector<TChunkId>>(schedulerResultExt.failed_chunk_ids());
+
+            // TODO: Remove before commit
+            YT_LOG_DEBUG(
+                "Aborted job has failed chunks (JobId: %v, HasExtension: %v, FailedChunks: %v)",
+                jobId,
+                result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext),
+                failedChunkIds);
+        } else {
+            // TODO: Remove before commit
+            YT_LOG_DEBUG("Aborted job has not failed chunks (JobId: %v, AbortReason: %v)", jobId, abortReason);
         }
 
         taskJobResult = joblet->Task->OnJobAborted(joblet, *jobSummary);

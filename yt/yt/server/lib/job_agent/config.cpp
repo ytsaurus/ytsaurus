@@ -181,6 +181,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy", &TThis::JobProxy)
         .Default();
+    
+    registrar.Parameter("send_job_result_extension_to_scheduler", &TThis::SendJobResultExtensionToScheduler)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -251,6 +254,9 @@ void TJobControllerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("disable_job_proxy_profiling", &TThis::DisableJobProxyProfiling)
         .Default(false);
+    
+    registrar.Parameter("send_job_result_extension_to_scheduler", &TThis::SendJobResultExtensionToScheduler)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

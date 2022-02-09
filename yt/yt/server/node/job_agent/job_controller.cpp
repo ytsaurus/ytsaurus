@@ -149,7 +149,7 @@ public:
 private:
     friend class TJobController::TJobHeartbeatProcessorBase;
 
-    const TJobControllerConfigPtr Config_;
+    const TIntrusivePtr<const TJobControllerConfig> Config_;
     NClusterNode::IBootstrapBase* const Bootstrap_;
 
     TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
@@ -211,14 +211,16 @@ private:
 
     TErrorOr<TYsonString> CachedJobProxyBuildInfo_;
 
+    std::atomic<bool> SendJobResultExtensionToScheduler_{true};
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
         const TClusterNodeDynamicConfigPtr& newNodeConfig);
-    const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds() const;
+    const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds() const noexcept;
     void RemoveSchedulerJobsOnFatalAlert();
-    bool NeedTotalConfirmation();
+    bool NeedTotalConfirmation() noexcept;
 
     void DoPrepareHeartbeatRequest(TCellTag cellTag, EObjectType jobObjectType, const TReqHeartbeatPtr& request);
     void PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request);
@@ -331,6 +333,8 @@ private:
     TDuration GetMemoryOverdraftTimeout() const;
     TDuration GetCpuOverdraftTimeout() const;
     TDuration GetRecentlyRemovedJobsStoreTimeout() const;
+
+    bool ShouldSendJobResultExtensionToScheduler() const noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -367,6 +371,7 @@ TJobController::TImpl::TImpl(
 
 void TJobController::TImpl::Initialize()
 {
+    SendJobResultExtensionToScheduler_.store(Config_->SendJobResultExtensionToScheduler, std::memory_order_relaxed);
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TImpl::OnProfiling, MakeWeak(this)),
@@ -509,7 +514,7 @@ void TJobController::TImpl::RemoveSchedulerJobsOnFatalAlert()
     }
 }
 
-bool TJobController::TImpl::NeedTotalConfirmation()
+bool TJobController::TImpl::NeedTotalConfirmation() noexcept
 {
     if (const auto now = TInstant::Now(); LastStoredJobsSendTime_ + GetTotalConfirmationPeriod() < now) {
         LastStoredJobsSendTime_ = now;
@@ -1384,7 +1389,7 @@ void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbe
     }
 }
 
-const THashMap<TJobId, TOperationId>& TJobController::TImpl::GetSpecFetchFailedJobIds() const
+const THashMap<TJobId, TOperationId>& TJobController::TImpl::GetSpecFetchFailedJobIds() const noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1492,6 +1497,7 @@ void TJobController::TImpl::OnJobSpecsReceived(
     YT_LOG_DEBUG("Job specs received (SpecServiceAddress: %v)", controllerAgentDescriptor.Address);
 
     const auto& rsp = rspOrError.Value();
+
     YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
     for (size_t index = 0; index < startInfos.size(); ++index) {
         const auto& startInfo = startInfos[index];
@@ -1564,6 +1570,10 @@ void TJobController::TImpl::OnDynamicConfigChanged(
     JobProxyBuildInfoUpdater_->SetPeriod(
         jobControllerConfig->JobProxyBuildInfoUpdatePeriod.value_or(
             Config_->JobProxyBuildInfoUpdatePeriod));
+    SendJobResultExtensionToScheduler_.store(
+        jobControllerConfig->SendJobResultExtensionToScheduler.value_or(
+            Config_->SendJobResultExtensionToScheduler),
+        std::memory_order_relaxed);
 }
 
 void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
@@ -1841,6 +1851,11 @@ TDuration TJobController::TImpl::GetRecentlyRemovedJobsStoreTimeout() const
         : Config_->RecentlyRemovedJobsStoreTimeout;
 }
 
+bool TJobController::TImpl::ShouldSendJobResultExtensionToScheduler() const noexcept
+{
+    return SendJobResultExtensionToScheduler_.load(std::memory_order_relaxed);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobController::TJobController(
@@ -1967,7 +1982,7 @@ void TJobController::TJobHeartbeatProcessorBase::RemoveSchedulerJobsOnFatalAlert
     JobController_->Impl_->RemoveSchedulerJobsOnFatalAlert();
 }
 
-bool TJobController::TJobHeartbeatProcessorBase::NeedTotalConfirmation()
+bool TJobController::TJobHeartbeatProcessorBase::NeedTotalConfirmation() const noexcept
 {
     return JobController_->Impl_->NeedTotalConfirmation();
 }
@@ -1987,7 +2002,7 @@ IJobPtr TJobController::TJobHeartbeatProcessorBase::CreateMasterJob(
     return JobController_->Impl_->CreateMasterJob(jobId, operationId, resourceLimits, std::move(jobSpec));
 }
 
-const THashMap<TJobId, TOperationId>& TJobController::TJobHeartbeatProcessorBase::GetSpecFetchFailedJobIds()
+const THashMap<TJobId, TOperationId>& TJobController::TJobHeartbeatProcessorBase::GetSpecFetchFailedJobIds() const noexcept
 {
     return JobController_->Impl_->GetSpecFetchFailedJobIds();
 }
@@ -2006,6 +2021,11 @@ TErrorOr<TControllerAgentDescriptor> TJobController::TJobHeartbeatProcessorBase:
     const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const
 {
     return JobController_->Impl_->TryParseControllerAgentDescriptor(proto);
+}
+
+bool TJobController::TJobHeartbeatProcessorBase::ShouldSendJobResultExtensionToScheduler() const noexcept
+{
+    return JobController_->Impl_->ShouldSendJobResultExtensionToScheduler();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
