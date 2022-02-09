@@ -149,12 +149,16 @@ void TCompletedJobSummary::Persist(const TPersistenceContext& context)
 TAbortedJobSummary::TAbortedJobSummary(TJobId id, EAbortReason abortReason)
     : TJobSummary(id, EJobState::Aborted)
     , AbortReason(abortReason)
-{ }
+{
+    AbortedByController = true;
+}
 
 TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason)
     : TJobSummary(other)
     , AbortReason(abortReason)
-{ }
+{
+    AbortedByController = true;
+}
 
 TAbortedJobSummary::TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : TJobSummary(event)
@@ -275,7 +279,12 @@ std::unique_ptr<TJobSummary> ParseJobSummary(NJobTrackerClient::NProto::TJobStat
 
 bool ExpectsJobInfoFromNode(const TJobSummary& jobSummary) noexcept
 {
-    return !jobSummary.StatisticsYson && jobSummary.JobExecutionCompleted;
+    return jobSummary.JobExecutionCompleted;
+}
+
+bool ExpectsJobInfoFromNode(const TAbortedJobSummary& jobSummary) noexcept
+{
+    return !jobSummary.AbortedByController && ExpectsJobInfoFromNode(static_cast<const TJobSummary&>(jobSummary));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
