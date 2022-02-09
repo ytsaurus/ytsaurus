@@ -446,6 +446,7 @@ b"""
 
         controller_agent_connector = {
             running_job_sending_backoff = 0;
+            send_job_result = %true;
         };
 
         job_proxy_heartbeat_period = 200;
@@ -453,6 +454,7 @@ b"""
         job_controller = {
             total_confirmation_period = 5000;
             cpu_per_tablet_slot = 0.0;
+            send_job_result_extension_to_scheduler = %false;
         };
 
         master_connector = {

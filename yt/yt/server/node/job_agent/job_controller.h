@@ -137,7 +137,7 @@ public:
 
     protected:
         void RemoveSchedulerJobsOnFatalAlert();
-        bool NeedTotalConfirmation();
+        bool NeedTotalConfirmation() const noexcept;
         TFuture<void> RequestJobSpecsAndStartJobs(
             std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos);
         IJobPtr CreateMasterJob(
@@ -145,13 +145,15 @@ public:
             TOperationId operationId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec);
-        const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds();
+        const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds() const noexcept;
 
         void PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request);
         void ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response);
 
         TErrorOr<NExecNode::TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
             const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const;
+        
+        bool ShouldSendJobResultExtensionToScheduler() const noexcept;
 
         TJobController* const JobController_;
         NClusterNode::IBootstrapBase* const Bootstrap_;

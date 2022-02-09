@@ -28,53 +28,6 @@ static const auto& Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TControllerAgentConnectorPool::TControllerAgentConnector
-    : public TControllerAgentConnectorPool::TControllerAgentConnectorBase
-{
-public:
-    TControllerAgentConnector(
-        TControllerAgentConnectorPool* controllerAgentConnectorPool,
-        TControllerAgentDescriptor controllerAgentDescriptor);
-    
-    NRpc::IChannelPtr GetChannel() const noexcept;
-    void SendOutOfBandHeartbeatIfNeeded();
-    void EnqueueFinishedJob(const TJobPtr& job);
-
-    void OnConfigUpdated();
-
-    ~TControllerAgentConnector() override;
-
-private:
-    struct THeartbeatInfo
-    {
-        TInstant LastSentHeartbeatTime;
-        TInstant LastFailedHeartbeatTime;
-        TDuration FailedHeartbeatBackoffTime;
-    };
-    THeartbeatInfo HeartbeatInfo_;
-
-    TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
-    TControllerAgentDescriptor ControllerAgentDescriptor_;
-
-    NRpc::IChannelPtr Channel_;
-
-    const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
-
-    IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
-
-    TDuration RunningJobInfoSendingBackoff_;
-
-    THashSet<TJobPtr> EnqueuedFinishedJobs_;
-    bool ShouldSendOutOfBand_ = false;
-
-    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
-
-    void SendHeartbeat();
-    void OnAgentIncarnationOutdated() noexcept;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnector(
     TControllerAgentConnectorPool* controllerAgentConnectorPool,
     TControllerAgentDescriptor controllerAgentDescriptor)
@@ -90,6 +43,8 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
         ControllerAgentConnectorPool_->CurrentConfig_->StatisticsThrottler))
     , RunningJobInfoSendingBackoff_(
         ControllerAgentConnectorPool_->CurrentConfig_->RunningJobInfoSendingBackoff)
+    , SendJobResult_(
+        ControllerAgentConnectorPool_->CurrentConfig_->SendJobResult)
 {
     YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
@@ -129,6 +84,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
     HeartbeatExecutor_->SetPeriod(currentConfig.HeartbeatPeriod);
     RunningJobInfoSendingBackoff_ = currentConfig.RunningJobInfoSendingBackoff;
     StatisticsThrottler_->Reconfigure(currentConfig.StatisticsThrottler);
+    SendJobResult_ = currentConfig.SendJobResult;
 }
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
@@ -205,6 +161,11 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     for (const auto& job : sentEnqueuedJobs) {
         auto* const jobStatus = request->add_jobs();
         FillJobStatus(jobStatus, job);
+
+        if (SendJobResult_) {
+            *jobStatus->mutable_result() = job->GetResult();
+        }
+
         job->ResetStatisticsLastSendTime();
 
         if (auto statistics = job->GetStatistics()) {
@@ -329,7 +290,7 @@ void TControllerAgentConnectorPool::SendOutOfBandHeartbeatsIfNeeded()
     }
 }
 
-TControllerAgentConnectorPool::TControllerAgentConnectorLease TControllerAgentConnectorPool::CreateLeaseOnControllerAgentConnector(
+TControllerAgentConnectorPool::TControllerAgentConnectorPtr TControllerAgentConnectorPool::GetControllerAgentConnector(
     const TJob* job)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
@@ -394,14 +355,6 @@ IChannelPtr TControllerAgentConnectorPool::GetOrCreateChannel(
     }
 
     return CreateChannel(agentDescriptor);
-}
-
-void TControllerAgentConnectorPool::EnqueueFinishedJob(const TJobPtr& job)
-{
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
-
-    auto controllerAgentConnector = GetOrCrash(ControllerAgentConnectors_, job->GetControllerAgentDescriptor());
-    controllerAgentConnector->EnqueueFinishedJob(job);
 }
 
 void TControllerAgentConnectorPool::OnConfigUpdated()

@@ -124,14 +124,28 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
 
             case EJobState::Completed:
             case EJobState::Aborted:
-            case EJobState::Failed:
-                *jobStatus->mutable_result() = schedulerJob->GetResult();
-                Bootstrap_
-                    ->GetExecNodeBootstrap()
-                    ->GetControllerAgentConnectorPool()
-                    ->EnqueueFinishedJob(schedulerJob);
+            case EJobState::Failed: {
+                const auto& controllerAgentConnector = schedulerJob->GetControllerAgentConnector();
+                YT_VERIFY(controllerAgentConnector);
+
+                if (!ShouldSendJobResultExtensionToScheduler()) {
+                    YT_LOG_DEBUG(
+                        "Skip job result extension in scheduler heartbeat request "
+                        "(JobId: %v)",
+                        jobId);
+
+                    *jobStatus->mutable_result() = schedulerJob->GetResultWithoutExtension();
+                } else {
+                    YT_LOG_DEBUG(
+                        "Add job result extension in schedulee heartbeat request "
+                        "(JobId: %v)",
+                        jobId);
+                    *jobStatus->mutable_result() = schedulerJob->GetResult();
+                }
+                controllerAgentConnector->EnqueueFinishedJob(schedulerJob);
                 shouldSendControllerAgentHeartbeatsOutOfBand = true;
                 break;
+            }
             default:
                 break;
         }

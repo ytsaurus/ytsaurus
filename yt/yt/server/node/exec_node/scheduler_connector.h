@@ -25,7 +25,7 @@ public:
     void OnDynamicConfigChanged(
         const TExecNodeDynamicConfigPtr& oldConfig,
         const TExecNodeDynamicConfigPtr& newConfig);
-
+    
 private:
     const TSchedulerConnectorConfigPtr StaticConfig_;
     TSchedulerConnectorConfigPtr CurrentConfig_;
@@ -47,7 +47,6 @@ private:
     NProfiling::TEventTimer TimeBetweenSentHeartbeatsCounter_;
     NProfiling::TEventTimer TimeBetweenAcknowledgedHeartbeatsCounter_;
     NProfiling::TEventTimer TimeBetweenFullyProcessedHeartbeatsCounter_;
-
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
