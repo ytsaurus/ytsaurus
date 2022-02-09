@@ -62,7 +62,8 @@ TJaegerTracerConfig::TJaegerTracerConfig()
     RegisterParameter("queue_stall_timeout", QueueStallTimeout)
         .Default(TDuration::Minutes(15));
     RegisterParameter("max_request_size", MaxRequestSize)
-        .Default(128_KB);
+        .Default(128_KB)
+        .LessThanOrEqual(4_MB);
     RegisterParameter("max_batch_size", MaxBatchSize)
         .Default(128);
     RegisterParameter("max_memory", MaxMemory)
