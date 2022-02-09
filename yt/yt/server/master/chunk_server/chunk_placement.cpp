@@ -54,7 +54,9 @@ public:
         for (auto replica : chunk->StoredReplicas()) {
             if (replica.GetMediumIndex() == mediumIndex) {
                 auto* node = replica.GetPtr();
-                ForbiddenNodes_.push_back(node);
+                if (!AllowMultipleReplicasPerNode_) {
+                    ForbiddenNodes_.push_back(node);
+                }
                 if (!replica.GetPtr()->GetDecommissioned()) {
                     IncreaseRackUsage(node);
                 }
