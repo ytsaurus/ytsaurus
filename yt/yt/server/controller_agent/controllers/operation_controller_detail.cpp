@@ -1763,6 +1763,12 @@ void TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo(const TJobId
             return;
         }
 
+        YT_VERIFY(finishedJobInfo->State != TFinishedJobInfo::EState::FullyReceived);
+        if (finishedJobInfo->State == TFinishedJobInfo::EState::Released) {
+            YT_LOG_DEBUG("Finished job info is already received, abort skipped (JobId: %v)", jobId);
+            return;
+        }
+
         finishedJobInfo->State = TFinishedJobInfo::EState::FullyReceived;
 
         auto abortJobSummary = std::make_unique<TAbortedJobSummary>(
@@ -6066,7 +6072,7 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
         YT_LOG_FATAL(
             "Received multiple finished job events from scheduler (JobId: %v, PreviousState: %v, CurrentState: %v)",
             jobId,
-            finishedJobInfo->JobSummary->State,
+            finishedJobInfo->JobSummary ? finishedJobInfo->JobSummary->State : EJobState::None,
             jobSummary->State);
     }
 
