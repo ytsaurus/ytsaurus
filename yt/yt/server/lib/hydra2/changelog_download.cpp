@@ -20,27 +20,21 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = HydraLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 void DoDownloadChangelog(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
-    IChangelogStorePtr changelogStore,
-    int changelogId,
-    int recordCount)
+    IChangelogPtr changelog,
+    int recordCount,
+    const NLogging::TLogger& logger)
 {
+    const auto& Logger = logger;
+
     try {
         YT_LOG_INFO("Requested changelog records (RecordCount: %v, ChangelogId: %v)",
             recordCount,
-            changelogId);
-
-        auto asyncChangelog = changelogStore->OpenChangelog(changelogId);
-        auto changelog = WaitFor(asyncChangelog)
-            .ValueOrThrow();
+            changelog->GetId());
 
         if (changelog->GetRecordCount() >= recordCount) {
             YT_LOG_INFO("Local changelog already contains enough records, no download needed (RecordCount: %v)",
@@ -48,8 +42,8 @@ void DoDownloadChangelog(
             return;
         }
 
-        auto asyncChangelogInfo = DiscoverChangelog(config, cellManager, changelogId, recordCount);
-        auto changelogInfo = WaitFor(asyncChangelogInfo)
+        auto changelogInfoFuture = DiscoverChangelog(config, cellManager, changelog->GetId(), recordCount);
+        auto changelogInfo = WaitFor(changelogInfoFuture)
             .ValueOrThrow();
         int downloadedRecordCount = changelog->GetRecordCount();
 
@@ -71,7 +65,7 @@ void DoDownloadChangelog(
                 downloadedRecordCount + desiredChunkSize - 1);
 
             auto req = proxy.ReadChangeLog();
-            req->set_changelog_id(changelogId);
+            req->set_changelog_id(changelog->GetId());
             req->set_start_record_id(downloadedRecordCount);
             req->set_record_count(desiredChunkSize);
 
@@ -88,7 +82,7 @@ void DoDownloadChangelog(
                 THROW_ERROR_EXCEPTION("Peer %v does not have %v records of changelog %v anymore",
                     changelogInfo.PeerId,
                     recordCount,
-                    changelogId);
+                    changelog->GetId());
             }
 
             int actualChunkSize = static_cast<int>(records.size());
@@ -99,7 +93,7 @@ void DoDownloadChangelog(
                 actualChunkSize);
 
             auto future = changelog->Append(records);
-            downloadedRecordCount += records.size();
+            downloadedRecordCount += std::ssize(records);
 
             WaitFor(future)
                 .ThrowOnError();
@@ -110,7 +104,7 @@ void DoDownloadChangelog(
 
         YT_LOG_INFO("Changelog downloaded successfully");
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error downloading changelog %v", changelogId)
+        THROW_ERROR_EXCEPTION("Error downloading changelog %v", changelog->GetId())
             << ex;
     }
 }
@@ -120,13 +114,18 @@ void DoDownloadChangelog(
 TFuture<void> DownloadChangelog(
     TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
-    IChangelogStorePtr changelogStore,
-    int changelogId,
-    int recordCount)
+    IChangelogPtr changelog,
+    int recordCount,
+    const NLogging::TLogger& logger)
 {
     return BIND(&DoDownloadChangelog)
         .AsyncVia(GetCurrentInvoker())
-        .Run(config, cellManager, changelogStore, changelogId, recordCount);
+        .Run(
+            config,
+            cellManager,
+            changelog,
+            recordCount,
+            logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

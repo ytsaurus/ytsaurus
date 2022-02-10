@@ -1,5 +1,6 @@
-#include "private.h"
 #include "remote_changelog_store.h"
+
+#include "private.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -55,7 +56,7 @@ TYPath GetChangelogPath(const TYPath& storePath, int id)
     return Format("%v/%09d", storePath, id);
 }
 
-std::vector<TSharedRef> ReadRecordsOrThrow(
+std::vector<TSharedRef> ReadRecords(
     const TYPath& path,
     const TJournalReaderConfigPtr& config,
     const IClientPtr& client,
@@ -77,14 +78,63 @@ std::vector<TSharedRef> ReadRecordsOrThrow(
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoteChangelogStoreAccessor
+{
+protected:
+    const TYPath Path_;
+    const IClientPtr Client_;
+
+    const TLogger Logger;
+
+
+    TRemoteChangelogStoreAccessor(
+        TYPath path,
+        IClientPtr client)
+        : Path_(std::move(path))
+        , Client_(std::move(client))
+        , Logger(HydraLogger.WithTag("Path: %v", Path_))
+    { }
+
+    void ListChangelogs(
+        const std::vector<TString>& attributes,
+        std::function<void(const INodePtr&, int id)> functor)
+    {
+        YT_LOG_DEBUG("Requesting changelog list from remote store");
+        TListNodeOptions options{
+            .Attributes = attributes
+        };
+        auto result = WaitFor(Client_->ListNode(Path_, options))
+            .ValueOrThrow();
+        YT_LOG_DEBUG("Changelog list received");
+
+        auto items = ConvertTo<IListNodePtr>(result);
+
+        for (const auto& item : items->GetChildren()) {
+            auto key = item->GetValue<TString>();
+            int id;
+            if (!TryFromString(key, id)) {
+                THROW_ERROR_EXCEPTION("Unrecognized item %Qv in changelog store %v",
+                    key,
+                    Path_);
+            }
+            functor(item, id);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRemoteChangelogStore
-    : public IChangelogStore
+    : public TRemoteChangelogStoreAccessor
+    , public IChangelogStore
 {
 public:
     TRemoteChangelogStore(
         TRemoteChangelogStoreConfigPtr config,
         TTabletCellOptionsPtr options,
-        TYPath remotePath,
+        TYPath path,
         IClientPtr client,
         NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
         ITransactionPtr prerequisiteTransaction,
@@ -92,16 +142,16 @@ public:
         std::optional<TElectionPriority> electionPriority,
         std::optional<int> term,
         const TJournalWriterPerformanceCounters& counters)
-        : Config_(std::move(config))
+        : TRemoteChangelogStoreAccessor(
+            std::move(path),
+            std::move(client))
+        , Config_(std::move(config))
         , Options_(std::move(options))
-        , Path_(std::move(remotePath))
-        , Client_(std::move(client))
         , ResourceLimitsManager_(std::move(resourceLimitsManager))
         , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
         , ReachableVersion_(reachableVersion)
         , ElectionPriority_(electionPriority)
         , Counters_(counters)
-        , Logger(HydraLogger.WithTag("Path: %v", Path_))
         , Term_(term)
     { }
 
@@ -132,9 +182,11 @@ public:
         return ElectionPriority_;
     }
 
-    TFuture<int> GetLatestChangelogId() const override
+    TFuture<int> GetLatestChangelogId() override
     {
-        YT_UNIMPLEMENTED();
+        return BIND(&TRemoteChangelogStore::DoGetLatestChangelogId, MakeStrong(this))
+            .AsyncVia(GetHydraIOInvoker())
+            .Run();
     }
 
     TFuture<IChangelogPtr> CreateChangelog(int id, const NProto::TChangelogMeta& meta) override
@@ -168,15 +220,11 @@ public:
 private:
     const TRemoteChangelogStoreConfigPtr Config_;
     const TTabletCellOptionsPtr Options_;
-    const TYPath Path_;
-    const IClientPtr Client_;
     const NSecurityServer::IResourceLimitsManagerPtr ResourceLimitsManager_;
     const ITransactionPtr PrerequisiteTransaction_;
     const std::optional<TVersion> ReachableVersion_;
     const std::optional<TElectionPriority> ElectionPriority_;
     const TJournalWriterPerformanceCounters Counters_;
-
-    const TLogger Logger;
 
     std::atomic<std::optional<int>> Term_;
 
@@ -200,6 +248,27 @@ private:
                 term);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error set remote changelog store term")
+                << TErrorAttribute("store_path", Path_)
+                << ex;
+        }
+    }
+
+    int DoGetLatestChangelogId()
+    {
+        try {
+            YT_LOG_DEBUG("Finding latest changelog");
+
+            int latestId = InvalidSegmentId;
+            ListChangelogs({}, [&] (const INodePtr& /*item*/, int id) {
+                latestId = std::max(latestId, id);
+            });
+
+            YT_LOG_DEBUG("Latest changelog found (ChangelogId: %v)",
+                latestId);
+
+            return latestId;
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error getting latest changelog id")
                 << TErrorAttribute("store_path", Path_)
                 << ex;
         }
@@ -271,8 +340,7 @@ private:
                 THROW_ERROR_EXCEPTION(
                     NHydra::EErrorCode::NoSuchChangelog,
                     "Changelog does not exist in remote store")
-                    << TErrorAttribute("changelog_path", Path_)
-                    << TErrorAttribute("store_id", id);
+                    << TErrorAttribute("changelog_path", Path_);
             }
 
             auto node = ConvertToNode(result.ValueOrThrow());
@@ -281,8 +349,10 @@ private:
             auto dataSize = attributes.Get<i64>("uncompressed_data_size");
             auto recordCount = attributes.Get<int>("quorum_row_count");
 
-            YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
-                id);
+            YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v, DataSize: %v, RecordCount: %v)",
+                id,
+                dataSize,
+                recordCount);
 
             YT_LOG_DEBUG("Remote changelog opened (ChangelogId: %v)",
                 id);
@@ -385,7 +455,7 @@ private:
             , Meta_(std::move(meta))
             , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
             , Owner_(std::move(owner))
-            , Logger(Owner_->Logger)
+            , Logger(Owner_->Logger.WithTag("ChangelogId: %v", id))
             , RecordCount_(recordCount)
             , DataSize_(dataSize)
         {
@@ -485,7 +555,16 @@ private:
 
         TFuture<void> Close() override
         {
-            return Writer_ ? Writer_->Close() : VoidFuture;
+            YT_LOG_DEBUG("Closing remote changelog");
+            auto future = Writer_ ? Writer_->Close() : VoidFuture;
+            future.Subscribe(BIND([Logger = Logger] (const TError& error) {
+                if (error.IsOK()) {
+                    YT_LOG_DEBUG("Remote changelog closed");
+                } else {
+                    YT_LOG_DEBUG(error, "Error closing remote changelog");
+                }
+            }));
+            return future;
         }
 
     private:
@@ -497,12 +576,12 @@ private:
 
         const TLogger Logger;
 
-        IJournalWriterPtr Writer_;
-
         //! Protects #Writer_, #WriterOpened_ and #PendingRecords_.
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, WriterLock_);
 
-        //! If #WriterOpened_ is true, records are sent directly to the writer.
+        IJournalWriterPtr Writer_;
+
+        //! If #WriterOpened_ is true, records are sent directly to #Writer_.
         //! If #WriterOpened_ is false, records are being kept in #PendingRecords_
         //! until writer is opened and then flushed.
         bool WriterOpened_ = false;
@@ -517,7 +596,7 @@ private:
         std::vector<TSharedRef> DoRead(int firstRecordId, int maxRecords) const
         {
             try {
-                return ReadRecordsOrThrow(Path_, Owner_->Config_->Reader, Owner_->Client_, firstRecordId, maxRecords);
+                return ReadRecords(Path_, Owner_->Config_->Reader, Owner_->Client_, firstRecordId, maxRecords);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error reading remote changelog")
                     << TErrorAttribute("changelog_path", Path_)
@@ -528,6 +607,8 @@ private:
         void CreateWriter()
         {
             VERIFY_SPINLOCK_AFFINITY(WriterLock_);
+
+            YT_LOG_DEBUG("Creating remote changelog writer");
 
             try {
                 auto writerOptions = Owner_->GetJournalWriterOptions();
@@ -565,25 +646,26 @@ DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStore)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteChangelogStoreFactory
-    : public IChangelogStoreFactory
+    : public TRemoteChangelogStoreAccessor
+    , public IChangelogStoreFactory
 {
 public:
     TRemoteChangelogStoreFactory(
         TRemoteChangelogStoreConfigPtr config,
         TTabletCellOptionsPtr options,
-        TYPath remotePath,
+        TYPath path,
         IClientPtr client,
         NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
         TTransactionId prerequisiteTransactionId,
         TJournalWriterPerformanceCounters counters)
-        : Config_(std::move(config))
+        : TRemoteChangelogStoreAccessor(
+            std::move(path),
+            std::move(client))
+        , Config_(std::move(config))
         , Options_(std::move(options))
-        , Path_(std::move(remotePath))
-        , MasterClient_(std::move(client))
         , ResourceLimitsManager_(std::move(resourceLimitsManager))
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
         , Counters_(std::move(counters))
-        , Logger(HydraLogger.WithTag("Path: %v", Path_))
     { }
 
     TFuture<IChangelogStorePtr> Lock() override
@@ -596,13 +678,10 @@ public:
 private:
     const TRemoteChangelogStoreConfigPtr Config_;
     const TTabletCellOptionsPtr Options_;
-    const TYPath Path_;
-    const IClientPtr MasterClient_;
     const NSecurityServer::IResourceLimitsManagerPtr ResourceLimitsManager_;
     const TTransactionId PrerequisiteTransactionId_;
     const TJournalWriterPerformanceCounters Counters_;
 
-    const TLogger Logger;
 
     IChangelogStorePtr DoLock()
     {
@@ -623,7 +702,7 @@ private:
                 Config_,
                 Options_,
                 Path_,
-                MasterClient_,
+                Client_,
                 ResourceLimitsManager_,
                 prerequisiteTransaction,
                 reachableVersion,
@@ -645,7 +724,7 @@ private:
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Lock for changelog store %v", Path_));
         options.Attributes = std::move(attributes);
-        return WaitFor(MasterClient_->StartTransaction(ETransactionType::Master, options))
+        return WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
     }
 
@@ -657,33 +736,7 @@ private:
             .ThrowOnError();
     }
 
-    void ListChangelogs(
-        const std::vector<TString>& attributes,
-        std::function<void(const INodePtr&, int id)> functor)
-    {
-        YT_LOG_DEBUG("Requesting changelog list from remote store");
-        TListNodeOptions options{
-            .Attributes = attributes
-        };
-        auto result = WaitFor(MasterClient_->ListNode(Path_, options))
-            .ValueOrThrow();
-        YT_LOG_DEBUG("Changelog list received");
-
-        auto items = ConvertTo<IListNodePtr>(result);
-
-        for (const auto& item : items->GetChildren()) {
-            auto key = item->GetValue<TString>();
-            int id;
-            if (!TryFromString(key, id)) {
-                THROW_ERROR_EXCEPTION("Unrecognized item %Qv in changelog store %v",
-                    key,
-                    Path_);
-            }
-            functor(item, id);
-        }
-    }
-
-    void ValidateChangelogsSealed()
+   void ValidateChangelogsSealed()
     {
         ListChangelogs({"sealed"}, [&] (const INodePtr& item, int id) {
             if (!item->Attributes().Get<bool>("sealed", false)) {
@@ -737,7 +790,7 @@ private:
         }
 
         auto path = GetChangelogPath(Path_, latestId);
-        auto records = ReadRecordsOrThrow(path, Config_->Reader, MasterClient_, 0, 1);
+        auto records = ReadRecords(path, Config_->Reader, Client_, 0, 1);
 
         if (records.empty()) {
             THROW_ERROR_EXCEPTION("Read zero records from nonempty changelog %v",
@@ -759,7 +812,7 @@ private:
 
         TGetNodeOptions options;
         options.Attributes = {"term"};
-        auto yson = WaitFor(MasterClient_->GetNode(Path_ + "/@", options))
+        auto yson = WaitFor(Client_->GetNode(Path_ + "/@", options))
             .ValueOrThrow();
         auto attributes = ConvertToAttributes(yson);
         auto term = attributes->Get<int>("term", 0);

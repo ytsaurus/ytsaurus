@@ -80,7 +80,7 @@ TPendingMutation::TPendingMutation(
     , PrevRandomSeed(prevRandomSeed)
     , SequenceNumber(sequenceNumber)
     , Term(term)
-    , SerializedMutation(serializedMutation)
+    , RecordData(serializedMutation)
     , LocalCommitPromise(std::move(promise))
 { }
 

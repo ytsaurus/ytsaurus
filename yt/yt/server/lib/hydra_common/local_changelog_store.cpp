@@ -724,7 +724,7 @@ public:
         return Factory_->SetTerm(term);
     }
 
-    TFuture<int> GetLatestChangelogId() const override
+    TFuture<int> GetLatestChangelogId() override
     {
         return Factory_->GetLatestChangelogId(Epoch_);
     }

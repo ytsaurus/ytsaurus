@@ -116,8 +116,9 @@ struct IChangelogStore
      */
     virtual TFuture<void> SetTerm(int term) = 0;
 
-    //! Returns the maximum existing changelog id.
-    virtual TFuture<int> GetLatestChangelogId() const = 0;
+    //! Computes the maximum existing changelog id.
+    // XXX(babenko): make synchronous? return "const"?
+    virtual TFuture<int> GetLatestChangelogId() = 0;
 
     //! Returns the initial reachable state, i.e this is
     //! |(t, n, m)| where |t| is changelog term,

@@ -61,7 +61,7 @@ struct TPendingMutation final
     ui64 PrevRandomSeed;
     i64 SequenceNumber;
     int Term;
-    TSharedRef SerializedMutation;
+    TSharedRef RecordData;
     TPromise<NHydra::TMutationResponse> LocalCommitPromise;
 };
 
@@ -274,17 +274,17 @@ private:
     std::atomic<EPeerState> State_ = {EPeerState::Stopped};
 
     // Last applied mutation.
-    std::atomic<TVersion> AutomatonVersion_ = {};
-    std::atomic<ui64> RandomSeed_ = {};
-    std::atomic<i64> SequenceNumber_ = {};
-    std::atomic<ui64> StateHash_ = {};
+    std::atomic<TVersion> AutomatonVersion_;
+    std::atomic<ui64> RandomSeed_;
+    std::atomic<i64> SequenceNumber_;
+    std::atomic<ui64> StateHash_;
     std::atomic<int> LastMutationTerm_ = NHydra::InvalidTerm;
 
-    TInstant Timestamp_ = {};
+    TInstant Timestamp_;
 
     int NextSnapshotId_ = -1;
     // AutomatonSequenceNumber <= SnapshotSequenceNumber
-    i64 SnapshotSequenceNumber_;
+    i64 SnapshotSequenceNumber_ = -1;
     TPromise<NHydra::TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic<bool> BuildingSnapshot_ = false;
     TInstant SnapshotBuildDeadline_ = TInstant::Max();
