@@ -107,6 +107,8 @@ public:
 
     void SetReadOnly();
 
+    TFuture<void> GetLastMutationFuture();
+
     void Start();
     void Stop();
 
@@ -140,7 +142,6 @@ private:
     bool ReadOnly_ = false;
 
     bool AqcuiringChangelog_ = false;
-    // TODO(aleksandra-zh): restart if this queue is too large.
     TMpscQueue<TMutationDraft>* PreliminaryMutationQueue_;
 
     struct TShapshotInfo

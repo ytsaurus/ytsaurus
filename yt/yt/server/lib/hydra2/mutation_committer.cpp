@@ -151,6 +151,19 @@ void TLeaderCommitter::SetReadOnly()
     ReadOnly_ = true;
 }
 
+TFuture<void> TLeaderCommitter::GetLastMutationFuture()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (MutationQueue_.empty()) {
+        return VoidFuture;
+    }
+
+    return MutationQueue_.back()->LocalCommitPromise
+        .ToFuture()
+        .AsVoid();
+}
+
 void TLeaderCommitter::SerializeMutations()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

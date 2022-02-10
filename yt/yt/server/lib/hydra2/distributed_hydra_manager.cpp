@@ -715,16 +715,7 @@ private:
             auto owner = GetOwnerOrThrow();
             owner->PrepareLeaderSwitch();
 
-            TMutationRequest mutationRequest{
-                .Reign = owner->GetCurrentReign(),
-                .Type = HeartbeatMutationType,
-                .Data = TSharedMutableRef()
-            };
-
-            owner->CommitMutation(std::move(mutationRequest))
-                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
-                    context->Reply(TError(result));
-                }));
+            context->Reply();
         }
 
         DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, Poke)
@@ -1354,6 +1345,8 @@ private:
             Config_->LeaderSwitchTimeout);
 
         epochContext->LeaderSwitchStarted = true;
+        WaitFor(epochContext->LeaderCommitter->GetLastMutationFuture())
+            .ThrowOnError();
     }
 
     bool AbandonLeaderLease(int peerId)
