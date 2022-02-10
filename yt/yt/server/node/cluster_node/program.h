@@ -157,6 +157,10 @@ protected:
 
         if (ValidateSnapshot_) {
             bootstrap->ValidateSnapshot(ValidateSnapshot_);
+
+            // XXX(babenko): ASAN complains about memory leak on graceful exit.
+            // Must try to resolve them later.
+            _exit(0);
         } else {
             bootstrap->Run();
         }
