@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/yt/core/json/public.h>
+#include <yt/yt/core/json/config.h>
+
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/yson_serializable.h>
 
@@ -13,6 +16,7 @@ class TWriterConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Writer options.
     EWriterType Type;
     TString FileName;
     ELogFormat Format;
@@ -20,9 +24,16 @@ public:
     bool EnableCompression;
     ECompressionMethod CompressionMethod;
     int CompressionLevel;
-    THashMap<TString, NYTree::INodePtr> CommonFields;
+
+    //! Common formatter options.
     std::optional<bool> EnableSystemMessages;
+
+    //! Plain text formatter options.
     bool EnableSourceLocation;
+
+    //! Structured formatter options.
+    THashMap<TString, NYTree::INodePtr> CommonFields;
+    NJson::TJsonFormatConfigPtr JsonFormat;
 
     ELogFamily GetFamily() const;
     bool AreSystemMessagesEnabled() const;

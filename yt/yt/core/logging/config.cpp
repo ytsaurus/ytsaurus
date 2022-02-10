@@ -51,6 +51,8 @@ TWriterConfig::TWriterConfig()
         .Default();
     RegisterParameter("enable_source_location", EnableSourceLocation)
         .Default(false);
+    RegisterParameter("json_format", JsonFormat)
+        .Default(nullptr);
 
     RegisterPostprocessor([&] () {
         if (Type == EWriterType::File && FileName.empty()) {
