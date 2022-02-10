@@ -106,6 +106,8 @@ public:
 
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
+    bool UseNewHydra;
+
     TCellarOccupantConfig()
     {
         RegisterParameter("snapshots", Snapshots)
@@ -122,6 +124,8 @@ public:
             .DefaultNew();
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
+        RegisterParameter("use_new_hydra", UseNewHydra)
+            .Default(false);
     }
 };
 

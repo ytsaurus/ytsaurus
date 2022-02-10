@@ -24,7 +24,8 @@
 #include <yt/yt/server/lib/hydra_common/remote_snapshot_store.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+
+#include <yt/yt/server/lib/hydra2/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/election_manager_thunk.h>
@@ -98,7 +99,7 @@ using NHydra::EPeerState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto& Profiler = CellarAgentProfiler;
+static const auto& Profiler = CellarAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -396,18 +397,34 @@ public:
                 .ResponseKeeper = ResponseKeeper_
             };
 
-            auto hydraManager = CreateDistributedHydraManager(
-                Config_->HydraManager,
-                Bootstrap_->GetControlInvoker(),
-                occupier->GetMutationAutomatonInvoker(),
-                Automaton_,
-                rpcServer,
-                ElectionManagerThunk_,
-                GetCellId(),
-                ChangelogStoreFactoryThunk_,
-                SnapshotStoreThunk_,
-                hydraManagerOptions,
-                hydraManagerDynamicOptions);
+            IDistributedHydraManagerPtr hydraManager;
+            if (Config_->UseNewHydra) {
+                hydraManager = NHydra2::CreateDistributedHydraManager(
+                    Config_->HydraManager,
+                    Bootstrap_->GetControlInvoker(),
+                    occupier->GetMutationAutomatonInvoker(),
+                    Automaton_,
+                    rpcServer,
+                    ElectionManagerThunk_,
+                    GetCellId(),
+                    ChangelogStoreFactoryThunk_,
+                    SnapshotStoreThunk_,
+                    hydraManagerOptions,
+                    hydraManagerDynamicOptions);
+            } else {
+                hydraManager = NHydra::CreateDistributedHydraManager(
+                    Config_->HydraManager,
+                    Bootstrap_->GetControlInvoker(),
+                    occupier->GetMutationAutomatonInvoker(),
+                    Automaton_,
+                    rpcServer,
+                    ElectionManagerThunk_,
+                    GetCellId(),
+                    ChangelogStoreFactoryThunk_,
+                    SnapshotStoreThunk_,
+                    hydraManagerOptions,
+                    hydraManagerDynamicOptions);
+            }
             HydraManager_.Store(hydraManager);
 
             if (!independent) {

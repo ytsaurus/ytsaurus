@@ -618,6 +618,7 @@ b"""
                         changelogs = {
                             lock_transaction_timeout = 3000;
                         };
+                        use_new_hydra = %true;
                     };
                 };
             };
