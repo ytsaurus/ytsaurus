@@ -139,6 +139,8 @@ public:
     TDuration DefaultGetJobTimeout;
     TDuration DefaultListOperationsTimeout;
 
+    int CypressWriteYsonNestingLevelLimit;
+
     TDuration JobProberRpcTimeout;
 
     int DefaultCacheStickyGroupSize;

@@ -54,6 +54,10 @@ class TEphemeralAttributeDictionary
     : public IAttributeDictionary
 {
 public:
+    explicit TEphemeralAttributeDictionary(std::optional<int> ysonNestingLevelLimit = std::nullopt)
+        : NestingLevelLimit_(ysonNestingLevelLimit)
+    { }
+
     std::vector<TString> ListKeys() const override
     {
         std::vector<TString> keys;
@@ -83,6 +87,9 @@ public:
     void SetYson(const TString& key, const TYsonString& value) override
     {
         YT_ASSERT(value.GetType() == EYsonType::Node);
+        if (NestingLevelLimit_) {
+            ValidateYson(value, *NestingLevelLimit_);
+        }
         Map_[key] = value;
     }
 
@@ -93,12 +100,12 @@ public:
 
 private:
     THashMap<TString, TYsonString> Map_;
-
+    std::optional<int> NestingLevelLimit_;
 };
 
-IAttributeDictionaryPtr CreateEphemeralAttributes()
+IAttributeDictionaryPtr CreateEphemeralAttributes(std::optional<int> ysonNestingLevelLimit)
 {
-    return New<TEphemeralAttributeDictionary>();
+    return New<TEphemeralAttributeDictionary>(ysonNestingLevelLimit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

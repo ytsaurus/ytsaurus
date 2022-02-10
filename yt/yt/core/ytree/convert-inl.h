@@ -53,9 +53,31 @@ TYsonString ConvertToYsonString(const T& value, EYsonFormat format, int indent)
     return NYson::TYsonString(std::move(result), type);
 }
 
+template <class T>
+TYsonString ConvertToYsonStringNestingLimited(const T& value, int nestingLevelLimit)
+{
+    using NYTree::Serialize;
+
+    auto type = NYTree::GetYsonType(value);
+    TStringStream stream;
+    {
+        TBufferedBinaryYsonWriter writer(
+            &stream,
+            EYsonType::Node,
+            /*enableRaw*/ false,
+            nestingLevelLimit);
+        Serialize(value, &writer);
+        writer.Flush();
+    }
+    return NYson::TYsonString(std::move(stream.Str()), type);
+}
+
+template <>
+TYsonString ConvertToYsonStringNestingLimited(const TYsonString& value, int nestingLevelLimit);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NYTree
+} // namespace NYT::NYSon
 
 namespace NYT::NYTree {
 

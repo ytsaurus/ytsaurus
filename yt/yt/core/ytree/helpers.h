@@ -17,7 +17,7 @@ bool operator == (const IAttributeDictionary& lhs, const IAttributeDictionary& r
 bool operator != (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs);
 
 //! Creates attributes dictionary in memory.
-IAttributeDictionaryPtr CreateEphemeralAttributes();
+IAttributeDictionaryPtr CreateEphemeralAttributes(std::optional<int> ysonNestingLevelLimit = std::nullopt);
 
 //! Wraps an arbitrary implementation of IAttributeDictionary and turns it into a thread-safe one.
 //! Internally uses a read-write spinlock to protect the underlying instance from concurrent access.

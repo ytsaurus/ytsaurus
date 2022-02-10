@@ -1302,7 +1302,9 @@ private:
             for (const auto& key : attributeKeys) {
                 auto* subrequest = req->add_subrequests();
                 subrequest->set_key(key);
-                subrequest->set_value(InputTableAttributes_->GetYson(key).ToString());
+                auto value = InputTableAttributes_->GetYson(key);
+                ValidateYson(value, GetYsonNestingLevelLimit());
+                subrequest->set_value(value.ToString());
             }
 
             batchReq->AddRequest(req);

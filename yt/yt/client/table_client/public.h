@@ -95,10 +95,11 @@ constexpr i64 MaxKeyWeightLimit = 256_KB;
 constexpr int MaxSampleSize = 64_KB;
 
 // This is a hard limit for static tables,
-// imposed Id field size (16-bit) in TUnversionedValue.
+// imposed by Id field size (16-bit) in TUnversionedValue.
 constexpr int MaxColumnId = 32 * 1024;
 
 constexpr int MaxSchemaTotalTypeComplexity = MaxColumnId;
+constexpr int MaxSchemaDepth = 32;
 
 extern const TString SystemColumnNamePrefix;
 extern const TString TableIndexColumnName;

@@ -129,7 +129,7 @@ public:
             for (const auto& param : params) {
                 // Just a check, IAttributeDictionary takes raw YSON anyway.
                 try {
-                    ValidateYson(TYsonString(param.second));
+                    ValidateYson(TYsonString(param.second), DefaultYsonParserNestingLevelLimit);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error parsing value of query parameter %Qv",
                         param.first)

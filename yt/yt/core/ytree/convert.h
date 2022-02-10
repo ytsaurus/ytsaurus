@@ -5,6 +5,27 @@
 
 #include <yt/yt/core/yson/consumer.h>
 
+
+namespace NYT::NYson {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TYsonString ConvertToYsonString(const T& value);
+
+template <class T>
+TYsonString ConvertToYsonString(const T& value, EYsonFormat format);
+
+template <class T>
+TYsonString ConvertToYsonString(const T& value, EYsonFormat format, int indent);
+
+template <class T>
+TYsonString ConvertToYsonStringNestingLimited(const T& value, int nestingLevelLimit);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NYSon
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////

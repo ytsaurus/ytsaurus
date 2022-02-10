@@ -15,8 +15,14 @@ namespace NYT::NYson {
 class TUncheckedYsonTokenWriter
 {
 public:
-    explicit TUncheckedYsonTokenWriter(IZeroCopyOutput* output, EYsonType type = EYsonType::Node);
-    explicit TUncheckedYsonTokenWriter(TZeroCopyOutputStreamWriter* writer, EYsonType type = EYsonType::Node);
+    explicit TUncheckedYsonTokenWriter(
+        IZeroCopyOutput* output,
+        EYsonType type = EYsonType::Node,
+        int nestingLevelLimit = DefaultYsonParserNestingLevelLimit);
+    explicit TUncheckedYsonTokenWriter(
+        TZeroCopyOutputStreamWriter* writer,
+        EYsonType type = EYsonType::Node,
+        int nestingLevelLimit = DefaultYsonParserNestingLevelLimit);
 
     void WriteTextBoolean(bool value);
     void WriteTextInt64(i64 value);

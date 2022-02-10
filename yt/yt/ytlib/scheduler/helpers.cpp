@@ -2,6 +2,7 @@
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -411,13 +412,14 @@ void SaveJobFiles(
         TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
         auto batchReq = proxy.ExecuteBatch();
 
+        const auto nestingLevelLimit = client->GetNativeConnection()->GetConfig()->CypressWriteYsonNestingLevelLimit;
         for (const auto& file : files) {
             auto req = TCypressYPathProxy::Create(file.Path);
             req->set_recursive(true);
             req->set_force(true);
             req->set_type(static_cast<int>(EObjectType::File));
 
-            auto attributes = CreateEphemeralAttributes();
+            auto attributes = CreateEphemeralAttributes(nestingLevelLimit);
             attributes->Set("external", true);
             attributes->Set("external_cell_tag", CellTagFromId(file.ChunkId));
             attributes->Set("vital", false);

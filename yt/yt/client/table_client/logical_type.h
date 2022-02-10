@@ -114,7 +114,7 @@ bool operator != (const TLogicalType& lhs, const TLogicalType& rhs);
 bool operator == (const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs) = delete;
 bool operator != (const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs) = delete;
 
-void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor);
+void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor, std::optional<int> depthLimit = std::nullopt);
 
 // Function converts new type to old typesystem.
 // The first element of result is ESimpleLogicalValue type corresponding to logicalType

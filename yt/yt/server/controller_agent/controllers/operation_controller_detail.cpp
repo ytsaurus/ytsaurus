@@ -1952,7 +1952,7 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
 
         auto path = GetOperationPath(OperationId) + "/@output_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
-        req->set_value(ConvertToYsonString(OutputCompletionTransaction->GetId()).ToString());
+        req->set_value(ConvertToYsonStringNestingLimited(OutputCompletionTransaction->GetId()).ToString());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
@@ -1969,7 +1969,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         auto path = GetOperationPath(OperationId) + "/@" + CommittedAttribute;
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, OutputCompletionTransaction ? OutputCompletionTransaction->GetId() : NullTransactionId);
-        req->set_value(ConvertToYsonString(true).ToString());
+        req->set_value(ConvertToYsonStringNestingLimited(true).ToString());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
@@ -2012,7 +2012,7 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
 
         auto path = GetOperationPath(OperationId) + "/@debug_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
-        req->set_value(ConvertToYsonString(DebugCompletionTransaction->GetId()).ToString());
+        req->set_value(ConvertToYsonStringNestingLimited(DebugCompletionTransaction->GetId()).ToString());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
@@ -2151,9 +2151,10 @@ void TOperationControllerBase::CommitFeatures()
     auto path = GetOperationPath(OperationId) + "/@controller_features";
     auto req = TYPathProxy::Set(path);
     SetTransactionId(req, DebugTransaction->GetId());
-    req->set_value(BuildYsonStringFluently().Do(
-        BIND(&TOperationControllerBase::BuildFeatureYson, Unretained(this)))
-        .ToString());
+    auto featureYson = BuildYsonStringFluently().Do(
+        BIND(&TOperationControllerBase::BuildFeatureYson, Unretained(this)));
+    ValidateYson(featureYson, GetYsonNestingLevelLimit());
+    req->set_value(featureYson.ToString());
 
     WaitFor(proxy.Execute(req))
         .ThrowOnError();
@@ -2730,13 +2731,13 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                 if (table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core) {
                     auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@part_size");
                     SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
-                    req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).ToString());
+                    req->set_value(ConvertToYsonStringNestingLimited(GetPartSize(table->OutputType)).ToString());
                     batchReq->AddRequest(req);
                 }
                 if (table->OutputType == EOutputTableType::Core) {
                     auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@sparse");
                     SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
-                    req->set_value(ConvertToYsonString(true).ToString());
+                    req->set_value(ConvertToYsonStringNestingLimited(true).ToString());
                     batchReq->AddRequest(req);
                 }
             }
@@ -5562,7 +5563,12 @@ void TOperationControllerBase::CreateLivePreviewTables()
         req->set_type(static_cast<int>(EObjectType::Table));
         req->set_ignore_existing(true);
 
-        auto attributes = CreateEphemeralAttributes();
+        const auto nestingLevelLimit = Host
+            ->GetClient()
+            ->GetNativeConnection()
+            ->GetConfig()
+            ->CypressWriteYsonNestingLevelLimit;
+        auto attributes = CreateEphemeralAttributes(nestingLevelLimit);
         attributes->Set("replication_factor", replicationFactor);
         // Does this affect anything or is this for viewing only? Should we set the 'media' ('primary_medium') property?
         attributes->Set("compression_codec", compressionCodec);
@@ -5580,6 +5586,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         if (account) {
             attributes->Set("account", *account);
         }
+
         ToProto(req->mutable_node_attributes(), *attributes);
         GenerateMutationId(req);
         SetTransactionId(req, AsyncTransaction->GetId());
@@ -5641,7 +5648,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             Spec_->IntermediateCompressionCodec,
             Spec_->IntermediateDataAccount,
             "create_intermediate",
-            ConvertToYsonString(intermediateDataAcl),
+            ConvertToYsonStringNestingLimited(intermediateDataAcl),
             nullptr);
     }
 
@@ -10498,6 +10505,23 @@ const NYson::TYsonString& TOperationControllerBase::TCachedYsonCallback::GetValu
 const TProgressCounterPtr& TOperationControllerBase::GetTotalJobCounter() const
 {
     return TotalJobCounter_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int TOperationControllerBase::GetYsonNestingLevelLimit() const
+{
+    return Host
+        ->GetClient()
+        ->GetNativeConnection()
+        ->GetConfig()
+        ->CypressWriteYsonNestingLevelLimit;
+}
+
+template <typename T>
+TYsonString TOperationControllerBase::ConvertToYsonStringNestingLimited(const T& value) const
+{
+    return NYson::ConvertToYsonStringNestingLimited(value, GetYsonNestingLevelLimit());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

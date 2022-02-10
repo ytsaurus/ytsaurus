@@ -160,6 +160,16 @@ private:
         return paths;
     }
 
+    template <typename T>
+    TYsonString ConvertToYsonStringNestingLimited(const T& value)
+    {
+        const auto nestingLevelLimit = RootClient_
+            ->GetNativeConnection()
+            ->GetConfig()
+            ->CypressWriteYsonNestingLevelLimit;
+        return NYson::ConvertToYsonStringNestingLimited(value, nestingLevelLimit);
+    }
+
     void CreateProxyNode()
     {
         auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
@@ -178,19 +188,19 @@ private:
             }
             {
                 auto req = TYPathProxy::Set(path + "/@" + VersionAttributeName);
-                req->set_value(ConvertToYsonString(GetVersion()).ToString());
+                req->set_value(ConvertToYsonStringNestingLimited(GetVersion()).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TYPathProxy::Set(path + "/@" + StartTimeAttributeName);
-                req->set_value(ConvertToYsonString(TInstant::Now().ToString()).ToString());
+                req->set_value(ConvertToYsonStringNestingLimited(TInstant::Now().ToString()).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TCypressYPathProxy::Set(path + "/@annotations");
-                req->set_value(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
+                req->set_value(ConvertToYsonStringNestingLimited(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
@@ -199,7 +209,7 @@ private:
                 req->set_ignore_existing(true);
                 req->set_type(static_cast<int>(EObjectType::Orchid));
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
+                attributes->SetYson("remote_addresses", ConvertToYsonStringNestingLimited(Bootstrap_->GetLocalAddresses()));
                 ToProto(req->mutable_node_attributes(), *attributes);
                 batchReq->AddRequest(req);
             }
@@ -255,7 +265,7 @@ private:
             req->set_type(static_cast<int>(EObjectType::MapNode));
             auto* attr = req->mutable_node_attributes()->add_attributes();
             attr->set_key(ExpirationTimeAttributeName);
-            attr->set_value(ConvertToYsonString(TInstant::Now() + Config_->AvailabilityPeriod).ToString());
+            attr->set_value(ConvertToYsonStringNestingLimited(TInstant::Now() + Config_->AvailabilityPeriod).ToString());
             req->set_force(true);
             batchReq->AddRequest(req);
         }

@@ -1013,6 +1013,11 @@ protected:
 
     void ValidateAccountPermission(const TString& account, NYTree::EPermission permission) const;
 
+    int GetYsonNestingLevelLimit() const;
+
+    template <typename T>
+    NYson::TYsonString ConvertToYsonStringNestingLimited(const T& value) const;
+
     //! One output table can have row_count_limit attribute in operation.
     std::optional<int> RowCountLimitTableIndex;
     i64 RowCountLimit = std::numeric_limits<i64>::max() / 4;

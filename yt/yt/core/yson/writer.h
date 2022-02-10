@@ -98,7 +98,8 @@ public:
     TBufferedBinaryYsonWriter(
         IOutputStream* stream,
         EYsonType type = EYsonType::Node,
-        bool enableRaw = true);
+        bool enableRaw = true,
+        std::optional<int> nestingLevelLimit = std::nullopt);
 
     // IYsonConsumer overrides.
     void OnStringScalar(TStringBuf value) override;
@@ -139,6 +140,7 @@ protected:
     char* const BufferEnd_;
     char* BufferCursor_;
 
+    int NestingLevelLimit_;
     int Depth_ = 0;
 
     void EnsureSpace(size_t space);

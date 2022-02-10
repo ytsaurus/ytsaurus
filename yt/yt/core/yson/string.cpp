@@ -3,6 +3,7 @@
 #include "null_consumer.h"
 #include "parser.h"
 #include "consumer.h"
+#include "pull_parser.h"
 
 #include <yt/yt/core/misc/serialize.h>
 
@@ -10,11 +11,13 @@ namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateYson(const TYsonStringBuf& str)
+void ValidateYson(const TYsonStringBuf& str, int nestingLevelLimit)
 {
     if (str) {
         TMemoryInput input(str.AsStringBuf());
-        ParseYson(TYsonInput(&input, str.GetType()), GetNullYsonConsumer());
+        TYsonPullParser parser(&input, str.GetType(), nestingLevelLimit);
+        auto cursor = TYsonPullParserCursor(&parser);
+        cursor.SkipComplexValue();
     }
 }
 

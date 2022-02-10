@@ -177,6 +177,10 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("default_list_operations_timeout", DefaultListOperationsTimeout)
         .Default(TDuration::Seconds(60));
 
+    RegisterParameter("cypress_write_yson_nesting_level_limit", CypressWriteYsonNestingLevelLimit)
+        .Default(NYson::OriginalNestingLevelLimit)
+        .LessThanOrEqual(NYson::NewNestingLevelLimit);
+
     RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
         .Default(TDuration::Seconds(45));
 

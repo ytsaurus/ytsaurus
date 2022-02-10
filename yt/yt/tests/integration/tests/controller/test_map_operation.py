@@ -5,7 +5,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, print_debug, raises_yt_error, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id,
@@ -2155,3 +2155,63 @@ print '{hello=world}'
 
 class TestInputOutputFormatsMulticell(TestInputOutputFormats):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+##################################################################
+
+
+class TestNestingLevelLimitOperations(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    YSON_DEPTH_LIMIT = 100
+
+    DELTA_DRIVER_CONFIG = {
+        "cypress_write_yson_nesting_level_limit": YSON_DEPTH_LIMIT,
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_jobs_update_period": 10,
+        },
+        "cluster_connection": {
+            "cypress_write_yson_nesting_level_limit": YSON_DEPTH_LIMIT,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+            # COMPAT(shakurov): change the default to false and remove
+            # this delta once masters are up to date.
+            "enable_prerequisites_for_starting_completion_transactions": False,
+        },
+        "cluster_connection": {
+            "cypress_write_yson_nesting_level_limit": YSON_DEPTH_LIMIT,
+        },
+    }
+
+    @staticmethod
+    def _create_deep_object(depth):
+        result = {}
+        current = result
+        for _ in range(depth):
+            current["a"] = {}
+            current = current["a"]
+        return result
+
+    @authors("levysotsky")
+    def test_map_operation(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"a": "b"}])
+        create("table", "//tmp/t_out")
+
+        good_obj = self._create_deep_object(self.YSON_DEPTH_LIMIT - 5)
+        map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"annotations": good_obj})
+
+        bad_obj = self._create_deep_object(self.YSON_DEPTH_LIMIT + 1)
+        with raises_yt_error("Depth limit exceeded"):
+            map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"annotations": bad_obj})
