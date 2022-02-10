@@ -74,7 +74,6 @@ def _get_random_path():
     return TEST_DIR + uuid.uuid4().hex[:8]
 
 
-@pytest.mark.usefixtures("yt_env")
 class TestCppOperations(object):
     def setup(self):
         _prepare_single_value_table()
