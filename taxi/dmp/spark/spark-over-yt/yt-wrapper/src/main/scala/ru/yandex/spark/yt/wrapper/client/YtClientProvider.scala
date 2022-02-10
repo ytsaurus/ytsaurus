@@ -20,6 +20,8 @@ object YtClientProvider {
   // for java
   def ytClient(conf: YtClientConfiguration): CompoundClient = ytRpcClient(conf, threadId).yt
 
+  def cachedClient(id: String): YtRpcClient = client(id)
+
   def ytRpcClient(conf: YtClientConfiguration, id: String = threadId): YtRpcClient = client.getOrElseUpdate(id, {
     this.conf.set(conf)
     log.info(s"Create YtClient for id $id")

@@ -47,7 +47,7 @@ class SubmitTest extends FlatSpec with Matchers with HumeYtClient {
 object SubmitTest {
   private val basePath = "//home/spark/e2e"
 
-  private val submitClient = new SubmissionClient("hume", s"$basePath/cluster",
+  private val submitClient = new SubmissionClient("hahn", s"$basePath/cluster",
     BuildInfo.spytClientVersion, DefaultRpcCredentials.user, DefaultRpcCredentials.token)
 
   def runJob(testCase: E2ETestCase): Unit = {

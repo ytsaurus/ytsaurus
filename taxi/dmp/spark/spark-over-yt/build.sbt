@@ -176,12 +176,12 @@ lazy val `e2e-test` = (project in file("e2e-test"))
     libraryDependencies ++= commonDependencies.value,
     publishYtArtifacts ++= {
       val checker = YtPublishFile((`e2e-checker` / assembly).value, sparkYtE2ETestPath,
-        proxy = Some("hume"), isSnapshot = false, Some("check.jar"))
+        proxy = None, isSnapshot = false, Some("check.jar"))
       val pythonScripts: Seq[YtPublishArtifact] = (sourceDirectory.value / "test" / "python")
         .listFiles()
         .map { script =>
           YtPublishFile(script, s"$sparkYtE2ETestPath/${script.getName.dropRight(3)}",
-            proxy = Some("hume"), isSnapshot = false, Some("job.py"))
+            proxy = None, isSnapshot = false, Some("job.py"))
         }
       checker +: pythonScripts
     },
