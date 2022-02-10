@@ -58,6 +58,6 @@ def _yt_env(request, test_environment):
     return test_environment
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="function", autouse=True)
 def yt_env(request, test_environment):
     return _yt_env(request, test_environment)
