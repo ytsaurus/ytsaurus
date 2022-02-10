@@ -25,7 +25,7 @@ object SpytRelease {
     logClientVersion
   )
 
-  lazy val clusterReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
+  lazy val clusterReleaseProcess: Seq[ReleaseStep] = /*testProcess ++ */Seq(
     minorReleaseVersions,
     setReleaseClusterVersion,
     setReleaseClientVersion,
