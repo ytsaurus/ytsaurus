@@ -5,7 +5,7 @@ import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.yt.ytclient.bus.{BusConnector, DefaultBusConnector}
 import ru.yandex.yt.ytclient.proxy.YtClient
-import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, SetNode}
+import ru.yandex.yt.ytclient.proxy.request.{CreateNode, LinkNode, ObjectType, SetNode}
 import ru.yandex.yt.ytclient.rpc.RpcCredentials
 import sbt.Keys._
 import sbt._
@@ -40,7 +40,7 @@ object YtPublishPlugin extends AutoPlugin {
       override def publish(proxyName: String, log: sbt.Logger)(implicit yt: YtClient): Unit = {
         val link = s"$remoteDir/$linkName"
         log.info(s"Link $originalPath to $link..")
-        yt.linkNode(originalPath, link).join()
+        yt.linkNode(new LinkNode(originalPath, link).setIgnoreExisting(true)).join()
       }
     }
 

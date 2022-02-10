@@ -69,7 +69,7 @@ lazy val `cluster` = (project in file("spark-cluster"))
       val isSnapshotValue = isSnapshotVersion(versionValue)
 
       val basePath = versionPath(sparkYtClusterPath, versionValue)
-      val legacyBasePath = versionBasePath(sparkYtClusterPath, versionValue)
+      val legacyBasePath = versionBasePath(sparkYtLegacyBinPath, versionValue)
       val sparkPath = versionPath(sparkYtSparkForkPath, sparkVersionValue)
 
       val sparkLink = Seq(YtPublishLink(s"$sparkPath/spark.tgz", basePath, None, "spark.tgz", isSnapshotValue))
