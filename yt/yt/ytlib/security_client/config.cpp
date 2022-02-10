@@ -4,22 +4,22 @@ namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPermissionCacheConfig::TPermissionCacheConfig()
+void TPermissionCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("read_from", ReadFrom)
+    registrar.Parameter("read_from", &TThis::ReadFrom)
         .Default(NApi::EMasterChannelKind::Cache);
-    RegisterParameter("refresh_user", RefreshUser)
+    registrar.Parameter("refresh_user", &TThis::RefreshUser)
         // COMPAT(babenko): separate user
         .Default(RootUserName);
-    RegisterParameter("always_use_refresh_user", AlwaysUseRefreshUser)
+    registrar.Parameter("always_use_refresh_user", &TThis::AlwaysUseRefreshUser)
         // COMPAT(babenko): turn this off and remove the feature flag
         .Default(true);
 
-    RegisterPreprocessor([&] {
-        ExpireAfterAccessTime = TDuration::Minutes(5);
-        ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(3);
-        RefreshTime = TDuration::Minutes(1);
-        BatchUpdate = true;
+    registrar.Preprocessor([] (TThis* config) {
+        config->ExpireAfterAccessTime = TDuration::Minutes(5);
+        config->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(3);
+        config->RefreshTime = TDuration::Minutes(1);
+        config->BatchUpdate = true;
     });
 }
 

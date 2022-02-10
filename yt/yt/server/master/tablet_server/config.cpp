@@ -162,13 +162,13 @@ TDynamicTabletCellBalancerMasterConfig::TDynamicTabletCellBalancerMasterConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicatedTableTrackerExpiringCacheConfig::TReplicatedTableTrackerExpiringCacheConfig()
+void TReplicatedTableTrackerExpiringCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterPreprocessor([this] () {
-        RefreshTime = std::nullopt;
-        ExpireAfterAccessTime = TDuration::Seconds(1);
-        ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(1);
-        ExpireAfterFailedUpdateTime = TDuration::Seconds(1);
+    registrar.Preprocessor([] (TThis* config) {
+        config->RefreshTime = std::nullopt;
+        config->ExpireAfterAccessTime = TDuration::Seconds(1);
+        config->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(1);
+        config->ExpireAfterFailedUpdateTime = TDuration::Seconds(1);
     });
 }
 

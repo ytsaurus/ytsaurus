@@ -52,7 +52,9 @@ public:
     double Jitter;
     TDuration WarningTimeout;
 
-    TAddressResolverConfig();
+    REGISTER_YSON_STRUCT(TAddressResolverConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAddressResolverConfig)

@@ -2177,11 +2177,11 @@ TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters
     }
 }
 
-TSchedulerConnectionConfig::TSchedulerConnectionConfig()
+void TSchedulerConnectionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("rpc_acknowledgement_timeout", RpcAcknowledgementTimeout)
+    registrar.Parameter("rpc_acknowledgement_timeout", &TThis::RpcAcknowledgementTimeout)
         .Default(TDuration::Seconds(15));
 }
 

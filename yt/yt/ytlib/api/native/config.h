@@ -52,7 +52,9 @@ public:
     TDuration MasterCacheDiscoveryPeriod;
     TDuration MasterCacheDiscoveryPeriodSplay;
 
-    TMasterConnectionConfig();
+    REGISTER_YSON_STRUCT(TMasterConnectionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
@@ -67,7 +69,9 @@ public:
     //! Timeout for RPC requests to clock servers.
     TDuration RpcTimeout;
 
-    TClockServersConfig();
+    REGISTER_YSON_STRUCT(TClockServersConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClockServersConfig)

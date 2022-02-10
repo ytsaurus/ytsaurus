@@ -51,27 +51,27 @@ TSlruCacheDynamicConfig::TSlruCacheDynamicConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncExpiringCacheConfig::TAsyncExpiringCacheConfig()
+void TAsyncExpiringCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("expire_after_access_time", ExpireAfterAccessTime)
+    registrar.Parameter("expire_after_access_time", &TThis::ExpireAfterAccessTime)
         .Default(TDuration::Seconds(300));
-    RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
+    registrar.Parameter("expire_after_successful_update_time", &TThis::ExpireAfterSuccessfulUpdateTime)
         .Alias("success_expiration_time")
         .Default(TDuration::Seconds(15));
-    RegisterParameter("expire_after_failed_update_time", ExpireAfterFailedUpdateTime)
+    registrar.Parameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
         .Alias("failure_expiration_time")
         .Default(TDuration::Seconds(15));
-    RegisterParameter("refresh_time", RefreshTime)
+    registrar.Parameter("refresh_time", &TThis::RefreshTime)
         .Alias("success_probation_time")
         .Default(TDuration::Seconds(10));
-    RegisterParameter("batch_update", BatchUpdate)
+    registrar.Parameter("batch_update", &TThis::BatchUpdate)
         .Default(false);
 
-    RegisterPostprocessor([&] () {
-        if (RefreshTime && *RefreshTime && *RefreshTime > ExpireAfterSuccessfulUpdateTime) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->RefreshTime && *config->RefreshTime && *config->RefreshTime > config->ExpireAfterSuccessfulUpdateTime) {
             THROW_ERROR_EXCEPTION("\"refresh_time\" must be less than \"expire_after_successful_update_time\"")
-                << TErrorAttribute("refresh_time", RefreshTime)
-                << TErrorAttribute("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime);
+                << TErrorAttribute("refresh_time", config->RefreshTime)
+                << TErrorAttribute("expire_after_successful_update_time", config->ExpireAfterSuccessfulUpdateTime);
         }
     });
 }
@@ -101,17 +101,17 @@ TAsyncExpiringCacheConfigPtr TAsyncExpiringCacheConfig::ApplyDynamic(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncExpiringCacheDynamicConfig::TAsyncExpiringCacheDynamicConfig()
+void TAsyncExpiringCacheDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("expire_after_access_time", ExpireAfterAccessTime)
+    registrar.Parameter("expire_after_access_time", &TThis::ExpireAfterAccessTime)
         .Optional();
-    RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
+    registrar.Parameter("expire_after_successful_update_time", &TThis::ExpireAfterSuccessfulUpdateTime)
         .Optional();
-    RegisterParameter("expire_after_failed_update_time", ExpireAfterFailedUpdateTime)
+    registrar.Parameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
         .Optional();
-    RegisterParameter("refresh_time", RefreshTime)
+    registrar.Parameter("refresh_time", &TThis::RefreshTime)
         .Optional();
-    RegisterParameter("batch_update", BatchUpdate)
+    registrar.Parameter("batch_update", &TThis::BatchUpdate)
         .Optional();
 }
 

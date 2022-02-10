@@ -1375,5 +1375,50 @@ TEST(TYsonStructTest, TestPreprocessorsEffectsOnNestedStructsArePreservedOnDeser
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBaseWithCustomConfigure
+    : public TYsonStruct
+{
+public:
+    int Int;
+    double Double;
+
+    REGISTER_YSON_STRUCT(TBaseWithCustomConfigure);
+
+    static void Register(TRegistrar)
+    { }
+
+protected:
+    static void CustomConfigure(TRegistrar registrar, int defaultInt, double defaultDouble)
+    {
+        registrar.Parameter("int", &TThis::Int)
+            .Default(defaultInt);
+        registrar.Postprocessor([defaultDouble] (TThis* s) {
+            s->Double = defaultDouble;
+        });
+    }
+};
+
+class TDerivedWithCustomConfigure
+    : public TBaseWithCustomConfigure
+{
+public:
+
+    REGISTER_YSON_STRUCT(TDerivedWithCustomConfigure);
+
+    static void Register(TRegistrar registrar)
+    {
+        CustomConfigure(registrar, 10, 2.2);
+    }
+};
+
+TEST(TYsonStructTest, TestHierarchiesWithCustomInitializationOfBaseParameters)
+{
+    auto deserialized = ConvertTo<TIntrusivePtr<TDerivedWithCustomConfigure>>(TYsonString(TStringBuf("{}")));
+    EXPECT_EQ(deserialized->Int, 10);
+    EXPECT_EQ(deserialized->Double, 2.2);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NYTree

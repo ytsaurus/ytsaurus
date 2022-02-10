@@ -5,6 +5,7 @@
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/config.h>
 
@@ -122,7 +123,7 @@ DEFINE_REFCOUNTED_TYPE(TMethodConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRetryingChannelConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Time to wait between consequent attempts.
@@ -135,7 +136,9 @@ public:
     //! If null then no limit is enforced.
     std::optional<TDuration> RetryTimeout;
 
-    TRetryingChannelConfig();
+    REGISTER_YSON_STRUCT(TRetryingChannelConfig)
+
+    static void Register(TRegistrar registarar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRetryingChannelConfig)
@@ -143,7 +146,7 @@ DEFINE_REFCOUNTED_TYPE(TRetryingChannelConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBalancingChannelConfigBase
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Timeout for |Discover| requests.
@@ -174,7 +177,9 @@ public:
     //! returns a soft failure (i.e. "down" response) to |Discover| request.
     TDuration SoftBackoffTime;
 
-    TBalancingChannelConfigBase();
+    REGISTER_YSON_STRUCT(TBalancingChannelConfigBase);
+
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -202,7 +207,9 @@ public:
     TDuration PeerPollingPeriodSplay;
     TDuration PeerPollingRequestTimeout;
 
-    TDynamicChannelPoolConfig();
+    REGISTER_YSON_STRUCT(TDynamicChannelPoolConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChannelPoolConfig)
@@ -240,7 +247,9 @@ public:
     //! Whether to cancel the primary request when backup one is sent.
     bool CancelPrimaryRequestOnHedging;
 
-    TBalancingChannelConfig();
+    REGISTER_YSON_STRUCT(TBalancingChannelConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBalancingChannelConfig)

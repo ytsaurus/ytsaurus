@@ -18,7 +18,9 @@ public:
     TString RefreshUser;
     bool AlwaysUseRefreshUser;
 
-    TPermissionCacheConfig();
+    REGISTER_YSON_STRUCT(TPermissionCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPermissionCacheConfig)

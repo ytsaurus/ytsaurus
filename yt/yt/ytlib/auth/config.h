@@ -201,7 +201,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDefaultSecretVaultServiceConfig
-    : public virtual NYT::NYTree::TYsonSerializable
+    : public virtual NYT::NYTree::TYsonStruct
 {
 public:
     TString Host;
@@ -212,7 +212,9 @@ public:
     TString VaultServiceId;
     TString Consumer;
 
-    TDefaultSecretVaultServiceConfig();
+    REGISTER_YSON_STRUCT(TDefaultSecretVaultServiceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDefaultSecretVaultServiceConfig)
@@ -220,14 +222,16 @@ DEFINE_REFCOUNTED_TYPE(TDefaultSecretVaultServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBatchingSecretVaultServiceConfig
-    : public virtual NYT::NYTree::TYsonSerializable
+    : public virtual NYT::NYTree::TYsonStruct
 {
 public:
     TDuration BatchDelay;
     int MaxSubrequestsPerRequest;
     NConcurrency::TThroughputThrottlerConfigPtr RequestsThrottler;
 
-    TBatchingSecretVaultServiceConfig();
+    REGISTER_YSON_STRUCT(TBatchingSecretVaultServiceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBatchingSecretVaultServiceConfig)
@@ -240,7 +244,9 @@ class TCachingSecretVaultServiceConfig
 public:
     TAsyncExpiringCacheConfigPtr Cache;
 
-    TCachingSecretVaultServiceConfig();
+    REGISTER_YSON_STRUCT(TCachingSecretVaultServiceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingSecretVaultServiceConfig)

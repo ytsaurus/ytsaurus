@@ -27,34 +27,34 @@ TDialerConfig::TDialerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAddressResolverConfig::TAddressResolverConfig()
+void TAddressResolverConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_ipv4", EnableIPv4)
+    registrar.Parameter("enable_ipv4", &TThis::EnableIPv4)
         .Default(false);
-    RegisterParameter("enable_ipv6", EnableIPv6)
+    registrar.Parameter("enable_ipv6", &TThis::EnableIPv6)
         .Default(true);
-    RegisterParameter("localhost_name_override", LocalHostNameOverride)
+    registrar.Parameter("localhost_name_override", &TThis::LocalHostNameOverride)
         .Alias("localhost_fqdn")
         .Default();
-    RegisterParameter("resolve_hostname_into_fqdn", ResolveHostNameIntoFqdn)
+    registrar.Parameter("resolve_hostname_into_fqdn", &TThis::ResolveHostNameIntoFqdn)
         .Default(true);
-    RegisterParameter("retries", Retries)
+    registrar.Parameter("retries", &TThis::Retries)
         .Default(25);
-    RegisterParameter("retry_delay", RetryDelay)
+    registrar.Parameter("retry_delay", &TThis::RetryDelay)
         .Default(TDuration::MilliSeconds(200));
-    RegisterParameter("resolve_timeout", ResolveTimeout)
+    registrar.Parameter("resolve_timeout", &TThis::ResolveTimeout)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("max_resolve_timeout", MaxResolveTimeout)
+    registrar.Parameter("max_resolve_timeout", &TThis::MaxResolveTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("warning_timeout", WarningTimeout)
+    registrar.Parameter("warning_timeout", &TThis::WarningTimeout)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("jitter", Jitter)
+    registrar.Parameter("jitter", &TThis::Jitter)
         .Default(0.5);
 
-    RegisterPreprocessor([this] () {
-        RefreshTime = TDuration::Seconds(60);
-        ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(120);
-        ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
+    registrar.Preprocessor([] (TThis* config) {
+        config->RefreshTime = TDuration::Seconds(60);
+        config->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(120);
+        config->ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
     });
 }
 

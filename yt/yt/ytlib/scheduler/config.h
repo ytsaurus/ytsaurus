@@ -1711,7 +1711,9 @@ public:
     //! Timeout for acknowledgements for all RPC requests to schedulers.
     TDuration RpcAcknowledgementTimeout;
 
-    TSchedulerConnectionConfig();
+    REGISTER_YSON_STRUCT(TSchedulerConnectionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnectionConfig)

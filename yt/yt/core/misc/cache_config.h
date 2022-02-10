@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT {
 
@@ -82,7 +83,7 @@ DEFINE_REFCOUNTED_TYPE(TSlruCacheDynamicConfig)
  * after ExpireAfterFailedUpdateTime.
  */
 class TAsyncExpiringCacheConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Time since last finished Get() after which an entry is removed.
@@ -100,10 +101,12 @@ public:
     //! If set to true, cache will invoke DoGetMany once instead of DoGet on every entry during an update.
     bool BatchUpdate;
 
-    TAsyncExpiringCacheConfig();
-
     TAsyncExpiringCacheConfigPtr ApplyDynamic(
         const TAsyncExpiringCacheDynamicConfigPtr& dynamicConfig) const;
+
+    REGISTER_YSON_STRUCT(TAsyncExpiringCacheConfig);
+
+    static void Register(TRegistrar registrar);
 
 protected:
     void ApplyDynamicInplace(const TAsyncExpiringCacheDynamicConfigPtr& dynamicConfig);
@@ -114,7 +117,7 @@ DEFINE_REFCOUNTED_TYPE(TAsyncExpiringCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAsyncExpiringCacheDynamicConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::optional<TDuration> ExpireAfterAccessTime;
@@ -124,7 +127,9 @@ public:
 
     std::optional<bool> BatchUpdate;
 
-    TAsyncExpiringCacheDynamicConfig();
+    REGISTER_YSON_STRUCT(TAsyncExpiringCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncExpiringCacheDynamicConfig)

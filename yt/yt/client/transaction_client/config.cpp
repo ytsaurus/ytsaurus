@@ -4,28 +4,28 @@ namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRemoteTimestampProviderConfig::TRemoteTimestampProviderConfig()
+void TRemoteTimestampProviderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("latest_timestamp_update_period", LatestTimestampUpdatePeriod)
+    registrar.Parameter("latest_timestamp_update_period", &TThis::LatestTimestampUpdatePeriod)
         // COMPAT(babenko)
         .Alias("update_period")
         .Default(TDuration::MilliSeconds(500));
 
-    RegisterParameter("batch_period", BatchPeriod)
+    registrar.Parameter("batch_period", &TThis::BatchPeriod)
         .Default(TDuration::MilliSeconds(10));
 
-    RegisterParameter("enable_timestamp_provider_discovery", EnableTimestampProviderDiscovery)
+    registrar.Parameter("enable_timestamp_provider_discovery", &TThis::EnableTimestampProviderDiscovery)
         .Default(false);
-    RegisterParameter("timestamp_provider_discovery_period", TimestampProviderDiscoveryPeriod)
+    registrar.Parameter("timestamp_provider_discovery_period", &TThis::TimestampProviderDiscoveryPeriod)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("timestamp_provider_discovery_period_splay", TimestampProviderDiscoveryPeriodSplay)
+    registrar.Parameter("timestamp_provider_discovery_period_splay", &TThis::TimestampProviderDiscoveryPeriodSplay)
         .Default(TDuration::Seconds(10));
 
-    RegisterPreprocessor([&] {
-        RetryAttempts = 100;
-        RetryTimeout = TDuration::Minutes(3);
+    registrar.Preprocessor([] (TThis* config) {
+        config->RetryAttempts = 100;
+        config->RetryTimeout = TDuration::Minutes(3);
     });
 }
 

@@ -24,7 +24,9 @@ public:
     //! transaction start.
     TDuration DefaultTransactionTimeout;
 
-    TTransactionManagerConfig();
+    REGISTER_YSON_STRUCT(TTransactionManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)

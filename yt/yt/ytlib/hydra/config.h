@@ -24,7 +24,9 @@ class TPeerConnectionConfig
 public:
     TCellId CellId;
 
-    TPeerConnectionConfig();
+    REGISTER_YSON_STRUCT(TPeerConnectionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPeerConnectionConfig)

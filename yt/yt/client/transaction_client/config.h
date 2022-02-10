@@ -29,7 +29,9 @@ public:
     TDuration TimestampProviderDiscoveryPeriod;
     TDuration TimestampProviderDiscoveryPeriodSplay;
 
-    TRemoteTimestampProviderConfig();
+    REGISTER_YSON_STRUCT(TRemoteTimestampProviderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteTimestampProviderConfig)

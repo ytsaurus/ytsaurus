@@ -4,9 +4,9 @@ namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableMountCacheConfig::TTableMountCacheConfig()
+void TTableMountCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("reject_if_entry_is_requested_but_not_ready", RejectIfEntryIsRequestedButNotReady)
+    registrar.Parameter("reject_if_entry_is_requested_but_not_ready", &TThis::RejectIfEntryIsRequestedButNotReady)
         .Default(false);
 }
 
@@ -26,9 +26,9 @@ TTableMountCacheConfigPtr TTableMountCacheConfig::ApplyDynamic(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableMountCacheDynamicConfig::TTableMountCacheDynamicConfig()
+void TTableMountCacheDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("reject_if_entry_is_requested_but_not_ready", RejectIfEntryIsRequestedButNotReady)
+    registrar.Parameter("reject_if_entry_is_requested_but_not_ready", &TThis::RejectIfEntryIsRequestedButNotReady)
         .Optional();
 }
 

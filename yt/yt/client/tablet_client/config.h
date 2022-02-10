@@ -15,9 +15,11 @@ public:
     //! If entry is requested for the first time then allow only client who requested the entry to wait for it.
     bool RejectIfEntryIsRequestedButNotReady;
 
-    TTableMountCacheConfig();
-
     TTableMountCacheConfigPtr ApplyDynamic(const TTableMountCacheDynamicConfigPtr& dynamicConfig);
+
+    REGISTER_YSON_STRUCT(TTableMountCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)
@@ -30,7 +32,9 @@ class TTableMountCacheDynamicConfig
 public:
     std::optional<bool> RejectIfEntryIsRequestedButNotReady;
 
-    TTableMountCacheDynamicConfig();
+    REGISTER_YSON_STRUCT(TTableMountCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountCacheDynamicConfig)

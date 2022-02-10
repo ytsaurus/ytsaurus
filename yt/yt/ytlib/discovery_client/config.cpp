@@ -4,36 +4,36 @@ namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiscoveryClientBaseConfig::TDiscoveryClientBaseConfig()
+void TDiscoveryClientBaseConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("server_addresses", ServerAddresses);
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("server_addresses", &TThis::ServerAddresses);
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("server_ban_timeout", ServerBanTimeout)
+    registrar.Parameter("server_ban_timeout", &TThis::ServerBanTimeout)
         .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemberClientConfig::TMemberClientConfig()
+void TMemberClientConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("heartbeat_period", HeartbeatPeriod)
+    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("attribute_update_period", AttributeUpdatePeriod)
+    registrar.Parameter("attribute_update_period", &TThis::AttributeUpdatePeriod)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("lease_timeout", LeaseTimeout)
+    registrar.Parameter("lease_timeout", &TThis::LeaseTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("max_failed_heartbeats_on_startup", MaxFailedHeartbeatsOnStartup)
+    registrar.Parameter("max_failed_heartbeats_on_startup", &TThis::MaxFailedHeartbeatsOnStartup)
         .Default(10);
-    RegisterParameter("write_quorum", WriteQuorum)
+    registrar.Parameter("write_quorum", &TThis::WriteQuorum)
         .Default(2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiscoveryClientConfig::TDiscoveryClientConfig()
+void TDiscoveryClientConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("read_quorum", ReadQuorum)
+    registrar.Parameter("read_quorum", &TThis::ReadQuorum)
         .Default(2);
 }
 

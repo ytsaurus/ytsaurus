@@ -156,6 +156,14 @@ void TYsonStructRegistrar<TStruct>::UnrecognizedStrategy(EUnrecognizedStrategy s
     Meta_->SetUnrecognizedStrategy(strategy);
 }
 
+template <class TStruct>
+template<class TBase>
+TYsonStructRegistrar<TStruct>::operator TYsonStructRegistrar<TBase>()
+{
+    static_assert(std::is_base_of<TBase, TStruct>::value);
+    return TYsonStructRegistrar<TBase>(Meta_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>

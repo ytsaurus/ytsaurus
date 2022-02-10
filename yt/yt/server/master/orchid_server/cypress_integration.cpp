@@ -33,16 +33,18 @@ struct TOrchidManifest
     TString RemoteRoot;
     TDuration Timeout;
 
-    TOrchidManifest()
+    REGISTER_YSON_STRUCT(TOrchidManifest);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("remote_addresses", RemoteAddresses);
-        RegisterParameter("remote_root", RemoteRoot)
+        registrar.Parameter("remote_addresses", &TThis::RemoteAddresses);
+        registrar.Parameter("remote_root", &TThis::RemoteRoot)
             .Default("/");
-        RegisterParameter("timeout", Timeout)
+        registrar.Parameter("timeout", &TThis::Timeout)
             .Default(TDuration::Seconds(60));
 
-        RegisterPostprocessor([&] {
-            RetryAttempts = 1;
+        registrar.Postprocessor([] (TThis* config) {
+            config->RetryAttempts = 1;
         });
     }
 };
