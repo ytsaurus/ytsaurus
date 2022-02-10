@@ -871,7 +871,13 @@ const TYsonItem& TYsonPullParserCursor::operator*() const
 
 void TYsonPullParserCursor::Next()
 {
-    YT_ASSERT(!IsOnFragmentStart_);
+    // NB(levysotsky): Hand-crafted YT_ASSERT to avoid
+    // stack frame bloating due to Y_FORCE_INLINE.
+#ifndef NDEBUG
+    if (IsOnFragmentStart_) {
+        FailAsTryConsumeFragmentStartNotCalled();
+    }
+#endif
     Current_ = Parser_->Next();
 }
 

@@ -13,7 +13,7 @@ from yt_commands import (
 
 from yt_helpers import get_current_time
 
-from yt.common import YtError
+from yt.common import YtError, YtResponseError
 from yt.environment.helpers import assert_items_equal
 import yt.yson as yson
 
@@ -22,10 +22,14 @@ from yt_driver_bindings import Driver
 from flaky import flaky
 import pytest
 
+import requests
+
 from contextlib import contextmanager
 from copy import deepcopy
 from io import BytesIO
+import json
 from datetime import timedelta
+import functools
 from string import printable
 import time
 
@@ -3727,3 +3731,147 @@ class TestCypressApiVersion4(YTEnvSetup):
         self._execute("unlock", path="//tmp/a", transaction_id=tx)
         assert len(get("//tmp/a/@locks")) == 0
         self._execute("set", path="//tmp/a", input=b'{"a"=3}')
+
+
+##################################################################
+
+
+class TestCypressNestingLevelLimit(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 0
+
+    DEPTH_LIMIT = 80
+
+    DELTA_DRIVER_CONFIG = {
+        "cypress_write_yson_nesting_level_limit": DEPTH_LIMIT,
+    }
+
+    @staticmethod
+    def _create_deep_object(depth):
+        result = {}
+        current = result
+        for _ in range(depth):
+            current["a"] = {}
+            current = current["a"]
+        return result
+
+    def _wrap(f):
+        @functools.wraps(f)
+        def wrapped(self, *args, **kwargs):
+            return f(*args, **kwargs)
+
+        return wrapped
+
+    set = _wrap(set)
+    get = _wrap(get)
+    create = _wrap(create)
+    multiset_attributes = _wrap(multiset_attributes)
+
+    @authors("levysotsky")
+    def test_set(self):
+        create("map_node", "//tmp/node")
+        good_depth = self.DEPTH_LIMIT - 2
+        good_obj = self._create_deep_object(good_depth)
+        self.set("//tmp/node/@attr1", good_obj)
+
+        bad_obj = self._create_deep_object(self.DEPTH_LIMIT + 1)
+        with raises_yt_error("Depth limit exceeded"):
+            self.set("//tmp/node/@attr2", bad_obj)
+
+        extra_depth = 10
+        for i in range(extra_depth):
+            self.set("//tmp/node/@attr3" + "/a" * i, {})
+        # Deep attributes can exist and be read.
+        self.set("//tmp/node/@attr3" + "/a" * extra_depth, good_obj)
+        assert self.get("//tmp/node/@attr3") == self._create_deep_object(good_depth + extra_depth)
+
+    @authors("levysotsky")
+    def test_create(self):
+        good_depth = self.DEPTH_LIMIT - 2
+        good_obj = self._create_deep_object(good_depth)
+        self.create("map_node", "//tmp/node1", attributes={"attr1": good_obj})
+
+        bad_obj = self._create_deep_object(self.DEPTH_LIMIT + 1)
+        with raises_yt_error("Depth limit exceeded"):
+            self.create("map_node", "//tmp/node2", attributes={"attr2": bad_obj})
+
+    @authors("levysotsky")
+    def test_multiset_attributes(self):
+        create("map_node", "//tmp/node")
+        good_depth = self.DEPTH_LIMIT - 2
+        good_obj = self._create_deep_object(good_depth)
+        self.multiset_attributes("//tmp/node/@", {"attr1": good_obj})
+
+        bad_obj = self._create_deep_object(self.DEPTH_LIMIT + 1)
+        with raises_yt_error("Depth limit exceeded"):
+            self.set("//tmp/node/@", {"attr2": bad_obj})
+
+
+##################################################################
+
+
+class TestCypressNestingLevelLimitRpcProxy(TestCypressNestingLevelLimit):
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+    DRIVER_BACKEND = "rpc"
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "cypress_write_yson_nesting_level_limit": TestCypressNestingLevelLimit.DEPTH_LIMIT,
+        }
+    }
+
+
+##################################################################
+
+
+class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
+    ENABLE_HTTP_PROXY = True
+    NUM_HTTP_PROXIES = 1
+
+    DELTA_PROXY_CONFIG = {
+        "driver": {
+            "cypress_write_yson_nesting_level_limit": TestCypressNestingLevelLimit.DEPTH_LIMIT,
+        }
+    }
+
+    def _get_proxy_address(self):
+        return "http://" + self.Env.get_proxy_address()
+
+    def _execute_command(self, method, command_name, params, input_stream=None):
+        headers = {
+            "X-YT-Parameters": yson.dumps(params),
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Input-Format": "<format=text>yson",
+            "X-YT-Output-Format": "<format=text>yson",
+        }
+        rsp = requests.request(
+            method,
+            "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
+            headers=headers,
+            data=input_stream,
+        )
+        if "X-YT-Error" in rsp.headers:
+            assert "X-YT-Framing" not in rsp.headers
+            raise YtResponseError(json.loads(rsp.headers.get("X-YT-Error")))
+        rsp.raise_for_status()
+        return yson.loads(rsp.content)
+
+    def set(self, path, value, **kwargs):
+        kwargs["path"] = path
+        value = yson.dumps(value)
+        self._execute_command("PUT", "set", kwargs, input_stream=BytesIO(value))
+
+    def get(self, path, **kwargs):
+        kwargs["path"] = path
+        return self._execute_command("GET", "get", kwargs)["value"]
+
+    def create(self, object_type, path, **kwargs):
+        kwargs["type"] = object_type
+        kwargs["path"] = path
+        self._execute_command("POST", "create", kwargs)
+
+    def multiset_attributes(self, path, subrequests, **kwargs):
+        subrequests = yson.dumps(subrequests)
+        kwargs["path"] = path
+        self._execute_command("PUT", "multiset_attributes", kwargs, input_stream=BytesIO(subrequests))

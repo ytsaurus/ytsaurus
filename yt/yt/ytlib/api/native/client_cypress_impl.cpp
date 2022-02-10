@@ -721,13 +721,12 @@ void TClient::DoSetNode(
     SetSuppressAccessTracking(req, options);
     SetMutationId(req, options);
 
-    // Binarize the value.
-    TStringStream stream;
-    TBufferedBinaryYsonWriter writer(&stream, EYsonType::Node, false);
+    auto nestingLevelLimit = Connection_->GetConfig()->CypressWriteYsonNestingLevelLimit;
     YT_VERIFY(value.GetType() == EYsonType::Node);
-    writer.OnRaw(value.AsStringBuf(), EYsonType::Node);
-    writer.Flush();
-    req->set_value(stream.Str());
+    auto binarizedValue = ConvertToYsonStringNestingLimited(value, nestingLevelLimit);
+
+    req->set_value(binarizedValue.ToString());
+
     req->set_recursive(options.Recursive);
     req->set_force(options.Force);
 
@@ -758,10 +757,12 @@ void TClient::DoMultisetAttributesNode(
 
     auto children = attributes->GetChildren();
     std::sort(children.begin(), children.end());
+    auto nestingLevelLimit = Connection_->GetConfig()->CypressWriteYsonNestingLevelLimit;
     for (const auto& [attribute, value] : children) {
         auto* protoSubrequest = req->add_subrequests();
         protoSubrequest->set_attribute(attribute);
-        protoSubrequest->set_value(ConvertToYsonString(value).ToString());
+        auto binarizedValue = ConvertToYsonStringNestingLimited(value, nestingLevelLimit);
+        protoSubrequest->set_value(binarizedValue.ToString());
     }
 
     batchReq->AddRequest(req);
@@ -800,8 +801,19 @@ TNodeId TClient::DoCreateNode(
     EObjectType type,
     const TCreateNodeOptions& options)
 {
+    auto newOptions = options;
+    if (newOptions.Attributes) {
+        const auto nestingLevelLimit = Connection_->GetConfig()->CypressWriteYsonNestingLevelLimit;
+        auto newAttributes = CreateEphemeralAttributes();
+        for (const auto& [key, value] : options.Attributes->ListPairs()) {
+            auto binarizedValue = ConvertToYsonStringNestingLimited(value, nestingLevelLimit);
+            newAttributes->SetYson(key, binarizedValue);
+        }
+        newOptions.Attributes = std::move(newAttributes);
+    }
+
     for (const auto& handler : TypeHandlers_) {
-        if (auto result = handler->CreateNode(type, path, options)) {
+        if (auto result = handler->CreateNode(type, path, newOptions)) {
             return *result;
         }
     }

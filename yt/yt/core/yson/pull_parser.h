@@ -298,6 +298,7 @@ private:
 
 private:
     void SkipComplexValueOrAttributes();
+    [[noreturn]] static void FailAsTryConsumeFragmentStartNotCalled();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -79,7 +79,9 @@ static void WalkImpl(
     YT_ABORT();
 }
 
-static void Walk(const TComplexTypeFieldDescriptor& descriptor, const std::function<void(const TWalkContext&, const TComplexTypeFieldDescriptor&)>& onElement)
+static void Walk(
+    const TComplexTypeFieldDescriptor& descriptor,
+    const std::function<void(const TWalkContext&, const TComplexTypeFieldDescriptor&)>& onElement)
 {
     TWalkContext walkContext;
     WalkImpl(&walkContext, descriptor, onElement);
@@ -1025,15 +1027,20 @@ bool operator == (const TLogicalType& lhs, const TLogicalType& rhs)
     YT_ABORT();
 }
 
-void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor)
+void ValidateLogicalType(const TComplexTypeFieldDescriptor& rootDescriptor, std::optional<int> depthLimit)
 {
-    Walk(descriptor, [] (const TWalkContext& context, const TComplexTypeFieldDescriptor& descriptor) {
+    Walk(rootDescriptor, [&] (const TWalkContext& context, const TComplexTypeFieldDescriptor& descriptor) {
         try {
             descriptor.GetType()->ValidateNode(context);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("%Qv has bad type",
                 descriptor.GetDescription())
-            << ex;
+                << ex;
+        }
+        if (depthLimit && std::ssize(context.Stack) > *depthLimit) {
+            THROW_ERROR_EXCEPTION("%Qv exceeds type depth limit",
+                descriptor.GetDescription())
+                << TErrorAttribute("limit", *depthLimit);
         }
     });
 }
@@ -1808,13 +1815,14 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
     }, typeName);
 }
 
-void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, TYsonPullParserCursor* cursor)
+void DeserializeV3Impl(TLogicalTypePtr& type, TYsonPullParserCursor* cursor, int depth)
 {
-    DeserializeV3(wrapper.LogicalType, cursor);
-}
+    // Check depth early to avoid stack overflow.
+    if (depth > MaxSchemaDepth) {
+        THROW_ERROR_EXCEPTION("Logical type exceeds depth limit during parsing")
+            << TErrorAttribute("limit", MaxSchemaDepth);
+    }
 
-void DeserializeV3(TLogicalTypePtr& type, TYsonPullParserCursor* cursor)
-{
     if ((*cursor)->GetType() == EYsonItemType::StringValue) {
         auto typeNameString = (*cursor)->UncheckedAsString();
         auto typeName = FromTypeV3(typeNameString);
@@ -1855,7 +1863,7 @@ void DeserializeV3(TLogicalTypePtr& type, TYsonPullParserCursor* cursor)
             cursor->Next();
         } else if (key == TStringBuf("item")) {
             cursor->Next();
-            DeserializeV3(item, cursor);
+            DeserializeV3Impl(item, cursor, depth + 1);
         } else if (key == TStringBuf("members")) {
             cursor->Next();
             members.emplace();
@@ -1870,7 +1878,7 @@ void DeserializeV3(TLogicalTypePtr& type, TYsonPullParserCursor* cursor)
                         name = ExtractTo<TString>(cursor);
                     } else if (key == TStringBuf("type")) {
                         cursor->Next();
-                        DeserializeV3(type, cursor);
+                        DeserializeV3Impl(type, cursor, depth + 1);
                     } else {
                         cursor->Next();
                         cursor->SkipComplexValue();
@@ -1894,7 +1902,7 @@ void DeserializeV3(TLogicalTypePtr& type, TYsonPullParserCursor* cursor)
                     auto key = (*cursor)->UncheckedAsString();
                     if (key == TStringBuf("type")) {
                         cursor->Next();
-                        DeserializeV3(type, cursor);
+                        DeserializeV3Impl(type, cursor, depth + 1);
                     } else {
                         cursor->Next();
                         cursor->SkipComplexValue();
@@ -1913,10 +1921,10 @@ void DeserializeV3(TLogicalTypePtr& type, TYsonPullParserCursor* cursor)
             scale = ExtractTo<i64>(cursor);
         } else if (key == TStringBuf("key")) {
             cursor->Next();
-            DeserializeV3(keyType, cursor);
+            DeserializeV3Impl(keyType, cursor, depth + 1);
         } else if (key == TStringBuf("value")) {
             cursor->Next();
-            DeserializeV3(valueType, cursor);
+            DeserializeV3Impl(valueType, cursor, depth + 1);
         } else if (key == TStringBuf("tag")) {
             cursor->Next();
             tag = ExtractTo<TString>(cursor);
@@ -1994,6 +2002,16 @@ void DeserializeV3(TLogicalTypePtr& type, TYsonPullParserCursor* cursor)
             YT_ABORT();
         }
     }, *typeName);
+}
+
+void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, TYsonPullParserCursor* cursor)
+{
+    DeserializeV3(wrapper.LogicalType, cursor);
+}
+
+void DeserializeV3(TLogicalTypePtr& type, TYsonPullParserCursor* cursor)
+{
+    DeserializeV3Impl(type, cursor, /*depth*/ 0);
 }
 
 void Deserialize(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor)

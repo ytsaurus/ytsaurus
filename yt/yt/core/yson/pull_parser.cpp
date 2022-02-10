@@ -616,6 +616,11 @@ bool TYsonPullParserCursor::TryConsumeFragmentStart()
     return result;
 }
 
+[[noreturn]] void TYsonPullParserCursor::FailAsTryConsumeFragmentStartNotCalled()
+{
+    Y_FAIL("TryConsumeFragmentStart not called for list or map fragment");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString CreateExpectedItemTypesString(const std::vector<EYsonItemType>& expected)

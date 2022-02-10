@@ -471,7 +471,7 @@ private:
         }
         {
             auto req = TCypressYPathProxy::Set(path + "/@annotations");
-            req->set_value(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
+            req->set_value(ConvertToYsonStringNestingLimited(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -480,7 +480,7 @@ private:
             req->set_ignore_existing(true);
             req->set_recursive(true);
             req->set_type(static_cast<int>(EObjectType::Orchid));
-            auto attributes = CreateEphemeralAttributes();
+            auto attributes = CreateEphemeralAttributesNestingLimited();
             attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
             ToProto(req->mutable_node_attributes(), *attributes);
             GenerateMutationId(req);
@@ -488,13 +488,13 @@ private:
         }
         {
             auto req = TYPathProxy::Set(path + "/@connection_time");
-            req->set_value(ConvertToYsonString(TInstant::Now()).ToString());
+            req->set_value(ConvertToYsonStringNestingLimited(TInstant::Now()).ToString());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
         {
             auto req = TYPathProxy::Set(path + "/@tags");
-            req->set_value(ConvertToYsonString(GetTags()).ToString());
+            req->set_value(ConvertToYsonStringNestingLimited(GetTags()).ToString());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -636,7 +636,7 @@ private:
         // Update controller agent address.
         {
             auto req = TYPathProxy::Set(operationPath + "/@controller_agent_address");
-            req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).ToString());
+            req->set_value(ConvertToYsonStringNestingLimited(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).ToString());
             batchReq->AddRequest(req, "set_controller_agent_address");
         }
         // Update controller agent orchid, it should point to this controller agent.
@@ -644,7 +644,7 @@ private:
             auto req = TCypressYPathProxy::Create(operationPath + "/controller_orchid");
             req->set_force(true);
             req->set_type(static_cast<int>(EObjectType::Orchid));
-            auto attributes = CreateEphemeralAttributes();
+            auto attributes = CreateEphemeralAttributesNestingLimited();
             attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
             attributes->Set("remote_root", "//controller_agent/operations/" + ToYPathLiteral(ToString(operationId)));
             ToProto(req->mutable_node_attributes(), *attributes);
@@ -748,6 +748,9 @@ private:
             briefProgress = controller->GetBriefProgress();
             YT_VERIFY(briefProgress);
         }
+
+        ValidateYson(progress, GetYsonNestingLevelLimit());
+        ValidateYson(briefProgress, GetYsonNestingLevelLimit());
 
         bool archiveUpdated = false;
         if (Config_->EnableOperationProgressArchivation && DoesOperationsArchiveExist()) {
@@ -1139,7 +1142,7 @@ private:
         for (auto [mediumIndex, diskSpace] : diskQuota.DiskSpacePerMedium) {
             auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
             auto req = TYPathProxy::Set(Format("#%v/@resource_usage/disk_space_per_medium/%v", leaseId, mediumDescriptor->Name));
-            req->set_value(ConvertToYsonString(diskSpace).ToString());
+            req->set_value(ConvertToYsonStringNestingLimited(diskSpace).ToString());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -1336,13 +1339,38 @@ private:
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
         auto req = TYPathProxy::Set(GetInstancePath() + "/@alerts");
-        req->set_value(ConvertToYsonString(alerts).ToString());
+        req->set_value(ConvertToYsonStringNestingLimited(alerts).ToString());
         req->set_recursive(true);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError, "Error updating controller agent alerts");
         }
+    }
+
+    IAttributeDictionaryPtr CreateEphemeralAttributesNestingLimited() const
+    {
+        const auto nestingLevelLimit = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetConfig()
+            ->CypressWriteYsonNestingLevelLimit;
+        return NYTree::CreateEphemeralAttributes(nestingLevelLimit);
+    }
+
+    int GetYsonNestingLevelLimit() const
+    {
+        return Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetConfig()
+            ->CypressWriteYsonNestingLevelLimit;
+    }
+
+    template <typename T>
+    TYsonString ConvertToYsonStringNestingLimited(const T& value) const
+    {
+        return NYson::ConvertToYsonStringNestingLimited(value, GetYsonNestingLevelLimit());
     }
 };
 

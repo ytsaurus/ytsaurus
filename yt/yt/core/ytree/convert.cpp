@@ -2,6 +2,31 @@
 
 #include <yt/yt/core/yson/tokenizer.h>
 
+namespace NYT::NYson {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+TYsonString ConvertToYsonStringNestingLimited(const TYsonString& value, int nestingLevelLimit)
+{
+    TMemoryInput input(value.AsStringBuf());
+    TYsonPullParser parser(&input, value.GetType(), nestingLevelLimit);
+    TYsonPullParserCursor cursor(&parser);
+
+    TStringStream stream;
+    stream.Str().reserve(value.AsStringBuf().size());
+    {
+        TCheckedInDebugYsonTokenWriter writer(&stream, value.GetType(), nestingLevelLimit);
+        cursor.TransferComplexValue(&writer);
+        writer.Finish();
+    }
+    return TYsonString(std::move(stream.Str()), value.GetType());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NYSon
+
 namespace NYT::NYTree {
 
 using namespace NYson;

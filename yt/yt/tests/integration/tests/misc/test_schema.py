@@ -185,6 +185,7 @@ def type_v3_to_type_v1(type_v3):
 @authors("ermolovd")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
 class TestComplexTypes(YTEnvSetup):
+
     @authors("ermolovd")
     def test_complex_optional(self, optimize_for):
         type_v3 = optional_type(optional_type("int8"))
@@ -2078,3 +2079,41 @@ class TestAlterTable(YTEnvSetup):
         self.check_both_ways_alter_type(
             tagged_type("qux", optional_type("int8")),
             tagged_type("bar", optional_type(tagged_type("foo", "int8"))))
+
+
+class TestSchemaDepthLimit(YTEnvSetup):
+    YSON_DEPTH_LIMIT = 256
+
+    # Keep consistent with code.
+    SCHEMA_DEPTH_LIMIT = 32
+    VERY_LARGE_DEPTH = 60
+
+    DELTA_DRIVER_CONFIG = {
+        "cypress_write_yson_nesting_level_limit": YSON_DEPTH_LIMIT,
+    }
+
+    def _create_schema(self, depth):
+        cur_type = "int64"
+        for _ in range(depth):
+            cur_type = struct_type([("a", cur_type)])
+        return make_schema([make_column("column", cur_type)])
+
+    @authors("levysotsky")
+    def test_depth_limit(self):
+        good_schema = self._create_schema(self.SCHEMA_DEPTH_LIMIT - 1)
+        create("table", "//tmp/t1", force=True, attributes={
+            "schema": good_schema,
+        })
+
+        bad_schema = self._create_schema(self.SCHEMA_DEPTH_LIMIT + 1)
+        with raises_yt_error("depth limit"):
+            create("table", "//tmp/t2", force=True, attributes={
+                "schema": bad_schema,
+            })
+
+        bad_schema = self._create_schema(self.VERY_LARGE_DEPTH)
+        # No crash here.
+        with raises_yt_error("depth limit"):
+            create("table", "//tmp/t3", force=True, attributes={
+                "schema": bad_schema,
+            })

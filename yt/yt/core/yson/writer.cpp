@@ -354,13 +354,15 @@ int TYsonWriter::GetDepth() const
 TBufferedBinaryYsonWriter::TBufferedBinaryYsonWriter(
     IOutputStream* stream,
     EYsonType type,
-    bool enableRaw)
+    bool enableRaw,
+    std::optional<int> nestingLevelLimit)
     : Stream_(stream)
     , Type_(type)
     , EnableRaw_(enableRaw)
     , BufferStart_(Buffer_)
     , BufferEnd_(Buffer_ + BufferSize)
     , BufferCursor_(BufferStart_)
+    , NestingLevelLimit_(nestingLevelLimit.value_or(std::numeric_limits<int>::max()))
 {
     YT_ASSERT(Stream_);
 }
@@ -387,6 +389,10 @@ Y_FORCE_INLINE void TBufferedBinaryYsonWriter::WriteStringScalar(TStringBuf valu
 Y_FORCE_INLINE void TBufferedBinaryYsonWriter::BeginCollection(char ch)
 {
     ++Depth_;
+    if (Depth_ > NestingLevelLimit_) {
+        THROW_ERROR_EXCEPTION("Depth limit exceeded while writing YSON")
+            << TErrorAttribute("limit", NestingLevelLimit_);
+    }
     *BufferCursor_++ = ch;
 }
 

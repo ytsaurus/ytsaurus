@@ -33,12 +33,18 @@ size_t FloatToStringWithNanInf(double value, char* buf, size_t size)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUncheckedYsonTokenWriter::TUncheckedYsonTokenWriter(IZeroCopyOutput* output, EYsonType /*type*/)
+TUncheckedYsonTokenWriter::TUncheckedYsonTokenWriter(
+    IZeroCopyOutput* output,
+    EYsonType /*type*/,
+    int /*nestingLevelLimit*/)
     : WriterHolder_(output)
     , Writer_(&*WriterHolder_)
 { }
 
-TUncheckedYsonTokenWriter::TUncheckedYsonTokenWriter(TZeroCopyOutputStreamWriter* writer, EYsonType /*type*/)
+TUncheckedYsonTokenWriter::TUncheckedYsonTokenWriter(
+    TZeroCopyOutputStreamWriter* writer,
+    EYsonType /*type*/,
+    int /*nestingLevelLimit*/)
     : Writer_(writer)
 { }
 

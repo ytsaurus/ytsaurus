@@ -1461,7 +1461,7 @@ void ValidateColumnSchema(
 
         {
             TComplexTypeFieldDescriptor descriptor(name, columnSchema.LogicalType());
-            ValidateLogicalType(descriptor);
+            ValidateLogicalType(descriptor, MaxSchemaDepth);
         }
 
         if (!IsComparable(columnSchema.LogicalType()) &&
