@@ -78,7 +78,7 @@ void TCommitterBase::CloseChangelog(const IChangelogPtr& changelog)
     // NB: Changelog is captured into a closure to prevent
     // its destruction before closing.
     changelog->Close()
-        .Apply(BIND([this, this_ = MakeStrong(this), changelog = changelog] (const TError& error) {
+        .Subscribe(BIND([this, this_ = MakeStrong(this), changelog = changelog] (const TError& error) {
             if (error.IsOK()) {
                 YT_LOG_DEBUG("Changelog closed successfully (ChangelogId: %v)",
                     changelog->GetId());
@@ -131,10 +131,12 @@ TLeaderCommitter::TLeaderCommitter(
     Changelog_ = std::move(changelog);
 
     auto selfId = CellManager_->GetSelfPeerId();
-    PeerStates_[selfId].NextExpectedSequenceNumber = CommittedState_.SequenceNumber + 1;
-    PeerStates_[selfId].LastLoggedSequenceNumber = CommittedState_.SequenceNumber;
+    auto& selfState = PeerStates_[selfId];
+    selfState.NextExpectedSequenceNumber = CommittedState_.SequenceNumber + 1;
+    selfState.LastLoggedSequenceNumber = CommittedState_.SequenceNumber;
 
     LastOffloadedSequenceNumber_ = CommittedState_.SequenceNumber;
+    NextLoggedSequenceNumber_ = CommittedState_.SequenceNumber + 1;
 
     AcceptMutationsExecutor_->Start();
 }
@@ -173,13 +175,15 @@ void TLeaderCommitter::SerializeMutations()
         return;
     }
 
-    // meh
     NTracing::TNullTraceContextGuard traceContextGuard;
 
-    TMutationDraft mutationDraft;
-    int mutationCount = 0;
-    while (mutationCount < Config_->MaxCommitBatchRecordCount && PreliminaryMutationQueue_->TryDequeue(&mutationDraft)) {
-        ++mutationCount;
+    std::vector<TMutationDraft> mutationDrafts;
+    while (std::ssize(mutationDrafts) < Config_->MaxCommitBatchRecordCount) {
+        TMutationDraft mutationDraft;
+        if (!PreliminaryMutationQueue_->TryDequeue(&mutationDraft)) {
+            break;
+        }
+
         if (ReadOnly_) {
             auto error = TError(
                 EErrorCode::ReadOnly,
@@ -201,7 +205,12 @@ void TLeaderCommitter::SerializeMutations()
                 currentEpochId));
             continue;
         }
-        LogMutation(std::move(mutationDraft));
+
+        mutationDrafts.push_back(std::move(mutationDraft));
+    }
+
+    if (!mutationDrafts.empty()) {
+        LogMutations(std::move(mutationDrafts));
     }
 
     MaybeSendBatch();
@@ -212,14 +221,14 @@ void TLeaderCommitter::Start()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LastRandomSeed_ = DecoratedAutomaton_->GetRandomSeed();
-    LoggedVersion_ = {Changelog_->GetId(), 0};
+    NextLoggedVersion_ = {Changelog_->GetId(), 0};
 
     auto sequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
     YT_VERIFY(CommittedState_.SequenceNumber == sequenceNumber);
 
     YT_LOG_INFO("Leader committer started (LastRandomSeed: %llx, LoggedVersion: %v)",
         LastRandomSeed_,
-        LoggedVersion_);
+        NextLoggedVersion_);
 
     SerializeMutationsExecutor_->Start();
 }
@@ -326,13 +335,13 @@ void TLeaderCommitter::Flush()
             for (int i = startIndex; i < startIndex + mutationCount; ++i) {
                 YT_VERIFY(i < std::ssize(MutationQueue_));
                 const auto& mutation = MutationQueue_[i];
-                request->Attachments().push_back(mutation->SerializedMutation);
+                request->Attachments().push_back(mutation->RecordData);
             }
         }
 
-        request->Invoke().Apply(
+        request->Invoke().Subscribe(
             BIND(&TLeaderCommitter::OnRemoteFlush, MakeStrong(this), followerId)
-                .AsyncVia(EpochContext_->EpochControlInvoker));
+                .Via(EpochContext_->EpochControlInvoker));
     }
 }
 
@@ -358,18 +367,20 @@ void TLeaderCommitter::OnRemoteFlush(
     const TInternalHydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
-        YT_LOG_INFO(rspOrError, "Error logging mutations at follower (FollowerId: %v)",
+        YT_LOG_WARNING(rspOrError, "Error logging mutations at follower (FollowerId: %v)",
             followerId);
 
         // TODO: This might be an old reply.
         if (LastSnapshotInfo_ && LastSnapshotInfo_->SequenceNumber != -1) {
             OnSnapshotReply(followerId);
         }
+
+        return;
     }
 
     auto& peerState = PeerStates_[followerId];
 
-    const auto& rsp = rspOrError.ValueOrThrow();
+    const auto& rsp = rspOrError.Value();
 
     if (rsp->has_snapshot_response()) {
         const auto& snapshotResult = rsp->snapshot_response();
@@ -377,7 +388,7 @@ void TLeaderCommitter::OnRemoteFlush(
         auto snapshotId = snapshotResult.snapshot_id();
         auto checksum = snapshotResult.checksum();
 
-        YT_LOG_DEBUG("Snaphot reply received (SnapshotId: %v, FollowerId: %v)",
+        YT_LOG_DEBUG("Snapshot reply received (SnapshotId: %v, FollowerId: %v)",
             snapshotId,
             followerId);
 
@@ -394,7 +405,7 @@ void TLeaderCommitter::OnRemoteFlush(
     peerState.LastLoggedSequenceNumber = loggedSequenceNumber;
 
     auto nextExpectedSequenceNumber = rsp->expected_sequence_number();
-    // Rollback here seems possible and ok?
+    // XXX(babenko): Rollback here seems possible and ok?
     peerState.NextExpectedSequenceNumber = nextExpectedSequenceNumber;
 
     YT_LOG_DEBUG("Mutations are flushed by follower (FollowerId: %v, NextExpectedSequenceNumber: %v, LoggedSequenceNumber: %v)",
@@ -402,10 +413,10 @@ void TLeaderCommitter::OnRemoteFlush(
         nextExpectedSequenceNumber,
         loggedSequenceNumber);
 
-    MaybePromoteCommitedSequenceNumber();
+    MaybePromoteCommittedSequenceNumber();
 }
 
-void TLeaderCommitter::MaybePromoteCommitedSequenceNumber()
+void TLeaderCommitter::MaybePromoteCommittedSequenceNumber()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -422,7 +433,8 @@ void TLeaderCommitter::MaybePromoteCommitedSequenceNumber()
 
     auto committedSequenceNumber = loggedNumbers[CellManager_->GetQuorumPeerCount() - 1];
 
-    YT_LOG_DEBUG("Trying to promote committed sequence number (NewCommittedSequenceNumber: %v)", committedSequenceNumber);
+    YT_LOG_DEBUG("Trying to promote committed sequence number (NewCommittedSequenceNumber: %v)",
+        committedSequenceNumber);
     if (committedSequenceNumber == -1 || CommittedState_.SequenceNumber == committedSequenceNumber) {
         return;
     }
@@ -464,7 +476,7 @@ void TLeaderCommitter::DrainQueue()
 {
     auto popMutationQueue = [&] () {
         const auto& mutation = MutationQueue_.front();
-        MutationQueueDataSize_ -= sizeof(mutation) + mutation->SerializedMutation.Size();
+        MutationQueueDataSize_ -= sizeof(mutation) + mutation->RecordData.Size();
         MutationQueue_.pop_front();
 
         MutationQueueSummarySize_.Record(MutationQueue_.size());
@@ -507,9 +519,9 @@ void TLeaderCommitter::MaybeCheckpoint()
         return;
     }
 
-    if (LoggedVersion_.RecordId >= Config_->MaxChangelogRecordCount) {
+    if (NextLoggedVersion_.RecordId >= Config_->MaxChangelogRecordCount) {
         YT_LOG_INFO("Requesting checkpoint due to record count limit (RecordCountSinceLastCheckpoint: %v, MaxChangelogRecordCount: %v)",
-            LoggedVersion_.RecordId,
+            NextLoggedVersion_.RecordId,
             Config_->MaxChangelogRecordCount);
     } else if (Changelog_->GetDataSize() >= Config_->MaxChangelogDataSize)  {
         YT_LOG_INFO("Requesting checkpoint due to data size limit (DataSizeSinceLastCheckpoint: %v, MaxChangelogDataSize: %v)",
@@ -527,9 +539,9 @@ void TLeaderCommitter::Checkpoint()
     YT_VERIFY(!AqcuiringChangelog_);
 
     AqcuiringChangelog_ = true;
-    RunChangelogAcquisition(Config_, EpochContext_, LoggedVersion_.SegmentId + 1, std::nullopt).Apply(
+    RunChangelogAcquisition(Config_, EpochContext_, NextLoggedVersion_.SegmentId + 1, std::nullopt).Subscribe(
         BIND(&TLeaderCommitter::OnChangelogAcquired, MakeStrong(this))
-            .AsyncVia(EpochContext_->EpochControlInvoker));
+            .Via(EpochContext_->EpochControlInvoker));
 }
 
 void TLeaderCommitter::OnSnapshotsComplete()
@@ -579,12 +591,13 @@ bool TLeaderCommitter::CanBuildSnapshot() const
 TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion)
 {
     YT_VERIFY(!LastSnapshotInfo_);
-
     LastSnapshotInfo_ = TShapshotInfo{
-        .SnapshotId = LoggedVersion_.SegmentId + 1
+        .SnapshotId = NextLoggedVersion_.SegmentId + 1
     };
 
-    auto result = waitForCompletion ? LastSnapshotInfo_->Promise : MakeFuture(LastSnapshotInfo_->SnapshotId);
+    auto result = waitForCompletion
+        ? LastSnapshotInfo_->Promise.ToFuture()
+        : MakeFuture(LastSnapshotInfo_->SnapshotId);
     if (!AqcuiringChangelog_) {
         Checkpoint();
     }
@@ -593,45 +606,47 @@ TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion)
 
 void TLeaderCommitter::OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemoteSnapshotParams>& rspOrError)
 {
-    YT_LOG_INFO("Local snapshot built (SnapshotId: %v)", snapshotId);
-
     if (!LastSnapshotInfo_ || LastSnapshotInfo_->SnapshotId > snapshotId) {
         YT_LOG_INFO("Stale local snapshot built, ignoring (SnapshotId: %v)", snapshotId);
         return;
     }
-    YT_VERIFY(LastSnapshotInfo_->SnapshotId == snapshotId);
 
-    auto id = CellManager_->GetSelfPeerId();
-    YT_VERIFY(!LastSnapshotInfo_->HasReply[id]);
+    YT_LOG_INFO("Local snapshot built (SnapshotId: %v)", snapshotId);
+
+    auto selfId = CellManager_->GetSelfPeerId();
+
+    YT_VERIFY(LastSnapshotInfo_->SnapshotId == snapshotId);
+    YT_VERIFY(!LastSnapshotInfo_->HasReply[selfId]);
 
     if (rspOrError.IsOK()) {
-        auto id = CellManager_->GetSelfPeerId();
-        YT_VERIFY(!LastSnapshotInfo_->Checksums[id]);
-        auto value = rspOrError.Value();
-        YT_VERIFY(value.SnapshotId == snapshotId);
-        LastSnapshotInfo_->Checksums[id] = value.Checksum;
-        LastSnapshotInfo_->Promise.Set(value.SnapshotId);
+        const auto& snapshotParams = rspOrError.Value();
+        YT_VERIFY(!LastSnapshotInfo_->Checksums[selfId]);
+        YT_VERIFY(snapshotParams.SnapshotId == snapshotId);
+        LastSnapshotInfo_->Checksums[selfId] = snapshotParams.Checksum;
+        LastSnapshotInfo_->Promise.Set(snapshotParams.SnapshotId);
     } else {
         LastSnapshotInfo_->Promise.Set(rspOrError);
     }
 
-    OnSnapshotReply(id);
+    OnSnapshotReply(selfId);
 }
 
-void TLeaderCommitter::OnChangelogAcquired(const TError& result)
+void TLeaderCommitter::OnChangelogAcquired(const TError& error)
 {
     AqcuiringChangelog_ = false;
-    if (!result.IsOK()) {
+
+    if (!error.IsOK()) {
         if (LastSnapshotInfo_) {
-            LastSnapshotInfo_->Promise.TrySet(result);
+            LastSnapshotInfo_->Promise.TrySet(error);
             LastSnapshotInfo_ = std::nullopt;
         }
+        // XXX
         // restart or retry
-        YT_LOG_ERROR(result);
+        YT_LOG_ERROR(error);
         return;
     }
 
-    auto changelogId = LoggedVersion_.SegmentId + 1;
+    auto changelogId = NextLoggedVersion_.SegmentId + 1;
     YT_VERIFY(Changelog_);
     YT_VERIFY(changelogId == Changelog_->GetId() + 1);
 
@@ -656,7 +671,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& result)
 
     auto oldChangelog = Changelog_;
 
-    LoggedVersion_ = LoggedVersion_.Rotate();
+    NextLoggedVersion_ = NextLoggedVersion_.Rotate();
     Changelog_ = changelog;
     YT_VERIFY(Changelog_->GetRecordCount() == 0);
 
@@ -665,72 +680,111 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& result)
     BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
         .AsyncVia(EpochContext_->EpochUserAutomatonInvoker)
         .Run(Changelog_->GetId(), selfState.LastLoggedSequenceNumber)
-        .Apply(
+        .Subscribe(
             BIND(&TLeaderCommitter::OnLocalSnapshotBuilt, MakeStrong(this), Changelog_->GetId())
-            .AsyncVia(EpochContext_->EpochControlInvoker));
+                .Via(EpochContext_->EpochControlInvoker));
 
 }
 
-void TLeaderCommitter::LogMutation(TMutationDraft&& mutationDraft)
+void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TCurrentTraceContextGuard traceContextGuard(mutationDraft.Request.TraceContext);
-
-    auto& selfState = PeerStates_[CellManager_->GetSelfPeerId()];
+    std::vector<TSharedRef> recordsData;
+    recordsData.reserve(mutationDrafts.size());
 
     auto timestamp = GetInstant();
-    auto randomSeed = RandomNumber<ui64>();
-    ++selfState.LastLoggedSequenceNumber;
-    MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
-    MutationHeader_.set_reign(mutationDraft.Request.Reign);
-    MutationHeader_.set_mutation_type(mutationDraft.Request.Type);
-    MutationHeader_.set_timestamp(timestamp.GetValue());
-    MutationHeader_.set_random_seed(randomSeed);
-    MutationHeader_.set_segment_id(LoggedVersion_.SegmentId);
-    MutationHeader_.set_record_id(LoggedVersion_.RecordId);
-    MutationHeader_.set_prev_random_seed(LastRandomSeed_);
-    MutationHeader_.set_sequence_number(selfState.LastLoggedSequenceNumber);
-    MutationHeader_.set_term(EpochContext_->Term);
-    if (mutationDraft.Request.MutationId) {
-        ToProto(MutationHeader_.mutable_mutation_id(), mutationDraft.Request.MutationId);
+
+    auto firstSequenceNumber = NextLoggedSequenceNumber_;
+    for (int index = 0; index < std::ssize(mutationDrafts); ++index) {
+        auto& mutationDraft = mutationDrafts[index];
+
+        auto randomSeed = RandomNumber<ui64>();
+
+        MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
+        MutationHeader_.set_reign(mutationDraft.Request.Reign);
+        MutationHeader_.set_mutation_type(mutationDraft.Request.Type);
+        MutationHeader_.set_timestamp(timestamp.GetValue());
+        MutationHeader_.set_random_seed(randomSeed);
+        MutationHeader_.set_segment_id(NextLoggedVersion_.SegmentId);
+        MutationHeader_.set_record_id(NextLoggedVersion_.RecordId);
+        MutationHeader_.set_prev_random_seed(LastRandomSeed_);
+        MutationHeader_.set_sequence_number(NextLoggedSequenceNumber_);
+        MutationHeader_.set_term(EpochContext_->Term);
+        if (mutationDraft.Request.MutationId) {
+            ToProto(MutationHeader_.mutable_mutation_id(), mutationDraft.Request.MutationId);
+        }
+
+        auto recordData = SerializeMutationRecord(MutationHeader_, mutationDraft.Request.Data);
+        recordsData.push_back(recordData);
+
+        YT_VERIFY(mutationDraft.Promise);
+        auto mutation = New<TPendingMutation>(
+            NextLoggedVersion_,
+            std::move(mutationDraft.Request),
+            timestamp,
+            randomSeed,
+            LastRandomSeed_,
+            NextLoggedSequenceNumber_,
+            EpochContext_->Term,
+            std::move(recordData),
+            std::move(mutationDraft.Promise));
+
+        LastRandomSeed_ = randomSeed;
+        NextLoggedVersion_ = NextLoggedVersion_.Advance();
+        ++NextLoggedSequenceNumber_;
+
+        // TODO(babenko): maybe log more details? mutation type? mutation id?
+        YT_LOG_DEBUG("Logging mutation at leader (SequenceNumber: %v, Version: %v, RandSeed: %llx)",
+            mutation->SequenceNumber,
+            mutation->Version,
+            mutation->RandomSeed);
+
+        if (!MutationQueue_.empty()) {
+            YT_VERIFY(MutationQueue_.back()->SequenceNumber + 1 == mutation->SequenceNumber);
+        }
+
+        MutationQueueDataSize_ += sizeof(mutation) + mutation->RecordData.Size();
+        MutationQueue_.push_back(std::move(mutation));
     }
-
-    auto recordData = SerializeMutationRecord(MutationHeader_, mutationDraft.Request.Data);
-    Changelog_->Append({recordData});
-
-    YT_VERIFY(mutationDraft.Promise);
-    auto mutation = New<TPendingMutation>(
-        LoggedVersion_,
-        std::move(mutationDraft.Request),
-        timestamp,
-        randomSeed,
-        LastRandomSeed_,
-        selfState.LastLoggedSequenceNumber,
-        EpochContext_->Term,
-        recordData,
-        std::move(mutationDraft.Promise));
-
-    LastRandomSeed_ = randomSeed;
-    LoggedVersion_ = LoggedVersion_.Advance();
-
-    if (!MutationQueue_.empty()) {
-        YT_VERIFY(MutationQueue_.back()->SequenceNumber + 1 == mutation->SequenceNumber);
-    }
-
-    YT_LOG_DEBUG("Mutation logged (SequenceNumber: %v, Version: %v, RandSeed: %llx)",
-        mutation->SequenceNumber,
-        mutation->Version,
-        mutation->RandomSeed);
-
-    MutationQueueDataSize_ += sizeof(mutation) + mutation->SerializedMutation.Size();
-    MutationQueue_.push_back(std::move(mutation));
+    auto lastSequenceNumber = NextLoggedSequenceNumber_ - 1;
 
     MutationQueueSummarySize_.Record(MutationQueue_.size());
     MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
 
     MaybeCheckpoint();
-    MaybePromoteCommitedSequenceNumber();
+
+    Changelog_->Append(std::move(recordsData))
+        .Subscribe(BIND(
+            &TLeaderCommitter::OnMutationsLogged,
+            MakeWeak(this),
+            firstSequenceNumber,
+            lastSequenceNumber)
+            .Via(EpochContext_->EpochControlInvoker));
+
+}
+
+void TLeaderCommitter::OnMutationsLogged(
+    i64 firstSequenceNumber,
+    i64 lastSequenceNumber,
+    const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (!error.IsOK()) {
+        LoggingFailed_.Fire(TError("Error logging mutations")
+            << error);
+        return;
+    }
+
+    YT_LOG_DEBUG("Mutations logged at leader (SequenceNumbers: %v-%v)",
+        firstSequenceNumber,
+        lastSequenceNumber);
+
+    auto& selfState = PeerStates_[CellManager_->GetSelfPeerId()];
+    selfState.LastLoggedSequenceNumber = std::max(selfState.LastLoggedSequenceNumber, lastSequenceNumber);
+
+    MaybePromoteCommittedSequenceNumber();
 }
 
 void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
@@ -749,6 +803,7 @@ void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
     std::vector<TPendingMutationPtr> mutations;
     for (auto i = LastOffloadedSequenceNumber_ + 1; i <= CommittedState_.SequenceNumber; ++i) {
         auto queueIndex = i - queueStartSequenceNumber;
+        // XXX(babenko)
         // restart instead of crash
         YT_VERIFY(queueIndex >= 0 && queueIndex < std::ssize(MutationQueue_));
         YT_VERIFY(MutationQueue_[queueIndex]->LocalCommitPromise);
@@ -768,7 +823,7 @@ TReachableState TLeaderCommitter::GetCommittedState() const
 
 TVersion TLeaderCommitter::GetLoggedVersion() const
 {
-    return LoggedVersion_;
+    return NextLoggedVersion_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -819,15 +874,18 @@ void TFollowerCommitter::AcceptMutations(
         return;
     }
 
-    auto startMutationIndes = expectedSequenceNumber - startSequenceNumber;
-    auto mutationIndex = startMutationIndes;
+    auto firstMutationIndex = expectedSequenceNumber - startSequenceNumber;
+    auto mutationIndex = firstMutationIndex;
     for (; mutationIndex < std::ssize(recordsData); ++mutationIndex) {
         DoAcceptMutation(recordsData[mutationIndex]);
     }
+    auto lastMutationIndex = mutationIndex - 1;
 
-    YT_LOG_DEBUG("Mutations accepted (StartMutationIndex: %v, LastMutationIndex: %v)",
-        startMutationIndes,
-        mutationIndex);
+    YT_LOG_DEBUG_IF(
+        firstMutationIndex <= lastMutationIndex,
+        "Mutations accepted (FirstMutationIndex: %v, LastMutationIndex: %v)",
+        firstMutationIndex,
+        lastMutationIndex);
 }
 
 void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)
@@ -900,7 +958,7 @@ IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
 
     if (auto changelog = openFuture.Value()) {
         if (Changelog_) {
-            YT_LOG_WARNING("Changelog opened, but it should not exist (OldChangelogId: %v, ChangelogId: %v)",
+            YT_LOG_ALERT("Changelog opened, but it should not exist (OldChangelogId: %v, ChangelogId: %v)",
                 Changelog_->GetId(),
                 changelogId);
             // There is a verify above that checks that mutation has version N:0 if it is not the first changelog,
@@ -950,21 +1008,22 @@ TFuture<void> TFollowerCommitter::GetLastLoggedMutationFuture()
     return LastLoggedMutationFuture_;
 }
 
-TFuture<void> TFollowerCommitter::LogMutations()
+void TFollowerCommitter::LogMutations()
 {
-    auto localFlushFuture = VoidFuture;
-
+    // XXX(babenko)
     // Logging more than one batch at a time makes it difficult to promote LoggedSequenceNumber_ correctly.
     // (And creates other weird problems.)
     if (LoggingMutations_) {
-        return localFlushFuture;
+        return;
     }
 
     LoggingMutations_ = true;
 
-    i64 lastMutationSequenceNumber = 0;
-    int loggedCount = 0;
-    while (loggedCount < Config_->MaxLoggedMutationsPerRequest && !AcceptedMutations_.empty()) {
+    i64 firstSequenceNumber = -1;
+    i64 lastSequenceNumber = -1;
+    std::vector<TSharedRef> recordsData;
+
+    while (std::ssize(recordsData) < Config_->MaxLoggedMutationsPerRequest && !AcceptedMutations_.empty()) {
         auto mutation = std::move(AcceptedMutations_.front());
         AcceptedMutations_.pop();
 
@@ -973,40 +1032,58 @@ TFuture<void> TFollowerCommitter::LogMutations()
             PrepareNextChangelog(version);
         }
 
-        localFlushFuture = LogMutation(mutation);
-        lastMutationSequenceNumber = mutation->SequenceNumber;
+        if (firstSequenceNumber < 0) {
+            firstSequenceNumber = mutation->SequenceNumber;
+        } else {
+            YT_VERIFY(mutation->SequenceNumber == firstSequenceNumber + std::ssize(recordsData));
+        }
+        lastSequenceNumber = mutation->SequenceNumber;
+
+        recordsData.push_back(mutation->RecordData);
         LoggedMutations_.push(std::move(mutation));
-        ++loggedCount;
-
     }
 
-    if (loggedCount == 0) {
+    if (recordsData.empty()) {
         LoggingMutations_ = false;
-        return localFlushFuture;
+        return;
     }
 
-    LastLoggedMutationFuture_ = localFlushFuture.Apply(
-        BIND(&TFollowerCommitter::OnMutationsLogged, MakeStrong(this), loggedCount, lastMutationSequenceNumber)
-            .AsyncVia(EpochContext_->EpochControlInvoker));
-    return LastLoggedMutationFuture_;
-}
-
-void TFollowerCommitter::OnMutationsLogged(int loggedCount, i64 lastMutationSequenceNumber)
-{
-    YT_VERIFY(LoggedSequenceNumber_ + loggedCount == lastMutationSequenceNumber);
-    LoggedSequenceNumber_ = lastMutationSequenceNumber;
-    YT_LOG_DEBUG("Logged mutations at follower (LoggedSequenceNumber: %v)", LoggedSequenceNumber_);
-    LoggingMutations_ = false;
-}
-
-TFuture<void> TFollowerCommitter::LogMutation(const TPendingMutationPtr& mutation)
-{
+    // XXX(babenko)
     // TODO(aleksandra-zh): This is probably because of WriteChangelogsAtFollowers.
     if (!Changelog_) {
-        return VoidFuture;
+        LoggedSequenceNumber_ = lastSequenceNumber;
+        LoggingMutations_ = false;
+        return;
     }
 
-    return Changelog_->Append({mutation->SerializedMutation});
+    YT_LOG_DEBUG("Logging mutations at follower (SequenceNumbers: %v-%v)",
+        firstSequenceNumber,
+        lastSequenceNumber);
+
+    auto future = Changelog_->Append(std::move(recordsData));
+    LastLoggedMutationFuture_ = future.Apply(
+        BIND(&TFollowerCommitter::OnMutationsLogged, MakeStrong(this), firstSequenceNumber, lastSequenceNumber)
+            .AsyncVia(EpochContext_->EpochControlInvoker));
+}
+
+void TFollowerCommitter::OnMutationsLogged(
+    i64 firstSequenceNumber,
+    i64 lastSequenceNumber,
+    const TError& error)
+{
+    if (!error.IsOK()) {
+        LoggingFailed_.Fire(TError("Error logging mutations at follower")
+            << error);
+        return;
+    }
+
+    YT_LOG_DEBUG("Mutations logged at follower (SequenceNumbers: %v-%v)",
+        firstSequenceNumber,
+        lastSequenceNumber);
+
+    YT_VERIFY(LoggedSequenceNumber_ == firstSequenceNumber - 1);
+    LoggedSequenceNumber_ = lastSequenceNumber;
+    LoggingMutations_ = false;
 }
 
 void TFollowerCommitter::CommitMutations(i64 committedSequenceNumber)

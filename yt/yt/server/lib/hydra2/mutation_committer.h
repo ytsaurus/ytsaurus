@@ -134,7 +134,8 @@ private:
 
     TReachableState CommittedState_;
     i64 LastOffloadedSequenceNumber_ = 0;
-    TVersion LoggedVersion_;
+    i64 NextLoggedSequenceNumber_ = 0;
+    TVersion NextLoggedVersion_;
 
     bool ReadOnly_ = false;
 
@@ -172,9 +173,13 @@ private:
 
     void DrainQueue();
 
-    void LogMutation(TMutationDraft&& mutationDraft);
+    void LogMutations(std::vector<TMutationDraft> mutationDrafts);
+    void OnMutationsLogged(
+        i64 firstSequenceNumber,
+        i64 lastSequenceNumber,
+        const TError& error);
 
-    void MaybePromoteCommitedSequenceNumber();
+    void MaybePromoteCommittedSequenceNumber();
     void OnCommittedSequenceNumberUpdated();
 
     void MaybeCheckpoint();
@@ -209,7 +214,7 @@ public:
     void AcceptMutations(
         i64 startSequenceNumber,
         const std::vector<TSharedRef>& recordsData);
-    TFuture<void> LogMutations();
+    void LogMutations();
     void CommitMutations(i64 committedSequenceNumber);
 
     //! Forwards a given mutation to the leader via RPC.
@@ -245,8 +250,10 @@ private:
     void PrepareNextChangelog(TVersion version);
 
     void DoAcceptMutation(const TSharedRef& recordData);
-    TFuture<void> LogMutation(const TPendingMutationPtr& mutation);
-    void OnMutationsLogged(int loggedCount, i64 lastMutationSequenceNumber);
+    void OnMutationsLogged(
+        i64 firstSequenceNumber,
+        i64 lastMutationSequenceNumber,
+        const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFollowerCommitter)

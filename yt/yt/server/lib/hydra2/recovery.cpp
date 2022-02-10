@@ -65,11 +65,12 @@ TRecovery::TRecovery(
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
 }
 
-void TRecovery::Recover(int term)
+void TRecovery::DoRun(int term)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto epochContext = EpochContext_;
+    // XXX(babenko)
     // >?
     if (epochContext->Term != term) {
         THROW_ERROR_EXCEPTION("Cannot recover to term %v in term %v",
@@ -79,6 +80,7 @@ void TRecovery::Recover(int term)
 
     auto currentState = DecoratedAutomaton_->GetReachableState();
     if (currentState > TargetState_) {
+        // XXX(babenko)
         // NB: YT-14934, rollback is possible at followers but not at leaders.
         if (IsLeader_) {
             YT_LOG_FATAL("Current automaton state is greater than target state during leader recovery "
@@ -99,16 +101,16 @@ void TRecovery::Recover(int term)
         snapshotId = snapshotIdOrError.Value();
     }
 
-     YT_LOG_INFO("Recovering from %v to %v",
+     YT_LOG_INFO("Running recovery (CurrentState: %v, TargetState: %v)",
         currentState,
         TargetState_);
 
     int initialChangelogId;
     if (snapshotId > currentState.SegmentId) {
         // Load the snapshot.
-        YT_LOG_INFO("Trying to use snapshot for recovery (SnapshotId: %v, CurrentState: %v)",
-            snapshotId,
-            currentState);
+        YT_LOG_INFO("Checking if snapshot is needed for recovery (CurrentState: %v, SnapshotId: %v)",
+            currentState,
+            snapshotId);
 
         YT_VERIFY(snapshotId != InvalidSegmentId);
         auto snapshotReader = SnapshotStore_->CreateReader(snapshotId);
@@ -116,27 +118,28 @@ void TRecovery::Recover(int term)
         WaitFor(snapshotReader->Open())
             .ThrowOnError();
 
-        auto meta = snapshotReader->GetParams().Meta;
-        auto randomSeed = meta.random_seed();
-        auto sequenceNumber = meta.sequence_number();
-        auto stateHash = meta.state_hash();
-        auto timestamp = FromProto<TInstant>(meta.timestamp());
-
-        auto snapshotSegmentId = meta.has_last_segment_id() ? meta.last_segment_id() : snapshotId;
-        auto snapshotRecordId = meta.has_last_record_id() ? meta.last_record_id() : 0;
-        auto lastMutationTerm = meta.has_last_mutation_term() ? meta.last_mutation_term() : 0;
+        auto snapshotMeta = snapshotReader->GetParams().Meta;
+        auto snapshoRandomSeed = snapshotMeta.random_seed();
+        auto snapshotSequenceNumber = snapshotMeta.sequence_number();
+        auto snapshotStateHash = snapshotMeta.state_hash();
+        auto snapshotTimestamp = FromProto<TInstant>(snapshotMeta.timestamp());
+        // COMPAT(aleksandra-zh)
+        auto snapshotSegmentId = snapshotMeta.has_last_segment_id() ? snapshotMeta.last_segment_id() : snapshotId;
+        auto snapshotRecordId = snapshotMeta.last_record_id();
+        auto snapshotLastMutationTerm = snapshotMeta.last_mutation_term();
 
         YT_VERIFY(snapshotSegmentId >= currentState.SegmentId);
-        YT_VERIFY(sequenceNumber >= currentState.SequenceNumber);
+        YT_VERIFY(snapshotSequenceNumber >= currentState.SequenceNumber);
 
-        YT_LOG_INFO("Snapshot state (SegmentId: %v, SequenceNumber: %v)",
+        YT_LOG_INFO("Snapshot opened (SnapshotSegmentId: %v, SnapshotSequenceNumber: %v)",
             snapshotSegmentId,
-            sequenceNumber);
+            snapshotSequenceNumber);
 
-        if (snapshotSegmentId == currentState.SegmentId && sequenceNumber == currentState.SequenceNumber) {
+        if (snapshotSegmentId == currentState.SegmentId && snapshotSequenceNumber == currentState.SequenceNumber) {
             YT_LOG_INFO("No need to use snapshot for recovery");
         } else {
             YT_LOG_INFO("Using snapshot for recovery");
+
             if (ResponseKeeper_) {
                 ResponseKeeper_->Stop();
             }
@@ -144,12 +147,12 @@ void TRecovery::Recover(int term)
             auto future = BIND(&TDecoratedAutomaton::LoadSnapshot, DecoratedAutomaton_)
                 .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
                 .Run(snapshotId,
-                    lastMutationTerm,
+                    snapshotLastMutationTerm,
                     {snapshotSegmentId, snapshotRecordId},
-                    sequenceNumber,
-                    randomSeed,
-                    stateHash,
-                    timestamp,
+                    snapshotSequenceNumber,
+                    snapshoRandomSeed,
+                    snapshotStateHash,
+                    snapshotTimestamp,
                     snapshotReader);
             WaitFor(future)
                 .ThrowOnError();
@@ -158,22 +161,22 @@ void TRecovery::Recover(int term)
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.
-        YT_LOG_INFO("Not using snapshots for recovery (SnapshotId: %v, CurrentState: %v)",
-            snapshotId,
-            currentState);
+        YT_LOG_INFO("Not using snapshots for recovery (CurrentState: %v, SnapshotId: %v)",
+            currentState,
+            snapshotId);
         initialChangelogId = currentState.SegmentId;
     }
 
     // Shortcut for observer startup.
-    // TODO
+    // XXX(babenko)
     if (TargetState_ == TReachableState() && !IsLeader_ && !Options_.WriteChangelogsAtFollowers) {
         return;
     }
 
-    YT_LOG_INFO("Replaying changelogs (ChangelogIds: %v-%v, TargetState: %v)",
-        initialChangelogId,
+    YT_LOG_INFO("Replaying changelogs (TargetState: %v, ChangelogIds: %v-%v)",
         TargetState_.SegmentId,
-        TargetState_);
+        TargetState_,
+        initialChangelogId);
 
     auto changelogId = initialChangelogId;
     IChangelogPtr changelog;
@@ -202,10 +205,10 @@ void TRecovery::Recover(int term)
         }
 
         if (!IsLeader_ && Options_.WriteChangelogsAtFollowers) {
-            SyncChangelog(changelog, changelogId);
+            SyncChangelog(changelog);
         }
 
-        if (!ReplayChangelog(changelog, changelogId, TargetState_.SequenceNumber)) {
+        if (!ReplayChangelog(changelog, TargetState_.SequenceNumber)) {
             TDelayedExecutor::WaitForDuration(Config_->ChangelogRecordCountCheckRetryPeriod);
             continue;
         }
@@ -221,7 +224,7 @@ void TRecovery::Recover(int term)
     }
 }
 
-void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
+void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -232,11 +235,11 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
     proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
     auto req = proxy.LookupChangelog();
-    req->set_changelog_id(changelogId);
+    req->set_changelog_id(changelog->GetId());
 
     auto rspOrError = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting changelog %v info from leader",
-        changelogId);
+        changelog->GetId());
     const auto& rsp = rspOrError.Value();
 
     i64 remoteRecordCount = rsp->record_count();
@@ -251,9 +254,9 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
         adjustedRemoteRecordCount = std::min<i64>(remoteRecordCount, recordCountLimit);
     }
 
-    YT_LOG_INFO("Syncing changelog (ChangelogId: %v, LocalRecordCount: %v, RemoteRecordCount: %v, "
+    YT_LOG_INFO("Synchronizing changelog (ChangelogId: %v, LocalRecordCount: %v, RemoteRecordCount: %v, "
         "FirstRemoteSequenceNumber: %v, AdjustedRemoteRecordCount: %v)",
-        changelogId,
+        changelog->GetId(),
         localRecordCount,
         remoteRecordCount,
         firstRemoteSequenceNumber,
@@ -263,7 +266,7 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
         auto latestChangelogId = WaitFor(ChangelogStore_->GetLatestChangelogId())
             .ValueOrThrow();
 
-        for (int changelogToTruncateId = latestChangelogId; changelogToTruncateId > changelogId; --changelogToTruncateId) {
+        for (int changelogToTruncateId = latestChangelogId; changelogToTruncateId > changelog->GetId(); --changelogToTruncateId) {
             auto errorOrChangelogToTruncate = WaitFor(ChangelogStore_->TryOpenChangelog(changelogToTruncateId));
             if (!errorOrChangelogToTruncate.IsOK()) {
                 YT_LOG_INFO("Changelog does not exist, skipping (ChangelogId: %v)",
@@ -284,27 +287,27 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
         auto asyncResult = DownloadChangelog(
             Config_,
             EpochContext_->CellManager,
-            ChangelogStore_,
-            changelogId,
-            adjustedRemoteRecordCount);
+            changelog,
+            adjustedRemoteRecordCount,
+            Logger);
         auto result = WaitFor(asyncResult);
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error downloading changelog records");
     }
 }
 
-bool TRecovery::ReplayChangelog(IChangelogPtr changelog, int changelogId, i64 targetSequenceNumber)
+bool TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequenceNumber)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto changelogRecordCount = changelog->GetRecordCount();
     YT_LOG_INFO("Replaying changelog (ChangelogId: %v, RecordCount: %v, TargetSequenceNumber: %v)",
-        changelogId,
+        changelog->GetId(),
         changelogRecordCount,
         targetSequenceNumber);
 
     int currentRecordId = 0;
     auto automatonVersion = DecoratedAutomaton_->GetAutomatonVersion();
-    if (automatonVersion.SegmentId == changelogId) {
+    if (automatonVersion.SegmentId == changelog->GetId()) {
         currentRecordId = automatonVersion.RecordId;
     }
 
@@ -313,10 +316,10 @@ bool TRecovery::ReplayChangelog(IChangelogPtr changelog, int changelogId, i64 ta
         auto recordsNeeded = targetSequenceNumber - automatonNumber;
         YT_VERIFY(recordsNeeded > 0);
 
-        YT_LOG_INFO("Trying to read mutations %v-%v from changelog %v",
+        YT_LOG_INFO("Started reading changelog records (ChangelogId: %v, RecordIds: %v-%v)",
+            changelog->GetId(),
             currentRecordId,
-            currentRecordId + recordsNeeded - 1,
-            changelogId);
+            currentRecordId + recordsNeeded - 1);
 
         auto asyncRecordsData = changelog->Read(
             currentRecordId,
@@ -324,21 +327,21 @@ bool TRecovery::ReplayChangelog(IChangelogPtr changelog, int changelogId, i64 ta
             Config_->MaxChangelogBytesPerRequest);
         auto recordsData = WaitFor(asyncRecordsData)
             .ValueOrThrow();
-        int recordsRead = static_cast<int>(recordsData.size());
+        auto recordsRead = std::ssize(recordsData);
 
-        YT_LOG_INFO("Finished reading records %v-%v from changelog %v",
+        YT_LOG_INFO("Finished reading changelog records (ChangelogId: %v, RecordIds: %v-%v)",
+            changelog->GetId(),
             currentRecordId,
-            currentRecordId + recordsRead - 1,
-            changelogId);
+            currentRecordId + recordsRead - 1);
 
-        YT_LOG_INFO("Applying records %v-%v from changelog %v",
+        YT_LOG_INFO("Applying changelog records (ChangelogId: %v, RecordIds: %v-%v)",
+            changelog->GetId(),
             currentRecordId,
-            currentRecordId + recordsRead - 1,
-            changelogId);
+            currentRecordId + recordsRead - 1);
 
         auto future = BIND([=, this_ = MakeStrong(this), recordsData = std::move(recordsData)] {
-                for (const auto& data : recordsData)  {
-                    DecoratedAutomaton_->ApplyMutationDuringRecovery(data);
+                for (const auto& recordData : recordsData)  {
+                    DecoratedAutomaton_->ApplyMutationDuringRecovery(recordData);
                 }
             })
             .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
@@ -351,7 +354,7 @@ bool TRecovery::ReplayChangelog(IChangelogPtr changelog, int changelogId, i64 ta
     }
 
     auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
-    YT_LOG_INFO("Replayed changelog (AutomatonSequenceNumber: %v, TargetSequenceNumber: %v)",
+    YT_LOG_INFO("Changelog replayed (AutomatonSequenceNumber: %v, TargetSequenceNumber: %v)",
         automatonSequenceNumber,
         targetSequenceNumber);
     return true;
@@ -361,7 +364,7 @@ TFuture<void> TRecovery::Run(int term)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return BIND(&TRecovery::Recover, MakeStrong(this))
+    return BIND(&TRecovery::DoRun, MakeStrong(this))
         .AsyncVia(EpochContext_->EpochControlInvoker)
         .Run(term);
 }

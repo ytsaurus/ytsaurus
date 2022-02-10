@@ -1279,10 +1279,10 @@ private:
                 .ThrowOnError();
         }
 
-        for (int i = currentChangelogId + 1; i <= changelogId; ++i) {
-            auto changelog = WaitFor(changelogStore->CreateChangelog(i, {}))
+        for (int id = currentChangelogId + 1; id <= changelogId; ++id) {
+            auto changelog = WaitFor(changelogStore->CreateChangelog(id, {}))
                 .ValueOrThrow();
-            epochContext->FollowerCommitter->RegisterNextChangelog(i, changelog);
+            epochContext->FollowerCommitter->RegisterNextChangelog(id, changelog);
         }
 
         YT_LOG_INFO("Changelog acquired (ChangelogId: %v, Priority: %v, Term: %v)",
@@ -1668,7 +1668,7 @@ private:
         ChangelogStore_->SetTerm(newTerm);
         ControlEpochContext_->Term = newTerm;
 
-        // TODO: What kind of barrier should I have here (if any)?
+        // TODO(aleksandra-zh): What kind of barrier should I have here (if any)?
         auto priority = GetElectionPriority();
         YT_LOG_INFO("Acquiring changelog (ChangelogId: %v, Priority: %v, Term: %v)",
             newChangelogId,
@@ -2253,9 +2253,6 @@ private:
         if (!this_ || !epochContext) {
             return MakeFuture(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
         }
-
-        const auto& Logger = this_->Logger;
-        YT_LOG_DEBUG("Synchronizing with leader");
 
         return BIND(&TDistributedHydraManager::DoSyncWithLeaderCore, this_)
             .AsyncViaGuarded(

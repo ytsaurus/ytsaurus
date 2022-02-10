@@ -32,8 +32,8 @@ public:
         TEpochContextPtr epochContext,
         i64 changelogId,
         std::optional<TPeerPriority> priority)
-        : Config_(config)
-        , EpochContext_(epochContext)
+        : Config_(std::move(config))
+        , EpochContext_(std::move(epochContext))
         , ChangelogId_(changelogId)
         , Priority_(priority)
     { }
@@ -57,8 +57,9 @@ private:
     const NLogging::TLogger Logger = HydraLogger;
 
     int SuccessCount_ = 0;
+    bool LocalSucceeded_ = false;
 
-    TPromise<void> ChangelogPromise_ = NewPromise<void>();
+    const TPromise<void> ChangelogPromise_ = NewPromise<void>();
 
     void DoAcquireChangelog()
     {
@@ -68,7 +69,6 @@ private:
                 continue;
             }
 
-            // copypaste
             auto channel = EpochContext_->CellManager->GetPeerChannel(peerId);
             if (!channel) {
                 continue;
@@ -83,7 +83,6 @@ private:
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.AcquireChangelog();
-
             req->set_changelog_id(ChangelogId_);
             if (Priority_) {
                 ToProto(req->mutable_priority(), *Priority_);
@@ -105,6 +104,15 @@ private:
                 .Via(EpochContext_->EpochControlInvoker));
     }
 
+    TFuture<void> CreateAndCloseChangelog(int changelogId)
+    {
+        const auto& changelogStore = EpochContext_->ChangelogStore;
+        return changelogStore->CreateChangelog(changelogId, {})
+            .Apply(BIND([] (const IChangelogPtr& changelog) {
+                return changelog->Close();
+            }));
+    }
+
     TFuture<void> AcquireLocalChangelog(int changelogId)
     {
         const auto& changelogStore = EpochContext_->ChangelogStore;
@@ -113,15 +121,17 @@ private:
 
         if (currentChangelogId >= changelogId) {
             return MakeFuture(TError(
-                "Cannot acquire local changelog %v, because changelog %v exists",
-                    changelogId,
-                    currentChangelogId));
+                "Cannot acquire local changelog %v because changelog %v exists",
+                changelogId,
+                currentChangelogId));
         }
 
-        for (int i = currentChangelogId + 1; i < changelogId; ++i) {
-            changelogStore->CreateChangelog(i, {});
+        std::vector<TFuture<void>> futures;
+        for (int id = currentChangelogId + 1; id <= changelogId; ++id) {
+            futures.push_back(CreateAndCloseChangelog(id));
         }
-        return changelogStore->CreateChangelog(changelogId, {}).AsVoid();
+
+        return AllSucceeded(std::move(futures));
     }
 
     void OnRemoteChangelogAcquired(TPeerId id, const TInternalHydraServiceProxy::TErrorOrRspAcquireChangelogPtr& rspOrError)
@@ -145,13 +155,14 @@ private:
     void OnLocalChangelogAcquired(const TError& error)
     {
         if (!error.IsOK()) {
-            ChangelogPromise_.TrySet(TError("Error rotating local changelog") << error);
+            ChangelogPromise_.TrySet(TError("Error acquiring local changelog") << error);
             return;
         }
 
-        YT_LOG_INFO("Local changelog rotated");
+        YT_LOG_INFO("Local changelog acquired");
 
         ++SuccessCount_;
+        LocalSucceeded_ = true;
         CheckQuorum();
     }
 
@@ -161,17 +172,18 @@ private:
             return;
         }
 
-        // NB: It is vital to wait for the local rotation to complete.
-        // Otherwise we risk assigning out-of-order versions.
-
         if (SuccessCount_ < EpochContext_->CellManager->GetQuorumPeerCount()) {
+            return;
+        }
+
+        if (!LocalSucceeded_) {
             return;
         }
 
         ChangelogPromise_.TrySet();
     }
 
-    void OnFailed(const TError& /* error */)
+    void OnFailed(const TError& /*error*/)
     {
         ChangelogPromise_.TrySet(TError("Not enough successful replies: %v out of %v",
             SuccessCount_,
@@ -187,7 +199,11 @@ TFuture<void> RunChangelogAcquisition(
     int changelogId,
     std::optional<TPeerPriority> priority)
 {
-    auto session = New<TAcquireChangelogSession>(config, epochContext, changelogId, priority);
+    auto session = New<TAcquireChangelogSession>(
+        std::move(config),
+        std::move(epochContext),
+        changelogId,
+        priority);
     return session->Run();
 }
 
