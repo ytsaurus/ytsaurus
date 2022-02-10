@@ -1657,9 +1657,14 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
             // TODO(shakurov): "RescheduleMerge"?
             ScheduleMerge(nodeId);
             continue;
+        } else if (result == EMergeSessionResult::PermanentFailure) {
+            continue;
         }
 
+        YT_VERIFY(result == EMergeSessionResult::OK);
+
         auto* oldRootChunkList = chunkOwner->GetChunkList();
+        YT_VERIFY(oldRootChunkList->GetKind() == EChunkListKind::Static);
         const auto& children = oldRootChunkList->Children();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
