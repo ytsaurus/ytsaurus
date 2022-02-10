@@ -1,7 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, ls, read_file, sync_create_cells, build_snapshot, build_master_snapshots)
+    authors, create, ls, read_file, sync_create_cells, build_snapshot, build_master_snapshots,
+    print_debug)
 
 import yt.yson as yson
 
@@ -48,8 +49,16 @@ class TestSnapshotValidation(YTEnvSetup):
             "--sleep-after-initialize",
         ]
 
-        ret = subprocess.run(command)
-        assert ret.returncode == 0
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            stdout, stderr = proc.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            assert False, "Snapshot validation timed out"
+
+        print_debug("Snaphot validation finished (stdout: {}, stderr: {})".format(stdout, stderr))
+
+        assert proc.returncode == 0
 
     @authors("akozhikhov")
     # FIXME(akozhikhov): YT-15664
@@ -90,5 +99,12 @@ class TestSnapshotValidation(YTEnvSetup):
             config_path,
             "--sleep-after-initialize",
         ]
-        ret = subprocess.run(command)
-        assert ret.returncode == 0
+
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            stdout, stderr = proc.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            assert False, "Snapshot validation timed out"
+
+        print_debug("Snaphot validation finished (stdout: {}, stderr: {})".format(stdout, stderr))
