@@ -5,7 +5,7 @@ case class E2ETestCase(name: String,
                        uniqueKeys: Boolean = false,
                        conf: Map[String, String] = Map(
                          "spark.pyspark.python" -> "/opt/python3.7/bin/python3.7",
-                         "spark.eventLog.enabled" -> "true",
+//                         "spark.eventLog.enabled" -> "true",
                          "spark.yt.read.keyColumnsFilterPushdown.enabled" -> "true"
                        )) {
   private val basePath = "//home/spark/e2e"

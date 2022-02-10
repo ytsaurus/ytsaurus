@@ -124,8 +124,7 @@ class YtOutputCommitter(jobId: String,
   }
 
   override def commitTask(taskContext: TaskAttemptContext): FileCommitProtocol.TaskCommitMessage = {
-    commitTransaction(taskContext.getConfiguration, Transaction)
-    null
+    new FileCommitProtocol.TaskCommitMessage(taskContext.getConfiguration.ytConf(Transaction))
   }
 
   override def deleteWithJob(fs: FileSystem, path: Path, recursive: Boolean): Boolean = {
@@ -142,6 +141,15 @@ class YtOutputCommitter(jobId: String,
   }
 
   override def newTaskTempFileAbsPath(taskContext: TaskAttemptContext, absoluteDir: String, ext: String): String = path
+
+  override def onTaskCommit(taskCommit: FileCommitProtocol.TaskCommitMessage): Unit = {
+    val transactionGuid = taskCommit.obj.asInstanceOf[String]
+    val yt = YtClientProvider.cachedClient("committer").yt
+    log.info(s"Commit write transaction: $transactionGuid")
+    log.info(s"Send commit transaction request: $transactionGuid")
+    YtWrapper.commitTransaction(transactionGuid)(yt)
+    log.info(s"Success commit transaction: $transactionGuid")
+  }
 }
 
 object YtOutputCommitter {
@@ -152,7 +160,7 @@ object YtOutputCommitter {
 
   private val pingFutures = scala.collection.concurrent.TrieMap.empty[String, ApiServiceTransaction]
 
-  private def yt(conf: Configuration): CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
+  private def yt(conf: Configuration): CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf), "committer")
 
   def withTransaction(transaction: String)(f: String => Unit, abort: => Unit = () => ()): Unit = {
     try {
