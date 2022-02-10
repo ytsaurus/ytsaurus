@@ -98,6 +98,7 @@ DEFINE_ENUM(EMasterReign,
     ((RefCountedInheritableAttributes)                              (1930))  // babenko
     ((AutoCreateReplicationCard)                                    (1931))  // babenko
     ((RebalancerKillingMergeJobsFix)                                (1932))  // h0pless
+    ((DoNotMergeDynamicTables)                                      (1933))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

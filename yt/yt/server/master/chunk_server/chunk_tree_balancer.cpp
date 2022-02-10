@@ -52,6 +52,8 @@ bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerM
 
 void TChunkTreeBalancer::Rebalance(TChunkList* root)
 {
+    YT_VERIFY(root->GetKind() == EChunkListKind::Static);
+
     auto oldStatistics = root->Statistics();
 
     // Special case: no chunks in the chunk tree.
@@ -134,6 +136,7 @@ void TChunkTreeBalancer::AppendChunkTree(
             currentChunkTree->AsChunkList()->Statistics().Rank > 1)
         {
             auto* currentChunkList = currentChunkTree->AsChunkList();
+            YT_VERIFY(currentChunkList->GetKind() == EChunkListKind::Static);
             int currentIndex = currentEntry.Index;
             if (currentIndex < static_cast<int>(currentChunkList->Children().size())) {
                 ++currentEntry.Index;
