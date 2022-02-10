@@ -25,25 +25,25 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnectionConfig::TMasterConnectionConfig()
+void TMasterConnectionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("enable_master_cache_discovery", EnableMasterCacheDiscovery)
+    registrar.Parameter("enable_master_cache_discovery", &TThis::EnableMasterCacheDiscovery)
         .Default(true);
-    RegisterParameter("master_cache_discovery_period", MasterCacheDiscoveryPeriod)
+    registrar.Parameter("master_cache_discovery_period", &TThis::MasterCacheDiscoveryPeriod)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("master_cache_discovery_period_splay", MasterCacheDiscoveryPeriodSplay)
+    registrar.Parameter("master_cache_discovery_period_splay", &TThis::MasterCacheDiscoveryPeriodSplay)
         .Default(TDuration::Seconds(10));
 
-    RegisterPreprocessor([&] {
-        RetryAttempts = 100;
-        RetryTimeout = TDuration::Minutes(3);
+    registrar.Preprocessor([] (TThis* config) {
+        config->RetryAttempts = 100;
+        config->RetryTimeout = TDuration::Minutes(3);
     });
 
-    RegisterPostprocessor([&] {
-        if (EnableMasterCacheDiscovery && Endpoints) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->EnableMasterCacheDiscovery && config->Endpoints) {
             THROW_ERROR_EXCEPTION("Cannot specify \"endpoints\" when master cache discovery is enabled");
         }
     });
@@ -51,9 +51,9 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClockServersConfig::TClockServersConfig()
+void TClockServersConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(30));
 }
 

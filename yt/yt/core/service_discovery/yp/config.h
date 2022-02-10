@@ -26,7 +26,9 @@ public:
     //! Provider throttles requests based on this string.
     TString Client;
 
-    TServiceDiscoveryConfig();
+    REGISTER_YSON_STRUCT(TServiceDiscoveryConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceDiscoveryConfig)

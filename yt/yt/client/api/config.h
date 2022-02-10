@@ -32,7 +32,9 @@ public:
     int OnErrorRetryCount;
     TDuration OnErrorSlackPeriod;
 
-    TTableMountCacheConfig();
+    REGISTER_YSON_STRUCT(TTableMountCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)

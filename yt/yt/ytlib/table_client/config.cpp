@@ -26,15 +26,15 @@ void TBufferedTableWriterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableColumnarStatisticsCacheConfig::TTableColumnarStatisticsCacheConfig()
+void TTableColumnarStatisticsCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+    registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)
         .Default(100'000);
-    RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+    registrar.Parameter("max_chunks_per_locate_request", &TThis::MaxChunksPerLocateRequest)
         .Default(10'000);
-    RegisterParameter("fetcher", Fetcher)
+    registrar.Parameter("fetcher", &TThis::Fetcher)
         .DefaultNew();
-    RegisterParameter("columnar_statistics_fetcher_mode", ColumnarStatisticsFetcherMode)
+    registrar.Parameter("columnar_statistics_fetcher_mode", &TThis::ColumnarStatisticsFetcherMode)
         .Default(EColumnarStatisticsFetcherMode::Fallback);
 }
 

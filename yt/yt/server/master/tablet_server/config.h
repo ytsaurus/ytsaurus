@@ -157,7 +157,9 @@ class TReplicatedTableTrackerExpiringCacheConfig
     : public TAsyncExpiringCacheConfig
 {
 public:
-    TReplicatedTableTrackerExpiringCacheConfig();
+    REGISTER_YSON_STRUCT(TReplicatedTableTrackerExpiringCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerExpiringCacheConfig);

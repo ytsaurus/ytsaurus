@@ -13,7 +13,12 @@ namespace NYT::NQueueClient {
 class TQueueAgentStageChannelConfig
     : public NRpc::TBalancingChannelConfig
     , public NRpc::TRetryingChannelConfig
-{ };
+{
+    REGISTER_YSON_STRUCT(TQueueAgentStageChannelConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentStageChannelConfig)
 

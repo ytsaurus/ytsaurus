@@ -6,15 +6,15 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectAttributeCacheConfig::TObjectAttributeCacheConfig()
+void TObjectAttributeCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("read_from", ReadFrom)
+    registrar.Parameter("read_from", &TThis::ReadFrom)
         .Default(NApi::EMasterChannelKind::Follower);
-    RegisterParameter("master_cache_expire_after_successful_update_time", MasterCacheExpireAfterSuccessfulUpdateTime)
+    registrar.Parameter("master_cache_expire_after_successful_update_time", &TThis::MasterCacheExpireAfterSuccessfulUpdateTime)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("master_cache_expire_after_failed_update_time", MasterCacheExpireAfterFailedUpdateTime)
+    registrar.Parameter("master_cache_expire_after_failed_update_time", &TThis::MasterCacheExpireAfterFailedUpdateTime)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("master_cache_cache_sticky_group_size", MasterCacheStickyGroupSize)
+    registrar.Parameter("master_cache_cache_sticky_group_size", &TThis::MasterCacheStickyGroupSize)
         .Default();
 }
 

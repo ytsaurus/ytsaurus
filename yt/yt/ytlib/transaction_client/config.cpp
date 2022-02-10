@@ -4,22 +4,22 @@ namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionManagerConfig::TTransactionManagerConfig()
+void TTransactionManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("default_ping_period", DefaultPingPeriod)
+    registrar.Parameter("default_ping_period", &TThis::DefaultPingPeriod)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
+    registrar.Parameter("default_transaction_timeout", &TThis::DefaultTransactionTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterPreprocessor([&] {
-        RetryAttempts = 100;
-        RetryTimeout = TDuration::Minutes(3);
+    registrar.Preprocessor([] (TThis* config) {
+        config->RetryAttempts = 100;
+        config->RetryTimeout = TDuration::Minutes(3);
     });
 
-    RegisterPostprocessor([&] () {
-        if (DefaultTransactionTimeout <= DefaultPingPeriod) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->DefaultTransactionTimeout <= config->DefaultPingPeriod) {
             THROW_ERROR_EXCEPTION("\"default_transaction_timeout\" must be greater than \"default_ping_period\"");
         }
     });

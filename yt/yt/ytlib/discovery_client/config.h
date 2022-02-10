@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/ytree/attributes.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/rpc/config.h>
 
@@ -13,14 +13,16 @@ namespace NYT::NDiscoveryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiscoveryClientBaseConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::vector<TString> ServerAddresses;
     TDuration RpcTimeout;
     TDuration ServerBanTimeout;
 
-    TDiscoveryClientBaseConfig();
+    REGISTER_YSON_STRUCT(TDiscoveryClientBaseConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoveryClientBaseConfig)
@@ -38,7 +40,9 @@ public:
 
     int WriteQuorum;
 
-    TMemberClientConfig();
+    REGISTER_YSON_STRUCT(TMemberClientConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemberClientConfig)
@@ -52,7 +56,9 @@ class TDiscoveryClientConfig
 public:
     int ReadQuorum;
 
-    TDiscoveryClientConfig();
+    REGISTER_YSON_STRUCT(TDiscoveryClientConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoveryClientConfig)

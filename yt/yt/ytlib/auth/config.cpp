@@ -145,53 +145,53 @@ TCachingCookieAuthenticatorConfig::TCachingCookieAuthenticatorConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDefaultSecretVaultServiceConfig::TDefaultSecretVaultServiceConfig()
+void TDefaultSecretVaultServiceConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("host", Host)
+    registrar.Parameter("host", &TThis::Host)
         .Default("vault-api.passport.yandex.net");
-    RegisterParameter("port", Port)
+    registrar.Parameter("port", &TThis::Port)
         .Default(443);
-    RegisterParameter("secure", Secure)
+    registrar.Parameter("secure", &TThis::Secure)
         .Default(true);
-    RegisterParameter("http_client", HttpClient)
+    registrar.Parameter("http_client", &TThis::HttpClient)
         .DefaultNew();
-    RegisterParameter("request_timeout", RequestTimeout)
+    registrar.Parameter("request_timeout", &TThis::RequestTimeout)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("vault_service_id", VaultServiceId)
+    registrar.Parameter("vault_service_id", &TThis::VaultServiceId)
         .Default("yav");
-    RegisterParameter("consumer", Consumer)
+    registrar.Parameter("consumer", &TThis::Consumer)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBatchingSecretVaultServiceConfig::TBatchingSecretVaultServiceConfig()
+void TBatchingSecretVaultServiceConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("batch_delay", BatchDelay)
+    registrar.Parameter("batch_delay", &TThis::BatchDelay)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("max_subrequests_per_request", MaxSubrequestsPerRequest)
+    registrar.Parameter("max_subrequests_per_request", &TThis::MaxSubrequestsPerRequest)
         .Default(100)
         .GreaterThan(0);
-    RegisterParameter("requests_throttler", RequestsThrottler)
+    registrar.Parameter("requests_throttler", &TThis::RequestsThrottler)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        RequestsThrottler->Limit = 100;
+    registrar.Preprocessor([] (TThis* config) {
+        config->RequestsThrottler->Limit = 100;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachingSecretVaultServiceConfig::TCachingSecretVaultServiceConfig()
+void TCachingSecretVaultServiceConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cache", Cache)
+    registrar.Parameter("cache", &TThis::Cache)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        Cache->RefreshTime = std::nullopt;
-        Cache->ExpireAfterAccessTime = TDuration::Seconds(60);
-        Cache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(60);
-        Cache->ExpireAfterFailedUpdateTime = TDuration::Seconds(60);
+    registrar.Preprocessor([] (TThis* config) {
+        config->Cache->RefreshTime = std::nullopt;
+        config->Cache->ExpireAfterAccessTime = TDuration::Seconds(60);
+        config->Cache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(60);
+        config->Cache->ExpireAfterFailedUpdateTime = TDuration::Seconds(60);
     });
 }
 

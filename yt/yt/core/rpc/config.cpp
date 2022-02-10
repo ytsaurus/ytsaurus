@@ -91,59 +91,59 @@ TMethodConfig::TMethodConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRetryingChannelConfig::TRetryingChannelConfig()
+void TRetryingChannelConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("retry_backoff_time", RetryBackoffTime)
+    registrar.Parameter("retry_backoff_time", &TThis::RetryBackoffTime)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("retry_attempts", RetryAttempts)
+    registrar.Parameter("retry_attempts", &TThis::RetryAttempts)
         .GreaterThanOrEqual(1)
         .Default(10);
-    RegisterParameter("retry_timeout", RetryTimeout)
+    registrar.Parameter("retry_timeout", &TThis::RetryTimeout)
         .GreaterThanOrEqual(TDuration::Zero())
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBalancingChannelConfigBase::TBalancingChannelConfigBase()
+void TBalancingChannelConfigBase::Register(TRegistrar registrar)
 {
-    RegisterParameter("discover_timeout", DiscoverTimeout)
+    registrar.Parameter("discover_timeout", &TThis::DiscoverTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("acknowledgement_timeout", AcknowledgementTimeout)
+    registrar.Parameter("acknowledgement_timeout", &TThis::AcknowledgementTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("rediscover_period", RediscoverPeriod)
+    registrar.Parameter("rediscover_period", &TThis::RediscoverPeriod)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("rediscover_splay", RediscoverSplay)
+    registrar.Parameter("rediscover_splay", &TThis::RediscoverSplay)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("hard_backoff_time", HardBackoffTime)
+    registrar.Parameter("hard_backoff_time", &TThis::HardBackoffTime)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("soft_backoff_time", SoftBackoffTime)
+    registrar.Parameter("soft_backoff_time", &TThis::SoftBackoffTime)
         .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicChannelPoolConfig::TDynamicChannelPoolConfig()
+void TDynamicChannelPoolConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_concurrent_discover_requests", MaxConcurrentDiscoverRequests)
+    registrar.Parameter("max_concurrent_discover_requests", &TThis::MaxConcurrentDiscoverRequests)
         .GreaterThan(0)
         .Default(10);
-    RegisterParameter("hashes_per_peer", HashesPerPeer)
+    registrar.Parameter("hashes_per_peer", &TThis::HashesPerPeer)
         .GreaterThan(0)
         .Default(10);
-    RegisterParameter("max_peer_count", MaxPeerCount)
+    registrar.Parameter("max_peer_count", &TThis::MaxPeerCount)
         .GreaterThan(1)
         .Default(100);
-    RegisterParameter("random_peer_eviction_period", RandomPeerEvictionPeriod)
+    registrar.Parameter("random_peer_eviction_period", &TThis::RandomPeerEvictionPeriod)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("enable_peer_polling", EnablePeerPolling)
+    registrar.Parameter("enable_peer_polling", &TThis::EnablePeerPolling)
         .Default(false);
-    RegisterParameter("peer_polling_period", PeerPollingPeriod)
+    registrar.Parameter("peer_polling_period", &TThis::PeerPollingPeriod)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("peer_polling_period_splay", PeerPollingPeriodSplay)
+    registrar.Parameter("peer_polling_period_splay", &TThis::PeerPollingPeriodSplay)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("peer_polling_request_timeout", PeerPollingRequestTimeout)
+    registrar.Parameter("peer_polling_request_timeout", &TThis::PeerPollingRequestTimeout)
         .Default(TDuration::Seconds(15));
 }
 
@@ -159,23 +159,23 @@ TServiceDiscoveryEndpointsConfig::TServiceDiscoveryEndpointsConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBalancingChannelConfig::TBalancingChannelConfig()
+void TBalancingChannelConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("addresses", Addresses)
+    registrar.Parameter("addresses", &TThis::Addresses)
         .Optional();
-    RegisterParameter("endpoints", Endpoints)
+    registrar.Parameter("endpoints", &TThis::Endpoints)
         .Optional();
-    RegisterParameter("hedging_delay", HedgingDelay)
+    registrar.Parameter("hedging_delay", &TThis::HedgingDelay)
         .Optional();
-    RegisterParameter("cancel_primary_request_on_hedging", CancelPrimaryRequestOnHedging)
+    registrar.Parameter("cancel_primary_request_on_hedging", &TThis::CancelPrimaryRequestOnHedging)
         .Default(false);
 
-    RegisterPostprocessor([&] {
+    registrar.Postprocessor([] (TThis* config) {
         int endpointConfigCount = 0;
-        if (Addresses) {
+        if (config->Addresses) {
             ++endpointConfigCount;
         }
-        if (Endpoints) {
+        if (config->Endpoints) {
             ++endpointConfigCount;
         }
         if (endpointConfigCount != 1) {

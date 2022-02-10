@@ -22,10 +22,12 @@ public:
     TDuration MasterCacheExpireAfterFailedUpdateTime;
     std::optional<int> MasterCacheStickyGroupSize;
 
-    TObjectAttributeCacheConfig();
-
     // TODO(max42): eliminate this by proper inheritance.
     NApi::TMasterReadOptions GetMasterReadOptions();
+
+    REGISTER_YSON_STRUCT(TObjectAttributeCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectAttributeCacheConfig)

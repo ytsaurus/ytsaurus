@@ -4,29 +4,29 @@ namespace NYT::NServiceDiscovery::NYP {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceDiscoveryConfig::TServiceDiscoveryConfig()
+void TServiceDiscoveryConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
 
-    RegisterParameter("fqdn", Fqdn)
+    registrar.Parameter("fqdn", &TThis::Fqdn)
         .Default("sd.yandex.net");
-    RegisterParameter("grpc_port", GrpcPort)
+    registrar.Parameter("grpc_port", &TThis::GrpcPort)
         .Default(8081);
 
-    RegisterParameter("client", Client)
+    registrar.Parameter("client", &TThis::Client)
         .Default("yt")
         .NonEmpty();
 
-    RegisterPreprocessor([this] {
-        RetryBackoffTime = TDuration::Seconds(1);
-        RetryAttempts = 5;
-        RetryTimeout = TDuration::Seconds(10);
+    registrar.Preprocessor([] (TThis* config) {
+        config->RetryBackoffTime = TDuration::Seconds(1);
+        config->RetryAttempts = 5;
+        config->RetryTimeout = TDuration::Seconds(10);
 
-        ExpireAfterAccessTime = TDuration::Days(1);
-        ExpireAfterSuccessfulUpdateTime = TDuration::Days(1);
-        ExpireAfterFailedUpdateTime = TDuration::Seconds(5);
-        RefreshTime = TDuration::Seconds(5);
+        config->ExpireAfterAccessTime = TDuration::Days(1);
+        config->ExpireAfterSuccessfulUpdateTime = TDuration::Days(1);
+        config->ExpireAfterFailedUpdateTime = TDuration::Seconds(5);
+        config->RefreshTime = TDuration::Seconds(5);
     });
 }
 

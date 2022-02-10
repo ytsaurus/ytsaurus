@@ -82,7 +82,9 @@ public:
 
     EColumnarStatisticsFetcherMode ColumnarStatisticsFetcherMode;
 
-    TTableColumnarStatisticsCacheConfig();
+    REGISTER_YSON_STRUCT(TTableColumnarStatisticsCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableColumnarStatisticsCacheConfig);

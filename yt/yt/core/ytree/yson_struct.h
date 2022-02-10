@@ -194,6 +194,9 @@ public:
 
     void UnrecognizedStrategy(EUnrecognizedStrategy strategy);
 
+    template<class TBase>
+    operator TYsonStructRegistrar<TBase>();
+
 private:
     IYsonStructMeta* const Meta_;
 };

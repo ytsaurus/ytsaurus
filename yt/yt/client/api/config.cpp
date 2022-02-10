@@ -4,12 +4,12 @@ namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableMountCacheConfig::TTableMountCacheConfig()
+void TTableMountCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("on_error_retry_count", OnErrorRetryCount)
+    registrar.Parameter("on_error_retry_count", &TThis::OnErrorRetryCount)
         .GreaterThanOrEqual(0)
         .Default(5);
-    RegisterParameter("on_error_retry_slack_period", OnErrorSlackPeriod)
+    registrar.Parameter("on_error_retry_slack_period", &TThis::OnErrorSlackPeriod)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(1));
 }

@@ -10,18 +10,18 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeerConnectionConfig::TPeerConnectionConfig()
+void TPeerConnectionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cell_id", CellId)
+    registrar.Parameter("cell_id", &TThis::CellId)
         .Default();
 
-    RegisterPreprocessor([&] () {
+    registrar.Preprocessor([] (TThis* config) {
         // Query all peers in parallel.
-        MaxConcurrentDiscoverRequests = std::numeric_limits<int>::max();
+        config->MaxConcurrentDiscoverRequests = std::numeric_limits<int>::max();
     });
 
-    RegisterPostprocessor([&] () {
-        if (!CellId) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->CellId) {
             THROW_ERROR_EXCEPTION("\"cell_id\" cannot be equal to %v",
                 NullCellId);
         }

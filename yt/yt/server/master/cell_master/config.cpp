@@ -61,22 +61,22 @@ TMasterHydraManagerConfig::TMasterHydraManagerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnectionConfig::TMasterConnectionConfig()
+void TMasterConnectionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterPreprocessor([&] {
-        RetryAttempts = 100;
-        RetryTimeout = TDuration::Minutes(3);
+    registrar.Preprocessor([] (TThis* config) {
+        config->RetryAttempts = 100;
+        config->RetryTimeout = TDuration::Minutes(3);
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiscoveryServersConfig::TDiscoveryServersConfig()
+void TDiscoveryServersConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(30));
 }
 

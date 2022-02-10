@@ -10,7 +10,12 @@ namespace NYT::NHiveClient {
 
 class TCellDirectoryConfig
     : public NRpc::TBalancingChannelConfigBase
-{ };
+{
+    REGISTER_YSON_STRUCT(TCellDirectoryConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 

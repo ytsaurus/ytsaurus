@@ -73,7 +73,9 @@ public:
     //! Timeout for RPC requests to masters.
     TDuration RpcTimeout;
 
-    TMasterConnectionConfig();
+    REGISTER_YSON_STRUCT(TMasterConnectionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
@@ -88,7 +90,9 @@ public:
     //! Timeout for RPC requests to discovery servers.
     TDuration RpcTimeout;
 
-    TDiscoveryServersConfig();
+    REGISTER_YSON_STRUCT(TDiscoveryServersConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoveryServersConfig)
