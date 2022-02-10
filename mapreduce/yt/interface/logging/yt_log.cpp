@@ -1,6 +1,5 @@
 #include "yt_log.h"
 
-#include "log.h"
 #include "logger.h"
 
 #include <util/generic/guid.h>
@@ -79,6 +78,14 @@ private:
             case ELogLevel::Maximum:
                 return ILogger::ELevel::FATAL;
         }
+    }
+
+    static void LogMessage(ILogger::ELevel level, const ::TSourceLocation& sourceLocation, const char* format, ...)
+    {
+        va_list args;
+        va_start(args, format);
+        GetLogger()->Log(level, sourceLocation, format, args);
+        va_end(args);
     }
 
 private:
