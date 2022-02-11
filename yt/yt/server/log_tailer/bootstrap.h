@@ -31,7 +31,7 @@ public:
 
     const TLogTailerPtr& GetLogTailer() const;
 
-    void Terminate(int exitCode = 0);
+    void Abort(int exitCode = 0);
 
 private:
     const TLogTailerBootstrapConfigPtr Config_;

@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/misc/signal_registry.h>
 
+#include <yt/yt/core/logging/log_manager.h>
+
 namespace NYT::NLogTailer {
 
 using namespace NApi::NNative;
@@ -65,7 +67,7 @@ void TBootstrap::SigintHandler()
     ++SigintCounter_;
     YT_LOG_INFO("Received SIGINT (SigintCount: %v)", static_cast<int>(SigintCounter_));
     if (SigintCounter_ > 1) {
-        Terminate(InterruptionExitCode);
+        Abort(InterruptionExitCode);
     }
     YT_LOG_INFO("Ignoring first SIGINT");
 }
@@ -90,8 +92,9 @@ const TLogTailerPtr& TBootstrap::GetLogTailer() const
     return LogTailer_;
 }
 
-void TBootstrap::Terminate(int exitCode)
+void TBootstrap::Abort(int exitCode)
 {
+    NLogging::TLogManager::Get()->Shutdown();
     MonitoringManager_->Stop();
     HttpServer_->Stop();
     _exit(exitCode);

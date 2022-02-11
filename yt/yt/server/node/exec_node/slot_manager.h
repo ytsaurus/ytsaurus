@@ -15,8 +15,8 @@
 #include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 

@@ -349,12 +349,12 @@ void TChunkLocation::Disable(const TError& reason)
         fileOutput << ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).AsStringBuf();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Error creating location lock file; aborting");
-        TProgram::Exit(EProgramExitCode::ProgramError);
+        TProgram::Abort(EProgramExitCode::ProgramError);
     }
 
     const auto& dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
     if (dynamicConfig->AbortOnLocationDisabled) {
-        TProgram::Exit(EProgramExitCode::ProgramError);
+        TProgram::Abort(EProgramExitCode::ProgramError);
     }
 
     Disabled_.Fire();

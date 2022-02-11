@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/yson/writer.h>
 
+#include <yt/yt/core/logging/log_manager.h>
+
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
 #include <yt/yt/library/profiling/tcmalloc/profiler.h>
@@ -147,6 +149,18 @@ int TProgram::Run(int argc, const char** argv)
 
     // Cannot reach this due to #Exit calls above.
     YT_ABORT();
+}
+
+void TProgram::Abort(EProgramExitCode code) noexcept
+{
+    Abort(static_cast<int>(code));
+}
+
+void TProgram::Abort(int code) noexcept
+{
+    NLogging::TLogManager::Get()->Shutdown();
+
+    ::_exit(code);
 }
 
 void TProgram::Exit(EProgramExitCode code) noexcept

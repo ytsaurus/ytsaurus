@@ -5,8 +5,6 @@
 #include "log_reader.h"
 #include "log_tailer.h"
 
-#include <yt/yt/core/logging/log_manager.h>
-
 namespace NYT::NLogTailer {
 
 using namespace NConcurrency;
@@ -49,8 +47,7 @@ void TLogWriterLivenessChecker::CheckLiveness()
         }
 
         YT_LOG_INFO("Log writer has stopped; terminating (LogWriterPid: %v)", logWriterPid);
-        NLogging::TLogManager::Get()->Shutdown();
-        Bootstrap_->Terminate();
+        Bootstrap_->Abort();
     } else {
         YT_LOG_ERROR("Unexpected kill result (LogWriterPid: %v, KillResult: %v)",
             logWriterPid,
