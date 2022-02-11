@@ -429,6 +429,15 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/cluster_masters",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/timestamp_providers",
                 transactionId,
                 EObjectType::MapNode,
@@ -714,6 +723,15 @@ private:
                             .Item("remote_addresses").Value(NNodeTrackerClient::TAddressMap{
                                 {NNodeTrackerClient::DefaultNetworkName, address}
                             })
+                        .EndMap());
+
+                ScheduleCreateNode(
+                    "//sys/cluster_masters/" + ToYPathLiteral(address),
+                    transactionId,
+                    EObjectType::Link,
+                    BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("target_path").Value(addressPath)
                         .EndMap());
             };
 
