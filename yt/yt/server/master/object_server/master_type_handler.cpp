@@ -49,6 +49,9 @@ private:
     {
         return CreateMasterProxy(Bootstrap_, &Metadata_, object);
     }
+
+    void CheckInvariants(NCellMaster::TBootstrap* /*bootstap*/) override
+    { }
 };
 
 IObjectTypeHandlerPtr CreateMasterTypeHandler(TBootstrap* bootstrap)

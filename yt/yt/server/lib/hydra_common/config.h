@@ -300,6 +300,10 @@ public:
     //! Leader's mutation queue data size limit, in bytes.
     int MaxQueueMutationDataSize;
 
+    //! If set, automaton invariants are checked after each mutation with this probability.
+    //! Used for testing purposes only.
+    std::optional<double> InvariantsCheckProbability;
+
     TDistributedHydraManagerConfig();
 };
 

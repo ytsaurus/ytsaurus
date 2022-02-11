@@ -243,6 +243,8 @@ public:
 
     NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
 
+    const TGarbageCollectorPtr& GetGarbageCollector() const;
+
 private:
     friend class TObjectProxyBase;
 
@@ -305,6 +307,8 @@ private:
     void OnStopLeading() override;
     void OnStartFollowing() override;
     void OnStopFollowing() override;
+
+    void CheckInvariants() override;
 
     static TString MakeCodicilData(const TAuthenticationIdentity& identity);
     void HydraExecuteLeader(
@@ -1063,6 +1067,18 @@ void TObjectManager::TImpl::OnStopFollowing()
     TMasterAutomatonPart::OnStopFollowing();
 
     GarbageCollector_->Stop();
+}
+
+void TObjectManager::TImpl::CheckInvariants()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::CheckInvariants();
+
+    for (const auto& [type, entry] : TypeToEntry_) {
+        const auto& typeHandler = entry.Handler;
+        typeHandler->CheckInvariants(Bootstrap_);
+    }
 }
 
 TObject* TObjectManager::TImpl::FindObject(TObjectId id)
@@ -2103,6 +2119,13 @@ NProfiling::TTimeCounter* TObjectManager::TImpl::GetMethodCumulativeExecuteTimeC
     return &(*entryPtr)->CumulativeExecuteTimeCounter;
 }
 
+const TGarbageCollectorPtr& TObjectManager::TImpl::GetGarbageCollector() const
+{
+    Bootstrap_->VerifyPersistentStateRead();
+
+    return GarbageCollector_;
+}
+
 void TObjectManager::TImpl::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -2435,6 +2458,11 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(TObject* object,
 NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method)
 {
     return Impl_->GetMethodCumulativeExecuteTimeCounter(type, method);
+}
+
+const TGarbageCollectorPtr& TObjectManager::GetGarbageCollector() const
+{
+    return Impl_->GetGarbageCollector();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

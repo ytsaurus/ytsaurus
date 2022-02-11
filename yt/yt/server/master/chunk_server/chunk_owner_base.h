@@ -96,6 +96,8 @@ public:
 
     bool HasDataWeight() const;
 
+    void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
+
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 

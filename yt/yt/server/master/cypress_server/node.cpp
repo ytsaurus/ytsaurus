@@ -191,6 +191,11 @@ bool TCypressNode::CanCacheResolve() const
     return true;
 }
 
+void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
+{
+    TObject::CheckInvariants(bootstrap);
+}
+
 void TCypressNode::Save(TSaveContext& context) const
 {
     TObject::Save(context);

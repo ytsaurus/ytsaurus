@@ -253,9 +253,15 @@ protected:
 
         TBase::DoDestroyObject(object);
     }
+
+    void CheckInvariants(NCellMaster::TBootstrap* bootstrap) override
+    {
+        for (auto [objectId, object] : *Map_) {
+            object->CheckInvariants(bootstrap);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-

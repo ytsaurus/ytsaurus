@@ -746,6 +746,15 @@ private:
         return node->GetParent();
     }
 
+    void CheckInvariants(TBootstrap* bootstrap) override
+    {
+        for (auto [nodeId, node] : bootstrap->GetCypressManager()->Nodes()) {
+            if (node->GetType() == GetType()) {
+                node->CheckInvariants(bootstrap);
+            }
+        }
+    }
+
     void DoDestroyObject(TCypressNode* node) noexcept override;
     void DoRecreateObjectAsGhost(TCypressNode* node) noexcept override;
 };

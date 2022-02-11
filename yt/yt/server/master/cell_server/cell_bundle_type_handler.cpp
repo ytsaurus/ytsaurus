@@ -26,8 +26,7 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>
-TCellBundleTypeHandlerBase<TImpl>::TCellBundleTypeHandlerBase(
-    NCellMaster::TBootstrap* bootstrap)
+TCellBundleTypeHandlerBase<TImpl>::TCellBundleTypeHandlerBase(TBootstrap* bootstrap)
     : TBase(bootstrap)
 { }
 
@@ -90,6 +89,17 @@ void TCellBundleTypeHandlerBase<TImpl>::DoDestroyObject(TImpl* cellBundle) noexc
     cellManager->DestroyCellBundle(cellBundle);
 
     TBase::DoDestroyObject(cellBundle);
+}
+
+template <class TImpl>
+void TCellBundleTypeHandlerBase<TImpl>::CheckInvariants(TBootstrap* bootstrap)
+{
+    const auto& cellManager = bootstrap->GetTamedCellManager();
+    for (auto [bundleId, bundle] : cellManager->CellBundles()) {
+        if (bundle->GetType() == this->GetType()) {
+            bundle->CheckInvariants(bootstrap);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

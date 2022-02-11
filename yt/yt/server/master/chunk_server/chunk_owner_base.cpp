@@ -238,6 +238,11 @@ bool TChunkOwnerBase::HasDataWeight() const
     return !HasInvalidDataWeight(SnapshotStatistics_) && !HasInvalidDataWeight(DeltaStatistics_);
 }
 
+void TChunkOwnerBase::CheckInvariants(TBootstrap* bootstrap) const
+{
+    TCypressNode::CheckInvariants(bootstrap);
+}
+
 NSecurityServer::TClusterResources TChunkOwnerBase::GetTotalResourceUsage() const
 {
     return TCypressNode::GetTotalResourceUsage() + GetDiskUsage(ComputeTotalStatistics());

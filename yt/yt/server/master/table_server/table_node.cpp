@@ -686,6 +686,30 @@ void TTableNode::RemoveDynamicTableLock(TTransactionId transactionId)
     }
 }
 
+void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
+{
+    TChunkOwnerBase::CheckInvariants(bootstrap);
+
+    auto* chunkList = GetChunkList();
+    if (IsDynamic()) {
+        if (IsPhysicallySorted()) {
+            if (IsObjectAlive(chunkList)) {
+                YT_VERIFY(chunkList->GetKind() == EChunkListKind::SortedDynamicRoot);
+            }
+        } else {
+            // Ordered dynamic table.
+            if (IsObjectAlive(chunkList)) {
+                YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot);
+            }
+        }
+    } else {
+        // Static table.
+        if (IsObjectAlive(chunkList)) {
+            YT_VERIFY(chunkList->GetKind() == EChunkListKind::Static);
+        }
+    }
+}
+
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////

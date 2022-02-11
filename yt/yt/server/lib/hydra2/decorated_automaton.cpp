@@ -847,6 +847,7 @@ void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
     State_ = EPeerState::LeaderRecovery;
 
     LoadSnapshot(0, 0, {}, 0, 0, 0, TInstant{}, reader);
+    Automaton_->CheckInvariants();
 
     YT_VERIFY(State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Stopped;

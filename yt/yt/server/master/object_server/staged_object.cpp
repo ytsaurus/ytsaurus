@@ -8,9 +8,16 @@
 
 namespace NYT::NObjectServer {
 
+using namespace NCellMaster;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStagedObject::Save(NCellMaster::TSaveContext& context) const
+void TStagedObject::CheckInvariants(TBootstrap* bootstrap) const
+{
+    TObject::CheckInvariants(bootstrap);
+}
+
+void TStagedObject::Save(TSaveContext& context) const
 {
     TObject::Save(context);
 
@@ -19,7 +26,7 @@ void TStagedObject::Save(NCellMaster::TSaveContext& context) const
     Save(context, StagingAccount_);
 }
 
-void TStagedObject::Load(NCellMaster::TLoadContext& context)
+void TStagedObject::Load(TLoadContext& context)
 {
     TObject::Load(context);
 

@@ -99,6 +99,17 @@ void TCellTypeHandlerBase<TImpl>::DoDestroyObject(TImpl* cell) noexcept
     TBase::DoDestroyObject(cell);
 }
 
+template <class TImpl>
+void TCellTypeHandlerBase<TImpl>::CheckInvariants(TBootstrap* bootstrap)
+{
+    const auto& cellManager = bootstrap->GetTamedCellManager();
+    for (auto [cellId, cell] : cellManager->Cells()) {
+        if (cell->GetType() == this->GetType()) {
+            cell->CheckInvariants(bootstrap);
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template class

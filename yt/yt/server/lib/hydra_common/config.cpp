@@ -247,7 +247,10 @@ TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
     RegisterParameter("leader_switch_timeout", LeaderSwitchTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterPostprocessor([&] () {
+    RegisterParameter("invariants_check_probability", InvariantsCheckProbability)
+        .Default();
+
+    RegisterPostprocessor([&] {
         if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
             THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");
         }
