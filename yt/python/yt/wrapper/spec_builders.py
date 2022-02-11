@@ -1,3 +1,4 @@
+from .acl_commands import AclBuilder
 from .batch_helpers import batch_apply
 from .batch_response import apply_function_to_result
 from .config import get_config
@@ -192,6 +193,40 @@ def spec_option(description=None, nested_spec_builder=None):
         spec_method.is_spec_method = True
         return spec_method
     return spec_method_decorator
+
+class AclBuilderBase(AclBuilder):
+    """Base builder for acl sections in specs.
+    """
+    def __init__(self, spec_builder, attribute, possible_permissions):
+        self._attribute = attribute
+        self._spec_builder = spec_builder
+        super(AclBuilderBase, self).__init__(possible_permissions)
+
+    def _end_acl(self):
+        assert self._spec_builder is not None
+        spec_builder = self._spec_builder
+        self._spec_builder = None
+        setter = getattr(spec_builder, self._attribute)
+        setter(self.build())
+        return spec_builder
+
+class OperationAclBuilder(AclBuilderBase):
+    """Builder for acl section in operation spec.
+    """
+    def __init__(self, spec_builder):
+        super(OperationAclBuilder, self).__init__(spec_builder, attribute="acl", possible_permissions=["read", "manage"])
+
+    def end_acl(self):
+        self._end_acl()
+
+class IntermediateDataAclBuilder(AclBuilderBase):
+    """Builder for intermediate_data_acl section in MapReduce operation spec.
+    """
+    def __init__(self, spec_builder):
+        super(IntermediateDataAclBuilder, self).__init__(spec_builder, attribute="intermediate_data_acl")
+
+    def end_intermediate_data_acl(self):
+        self._end_acl()
 
 class JobIOSpecBuilder(object):
     """Base builder for job_io section in operation spec.
@@ -854,6 +889,15 @@ class SpecBuilder(object):
     def owners(self, owners):
         return _set_spec_value(self, "owners", owners)
 
+    @spec_option("Acl for operation, only read or manage are supported")
+    def acl(self, acl):
+        self._spec["acl"] = acl
+        return self
+
+    def begin_acl(self):
+        """Start ACL builder."""
+        return OperationAclBuilder(self)
+
     @spec_option("Restriction on an amount of saved stderrs of jobs")
     def max_stderr_count(self, count):
         return _set_spec_value(self, "max_stderr_count", count)
@@ -1496,6 +1540,10 @@ class MapReduceSpecBuilder(SpecBuilder):
     @spec_option("The access rights to intermediate data")
     def intermediate_data_acl(self, acl):
         return _set_spec_value(self, "intermediate_data_acl", acl)
+
+    def begin_intermediate_data_acl(self):
+        """Start intermediate data ACL builder."""
+        return IntermediateDataAclBuilder(self)
 
     @spec_option("The list of the input tables")
     def input_table_paths(self, paths):
