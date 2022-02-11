@@ -1053,11 +1053,11 @@ private:
 
                 requestControl = it->second;
                 requestControl->ResetAcknowledgementTimeoutCookie();
-                requestControl->ProfileAcknowledgement();
                 if (!error.IsOK()) {
                     responseHandler = requestControl->Finalize(guard);
                     bucket->ActiveRequestMap.erase(it);
                 } else {
+                    requestControl->ProfileAcknowledgement();
                     responseHandler = requestControl->GetResponseHandler(guard);
                 }
             }
