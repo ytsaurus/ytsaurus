@@ -77,7 +77,7 @@ def _submit_classpath():
     spark_home = _find_spark_home()
     spark_classpath = _list_path(os.path.join(spark_home, "jars"))
     spyt_classpath = _list_path(os.path.join(_spyt_path(), "jars"))
-    return spark_classpath + spyt_classpath
+    return spyt_classpath + spark_classpath
 
 
 def shutdown_gateway(gateway):
