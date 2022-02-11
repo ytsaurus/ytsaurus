@@ -190,7 +190,6 @@ bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp, bool
         auto url = ParseUrl(*origin);
         bool allow = disableOriginCheck ||
             url.Host == "localhost" ||
-            url.Host.EndsWith(".yandex.net") ||
             url.Host.EndsWith(".yandex-team.ru");
         if (allow) {
             rsp->GetHeaders()->Add(AccessControlAllowCredentialsHeaderName, "true");
