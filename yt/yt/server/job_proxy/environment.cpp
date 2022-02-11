@@ -540,6 +540,7 @@ private:
         // We can't abort the user job (the reason is we need Porto to do this),
         // so we will abort the job proxy.
         YT_LOG_ERROR(error, "Fatal error during Porto polling");
+
         NLogging::TLogManager::Get()->Shutdown();
         _exit(static_cast<int>(EJobProxyExitCode::PortoManagementFailed));
     }

@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/rpc/service_detail.h>
+
 namespace NYT::NExecNode {
 
 using namespace NRpc;
@@ -20,7 +22,7 @@ class TExecNodeAdminService
     : public TServiceBase
 {
 public:
-    TExecNodeAdminService(IBootstrap* bootstrap)
+    explicit TExecNodeAdminService(IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TExecNodeAdminServiceProxy::GetDescriptor(),

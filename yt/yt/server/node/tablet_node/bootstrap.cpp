@@ -36,6 +36,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NCellarAgent;

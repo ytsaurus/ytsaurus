@@ -34,6 +34,8 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
+#include <yt/yt/ytlib/program/program.h>
+
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
@@ -1141,8 +1143,7 @@ void TJobProxy::Abort(EJobProxyExitCode exitCode)
         job->Cleanup();
     }
 
-    NLogging::TLogManager::Get()->Shutdown();
-    _exit(static_cast<int>(exitCode));
+    TProgram::Abort(static_cast<int>(exitCode));
 }
 
 bool TJobProxy::TrySetCpuGuarantee(double cpuGuarantee)

@@ -232,7 +232,7 @@ protected:
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode;
         if (dynamicConfig->AbortOnJobsDisabled) {
-            TProgram::Exit(EProgramExitCode::ProgramError);
+            TProgram::Abort(EProgramExitCode::ProgramError);
         }
     }
 

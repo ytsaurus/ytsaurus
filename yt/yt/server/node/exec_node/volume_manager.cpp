@@ -2,10 +2,11 @@
 
 #ifndef __linux__
 
-// (psushin) Just a stub for Mac-lovers.
-
 namespace NYT::NExecNode {
 
+////////////////////////////////////////////////////////////////////////////////
+
+// Just a stub for Mac-lovers.
 TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
     NDataNode::TVolumeManagerConfigPtr /*config*/,
     IBootstrap* /*bootstrap*/)
@@ -13,10 +14,11 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
     THROW_ERROR_EXCEPTION("Volume manager is not supported");
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NExecNode
 
 #else
-
 
 #include "bootstrap.h"
 #include "chunk_cache.h"
@@ -52,6 +54,8 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/yt/ytlib/program/program.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -286,8 +290,8 @@ public:
         }
 
         YT_LOG_ERROR("Volume manager disabled; terminating");
-        NLogging::TLogManager::Get()->Shutdown();
-        _exit(1);
+
+        TProgram::Abort(1);
     }
 
     TLayerLocationPerformanceCounters& GetPerformanceCounters()

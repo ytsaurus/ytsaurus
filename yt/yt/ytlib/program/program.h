@@ -31,11 +31,15 @@ public:
     //! Handles --version/--yt-version/--build [--yson] if they are present.
     void HandleVersionAndBuild();
 
+    //! Nongracefully aborts the program.
+    /*!
+     *  Tries to flush logging messages.
+     *  Aborts via |_exit| call.
+     */
     [[noreturn]]
-    static void Exit(EProgramExitCode code) noexcept;
-
+    static void Abort(EProgramExitCode code) noexcept;
     [[noreturn]]
-    static void Exit(int code) noexcept;
+    static void Abort(int code) noexcept;
 
 protected:
     NLastGetopt::TOpts Opts_;
@@ -64,6 +68,12 @@ protected:
     //! but some YT components (e.g. CHYT) can override it to provide its own version.
     [[noreturn]]
     virtual void PrintVersionAndExit();
+
+    [[noreturn]]
+    static void Exit(EProgramExitCode code) noexcept;
+
+    [[noreturn]]
+    static void Exit(int code) noexcept;
 
 private:
     bool CrashOnError_ = false;

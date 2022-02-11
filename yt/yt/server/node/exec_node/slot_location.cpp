@@ -790,7 +790,7 @@ void TSlotLocation::Disable(const TError& error)
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
         if (dynamicConfig->AbortOnLocationDisabled) {
-            TProgram::Exit(EProgramExitCode::ProgramError);
+            TProgram::Abort(EProgramExitCode::ProgramError);
         }
     })
     .AsyncVia(SerializedHeavyInvoker_)
