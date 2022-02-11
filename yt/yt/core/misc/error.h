@@ -304,6 +304,9 @@ TException&& operator <<= (TException&& ex, TError&& error)
         THROW_ERROR ::NYT::TError(__VA_ARGS__); \
     }\
 
+#define THROW_ERROR_EXCEPTION_IF(condition, ...) \
+    THROW_ERROR_EXCEPTION_IF_NOT(!(condition), __VA_ARGS__) \
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
