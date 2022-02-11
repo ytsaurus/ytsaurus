@@ -415,6 +415,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("ssd_priority_preemption", &TThis::SsdPriorityPreemption)
         .DefaultNew();
 
+    registrar.Parameter("enable_scheduled_and_preempted_resources_profiling", &TThis::EnableScheduledAndPreemptedResourcesProfiling)
+        .Default(true);
+
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")

@@ -296,6 +296,7 @@ pools_config = yson.to_yson_type(
                 "max_operation_count_per_pool": 50,
                 "max_running_operation_count": 1000,
                 "max_running_operation_count_per_pool": 50,
+                "enable_scheduled_and_preempted_resources_profiling": False,
             },
         )
     },

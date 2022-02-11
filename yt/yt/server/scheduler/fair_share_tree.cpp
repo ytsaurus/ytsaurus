@@ -2734,7 +2734,12 @@ private:
             schedulingContext,
             treeSnapshot)
             .AsyncVia(GetCurrentInvoker())
-            .Run();
+            .Run()
+            .Apply(BIND(
+                &TFairShareTree::ApplyScheduledAndPreemptedResourcesDelta,
+                MakeStrong(this),
+                schedulingContext,
+                treeSnapshot));
     }
 
     void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
@@ -2854,13 +2859,34 @@ private:
     }
 
     void ApplyScheduledAndPreemptedResourcesDelta(
-        THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources> scheduledJobResources,
-        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources,
-        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResourceTimes) override
+        const ISchedulingContextPtr& schedulingContext,
+        const TFairShareTreeSnapshotPtr& treeSnapshot)
     {
-        auto treeSnapshot = GetTreeSnapshot();
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_VERIFY(treeSnapshot);
+        if (!treeSnapshot->TreeConfig()->EnableScheduledAndPreemptedResourcesProfiling) {
+            return;
+        }
+        
+        THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources> scheduledJobResources;
+        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources;
+        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResourceTimes;
+
+        for (const auto& job : schedulingContext->StartedJobs()) {
+            TOperationId operationId = job->GetOperationId();
+            const TJobResources& scheduledResourcesDelta = job->ResourceLimits();
+            scheduledJobResources[job->GetSchedulingStage()][operationId] += scheduledResourcesDelta;
+        }
+        for (const auto& preemptedJob : schedulingContext->PreemptedJobs()) {
+            const TJobPtr& job = preemptedJob.Job;
+            TOperationId operationId = job->GetOperationId();
+            const TJobResources& preemptedResourcesDelta = job->ResourceLimits();
+            EJobPreemptionReason preemptionReason = preemptedJob.PreemptionReason;
+            preemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;
+            // TODO(eshcherbin): Maybe use some other time statistic.
+            // Exec duration does not capture the job preparation time (e.g. downloading artifacts).
+            preemptedJobResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(job->GetExecDuration().Seconds());
+        }
 
         StrategyHost_->GetFairShareProfilingInvoker()->Invoke(BIND(
             &TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta,

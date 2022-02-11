@@ -77,10 +77,6 @@ struct IFairShareTree
     virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const = 0;
 
     virtual void ApplyJobMetricsDelta(THashMap<TOperationId, TJobMetrics> jobMetricsPerOperation) = 0;
-    virtual void ApplyScheduledAndPreemptedResourcesDelta(
-        THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources> scheduledJobResources,
-        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources,
-        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResourceTimes) = 0;
 
     virtual void BuildResourceMetering(
         TMeteringMap* meteringMap,
