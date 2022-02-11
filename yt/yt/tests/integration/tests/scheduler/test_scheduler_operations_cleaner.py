@@ -86,11 +86,13 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         }
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestSchedulerOperationsCleaner, self).setup_method(method)
         sync_create_cells(1)
 
-    def teardown(self):
+    def teardown_method(self, method):
         remove("//sys/operations_archive", force=True)
+        super(TestSchedulerOperationsCleaner, self).teardown_method(method)
 
         # Drain archive queue
         with Restarter(self.Env, SCHEDULERS_SERVICE):

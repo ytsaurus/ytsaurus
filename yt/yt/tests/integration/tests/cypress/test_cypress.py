@@ -3443,7 +3443,8 @@ class TestCypressPortal(TestCypressMulticell):
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestCypressPortal, self).setup_method(method)
         set("//tmp/@annotation", "")
 
     @authors("shakurov")
@@ -3612,7 +3613,8 @@ class TestCypressForbidSet(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestCypressForbidSet, self).setup_method(method)
         set("//sys/@config/cypress_manager/forbid_set_command", True)
 
     @authors("shakurov")

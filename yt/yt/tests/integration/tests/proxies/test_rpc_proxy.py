@@ -641,7 +641,8 @@ class TestModernCompressionRpcProxy(TestCompressionRpcProxy):
 
 
 class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
-    def setup(self):
+    def setup_method(self, method):
+        super(TestRpcProxyFormatConfig, self).setup_method(method)
         proxy_name = ls("//sys/rpc_proxies")[0]
 
         set("//sys/rpc_proxies/@config", {"formats": self.FORMAT_CONFIG})

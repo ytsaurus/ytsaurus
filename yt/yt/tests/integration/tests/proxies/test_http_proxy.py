@@ -79,9 +79,10 @@ class HttpProxyTestBase(YTEnvSetup):
 
 
 class TestHttpProxy(HttpProxyTestBase):
-    def teardown(self):
+    def teardown_method(self, method):
         for proxy in ls("//sys/proxies"):
             set("//sys/proxies/{}/@role".format(proxy), "data")
+        super(TestHttpProxy, self).teardown_method(method)
 
     @authors("prime")
     def test_ping(self):
@@ -371,7 +372,8 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             result.append((name, frame))
         return result
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestHttpProxyFraming, self).setup_method(method)
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
         set(
@@ -554,7 +556,8 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
 class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
     NUM_TEST_PARTITIONS = 4
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestHttpProxyFormatConfig, self).setup_method(method)
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
         set("//sys/proxies/@config", {"formats": self.FORMAT_CONFIG})

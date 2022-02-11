@@ -549,10 +549,12 @@ class TestCoreTable(YTEnvSetup):
         }
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestCoreTable, self).setup_method(method)
         create("table", self.CORE_TABLE, attributes={"replication_factor": 1})
 
-    def teardown(self):
+    def teardown_method(self, method):
+        super(TestCoreTable, self).teardown_method(method)
         core_path = os.environ.get("YT_CORE_PATH")
         if core_path is None:
             return
@@ -1197,7 +1199,8 @@ class TestJobProfiling(YTEnvSetup):
         }
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestJobProfiling, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"

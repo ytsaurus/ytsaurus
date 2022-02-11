@@ -47,10 +47,11 @@ class TestMasterCellsSync(YTEnvSetup):
                 for cell_index in range(self.Env.yt_config.secondary_cell_count):
                     self.Env.kill_master_cell(cell_index + 1)
 
-    def teardown(self):
+    def teardown_method(self, method):
         if self.delayed_secondary_cells_start:
             for cell_index in range(self.Env.yt_config.secondary_cell_count):
                 self.Env.start_master_cell(cell_index + 1)
+        super(TestMasterCellsSync, self).teardown_method(method)
 
     @authors("asaitgalin")
     def test_users_sync(self):

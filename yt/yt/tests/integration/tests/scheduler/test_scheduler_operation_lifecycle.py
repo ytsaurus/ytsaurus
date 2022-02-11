@@ -1156,15 +1156,17 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
         for connection in config["cluster_connection"]["secondary_masters"]:
             connection["rpc_timeout"] = 50000
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestSchedulerErrorTruncate, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
         self._tmpdir = create_tmpdir("jobids")
 
-    def teardown(self):
+    def teardown_method(self, method):
         remove("//sys/operations_archive")
+        super(TestSchedulerErrorTruncate, self).teardown_method(method)
 
     @authors("ignat")
     def test_error_truncate(self):

@@ -1438,8 +1438,9 @@ class TestEphemeralPools(YTEnvSetup):
         }
     }
 
-    def teardown(self):
+    def teardown_method(self, method):
         remove("//sys/scheduler/user_to_default_pool", force=True)
+        super(TestEphemeralPools, self).teardown_method(method)
 
     def wait_pool_exists(self, pool):
         wait(lambda: exists(scheduler_orchid_pool_path(pool)), sleep_backoff=0.1)
