@@ -199,11 +199,15 @@ void TPlainTextLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i
 TStructuredLogFormatter::TStructuredLogFormatter(
     ELogFormat format,
     THashMap<TString, NYTree::INodePtr> commonFields,
-    bool enableSystemMessages)
+    bool enableSystemMessages,
+    NJson::TJsonFormatConfigPtr jsonFormat)
     : Format_(format)
     , CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
     , CommonFields_(std::move(commonFields))
     , EnableSystemMessages_(enableSystemMessages)
+    , JsonFormat_(!jsonFormat && (Format_ == ELogFormat::Json)
+        ? New<NJson::TJsonFormatConfig>()
+        : std::move(jsonFormat))
 { }
 
 i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
@@ -217,7 +221,8 @@ i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEve
 
     switch (Format_) {
         case ELogFormat::Json:
-            consumer = NJson::CreateJsonConsumer(&countingStream);
+            YT_VERIFY(JsonFormat_);
+            consumer = NJson::CreateJsonConsumer(&countingStream, EYsonType::Node, JsonFormat_);
             break;
         case ELogFormat::Yson:
             consumer = std::make_unique<TYsonWriter>(&countingStream, EYsonFormat::Text);
