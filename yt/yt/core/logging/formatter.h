@@ -66,7 +66,8 @@ public:
     TStructuredLogFormatter(
         ELogFormat format,
         THashMap<TString, NYTree::INodePtr> commonFields,
-        bool enableControlMessages = true);
+        bool enableControlMessages = true,
+        NJson::TJsonFormatConfigPtr jsonFormat = nullptr);
 
     i64 WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
     void WriteLogReopenSeparator(IOutputStream* outputStream) const override;
@@ -78,6 +79,7 @@ private:
     const std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
     const THashMap<TString, NYTree::INodePtr> CommonFields_;
     const bool EnableSystemMessages_;
+    const NJson::TJsonFormatConfigPtr JsonFormat_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

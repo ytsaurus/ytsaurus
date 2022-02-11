@@ -26,6 +26,8 @@
 
 #include <util/stream/zlib.h>
 
+#include <cmath>
+
 #ifdef _unix_
 #include <unistd.h>
 #endif
@@ -375,6 +377,52 @@ TEST_F(TLoggingTest, StructuredLogging)
         EXPECT_EQ(message->GetChildOrThrow("level")->AsString()->GetValue(), "debug");
         EXPECT_EQ(message->GetChildOrThrow("category")->AsString()->GetValue(), "category");
     }
+}
+
+TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
+{
+    TString longString(1000, 'a');
+    TString longStringPrefix(100, 'a');
+
+    TLogEvent event;
+    event.Family = ELogFamily::Structured;
+    event.Category = &Category;
+    event.Level = ELogLevel::Debug;
+    event.StructuredMessage = NYTree::BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Item("message").Value("test_message")
+        .Item("nan_value").Value(std::nan("1"))
+        .Item("long_string_value").Value(longString)
+        .Finish();
+
+    auto jsonFormat = New<TJsonFormatConfig>();
+    jsonFormat->StringifyNanAndInfinity = true;
+    jsonFormat->StringLengthLimit = 100;
+
+    TTempFile logFile(GenerateLogFileName());
+    auto writer = New<TFileLogWriter>(
+        std::make_unique<TStructuredLogFormatter>(
+            ELogFormat::Json,
+            /*commonFields*/ THashMap<TString, INodePtr>{},
+            /*enableControlMessages*/ true,
+            jsonFormat),
+        "test_writer",
+        logFile.Name());
+    WriteEvent(writer.Get(), event);
+    TLogManager::Get()->Synchronize();
+
+    auto log = ReadFile(logFile.Name());
+
+    auto loggingStarted = DeserializeStructured(log[0], ELogFormat::Json);
+    EXPECT_EQ(loggingStarted->GetChildOrThrow("message")->AsString()->GetValue(), "Logging started");
+    EXPECT_EQ(loggingStarted->GetChildOrThrow("level")->AsString()->GetValue(), "info");
+    EXPECT_EQ(loggingStarted->GetChildOrThrow("category")->AsString()->GetValue(), "Logging");
+
+    auto message = DeserializeStructured(log[1], ELogFormat::Json);
+    EXPECT_EQ(message->GetChildOrThrow("message")->AsString()->GetValue(), "test_message");
+    EXPECT_EQ(message->GetChildOrThrow("nan_value")->AsString()->GetValue(), "nan");
+    EXPECT_EQ(message->GetChildOrThrow("long_string_value")->AsString()->GetValue(), longStringPrefix);
+    EXPECT_EQ(message->GetChildOrThrow("level")->AsString()->GetValue(), "debug");
+    EXPECT_EQ(message->GetChildOrThrow("category")->AsString()->GetValue(), "category");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

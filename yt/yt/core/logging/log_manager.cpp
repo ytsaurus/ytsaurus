@@ -846,7 +846,8 @@ private:
                     formatter = std::make_unique<TStructuredLogFormatter>(
                         writerConfig->Format,
                         writerConfig->CommonFields,
-                        writerConfig->AreSystemMessagesEnabled());
+                        writerConfig->AreSystemMessagesEnabled(),
+                        writerConfig->JsonFormat);
                     break;
                 default:
                     YT_ABORT();
