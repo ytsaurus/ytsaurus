@@ -175,12 +175,7 @@ public:
             return VoidFuture;
         }
 
-        return tree->ScheduleJobs(schedulingContext).Apply(BIND([=, this_ = MakeStrong(this)] {
-            this_->ApplyScheduledAndPreemptedResourcesDelta(
-                schedulingContext->StartedJobs(),
-                schedulingContext->PreemptedJobs(),
-                tree);
-        }));
+        return tree->ScheduleJobs(schedulingContext);
     }
 
     void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
@@ -758,43 +753,6 @@ public:
         for (auto& [treeId, jobMetricsPerOperation] : treeIdToJobMetricDeltas) {
             GetOrCrash(idToTree, treeId)->ApplyJobMetricsDelta(std::move(jobMetricsPerOperation));
         }
-    }
-
-    void ApplyScheduledAndPreemptedResourcesDelta(
-        const std::vector<TJobPtr>& startedJobs,
-        const std::vector<TPreemptedJob>& preemptedJobs,
-        const IFairShareTreePtr& tree)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (!Config->EnableScheduledAndPreemptedResourcesProfiling) {
-            return;
-        }
-
-        THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources> scheduledJobResources;
-        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources;
-        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResourceTimes;
-
-        for (const auto& job : startedJobs) {
-            TOperationId operationId = job->GetOperationId();
-            const TJobResources& scheduledResourcesDelta = job->ResourceLimits();
-            scheduledJobResources[job->GetSchedulingStage()][operationId] += scheduledResourcesDelta;
-        }
-        for (const auto& preemptedJob : preemptedJobs) {
-            const TJobPtr& job = preemptedJob.Job;
-            TOperationId operationId = job->GetOperationId();
-            const TJobResources& preemptedResourcesDelta = job->ResourceLimits();
-            EJobPreemptionReason preemptionReason = preemptedJob.PreemptionReason;
-            preemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;
-            // TODO(eshcherbin): Maybe use some other time statistic.
-            // Exec duration does not capture the job preparation time (e.g. downloading artifacts).
-            preemptedJobResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(job->GetExecDuration().Seconds());
-        }
-
-        tree->ApplyScheduledAndPreemptedResourcesDelta(
-            std::move(scheduledJobResources),
-            std::move(preemptedJobResources),
-            std::move(preemptedJobResourceTimes));
     }
 
     TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation) override

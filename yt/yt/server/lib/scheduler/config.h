@@ -353,6 +353,9 @@ public:
 
     TFairShareStrategySsdPriorityPreemptionConfigPtr SsdPriorityPreemption;
 
+    //! Enables profiling of scheduled and preempted resources in strategy.
+    bool EnableScheduledAndPreemptedResourcesProfiling;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
@@ -428,9 +431,6 @@ public:
 
     //! Enables the "schedule_in_single_tree" operation spec option cluster-wide.
     bool EnableScheduleInSingleTree;
-
-    //! Enables profiling of scheduled and preempted resources in strategy.
-    bool EnableScheduledAndPreemptedResourcesProfiling = true;
 
     TStrategyTestingOptionsPtr StrategyTestingOptions;
 

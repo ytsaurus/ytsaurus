@@ -81,6 +81,9 @@ NYTree::INodePtr CreatePoolTreesConfig()
 
     physicalTreeConfig->MaxUnpreemptableRunningJobCount = 10;
 
+    // Intentionally disables profiling since simulator is not ready for profiling.
+    physicalTreeConfig->EnableScheduledAndPreemptedResourcesProfiling = false;
+
     return NYTree::BuildYsonNodeFluently()
         .BeginAttributes()
             .Item("default_tree").Value("physical")
