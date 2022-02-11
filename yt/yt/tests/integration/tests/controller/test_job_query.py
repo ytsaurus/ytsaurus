@@ -1,8 +1,12 @@
 from yt_env_setup import YTEnvSetup, find_ut_file
 
 from yt_commands import (
-    authors, create, get, read_table, write_table, write_local_file, map,
+    authors, create, create_table, get, read_table, write_table, write_local_file, map,
     assert_statistics, raises_yt_error)
+
+from yt_type_helpers import (
+    make_column, make_schema, list_type
+)
 
 import yt_error_codes
 
@@ -375,3 +379,16 @@ class TestJobQuery(YTEnvSetup):
             [{"a": i} for i in xrange(10, 13)],
             1,
         )
+
+    @authors("ermolovd")
+    def test_job_query_composite_type(self):
+        create_table("//tmp/in", schema=make_schema([
+            make_column("a", list_type("int64"))
+        ]))
+        create_table("//tmp/out")
+
+        write_table("//tmp/in", [{"a": [1, 2, 3]}])
+
+        map(in_="//tmp/in", out="//tmp/out", command="cat", spec={"input_query": "a"})
+
+        assert read_table("//tmp/out") == [{"a": [1, 2, 3]}]
