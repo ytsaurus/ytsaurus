@@ -79,14 +79,16 @@ class TestControllerFeatures(YTEnvSetup):
         },
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestControllerFeatures, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
-    def teardown(self):
+    def teardown_method(self, method):
         remove("//sys/operations_archive", force=True)
+        super(TestControllerFeatures, self).teardown_method(method)
 
     @authors("alexkolodezny")
     def test_controller_features(self):

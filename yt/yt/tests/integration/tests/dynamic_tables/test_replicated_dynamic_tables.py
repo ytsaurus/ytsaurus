@@ -119,7 +119,8 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
         }
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestReplicatedDynamicTablesBase, self).setup_method(method)
         self.SIMPLE_SCHEMA_SORTED = SIMPLE_SCHEMA_SORTED
         self.SIMPLE_SCHEMA_ORDERED = SIMPLE_SCHEMA_ORDERED
         self.PERTURBED_SCHEMA = PERTURBED_SCHEMA
@@ -133,9 +134,10 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
         self.replica_driver = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
         self.primary_driver = get_driver(cluster="primary")
 
-    def teardown(self):
+    def teardown_method(self, method):
         self.replica_driver = None
         self.primary_driver = None
+        super(TestReplicatedDynamicTablesBase, self).teardown_method(method)
 
     def _get_table_attributes(self, schema):
         return {"dynamic": True, "schema": schema}

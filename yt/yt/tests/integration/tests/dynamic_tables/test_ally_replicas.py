@@ -23,7 +23,8 @@ class TestAllyReplicas(YTEnvSetup):
     ERASURE_CHUNK_OBJECT_TYPE = "66"
     FIRST_ERASURE_PART_OBJECT_TYPE = "67"
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestAllyReplicas, self).setup_method(method)
         set("//sys/@config/chunk_manager/ally_replica_manager/enable_ally_replica_announcement", True)
         set("//sys/@config/chunk_manager/ally_replica_manager/enable_endorsements", True)
 

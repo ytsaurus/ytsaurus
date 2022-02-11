@@ -74,14 +74,16 @@ class TestGetOperation(YTEnvSetup):
         },
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestGetOperation, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
-    def teardown(self):
+    def teardown_method(self, method):
         remove("//sys/operations_archive", force=True)
+        super(TestGetOperation, self).teardown_method(method)
 
     def clean_build_time(self, operation_result):
         del operation_result["brief_progress"]["build_time"]
@@ -553,7 +555,8 @@ class TestOperationAliases(YTEnvSetup):
         }
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestOperationAliases, self).setup_method(method)
         # Init operations archive.
         sync_create_cells(1)
 

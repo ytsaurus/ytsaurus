@@ -19,7 +19,7 @@ class TestHosts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
 
-    def teardown(self):
+    def teardown_method(self, method):
         for node in ls("//sys/cluster_nodes"):
             self._set_host(node, node)
 
@@ -28,6 +28,7 @@ class TestHosts(YTEnvSetup):
                 remove_host(host)
             except:
                 pass
+        super(TestHosts, self).teardown_method(method)
 
     def _get_custom_hosts(self):
         nodes = ls("//sys/cluster_nodes")

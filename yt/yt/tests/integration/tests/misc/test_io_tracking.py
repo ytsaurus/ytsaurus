@@ -23,7 +23,8 @@ import pytest
 
 
 class TestNodeIOTrackingBase(YTEnvSetup):
-    def setup(self):
+    def setup_method(self, method):
+        super(TestNodeIOTrackingBase, self).setup_method(method)
         update_nodes_dynamic_config({
             "data_node": {
                 "io_tracker": {
@@ -794,8 +795,8 @@ class TestClientRpcProxyIOTracking(TestClientIOTracking):
         kwargs["driver"] = self.__native_driver
         return write_log_barrier(*args, **kwargs)
 
-    def setup(self):
-        super(TestClientIOTracking, self).setup()
+    def setup_method(self, method):
+        super(TestClientRpcProxyIOTracking, self).setup_method(method)
         native_config = deepcopy(self.Env.configs["driver"])
         self.__native_driver = Driver(native_config)
 
@@ -1360,8 +1361,8 @@ class TestRemoteCopyIOTrackingBase(TestNodeIOTrackingBase):
 
     REMOTE_CLUSTER_NAME = "remote_0"
 
-    def setup(self):
-        super(TestRemoteCopyIOTrackingBase, self).setup()
+    def setup_method(self, method):
+        super(TestRemoteCopyIOTrackingBase, self).setup_method(method)
         update_nodes_dynamic_config({
             "data_node": {
                 "io_tracker": {

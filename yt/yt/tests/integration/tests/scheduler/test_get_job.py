@@ -96,7 +96,8 @@ class _TestGetJobBase(YTEnvSetup):
         }
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(_TestGetJobBase, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(),

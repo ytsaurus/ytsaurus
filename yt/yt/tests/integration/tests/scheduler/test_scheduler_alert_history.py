@@ -108,7 +108,8 @@ class TestSchedulerAlertHistoryBase(YTEnvSetup):
 
 
 class TestSchedulerAlertHistory(TestSchedulerAlertHistoryBase):
-    def setup(self):
+    def setup_method(self, method):
+        super(TestSchedulerAlertHistory, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(),
@@ -179,7 +180,8 @@ class TestSchedulerAlertHistory(TestSchedulerAlertHistoryBase):
 
 
 class TestSchedulerAlertHistoryWithOldArchive(TestSchedulerAlertHistoryBase):
-    def setup(self):
+    def setup_method(self, method):
+        super(TestSchedulerAlertHistoryWithOldArchive, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables(
             self.Env.create_native_client(),
@@ -217,7 +219,8 @@ class TestUpdateAlertEventsSenderPeriodOnDisabledCleaner(YTEnvSetup):
 
 
 class TestAlertsHistoryInApi(TestSchedulerAlertHistoryBase):
-    def setup(self):
+    def setup_method(self, method):
+        super(TestAlertsHistoryInApi, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(),

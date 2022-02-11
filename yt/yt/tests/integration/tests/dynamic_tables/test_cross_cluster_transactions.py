@@ -18,7 +18,8 @@ class TestCrossClusterTransactions(YTEnvSetup):
     NUM_REMOTE_CLUSTERS = 1
     USE_DYNAMIC_TABLES = True
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestCrossClusterTransactions, self).setup_method(method)
         self.primary_driver = get_driver(cluster="primary")
         self.remote_driver = get_driver(cluster="remote_0")
 

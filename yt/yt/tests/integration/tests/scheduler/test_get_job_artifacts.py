@@ -105,16 +105,18 @@ class TestGetJobInput(YTEnvSetup):
         }
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestGetJobInput, self).setup_method(method)
         self._tmpdir = create_tmpdir("inputs")
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
-    def teardown(self):
+    def teardown_method(self, method):
         shutil.rmtree(self._tmpdir)
         remove("//sys/operations_archive")
+        super(TestGetJobInput, self).teardown_method(method)
 
     def check_job_ids(self, job_id_iter):
         for job_id in job_id_iter:
@@ -598,14 +600,16 @@ class TestGetJobStderr(YTEnvSetup):
         }
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestGetJobStderr, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
-    def teardown(self):
+    def teardown_method(self, method):
         remove("//sys/operations_archive")
+        super(TestGetJobStderr, self).teardown_method(method)
 
     def do_test_get_job_stderr(self):
         create("table", "//tmp/t1")

@@ -95,15 +95,13 @@ class TestSchedulerPreemption(YTEnvSetup):
         },
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestSchedulerPreemption, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(),
             override_tablet_cell_bundle="default",
         )
-
-    def setup_method(self, method):
-        super(TestSchedulerPreemption, self).setup_method(method)
         update_pool_tree_config("default", {
             "preemption_satisfaction_threshold": 0.99,
             "fair_share_starvation_tolerance": 0.8,
@@ -700,12 +698,14 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 2, "user_slots": 2}}}}
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestResourceLimitsOverdraftPreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@config/job_graceful_interrupt_timeout", 10000)
         set("//sys/pool_trees/default/@config/job_interrupt_timeout", 600000)
 
-    def teardown(self):
+    def teardown_method(self, method):
         remove("//sys/scheduler/config", force=True)
+        super(TestResourceLimitsOverdraftPreemption, self).teardown_method(method)
 
     @authors("ignat")
     def test_scheduler_preempt_overdraft_resources(self):

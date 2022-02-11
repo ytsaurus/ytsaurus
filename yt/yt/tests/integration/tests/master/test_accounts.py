@@ -2220,7 +2220,8 @@ class TestAccountTree(AccountsTestSuiteBase):
         assert master_memory >= 0
         return master_memory
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestAccountTree, self).setup_method(method)
         self._old_schema_acl = get("//sys/schemas/account/@acl")
         set(
             "//sys/schemas/account/@acl",
@@ -2230,8 +2231,9 @@ class TestAccountTree(AccountsTestSuiteBase):
             ],
         )
 
-    def teardown(self):
+    def teardown_method(self, method):
         set("//sys/schemas/account/@acl", self._old_schema_acl)
+        super(TestAccountTree, self).teardown_method(method)
 
     # XXX(kiselyovp) test for changing multiple attributes at the same time?
     # (name/parent_name/resource_limits, incorrect values are welcome)

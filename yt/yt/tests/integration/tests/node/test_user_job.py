@@ -745,7 +745,8 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
         }
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestSandboxTmpfsOverflow, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
@@ -1852,7 +1853,8 @@ class TestUserJobMonitoring(YTEnvSetup):
         },
     }
 
-    def setup(self):
+    def setup_method(self, method):
+        super(TestUserJobMonitoring, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(),
