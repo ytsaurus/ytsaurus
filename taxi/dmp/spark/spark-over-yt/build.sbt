@@ -24,8 +24,7 @@ lazy val `spark-fork` = (project in file("spark-fork"))
   .enablePlugins(SparkPackagePlugin, PythonPlugin)
   .settings(
     sparkAdditionalJars := Seq(
-      (`file-system` / assembly).value,
-      (`spark-submit` / assembly).value
+      (`file-system` / assembly).value
     ),
     sparkAdditionalPython := Nil
   )
