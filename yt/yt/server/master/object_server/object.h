@@ -244,6 +244,9 @@ public:
     //! This value must always be positive. The default is 10.
     virtual int GetGCWeight() const;
 
+    //! Checks if object-specific invariants are held.
+    virtual void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const;
+
     //! Performs static cast to a given type.
     //! Note that we only use single inheritance inside TObject hierarchy.
     template <class TDerived>

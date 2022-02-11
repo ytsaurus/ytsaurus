@@ -120,6 +120,9 @@ private:
     {
         return nullptr;
     }
+
+    void CheckInvariants(NCellMaster::TBootstrap* /*bootstrap*/) override
+    { }
 };
 
 IObjectTypeHandlerPtr CreateSchemaTypeHandler(NCellMaster::TBootstrap* bootstrap, EObjectType type)

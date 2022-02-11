@@ -329,6 +329,13 @@ void TGarbageCollector::DestroyZombie(TObject* object)
     }
 }
 
+const THashSet<TObject*>& TGarbageCollector::GetZombies() const
+{
+    Bootstrap_->VerifyPersistentStateRead();
+
+    return Zombies_;
+}
+
 void TGarbageCollector::RegisterRemovalAwaitingCellsSyncObject(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -351,6 +358,14 @@ void TGarbageCollector::UnregisterRemovalAwaitingCellsSyncObject(TObject* object
             object->GetId());
     }
 }
+
+const THashSet<TObject*>& TGarbageCollector::GetRemovalAwaitingCellsSyncObjects() const
+{
+    Bootstrap_->VerifyPersistentStateRead();
+
+    return RemovalAwaitingCellsSyncObjects_;
+}
+
 
 TObject* TGarbageCollector::GetWeakGhostObject(TObjectId id)
 {

@@ -294,6 +294,8 @@ public:
      */
     bool CanCacheResolve() const;
 
+    void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
+
     // Similar methods are also declared in TObject but starting from TCypressNode
     // they become virtual.
     virtual void Save(NCellMaster::TSaveContext& context) const;

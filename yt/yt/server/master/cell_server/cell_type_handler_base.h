@@ -34,6 +34,8 @@ protected:
     NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cell*/) override;
     void DoZombifyObject(TImpl* cell) override;
     void DoDestroyObject(TImpl* cell) noexcept override;
+
+    void CheckInvariants(NCellMaster::TBootstrap* bootstrap) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

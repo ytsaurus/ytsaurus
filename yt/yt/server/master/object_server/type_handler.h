@@ -117,6 +117,8 @@ struct IObjectTypeHandler
         NObjectClient::TCellTag destinationCellTag,
         int importRefCounter) = 0;
 
+    //! Checks invariants for all objects of this type.
+    virtual void CheckInvariants(NCellMaster::TBootstrap* bootstrap) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectTypeHandler)

@@ -74,6 +74,33 @@ TString TChunkList::GetCapitalizedObjectName() const
     return Format("Chunk list %v", GetId());
 }
 
+void TChunkList::CheckInvariants(TBootstrap* bootstrap) const
+{
+    TChunkTree::CheckInvariants(bootstrap);
+
+    auto kind = GetKind();
+    if (kind == EChunkListKind::SortedDynamicRoot ||
+        kind == EChunkListKind::OrderedDynamicRoot ||
+        kind == EChunkListKind::JournalRoot)
+    {
+        YT_VERIFY(Parents_.IsEmpty());
+    }
+    if (kind == EChunkListKind::SortedDynamicTablet || kind == EChunkListKind::OrderedDynamicTablet) {
+        for (auto* parent : Parents_) {
+            if (kind == EChunkListKind::SortedDynamicTablet) {
+                YT_VERIFY(parent->GetKind() == EChunkListKind::SortedDynamicRoot);
+            } else {
+                YT_VERIFY(parent->GetKind() == EChunkListKind::OrderedDynamicRoot);
+            }
+        }
+    }
+    if (kind == EChunkListKind::Static) {
+        for (auto* parent : Parents_) {
+            YT_VERIFY(parent->GetKind() == EChunkListKind::Static);
+        }
+    }
+}
+
 void TChunkList::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);

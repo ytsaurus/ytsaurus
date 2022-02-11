@@ -861,6 +861,7 @@ void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
     State_ = EPeerState::LeaderRecovery;
 
     LoadSnapshot(0, TVersion{}, 0, 0, 0, TInstant{}, reader);
+    Automaton_->CheckInvariants();
 
     YT_VERIFY(State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Stopped;
@@ -1280,6 +1281,12 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext)
 
     if (Config_->EnableStateHashChecker) {
         StateHashChecker_->Report(SequenceNumber_.load(), StateHash_);
+    }
+
+    if (const auto& invariantsCheckProbability = Config_->InvariantsCheckProbability) {
+        if (RandomNumber<double>() <= invariantsCheckProbability) {
+            Automaton_->CheckInvariants();
+        }
     }
 }
 

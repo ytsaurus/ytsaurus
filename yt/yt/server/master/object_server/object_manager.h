@@ -227,6 +227,8 @@ public:
 
     NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
 
+    const TGarbageCollectorPtr& GetGarbageCollector() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

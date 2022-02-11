@@ -224,6 +224,8 @@ public:
     void ConfirmDynamicTableLock(NTransactionClient::TTransactionId transactionId);
     void RemoveDynamicTableLock(NTransactionClient::TTransactionId transactionId);
 
+    void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
+
 private:
     TMasterTableSchema* Schema_ = nullptr;
 

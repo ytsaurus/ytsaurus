@@ -36,6 +36,8 @@ protected:
     NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* cellBundle) override;
     void DoZombifyObject(TImpl* cellBundle) override;
     void DoDestroyObject(TImpl* cellBundle) noexcept override;
+
+    void CheckInvariants(NCellMaster::TBootstrap* bootstrap) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

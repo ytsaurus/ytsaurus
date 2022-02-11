@@ -112,35 +112,35 @@ public:
     }
 
 
-    bool IsPrimaryMaster()
+    bool IsPrimaryMaster() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->IsPrimaryMaster();
     }
 
-    bool IsSecondaryMaster()
+    bool IsSecondaryMaster() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->IsSecondaryMaster();
     }
 
-    bool IsMulticell()
+    bool IsMulticell() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->IsMulticell();
     }
 
-    TCellId GetCellId()
+    TCellId GetCellId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetCellId();
     }
 
-    TCellId GetCellId(TCellTag cellTag)
+    TCellId GetCellId(TCellTag cellTag) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -149,32 +149,46 @@ public:
             : ReplaceCellTagInId(GetPrimaryCellId(), cellTag);
     }
 
-    TCellTag GetCellTag()
+    TCellTag GetCellTag() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetCellTag();
     }
 
-    TCellId GetPrimaryCellId()
+    TCellId GetPrimaryCellId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetPrimaryCellId();
     }
 
-    TCellTag GetPrimaryCellTag()
+    TCellTag GetPrimaryCellTag() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetPrimaryCellTag();
     }
 
-    const TCellTagList& GetSecondaryCellTags()
+    const TCellTagList& GetSecondaryCellTags() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetSecondaryCellTags();
+    }
+
+    int GetCellCount() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return GetSecondaryCellCount() + 1;
+    }
+
+    int GetSecondaryCellCount() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return std::ssize(GetSecondaryCellTags());
     }
 
 
@@ -1309,49 +1323,59 @@ void TMulticellManager::Initialize()
     Impl_->Initialize();
 }
 
-bool TMulticellManager::IsPrimaryMaster()
+bool TMulticellManager::IsPrimaryMaster() const
 {
     return Impl_->IsPrimaryMaster();
 }
 
-bool TMulticellManager::IsSecondaryMaster()
+bool TMulticellManager::IsSecondaryMaster() const
 {
     return Impl_->IsSecondaryMaster();
 }
 
-bool TMulticellManager::IsMulticell()
+bool TMulticellManager::IsMulticell() const
 {
     return Impl_->IsMulticell();
 }
 
-TCellId TMulticellManager::GetCellId()
+TCellId TMulticellManager::GetCellId() const
 {
     return Impl_->GetCellId();
 }
 
-TCellId TMulticellManager::GetCellId(TCellTag cellTag)
+TCellId TMulticellManager::GetCellId(TCellTag cellTag) const
 {
     return Impl_->GetCellId(cellTag);
 }
 
-TCellTag TMulticellManager::GetCellTag()
+TCellTag TMulticellManager::GetCellTag() const
 {
     return Impl_->GetCellTag();
 }
 
-TCellId TMulticellManager::GetPrimaryCellId()
+TCellId TMulticellManager::GetPrimaryCellId() const
 {
     return Impl_->GetPrimaryCellId();
 }
 
-TCellTag TMulticellManager::GetPrimaryCellTag()
+TCellTag TMulticellManager::GetPrimaryCellTag() const
 {
     return Impl_->GetPrimaryCellTag();
 }
 
-const TCellTagList& TMulticellManager::GetSecondaryCellTags()
+const TCellTagList& TMulticellManager::GetSecondaryCellTags() const
 {
     return Impl_->GetSecondaryCellTags();
+}
+
+int TMulticellManager::GetCellCount() const
+{
+    return Impl_->GetCellCount();
+}
+
+int TMulticellManager::GetSecondaryCellCount() const
+{
+    return Impl_->GetSecondaryCellCount();
 }
 
 void TMulticellManager::PostToMaster(

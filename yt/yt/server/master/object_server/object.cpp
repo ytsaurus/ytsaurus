@@ -1,4 +1,6 @@
 #include "object.h"
+
+#include "garbage_collector.h"
 #include "object_manager.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
@@ -14,6 +16,7 @@
 namespace NYT::NObjectServer {
 
 using namespace NObjectClient;
+using namespace NCellMaster;
 using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,6 +228,45 @@ const NYson::TYsonString* TObject::FindAttribute(const TString& key) const
 int TObject::GetGCWeight() const
 {
     return 10;
+}
+
+void TObject::CheckInvariants(TBootstrap* bootstrap) const
+{
+    YT_VERIFY(RefCounter_ >= 0);
+    YT_VERIFY(WeakRefCounter_ >= 0);
+    YT_VERIFY(ImportRefCounter_ >= 0);
+    YT_VERIFY(LifeStageVoteCount_ >= 0);
+
+    {
+        const auto& multicellManager = bootstrap->GetMulticellManager();
+        if (LifeStageVoteCount_ == multicellManager->GetCellCount()) {
+            static const THashSet<EObjectLifeStage> allowedLifeStages = {
+                EObjectLifeStage::CreationPreCommitted,
+                EObjectLifeStage::CreationCommitted,
+                EObjectLifeStage::RemovalAwaitingCellsSync,
+                EObjectLifeStage::RemovalPreCommitted,
+                EObjectLifeStage::RemovalCommitted,
+            };
+            YT_VERIFY(allowedLifeStages.contains(LifeStage_));
+        } else {
+            static const THashSet<EObjectLifeStage> allowedLifeStages = {
+                EObjectLifeStage::CreationStarted,
+                EObjectLifeStage::CreationPreCommitted,
+                EObjectLifeStage::CreationCommitted,
+                EObjectLifeStage::RemovalStarted,
+                EObjectLifeStage::RemovalPreCommitted,
+                EObjectLifeStage::RemovalAwaitingCellsSync,
+                EObjectLifeStage::RemovalCommitted,
+            };
+            YT_VERIFY(allowedLifeStages.contains(LifeStage_));
+        }
+
+        const auto& garbageCollector = bootstrap->GetObjectManager()->GetGarbageCollector();
+        auto* this_ = const_cast<TObject*>(this);
+        YT_VERIFY(
+            (LifeStage_ == EObjectLifeStage::RemovalAwaitingCellsSync) ==
+            garbageCollector->GetRemovalAwaitingCellsSyncObjects().contains(this_));
+    }
 }
 
 void TObject::Save(NCellMaster::TSaveContext& context) const

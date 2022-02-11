@@ -23,7 +23,6 @@ class TSaveContext
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ICheckpointableOutputStream*, CheckpointableOutput);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,6 +132,8 @@ protected:
     virtual void OnRecoveryStarted();
     virtual void OnRecoveryComplete();
 
+    virtual void CheckInvariants();
+
 private:
     typedef TCompositeAutomatonPart TThis;
     friend class TCompositeAutomaton;
@@ -171,6 +172,8 @@ public:
 
     void RememberReign(TReign reign);
     EFinalRecoveryAction GetFinalRecoveryAction() override;
+
+    void CheckInvariants() override;
 
 protected:
     bool SerializationDumpEnabled_ = false;

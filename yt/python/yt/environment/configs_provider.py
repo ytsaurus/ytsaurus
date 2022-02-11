@@ -1263,6 +1263,7 @@ def _get_hydra_manager_config():
         "leader_lease_check_period": 100,
         "leader_lease_timeout": 20000,
         "disable_leader_lease_grace_delay": True,
+        "invariants_check_probability": 0.005,
         "response_keeper": _get_response_keeper_config()
     }
 

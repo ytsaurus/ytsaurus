@@ -46,6 +46,10 @@ struct IAutomaton
 
     //! Returns the resulting action that needs to be done after replaying changelog.
     virtual EFinalRecoveryAction GetFinalRecoveryAction() = 0;
+
+    //! Checks that persistent state invariants are held. This method is called during
+    //! snapshot validation and after some mutations in tests.
+    virtual void CheckInvariants() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAutomaton)

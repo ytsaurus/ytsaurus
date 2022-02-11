@@ -31,6 +31,8 @@ public:
     bool IsSealed() const;
     bool GetOverlayed() const;
 
+    void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 };

@@ -57,9 +57,11 @@ public:
     void RegisterZombie(TObject* object);
     void UnregisterZombie(TObject* object);
     void DestroyZombie(TObject* object);
+    const THashSet<TObject*>& GetZombies() const;
 
     void RegisterRemovalAwaitingCellsSyncObject(TObject* object);
     void UnregisterRemovalAwaitingCellsSyncObject(TObject* object);
+    const THashSet<TObject*>& GetRemovalAwaitingCellsSyncObjects() const;
 
     TObject* GetWeakGhostObject(TObjectId id);
 

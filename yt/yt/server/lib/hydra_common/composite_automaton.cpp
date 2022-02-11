@@ -208,6 +208,9 @@ void TCompositeAutomatonPart::OnRecoveryStarted()
 void TCompositeAutomatonPart::OnRecoveryComplete()
 { }
 
+void TCompositeAutomatonPart::CheckInvariants()
+{ }
+
 void TCompositeAutomatonPart::StartEpoch()
 {
     EpochAutomatonInvoker_ = HydraManager_
@@ -613,6 +616,15 @@ bool TCompositeAutomaton::IsMutationLoggingEnabled() const
 EFinalRecoveryAction TCompositeAutomaton::GetFinalRecoveryAction()
 {
     return FinalRecoveryAction_;
+}
+
+void TCompositeAutomaton::CheckInvariants()
+{
+    for (const auto& weakPart : Parts_) {
+        if (auto part = weakPart.Lock()) {
+            part->CheckInvariants();
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

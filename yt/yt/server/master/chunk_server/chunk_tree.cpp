@@ -12,6 +12,7 @@ namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 using namespace NTabletClient;
+using namespace NCellMaster;
 using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,12 +87,17 @@ bool TChunkTree::GetOverlayed() const
     }
 }
 
-void TChunkTree::Save(NCellMaster::TSaveContext& context) const
+void TChunkTree::CheckInvariants(TBootstrap* bootstrap) const
+{
+    TStagedObject::CheckInvariants(bootstrap);
+}
+
+void TChunkTree::Save(TSaveContext& context) const
 {
     TStagedObject::Save(context);
 }
 
-void TChunkTree::Load(NCellMaster::TLoadContext& context)
+void TChunkTree::Load(TLoadContext& context)
 {
     TStagedObject::Load(context);
 }
