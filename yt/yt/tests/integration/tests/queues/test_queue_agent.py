@@ -98,7 +98,7 @@ class QueueAgentOrchid:
 class TestQueueAgent(YTEnvSetup):
     NUM_QUEUE_AGENTS = 1
 
-    USE_DYNAMIC_TABLES = 1
+    USE_DYNAMIC_TABLES = True
 
     DELTA_QUEUE_AGENT_CONFIG = {
         "cluster_connection": {
@@ -266,7 +266,7 @@ class TestQueueAgent(YTEnvSetup):
 class TestMultipleAgents(YTEnvSetup):
     NUM_QUEUE_AGENTS = 5
 
-    USE_DYNAMIC_TABLES = 1
+    USE_DYNAMIC_TABLES = True
 
     DELTA_QUEUE_AGENT_CONFIG = {
         "cluster_connection": {
@@ -351,7 +351,7 @@ class TestMultipleAgents(YTEnvSetup):
 class TestMasterIntegration(YTEnvSetup):
     NUM_QUEUE_AGENTS = 1
 
-    USE_DYNAMIC_TABLES = 1
+    USE_DYNAMIC_TABLES = True
 
     DELTA_QUEUE_AGENT_CONFIG = {
         "cluster_connection": {
