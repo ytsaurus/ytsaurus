@@ -414,11 +414,11 @@ void TLeaderCommitter::OnRemoteFlush(
     }
 
     auto loggedSequenceNumber = rsp->logged_sequence_number();
-    YT_VERIFY(peerState.LastLoggedSequenceNumber <= loggedSequenceNumber);
-    peerState.LastLoggedSequenceNumber = loggedSequenceNumber;
+    // Take max here in case we receive out of order reply.
+    peerState.LastLoggedSequenceNumber = std::max(loggedSequenceNumber, peerState.LastLoggedSequenceNumber);
 
     auto nextExpectedSequenceNumber = rsp->expected_sequence_number();
-    // XXX(babenko): Rollback here seems possible and ok?
+    // Rollback here seems possible and ok (if follower restarts).
     peerState.NextExpectedSequenceNumber = nextExpectedSequenceNumber;
 
     YT_LOG_DEBUG("Mutations are flushed by follower (FollowerId: %v, NextExpectedSequenceNumber: %v, LoggedSequenceNumber: %v)",
