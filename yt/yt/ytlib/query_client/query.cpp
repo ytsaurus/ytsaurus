@@ -319,10 +319,16 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         return;
     }
 
-    const auto wireType = original->GetWireType();
+    // N.B. backward compatibility old `type` proto field could contain only
+    // Int64,Uint64,String,Boolean,Null,Any types.
+    const auto wireType = NTableClient::GetPhysicalType(
+        NTableClient::CastToV1Type(original->LogicalType).first
+    );
     serialized->set_type(static_cast<int>(wireType));
 
-    if (*original->LogicalType != *MakeLogicalType(GetLogicalType(wireType), false)) {
+    if (!IsV1Type(original->LogicalType)
+        || *original->LogicalType != *MakeLogicalType(GetLogicalType(wireType), false))
+    {
         ToProto(serialized->mutable_logical_type(), original->LogicalType);
     }
 
