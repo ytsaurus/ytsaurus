@@ -1271,10 +1271,12 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
 void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
 {
+    auto now = TInstant::Now();
     for (const auto& [jobId, joblet] : JobletMap) {
         auto jobSummary = TAbortedJobSummary(jobId, abortReason);
         {
             ParseStatistics(&jobSummary, joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
+            joblet->FinishTime = now;
             auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet, jobSummary)
                 .Item("reason").Value(abortReason);
             UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);

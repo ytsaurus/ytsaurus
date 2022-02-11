@@ -8,7 +8,7 @@ from yt_commands import (
 
 from yt_helpers import skip_if_no_descending, profiler_factory, read_structured_log, write_log_barrier
 from yt.yson import to_yson_type
-from yt.common import YtError
+from yt.common import YtError, date_string_to_datetime
 
 import pytest
 from flaky import flaky
@@ -550,6 +550,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
         wait(lambda: op.get_state() == "failed")
 
+        now = datetime.datetime.utcnow()
+
         controller_agent_log_file = self.path_to_run + "/logs/controller-agent-0.json.log"
         controller_agent_address = ls("//sys/controller_agents/instances")[0]
         controller_agent_barrier = write_log_barrier(controller_agent_address)
@@ -560,6 +562,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert len(aborted_job_events) == 2
         assert aborted_job_events[job_id]["reason"] == "user_request"
         assert aborted_job_events[other_job_id]["reason"] == "operation_failed"
+        assert now - date_string_to_datetime(aborted_job_events[other_job_id]["finish_time"]) < datetime.timedelta(minutes=1)
 
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
