@@ -12,6 +12,7 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/cache_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -298,6 +299,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         return CreateEmptyVersionedReader();
     }
 
+    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+    bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
+
     // Fast lane: check for in-memory reads.
     if (auto reader = TryCreateCacheBasedReader(
         ranges,
@@ -305,7 +309,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         produceAllVersions,
         columnFilter,
         chunkReadOptions,
-        ReadRange_))
+        ReadRange_,
+        enableNewScanReader))
     {
         return MaybeWrapWithTimestampResettingAdapter(reader);
     }
@@ -324,19 +329,14 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             /*workloadCategory*/ std::nullopt);
     }
 
-    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
-    bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
-
     auto chunkReader = GetReaders(workloadCategory).ChunkReader;
     auto chunkState = PrepareChunkState(chunkReader, chunkReadOptions, enableNewScanReader);
 
-    auto chunkMeta = chunkState->ChunkMeta;
+    const auto& chunkMeta = chunkState->ChunkMeta;
 
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
-    if (enableNewScanReader &&
-        chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
-    {
+    if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         // Chunk view support.
         ranges = NNewTableClient::ClipRanges(
             ranges,
@@ -380,13 +380,43 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
-    const TSharedRange<TRowRange>& singletonClippingRange)
+    const TSharedRange<TRowRange>& singletonClippingRange,
+    bool enableNewScanReader)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto chunkState = FindPreloadedChunkState();
     if (!chunkState) {
         return nullptr;
+    }
+
+    const auto& chunkMeta = chunkState->ChunkMeta;
+
+    if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+        // Chunk view support.
+        ranges = NNewTableClient::ClipRanges(
+            ranges,
+            singletonClippingRange.Size() > 0 ? singletonClippingRange.Front().first : TUnversionedRow(),
+            singletonClippingRange.Size() > 0 ? singletonClippingRange.Front().second : TUnversionedRow(),
+            singletonClippingRange.GetHolder());
+
+        auto chunkReader = CreateCacheReader(
+            ChunkId_,
+            chunkState->BlockCache);
+
+        return NNewTableClient::CreateVersionedChunkReader(
+            std::move(ranges),
+            timestamp,
+            chunkMeta,
+            Schema_,
+            columnFilter,
+            chunkState->ChunkColumnMapping,
+            chunkState->BlockCache,
+            GetReaderConfig(),
+            chunkReader,
+            chunkState->PerformanceCounters,
+            chunkReadOptions,
+            produceAllVersions);
     }
 
     return CreateCacheBasedVersionedChunkReader(
@@ -445,13 +475,17 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         }
     };
 
+    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+    bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
+
     // Fast lane: check for in-memory reads.
     if (auto reader = TryCreateCacheBasedReader(
         filteredKeys,
         timestamp,
         produceAllVersions,
         columnFilter,
-        chunkReadOptions))
+        chunkReadOptions,
+        enableNewScanReader))
     {
         return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
@@ -472,7 +506,6 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto readers = GetReaders(workloadCategory);
 
-    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
     if (mountConfig->EnableDataNodeLookup && readers.LookupReader) {
         auto reader = CreateRowLookupReader(
             std::move(readers.LookupReader),
@@ -488,10 +521,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
 
-    bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
-
     auto chunkState = PrepareChunkState(readers.ChunkReader, chunkReadOptions, enableNewScanReader);
-    auto chunkMeta = chunkState->ChunkMeta;
+    const auto& chunkMeta = chunkState->ChunkMeta;
 
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
@@ -547,11 +578,34 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientChunkReadOptions& chunkReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions,
+    bool enableNewScanReader)
 {
     auto chunkState = FindPreloadedChunkState();
     if (!chunkState) {
         return nullptr;
+    }
+
+    const auto& chunkMeta = chunkState->ChunkMeta;
+
+    if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+        auto chunkReader = CreateCacheReader(
+            ChunkId_,
+            chunkState->BlockCache);
+
+        return NNewTableClient::CreateVersionedChunkReader(
+            std::move(keys),
+            timestamp,
+            chunkMeta,
+            Schema_,
+            columnFilter,
+            chunkState->ChunkColumnMapping,
+            chunkState->BlockCache,
+            GetReaderConfig(),
+            chunkReader,
+            chunkState->PerformanceCounters,
+            chunkReadOptions,
+            produceAllVersions);
     }
 
     return CreateCacheBasedVersionedChunkReader(

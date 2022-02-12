@@ -633,12 +633,19 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
-    def test_in_memory(self, mode, optimize_for):
-        cell_id = sync_create_cells(1)[0]
-        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
+    @pytest.mark.parametrize("new_scan_reader", [False, True])
+    def test_in_memory(self, mode, optimize_for, new_scan_reader):
+        if new_scan_reader and optimize_for != "scan":
+            return
 
-        set("//tmp/t/@in_memory_mode", mode)
-        set("//tmp/t/@max_dynamic_store_row_count", 10)
+        cell_id = sync_create_cells(1)[0]
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for,
+            in_memory_mode=mode,
+            max_dynamic_store_row_count=10,
+            enable_new_scan_reader_for_lookup=new_scan_reader,
+            enable_new_scan_reader_for_select=new_scan_reader)
         sync_mount_table("//tmp/t")
 
         with pytest.raises(YtError):
@@ -716,15 +723,23 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     @pytest.mark.parametrize("enable_lookup_hash_table", [True, False])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_preload_block_range(self, enable_lookup_hash_table, optimize_for):
+    @pytest.mark.parametrize("new_scan_reader", [False, True])
+    def test_preload_block_range(self, enable_lookup_hash_table, optimize_for, new_scan_reader):
+        if new_scan_reader and optimize_for != "scan":
+            return
+
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
         set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 2**30)
-        self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
-        set("//tmp/t/@chunk_writer", {"block_size": 1024})
-        set("//tmp/t/@in_memory_mode", "uncompressed")
-        set("//tmp/t/@enable_lookup_hash_table", enable_lookup_hash_table)
-        set("//tmp/t/@optimize_for", optimize_for)
+        self._create_simple_table(
+            "//tmp/t",
+            tablet_cell_bundle="b",
+            optimize_for=optimize_for,
+            in_memory_mode="uncompressed",
+            enable_lookup_hash_table=enable_lookup_hash_table,
+            chunk_writer={"block_size": 1024},
+            enable_new_scan_reader_for_lookup=new_scan_reader,
+            enable_new_scan_reader_for_select=new_scan_reader)
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in range(10000)]
