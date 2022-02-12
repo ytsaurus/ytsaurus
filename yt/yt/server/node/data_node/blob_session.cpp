@@ -706,13 +706,13 @@ void TBlobSession::Abort()
             .Via(SessionInvoker_));
 
     ReleaseSpace();
-
-    Finished_.Fire(Error_);
 }
 
 void TBlobSession::OnAborted(const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+    Finished_.Fire(Error_);
 
     if (!error.IsOK()) {
         SetFailed(
@@ -721,7 +721,7 @@ void TBlobSession::OnAborted(const TError& error)
                 "Error aborting chunk %v",
                 SessionId_)
             << error,
-            /* fatal */ true);
+            /*fatal*/ true);
     }
 }
 
