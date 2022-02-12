@@ -105,14 +105,16 @@ private:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        bool enableNewScanReader);
     NTableClient::IVersionedReaderPtr TryCreateCacheBasedReader(
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        const TSharedRange<NTableClient::TRowRange>& singletonClippingRange);
+        const TSharedRange<NTableClient::TRowRange>& singletonClippingRange,
+        bool enableNewScanReader);
 
     NTableClient::IVersionedReaderPtr MaybeWrapWithTimestampResettingAdapter(
         NTableClient::IVersionedReaderPtr underlyingReader) const;
