@@ -2298,7 +2298,7 @@ class TestTables(YTEnvSetup):
         with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema_1)
 
-        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             alter_table("//tmp/t", schema=bad_schema_2)
 
         with raises_yt_error(yt_error_codes.IncompatibleSchemas):
