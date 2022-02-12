@@ -21,7 +21,7 @@ import yt.yson as yson
 import pytest
 
 import time
-import __builtin__
+import builtins
 
 ################################################################################
 
@@ -189,7 +189,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
                 unique_keys=True,
             ),
         )
-        rows = [{"key": i, "value": str(i), "avalue": 1} for i in xrange(2)]
+        rows = [{"key": i, "value": str(i), "avalue": 1} for i in range(2)]
         keys = [{"key": row["key"]} for row in rows] + [{"key": -1}, {"key": 1000}]
 
         start_ts = generate_timestamp()
@@ -214,10 +214,10 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
 
-        rows = [{"key": i, "avalue": 1} for i in xrange(2)]
+        rows = [{"key": i, "avalue": 1} for i in range(2)]
         insert_rows("//tmp/t", rows, aggregate=True, update=True)
 
-        expected = [{"key": i, "value": str(i), "avalue": 2} for i in xrange(2)]
+        expected = [{"key": i, "value": str(i), "avalue": 2} for i in range(2)]
         actual = lookup_rows("//tmp/t", keys)
         assert actual == expected
         actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
@@ -225,7 +225,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, expected)
 
-        expected = [{"key": i, "avalue": 2} for i in xrange(2)]
+        expected = [{"key": i, "avalue": 2} for i in range(2)]
         actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"])
         assert actual == expected
         actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True)
@@ -251,7 +251,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", rows, aggregate=True, update=True)
 
-        expected = [{"key": i, "key2": None, "nvalue": None, "value": str(i), "avalue": 3} for i in xrange(2)]
+        expected = [{"key": i, "key2": None, "nvalue": None, "value": str(i), "avalue": 3} for i in range(2)]
         actual = lookup_rows("//tmp/t", keys)
         assert actual == expected
         actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
@@ -259,7 +259,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, expected)
 
-        expected = [{"key": i, "avalue": 3} for i in xrange(2)]
+        expected = [{"key": i, "avalue": 3} for i in range(2)]
         actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"])
         assert actual == expected
         actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True)
@@ -315,7 +315,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     def _prepare_copy(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t1")
-        sync_reshard_table("//tmp/t1", [[]] + [[i * 100] for i in xrange(10)])
+        sync_reshard_table("//tmp/t1", [[]] + [[i * 100] for i in range(10)])
 
     @authors("babenko")
     def test_copy_failure(self):
@@ -355,7 +355,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     def test_copy_simple(self, unmount_func, mount_func, unmounted_state):
         self._prepare_copy()
         sync_mount_table("//tmp/t1")
-        rows = [{"key": i * 100 - 50} for i in xrange(10)]
+        rows = [{"key": i * 100 - 50} for i in range(10)]
         insert_rows("//tmp/t1", rows)
         unmount_func("//tmp/t1")
         copy("//tmp/t1", "//tmp/t2")
@@ -377,7 +377,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     def test_copy_and_fork(self, unmount_func, mount_func, unmounted_state):
         self._prepare_copy()
         sync_mount_table("//tmp/t1")
-        rows = [{"key": i * 100 - 50} for i in xrange(10)]
+        rows = [{"key": i * 100 - 50} for i in range(10)]
         insert_rows("//tmp/t1", rows)
         unmount_func("//tmp/t1")
         copy("//tmp/t1", "//tmp/t2")
@@ -385,8 +385,8 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         assert get("//tmp/t2/@tablet_state") == "unmounted"
         mount_func("//tmp/t1")
         sync_mount_table("//tmp/t2")
-        ext_rows1 = [{"key": i * 100 - 51} for i in xrange(10)]
-        ext_rows2 = [{"key": i * 100 - 52} for i in xrange(10)]
+        ext_rows1 = [{"key": i * 100 - 51} for i in range(10)]
+        ext_rows2 = [{"key": i * 100 - 52} for i in range(10)]
         insert_rows("//tmp/t1", ext_rows1)
         insert_rows("//tmp/t2", ext_rows2)
         assert_items_equal(select_rows("key from [//tmp/t1]"), rows + ext_rows1)
@@ -396,27 +396,27 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     def test_copy_and_compact(self):
         self._prepare_copy()
         sync_mount_table("//tmp/t1")
-        rows = [{"key": i * 100 - 50} for i in xrange(10)]
+        rows = [{"key": i * 100 - 50} for i in range(10)]
         insert_rows("//tmp/t1", rows)
         sync_unmount_table("//tmp/t1")
         copy("//tmp/t1", "//tmp/t2")
         sync_mount_table("//tmp/t1")
         sync_mount_table("//tmp/t2")
 
-        original_chunk_ids1 = __builtin__.set(get("//tmp/t1/@chunk_ids"))
-        original_chunk_ids2 = __builtin__.set(get("//tmp/t2/@chunk_ids"))
+        original_chunk_ids1 = builtins.set(get("//tmp/t1/@chunk_ids"))
+        original_chunk_ids2 = builtins.set(get("//tmp/t2/@chunk_ids"))
         assert original_chunk_ids1 == original_chunk_ids2
 
-        ext_rows1 = [{"key": i * 100 - 51} for i in xrange(10)]
-        ext_rows2 = [{"key": i * 100 - 52} for i in xrange(10)]
+        ext_rows1 = [{"key": i * 100 - 51} for i in range(10)]
+        ext_rows2 = [{"key": i * 100 - 52} for i in range(10)]
         insert_rows("//tmp/t1", ext_rows1)
         insert_rows("//tmp/t2", ext_rows2)
 
         sync_compact_table("//tmp/t1")
         sync_compact_table("//tmp/t2")
 
-        compacted_chunk_ids1 = __builtin__.set(get("//tmp/t1/@chunk_ids"))
-        compacted_chunk_ids2 = __builtin__.set(get("//tmp/t2/@chunk_ids"))
+        compacted_chunk_ids1 = builtins.set(get("//tmp/t1/@chunk_ids"))
+        compacted_chunk_ids2 = builtins.set(get("//tmp/t2/@chunk_ids"))
         assert len(compacted_chunk_ids1.intersection(compacted_chunk_ids2)) == 0
 
         assert_items_equal(select_rows("key from [//tmp/t1]"), rows + ext_rows1)
@@ -497,7 +497,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i, "value": "A" * 256} for i in xrange(2)])
+        insert_rows("//tmp/t", [{"key": i, "value": "A" * 256} for i in range(2)])
         sync_flush_table("//tmp/t")
         sync_compact_table("//tmp/t")
         sync_unmount_table("//tmp/t")
@@ -514,7 +514,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t", optimize_for="scan")
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        rows = [{"key": i, "value": str(i)} for i in range(3)]
         insert_rows("//tmp/t", rows)
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
@@ -538,7 +538,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
             sync_reshard_table("//tmp/t", pivots)
             sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        rows = [{"key": i, "value": str(i)} for i in range(3)]
         insert_rows("//tmp/t", rows)
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
@@ -557,7 +557,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         set("//tmp/t/@min_data_ttl", 0)
         sync_mount_table("//tmp/t")
-        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        rows = [{"key": i, "value": str(i)} for i in range(3)]
         insert_rows("//tmp/t", rows)
         sync_unmount_table("//tmp/t")
 
@@ -592,7 +592,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
 
         # Avoiding compaction.
         sync_mount_table("//tmp/t", freeze=True)
-        assert list(lookup_rows("//tmp/t", [{"key": i} for i in xrange(3)])) == [
+        assert list(lookup_rows("//tmp/t", [{"key": i} for i in range(3)])) == [
             {"key": i, "value": str(i)} for i in (0, 2)
         ]
 
@@ -616,7 +616,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         ])
         reshard_table("//tmp/t2", 10, uniform=True)
         pivots = [p[0] for p in get("//tmp/t2/@pivot_keys")[1:]]
-        assert pivots == [2**64 * i / 10 for i in range(1, 10)]
+        assert pivots == [2**64 * i // 10 for i in range(1, 10)]
 
         create_dynamic_table("//tmp/t3", schema=[
             {"name": "key", "type": "double", "sort_order": "ascending"},

@@ -155,7 +155,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
         base_lag_time = get_lag_time()
         base_unix_time = time()
         assert base_lag_time > 2000
-        for i in xrange(10):
+        for i in range(10):
             sleep(1.0)
             cur_unix_time = time()
             cur_lag_time = get_lag_time()

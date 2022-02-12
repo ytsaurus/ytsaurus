@@ -984,7 +984,7 @@ def write_file(path, data, **kwargs):
 
 
 def write_local_file(path, file_name, **kwargs):
-    with open(file_name, "rt") as f:
+    with open(file_name, "rb") as f:
         return write_file(path, f.read(), **kwargs)
 
 

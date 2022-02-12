@@ -4,7 +4,7 @@ from yt_commands import (
     alter_table, write_file, read_table, write_table, map, map_reduce, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
-    create_dynamic_table, extract_statistic_v2, MinTimestamp)
+    create_dynamic_table, extract_statistic_v2, MinTimestamp, sorted_dicts)
 
 from yt_type_helpers import make_schema
 
@@ -129,7 +129,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
             out="//tmp/t_out",
             file=["<format=<format=text>yson>//tmp/t"],
             command="cat t",
-            spec={"mapper": {"format": yson.loads("<format=text>yson")}},
+            spec={"mapper": {"format": yson.loads(b"<format=text>yson")}},
         )
 
         def update(new):
@@ -172,7 +172,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
             out="//tmp/t_out",
             file=["<format=<format=text>yson>//tmp/t"],
             command="cat t",
-            spec={"mapper": {"format": yson.loads("<format=text>yson")}},
+            spec={"mapper": {"format": yson.loads(b"<format=text>yson")}},
         )
 
         assert read_table("//tmp/t_out") == rows + rows1
@@ -200,7 +200,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 out="//tmp/t_out",
                 file=["<format=<format=text>yson>//tmp/t"],
                 command="cat t",
-                spec={"mapper": {"format": yson.loads("<format=text>yson")}},
+                spec={"mapper": {"format": yson.loads(b"<format=text>yson")}},
             )
 
     @authors("savrus")
@@ -410,7 +410,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         recursive(chunk_list, 0)
         for r in result:
-            print "%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4])
+            print(("%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4])))
 
 
 ##################################################################
@@ -449,7 +449,7 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
                 "job_io": MROverOrderedDynTablesHelper.CONTROL_ATTRIBUTES_SPEC,
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "format": yson.loads("<format=text>yson"),
+                    "format": yson.loads(b"<format=text>yson"),
                 },
             },
         )
@@ -468,10 +468,10 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
                 "job_count": 1,
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "format": yson.loads("<format=text>yson"),
+                    "format": yson.loads(b"<format=text>yson"),
                 },
                 "reducer": {
-                    "format": yson.loads("<format=text>yson"),
+                    "format": yson.loads(b"<format=text>yson"),
                 },
                 "map_job_io": MROverOrderedDynTablesHelper.CONTROL_ATTRIBUTES_SPEC,
             },
@@ -496,7 +496,7 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
         current_attrs = {}
         for row in yson.loads(job_input, yson_type="list_fragment"):
             if type(row) == yson.yson_types.YsonEntity:
-                for key, value in row.attributes.iteritems():
+                for key, value in list(row.attributes.items()):
                     # row_index is set only once per sequence of contiguous chunks,
                     # but chunks are written asynchronously, so output row_index values may vary
                     if key == "row_index":
@@ -504,10 +504,10 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
                     current_attrs[key] = value
             else:
                 new_row = dict(row)
-                new_row.update(current_attrs.iteritems())
+                new_row.update(iter(list(current_attrs.items())))
                 actual_content.append(new_row)
 
-        assert sorted(expected_content) == sorted(actual_content)
+        assert sorted_dicts(expected_content) == sorted_dicts(actual_content)
 
     @staticmethod
     def _prologue(shard_count, optimize_for):
@@ -528,8 +528,8 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
                 "print '{out=\"' + base64.standard_b64encode(sys.stdin.read()) + '\"}'",
             ]
         )
-        create("file", "//tmp/script.py", attributes={"executable": True})
-        write_file("//tmp/script.py", script)
+        create(b"file", b"//tmp/script.py", attributes={"executable": True})
+        write_file(b"//tmp/script.py", str.encode(script))
 
 
 class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
@@ -727,14 +727,14 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 
         data = [[] for i in range(tablet_count)]
 
-        data_gen = (i for i in xrange(10**9))
+        data_gen = (i for i in range(10**9))
 
         for wave in range(chunk_count_per_tablet):
             rows = []
             for tablet_index in range(tablet_count):
                 row_count = random.randint(0, max_row_count_per_chunk)
                 for i in range(row_count):
-                    x = data_gen.next()
+                    x = next(data_gen)
                     data[tablet_index].append(x)
                     rows.append({"$tablet_index": tablet_index, "key": x})
             insert_rows("//tmp/t", rows)
@@ -765,8 +765,9 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
             read_range = {
                 "lower_limit": {"tablet_index": start_tablet_index, "row_index": start_row_index},
                 "upper_limit": {"tablet_index": end_tablet_index, "row_index": end_row_index}}
+
             rows = read_table(
-                "<ranges=[{}]>//tmp/t".format(yson.dumps(read_range)),
+                "<ranges=[{}]>//tmp/t".format(yson.dumps(read_range).decode("utf-8")),
                 verbose=False,
                 table_reader=table_reader)
             actual = [row["key"] for row in rows]
@@ -953,10 +954,10 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
                 "job_count": 1,
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "format": yson.loads("<format=text>yson"),
+                    "format": yson.loads(b"<format=text>yson"),
                 },
                 "reducer": {
-                    "format": yson.loads("<format=text>yson"),
+                    "format": yson.loads(b"<format=text>yson"),
                 },
             },
         )

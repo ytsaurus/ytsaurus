@@ -15,7 +15,7 @@ from yt.common import YtError
 import pytest
 import time
 
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -70,7 +70,7 @@ class ChaosTestBase(DynamicTablesBase):
     def _sync_replication_card(self, card_id):
         def _check():
             card_replicas = get("#{0}/@replicas".format(card_id))
-            return all(replica["state"] in ["enabled", "disabled"] for replica in card_replicas.itervalues())
+            return all(replica["state"] in ["enabled", "disabled"] for replica in card_replicas.values())
         wait(_check)
         return get("#{0}/@".format(card_id))
 
@@ -135,7 +135,7 @@ class ChaosTestBase(DynamicTablesBase):
             orchids = self._get_table_orchids(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
             if not all(_replica_checker(orchid["replication_card"]["replicas"][replica_id]) for orchid in orchids):
                 return False
-            if len(__builtin__.set(orchid["replication_card"]["era"] for orchid in orchids)) > 1:
+            if len(builtins.set(orchid["replication_card"]["era"] for orchid in orchids)) > 1:
                 return False
             replica_info = orchids[0]["replication_card"]["replicas"][replica_id]
             if replica_info["mode"] == "sync" and replica_info["state"] == "enabled":
@@ -152,7 +152,7 @@ class ChaosTestBase(DynamicTablesBase):
         assert replication_card["era"] == era
 
         def _check_sync():
-            for replica in replication_card["replicas"].itervalues():
+            for replica in replication_card["replicas"].values():
                 if replica["mode"] != "sync" or replica["state"] != "enabled":
                     continue
                 orchids = self._get_table_orchids(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
@@ -301,11 +301,11 @@ class TestChaos(ChaosTestBase):
         replica_ids = self._create_chaos_table_replicas(card_id, replicas)
 
         card = get("#{0}/@".format(card_id))
-        card_replicas = [{key: r[key] for key in replicas[0].keys()} for r in card["replicas"].itervalues()]
+        card_replicas = [{key: r[key] for key in list(replicas[0].keys())} for r in card["replicas"].values()]
         assert_items_equal(card_replicas, replicas)
         assert card["id"] == card_id
         assert card["type"] == "replication_card"
-        card_replicas = [{key: r[key] for key in replicas[0].keys()} for r in card["replicas"].itervalues()]
+        card_replicas = [{key: r[key] for key in list(replicas[0].keys())} for r in card["replicas"].values()]
         assert_items_equal(card_replicas, replicas)
 
         assert get("#{0}/@id".format(card_id)) == card_id
@@ -687,7 +687,7 @@ class TestChaos(ChaosTestBase):
         wait(lambda: lookup_rows("//tmp/t", keys) == rows)
 
         rows = [{"key": i, "value": str(i+2)} for i in range(2)]
-        for i in reversed(range(2)):
+        for i in reversed(list(range(2))):
             insert_rows("//tmp/t", [rows[i]])
         wait(lambda: lookup_rows("//tmp/t", keys) == rows)
 

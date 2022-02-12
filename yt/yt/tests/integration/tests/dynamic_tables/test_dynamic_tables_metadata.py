@@ -68,7 +68,7 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         self._reshard_table("//tmp/t", [[], [1]])
         self._sync_mount_table("//tmp/t")
-        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
         insert_rows("//tmp/t", rows)
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         self._sync_unmount_table("//tmp/t")
@@ -81,7 +81,7 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
             ],
         )
         self._sync_mount_table("//tmp/t")
-        expected = [{"key": i, "key2": None, "value": str(i)} for i in xrange(2)]
+        expected = [{"key": i, "key2": None, "value": str(i)} for i in range(2)]
         assert_items_equal(select_rows("* from [//tmp/t]"), expected)
 
     @authors("savrus")
@@ -89,7 +89,7 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t2")
         self._sync_mount_table("//tmp/t2")
-        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
 
         # Do lookup to clear metadata and master cache.
         # Unfortunately master cache has old schema and it is retreived in driver where key is constructed.
@@ -118,7 +118,7 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
         self._create_simple_table("//tmp/t1", enable_compaction_and_partitioning=False)
         self._sync_mount_table("//tmp/t1")
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        rows = [{"key": i, "value": str(i)} for i in range(3)]
         keys = [{"key": row["key"]} for row in rows]
         insert_rows("//tmp/t1", rows)
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
@@ -151,7 +151,7 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
         assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
 
         reshard_mounted_table("//tmp/t1", [[]])
-        rows = [{"key": i, "value": str(i + 1)} for i in xrange(3)]
+        rows = [{"key": i, "value": str(i + 1)} for i in range(3)]
         with pytest.raises(YtError):
             insert_rows("//tmp/t1", rows)
         insert_rows("//tmp/t1", rows)

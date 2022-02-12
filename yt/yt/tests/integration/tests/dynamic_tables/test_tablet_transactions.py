@@ -41,7 +41,7 @@ class TestTabletTransactions(YTEnvSetup):
             return [{"key": x} for x in range(i, j)]
 
         def _rows(i, j):
-            return [{"key": x, "value": str(x)} for x in xrange(i, j)]
+            return [{"key": x, "value": str(x)} for x in range(i, j)]
 
         assert select_rows("* from [//tmp/t]") == []
 

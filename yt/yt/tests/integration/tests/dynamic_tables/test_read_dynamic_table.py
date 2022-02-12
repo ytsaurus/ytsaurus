@@ -27,7 +27,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
+        rows1 = [{"key": i, "value": str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows1)
         sync_unmount_table("//tmp/t")
 
@@ -45,7 +45,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t", optimize_for=optimize_for, erasure_codec=erasure_codec)
         sync_mount_table("//tmp/t")
 
-        rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
+        rows1 = [{"key": i, "value": str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows1)
         sync_freeze_table("//tmp/t")
 
@@ -55,7 +55,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         ts = generate_timestamp()
 
         sync_unfreeze_table("//tmp/t")
-        rows2 = [{"key": i, "value": str(i + 1)} for i in xrange(10)]
+        rows2 = [{"key": i, "value": str(i + 1)} for i in range(10)]
         insert_rows("//tmp/t", rows2)
         sync_unmount_table("//tmp/t")
 
@@ -71,7 +71,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         table_id = get("//tmp/t/@id")
 
         def _find_driver():
-            for i in xrange(self.NUM_SECONDARY_MASTER_CELLS):
+            for i in range(self.NUM_SECONDARY_MASTER_CELLS):
                 driver = get_driver(i + 1)
                 if exists("#{0}".format(table_id), driver=driver):
                     return driver
@@ -118,7 +118,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         _multicell_lock("//tmp/t", mode="snapshot", tx=tx)
         verify_chunk_tree_refcount("//tmp/t", 2, [1])
 
-        rows1 = [{"key": i, "value": str(i)} for i in xrange(0, 10, 2)]
+        rows1 = [{"key": i, "value": str(i)} for i in range(0, 10, 2)]
         insert_rows("//tmp/t", rows1)
         sync_unmount_table("//tmp/t")
         verify_chunk_tree_refcount("//tmp/t", 1, [1])
@@ -147,7 +147,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
 
-        rows2 = [{"key": i, "value": str(i)} for i in xrange(1, 5, 2)]
+        rows2 = [{"key": i, "value": str(i)} for i in range(1, 5, 2)]
         insert_rows("//tmp/t", rows2)
         sync_unmount_table("//tmp/t")
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 2])
@@ -156,7 +156,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t", tx=tx) == rows1
 
         sync_mount_table("//tmp/t")
-        rows3 = [{"key": i, "value": str(i)} for i in xrange(5, 10, 2)]
+        rows3 = [{"key": i, "value": str(i)} for i in range(5, 10, 2)]
         insert_rows("//tmp/t", rows3)
         sync_unmount_table("//tmp/t")
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
@@ -186,23 +186,23 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         set("//tmp/t/@min_compaction_store_count", 5)
         sync_mount_table("//tmp/t")
 
-        rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
+        rows1 = [{"key": i, "value": str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows1)
         sync_flush_table("//tmp/t")
 
-        rows2 = [{"key": i, "value": str(i + 1)} for i in xrange(1, 5)]
+        rows2 = [{"key": i, "value": str(i + 1)} for i in range(1, 5)]
         insert_rows("//tmp/t", rows2)
         sync_flush_table("//tmp/t")
 
-        rows3 = [{"key": i, "value": str(i + 2)} for i in xrange(5, 9)]
+        rows3 = [{"key": i, "value": str(i + 2)} for i in range(5, 9)]
         insert_rows("//tmp/t", rows3)
         sync_flush_table("//tmp/t")
 
-        rows4 = [{"key": i, "value": str(i + 3)} for i in xrange(0, 3)]
+        rows4 = [{"key": i, "value": str(i + 3)} for i in range(0, 3)]
         insert_rows("//tmp/t", rows4)
         sync_flush_table("//tmp/t")
 
-        rows5 = [{"key": i, "value": str(i + 4)} for i in xrange(7, 10)]
+        rows5 = [{"key": i, "value": str(i + 4)} for i in range(7, 10)]
         insert_rows("//tmp/t", rows5)
         sync_flush_table("//tmp/t")
 
@@ -231,16 +231,16 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
     @parametrize_external
     def test_read_table_when_chunk_crosses_tablet_boundaries(self, external):
         self._create_simple_static_table("//tmp/t", external=external)
-        rows = [{"key": i, "value": str(i)} for i in xrange(6)]
+        rows = [{"key": i, "value": str(i)} for i in range(6)]
         write_table("//tmp/t", rows)
         alter_table("//tmp/t", dynamic=True)
 
         def do_test():
-            for i in xrange(6):
+            for i in range(6):
                 assert read_table("//tmp/t[{0}:{1}]".format(i, i + 1)) == rows[i:i + 1]
-            for i in xrange(0, 6, 2):
+            for i in range(0, 6, 2):
                 assert read_table("//tmp/t[{0}:{1}]".format(i, i + 2)) == rows[i:i + 2]
-            for i in xrange(1, 6, 2):
+            for i in range(1, 6, 2):
                 assert read_table("//tmp/t[{0}:{1}]".format(i, i + 2)) == rows[i:i + 2]
 
         do_test()

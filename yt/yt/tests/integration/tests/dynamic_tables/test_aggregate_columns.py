@@ -12,6 +12,8 @@ from yt.common import YtError
 
 import pytest
 
+from yt.yson import get_bytes
+
 from yt.xdelta_aggregate_column.bindings import State
 from yt.xdelta_aggregate_column.bindings import StateEncoder
 from yt.xdelta_aggregate_column.bindings import XDeltaCodec
@@ -383,7 +385,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": patch}], aggregate=True)
 
         row = lookup_rows("//tmp/t", [{"key": 1}])
-        result = State(row[0]["value"])
+        result = State(get_bytes(row[0]["value"]))
         assert result.type == result.PATCH_TYPE
         result_state = codec.apply_patch((base, result.payload_data, len(state1)))
         assert result_state == state1
@@ -393,7 +395,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "time": 3, "value": patch}], aggregate=True)
 
         row = lookup_rows("//tmp/t", [{"key": 1}])
-        result = State(row[0]["value"])
+        result = State(get_bytes(row[0]["value"]))
         assert result.type == result.PATCH_TYPE
         result_state = codec.apply_patch((base, result.payload_data, len(state2)))
         assert result_state == state2
@@ -404,7 +406,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "time": 4, "value": base_state}], aggregate=True)
 
         row = lookup_rows("//tmp/t", [{"key": 1}])
-        result = State(row[0]["value"])
+        result = State(get_bytes(row[0]["value"]))
         assert result.type == result.BASE_TYPE
         assert result.payload_data == base
 
@@ -412,7 +414,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "time": 5, "value": patch}], aggregate=True)
 
         row = lookup_rows("//tmp/t", [{"key": 1}])
-        result = State(row[0]["value"])
+        result = State(get_bytes(row[0]["value"]))
         assert result.type == result.BASE_TYPE
         assert result.payload_data == state2
 
@@ -421,7 +423,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "time": 6, "value": patch}], aggregate=True)
 
         row = lookup_rows("//tmp/t", [{"key": 1}])
-        result = State(row[0]["value"])
+        result = State(get_bytes(row[0]["value"]))
         assert result.type == result.BASE_TYPE
         assert result.payload_data == state2
 
@@ -430,7 +432,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "time": 7, "value": patch}], aggregate=True)
 
         row = lookup_rows("//tmp/t", [{"key": 1}])
-        result = State(row[0]["value"])
+        result = State(get_bytes(row[0]["value"]))
         assert result.type == result.ERROR_TYPE
         assert result.has_error_code
         assert result.error_code > 0  # base hash error
@@ -440,7 +442,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "time": 8, "value": base_state}], aggregate=True)
 
         row = lookup_rows("//tmp/t", [{"key": 1}])
-        result = State(row[0]["value"])
+        result = State(get_bytes(row[0]["value"]))
         assert result.type == result.BASE_TYPE
         assert result.payload_data == base
 
@@ -448,7 +450,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "time": 9, "value": patch}], aggregate=True)
 
         row = lookup_rows("//tmp/t", [{"key": 1}])
-        result = State(row[0]["value"])
+        result = State(get_bytes(row[0]["value"]))
         assert result.type == result.BASE_TYPE
         assert result.payload_data == state2
 

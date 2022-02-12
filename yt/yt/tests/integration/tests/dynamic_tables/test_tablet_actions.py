@@ -19,7 +19,7 @@ import pytest
 
 from time import sleep
 from datetime import datetime, timedelta
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -85,7 +85,7 @@ class TabletActionsBase(DynamicTablesBase):
                 for tablet in result:
                     actual[tablet[state]] = actual.get(tablet[state], 0) + 1
                 expected = get(path + "/@tablet_count_by_" + state)
-                expected = {k: v for k, v in expected.items() if v != 0}
+                expected = {k: v for k, v in list(expected.items()) if v != 0}
                 if expected != actual:
                     retry = True
 
@@ -383,7 +383,7 @@ class TestTabletActions(TabletActionsBase):
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@account", "test_account")
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i, "value": "A" * 128} for i in xrange(1)])
+        insert_rows("//tmp/t", [{"key": i, "value": "A" * 128} for i in range(1)])
         sync_unmount_table("//tmp/t")
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
@@ -425,7 +425,7 @@ class TestTabletActions(TabletActionsBase):
 
         actions = get("//sys/tablet_actions")
         assert len(actions) == 1
-        action = get("//sys/tablet_actions/{0}/@".format(actions.keys()[0]))
+        action = get("//sys/tablet_actions/{0}/@".format(list(actions.keys())[0]))
         assert action["state"] == "orphaned"
 
         cells = sync_create_cells(1)
@@ -567,7 +567,7 @@ class TestTabletBalancer(TabletActionsBase):
         set("//tmp/t/@in_memory_mode", "uncompressed")
         sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0, cell_id=cells[0])
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1, cell_id=cells[1])
-        insert_rows("//tmp/t", [{"key": i, "value": "A" * 128} for i in xrange(2)])
+        insert_rows("//tmp/t", [{"key": i, "value": "A" * 128} for i in range(2)])
         sync_flush_table("//tmp/t")
         if freeze:
             sync_freeze_table("//tmp/t")
@@ -605,7 +605,7 @@ class TestTabletBalancer(TabletActionsBase):
             table = pair[0]
             set(table + "/@in_memory_mode", "uncompressed")
             sync_mount_table(table, cell_id=pair[1][0])
-            insert_rows(table, [{"key": i, "value": "A" * 128} for i in xrange(4)])
+            insert_rows(table, [{"key": i, "value": "A" * 128} for i in range(4)])
             sync_flush_table(table)
 
         set(
@@ -698,8 +698,8 @@ class TestTabletBalancer(TabletActionsBase):
         def check_tablet_count():
             tablet_counts = [get("//sys/tablet_cells/{}/@tablet_count".format(i)) for i in cells]
             return (
-                tablet_count / cell_count <= min(tablet_counts)
-                and max(tablet_counts) <= (tablet_count - 1) / cell_count + 1
+                tablet_count // cell_count <= min(tablet_counts)
+                and max(tablet_counts) <= (tablet_count - 1) // cell_count + 1
             )
 
         wait(lambda: check_tablet_count())
@@ -891,7 +891,7 @@ class TestTabletBalancer(TabletActionsBase):
         sync_reshard_table("//tmp/t2", [[], [1]])
 
         sync_mount_table("//tmp/t2", cell_id=cells_on_default[0])
-        insert_rows("//tmp/t2", [{"key": i, "value": "A" * 128} for i in xrange(2)])
+        insert_rows("//tmp/t2", [{"key": i, "value": "A" * 128} for i in range(2)])
         sync_flush_table("//tmp/t2")
 
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", True)
@@ -1002,7 +1002,7 @@ class TestTabletBalancer(TabletActionsBase):
         # Create two chunks excelled from eden
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i, "value": "A" * 256} for i in xrange(2)])
+        insert_rows("//tmp/t", [{"key": i, "value": "A" * 256} for i in range(2)])
         sync_flush_table("//tmp/t")
         sync_compact_table("//tmp/t")
         chunks = get("//tmp/t/@chunk_ids")
@@ -1148,7 +1148,7 @@ class TestTabletBalancer(TabletActionsBase):
         get("//sys/tablet_actions")
         tablet_actions = get("//sys/tablet_actions", attributes=["state"])
         assert len(tablet_actions) == 1
-        assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
+        assert all(v.attributes["state"] == "completed" for v in list(tablet_actions.values()))
 
     @authors("ifsmirnov")
     def test_sync_move_all_tables(self):
@@ -1164,8 +1164,8 @@ class TestTabletBalancer(TabletActionsBase):
         sync_balance_tablet_cells("default")
         tablet_actions = get("//sys/tablet_actions", attributes=["state"])
         assert len(tablet_actions) == 1
-        assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
-        assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t/@tablets"))) == 2
+        assert all(v.attributes["state"] == "completed" for v in list(tablet_actions.values()))
+        assert len(builtins.set(t["cell_id"] for t in get("//tmp/t/@tablets"))) == 2
 
     @authors("ifsmirnov")
     def test_sync_move_one_table(self):
@@ -1188,9 +1188,9 @@ class TestTabletBalancer(TabletActionsBase):
         sync_balance_tablet_cells("default", ["//tmp/t1"])
         tablet_actions = get("//sys/tablet_actions", attributes=["state"])
         assert len(tablet_actions) == 1
-        assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
-        assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t1/@tablets"))) == 2
-        assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t2/@tablets"))) == 1
+        assert all(v.attributes["state"] == "completed" for v in list(tablet_actions.values()))
+        assert len(builtins.set(t["cell_id"] for t in get("//tmp/t1/@tablets"))) == 2
+        assert len(builtins.set(t["cell_id"] for t in get("//tmp/t2/@tablets"))) == 1
 
     @authors("ifsmirnov")
     def test_sync_tablet_balancer_acl(self):

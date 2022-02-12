@@ -19,8 +19,6 @@ import yt.yson as yson
 
 from yt_driver_bindings import Driver
 
-from yt.packages.six.moves import xrange
-
 import pytest
 
 from copy import deepcopy
@@ -40,14 +38,14 @@ class TestLookup(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows)
 
-        keys = [{"key": i % 2} for i in xrange(10)]
-        expected = [{"key": i % 2, "value": str(i % 2)} for i in xrange(10)]
+        keys = [{"key": i % 2} for i in range(10)]
+        expected = [{"key": i % 2, "value": str(i % 2)} for i in range(10)]
         assert lookup_rows("//tmp/t", keys) == expected
 
-        expected = [{"value": str(i % 2)} for i in xrange(10)]
+        expected = [{"value": str(i % 2)} for i in range(10)]
         assert lookup_rows("//tmp/t", keys, column_names=["value"]) == expected
 
     @authors("ifsmirnov")
@@ -59,11 +57,11 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         for prefix in ["a", "b"]:
-            rows = [{"key": i, "value": prefix + ":" + str(i)} for i in xrange(10)]
+            rows = [{"key": i, "value": prefix + ":" + str(i)} for i in range(10)]
             insert_rows("//tmp/t", rows)
             generate_timestamp()
 
-        keys = [{"key": i} for i in xrange(10)]
+        keys = [{"key": i} for i in range(10)]
         actual = lookup_rows("//tmp/t", keys, versioned=True)
 
         assert len(actual) == len(keys)
@@ -94,11 +92,11 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         for prefix in ["a", "b", "c"]:
-            rows = [{"key": i, "value": prefix + ":" + str(i)} for i in xrange(10)]
+            rows = [{"key": i, "value": prefix + ":" + str(i)} for i in range(10)]
             insert_rows("//tmp/t", rows)
             generate_timestamp()
 
-        keys = [{"key": i} for i in xrange(10)]
+        keys = [{"key": i} for i in range(10)]
         actual = lookup_rows("//tmp/t", keys, versioned=True)
 
         assert len(actual) == len(keys)
@@ -207,7 +205,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         )
 
         sync_mount_table("//tmp/t")
-        for i in xrange(10):
+        for i in range(10):
             insert_rows("//tmp/t", [{"key": 0, "value1": str(i)}], update=True)
             insert_rows("//tmp/t", [{"key": 0, "value2": str(i)}], update=True)
         keys = [{"key": 0}]
@@ -502,26 +500,26 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000, 2)]
+        rows = [{"key": i, "value": str(i)} for i in range(0, 1000, 2)]
         insert_rows("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(0, 1000)])
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in range(0, 1000)])
         assert_items_equal(actual, rows)
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(1, 1000, 2)]
+        rows = [{"key": i, "value": str(i)} for i in range(1, 1000, 2)]
         insert_rows("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000)]
-        actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(0, 1000)])
+        rows = [{"key": i, "value": str(i)} for i in range(0, 1000)]
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in range(0, 1000)])
         assert_items_equal(actual, rows)
 
-        for tablet in xrange(10):
+        for tablet in range(10):
             path = "//tmp/t/@tablets/{0}/performance_counters/static_chunk_row_lookup_count".format(tablet)
             wait(lambda: get(path) > 0)
             assert get(path) == 100
@@ -545,7 +543,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(0, 10)]
+        rows = [{"key": i, "value": str(i)} for i in range(0, 10)]
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
@@ -556,7 +554,7 @@ class TestLookup(TestSortedDynamicTablesBase):
                 name="lookup/row_count")
 
             assert_items_equal(
-                lookup_rows("//tmp/t", [{"key": i} for i in xrange(0, 10)]),
+                lookup_rows("//tmp/t", [{"key": i} for i in range(0, 10)]),
                 rows)
 
             wait(lambda: row_count.get_delta() > 0)
@@ -586,7 +584,7 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         tablet_count = int(cell_count * 2.5)
         key_count = 1000
-        pivot_keys = [[]] + [[k] for k in sorted(random.sample(range(1, key_count), tablet_count - 1))]
+        pivot_keys = [[]] + [[k] for k in sorted(random.sample(list(range(1, key_count)), tablet_count - 1))]
         self._create_simple_table("//tmp/t", pivot_keys=pivot_keys)
         sync_mount_table("//tmp/t")
 
@@ -785,8 +783,8 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         )
         sync_mount_table("//tmp/t")
 
-        seq_keys = range(50)
-        seq_values = range(1000)
+        seq_keys = list(range(50))
+        seq_values = list(range(1000))
 
         current_value = {}
 
@@ -805,7 +803,7 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
 
         expected_keys = []
         expected_values = []
-        for key, value in current_value.iteritems():
+        for key, value in current_value.items():
             expected_keys.append({"key": key})
             expected_values.append({"key": key, "value": value})
 
@@ -852,7 +850,7 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         all_keys = []
         all_rows = []
 
-        for key, value in reference.iteritems():
+        for key, value in reference.items():
             all_keys.append({"key": key})
             all_rows.append({"key": key, "value": value})
             if bool(random.getrandbits(1)):
