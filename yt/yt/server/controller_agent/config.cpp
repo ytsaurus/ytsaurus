@@ -102,7 +102,7 @@ void TOperationAlertsConfig::Register(TRegistrar registrar)
             "/user_job/cpu/system",
             "/user_job/cpu/user"
         });
-    
+
     registrar.Parameter("low_cpu_usage_alert_job_states", &TThis::LowCpuUsageAlertJobStates)
         .Default({
             EJobState::Completed
@@ -142,7 +142,7 @@ void TOperationAlertsConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_gpu_usage_alert_gpu_power_threshold", &TThis::LowGpuUsageAlertGpuPowerThreshold)
         .Default(100.0);
-    
+
     registrar.Parameter("low_gpu_usage_alert_gpu_utilization_power_threshold", &TThis::LowGpuUsageAlertGpuUtilizationPowerThreshold)
         .Default(0.3)
         .InRange(0.0, 1.0);
@@ -881,6 +881,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("obligatory_account_mediums", &TThis::ObligatoryAccountMediums)
+        .Default();
+
+    registrar.Parameter("deprecated_mediums", &TThis::DeprecatedMediums)
         .Default();
 
     registrar.Parameter("enable_master_resource_usage_accounting", &TThis::EnableMasterResourceUsageAccounting)

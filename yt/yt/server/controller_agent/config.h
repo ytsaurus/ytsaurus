@@ -985,6 +985,9 @@ public:
     //! List of medium that requires specifying of account and disk space limit.
     THashSet<TString> ObligatoryAccountMediums;
 
+    //! List of medium that deprecated to be used as disk requests.
+    THashSet<TString> DeprecatedMediums;
+
     bool EnableMasterResourceUsageAccounting;
 
     //! Size limit for YT_SECRET_VAULT environment variable exposed to jobs,
