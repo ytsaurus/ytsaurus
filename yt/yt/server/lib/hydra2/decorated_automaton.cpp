@@ -981,7 +981,7 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
 
     if (commitPromise) {
         YT_VERIFY(GetState() == EPeerState::Leading);
-        commitPromise.Set(TMutationResponse{
+        commitPromise.TrySet(TMutationResponse{
             EMutationResponseOrigin::Commit,
             mutationContext.GetResponseData()
         });

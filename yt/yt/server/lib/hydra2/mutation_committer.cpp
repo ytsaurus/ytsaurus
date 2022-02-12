@@ -252,9 +252,7 @@ void TLeaderCommitter::Stop()
 
     auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
     for (const auto& mutation : MutationQueue_) {
-        if (!mutation->LocalCommitPromise.IsSet()) {
-            mutation->LocalCommitPromise.Set(error);
-        }
+        mutation->LocalCommitPromise.TrySet(error);
     }
 
     CloseChangelog(Changelog_);
