@@ -1643,6 +1643,17 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         auto nodeTouched = chunkOwner->GetUpdatedSinceLastMerge();
         chunkOwner->SetUpdatedSinceLastMerge(false);
 
+        YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
+        auto* table = chunkOwner->As<TTableNode>();
+        if (table->IsDynamic()) {
+            YT_LOG_DEBUG_IF(
+                IsMutationLoggingEnabled(),
+                "Table became dynamic between chunk replacement and "
+                "merge session finalization, ignored (TableId: %v)",
+                table->GetId());
+            continue;
+        }
+
         if (subrequest.has_traversal_info()) {
             FromProto(&chunkOwner->ChunkMergerTraversalInfo(), subrequest.traversal_info());
         }
@@ -1664,7 +1675,17 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         YT_VERIFY(result == EMergeSessionResult::OK);
 
         auto* oldRootChunkList = chunkOwner->GetChunkList();
-        YT_VERIFY(oldRootChunkList->GetKind() == EChunkListKind::Static);
+        if (oldRootChunkList->GetKind() != EChunkListKind::Static) {
+            YT_LOG_ALERT_IF(
+                IsMutationLoggingEnabled(),
+                "Merge session finalized with chunk list of unexpected kind, ignored "
+                "(NodeId: %v, ChunkListId: %v, ChunkListKind: %v)",
+                nodeId,
+                oldRootChunkList->GetId(),
+                oldRootChunkList->GetKind());
+            continue;
+        }
+
         const auto& children = oldRootChunkList->Children();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
