@@ -10,7 +10,7 @@ from yt_commands import (
     map, merge, sort, generate_timestamp, get_tablet_leader_address, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, get_account_disk_space,
-    create_dynamic_table, raises_yt_error)
+    create_dynamic_table, raises_yt_error, sorted_dicts)
 
 from yt_type_helpers import make_schema
 import yt_error_codes
@@ -24,7 +24,7 @@ import pytest
 from time import sleep
 from copy import deepcopy
 
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -618,8 +618,8 @@ class TestBulkInsert(DynamicTablesBase):
         )
 
         wait(lambda: get("//tmp/t_output/@chunk_count") == 4)
-        assert read_table("//tmp/t_output") == sorted(rows)
-        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(rows))
+        assert read_table("//tmp/t_output") == sorted_dicts(rows)
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted_dicts(rows))
         wait(lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count") == 3)
 
         # Single job processing [1, 3, 2, 4] should fail.
@@ -724,7 +724,7 @@ class TestBulkInsert(DynamicTablesBase):
         assert lookup_rows("//tmp/t_output", keys) == rows
 
         lookup_result = lookup_rows("//tmp/t_output", keys, versioned=True)
-        chunk_ids = __builtin__.set(get("//tmp/t_output/@chunk_ids"))
+        chunk_ids = builtins.set(get("//tmp/t_output/@chunk_ids"))
         assert len(chunk_ids) == 1
 
         sync_unmount_table("//tmp/t_output")
@@ -732,7 +732,7 @@ class TestBulkInsert(DynamicTablesBase):
         sync_mount_table("//tmp/t_output")
 
         assert lookup_result == lookup_rows("//tmp/t_output", keys, versioned=True)
-        assert chunk_ids == __builtin__.set(get("//tmp/t_output/@chunk_ids"))
+        assert chunk_ids == builtins.set(get("//tmp/t_output/@chunk_ids"))
         chunk_id = list(chunk_ids)[0]
 
         remove("//tmp/t_output")
@@ -833,8 +833,8 @@ class TestBulkInsert(DynamicTablesBase):
 
         sort(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", sort_by=["key"])
 
-        assert read_table("//tmp/t_output") == sorted(rows)
-        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(rows))
+        assert read_table("//tmp/t_output") == sorted_dicts(rows)
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted_dicts(rows))
 
     @pytest.mark.parametrize("config_source", ["default", "spec"])
     def test_table_writer_config(self, config_source):
@@ -1205,11 +1205,11 @@ class TestBulkInsert(DynamicTablesBase):
             orchid = self._find_tablet_orchid(tablet_node, tablet_id)
             if not orchid:
                 return False
-            for store in orchid["eden"]["stores"].itervalues():
+            for store in orchid["eden"]["stores"].values():
                 if store["store_state"] == "persistent" and store["preload_state"] != "complete":
                     return False
             for partition in orchid["partitions"]:
-                for store in partition["stores"].itervalues():
+                for store in partition["stores"].values():
                     if store["preload_state"] != "complete":
                         return False
             return True
@@ -1640,8 +1640,8 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             sort_by=["key"],
         )
 
-        assert read_table("//tmp/t_output") == sorted(flat_rows)
-        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(flat_rows))
+        assert read_table("//tmp/t_output") == sorted_dicts(flat_rows)
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted_dicts(flat_rows))
 
     def test_sort_with_intermediate_table(self):
         sync_create_cells(1)
@@ -1679,8 +1679,8 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             mode="ordered",
         )
 
-        assert read_table("//tmp/t_output") == sorted(flat_rows)
-        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(flat_rows))
+        assert read_table("//tmp/t_output") == sorted_dicts(flat_rows)
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted_dicts(flat_rows))
 
     def test_merge_from_original_schema_fails(self):
         sync_create_cells(1)

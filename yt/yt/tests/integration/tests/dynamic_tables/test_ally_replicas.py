@@ -9,7 +9,7 @@ import pytest
 
 from time import sleep
 
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -131,7 +131,7 @@ class TestAllyReplicas(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/ally_replica_manager/safe_online_node_count", 6)
 
-        banned_nodes = __builtin__.set()
+        banned_nodes = builtins.set()
 
         def _get_any_replica(chunk_id):
             return get("//sys/chunks/{}/@stored_replicas/0".format(chunk_id))

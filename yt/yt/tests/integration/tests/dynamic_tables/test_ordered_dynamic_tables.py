@@ -45,7 +45,7 @@ class TestOrderedDynamicTablesBase(DynamicTablesBase):
                 tablet_data = self._find_tablet_orchid(address, tablet_id)
                 return all(
                     s["preload_state"] == "complete"
-                    for s in tablet_data["stores"].itervalues()
+                    for s in tablet_data["stores"].values()
                     if s["store_state"] == "persistent"
                 )
 
@@ -148,7 +148,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert get_all_counters("data_weight") == (0, 0, 0)
         assert tablet_profiling.get_counter("select/cpu_time") == 0
 
-        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(10)]
+        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in range(10)]
         insert_rows(table_path, rows)
 
         wait(lambda: get_all_counters("row_count") == (0, 10, 10))
@@ -167,7 +167,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(0, 100)]
+        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in range(0, 100)]
         insert_rows("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
@@ -179,7 +179,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(0, 100)]
+        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in range(0, 100)]
         insert_rows("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
@@ -194,15 +194,15 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_reshard_table("//tmp/t", 10)
         sync_mount_table("//tmp/t")
 
-        for i in xrange(10):
+        for i in range(10):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
 
-        for i in xrange(10):
+        for i in range(10):
             assert select_rows("a from [//tmp/t] where [$tablet_index] = " + str(i)) == [{"a": i}]
 
         # Check range inference YT-12099
-        assert select_rows("a from [//tmp/t] where [$tablet_index] >= -1 limit 10") == [{"a": i} for i in xrange(10)]
-        assert select_rows("a from [//tmp/t] where [$tablet_index] >= null limit 10") == [{"a": i} for i in xrange(10)]
+        assert select_rows("a from [//tmp/t] where [$tablet_index] >= -1 limit 10") == [{"a": i} for i in range(10)]
+        assert select_rows("a from [//tmp/t] where [$tablet_index] >= null limit 10") == [{"a": i} for i in range(10)]
 
     @authors("babenko")
     @pytest.mark.parametrize("dynamic", [True, False])
@@ -211,7 +211,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        write_rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(100)]
+        write_rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in range(100)]
         query_rows = [
             {
                 "$tablet_index": 0,
@@ -220,7 +220,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
                 "b": i * 0.5,
                 "c": "payload" + str(i),
             }
-            for i in xrange(100)
+            for i in range(100)
         ]
         insert_rows("//tmp/t", write_rows)
 
@@ -233,11 +233,11 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert select_rows("[$row_index], a from [//tmp/t]") == [
             {"$row_index": row["$row_index"], "a": row["a"]} for row in query_rows
         ]
-        assert select_rows("c, b from [//tmp/t]") == [{"b": i * 0.5, "c": "payload" + str(i)} for i in xrange(100)]
+        assert select_rows("c, b from [//tmp/t]") == [{"b": i * 0.5, "c": "payload" + str(i)} for i in range(100)]
         assert select_rows("* from [//tmp/t] where [$row_index] between 10 and 20") == query_rows[10:21]
         assert select_rows("* from [//tmp/t] where [$tablet_index] in (-10, 20)") == []
-        assert select_rows("a from [//tmp/t]") == [{"a": a} for a in xrange(100)]
-        assert select_rows("a + 1 as aa from [//tmp/t] where a < 10") == [{"aa": a} for a in xrange(1, 11)]
+        assert select_rows("a from [//tmp/t]") == [{"a": a} for a in range(100)]
+        assert select_rows("a + 1 as aa from [//tmp/t] where a < 10") == [{"aa": a} for a in range(1, 11)]
 
     @authors("babenko")
     def test_select_from_dynamic_multi_tablet(self):
@@ -247,13 +247,13 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert get("//tmp/t/@tablet_count") == 10
 
-        for i in xrange(10):
-            rows = [{"a": j} for j in xrange(100)]
+        for i in range(10):
+            rows = [{"a": j} for j in range(100)]
             insert_rows("//tmp/t", rows)
 
         assert_items_equal(
             select_rows("a from [//tmp/t]"),
-            [{"a": j} for i in xrange(10) for j in xrange(100)],
+            [{"a": j} for i in range(10) for j in range(100)],
         )
 
     @authors("babenko")
@@ -262,15 +262,15 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        for k in xrange(5):
-            write_rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(100)]
+        for k in range(5):
+            write_rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in range(100)]
             insert_rows("//tmp/t", write_rows)
             if k < 4:
                 sync_unmount_table("//tmp/t")
                 assert get("//tmp/t/@chunk_count") == k + 1
                 sync_mount_table("//tmp/t")
 
-        query_rows = [{"$tablet_index": 0, "$row_index": i, "a": i % 100} for i in xrange(10, 490)]
+        query_rows = [{"$tablet_index": 0, "$row_index": i, "a": i % 100} for i in range(10, 490)]
         assert (
             select_rows("[$tablet_index], [$row_index], a from [//tmp/t] where [$row_index] between 10 and 489")
             == query_rows
@@ -282,10 +282,10 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        write_rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(100)]
+        write_rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in range(100)]
         insert_rows("//tmp/t", write_rows)
 
-        query_rows = [{"a": i} for i in xrange(100)]
+        query_rows = [{"a": i} for i in range(100)]
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10") == query_rows[10:]
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] > 10") == query_rows[11:]
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] = 10") == query_rows[10:11]
@@ -306,7 +306,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(100)]
+        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in range(100)]
         insert_rows("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
@@ -321,8 +321,8 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
-        for i in xrange(10):
-            write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(100)])
+        for i in range(10):
+            write_table("<append=true>//tmp/t", [{"a": j} for j in range(100)])
 
         read_table("//tmp/t")
         assert get("//tmp/t/@row_count") == 1000
@@ -331,7 +331,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert get("//tmp/t/@dynamic")
 
         sync_mount_table("//tmp/t")
-        assert select_rows("a from [//tmp/t]") == [{"a": i % 100} for i in xrange(1000)]
+        assert select_rows("a from [//tmp/t]") == [{"a": i % 100} for i in range(1000)]
 
     @authors("savrus", "babenko")
     def test_no_duplicate_chunks_in_dynamic(self):
@@ -390,8 +390,8 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False, enable_dynamic_store_read=False)
 
-        for i in xrange(10):
-            write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(100)])
+        for i in range(10):
+            write_table("<append=true>//tmp/t", [{"a": j} for j in range(100)])
 
         chunk_ids = get("//tmp/t/@chunk_ids")
 
@@ -403,7 +403,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         root_chunk_list_id = get("//tmp/t/@chunk_list_id")
         tablet_chunk_list_id = get("#{0}/@child_ids/0".format(root_chunk_list_id))
 
-        for i in xrange(10):
+        for i in range(10):
             trim_rows("//tmp/t", 0, i * 100 + 10)
             wait(
                 lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == i * 100 + 10
@@ -420,17 +420,17 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"a": i} for i in xrange(100)])
+        insert_rows("//tmp/t", [{"a": i} for i in range(100)])
         trim_rows("//tmp/t", 0, 30)
-        assert select_rows("a from [//tmp/t]") == [{"a": i} for i in xrange(30, 100)]
+        assert select_rows("a from [//tmp/t]") == [{"a": i} for i in range(30, 100)]
 
     @authors("babenko")
     def test_make_static_after_trim(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
-        write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(0, 100)])
-        write_table("<append=true>//tmp/t", [{"a": j * 10} for j in xrange(0, 100)])
+        write_table("<append=true>//tmp/t", [{"a": j} for j in range(0, 100)])
+        write_table("<append=true>//tmp/t", [{"a": j * 10} for j in range(0, 100)])
 
         alter_table("//tmp/t", dynamic=True)
         sync_mount_table("//tmp/t")
@@ -441,20 +441,20 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", dynamic=False)
 
-        assert read_table("//tmp/t") == [{"a": j * 10, "b": None, "c": None} for j in xrange(0, 100)]
+        assert read_table("//tmp/t") == [{"a": j * 10, "b": None, "c": None} for j in range(0, 100)]
 
     @authors("babenko")
     def test_trimmed_rows_perserved_on_unmount(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
-        write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(0, 100)])
-        write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(100, 300)])
+        write_table("<append=true>//tmp/t", [{"a": j} for j in range(0, 100)])
+        write_table("<append=true>//tmp/t", [{"a": j} for j in range(100, 300)])
 
         alter_table("//tmp/t", dynamic=True)
         sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [
-            {"a": j} for j in xrange(110, 121)
+            {"a": j} for j in range(110, 121)
         ]
 
         trim_rows("//tmp/t", 0, 100)
@@ -471,7 +471,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [
-            {"a": j} for j in xrange(110, 121)
+            {"a": j} for j in range(110, 121)
         ]
 
     @authors("babenko")
@@ -479,7 +479,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
-        for i in xrange(20):
+        for i in range(20):
             write_table("<append=true>//tmp/t", [{"a": i}])
 
         chunk_ids = get("//tmp/t/@chunk_ids")
@@ -524,7 +524,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_reshard_table("//tmp/t", 5)
         sync_mount_table("//tmp/t")
-        for i in xrange(5):
+        for i in range(5):
             insert_rows(
                 "//tmp/t",
                 [{"$tablet_index": i, "a": i}, {"$tablet_index": i, "a": i + 100}],
@@ -537,7 +537,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 7
-        for i in xrange(7):
+        for i in range(7):
             tablet = tablets[i]
             if i >= 4 and i <= 5:
                 assert tablet["flushed_row_count"] == 0
@@ -559,7 +559,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_reshard_table("//tmp/t", 5)
         sync_mount_table("//tmp/t")
-        for i in xrange(5):
+        for i in range(5):
             insert_rows(
                 "//tmp/t",
                 [{"$tablet_index": i, "a": i}, {"$tablet_index": i, "a": i + 100}],
@@ -573,7 +573,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 4
-        for i in xrange(4):
+        for i in range(4):
             tablet = tablets[i]
             print_debug(i, "->", tablet)
             if i == 2:
@@ -601,7 +601,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_reshard_table("//tmp/t", 2)
         sync_mount_table("//tmp/t")
-        for i in xrange(2):
+        for i in range(2):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
             trim_rows("//tmp/t", i, 1)
         sync_unmount_table("//tmp/t")
@@ -850,7 +850,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(0, 100)]
+        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in range(0, 100)]
         insert_rows("//tmp/t", rows)
 
         build_snapshot(cell_id=cell_id)
@@ -878,7 +878,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         self._create_simple_table("//tmp/t", optimize_for=optimize_for, erasure_codec=erasure_codec)
         sync_mount_table("//tmp/t")
 
-        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(0, 100)]
+        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in range(0, 100)]
         insert_rows("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
@@ -906,7 +906,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
             tablet_data = self._find_tablet_orchid(address, tablet_id)
             assert all(
                 s["preload_state"] == state
-                for s in tablet_data["stores"].itervalues()
+                for s in tablet_data["stores"].values()
                 if s["store_state"] == "persistent"
             )
             actual_preload_completed = get("//tmp/t/@tablets/0/statistics/preload_completed_store_count")
@@ -918,7 +918,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
             assert get("//tmp/t/@tablets/0/statistics/preload_failed_store_count") == 0
 
         # Check preload after mount.
-        rows1 = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(0, 10)]
+        rows1 = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in range(0, 10)]
         insert_rows("//tmp/t", rows1)
 
         sync_unmount_table("//tmp/t")
@@ -928,7 +928,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert select_rows("a, b, c from [//tmp/t]") == rows1
 
         # Check preload after flush.
-        rows2 = [{"a": i, "b": i * 0.5, "c": "payload" + str(i + 1)} for i in xrange(0, 10)]
+        rows2 = [{"a": i, "b": i * 0.5, "c": "payload" + str(i + 1)} for i in range(0, 10)]
         insert_rows("//tmp/t", rows2)
         sync_flush_table("//tmp/t")
         self._wait_for_in_memory_stores_preload("//tmp/t")
@@ -955,16 +955,16 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", tablet_count=5, enable_dynamic_store_read=True)
         sync_mount_table("//tmp/t")
-        for i in xrange(5):
+        for i in range(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
-        for i in xrange(5):
+        for i in range(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
         sync_unmount_table("//tmp/t")
         assert get("//tmp/t/@chunk_count") == 10
         sync_mount_table("//tmp/t")
-        for i in xrange(5):
+        for i in range(5):
             trim_rows("//tmp/t", i, 1)
         # There are 2 extra dynamic stores in each tablet.
         wait(lambda: get("//tmp/t/@chunk_count") == 5 + 2 * 5)
@@ -1173,6 +1173,6 @@ class TestOrderedDynamicTablesMultipleWriteBatches(TestOrderedDynamicTablesBase)
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        rows = [{"a": i, "c": "text"} for i in xrange(100)]
+        rows = [{"a": i, "c": "text"} for i in range(100)]
         insert_rows("//tmp/t", rows)
         assert select_rows("a, c from [//tmp/t]") == rows

@@ -14,7 +14,7 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_compaction_orchid(self):
-        NUM_TABLES = 3L
+        NUM_TABLES = 3
         nodes = ls("//sys/cluster_nodes")
         for node in nodes[1:]:
             set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
@@ -97,7 +97,7 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
 
         # Now add store to eden
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i} for i in xrange(2, 6)])
+        insert_rows("//tmp/t", [{"key": i} for i in range(2, 6)])
         sync_flush_table("//tmp/t")
         assert len(get("//tmp/t/@chunk_ids")) == 3
         assert get("#{}/@eden".format(get("//tmp/t/@chunk_ids/{0}".format(2))))

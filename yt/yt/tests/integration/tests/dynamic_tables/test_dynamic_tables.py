@@ -34,11 +34,10 @@ from yt.common import YtError
 import yt.yson as yson
 
 import pytest
-from yt.packages.six.moves import xrange
 from flaky import flaky
 from collections import Counter
 import time
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -107,7 +106,7 @@ class DynamicTablesBase(YTEnvSetup):
         if result is None or result.attributes.get("opaque", False):
             result = get(path, attributes=["opaque"], driver=driver)
         if isinstance(result, dict):
-            for key, value in result.iteritems():
+            for key, value in list(result.items()):
                 result[key] = self._get_recursive(path + "/" + key, value, driver=driver)
         if isinstance(result, list):
             for index, value in enumerate(result):
@@ -128,7 +127,7 @@ class DynamicTablesBase(YTEnvSetup):
                             return None
             return None
 
-        for attempt in xrange(5):
+        for attempt in range(5):
             result = _do()
             if result is not None:
                 return result
@@ -226,7 +225,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
         sync_mount_table("//tmp/t")
 
-        for i in xrange(0, 10):
+        for i in range(0, 10):
             rows = [{"key": i, "value": "test"}]
             keys = [{"key": i}]
             insert_rows("//tmp/t", rows)
@@ -273,7 +272,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         set_node_decommissioned(follower_address, True)
         wait_for_cells([cell_id], decommissioned_addresses=[follower_address])
 
-        for i in xrange(0, 100):
+        for i in range(0, 100):
             rows = [{"key": i, "value": "test"}]
             keys = [{"key": i}]
             insert_rows("//tmp/t", rows)
@@ -566,8 +565,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         sync_create_cells(cell_count)
         cell_ids = ls("//sys/tablet_cells")
         self._create_sorted_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[]] + [[i * 100] for i in xrange(cell_count - 1)])
-        for i in xrange(len(cell_ids)):
+        sync_reshard_table("//tmp/t", [[]] + [[i * 100] for i in range(cell_count - 1)])
+        for i in range(len(cell_ids)):
             mount_table(
                 "//tmp/t",
                 first_tablet_index=i,
@@ -575,7 +574,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                 cell_id=cell_ids[i],
             )
         wait_for_tablet_state("//tmp/t", "mounted")
-        rows = [{"key": i * 100 - j, "value": "payload" + str(i)} for i in xrange(cell_count) for j in xrange(10)]
+        rows = [{"key": i * 100 - j, "value": "payload" + str(i)} for i in range(cell_count) for j in range(10)]
         insert_rows("//tmp/t", rows)
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
@@ -916,7 +915,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_tablet_assignment(self):
         sync_create_cells(3)
         self._create_sorted_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[]] + [[i] for i in xrange(11)])
+        sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(11)])
         assert get("//tmp/t/@tablet_count") == 12
 
         sync_mount_table("//tmp/t")
@@ -1168,7 +1167,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("//tmp/t/@tablet_cell_bundle") == "default"
         cells = get("//sys/tablet_cells", attributes=["tablet_cell_bundle"])
         assert len(cells) == 1
-        assert list(cells.itervalues())[0].attributes["tablet_cell_bundle"] == "default"
+        assert list(cells.values())[0].attributes["tablet_cell_bundle"] == "default"
 
     @authors("babenko")
     def test_cell_bundle_name_validation(self):
@@ -1398,11 +1397,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         bundles = ["default", "custom"]
 
         cell_ids = {}
-        for _ in xrange(node_count):
+        for _ in range(node_count):
             for bundle in bundles:
                 cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": bundle})
                 cell_ids[cell_id] = bundle
-        wait_for_cells(cell_ids.keys())
+        wait_for_cells(list(cell_ids.keys()))
 
         def _check(nodes, floor, ceil):
             def predicate():
@@ -1415,7 +1414,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 return True
 
             wait(predicate)
-            wait_for_cells(cell_ids.keys())
+            wait_for_cells(list(cell_ids.keys()))
 
         if test_decommission:
             for idx, node in enumerate(nodes):
@@ -1437,11 +1436,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(nodes[0]), False)
         _check(nodes, 1, 1)
 
-        for node in nodes[: len(nodes) / 2]:
+        for node in nodes[: len(nodes) // 2]:
             set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
-        _check(nodes[len(nodes) / 2:], 2, 2)
+        _check(nodes[len(nodes) // 2:], 2, 2)
 
-        for node in nodes[: len(nodes) / 2]:
+        for node in nodes[: len(nodes) // 2]:
             set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), False)
         _check(nodes, 1, 1)
 
@@ -1634,7 +1633,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             assert count_by_state["unmounted"] == unmounted
             assert count_by_state["frozen"] == frozen
             assert count_by_state["mounted"] == mounted
-            for state, count in count_by_state.items():
+            for state, count in list(count_by_state.items()):
                 if state not in ["unmounted", "mounted", "frozen"]:
                     assert count == 0
 
@@ -1665,7 +1664,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         # Decommission all unused nodes to make flush fail due to
         # high replication factor.
         cell = get("//tmp/t/@tablets/0/cell_id")
-        nodes_to_save = __builtin__.set()
+        nodes_to_save = builtins.set()
         for peer in get("#" + cell + "/@peers"):
             nodes_to_save.add(peer["address"])
 
@@ -1724,7 +1723,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         # MAX_UNVERSIONED_ROW_WEIGHT. No error happens in between because rows
         # are flushed chunk by chunk.
         row = [{"key": 0, "value": LARGE_STRING}]
-        for i in range(MAX_UNVERSIONED_ROW_WEIGHT / len(LARGE_STRING) + 2):
+        for i in range(MAX_UNVERSIONED_ROW_WEIGHT // len(LARGE_STRING) + 2):
             insert_rows("//tmp/t", row)
         sync_freeze_table("//tmp/t")
 
@@ -1807,7 +1806,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         cell = sync_create_cells(1, tablet_cell_bundle="b")[0]
         peer = get("#{0}/@peers/0/address".format(cell))
 
-        node = list(__builtin__.set(ls("//sys/cluster_nodes")) - __builtin__.set([peer]))[0]
+        node = list(builtins.set(ls("//sys/cluster_nodes")) - builtins.set([peer]))[0]
 
         def get_cpu_delta():
             empty_node_cpu = get_cpu(node)
@@ -2002,8 +2001,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
 
-        rows1 = [{"key": i, "value": str(i)} for i in xrange(2)]
-        rows2 = [{"key": i, "value": str(i + 1)} for i in xrange(2)]
+        rows1 = [{"key": i, "value": str(i)} for i in range(2)]
+        rows2 = [{"key": i, "value": str(i + 1)} for i in range(2)]
 
         insert_rows("//tmp/t", rows1)
 
@@ -2121,7 +2120,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         sync_mount_table("//tmp/t")
         chunk_views = get("//sys/chunk_views", attributes=["chunk_id", "lower_limit", "upper_limit"])
-        for value in chunk_views.itervalues():
+        for value in list(chunk_views.values()):
             attrs = value.attributes
             if attrs["lower_limit"] == {} and attrs["upper_limit"] == {"key": [2]}:
                 break
@@ -2132,7 +2131,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert len(table_chunks) == 2
         assert table_chunks[0] == table_chunks[1]
         assert len(chunk_views) == 2
-        assert all(attr.attributes["chunk_id"] == table_chunks[0] for attr in chunk_views.values())
+        assert all(attr.attributes["chunk_id"] == table_chunks[0] for attr in list(chunk_views.values()))
         chunk_tree = get("#{}/@tree".format(get("//tmp/t/@chunk_list_id")))
         assert chunk_tree.attributes["rank"] == 2
         assert len(chunk_tree) == 2
@@ -2661,7 +2660,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         copy("//tmp/t", "//tmp/p")
 
         copy_attributes = get("//tmp/p/@")
-        for k, v in attributes.iteritems():
+        for k, v in list(attributes.items()):
             assert copy_attributes[k] == v
 
 
@@ -2775,7 +2774,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         def prepare():
             cells.extend(sync_create_cells(10))
             sync_remove_tablet_cells(cells[:10])
-            for _ in xrange(10):
+            for _ in range(10):
                 cells.pop(0)
             cell = cells[0]
             node = get("#{0}/@peers/0/address".format(cell))
@@ -2840,7 +2839,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         rows = select_rows("* from [//tmp/t] where is_null(value)")
         assert len(rows) == 0
 
-        format = yson.YsonString("yson")
+        format = yson.YsonString(b"yson")
         format.attributes["enable_null_to_yson_entity_conversion"] = False
         insert_rows("//tmp/t", [{"key": "bar", "value": None}], input_format=format)
         rows = select_rows("* from [//tmp/t] where is_null(value)")
@@ -2979,7 +2978,7 @@ class TestTabletOrchid(DynamicTablesBase):
             return get("//sys/cluster_nodes/" + node_address + "/orchid/tablet_slot_manager/memory_usage_statistics")
 
         # Create table and populate dynamic store.
-        rows = [{"key": i, "value": str(i)} for i in xrange(0, 300, 2)]
+        rows = [{"key": i, "value": str(i)} for i in range(0, 300, 2)]
         insert_rows("//tmp/t", rows)
         wait(lambda: get("//tmp/t/@preload_state") == "complete")
 
@@ -2995,8 +2994,8 @@ class TestTabletOrchid(DynamicTablesBase):
         wait(lambda: len(get("//tmp/t/@chunk_ids")) > 0)
 
         # Execute lookup to triger row cache usage.
-        expected = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2)]
-        actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
+        expected = [{"key": i, "value": str(i)} for i in range(100, 200, 2)]
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
         memory_stats = get_stats()

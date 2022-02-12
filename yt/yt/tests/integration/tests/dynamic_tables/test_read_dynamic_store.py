@@ -86,7 +86,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
         def _wait_func():
             statistics = get("#{}/@total_statistics".format(cell_id))
-            for k, v in kwargs.iteritems():
+            for k, v in kwargs.items():
                 if statistics[k] != v:
                     return False
             return True
@@ -423,7 +423,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         # Stupid testing libs require quadratic time to compare lists
         # of unhashable items.
         actual = [row["key"] for row in read_table("//tmp/out", verbose=False)]
-        expected = range(50000)
+        expected = list(range(50000))
         assert actual == expected
 
     def test_map_without_dynamic_stores(self):
@@ -718,7 +718,7 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
             tablet_count=3)
         sync_mount_table("//tmp/t")
 
-        rows = [{"a": i, "$tablet_index": i / 5} for i in range(15)]
+        rows = [{"a": i, "$tablet_index": i // 5} for i in range(15)]
         insert_rows("//tmp/t", rows)
 
         ranges = [
@@ -736,8 +736,8 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
         spec = {
             "mapper": {
-                "input_format": yson.loads("<format=text>yson"),
-                "output_format": yson.loads("<columns=[a]>schemaful_dsv"),
+                "input_format": yson.loads(b"<format=text>yson"),
+                "output_format": yson.loads(b"<columns=[a]>schemaful_dsv"),
                 "enable_input_table_index": True,
             },
             "job_io": {
@@ -792,9 +792,9 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
         current_row_index = None
 
         output_rows = read_table("//tmp/out")
-        assert yson.loads(output_rows[0]["a"].rstrip(";")).attributes["table_index"] == 1
+        assert yson.loads(str.encode(output_rows[0]["a"].rstrip(";"))).attributes["table_index"] == 1
         for yson_row in output_rows[1:]:
-            row = yson.loads(yson_row["a"].rstrip(";"))
+            row = yson.loads(str.encode(yson_row["a"].rstrip(";")))
             if "tablet_index" in row.attributes:
                 current_tablet_index = row.attributes["tablet_index"]
             elif "row_index" in row.attributes:
@@ -805,7 +805,7 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
                 assert not row.attributes
                 key = row["a"]
                 assert key % 5 == current_row_index
-                assert key / 5 == current_tablet_index
+                assert key // 5 == current_tablet_index
                 current_row_index += 1
                 actual[current_range_index].append(key)
 
@@ -855,7 +855,7 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
         def _wait_func():
             orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
             stores = orchid["eden"]["stores"] if sorted else orchid["stores"]
-            for store in stores.itervalues():
+            for store in stores.values():
                 if store["store_state"] == "active_dynamic":
                     return store["row_count"] < 5
             # Getting orchid is non-atomic, so we may miss the active store.
@@ -892,7 +892,7 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
             if orchid is None:
                 return False
             stores = orchid["eden"]["stores"] if sorted else orchid["stores"]
-            for store in stores.itervalues():
+            for store in stores.values():
                 if store["store_state"] == "passive_dynamic":
                     return False
             return True
@@ -957,7 +957,7 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
         # Stupid testing libs require quadratic time to compare lists
         # of unhashable items.
         actual = [row["key"] for row in read_table("//tmp/out", verbose=False)]
-        expected = range(50, 49950)
+        expected = list(range(50, 49950))
         assert actual == expected
 
     @pytest.mark.parametrize("sorted", [True, False])

@@ -32,7 +32,7 @@ DATA = [
             random.choice(string.ascii_uppercase + string.digits) for _ in range(i * i + random.randrange(10))
         )
     }
-    for i in xrange(0, 10)
+    for i in range(0, 10)
 ]
 
 ERASURE_JOURNAL_ATTRIBUTES = {
@@ -79,7 +79,7 @@ class TestJournals(YTEnvSetup):
                 random.choice(string.ascii_uppercase + string.digits) for _ in range(i * i + random.randrange(10))
             )
         }
-        for i in xrange(0, 10)
+        for i in range(0, 10)
     ]
 
     def _write_and_wait_until_sealed(self, path, *args, **kwargs):
@@ -249,7 +249,7 @@ class TestJournals(YTEnvSetup):
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_read_write(self, enable_chunk_preallocation):
         create("journal", "//tmp/j")
-        for i in xrange(0, 10):
+        for i in range(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
                 DATA,
@@ -268,10 +268,10 @@ class TestJournals(YTEnvSetup):
         assert chunk_count >= 10 * 3
         assert chunk_count <= 10 * (3 + (1 if enable_chunk_preallocation else 0))
 
-        for i in xrange(0, 10):
+        for i in range(0, 10):
             assert read_journal("//tmp/j[#" + str(i * 10) + ":]") == DATA * (10 - i)
 
-        for i in xrange(0, 9):
+        for i in range(0, 9):
             assert read_journal("//tmp/j[#" + str(i * 10 + 5) + ":]") == (DATA * (10 - i))[5:]
 
         assert read_journal("//tmp/j[#200:]") == []
@@ -299,7 +299,7 @@ class TestJournals(YTEnvSetup):
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_truncate2(self, enable_chunk_preallocation):
         create("journal", "//tmp/j")
-        for i in xrange(0, 10):
+        for i in range(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
                 DATA,
@@ -313,7 +313,7 @@ class TestJournals(YTEnvSetup):
         self._truncate_and_check("//tmp/j", 2)
         self._truncate_and_check("//tmp/j", 0)
 
-        for i in xrange(0, 10):
+        for i in range(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
                 DATA,
@@ -708,7 +708,7 @@ class TestJournalsChangeMedia(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
 
-    DATA = [{"data": "payload" + str(i)} for i in xrange(0, 10)]
+    DATA = [{"data": "payload" + str(i)} for i in range(0, 10)]
 
     @authors("ilpauzner", "shakurov")
     def test_journal_replica_changes_medium_yt_8669(self):
@@ -726,7 +726,7 @@ class TestJournalsChangeMedia(YTEnvSetup):
             create_medium("ssd")
 
             patched_node_config = False
-            for i in xrange(0, len(self.Env.configs["node"])):
+            for i in range(0, len(self.Env.configs["node"])):
                 config = self.Env.configs["node"][i]
 
                 node_address = "{0}:{1}".format(config["address_resolver"]["localhost_fqdn"], config["rpc_port"])
@@ -738,7 +738,7 @@ class TestJournalsChangeMedia(YTEnvSetup):
                     location["medium_name"] = "ssd"
 
                     config_path = self.Env.config_paths["node"][i]
-                    with open(config_path, "w") as fout:
+                    with open(config_path, "wb") as fout:
                         yson.dump(config, fout)
                     patched_node_config = True
                     break
@@ -812,7 +812,7 @@ class TestErasureJournals(TestJournals):
                     return False
             return True
 
-        for i in xrange(10):
+        for i in range(10):
             wait(_check_all_replicas_ok)
 
             chunk_id = random.choice(chunk_ids)
@@ -835,7 +835,7 @@ class TestErasureJournals(TestJournals):
     def test_seal_abruptly_closed_journal(self, erasure_codec):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
         N = 3
-        for i in xrange(N):
+        for i in range(N):
             self._write_and_wait_until_sealed("//tmp/j", DATA, journal_writer={"dont_close": True})
             self._wait_until_last_chunk_sealed("//tmp/j")
 
@@ -897,11 +897,11 @@ class TestErasureJournals(TestJournals):
             assert get("//tmp/j/@chunk_count") == 1
 
         def check():
-            for i in xrange(0, len(DATA)):
+            for i in range(0, len(DATA)):
                 assert read_journal("//tmp/j[#" + str(i) + ":#" + str(i + 1) + "]") == [DATA[i]]
-            for i in xrange(0, len(DATA)):
+            for i in range(0, len(DATA)):
                 assert read_journal("//tmp/j[#" + str(i) + ":]") == DATA[i:]
-            for i in xrange(0, len(DATA)):
+            for i in range(0, len(DATA)):
                 assert read_journal("//tmp/j[:#" + str(i) + "]") == DATA[:i]
 
         check()

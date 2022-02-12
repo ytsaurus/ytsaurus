@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, create, get, set, insert_rows, select_rows, lookup_rows,
     alter_table, write_table,
     remount_table, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
-    sync_reshard_table, sync_flush_table, build_snapshot)
+    sync_reshard_table, sync_flush_table, build_snapshot, sorted_dicts)
 
 from yt_type_helpers import make_schema
 
@@ -31,7 +31,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         set("//tmp/t/@min_partition_data_size", 256)
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(20)])
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(20)])
         sync_unmount_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [1], [18]])
         sync_mount_table("//tmp/t")
@@ -68,7 +68,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         orchid = self._find_tablet_orchid(address, tablet_id)
         assert len(orchid["partitions"]) == 1
 
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(16)])
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(16)])
         sync_flush_table("//tmp/t")
         wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1)
 
@@ -118,8 +118,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert get("//tmp/t/@tablet_statistics/partition_count") == 2
 
         expected = [
-            {"k1": 1L, "k2": yson.YsonEntity(), "value": yson.YsonEntity()},
-            {"k1": 1L, "k2": 1L, "value": yson.YsonEntity()},
+            {"k1": 1, "k2": yson.YsonEntity(), "value": yson.YsonEntity()},
+            {"k1": 1, "k2": 1, "value": yson.YsonEntity()},
         ]
 
         assert list(lookup_rows("//tmp/t", [{"k1": 1}, {"k1": 1, "k2": 1}])) == expected
@@ -149,13 +149,13 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         _check(stores=1, overlaps=2)
 
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i} for i in xrange(3, 5)])
+        insert_rows("//tmp/t", [{"key": i} for i in range(3, 5)])
         sync_flush_table("//tmp/t")
 
         _check(stores=2, overlaps=3)
 
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i} for i in xrange(5, 7)])
+        insert_rows("//tmp/t", [{"key": i} for i in range(5, 7)])
         sync_flush_table("//tmp/t")
 
         _check(stores=3, overlaps=3)
@@ -171,7 +171,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         address = get_tablet_leader_address(tablet_id)
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows)
 
         def check():
@@ -200,7 +200,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         sleep(5)
-        rows = [{"key": i} for i in xrange(10)]
+        rows = [{"key": i} for i in range(10)]
         insert_rows("//tmp/t", rows)
 
         sleep(2)
@@ -271,7 +271,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             partition = orchid["partitions"][partition_idx]
             assert partition["pivot_key"] == expected[partition_idx]["pivot_key"]
             assert len(partition["stores"]) == 1
-            store_values = dict(partition["stores"].values()[0].iteritems())
+            store_values = dict(iter(list(partition["stores"].values())[0].items()))
             assert store_values["min_key"] == expected[partition_idx]["min_key"]
             assert store_values["upper_bound_key"] == expected[partition_idx]["upper_bound_key"]
 
@@ -386,7 +386,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 expected_partitions,
                 [len(x["stores"]) for x in _get_partitions() if x["stores"]],
             )
-            _check(expected_values, sorted(list(select_rows("* from [//tmp/t]"))))
+            _check(expected_values, sorted_dicts(list(select_rows("* from [//tmp/t]"))))
 
 
 ################################################################################

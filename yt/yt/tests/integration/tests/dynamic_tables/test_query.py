@@ -4,7 +4,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, create_dynamic_table, wait, create, ls, get, move, create_user, make_ace,
-    insert_rows, select_rows,
+    insert_rows, select_rows, sorted_dicts,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, WaitFailed)
 
 from yt_type_helpers import (
@@ -19,8 +19,6 @@ import yt.yson as yson
 
 from yt_driver_bindings import Driver
 
-from yt.packages.six.moves import xrange
-
 from flaky import flaky
 import pytest
 
@@ -29,7 +27,8 @@ from random import randint, shuffle
 from math import isnan
 import os
 import time
-import __builtin__
+import builtins
+import functools
 
 ##################################################################
 
@@ -67,8 +66,8 @@ class TestQuery(YTEnvSetup):
 
         sync_mount_table(path)
 
-        for i in xrange(chunks):
-            data = [{"a": (i * stripe + j), "b": (i * stripe + j) * 10} for j in xrange(1, 1 + stripe)]
+        for i in range(chunks):
+            data = [{"a": (i * stripe + j), "b": (i * stripe + j) * 10} for j in range(1, 1 + stripe)]
             insert_rows(path, data)
 
     def _create_table(self, path, schema, data, optimize_for="lookup"):
@@ -88,7 +87,7 @@ class TestQuery(YTEnvSetup):
     @authors("sandello")
     def test_simple(self):
         sync_create_cells(1)
-        for i in xrange(0, 50, 10):
+        for i in range(0, 50, 10):
             path = "//tmp/t{0}".format(i)
 
             self._sample_data(path=path, chunks=i, stripe=10)
@@ -148,7 +147,7 @@ class TestQuery(YTEnvSetup):
     def test_project1(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
-        expected = [{"s": 2 * i + 10 * i - 1} for i in xrange(1, 10)]
+        expected = [{"s": 2 * i + 10 * i - 1} for i in range(1, 10)]
         actual = select_rows("2 * a + b - 1 as s from [//tmp/t]")
         assert expected == actual
 
@@ -191,7 +190,7 @@ class TestQuery(YTEnvSetup):
         reshard_table(tt, [[], [3, 3], [6, 6]])
         sync_mount_table(tt)
 
-        data = [{"a": i / 10, "b": i % 10, "v": i} for i in xrange(100)]
+        data = [{"a": i // 10, "b": i % 10, "v": i} for i in range(100)]
         insert_rows(tt, data)
 
         grouped = {}
@@ -201,7 +200,7 @@ class TestQuery(YTEnvSetup):
                 grouped[key] = 0
             grouped[key] += item["b"]
 
-        expected = [{"k": k, "x": x, "s": s} for (k, x), s in grouped.items()]
+        expected = [{"k": k, "x": x, "s": s} for (k, x), s in list(grouped.items())]
 
         actual = select_rows("k, x, sum(b) as s from [//tmp/t] group by a as k, v % 2 as x")
         assert_items_equal(actual, expected)
@@ -229,7 +228,7 @@ class TestQuery(YTEnvSetup):
         reshard_table(tt, [[], [3], [6]])
         sync_mount_table(tt)
 
-        insert_rows(tt, [{"a": i} for i in xrange(10)])
+        insert_rows(tt, [{"a": i} for i in range(10)])
 
         create(
             "table",
@@ -248,7 +247,7 @@ class TestQuery(YTEnvSetup):
         reshard_table(tj, [[], [3, 6], [6, 6]])
         sync_mount_table(tj)
 
-        data = [{"a": i / 10, "b": i % 10, "v": i} for i in xrange(100)]
+        data = [{"a": i // 10, "b": i % 10, "v": i} for i in range(100)]
         insert_rows(tj, data)
 
         grouped = {}
@@ -258,7 +257,7 @@ class TestQuery(YTEnvSetup):
                 grouped[key] = 0
             grouped[key] += item["b"]
 
-        expected = [{"k": k, "x": x, "s": s} for (k, x), s in grouped.items()]
+        expected = [{"k": k, "x": x, "s": s} for (k, x), s in list(grouped.items())]
 
         actual = select_rows("k, x, sum(b) as s from [//tmp/t] join [//tmp/j] using a group by a as k, v % 2 as x")
         assert_items_equal(actual, expected)
@@ -282,7 +281,7 @@ class TestQuery(YTEnvSetup):
 
         sync_mount_table("//tmp/t")
 
-        data = [{"a": i, "b": i * 10} for i in xrange(0, 100)]
+        data = [{"a": i, "b": i * 10} for i in range(0, 100)]
         insert_rows("//tmp/t", data)
 
         expected = [{"k": 0, "aa": 49.0, "mb": 0, "ab": 490.0}]
@@ -312,13 +311,13 @@ class TestQuery(YTEnvSetup):
             },
         )
 
-        pivots = [[i * 5] for i in xrange(0, 20)]
+        pivots = [[i * 5] for i in range(0, 20)]
         pivots.insert(0, [])
         reshard_table("//tmp/t", pivots)
 
         sync_mount_table("//tmp/t")
 
-        data = [{"a": i, "b": i * 10} for i in xrange(0, 100)]
+        data = [{"a": i, "b": i * 10} for i in range(0, 100)]
         insert_rows("//tmp/t", data)
 
         expected = [
@@ -351,13 +350,13 @@ class TestQuery(YTEnvSetup):
             },
         )
 
-        pivots = [[i * 5] for i in xrange(0, 20)]
+        pivots = [[i * 5] for i in range(0, 20)]
         pivots.insert(0, [])
         reshard_table("//tmp/t", pivots)
 
         sync_mount_table("//tmp/t")
 
-        data = [{"a": i, "b": str(i)} for i in xrange(0, 100)]
+        data = [{"a": i, "b": str(i)} for i in range(0, 100)]
         insert_rows("//tmp/t", data)
 
         expected = [{"k": 0, "m": "98"}, {"k": 1, "m": "99"}]
@@ -392,22 +391,22 @@ class TestQuery(YTEnvSetup):
 
         sync_mount_table("//tmp/t")
 
-        values = [i for i in xrange(0, 300)]
+        values = [i for i in range(0, 300)]
         shuffle(values)
 
-        data = [{"k": i, "v": values[i], "u": randint(0, 1000)} for i in xrange(0, 100)]
+        data = [{"k": i, "v": values[i], "u": randint(0, 1000)} for i in range(0, 100)]
         insert_rows("//tmp/t", data)
 
         def pick_items(row, items):
-            return dict((col, v) for col, v in row.iteritems() if col in items)
+            return dict((col, v) for col, v in row.items() if col in items)
 
         filtered = [pick_items(row, ["k", "v"]) for row in data if row["u"] > 500]
-        expected = sorted(filtered, cmp=lambda x, y: x["v"] - y["v"])[0:10]
+        expected = sorted(filtered, key=functools.cmp_to_key(lambda x, y: x["v"] - y["v"]))[0:10]
 
         actual = select_rows("k, v from [//tmp/t] where u > 500 order by v limit 10")
         assert expected == actual
 
-        expected = sorted(filtered, cmp=lambda x, y: x["v"] - y["v"])[20:30]
+        expected = sorted(filtered, key=functools.cmp_to_key(lambda x, y: x["v"] - y["v"]))[20:30]
 
         actual = select_rows("k, v from [//tmp/t] where u > 500 order by v offset 20 limit 10")
         assert expected == actual
@@ -442,7 +441,7 @@ class TestQuery(YTEnvSetup):
         reshard_table(tt, [[], [3], [6]])
         sync_mount_table(tt)
 
-        insert_rows(tt, [{"a": i} for i in xrange(10)])
+        insert_rows(tt, [{"a": i} for i in range(10)])
 
         create(
             "table",
@@ -461,10 +460,10 @@ class TestQuery(YTEnvSetup):
         reshard_table(tj, [[], [3, 6], [6, 6]])
         sync_mount_table(tj)
 
-        data = [{"b": i / 10, "c": i % 10, "v": i} for i in xrange(100)]
+        data = [{"b": i // 10, "c": i % 10, "v": i} for i in range(100)]
         insert_rows(tj, data)
 
-        expected = [dict(row.items() + [("a", row["b"])]) for row in data]
+        expected = [dict(list(row.items()) + [("a", row["b"])]) for row in data]
 
         actual = select_rows("a, b, c, v from [//tmp/t] join [//tmp/j] on a = b")
         assert_items_equal(actual, expected)
@@ -472,9 +471,9 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("a, b, c, v from [//tmp/t] join [//tmp/j] on (a + 0) = b")
         assert_items_equal(actual, expected)
 
-        insert_rows(tt, [{"a": i} for i in xrange(100)])
+        insert_rows(tt, [{"a": i} for i in range(100)])
 
-        expected = [dict(row.items() + [("a", row["b"] * 10 + row["c"])]) for row in data]
+        expected = [dict(list(row.items()) + [("a", row["b"] * 10 + row["c"])]) for row in data]
 
         actual = select_rows("a, b, c, v from [//tmp/t] join [//tmp/j] on (a / 10, a % 10) = (b, c)")
         assert_items_equal(actual, expected)
@@ -566,7 +565,7 @@ class TestQuery(YTEnvSetup):
             max_subqueries=1,
         )
 
-        assert sorted(expected) == sorted(actual)
+        assert sorted_dicts(expected) == sorted_dicts(actual)
 
         read_count_path = "//tmp/jr/@tablets/0/performance_counters/dynamic_row_lookup_count"
         wait(lambda: get(read_count_path) > 0)
@@ -628,7 +627,7 @@ class TestQuery(YTEnvSetup):
         ]
 
         actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using c where a < 4")
-        assert sorted(expected) == sorted(actual)
+        assert sorted_dicts(expected) == sorted_dicts(actual)
 
         expected = [{"a": 2, "b": 1, "c": 53, "d": 2, "e": 1}]
 
@@ -699,7 +698,7 @@ class TestQuery(YTEnvSetup):
         ]
 
         actual = select_rows("* from [//tmp/jl] left join [//tmp/jr] using a, b")
-        assert sorted(expected) == sorted(actual)
+        assert sorted_dicts(expected) == sorted_dicts(actual)
 
     @authors("lukyan")
     def test_join_common_prefix2(self):
@@ -729,7 +728,7 @@ class TestQuery(YTEnvSetup):
         expected = [{"l.a": 1, "r.a": 1, "r.b": 2, "l.c": 3, "r.d": 4}]
 
         actual = select_rows("* from [//tmp/jl] l left join [//tmp/jr] r on (l.a, 2) = (r.a, r.b) where l.a = 1")
-        assert sorted(expected) == sorted(actual)
+        assert sorted_dicts(expected) == sorted_dicts(actual)
 
     @authors("lukyan")
     def test_join_many(self):
@@ -790,7 +789,7 @@ class TestQuery(YTEnvSetup):
             "* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)",
             allow_join_without_index=True,
         )
-        assert sorted(expected) == sorted(actual)
+        assert sorted_dicts(expected) == sorted_dicts(actual)
 
     @authors("lukyan")
     def test_types(self):
@@ -811,17 +810,17 @@ class TestQuery(YTEnvSetup):
         )
         sync_mount_table("//tmp/t")
 
-        format = yson.loads("<format=text>yson")
+        format = yson.loads(b"<format=text>yson")
         insert_rows(
             "//tmp/t",
-            '{a=10;b=%false;c="hello";d=32u};{a=20;b=%true;c="world";d=64u};',
+            b'{a=10;b=%false;c="hello";d=32u};{a=20;b=%true;c="world";d=64u};',
             input_format=format,
             is_raw=True,
         )
 
         assert (
             select_rows('a, b, c, d from [//tmp/t] where c="hello"', output_format=format)
-            == '{"a"=10;"b"=%false;"c"="hello";"d"=32u;};\n'
+            == b'{"a"=10;"b"=%false;"c"="hello";"d"=32u;};\n'
         )
 
     @authors("lukyan")
@@ -845,8 +844,8 @@ class TestQuery(YTEnvSetup):
 
         stripe = 10
 
-        for i in xrange(0, 10):
-            data = [{"key": (i * stripe + j), "value": (i * stripe + j) * 10} for j in xrange(1, 1 + stripe)]
+        for i in range(0, 10):
+            data = [{"key": (i * stripe + j), "value": (i * stripe + j) * 10} for j in range(1, 1 + stripe)]
             insert_rows("//tmp/t", data)
 
         sync_unmount_table("//tmp/t")
@@ -879,21 +878,21 @@ class TestQuery(YTEnvSetup):
                 ],
             },
         )
-        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 100 * 33, 1000)])
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(1, 100 * 33, 1000)])
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": i, "value": i * 2} for i in xrange(0, 100)])
+        insert_rows("//tmp/t", [{"key": i, "value": i * 2} for i in range(0, 100)])
 
         expected = [{"hash": 42 * 33, "key": 42, "value": 42 * 2}]
         actual = select_rows("* from [//tmp/t] where key = 42")
         assert_items_equal(actual, expected)
 
-        expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in xrange(10, 80)]
-        actual = sorted(select_rows("* from [//tmp/t] where key >= 10 and key < 80"))
+        expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in range(10, 80)]
+        actual = sorted_dicts(select_rows("* from [//tmp/t] where key >= 10 and key < 80"))
         assert_items_equal(actual, expected)
 
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in [10, 20, 30]]
-        actual = sorted(select_rows("* from [//tmp/t] where key in (10, 20, 30)"))
+        actual = sorted_dicts(select_rows("* from [//tmp/t] where key in (10, 20, 30)"))
         assert_items_equal(actual, expected)
 
     @authors("savrus")
@@ -920,24 +919,24 @@ class TestQuery(YTEnvSetup):
             },
         )
 
-        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(1, 500, 10)])
         sync_mount_table("//tmp/t")
 
         def expected(key_range):
-            return [{"hash": i / 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
+            return [{"hash": i // 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
 
-        insert_rows("//tmp/t", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0, 1000)])
+        insert_rows("//tmp/t", [{"key1": i, "key2": i, "value": i * 2} for i in range(0, 1000)])
 
         actual = select_rows("* from [//tmp/t] where key2 = 42")
         assert_items_equal(actual, expected([42]))
 
-        actual = sorted(select_rows("* from [//tmp/t] where key2 >= 10 and key2 < 80"))
-        assert_items_equal(actual, expected(xrange(10, 80)))
+        actual = sorted_dicts(select_rows("* from [//tmp/t] where key2 >= 10 and key2 < 80"))
+        assert_items_equal(actual, expected(range(10, 80)))
 
-        actual = sorted(select_rows("* from [//tmp/t] where key2 in (10, 20, 30)"))
+        actual = sorted_dicts(select_rows("* from [//tmp/t] where key2 in (10, 20, 30)"))
         assert_items_equal(actual, expected([10, 20, 30]))
 
-        actual = sorted(select_rows("* from [//tmp/t] where key2 in (10, 20, 30) and key1 in (30, 40)"))
+        actual = sorted_dicts(select_rows("* from [//tmp/t] where key2 in (10, 20, 30) and key1 in (30, 40)"))
         assert_items_equal(actual, expected([30]))
 
     @authors("savrus")
@@ -964,24 +963,24 @@ class TestQuery(YTEnvSetup):
             },
         )
 
-        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(1, 500, 10)])
         sync_mount_table("//tmp/t")
 
         def expected(key_range):
             return [{"hash": i % 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
 
-        insert_rows("//tmp/t", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0, 1000)])
+        insert_rows("//tmp/t", [{"key1": i, "key2": i, "value": i * 2} for i in range(0, 1000)])
 
         actual = select_rows("* from [//tmp/t] where key2 = 42")
         assert_items_equal(actual, expected([42]))
 
-        actual = sorted(select_rows("* from [//tmp/t] where key1 >= 10 and key1 < 80"))
-        assert_items_equal(actual, expected(xrange(10, 80)))
+        actual = sorted_dicts(select_rows("* from [//tmp/t] where key1 >= 10 and key1 < 80"))
+        assert_items_equal(actual, expected(range(10, 80)))
 
-        actual = sorted(select_rows("* from [//tmp/t] where key1 in (10, 20, 30)"))
+        actual = sorted_dicts(select_rows("* from [//tmp/t] where key1 in (10, 20, 30)"))
         assert_items_equal(actual, expected([10, 20, 30]))
 
-        actual = sorted(select_rows("* from [//tmp/t] where key1 in (10, 20, 30) and key2 in (30, 40)"))
+        actual = sorted_dicts(select_rows("* from [//tmp/t] where key1 in (10, 20, 30) and key2 in (30, 40)"))
         assert_items_equal(actual, expected([30]))
 
     @authors("lbrown")
@@ -1008,7 +1007,7 @@ class TestQuery(YTEnvSetup):
 
         sync_create_cells(1)
         self._sample_data(path="//tmp/u")
-        expected = [{"s": 2 * i} for i in xrange(1, 10)]
+        expected = [{"s": 2 * i} for i in range(1, 10)]
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]")
         assert_items_equal(actual, expected)
 
@@ -1062,7 +1061,7 @@ class TestQuery(YTEnvSetup):
 
         sync_create_cells(1)
         self._sample_data(path="//tmp/u")
-        expected = [{"s": 2 * i} for i in xrange(1, 10)]
+        expected = [{"s": 2 * i} for i in range(1, 10)]
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]", udf_registry_path=registry_path)
         assert_items_equal(actual, expected)
 
@@ -1091,7 +1090,7 @@ class TestQuery(YTEnvSetup):
 
         sync_create_cells(1)
         self._sample_data(path="//tmp/u")
-        expected = [{"s": 2 * i} for i in xrange(1, 10)]
+        expected = [{"s": 2 * i} for i in range(1, 10)]
         actual = select_rows("udf_fc(2 * a) as s from [//tmp/u]")
         assert_items_equal(actual, expected)
 
@@ -1156,7 +1155,7 @@ class TestQuery(YTEnvSetup):
         )
         write_local_file(xxx_path, udfs_impl_path)
 
-        expected_exp = [{"a": i, "s": i * i} for i in xrange(1, 10)]
+        expected_exp = [{"a": i, "s": i * i} for i in range(1, 10)]
         actual = select_rows(query)
         assert_items_equal(actual, expected_exp)
 
@@ -1185,7 +1184,7 @@ class TestQuery(YTEnvSetup):
 
         time.sleep(5)
 
-        expected_sum = [{"a": i, "s": i + 2} for i in xrange(1, 10)]
+        expected_sum = [{"a": i, "s": i + 2} for i in range(1, 10)]
         actual = select_rows(query)
         assert_items_equal(actual, expected_sum)
 
@@ -1208,7 +1207,7 @@ class TestQuery(YTEnvSetup):
         sync_mount_table("//tmp/t")
 
         # Need at least 1024 items to ensure a second batch in the scan operator
-        data = [{"a": "A" + str(j) + "BCD"} for j in xrange(1, 2048)]
+        data = [{"a": "A" + str(j) + "BCD"} for j in range(1, 2048)]
         insert_rows("//tmp/t", data)
 
         expected = [{"m": "a1000bcd"}]
@@ -1231,13 +1230,13 @@ class TestQuery(YTEnvSetup):
             },
         )
 
-        pivots = [[i * 1000] for i in xrange(0, 20)]
+        pivots = [[i * 1000] for i in range(0, 20)]
         pivots.insert(0, [])
         reshard_table("//tmp/card", pivots)
 
         sync_mount_table("//tmp/card")
 
-        data = [{"a": i} for i in xrange(0, 20000)]
+        data = [{"a": i} for i in range(0, 20000)]
         insert_rows("//tmp/card", data)
         insert_rows("//tmp/card", data)
         insert_rows("//tmp/card", data)
@@ -1265,10 +1264,10 @@ class TestQuery(YTEnvSetup):
                 ],
             },
         )
-        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 1000, 10)])
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(1, 1000, 10)])
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": i, "value": 10 * i} for i in xrange(0, 1000)])
+        insert_rows("//tmp/t", [{"key": i, "value": 10 * i} for i in range(0, 1000)])
         # should not raise
         select_rows(
             "sleep(value) from [//tmp/t]",
@@ -1337,7 +1336,7 @@ class TestQuery(YTEnvSetup):
             if isinstance(lhs, list) or isinstance(lhs, tuple):
                 return len(lhs) == len(rhs) and all(_compare(x, y) for x, y in zip(lhs, rhs))
             elif isinstance(lhs, dict):
-                for key in __builtin__.set(lhs.keys()).union(rhs.keys()):
+                for key in builtins.set(list(lhs.keys())).union(list(rhs.keys())):
                     lhs_value = lhs.get(key)
                     if isinstance(lhs_value, yson.YsonEntity):
                         lhs_value = None
@@ -1359,7 +1358,7 @@ class TestQuery(YTEnvSetup):
             select_rows("* from [//tmp/t] where b > 0")
         assert _compare(select_rows("* from [//tmp/t] where if(is_nan(b), false, b > 0)"), data[1:2])
 
-        assert all(_isnan(x.values()[0]) for x in select_rows("if(true, {}, 1) from [//tmp/t]".format(str_nan)))
+        assert all(_isnan(list(x.values())[0]) for x in select_rows("if(true, {}, 1) from [//tmp/t]".format(str_nan)))
         with pytest.raises(YtError):
             select_rows("* from [//tmp/t] where b = {}".format(str_nan))
         with pytest.raises(YtError):
@@ -1371,9 +1370,9 @@ class TestQuery(YTEnvSetup):
         with pytest.raises(YtError):
             select_rows("if(true, {}, 0) > 1 from [//tmp/t]".format(str_nan))
 
-        assert select_rows("is_nan({}) from [//tmp/t]".format(str_nan))[0].values()[0]
-        assert not select_rows("is_nan({}) from [//tmp/t]".format("123"))[0].values()[0]
-        assert not select_rows("is_nan({}) from [//tmp/t]".format("#"))[0].values()[0]
+        assert list(select_rows("is_nan({}) from [//tmp/t]".format(str_nan))[0].values())[0]
+        assert not list(select_rows("is_nan({}) from [//tmp/t]".format("123"))[0].values())[0]
+        assert not list(select_rows("is_nan({}) from [//tmp/t]".format("#"))[0].values())[0]
 
     @authors("lukyan")
     def test_bad_limits(self):
@@ -1394,13 +1393,13 @@ class TestQuery(YTEnvSetup):
             },
         )
 
-        pivots = [[i * 5] for i in xrange(0, 20)]
+        pivots = [[i * 5] for i in range(0, 20)]
         pivots.insert(0, [])
         reshard_table("//tmp/t", pivots)
 
         sync_mount_table("//tmp/t")
 
-        data = [{"a": i, "b": i, "c": i, "x": str(i)} for i in xrange(0, 100)]
+        data = [{"a": i, "b": i, "c": i, "x": str(i)} for i in range(0, 100)]
         insert_rows("//tmp/t", data)
 
         select_rows("x from [//tmp/t] where (a = 18 and b = 10 and c >= 70) or (a = 18 and b >= 10) or (a >= 18)")
@@ -1425,7 +1424,7 @@ class TestQuery(YTEnvSetup):
 
         sync_mount_table("//tmp/t")
 
-        data = [{"a": i / 10, "b": i % 10, "c": i} for i in xrange(0, 100)]
+        data = [{"a": i // 10, "b": i % 10, "c": i} for i in range(0, 100)]
         insert_rows("//tmp/t", data)
 
         expected = data[10:13] + data[23:25] + data[35:40] + data[40:60]
@@ -1462,7 +1461,7 @@ class TestQuery(YTEnvSetup):
 
         sync_mount_table("//tmp/t")
 
-        data = [{"a": i, "b": i} for i in xrange(0, 11)]
+        data = [{"a": i, "b": i} for i in range(0, 11)]
         insert_rows("//tmp/t", data)
 
         expected = data[8:9]
@@ -1488,7 +1487,7 @@ class TestQuery(YTEnvSetup):
         )
         sync_mount_table("//tmp/t")
 
-        data = [{"a": i, "b": {"x": i}} for i in xrange(0, 11)]
+        data = [{"a": i, "b": {"x": i}} for i in range(0, 11)]
         insert_rows("//tmp/t", data)
 
         expected = [{"a": 7, "b_str": '{"x"=7;}'}]
@@ -1496,7 +1495,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
         length = 100000
-        long_binary_string = "\xFF" * length
+        long_binary_string = b"\xFF" * length
         escaped_string = r"\xFF" * length
         long_yson_rows = [{"a": 13, "b": {"x": long_binary_string}}]
         expected = [{"a": 13, "b_str": '{"x"="' + escaped_string + '";}'}]
@@ -1524,10 +1523,10 @@ class TestQuery(YTEnvSetup):
         sync_mount_table(tt)
         sync_mount_table(tj)
 
-        insert_rows(tt, [{"key": i, "value": str(i)} for i in xrange(5)])
-        insert_rows(tj, [{"key": i, "value_value": "{0}_{0}".format(str(i))} for i in xrange(10)])
+        insert_rows(tt, [{"key": i, "value": str(i)} for i in range(5)])
+        insert_rows(tj, [{"key": i, "value_value": "{0}_{0}".format(str(i))} for i in range(10)])
 
-        expected = [{"key": i, "value": str(i), "value_value": "{0}_{0}".format(str(i))} for i in xrange(5)]
+        expected = [{"key": i, "value": str(i), "value_value": "{0}_{0}".format(str(i))} for i in range(5)]
 
         actual = select_rows("* from [//tmp/t] join [//tmp/j] using key")
         assert_items_equal(actual, expected)

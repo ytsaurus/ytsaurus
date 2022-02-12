@@ -11,13 +11,12 @@ from yt_commands import (
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
-from yt.packages.six.moves import xrange
 
 import pytest
 
 import time
 
-import __builtin__
+import builtins
 
 ################################################################################
 
@@ -73,8 +72,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._create_table(optimize_for=optimize_for)
 
         sync_mount_table("//tmp/t")
-        keys = [{"key": i} for i in xrange(10)]
-        rows = [{"key": i, "value": "value" + str(i)} for i in xrange(10)]
+        keys = [{"key": i} for i in range(10)]
+        rows = [{"key": i, "value": "value" + str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows)
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
@@ -100,8 +99,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._create_table(optimize_for=optimize_for)
 
         sync_mount_table("//tmp/t")
-        keys = [{"key": i} for i in xrange(10)]
-        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        keys = [{"key": i} for i in range(10)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
         insert_rows("//tmp/t", rows)
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
@@ -153,8 +152,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@max_hunk_compaction_size", 1)
 
         sync_mount_table("//tmp/t")
-        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
-        keys1 = [{"key": i} for i in xrange(10)]
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        keys1 = [{"key": i} for i in range(10)]
         insert_rows("//tmp/t", rows1)
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1)
         assert_items_equal(lookup_rows("//tmp/t", keys1), rows1)
@@ -164,8 +163,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(self._get_hunk_chunk_ids("//tmp/t")) == 1
 
         sync_mount_table("//tmp/t")
-        rows2 = [{"key": i, "value": "value" + str(i) + "y" * 20} for i in xrange(10, 20)]
-        keys2 = [{"key": i} for i in xrange(10, 20)]
+        rows2 = [{"key": i, "value": "value" + str(i) + "y" * 20} for i in range(10, 20)]
+        keys2 = [{"key": i} for i in range(10, 20)]
         insert_rows("//tmp/t", rows2)
         select_rows("* from [//tmp/t]")
         assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
@@ -243,10 +242,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._create_table()
 
         sync_mount_table("//tmp/t")
-        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
-        keys1 = [{"key": i} for i in xrange(10)]
-        rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(10, 20)]
-        keys2 = [{"key": i} for i in xrange(10, 20)]
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        keys1 = [{"key": i} for i in range(10)]
+        rows2 = [{"key": i, "value": "value" + str(i)} for i in range(10, 20)]
+        keys2 = [{"key": i} for i in range(10, 20)]
         insert_rows("//tmp/t", rows1 + rows2)
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
         assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
@@ -311,11 +310,11 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
         assert len(store_chunk_ids) == 2
-        store_chunk_id2 = list(__builtin__.set(store_chunk_ids) - __builtin__.set([store_chunk_id1]))[0]
+        store_chunk_id2 = list(builtins.set(store_chunk_ids) - builtins.set([store_chunk_id1]))[0]
 
         hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
         assert len(hunk_chunk_ids) == 2
-        hunk_chunk_id2 = list(__builtin__.set(hunk_chunk_ids) - __builtin__.set([hunk_chunk_id1]))[0]
+        hunk_chunk_id2 = list(builtins.set(hunk_chunk_ids) - builtins.set([hunk_chunk_id1]))[0]
 
         gc_collect()
         assert get("#{}/@ref_counter".format(store_chunk_id1)) == 1
@@ -376,8 +375,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._create_table(optimize_for=optimize_for, max_inline_hunk_size=1000)
 
         sync_mount_table("//tmp/t")
-        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
-        rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(10, 20)]
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        rows2 = [{"key": i, "value": "value" + str(i)} for i in range(10, 20)]
         insert_rows("//tmp/t", rows1 + rows2)
         sync_unmount_table("//tmp/t")
 
@@ -426,8 +425,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._create_table(optimize_for=optimize_for, max_inline_hunk_size=10)
 
         sync_mount_table("//tmp/t")
-        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
-        rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(10, 20)]
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        rows2 = [{"key": i, "value": "value" + str(i)} for i in range(10, 20)]
         insert_rows("//tmp/t", rows1 + rows2)
         sync_unmount_table("//tmp/t")
 
@@ -476,8 +475,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._create_table(optimize_for=optimize_for, max_inline_hunk_size=10)
 
         sync_mount_table("//tmp/t")
-        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
-        keys = [{"key": i} for i in xrange(10)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        keys = [{"key": i} for i in range(10)]
         insert_rows("//tmp/t", rows)
         sync_unmount_table("//tmp/t")
 
@@ -582,7 +581,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         set("//tmp/t/@in_memory_mode", in_memory_mode)
         sync_mount_table("//tmp/t")
-        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
@@ -625,9 +624,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         if hunk_type == "inline":
-            rows = [{"key": i, "value": "value" + str(i)} for i in xrange(10)]
+            rows = [{"key": i, "value": "value" + str(i)} for i in range(10)]
         else:
-            rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+            rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
         insert_rows("//tmp/t", rows)
         sync_unmount_table("//tmp/t")
 
@@ -659,9 +658,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         if hunk_type == "inline":
-            rows = [{"key": i, "value": "value" + str(i)} for i in xrange(10)]
+            rows = [{"key": i, "value": "value" + str(i)} for i in range(10)]
         else:
-            rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+            rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
         insert_rows("//tmp/t", rows)
         sync_unmount_table("//tmp/t")
 
@@ -685,7 +684,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_table(optimize_for=optimize_for, max_inline_hunk_size=None)
         sync_mount_table("//tmp/t")
-        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
         insert_rows("//tmp/t", rows1)
         sync_unmount_table("//tmp/t")
 
@@ -695,7 +694,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=10))
 
         sync_mount_table("//tmp/t")
-        rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10, 20)]
+        rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10, 20)]
         insert_rows("//tmp/t", rows2)
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
@@ -715,7 +714,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     def test_hunks_with_filtered_columns(self):
         sync_create_cells(1)
         self._create_table()
-        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
@@ -778,8 +777,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
-        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(5)]
-        rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(5, 15)]
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
+        rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
 
         chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
@@ -811,8 +810,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
-        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(5)]
-        rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(5, 15)]
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
+        rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
 
         reader_hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
@@ -868,10 +867,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
-        keys1 = [{"key": i} for i in xrange(10)]
-        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(5)]
-        keys2 = [{"key": i} for i in xrange(10, 20)]
-        rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(5, 15)]
+        keys1 = [{"key": i} for i in range(10)]
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
+        keys2 = [{"key": i} for i in range(10, 20)]
+        rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
         sync_flush_table("//tmp/t")
 
@@ -915,8 +914,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
-        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(5)]
-        rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(5, 15)]
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
+        rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
         sync_flush_table("//tmp/t")
 

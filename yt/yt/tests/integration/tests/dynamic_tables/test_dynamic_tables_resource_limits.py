@@ -42,12 +42,12 @@ class DynamicTablesResourceLimitsBase(DynamicTablesBase):
 
     def _multicell_set(self, path, value):
         set(path, value)
-        for i in xrange(self.NUM_SECONDARY_MASTER_CELLS):
+        for i in range(self.NUM_SECONDARY_MASTER_CELLS):
             driver = get_driver(i + 1)
             wait(lambda: exists(path, driver=driver) and get(path, driver=driver) == value)
 
     def _multicell_wait(self, predicate):
-        for i in xrange(self.NUM_SECONDARY_MASTER_CELLS):
+        for i in range(self.NUM_SECONDARY_MASTER_CELLS):
             driver = get_driver(i + 1)
             wait(predicate(driver))
 
@@ -472,7 +472,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         sync_reshard_table("//tmp/t", [[], [2]])
         assert any(
             "//tmp/t" in value.attributes["owning_nodes"]
-            for value in get("//sys/chunk_views", attributes=["owning_nodes"]).values()
+            for value in list(get("//sys/chunk_views", attributes=["owning_nodes"]).values())
         )
 
         def _verify(account, disk_space):
@@ -856,8 +856,8 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
             write_table("<append=%true>//tmp/t", [{"key": i}])
         alter_table("//tmp/t", dynamic=True)
 
-        compressed_data_size = get("//tmp/t/@compressed_data_size") / 5
-        uncompressed_data_size = get("//tmp/t/@uncompressed_data_size") / 5
+        compressed_data_size = get("//tmp/t/@compressed_data_size") // 5
+        uncompressed_data_size = get("//tmp/t/@uncompressed_data_size") // 5
 
         # Prepare partitions: balancer will not split tablet with one partition.
         set("//tmp/t/@min_partition_data_size", compressed_data_size - 1)

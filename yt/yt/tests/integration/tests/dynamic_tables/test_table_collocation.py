@@ -88,7 +88,7 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
 
         assert not exists("{}/@replication_collocation_table_paths".format(table0))
 
-        collocation_id = create_table_collocation(table_ids=collocated_tables.values())
+        collocation_id = create_table_collocation(table_ids=list(collocated_tables.values()))
         collocated_tables[table1] = self._create_replicated_table(table1, external_cell_tag=1)
         set("{}/@replication_collocation_id".format(table1), collocation_id)
 
@@ -96,16 +96,16 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
         assert get("#{}/@collocation_type".format(collocation_id)) == "replication"
         assert_items_equal(
             get("#{}/@table_ids".format(collocation_id)),
-            collocated_tables.values())
+            list(collocated_tables.values()))
         assert_items_equal(
             get("#{}/@table_paths".format(collocation_id)),
-            collocated_tables.keys())
+            list(collocated_tables.keys()))
 
-        for table in collocated_tables.keys():
+        for table in list(collocated_tables.keys()):
             assert get("{}/@replication_collocation_id".format(table)) == collocation_id
             assert_items_equal(
                 get("{}/@replication_collocation_table_paths".format(table)),
-                collocated_tables.keys())
+                list(collocated_tables.keys()))
             if self.NUM_SECONDARY_MASTER_CELLS:
                 assert get("{}/@external_cell_tag".format(table)) == get("#{}/@external_cell_tag".format(collocation_id))
             else:
@@ -122,12 +122,12 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
             table1: self._create_replicated_table(table1, external_cell_tag=1),
         }
 
-        collocation_id = create_table_collocation(table_paths=collocated_tables.keys())
+        collocation_id = create_table_collocation(table_paths=list(collocated_tables.keys()))
 
         remove(table0)
         del collocated_tables[table0]
         assert exists("#{}".format(collocation_id))
-        assert get("{}/@replication_collocation_table_paths".format(table1)) == collocated_tables.keys()
+        assert get("{}/@replication_collocation_table_paths".format(table1)) == list(collocated_tables.keys())
         if self.NUM_SECONDARY_MASTER_CELLS:
             assert exists("#{}".format(collocation_id), driver=get_driver(1))
             assert get("#{}/@replication_collocation_id".format(collocated_tables[table1]), driver=get_driver(1)) == \
@@ -157,7 +157,7 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
             table1: self._create_replicated_table(table1, external_cell_tag=1),
         }
 
-        collocation_id = create_table_collocation(table_ids=collocated_tables.values())
+        collocation_id = create_table_collocation(table_ids=list(collocated_tables.values()))
         assert exists("#{}".format(collocation_id))
 
         remove("{}/@replication_collocation_id".format(table0))
@@ -174,7 +174,7 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
             table0: self._create_replicated_table(table0, external_cell_tag=1),
         }
 
-        collocation_id = create_table_collocation(table_ids=collocated_tables.values())
+        collocation_id = create_table_collocation(table_ids=list(collocated_tables.values()))
         assert exists("#{}".format(collocation_id))
 
         remove("{}/@replication_collocation_id".format(table0))
@@ -200,7 +200,7 @@ class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
         }
 
         with raises_yt_error("same external cell tag"):
-            create_table_collocation(table_ids=collocated_tables.values())
+            create_table_collocation(table_ids=list(collocated_tables.values()))
 
         collocation_id = create_table_collocation(table_ids=[collocated_tables[table0]])
         assert get("#{}/@table_ids".format(collocation_id), driver=get_driver(1)) == \

@@ -231,4 +231,4 @@ class TestExplainQuery(YTEnvSetup):
         grouped_ranges = response["query"]["grouped_ranges"]
 
         assert len(grouped_ranges) == 1
-        assert grouped_ranges.values()[0] == expected_ranges
+        assert list(grouped_ranges.values())[0] == expected_ranges

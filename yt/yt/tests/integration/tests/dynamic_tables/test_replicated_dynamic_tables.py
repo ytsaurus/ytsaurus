@@ -25,7 +25,7 @@ import pytest
 from time import sleep
 from copy import deepcopy
 
-import __builtin__
+import builtins
 
 
 ##################################################################
@@ -566,8 +566,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
             == [
                 {
-                    "$tablet_index": 0L,
-                    "$row_index": 0L,
+                    "$tablet_index": 0,
+                    "$row_index": 0,
                     "key": 1,
                     "value1": "test",
                     "value2": 123,
@@ -579,8 +579,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)[-1]
             == {
-                "$tablet_index": 0L,
-                "$row_index": 1L,
+                "$tablet_index": 0,
+                "$row_index": 1,
                 "key": 1,
                 "value1": "new_test",
                 "value2": yson.YsonEntity(),
@@ -591,8 +591,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)[-1]
             == {
-                "$tablet_index": 0L,
-                "$row_index": 2L,
+                "$tablet_index": 0,
+                "$row_index": 2,
                 "key": 1,
                 "value1": yson.YsonEntity(),
                 "value2": 456,
@@ -635,8 +635,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             lambda: select_rows("* from [//tmp/r] where [$tablet_index]=0", driver=self.replica_driver)
             == [
                 {
-                    "$tablet_index": 0L,
-                    "$row_index": 0L,
+                    "$tablet_index": 0,
+                    "$row_index": 0,
                     "key": 1,
                     "value1": "test1",
                     "value2": 123,
@@ -647,8 +647,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             lambda: select_rows("* from [//tmp/r] where [$tablet_index]=1", driver=self.replica_driver)
             == [
                 {
-                    "$tablet_index": 1L,
-                    "$row_index": 0L,
+                    "$tablet_index": 1,
+                    "$row_index": 0,
                     "key": 2,
                     "value1": "test2",
                     "value2": 124,
@@ -706,17 +706,17 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_replica_table("//tmp/r", replica_id)
 
         inserter = Inserter(self.replica_driver)
-        for _ in xrange(50):
+        for _ in range(50):
             inserter.insert()
 
         sync_enable_table_replica(replica_id)
 
         counter_start = inserter.get_inserted_counter()
         assert counter_start <= 7
-        for i in xrange(20):
+        for i in range(20):
             sleep(1.0)
             inserted = inserter.get_inserted_counter()
-            counter = (inserted - counter_start) / 5
+            counter = (inserted - counter_start) // 5
             assert counter - 3 <= i <= counter + 3
             if inserted == inserter.counter:
                 break
@@ -926,7 +926,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             wait(
                 lambda: _last_row(select_rows("* from [//tmp/r1]", driver=self.replica_driver))
                 == {
-                    "$tablet_index": 0L,
+                    "$tablet_index": 0,
                     "$row_index": before_index1,
                     "key": 1,
                     "value1": "test",
@@ -936,7 +936,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             wait(
                 lambda: _last_row(select_rows("* from [//tmp/r2]", driver=self.replica_driver))
                 == {
-                    "$tablet_index": 0L,
+                    "$tablet_index": 0,
                     "$row_index": before_index2,
                     "key": 1,
                     "value1": "test",
@@ -948,7 +948,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             wait(
                 lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1]
                 == {
-                    "$tablet_index": 0L,
+                    "$tablet_index": 0,
                     "$row_index": before_index1 + 1,
                     "key": 1,
                     "value1": "new_test",
@@ -958,7 +958,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             wait(
                 lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1]
                 == {
-                    "$tablet_index": 0L,
+                    "$tablet_index": 0,
                     "$row_index": before_index2 + 1,
                     "key": 1,
                     "value1": "new_test",
@@ -970,7 +970,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             wait(
                 lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1]
                 == {
-                    "$tablet_index": 0L,
+                    "$tablet_index": 0,
                     "$row_index": before_index1 + 2,
                     "key": 1,
                     "value1": yson.YsonEntity(),
@@ -980,7 +980,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             wait(
                 lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1]
                 == {
-                    "$tablet_index": 0L,
+                    "$tablet_index": 0,
                     "$row_index": before_index2 + 2,
                     "key": 1,
                     "value1": yson.YsonEntity(),
@@ -1638,15 +1638,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema)
 
-        rows = [{"key": i, "value1": str(i)} for i in xrange(3)]
+        rows = [{"key": i, "value1": str(i)} for i in range(3)]
 
-        for i in xrange(2):
+        for i in range(2):
             insert_rows("//tmp/t", [rows[i]], require_sync_replica=False)
             sync_flush_table("//tmp/t")
 
         insert_rows("//tmp/t", [rows[2]], require_sync_replica=False)
 
-        for i in xrange(4):
+        for i in range(4):
             replica_path = "//tmp/r{0}".format(i)
             replica_id = create_table_replica(
                 "//tmp/t",
@@ -1657,7 +1657,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             self._create_replica_table(replica_path, replica_id, schema)
             sync_enable_table_replica(replica_id)
 
-        for i in xrange(4):
+        for i in range(4):
             wait(
                 lambda: select_rows(
                     "key, value1 from [//tmp/r{0}]".format(i),
@@ -1900,10 +1900,10 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        for i in xrange(10):
+        for i in range(10):
             insert_rows("//tmp/t", [{"key": i, "value1": "test" + str(i)}])
 
-        for i in xrange(9):
+        for i in range(9):
             assert lookup_rows("//tmp/t", [{"key": i}, {"key": i + 1}], column_names=["key", "value1"]) == [
                 {"key": i, "value1": "test" + str(i)},
                 {"key": i + 1, "value1": "test" + str(i + 1)},
@@ -1959,7 +1959,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        rows = [{"key": i, "value1": "test" + str(i)} for i in xrange(10)]
+        rows = [{"key": i, "value1": "test" + str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows)
         assert_items_equal(select_rows("key, value1 from [//tmp/t]"), rows)
         assert_items_equal(select_rows("sum(key) from [//tmp/t] group by 0"), [{"sum(key)": 45}])
@@ -1985,7 +1985,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_replica_table("//tmp/r", replica_id, replica_driver=self.primary_driver)
         sync_enable_table_replica(replica_id)
 
-        rows = [{"key": i, "value1": "test" + str(i)} for i in xrange(10)]
+        rows = [{"key": i, "value1": "test" + str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows)
 
         assert_items_equal(select_rows("key, value1 from [//tmp/t]", driver=self.primary_driver), rows)
@@ -1999,7 +1999,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_replica_table("//tmp/r", replica_id, replica_driver=self.primary_driver)
         sync_enable_table_replica(replica_id)
 
-        rows = [{"key": i, "value1": "test" + str(i)} for i in xrange(10)]
+        rows = [{"key": i, "value1": "test" + str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows, require_sync_replica=False)
 
         wait(lambda: select_rows("key, value1 from [//tmp/r]", driver=self.primary_driver) == rows)
@@ -2227,10 +2227,10 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         copy("//tmp/t_original", "//tmp/t_copy")
         sync_unfreeze_table("//tmp/t_original")
 
-        original_replica_info = get("//tmp/t_original/@replicas").values()[0]
-        cloned_replica_info = get("//tmp/t_copy/@replicas").values()[0]
+        original_replica_info = list(get("//tmp/t_original/@replicas").values())[0]
+        cloned_replica_info = list(get("//tmp/t_copy/@replicas").values())[0]
 
-        for key in original_replica_info.keys():
+        for key in list(original_replica_info.keys()):
             if key != "state":
                 assert original_replica_info[key] == cloned_replica_info[key]
         assert cloned_replica_info["state"] == "disabled"
@@ -2254,7 +2254,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_mount_table("//tmp/t_copy")
 
         sync_enable_table_replica(replica_id)
-        sync_enable_table_replica(get("//tmp/t_copy/@replicas").keys()[0])
+        sync_enable_table_replica(list(get("//tmp/t_copy/@replicas").keys())[0])
 
         for table in ["t_original", "t_copy"]:
             rows = [{"key": 1, "value1": table, "value2": 0}]
@@ -2282,7 +2282,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         copy("//tmp/t_original", "//tmp/t_copy")
         sync_unfreeze_table("//tmp/t_original")
 
-        sync_enable_table_replica(get("//tmp/t_copy/@replicas").keys()[0])
+        sync_enable_table_replica(list(get("//tmp/t_copy/@replicas").keys())[0])
 
         delete_rows("//tmp/t_original", [{"key": 0}], require_sync_replica=False)
         wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == [])
@@ -2316,10 +2316,10 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        for i in xrange(3):
+        for i in range(3):
             insert_rows("//tmp/t", [{"key": i, "value1": "test" + str(i)}])
 
-        for i in xrange(2):
+        for i in range(2):
             assert lookup_rows("//tmp/t", [{"key": i}, {"key": i + 1}], column_names=["key", "value1"]) == [
                 {"key": i, "value1": "test" + str(i)},
                 {"key": i + 1, "value1": "test" + str(i + 1)},
@@ -2329,7 +2329,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         def _check():
             tablet_infos = get_tablet_infos("//tmp/t", [0])
-            assert tablet_infos.keys() == ["tablets"] and len(tablet_infos["tablets"]) == 1
+            assert list(tablet_infos.keys()) == ["tablets"] and len(tablet_infos["tablets"]) == 1
             tablet_info.update(tablet_infos["tablets"][0])
 
             return tablet_info["total_row_count"] == 3 and \
@@ -2740,7 +2740,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         def _update_rows_to_schema():
             for row in rows:
-                for value in __builtin__.set(c["name"] for c in schema) - __builtin__.set(row):
+                for value in builtins.set(c["name"] for c in schema) - builtins.set(row):
                     row[value] = yson.YsonEntity()
 
         def _get_rows(replica_path):
@@ -2885,7 +2885,7 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
             orchid = self._find_tablet_orchid(address, tablet_id)
             errors = orchid["replication_errors"]
             assert len(errors) == 1
-            assert YtResponseError(errors.values()[0]).is_access_denied()
+            assert YtResponseError(list(errors.values())[0]).is_access_denied()
 
         set("//sys/@config/enable_safe_mode", False, driver=self.replica_driver)
 
