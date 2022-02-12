@@ -281,7 +281,14 @@ void ValidateTableSchemaUpdate(
 {
     try {
         ValidateTableSchemaHeavy(newSchema, isTableDynamic);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::InvalidSchemaValue, "New table schema is not valid")
+            << TErrorAttribute("old_schema", oldSchema)
+            << TErrorAttribute("new_schema", newSchema)
+            << ex;
+    }
 
+    try {
         if (isTableEmpty) {
             // Any valid schema is allowed to be set for an empty table.
             return;
