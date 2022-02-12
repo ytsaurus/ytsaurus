@@ -7430,6 +7430,10 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                         << TErrorAttribute("medium_name", mediumName);
                 }
             }
+            if (Config->DeprecatedMediums.contains(mediumName)) {
+                THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
+                    << TErrorAttribute("medium_name", mediumName);
+            }
             if (diskRequest->Account) {
                 accounts.insert(*diskRequest->Account);
             }
