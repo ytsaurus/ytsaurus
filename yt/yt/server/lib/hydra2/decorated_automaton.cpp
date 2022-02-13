@@ -938,8 +938,9 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(int snapshotId
 
     YT_VERIFY(NextSnapshotId_ < snapshotId);
 
-    YT_LOG_INFO("Started building snapshot (SnapshotId: %v)",
-        snapshotId);
+    YT_LOG_INFO("Started building snapshot (SnapshotId: %v, SequenceNumber: %v)",
+        snapshotId,
+        sequenceNumber);
 
     SnapshotSequenceNumber_ = sequenceNumber;
     NextSnapshotId_ = snapshotId;
