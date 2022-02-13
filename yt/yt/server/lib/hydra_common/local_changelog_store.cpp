@@ -182,11 +182,13 @@ public:
 
     TFuture<void> Close() override
     {
-        if (auto future = CheckLock()) {
-            return future;
+        if (CloseFuture_) {
+            // If already closing, wait for the previous attempt to finish.
+            return CloseFuture_;
         }
+        CloseFuture_ = Flush();
         Open_ = false;
-        return Flush();
+        return CloseFuture_;
     }
 
 private:
@@ -195,6 +197,7 @@ private:
     const IChangelogPtr UnderlyingChangelog_;
 
     bool Open_ = true;
+    TFuture<void> CloseFuture_;
 
 
     template <class T = void>
