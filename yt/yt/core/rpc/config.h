@@ -257,13 +257,15 @@ DEFINE_REFCOUNTED_TYPE(TBalancingChannelConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TThrottlingChannelConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Maximum allowed number of requests per second.
     int RateLimit;
 
-    TThrottlingChannelConfig();
+    REGISTER_YSON_STRUCT(TThrottlingChannelConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TThrottlingChannelConfig)
@@ -271,12 +273,14 @@ DEFINE_REFCOUNTED_TYPE(TThrottlingChannelConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TThrottlingChannelDynamicConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::optional<int> RateLimit;
 
-    TThrottlingChannelDynamicConfig();
+    REGISTER_YSON_STRUCT(TThrottlingChannelDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TThrottlingChannelDynamicConfig)

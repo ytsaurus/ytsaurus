@@ -42,7 +42,7 @@ DEFINE_REFCOUNTED_TYPE(TTableMountCacheDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteDynamicStoreReaderConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TDuration ClientReadTimeout;
@@ -56,7 +56,9 @@ public:
     // Testing option.
     double StreamingSubrequestFailureProbability;
 
-    TRemoteDynamicStoreReaderConfig();
+    REGISTER_YSON_STRUCT(TRemoteDynamicStoreReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteDynamicStoreReaderConfig)
@@ -73,7 +75,9 @@ public:
     //! Time to wait between making another locate request.
     TDuration LocateRequestBackoffTime;
 
-    TRetryingRemoteDynamicStoreReaderConfig();
+    REGISTER_YSON_STRUCT(TRetryingRemoteDynamicStoreReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRetryingRemoteDynamicStoreReaderConfig)

@@ -57,9 +57,9 @@ void TChunkReaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkWriterTestingOptions::TChunkWriterTestingOptions()
+void TChunkWriterTestingOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("add_unsupported_feature", AddUnsupportedFeature)
+    registrar.Parameter("add_unsupported_feature", &TThis::AddUnsupportedFeature)
         .Default(false);
 }
 
@@ -160,25 +160,25 @@ TInsertRowsFormatConfig::TInsertRowsFormatConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReaderOptions::TChunkReaderOptions()
+void TChunkReaderOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_table_index", EnableTableIndex)
+    registrar.Parameter("enable_table_index", &TThis::EnableTableIndex)
         .Default(false);
 
-    RegisterParameter("enable_range_index", EnableRangeIndex)
+    registrar.Parameter("enable_range_index", &TThis::EnableRangeIndex)
         .Default(false);
 
-    RegisterParameter("enable_row_index", EnableRowIndex)
+    registrar.Parameter("enable_row_index", &TThis::EnableRowIndex)
         .Default(false);
 
-    RegisterParameter("enable_tablet_index", EnableTabletIndex)
+    registrar.Parameter("enable_tablet_index", &TThis::EnableTabletIndex)
         .Default(false);
 
-    RegisterParameter("dynamic_table", DynamicTable)
+    registrar.Parameter("dynamic_table", &TThis::DynamicTable)
         .Default(false);
 
-    RegisterPostprocessor([&] () {
-        if (EnableRangeIndex && !EnableRowIndex) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->EnableRangeIndex && !config->EnableRowIndex) {
             THROW_ERROR_EXCEPTION("\"enable_row_index\" must be set when \"enable_range_index\" is set");
         }
     });

@@ -34,36 +34,36 @@ void TTableMountCacheDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRemoteDynamicStoreReaderConfig::TRemoteDynamicStoreReaderConfig()
+void TRemoteDynamicStoreReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("client_read_timeout", ClientReadTimeout)
+    registrar.Parameter("client_read_timeout", &TThis::ClientReadTimeout)
         .Default(TDuration::Seconds(20));
-    RegisterParameter("server_read_timeout", ServerReadTimeout)
+    registrar.Parameter("server_read_timeout", &TThis::ServerReadTimeout)
         .Default(TDuration::Seconds(20));
-    RegisterParameter("client_write_timeout", ClientWriteTimeout)
+    registrar.Parameter("client_write_timeout", &TThis::ClientWriteTimeout)
         .Default(TDuration::Seconds(20));
-    RegisterParameter("server_write_timeout", ServerWriteTimeout)
+    registrar.Parameter("server_write_timeout", &TThis::ServerWriteTimeout)
         .Default(TDuration::Seconds(20));
-    RegisterParameter("max_rows_per_server_read", MaxRowsPerServerRead)
+    registrar.Parameter("max_rows_per_server_read", &TThis::MaxRowsPerServerRead)
         .GreaterThan(0)
         .Default(1024);
 
-    RegisterParameter("window_size", WindowSize)
+    registrar.Parameter("window_size", &TThis::WindowSize)
         .Default(16_MB)
         .GreaterThan(0);
 
-    RegisterParameter("streaming_subrequest_failure_probability", StreamingSubrequestFailureProbability)
+    registrar.Parameter("streaming_subrequest_failure_probability", &TThis::StreamingSubrequestFailureProbability)
         .Default(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRetryingRemoteDynamicStoreReaderConfig::TRetryingRemoteDynamicStoreReaderConfig()
+void TRetryingRemoteDynamicStoreReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("retry_count", RetryCount)
+    registrar.Parameter("retry_count", &TThis::RetryCount)
         .Default(10)
         .GreaterThan(0);
-    RegisterParameter("locate_request_backoff_time", LocateRequestBackoffTime)
+    registrar.Parameter("locate_request_backoff_time", &TThis::LocateRequestBackoffTime)
         .Default(TDuration::Seconds(10));
 }
 

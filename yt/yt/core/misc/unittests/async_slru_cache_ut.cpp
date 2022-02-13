@@ -174,7 +174,7 @@ std::vector<int> GetKeysFromRanges(std::vector<std::pair<int, int>> ranges)
 
 TSlruCacheConfigPtr CreateCacheConfig(i64 cacheSize)
 {
-    auto config = New<TSlruCacheConfig>(cacheSize);
+    auto config = TSlruCacheConfig::CreateWithCapacity(cacheSize);
     config->ShardCount = 1;
 
     return config;

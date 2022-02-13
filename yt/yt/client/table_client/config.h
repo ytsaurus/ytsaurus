@@ -61,13 +61,15 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkWriterTestingOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! If true, unsupported chunk feature is added to chunk meta.
     bool AddUnsupportedFeature;
 
-    TChunkWriterTestingOptions();
+    REGISTER_YSON_STRUCT(TChunkWriterTestingOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkWriterTestingOptions)
@@ -173,7 +175,7 @@ DEFINE_REFCOUNTED_TYPE(TInsertRowsFormatConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReaderOptions
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     bool EnableTableIndex;
@@ -182,12 +184,14 @@ public:
     bool DynamicTable;
     bool EnableTabletIndex;
 
-    TChunkReaderOptions();
-
     static TChunkReaderOptionsPtr GetDefault()
     {
         return LeakyRefCountedSingleton<TChunkReaderOptions>();
     }
+
+    REGISTER_YSON_STRUCT(TChunkReaderOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderOptions)

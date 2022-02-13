@@ -49,8 +49,9 @@ TFuture<TRefCountedChunkMetaPtr> CreateErrorChunkMetaFuture(const std::optional<
 
 TClientChunkMetaCacheConfigPtr CreateCacheConfig(i64 cacheSize)
 {
-    auto config = New<TClientChunkMetaCacheConfig>(cacheSize);
+    auto config = New<TClientChunkMetaCacheConfig>();
     // Eviction model is complicated with multiple shards.
+    config->Capacity = cacheSize;
     config->ShardCount = 1;
 
     return config;

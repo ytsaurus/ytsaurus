@@ -252,21 +252,21 @@ TTmpfsLayerCacheConfig::TTmpfsLayerCacheConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchemaCacheConfig::TTableSchemaCacheConfig()
+void TTableSchemaCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("table_schema_cache_request_timeout", TableSchemaCacheRequestTimeout)
+    registrar.Parameter("table_schema_cache_request_timeout", &TThis::TableSchemaCacheRequestTimeout)
         .Default(TDuration::Seconds(1));
 
-    RegisterPreprocessor([&] {
-        Capacity = 100_MB;
+    registrar.Preprocessor([] (TThis* config) {
+        config->Capacity = 100_MB;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchemaCacheDynamicConfig::TTableSchemaCacheDynamicConfig()
+void TTableSchemaCacheDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("table_schema_cache_request_timeout", TableSchemaCacheRequestTimeout)
+    registrar.Parameter("table_schema_cache_request_timeout", &TThis::TableSchemaCacheRequestTimeout)
         .Optional();
 }
 

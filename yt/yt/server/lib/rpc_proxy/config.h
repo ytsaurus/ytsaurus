@@ -86,7 +86,7 @@ public:
         RegisterParameter("force_tracing", ForceTracing)
             .Default(false);
         RegisterParameter("client_cache", ClientCache)
-            .Default(New<TSlruCacheConfig>(1000));
+            .DefaultNew();
         RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
             .Default(10000);
         RegisterParameter("read_buffer_data_weight", ReadBufferDataWeight)
@@ -97,6 +97,10 @@ public:
             .DefaultNew(THashSet<TString>{"ModifyRows", "BatchModifyRows", "LookupRows", "VersionedLookupRows"});
         RegisterParameter("structured_logging_error_topic", StructuredLoggingErrorTopic)
             .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            ClientCache->Capacity = 1000;
+        });
     }
 };
 

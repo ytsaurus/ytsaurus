@@ -10,7 +10,12 @@ namespace NYT::NChaosCache {
 
 class TChaosCacheConfig
     : public TSlruCacheConfig
-{ };
+{
+    REGISTER_YSON_STRUCT(TChaosCacheConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TChaosCacheConfig)
 

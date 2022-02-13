@@ -30,7 +30,7 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteReaderOptions
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! If |true| then the master may be asked for seeds.
@@ -39,7 +39,9 @@ public:
     //! Advertise current host as a P2P peer.
     bool EnableP2P;
 
-    TRemoteReaderOptions();
+    REGISTER_YSON_STRUCT(TRemoteReaderOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
@@ -134,7 +136,9 @@ class TMultiChunkReaderOptions
 public:
     bool KeepInMemory;
 
-    TMultiChunkReaderOptions();
+    REGISTER_YSON_STRUCT(TMultiChunkReaderOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderOptions)
@@ -160,13 +164,15 @@ DEFINE_REFCOUNTED_TYPE(TMetaAggregatingWriterOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockCacheConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TSlruCacheConfigPtr CompressedData;
     TSlruCacheConfigPtr UncompressedData;
 
-    TBlockCacheConfig();
+    REGISTER_YSON_STRUCT(TBlockCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockCacheConfig)
@@ -177,7 +183,10 @@ class TClientChunkMetaCacheConfig
     : public TSlruCacheConfig
 {
 public:
-    TClientChunkMetaCacheConfig(i64 capacity = 0);
+    REGISTER_YSON_STRUCT(TClientChunkMetaCacheConfig);
+
+    static void Register(TRegistrar)
+    { }
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientChunkMetaCacheConfig)
@@ -185,13 +194,15 @@ DEFINE_REFCOUNTED_TYPE(TClientChunkMetaCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockCacheDynamicConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TSlruCacheDynamicConfigPtr CompressedData;
     TSlruCacheDynamicConfigPtr UncompressedData;
 
-    TBlockCacheDynamicConfig();
+    REGISTER_YSON_STRUCT(TBlockCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockCacheDynamicConfig)

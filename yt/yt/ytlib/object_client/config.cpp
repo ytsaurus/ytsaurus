@@ -30,44 +30,44 @@ NApi::TMasterReadOptions TObjectAttributeCacheConfig::GetMasterReadOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceCacheConfig::TObjectServiceCacheConfig()
+void TObjectServiceCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterPreprocessor([&] {
-        Capacity = 1_GB;
+    registrar.Preprocessor([] (TThis* config) {
+        config->Capacity = 1_GB;
     });
 
-    RegisterParameter("top_entry_byte_rate_threshold", TopEntryByteRateThreshold)
+    registrar.Parameter("top_entry_byte_rate_threshold", &TThis::TopEntryByteRateThreshold)
         .Default(10_KB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceCacheDynamicConfig::TObjectServiceCacheDynamicConfig()
+void TObjectServiceCacheDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("top_entry_byte_rate_threshold", TopEntryByteRateThreshold)
+    registrar.Parameter("top_entry_byte_rate_threshold", &TThis::TopEntryByteRateThreshold)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachingObjectServiceConfig::TCachingObjectServiceConfig()
+void TCachingObjectServiceConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cache_ttl_ratio", CacheTtlRatio)
+    registrar.Parameter("cache_ttl_ratio", &TThis::CacheTtlRatio)
         .InRange(0, 1)
         .Default(0.5);
-    RegisterParameter("entry_byte_rate_limit", EntryByteRateLimit)
+    registrar.Parameter("entry_byte_rate_limit", &TThis::EntryByteRateLimit)
         .GreaterThan(0)
         .Default(10_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachingObjectServiceDynamicConfig::TCachingObjectServiceDynamicConfig()
+void TCachingObjectServiceDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cache_ttl_ratio", CacheTtlRatio)
+    registrar.Parameter("cache_ttl_ratio", &TThis::CacheTtlRatio)
         .InRange(0, 1)
         .Optional();
-    RegisterParameter("entry_byte_rate_limit", EntryByteRateLimit)
+    registrar.Parameter("entry_byte_rate_limit", &TThis::EntryByteRateLimit)
         .GreaterThan(0)
         .Optional();
 }
