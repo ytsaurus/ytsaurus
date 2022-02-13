@@ -675,8 +675,9 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
         YT_VERIFY(LastSnapshotInfo_->SnapshotId == changelogId);
     }
 
-    const auto& selfState = PeerStates_[CellManager_->GetSelfPeerId()];
-    LastSnapshotInfo_->SequenceNumber = selfState.LastLoggedSequenceNumber;
+    auto snapshotSequenceNumber = NextLoggedSequenceNumber_ - 1;
+
+    LastSnapshotInfo_->SequenceNumber = snapshotSequenceNumber;
     LastSnapshotInfo_->Checksums.resize(CellManager_->GetTotalPeerCount());
     LastSnapshotInfo_->HasReply.resize(CellManager_->GetTotalPeerCount());
 
@@ -690,11 +691,10 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
 
     BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
         .AsyncVia(EpochContext_->EpochUserAutomatonInvoker)
-        .Run(Changelog_->GetId(), selfState.LastLoggedSequenceNumber)
+        .Run(Changelog_->GetId(), snapshotSequenceNumber)
         .Subscribe(
             BIND(&TLeaderCommitter::OnLocalSnapshotBuilt, MakeStrong(this), Changelog_->GetId())
                 .Via(EpochContext_->EpochControlInvoker));
-
 }
 
 void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
