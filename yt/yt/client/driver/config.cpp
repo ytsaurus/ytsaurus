@@ -37,7 +37,7 @@ TDriverConfig::TDriverConfig()
         .Default((i64) 1 * 1024 * 1024);
 
     RegisterParameter("client_cache", ClientCache)
-        .DefaultNew(1024 * 1024);
+        .DefaultNew();
 
     RegisterParameter("api_version", ApiVersion)
         .Default(ApiVersion3)
@@ -51,6 +51,7 @@ TDriverConfig::TDriverConfig()
         .DefaultNew();
 
     RegisterPreprocessor([&] {
+        ClientCache->Capacity = 1024_KB;
         ProxyDiscoveryCache->RefreshTime = TDuration::Seconds(15);
         ProxyDiscoveryCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
         ProxyDiscoveryCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(15);

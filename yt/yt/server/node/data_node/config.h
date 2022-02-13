@@ -298,7 +298,9 @@ public:
     //! Timeout for table schema request.
     TDuration TableSchemaCacheRequestTimeout;
 
-    TTableSchemaCacheConfig();
+    REGISTER_YSON_STRUCT(TTableSchemaCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableSchemaCacheConfig)
@@ -311,7 +313,9 @@ class TTableSchemaCacheDynamicConfig
 public:
     std::optional<TDuration> TableSchemaCacheRequestTimeout;
 
-    TTableSchemaCacheDynamicConfig();
+    REGISTER_YSON_STRUCT(TTableSchemaCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableSchemaCacheDynamicConfig)

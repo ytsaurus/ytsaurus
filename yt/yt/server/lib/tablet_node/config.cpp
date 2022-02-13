@@ -681,7 +681,7 @@ TTabletNodeConfig::TTabletNodeConfig()
         .DefaultNew();
 
     RegisterParameter("versioned_chunk_meta_cache", VersionedChunkMetaCache)
-        .DefaultNew(10_GB);
+        .DefaultNew();
 
     RegisterParameter("throttlers", Throttlers)
         .Optional();
@@ -713,6 +713,7 @@ TTabletNodeConfig::TTabletNodeConfig()
         .DefaultNew();
 
     RegisterPreprocessor([&] {
+        VersionedChunkMetaCache->Capacity = 10_GB;
         HydraManager->MaxCommitBatchDelay = TDuration::MilliSeconds(5);
     });
 

@@ -40,7 +40,9 @@ class TObjectServiceCacheConfig
 public:
     double TopEntryByteRateThreshold;
 
-    TObjectServiceCacheConfig();
+    REGISTER_YSON_STRUCT(TObjectServiceCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheConfig)
@@ -53,7 +55,9 @@ class TObjectServiceCacheDynamicConfig
 public:
     std::optional<double> TopEntryByteRateThreshold;
 
-    TObjectServiceCacheDynamicConfig();
+    REGISTER_YSON_STRUCT(TObjectServiceCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheDynamicConfig)
@@ -68,7 +72,9 @@ public:
     double CacheTtlRatio;
     i64 EntryByteRateLimit;
 
-    TCachingObjectServiceConfig();
+    REGISTER_YSON_STRUCT(TCachingObjectServiceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceConfig)
@@ -83,7 +89,9 @@ public:
     std::optional<double> CacheTtlRatio;
     std::optional<i64> EntryByteRateLimit;
 
-    TCachingObjectServiceDynamicConfig();
+    REGISTER_YSON_STRUCT(TCachingObjectServiceDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceDynamicConfig)

@@ -4,12 +4,12 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRemoteReaderOptions::TRemoteReaderOptions()
+void TRemoteReaderOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("allow_fetching_seeds_from_master", AllowFetchingSeedsFromMaster)
+    registrar.Parameter("allow_fetching_seeds_from_master", &TThis::AllowFetchingSeedsFromMaster)
         .Default(true);
 
-    RegisterParameter("enable_p2p", EnableP2P)
+    registrar.Parameter("enable_p2p", &TThis::EnableP2P)
         .Default(false);
 }
 
@@ -75,9 +75,9 @@ void TMultiChunkWriterOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMultiChunkReaderOptions::TMultiChunkReaderOptions()
+void TMultiChunkReaderOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("keep_in_memory", KeepInMemory)
+    registrar.Parameter("keep_in_memory", &TThis::KeepInMemory)
         .Default(false);
 }
 
@@ -97,27 +97,21 @@ void TMetaAggregatingWriterOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockCacheConfig::TBlockCacheConfig()
+void TBlockCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("compressed_data", CompressedData)
+    registrar.Parameter("compressed_data", &TThis::CompressedData)
         .DefaultNew();
-    RegisterParameter("uncompressed_data", UncompressedData)
+    registrar.Parameter("uncompressed_data", &TThis::UncompressedData)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientChunkMetaCacheConfig::TClientChunkMetaCacheConfig(i64 capacity)
-    : TSlruCacheConfig(capacity)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TBlockCacheDynamicConfig::TBlockCacheDynamicConfig()
+void TBlockCacheDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("compressed_data", CompressedData)
+    registrar.Parameter("compressed_data", &TThis::CompressedData)
         .DefaultNew();
-    RegisterParameter("uncompressed_data", UncompressedData)
+    registrar.Parameter("uncompressed_data", &TThis::UncompressedData)
         .DefaultNew();
 }
 

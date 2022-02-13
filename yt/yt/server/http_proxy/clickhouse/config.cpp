@@ -11,7 +11,7 @@ namespace NYT::NHttpProxy::NClickHouse {
 void TDiscoveryCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cache_base", &TThis::CacheBase)
-        .DefaultCtor([] { return New<TSlruCacheConfig>(/*capacity*/ 1000); });
+        .DefaultNew();
     registrar.Parameter("soft_age_threshold", &TThis::SoftAgeThreshold)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("hard_age_threshold", &TThis::HardAgeThreshold)
@@ -20,6 +20,10 @@ void TDiscoveryCacheConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("unavailable_instance_ban_timeout", &TThis::UnavailableInstanceBanTimeout)
         .Default(TDuration::Seconds(30));
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->CacheBase->Capacity = 1000;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

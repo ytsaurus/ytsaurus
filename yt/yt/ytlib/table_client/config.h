@@ -64,7 +64,12 @@ DEFINE_REFCOUNTED_TYPE(TBufferedTableWriterConfig)
 class TTableReaderOptions
     : public TChunkReaderOptions
     , public NChunkClient::TMultiChunkReaderOptions
-{ };
+{
+    REGISTER_YSON_STRUCT(TTableReaderOptions);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TTableReaderOptions)
 

@@ -10,7 +10,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSlruCacheConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! The maximum number of weight units cached items are allowed to occupy.
@@ -35,7 +35,11 @@ public:
     //! re-enabled again (i.e. the value of this field is ignored).
     bool EnableGhostCaches;
 
-    explicit TSlruCacheConfig(i64 capacity = 0);
+    static TSlruCacheConfigPtr CreateWithCapacity(i64 capacity);
+
+    REGISTER_YSON_STRUCT(TSlruCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlruCacheConfig)
@@ -43,7 +47,7 @@ DEFINE_REFCOUNTED_TYPE(TSlruCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSlruCacheDynamicConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! The maximum number of weight units cached items are allowed to occupy.
@@ -57,7 +61,9 @@ public:
     //! re-enabled again (i.e. the value of this field is ignored).
     bool EnableGhostCaches;
 
-    TSlruCacheDynamicConfig();
+    REGISTER_YSON_STRUCT(TSlruCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlruCacheDynamicConfig)

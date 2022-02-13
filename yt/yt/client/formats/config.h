@@ -19,7 +19,9 @@ public:
 
     bool EnableEndOfStream;
 
-    TControlAttributesConfig();
+    REGISTER_YSON_STRUCT(TControlAttributesConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControlAttributesConfig)

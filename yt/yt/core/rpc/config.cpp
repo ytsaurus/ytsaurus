@@ -186,18 +186,18 @@ void TBalancingChannelConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TThrottlingChannelConfig::TThrottlingChannelConfig()
+void TThrottlingChannelConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("rate_limit", RateLimit)
+    registrar.Parameter("rate_limit", &TThis::RateLimit)
         .GreaterThan(0)
         .Default(10);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TThrottlingChannelDynamicConfig::TThrottlingChannelDynamicConfig()
+void TThrottlingChannelDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("rate_limit", RateLimit)
+    registrar.Parameter("rate_limit", &TThis::RateLimit)
         .GreaterThan(0)
         .Optional();
 }

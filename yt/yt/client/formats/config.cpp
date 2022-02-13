@@ -4,12 +4,12 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TControlAttributesConfig::TControlAttributesConfig()
+void TControlAttributesConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_key_switch", EnableKeySwitch)
+    registrar.Parameter("enable_key_switch", &TThis::EnableKeySwitch)
         .Default(false);
 
-    RegisterParameter("enable_end_of_stream", EnableEndOfStream)
+    registrar.Parameter("enable_end_of_stream", &TThis::EnableEndOfStream)
         .Default(false);
 }
 
