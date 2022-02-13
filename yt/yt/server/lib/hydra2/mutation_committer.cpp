@@ -664,8 +664,6 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
     auto changelog = WaitFor(EpochContext_->ChangelogStore->OpenChangelog(changelogId))
         .ValueOrThrow();
 
-    YT_LOG_INFO("Started building snapshot (SnapshotId: %v)", changelogId);
-
     if (!LastSnapshotInfo_) {
         LastSnapshotInfo_ = TShapshotInfo{
             .SnapshotId = changelogId
@@ -676,6 +674,9 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
     }
 
     auto snapshotSequenceNumber = NextLoggedSequenceNumber_ - 1;
+    YT_LOG_INFO("Started building snapshot (SnapshotId: %v, SequenceNumber: %v)",
+        changelogId,
+        snapshotSequenceNumber);
 
     LastSnapshotInfo_->SequenceNumber = snapshotSequenceNumber;
     LastSnapshotInfo_->Checksums.resize(CellManager_->GetTotalPeerCount());
@@ -772,7 +773,6 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
             firstSequenceNumber,
             lastSequenceNumber)
             .Via(EpochContext_->EpochControlInvoker));
-
 }
 
 void TLeaderCommitter::OnMutationsLogged(
@@ -1035,13 +1035,17 @@ void TFollowerCommitter::LogMutations()
     std::vector<TSharedRef> recordsData;
 
     while (std::ssize(recordsData) < Config_->MaxLoggedMutationsPerRequest && !AcceptedMutations_.empty()) {
-        auto mutation = std::move(AcceptedMutations_.front());
-        AcceptedMutations_.pop();
+        auto version = AcceptedMutations_.front()->Version;
 
-        auto version = mutation->Version;
         if (!Changelog_ || version.SegmentId != Changelog_->GetId()) {
+            if (!recordsData.empty()) {
+                break;
+            }
             PrepareNextChangelog(version);
         }
+
+        auto mutation = std::move(AcceptedMutations_.front());
+        AcceptedMutations_.pop();
 
         if (firstSequenceNumber < 0) {
             firstSequenceNumber = mutation->SequenceNumber;
