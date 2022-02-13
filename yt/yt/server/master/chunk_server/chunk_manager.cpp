@@ -421,19 +421,25 @@ public:
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler
             .WithDefaultDisabled()
-            .WithGlobal()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", BufferedProducer_);
 
+        BufferedHistogramProducer_ = New<TBufferedProducer>();
+        ChunkServerHistogramProfiler
+            .WithDefaultDisabled()
+            .WithGlobal()
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
+            .AddProducer("", BufferedHistogramProducer_);
+
         auto bucketBounds = GenerateGenericBucketBounds();
 
-        ChunkRowCountHistogram_ = ChunkServerProfiler.
+        ChunkRowCountHistogram_ = ChunkServerHistogramProfiler.
             GaugeHistogram("/chunk_row_count_histogram", bucketBounds);
-        ChunkCompressedDataSizeHistogram_ = ChunkServerProfiler.
+        ChunkCompressedDataSizeHistogram_ = ChunkServerHistogramProfiler.
             GaugeHistogram("/chunk_compressed_data_size_histogram", bucketBounds);
-        ChunkUncompressedDataSizeHistogram_ = ChunkServerProfiler.
+        ChunkUncompressedDataSizeHistogram_ = ChunkServerHistogramProfiler.
             GaugeHistogram("/chunk_uncompressed_data_size_histogram", bucketBounds);
-        ChunkDataWeightHistogram_ = ChunkServerProfiler.
+        ChunkDataWeightHistogram_ = ChunkServerHistogramProfiler.
             GaugeHistogram("/chunk_data_weight_histogram", bucketBounds);
 
         RedistributeConsistentReplicaPlacementTokensExecutor_ =
@@ -2150,6 +2156,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
+    TBufferedProducerPtr BufferedHistogramProducer_;
 
     i64 ChunksCreated_ = 0;
     i64 ChunksDestroyed_ = 0;

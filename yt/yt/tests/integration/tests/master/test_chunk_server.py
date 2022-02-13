@@ -841,7 +841,7 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
 
             master_address = ls("//sys/primary_masters")[0]
             profiler = profiler_factory().at_primary_master(master_address)
-            histogram = profiler.histogram("chunk_server/" + histogram_name)
+            histogram = profiler.histogram("chunk_server/histograms/" + histogram_name)
 
             histogram_bins = histogram.get_bins(verbose=False)
             for i in range(0, 39):
