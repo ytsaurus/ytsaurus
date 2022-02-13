@@ -153,11 +153,7 @@ class TestDiskUsagePorto(YTEnvSetup):
         )
         op.ensure_running()
 
-        time.sleep(1.0)
-
-        # NB: We have no sanity checks for disk space in scheduler
-        for type in ("running", "aborted", "failed"):
-            assert op.get_job_count(type) == 0
+        wait(lambda: op.get_state() == "failed")
 
     @authors("ignat")
     def test_scheduled_after_wait(self):

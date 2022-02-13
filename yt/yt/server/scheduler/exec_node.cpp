@@ -46,6 +46,7 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
         MasterState_ == NNodeTrackerClient::ENodeState::Online && SchedulerState_ == ENodeState::Online,
         ResourceUsage_,
         ResourceLimits_,
+        DiskResources_,
         Tags_,
         RunningJobStatistics_,
         SchedulingSegment_,

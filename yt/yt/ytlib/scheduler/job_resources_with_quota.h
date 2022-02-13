@@ -63,11 +63,13 @@ bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& 
 
 bool CanSatisfyDiskQuotaRequest(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
-    TDiskQuota diskQuotaRequest);
+    TDiskQuota diskQuotaRequest,
+    bool considerUsage = true);
 
 bool CanSatisfyDiskQuotaRequests(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
-    const std::vector<TDiskQuota>& diskQuotaRequests);
+    const std::vector<TDiskQuota>& diskQuotaRequests,
+    bool considerUsage = true);
 
 // For testing purposes.
 bool CanSatisfyDiskQuotaRequests(
