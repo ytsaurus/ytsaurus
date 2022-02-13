@@ -19,7 +19,7 @@ import pytest
 
 
 class TestDynamicTableStateTransitions(DynamicTablesBase):
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 5
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "tablet_manager": {
