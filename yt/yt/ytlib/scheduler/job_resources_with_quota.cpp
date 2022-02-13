@@ -191,17 +191,27 @@ bool HasLocationWithDefaultMedium(const NNodeTrackerClient::NProto::TDiskResourc
 
 bool CanSatisfyDiskQuotaRequest(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
-    TDiskQuota diskQuotaRequest)
+    TDiskQuota diskQuotaRequest,
+    bool considerUsage)
 {
     THashMap<int, std::vector<i64>> availableDiskSpacePerMedium;
     for (const auto& diskLocationResources : diskResources.disk_location_resources()) {
         availableDiskSpacePerMedium[diskLocationResources.medium_index()].push_back(
-            diskLocationResources.limit() - diskLocationResources.usage());
+            considerUsage
+                ? diskLocationResources.limit() - diskLocationResources.usage()
+                : diskLocationResources.limit());
     }
     for (auto [mediumIndex, diskSpace] : diskQuotaRequest.DiskSpacePerMedium) {
         if (!CanSatisfyDiskQuotaRequest(availableDiskSpacePerMedium[mediumIndex], diskSpace)) {
             return false;
         }
+    }
+    if (diskQuotaRequest.DiskSpaceWithoutMedium &&
+        !CanSatisfyDiskQuotaRequest(
+            availableDiskSpacePerMedium[diskResources.default_medium_index()],
+            *diskQuotaRequest.DiskSpaceWithoutMedium))
+    {
+        return false;
     }
 
     if (!diskQuotaRequest && !HasLocationWithDefaultMedium(diskResources)) {
@@ -213,12 +223,15 @@ bool CanSatisfyDiskQuotaRequest(
 
 bool CanSatisfyDiskQuotaRequests(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
-    const std::vector<TDiskQuota>& diskQuotaRequests)
+    const std::vector<TDiskQuota>& diskQuotaRequests,
+    bool considerUsage)
 {
     THashMap<int, std::vector<i64>> availableDiskSpacePerMedium;
     for (const auto& diskLocationResources : diskResources.disk_location_resources()) {
         availableDiskSpacePerMedium[diskLocationResources.medium_index()].push_back(
-            diskLocationResources.limit() - diskLocationResources.usage());
+            considerUsage
+                ? diskLocationResources.limit() - diskLocationResources.usage()
+                : diskLocationResources.limit());
     }
 
     THashMap<int, std::vector<i64>> diskSpaceRequestsPerMedium;

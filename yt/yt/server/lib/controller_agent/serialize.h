@@ -17,6 +17,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RefactorStatistics)                   (300801))
     ((AddTotalJobStatistics)                (300802))
     ((NeededResourcesByPoolTree)            (300803))
+    ((DiskResourcesInSanityCheck)           (300804))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -51,6 +51,7 @@ struct TExecNodeDescriptor
         bool online,
         const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResources,
         const TBooleanFormulaTags& tags,
         const TRunningJobStatistics& runningJobStatistics,
         ESchedulingSegment schedulingSegment,
@@ -66,6 +67,7 @@ struct TExecNodeDescriptor
     bool Online = false;
     TJobResources ResourceUsage;
     TJobResources ResourceLimits;
+    NNodeTrackerClient::NProto::TDiskResources DiskResources;
     TBooleanFormulaTags Tags;
     TRunningJobStatistics RunningJobStatistics;
     ESchedulingSegment SchedulingSegment;

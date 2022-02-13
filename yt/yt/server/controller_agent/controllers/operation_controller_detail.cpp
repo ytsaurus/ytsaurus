@@ -3952,7 +3952,9 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             hasNonTrivialTasks = true;
 
             const auto& neededResources = task->GetMinNeededResources();
-            if (Dominates(descriptor.ResourceLimits, neededResources.ToJobResources())) {
+            if (Dominates(descriptor.ResourceLimits, neededResources.ToJobResources()) &&
+                CanSatisfyDiskQuotaRequest(descriptor.DiskResources, neededResources.GetDiskQuota(), /*considerUsage*/ false))
+            {
                 hasEnoughResources = true;
                 break;
             }
@@ -3970,7 +3972,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             break;
         }
     }
-
+    
     if (foundMatching) {
         AvailableExecNodesObserved_ = true;
     }
@@ -4863,7 +4865,7 @@ void TOperationControllerBase::TryScheduleJob(
         // current heartbeat. This check would be performed in scheduler.
         auto minNeededResources = task->GetMinNeededResources();
         if (!Dominates(jobLimits, minNeededResources.ToJobResources()) ||
-            !CanSatisfyDiskQuotaRequests(context->DiskResources(), {minNeededResources.GetDiskQuota()}))
+            !CanSatisfyDiskQuotaRequest(context->DiskResources(), minNeededResources.GetDiskQuota()))
         {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;

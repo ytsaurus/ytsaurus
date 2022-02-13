@@ -16,6 +16,7 @@ message TExecNodeDescriptor
     required double io_weight = 3;
     required bool online = 6;
     required TJobResources resource_limits = 4;
+    required NNodeTrackerClient.NProto.TDiskResources disk_resources = 7;
     repeated string tags = 5;
 }
 
