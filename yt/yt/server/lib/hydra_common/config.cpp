@@ -181,8 +181,11 @@ TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
         .Default(TDuration::MilliSeconds(10));
     RegisterParameter("max_commit_batch_record_count", MaxCommitBatchRecordCount)
         .Default(10'000);
-    RegisterParameter("max_logged_mutations_per_request", MaxLoggedMutationsPerRequest)
-        .Default(10'000);
+
+    RegisterParameter("mutation_serialization_period", MutationSerializationPeriod)
+        .Default(TDuration::MilliSeconds(5));
+    RegisterParameter("mutation_flush_period", MutationFlushPeriod)
+        .Default(TDuration::MilliSeconds(5));
 
     RegisterParameter("leader_sync_delay", LeaderSyncDelay)
         .Default(TDuration::MilliSeconds(10));
@@ -236,11 +239,11 @@ TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
         .GreaterThan(0)
         .Default(10);
 
-    RegisterParameter("max_queue_mutation_count", MaxQueueMutationCount)
+    RegisterParameter("max_queued_mutation_count", MaxQueuedMutationCount)
         .GreaterThan(0)
         .Default(10'000);
 
-    RegisterParameter("max_queue_mutation_data_size", MaxQueueMutationDataSize)
+    RegisterParameter("max_queued_mutation_data_size", MaxQueuedMutationDataSize)
         .GreaterThan(0)
         .Default(1_GB);
 
