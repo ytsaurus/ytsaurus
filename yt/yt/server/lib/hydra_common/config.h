@@ -211,13 +211,19 @@ public:
     i64 SnapshotDownloadBlockSize;
 
     //! Maximum time to wait before flushing the current batch.
+    // COMPAT(babenko): no longer used in Hydra2.
     TDuration MaxCommitBatchDelay;
 
     //! Maximum number of records to collect before flushing the current batch.
     int MaxCommitBatchRecordCount;
 
-    //! Maximum number of mutations to log on one AcceptMutations request.
-    int MaxLoggedMutationsPerRequest;
+    //! The period between consecutive serializations, i.e. moving
+    //! mutations from from draft queue to mutation queue and thus assigning sequence numbers.
+    TDuration MutationSerializationPeriod;
+
+    //! The period between consecutive flushes, i.e. sending mutations
+    //! from a leader to its followers.
+    TDuration MutationFlushPeriod;
 
     //! Maximum time to wait before syncing with leader.
     TDuration LeaderSyncDelay;
@@ -236,17 +242,17 @@ public:
     i64 MaxChangelogDataSize;
 
     //! If true, empty changelogs are preallocated to avoid hiccups of segment rotation.
+    // COMPAT(babenko): no longer used in Hydra2
     bool PreallocateChangelogs;
 
     //! If true, changelogs are gracefully closed on segment rotation and epoch end.
-    // COMPAT(babenko): drop this once changelog discarder becomes compatible with local changelog store.
+    // COMPAT(babenko): no longer used in Hydra2.
     bool CloseChangelogs;
 
     //! Interval between automatic "heartbeat" mutations commit.
     /*!
      *  These mutations are no-ops. Committing them regularly helps to ensure
-     *  that the quorum is functioning properly and is also crucial to enable
-     *  snapshot rotation as no version rotation is possible at N:0 versions.
+     *  that the quorum is functioning properly.
      */
     TDuration HeartbeatMutationPeriod;
 
@@ -295,10 +301,10 @@ public:
     TDuration LeaderSwitchTimeout;
 
     //! Maximum amount of mutations stored in leader's mutation queue.
-    int MaxQueueMutationCount;
+    int MaxQueuedMutationCount;
 
     //! Leader's mutation queue data size limit, in bytes.
-    int MaxQueueMutationDataSize;
+    int MaxQueuedMutationDataSize;
 
     //! If set, automaton invariants are checked after each mutation with this probability.
     //! Used for testing purposes only.

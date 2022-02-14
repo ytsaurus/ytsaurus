@@ -17,7 +17,9 @@ class TestRff(YTEnvSetup):
 
     DELTA_MASTER_CONFIG = {
         "hydra_manager": {
-            "max_commit_batch_delay": 1000
+            # COMPAT(babenko): drop once Hydra1 is no more
+            "max_commit_batch_delay": 1000,
+            "mutation_flush_period": 500
         }
     }
 

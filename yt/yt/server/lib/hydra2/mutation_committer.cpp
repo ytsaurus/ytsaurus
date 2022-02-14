@@ -60,11 +60,12 @@ TCommitterBase::TCommitterBase(
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 }
 
-TFuture<void> TCommitterBase::DoCommitMutations(std::vector<TPendingMutationPtr> mutations)
+TFuture<void> TCommitterBase::ScheduleApplyMutations(std::vector<TPendingMutationPtr> mutations)
 {
     return BIND(&TDecoratedAutomaton::ApplyMutations, DecoratedAutomaton_)
         .AsyncViaGuarded(
             EpochContext_->EpochUserAutomatonInvoker,
+            // XXX(babenko)
             TError("meh"))
         .Run(std::move(mutations));
 }
@@ -96,7 +97,7 @@ TLeaderCommitter::TLeaderCommitter(
     const TDistributedHydraManagerOptions& options,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TLeaderLeasePtr leaderLease,
-    TMpscQueue<TMutationDraft>* queue,
+    TMpscQueue<TMutationDraft>* mutationDraftQueue,
     IChangelogPtr changelog,
     TReachableState reachableState,
     TEpochContext* epochContext,
@@ -109,19 +110,17 @@ TLeaderCommitter::TLeaderCommitter(
         epochContext,
         std::move(logger),
         profiler)
-    , BatchAlarm_(New<TInvokerAlarm>(
-        EpochContext_->EpochUserAutomatonInvoker))
+    , MutationDraftQueue_(mutationDraftQueue)
     , LeaderLease_(std::move(leaderLease))
-    , AcceptMutationsExecutor_(New<TPeriodicExecutor>(
+    , FlushMutationsExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
-        BIND(&TLeaderCommitter::Flush, MakeWeak(this)),
-        Config_->MaxCommitBatchDelay))
+        BIND(&TLeaderCommitter::FlushMutations, MakeWeak(this)),
+        Config_->MutationFlushPeriod))
     , SerializeMutationsExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::SerializeMutations, MakeWeak(this)),
-        Config_->MaxCommitBatchDelay))
+        Config_->MutationSerializationPeriod))
     , CommittedState_(std::move(reachableState))
-    , PreliminaryMutationQueue_(queue)
     , BatchSummarySize_(profiler.Summary("/mutation_batch_size"))
     , MutationQueueSummarySize_(profiler.Summary("/mutation_queue_size"))
     , MutationQueueSummaryDataSize_(profiler.Summary("/mutation_queue_data_size"))
@@ -138,11 +137,8 @@ TLeaderCommitter::TLeaderCommitter(
     LastOffloadedSequenceNumber_ = CommittedState_.SequenceNumber;
     NextLoggedSequenceNumber_ = CommittedState_.SequenceNumber + 1;
 
-    AcceptMutationsExecutor_->Start();
+    FlushMutationsExecutor_->Start();
 }
-
-TLeaderCommitter::~TLeaderCommitter()
-{ }
 
 void TLeaderCommitter::SetReadOnly()
 {
@@ -193,7 +189,7 @@ void TLeaderCommitter::SerializeMutations()
     std::vector<TMutationDraft> mutationDrafts;
     while (std::ssize(mutationDrafts) < Config_->MaxCommitBatchRecordCount) {
         TMutationDraft mutationDraft;
-        if (!PreliminaryMutationQueue_->TryDequeue(&mutationDraft)) {
+        if (!MutationDraftQueue_->TryDequeue(&mutationDraft)) {
             break;
         }
 
@@ -213,9 +209,9 @@ void TLeaderCommitter::SerializeMutations()
         if (epochId && epochId != currentEpochId) {
             mutationDraft.Promise.Set(TError(
                 NRpc::EErrorCode::Unavailable,
-                "Mutation has invalid epoch id %v in epoch %v",
-                epochId,
-                currentEpochId));
+                "Mutation has invalid epoch: expected %v, actual %v",
+                currentEpochId,
+                epochId));
             continue;
         }
 
@@ -226,7 +222,8 @@ void TLeaderCommitter::SerializeMutations()
         LogMutations(std::move(mutationDrafts));
     }
 
-    MaybeSendBatch();
+    MaybeFlushMutations();
+    DrainQueue();
 }
 
 void TLeaderCommitter::Start()
@@ -266,7 +263,7 @@ void TLeaderCommitter::Stop()
     PeerStates_.clear();
 }
 
-void TLeaderCommitter::Flush()
+void TLeaderCommitter::FlushMutations()
 {
     YT_LOG_DEBUG("Started flushing mutations");
 
@@ -351,7 +348,7 @@ void TLeaderCommitter::Flush()
         }
 
         request->Invoke().Subscribe(
-            BIND(&TLeaderCommitter::OnRemoteFlush, MakeStrong(this), followerId)
+            BIND(&TLeaderCommitter::OnMutationsAcceptedByFollower, MakeStrong(this), followerId)
                 .Via(EpochContext_->EpochControlInvoker));
     }
 }
@@ -373,7 +370,7 @@ void TLeaderCommitter::OnSnapshotReply(int peerId)
     }
 }
 
-void TLeaderCommitter::OnRemoteFlush(
+void TLeaderCommitter::OnMutationsAcceptedByFollower(
     int followerId,
     const TInternalHydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
 {
@@ -381,6 +378,7 @@ void TLeaderCommitter::OnRemoteFlush(
         YT_LOG_WARNING(rspOrError, "Error logging mutations at follower (FollowerId: %v)",
             followerId);
 
+        // XXX(babenko)
         // TODO: This might be an old reply.
         if (LastSnapshotInfo_ && LastSnapshotInfo_->SequenceNumber != -1) {
             OnSnapshotReply(followerId);
@@ -468,7 +466,7 @@ void TLeaderCommitter::MaybePromoteCommittedSequenceNumber()
     OnCommittedSequenceNumberUpdated();
 }
 
-void TLeaderCommitter::MaybeSendBatch()
+void TLeaderCommitter::MaybeFlushMutations()
 {
     if (MutationQueue_.empty()) {
         return;
@@ -477,10 +475,8 @@ void TLeaderCommitter::MaybeSendBatch()
     // TODO(aleksandra-zh): Some peers may have larger batches. Consider looking at each separately.
     auto batchSize = MutationQueue_.back()->SequenceNumber - CommittedState_.SequenceNumber;
     if (batchSize >= Config_->MaxCommitBatchRecordCount) {
-        Flush();
+        FlushMutations();
     }
-
-    DrainQueue();
 }
 
 void TLeaderCommitter::DrainQueue()
@@ -494,7 +490,7 @@ void TLeaderCommitter::DrainQueue()
         MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
     };
 
-    while (std::ssize(MutationQueue_) > Config_->MaxQueueMutationCount) {
+    while (std::ssize(MutationQueue_) > Config_->MaxQueuedMutationCount) {
         const auto& mutation = MutationQueue_.front();
         if (mutation->SequenceNumber > CommittedState_.SequenceNumber) {
             LoggingFailed_.Fire(TError("Mutation queue mutation count limit exceeded, but the first mutation in queue is still uncommitted")
@@ -504,7 +500,7 @@ void TLeaderCommitter::DrainQueue()
         popMutationQueue();
     }
 
-    while (MutationQueueDataSize_ > Config_->MaxQueueMutationDataSize) {
+    while (MutationQueueDataSize_ > Config_->MaxQueuedMutationDataSize) {
         const auto& mutation = MutationQueue_.front();
         if (mutation->SequenceNumber > CommittedState_.SequenceNumber) {
             LoggingFailed_.Fire(TError("Mutation queue data size limit exceeded, but the first mutation in queue is still uncommitted")
@@ -563,8 +559,7 @@ void TLeaderCommitter::OnSnapshotsComplete()
     bool checksumMismatch = false;
     std::optional<TChecksum> canonicalChecksum;
     for (auto id = 0; id < std::ssize(LastSnapshotInfo_->Checksums); ++id) {
-        auto checksum = LastSnapshotInfo_->Checksums[id];
-        if (checksum) {
+        if (auto checksum = LastSnapshotInfo_->Checksums[id]) {
             ++successCount;
             if (canonicalChecksum) {
                 checksumMismatch |= (*canonicalChecksum != *checksum);
@@ -824,7 +819,7 @@ void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
 
     YT_VERIFY(LastOffloadedSequenceNumber_ + std::ssize(mutations) == CommittedState_.SequenceNumber);
     LastOffloadedSequenceNumber_ = CommittedState_.SequenceNumber;
-    DoCommitMutations(std::move(mutations));
+    ScheduleApplyMutations(std::move(mutations));
 }
 
 TReachableState TLeaderCommitter::GetCommittedState() const
@@ -1032,9 +1027,11 @@ void TFollowerCommitter::LogMutations()
 
     i64 firstSequenceNumber = -1;
     i64 lastSequenceNumber = -1;
-    std::vector<TSharedRef> recordsData;
 
-    while (std::ssize(recordsData) < Config_->MaxLoggedMutationsPerRequest && !AcceptedMutations_.empty()) {
+    std::vector<TSharedRef> recordsData;
+    recordsData.reserve(AcceptedMutations_.size());
+
+    while (!AcceptedMutations_.empty()) {
         auto version = AcceptedMutations_.front()->Version;
 
         if (!Changelog_ || version.SegmentId != Changelog_->GetId()) {
@@ -1134,7 +1131,7 @@ void TFollowerCommitter::CommitMutations(i64 committedSequenceNumber)
     }
 
     auto mutationCount = std::ssize(mutations);
-    DoCommitMutations(std::move(mutations));
+    ScheduleApplyMutations(std::move(mutations));
 
     YT_LOG_DEBUG("Mutations committed at follower (MutationCount: %v)",
         mutationCount);

@@ -46,22 +46,10 @@ public:
     DEFINE_SIGNAL(void(const TError& error), LoggingFailed);
 
 protected:
-    TCommitterBase(
-        NHydra::TDistributedHydraManagerConfigPtr config,
-        const NHydra::TDistributedHydraManagerOptions& options,
-        TDecoratedAutomatonPtr decoratedAutomaton,
-        TEpochContext* epochContext,
-        NLogging::TLogger logger,
-        NProfiling::TProfiler profiler);
-
-    TFuture<void> DoCommitMutations(std::vector<TPendingMutationPtr> mutations);
-    void CloseChangelog(const NHydra::IChangelogPtr& changelog);
-
     const NHydra::TDistributedHydraManagerConfigPtr Config_;
     const NHydra::TDistributedHydraManagerOptions Options_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
-
     const NLogging::TLogger Logger;
 
     const NElection::TCellManagerPtr CellManager_;
@@ -73,6 +61,18 @@ protected:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    TCommitterBase(
+        NHydra::TDistributedHydraManagerConfigPtr config,
+        const NHydra::TDistributedHydraManagerOptions& options,
+        TDecoratedAutomatonPtr decoratedAutomaton,
+        TEpochContext* epochContext,
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler);
+
+    TFuture<void> ScheduleApplyMutations(std::vector<TPendingMutationPtr> mutations);
+
+    void CloseChangelog(const NHydra::IChangelogPtr& changelog);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,14 +90,12 @@ public:
         const NHydra::TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderLeasePtr leaderLease,
-        TMpscQueue<TMutationDraft>* queue,
+        TMpscQueue<TMutationDraft>* mutationDraftQueue,
         NHydra::IChangelogPtr changelog,
         TReachableState reachableState,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
         NProfiling::TProfiler profiler);
-
-    ~TLeaderCommitter();
 
     TReachableState GetCommittedState() const;
     TVersion GetLoggedVersion() const;
@@ -119,10 +117,12 @@ public:
     DEFINE_SIGNAL(void(const TError& error), CommitFailed);
 
 private:
-    const NConcurrency::TInvokerAlarmPtr BatchAlarm_;
+    // XXX(babenko): check for safety
+    TMpscQueue<TMutationDraft>* const MutationDraftQueue_;
+
     const TLeaderLeasePtr LeaderLease_;
 
-    const NConcurrency::TPeriodicExecutorPtr AcceptMutationsExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr FlushMutationsExecutor_;
     const NConcurrency::TPeriodicExecutorPtr SerializeMutationsExecutor_;
 
     struct TPeerState
@@ -142,7 +142,6 @@ private:
     bool ReadOnly_ = false;
 
     bool AqcuiringChangelog_ = false;
-    TMpscQueue<TMutationDraft>* PreliminaryMutationQueue_;
 
     struct TShapshotInfo
     {
@@ -166,11 +165,11 @@ private:
     NProfiling::TSummary MutationQueueSummaryDataSize_;
 
     void SerializeMutations();
-    void Flush();
-    void OnRemoteFlush(
+    void FlushMutations();
+    void OnMutationsAcceptedByFollower(
         int followerId,
         const TInternalHydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError);
-    void MaybeSendBatch();
+    void MaybeFlushMutations();
 
     void DrainQueue();
 
