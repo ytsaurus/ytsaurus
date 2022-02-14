@@ -55,6 +55,68 @@ constexpr TDuration ServiceLivenessCheckPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRequestQueue
+    : public TRefCounted
+{
+public:
+    explicit TRequestQueue(TString name);
+
+    const TString& GetName() const;
+
+    bool Register(TServiceBase* service, TServiceBase::TRuntimeMethodInfo* runtimeInfo);
+    void Configure(const TMethodConfigPtr& config);
+
+    bool IsQueueLimitSizeExceeded() const;
+
+    int GetQueueSize() const;
+    int GetConcurrency() const;
+
+    void OnRequestArrived(TServiceBase::TServiceContextPtr context);
+    void OnRequestFinished();
+
+private:
+    const TString Name_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisterLock_);
+    std::atomic<bool> Registered_ = false;
+    TServiceBase* Service_;
+    TServiceBase::TRuntimeMethodInfo* RuntimeInfo_ = nullptr;
+
+    std::atomic<int> Concurrency_ = 0;
+
+    const NConcurrency::IReconfigurableThroughputThrottlerPtr RequestBytesThrottler_;
+    std::atomic<bool> RequestBytesThrottlerSpecified_ = false;
+    std::atomic<bool> RequestBytesThrottlerThrottled_ = false;
+
+    std::atomic<int> QueueSize_ = 0;
+    moodycamel::ConcurrentQueue<TServiceBase::TServiceContextPtr> RequestQueue_;
+
+
+    void ScheduleRequestsFromQueue();
+    void RunRequest(TServiceBase::TServiceContextPtr context);
+
+    int IncrementQueueSize();
+    void DecrementQueueSize();
+
+    int IncrementConcurrency();
+    void DecrementConcurrency();
+
+    bool IsRequestBytesThrottlerOverdraft() const;
+    void AcquireRequestBytesThrottler(const TServiceBase::TServiceContextPtr& context);
+    void SubscribeToRequestBytesThrottler();
+};
+
+DEFINE_REFCOUNTED_TYPE(TRequestQueue)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRequestQueuePtr CreateRequestQueue(TString name)
+{
+    return New<TRequestQueue>(std::move(name));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 THandlerInvocationOptions THandlerInvocationOptions::SetHeavy(bool value) const
 {
     auto result = *this;
@@ -221,6 +283,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     : ServiceId(std::move(serviceId))
     , Descriptor(std::move(descriptor))
     , Profiler(profiler.WithTag("method", Descriptor.Method, -1))
+    , DefaultRequestQueue(CreateRequestQueue("default"))
     , RequestLoggingAnchor(NLogging::TLogManager::Get()->RegisterDynamicAnchor(
         Format("%v.%v <-", ServiceId.ServiceName, Descriptor.Method)))
     , ResponseLoggingAnchor(NLogging::TLogManager::Get()->RegisterDynamicAnchor(
@@ -228,7 +291,6 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     , RequestQueueSizeLimitErrorCounter(Profiler.Counter("/request_queue_size_errors"))
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(DefaultLoggingSuppressionFailedRequestThrottlerConfig))
-    , DefaultRequestQueue("default")
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1152,18 +1214,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceBase::TRequestQueue::TRequestQueue(TString name)
+TRequestQueue::TRequestQueue(TString name)
     : Name_(std::move(name))
     , RequestBytesThrottler_(
         CreateReconfigurableThroughputThrottler(DefaultRequestBytesThrottlerConfig))
 { }
 
-const TString& TServiceBase::TRequestQueue::GetName() const
+const TString& TRequestQueue::GetName() const
 {
     return Name_;
 }
 
-bool TServiceBase::TRequestQueue::Register(TServiceBase* service, TRuntimeMethodInfo* runtimeInfo)
+bool TRequestQueue::Register(TServiceBase* service, TServiceBase::TRuntimeMethodInfo* runtimeInfo)
 {
     // Fast path.
     if (Registered_.load()) {
@@ -1185,7 +1247,7 @@ bool TServiceBase::TRequestQueue::Register(TServiceBase* service, TRuntimeMethod
     return true;
 }
 
-void TServiceBase::TRequestQueue::Configure(const TMethodConfigPtr& config)
+void TRequestQueue::Configure(const TMethodConfigPtr& config)
 {
     auto requestBytesThrottlerConfig = config->RequestBytesThrottler
         ? config->RequestBytesThrottler
@@ -1197,24 +1259,24 @@ void TServiceBase::TRequestQueue::Configure(const TMethodConfigPtr& config)
     SubscribeToRequestBytesThrottler();
 }
 
-bool TServiceBase::TRequestQueue::IsQueueLimitSizeExceeded() const
+bool TRequestQueue::IsQueueLimitSizeExceeded() const
 {
     return
         QueueSize_.load(std::memory_order_relaxed) >=
         RuntimeInfo_->QueueSizeLimit.load(std::memory_order_relaxed);
 }
 
-int TServiceBase::TRequestQueue::GetQueueSize() const
+int TRequestQueue::GetQueueSize() const
 {
     return QueueSize_.load(std::memory_order_relaxed);
 }
 
-int TServiceBase::TRequestQueue::GetConcurrency() const
+int TRequestQueue::GetConcurrency() const
 {
     return Concurrency_.load(std::memory_order_relaxed);
 }
 
-void TServiceBase::TRequestQueue::OnRequestArrived(TServiceContextPtr context)
+void TRequestQueue::OnRequestArrived(TServiceBase::TServiceContextPtr context)
 {
     // Fast path.
     auto newConcurrencySemaphore = IncrementConcurrency();
@@ -1232,7 +1294,7 @@ void TServiceBase::TRequestQueue::OnRequestArrived(TServiceContextPtr context)
     ScheduleRequestsFromQueue();
 }
 
-void TServiceBase::TRequestQueue::OnRequestFinished()
+void TRequestQueue::OnRequestFinished()
 {
     DecrementConcurrency();
 
@@ -1245,7 +1307,7 @@ void TServiceBase::TRequestQueue::OnRequestFinished()
 // Prevents reentrant invocations.
 static thread_local bool ScheduleRequestsLatch;
 
-void TServiceBase::TRequestQueue::ScheduleRequestsFromQueue()
+void TRequestQueue::ScheduleRequestsFromQueue()
 {
     if (ScheduleRequestsLatch) {
         return;
@@ -1269,7 +1331,7 @@ void TServiceBase::TRequestQueue::ScheduleRequestsFromQueue()
             break;
         }
 
-        TServiceContextPtr context;
+        TServiceBase::TServiceContextPtr context;
         if (!RequestQueue_.try_dequeue(context)) {
             break;
         }
@@ -1280,7 +1342,7 @@ void TServiceBase::TRequestQueue::ScheduleRequestsFromQueue()
     }
 }
 
-void TServiceBase::TRequestQueue::RunRequest(TServiceContextPtr context)
+void TRequestQueue::RunRequest(TServiceBase::TServiceContextPtr context)
 {
     AcquireRequestBytesThrottler(context);
 
@@ -1291,42 +1353,42 @@ void TServiceBase::TRequestQueue::RunRequest(TServiceContextPtr context)
         BIND(RuntimeInfo_->Descriptor.HeavyHandler)
             .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
             .Run(context, options)
-            .Subscribe(BIND(&TServiceContext::CheckAndRun, std::move(context)));
+            .Subscribe(BIND(&TServiceBase::TServiceContext::CheckAndRun, std::move(context)));
     } else {
         context->Run(RuntimeInfo_->Descriptor.LiteHandler);
     }
 }
 
-int TServiceBase::TRequestQueue::IncrementQueueSize()
+int TRequestQueue::IncrementQueueSize()
 {
     return ++QueueSize_;
 }
 
-void  TServiceBase::TRequestQueue::DecrementQueueSize()
+void  TRequestQueue::DecrementQueueSize()
 {
     auto newQueueSize = --QueueSize_;
     YT_ASSERT(newQueueSize >= 0);
 }
 
-int TServiceBase::TRequestQueue::IncrementConcurrency()
+int TRequestQueue::IncrementConcurrency()
 {
     return ++Concurrency_;
 }
 
-void TServiceBase::TRequestQueue::DecrementConcurrency()
+void TRequestQueue::DecrementConcurrency()
 {
     auto newConcurrencySemaphore = --Concurrency_;
     YT_ASSERT(newConcurrencySemaphore >= 0);
 }
 
-bool TServiceBase::TRequestQueue::IsRequestBytesThrottlerOverdraft() const
+bool TRequestQueue::IsRequestBytesThrottlerOverdraft() const
 {
     return
         RequestBytesThrottlerSpecified_.load(std::memory_order_relaxed) &&
         RequestBytesThrottler_->IsOverdraft();
 }
 
-void TServiceBase::TRequestQueue::AcquireRequestBytesThrottler(const TServiceContextPtr& context)
+void TRequestQueue::AcquireRequestBytesThrottler(const TServiceBase::TServiceContextPtr& context)
 {
     if (RequestBytesThrottlerSpecified_.load(std::memory_order_relaxed)) {
         // Slow path.
@@ -1337,7 +1399,7 @@ void TServiceBase::TRequestQueue::AcquireRequestBytesThrottler(const TServiceCon
     }
 }
 
-void TServiceBase::TRequestQueue::SubscribeToRequestBytesThrottler()
+void TRequestQueue::SubscribeToRequestBytesThrottler()
 {
     if (RequestBytesThrottlerThrottled_.exchange(true)) {
         return;
@@ -1603,7 +1665,7 @@ void TServiceBase::HandleAuthenticatedRequest(TAcceptedRequest&& acceptedRequest
     requestQueue->OnRequestArrived(std::move(context));
 }
 
-TServiceBase::TRequestQueue* TServiceBase::GetRequestQueue(
+TRequestQueue* TServiceBase::GetRequestQueue(
     TRuntimeMethodInfo* runtimeInfo,
     const NRpc::NProto::TRequestHeader& requestHeader)
 {
@@ -1612,7 +1674,7 @@ TServiceBase::TRequestQueue* TServiceBase::GetRequestQueue(
         requestQueue = runtimeInfo->Descriptor.RequestQueueProvider(requestHeader);
     }
     if (!requestQueue) {
-        requestQueue = &runtimeInfo->DefaultRequestQueue;
+        requestQueue = runtimeInfo->DefaultRequestQueue.Get();
     }
     return requestQueue;
 }
@@ -1994,7 +2056,7 @@ TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCoun
     auto [userTag, requestQueue] = key;
 
     // Fast path.
-    if (userTag == RootUserName && requestQueue == &runtimeInfo->DefaultRequestQueue) {
+    if (userTag == RootUserName && requestQueue == runtimeInfo->DefaultRequestQueue.Get()) {
         if (EnablePerUserProfiling_.load(std::memory_order_relaxed)) {
             return runtimeInfo->RootPerformanceCounters.Get();
         } else {
@@ -2163,10 +2225,10 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 
     runtimeInfo->BasePerformanceCounters = CreateMethodPerformanceCounters(
         runtimeInfo.Get(),
-        {{}, &runtimeInfo->DefaultRequestQueue});
+        {{}, runtimeInfo->DefaultRequestQueue.Get()});
     runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(
         runtimeInfo.Get(),
-        {RootUserName, &runtimeInfo->DefaultRequestQueue});
+        {RootUserName, runtimeInfo->DefaultRequestQueue.Get()});
 
     runtimeInfo->Heavy.store(descriptor.Options.Heavy);
     runtimeInfo->QueueSizeLimit.store(descriptor.QueueSizeLimit);
@@ -2204,14 +2266,14 @@ void TServiceBase::DoConfigureHistogramTimer(
     const TServiceCommonConfigPtr& configDefaults,
     const TServiceConfigPtr& config)
 {
-    THistogramConfigPtr finalConfig = nullptr;
+    THistogramConfigPtr finalConfig;
     if (config->HistogramTimerProfiling) {
         finalConfig = config->HistogramTimerProfiling;
     } else if (configDefaults->HistogramTimerProfiling) {
         finalConfig = configDefaults->HistogramTimerProfiling;
     }
     if (finalConfig) {
-        const auto guard = Guard(HistogramConfigLock_);
+        auto guard = Guard(HistogramConfigLock_);
         HistogramTimerProfiling = finalConfig;
     }
 }

@@ -11,6 +11,8 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/rpc/helpers.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -105,14 +107,14 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.GetTableSamples();
+    // TODO(babenko): make configurable
+    SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
     req->SetRequestHeavy(true);
     req->SetResponseHeavy(true);
     req->SetMultiplexingBand(EMultiplexingBand::Heavy);
     ToProto(req->mutable_key_columns(), KeyColumns_);
     req->set_max_sample_size(MaxSampleSize_);
-    req->set_sampling_policy(static_cast<int>(SamplingPolicy_));
-    // TODO(babenko): make configurable
-    ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+    req->set_sampling_policy(ToProto<int>(SamplingPolicy_));
 
     i64 currentSize = SizeBetweenSamples_;
     i64 currentSampleCount = 0;

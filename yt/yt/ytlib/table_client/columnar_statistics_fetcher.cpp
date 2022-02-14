@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <yt/yt/client/rpc/helpers.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTableClient {
@@ -63,7 +65,7 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
     TNameTablePtr nameTable = New<TNameTable>();
 
     auto req = proxy.GetColumnarStatistics();
-    ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+    SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
     req->set_enable_early_finish(Options_.EnableEarlyFinish);
 
     for (int chunkIndex : chunkIndexes) {

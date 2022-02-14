@@ -3,6 +3,8 @@
 #include <yt/yt/server/lib/job_proxy/config.h>
 #include <yt/yt/server/lib/job_proxy/public.h>
 
+#include <yt/yt/client/rpc/helpers.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NJobProxy {
@@ -32,9 +34,9 @@ public:
     TFuture<void> Throttle(i64 count, EJobThrottlerType throttleDirection, TWorkloadDescriptor descriptor, TJobId jobId)
     {
         auto request = Proxy_.ThrottleJob();
-        request->set_throttler_type(static_cast<int>(throttleDirection));
+        SetRequestWorkloadDescriptor(request, descriptor);
+        request->set_throttler_type(ToProto<int>(throttleDirection));
         request->set_count(count);
-        ToProto(request->mutable_workload_descriptor(), descriptor);
         ToProto(request->mutable_job_id(), jobId);
 
         request->Invoke().Subscribe(BIND(&TThrottlingSession::OnThrottlingResponse, MakeStrong(this)));

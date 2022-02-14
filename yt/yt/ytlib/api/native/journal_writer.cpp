@@ -20,10 +20,7 @@
 #include <yt/yt/ytlib/journal_client/helpers.h>
 #include <yt/yt/ytlib/journal_client/proto/format.pb.h>
 
-#include <yt/yt/client/node_tracker_client/node_directory.h>
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
-
-#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
@@ -32,9 +29,15 @@
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 #include <yt/yt/ytlib/transaction_client/config.h>
 
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
+
+#include <yt/yt/client/rpc/helpers.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/nonblocking_queue.h>
@@ -767,8 +770,8 @@ private:
                 std::vector<TFuture<void>> futures;
                 for (const auto& node : session->Nodes) {
                     auto req = node->LightProxy.StartChunk();
+                    SetRequestWorkloadDescriptor(req, Config_->WorkloadDescriptor);
                     ToProto(req->mutable_session_id(), GetSessionIdForNode(session, node));
-                    ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
                     req->set_enable_multiplexing(Options_.EnableMultiplexing);
 
                     futures.push_back(req->Invoke().Apply(

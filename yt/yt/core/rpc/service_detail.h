@@ -420,6 +420,10 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRequestQueuePtr CreateRequestQueue(TString name);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Provides a base for implementing IService.
 class TServiceBase
     : public virtual IService
@@ -465,11 +469,6 @@ protected:
     //! (possibly switching argument type to a proper typed context class) in order to customize
     //! specific service context before invoking method handler.
     void InitContext(IServiceContextPtr context);
-
-    class TRequestQueue;
-
-    using TRequestQueueProvider = TCallback<TRequestQueue*(const NRpc::NProto::TRequestHeader&)>;
-    using TInvokerProvider = TCallback<IInvokerPtr(const NRpc::NProto::TRequestHeader&)>;
 
     //! Information needed to a register a service method.
     struct TMethodDescriptor
@@ -626,56 +625,6 @@ protected:
 
     struct TRuntimeMethodInfo;
 
-    class TRequestQueue
-    {
-    public:
-        explicit TRequestQueue(TString name);
-
-        const TString& GetName() const;
-
-        bool Register(TServiceBase* service, TRuntimeMethodInfo* runtimeInfo);
-        void Configure(const TMethodConfigPtr& config);
-
-        bool IsQueueLimitSizeExceeded() const;
-
-        int GetQueueSize() const;
-        int GetConcurrency() const;
-
-        void OnRequestArrived(TServiceContextPtr context);
-        void OnRequestFinished();
-
-    private:
-        const TString Name_;
-
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisterLock_);
-        std::atomic<bool> Registered_ = false;
-        TServiceBase* Service_;
-        TRuntimeMethodInfo* RuntimeInfo_ = nullptr;
-
-        std::atomic<int> Concurrency_ = 0;
-
-        const NConcurrency::IReconfigurableThroughputThrottlerPtr RequestBytesThrottler_;
-        std::atomic<bool> RequestBytesThrottlerSpecified_ = false;
-        std::atomic<bool> RequestBytesThrottlerThrottled_ = false;
-
-        std::atomic<int> QueueSize_ = 0;
-        moodycamel::ConcurrentQueue<TServiceContextPtr> RequestQueue_;
-
-
-        void ScheduleRequestsFromQueue();
-        void RunRequest(TServiceContextPtr context);
-
-        int IncrementQueueSize();
-        void DecrementQueueSize();
-
-        int IncrementConcurrency();
-        void DecrementConcurrency();
-
-        bool IsRequestBytesThrottlerOverdraft() const;
-        void AcquireRequestBytesThrottler(const TServiceContextPtr& context);
-        void SubscribeToRequestBytesThrottler();
-    };
-
     //! Describes a service method and its runtime statistics.
     struct TRuntimeMethodInfo
         : public TRefCounted
@@ -688,6 +637,8 @@ protected:
         const TServiceId ServiceId;
         const TMethodDescriptor Descriptor;
         const NProfiling::TProfiler Profiler;
+
+        const TRequestQueuePtr DefaultRequestQueue;
 
         NLogging::TLoggingAnchor* const RequestLoggingAnchor;
         NLogging::TLoggingAnchor* const ResponseLoggingAnchor;
@@ -718,8 +669,6 @@ protected:
         NConcurrency::IReconfigurableThroughputThrottlerPtr LoggingSuppressionFailedRequestThrottler;
 
         std::atomic<ERequestTracingMode> TracingMode = ERequestTracingMode::Enable;
-
-        TRequestQueue DefaultRequestQueue;
 
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RequestQueuesLock);
         std::vector<TRequestQueue*> RequestQueues;
@@ -805,6 +754,8 @@ protected:
         const TServiceConfigPtr& config);
 
 private:
+    friend class TRequestQueue;
+
     const IInvokerPtr DefaultInvoker_;
     const IAuthenticatorPtr Authenticator_;
     const TServiceDescriptor ServiceDescriptor_;
