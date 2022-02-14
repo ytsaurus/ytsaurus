@@ -7,6 +7,7 @@ def get_master_config():
 b"""
 {
     enable_provision_lock = %false;
+    use_new_hydra = %true;
 
     timestamp_provider = {
         soft_backoff_time = 100;
