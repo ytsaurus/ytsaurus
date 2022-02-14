@@ -182,6 +182,9 @@ struct IBootstrap
     virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TString& bucket) = 0;
 
+    virtual NConcurrency::TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
+        const NConcurrency::TRelativeThroughputThrottlerConfigPtr& config) const = 0;
+
     virtual void SetDecommissioned(bool decommissioned) = 0;
 };
 

@@ -277,6 +277,20 @@ public:
         return MasterConnector_;
     }
 
+    TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
+        const TRelativeThroughputThrottlerConfigPtr& config) const override
+    {
+        // NB: Absolute value limit suppresses relative one.
+        if (config->Limit || !config->RelativeLimit) {
+            return config;
+        }
+
+        auto patchedConfig = CloneYsonSerializable(config);
+        patchedConfig->Limit = *config->RelativeLimit * Config_->NetworkBandwidth;
+
+        return patchedConfig;
+    }
+
     void SetDecommissioned(bool decommissioned) override
     {
         Decommissioned_ = decommissioned;
@@ -295,12 +309,20 @@ public:
 
     const NConcurrency::IThroughputThrottlerPtr& GetDefaultInThrottler() const override
     {
-        return DefaultInThrottler_;
+        if (Config_->EnableFairThrottler) {
+            return DefaultInThrottler_;
+        } else {
+            return LegacyTotalInThrottler_;
+        }
     }
 
     const NConcurrency::IThroughputThrottlerPtr& GetDefaultOutThrottler() const override
     {
-        return DefaultOutThrottler_;
+        if (Config_->EnableFairThrottler) {
+            return DefaultOutThrottler_;
+        } else {
+            return LegacyTotalOutThrottler_;
+        }
     }
 
     const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override
@@ -644,9 +666,15 @@ private:
     TDiskTrackerPtr DiskTracker_;
     TBufferedProducerPtr BufferedProducer_;
 
+    IReconfigurableThroughputThrottlerPtr LegacyRawTotalInThrottler_;
+    IThroughputThrottlerPtr LegacyTotalInThrottler_;
+
     TFairThrottlerPtr InThrottler_;
     IThroughputThrottlerPtr DefaultInThrottler_;
     THashSet<TString> EnabledInThrottlers_;
+
+    IReconfigurableThroughputThrottlerPtr LegacyRawTotalOutThrottler_;
+    IThroughputThrottlerPtr LegacyTotalOutThrottler_;
 
     TFairThrottlerPtr OutThrottler_;
     IThroughputThrottlerPtr DefaultOutThrottler_;
@@ -756,20 +784,40 @@ private:
             Config_->DataNode->StorageLightThreadCount,
             "StorageLight");
 
-        auto fairThrottlerConfig = New<TFairThrottlerConfig>();
-        fairThrottlerConfig->TotalLimit = Config_->NetworkBandwidth;
+        if (Config_->EnableFairThrottler) {
+            auto fairThrottlerConfig = New<TFairThrottlerConfig>();
+            fairThrottlerConfig->TotalLimit = Config_->NetworkBandwidth;
 
-        InThrottler_ = New<TFairThrottler>(
-            fairThrottlerConfig,
-            ClusterNodeLogger.WithTag("Direction: %v", "In"),
-            ClusterNodeProfiler.WithPrefix("/in_throttler"));
-        DefaultInThrottler_ = GetInThrottler("default");
+            InThrottler_ = New<TFairThrottler>(
+                fairThrottlerConfig,
+                ClusterNodeLogger.WithTag("Direction: %v", "In"),
+                ClusterNodeProfiler.WithPrefix("/in_throttler"));
+            DefaultInThrottler_ = GetInThrottler("default");
 
-        OutThrottler_ = New<TFairThrottler>(
-            fairThrottlerConfig,
-            ClusterNodeLogger.WithTag("Direction: %v", "Out"),
-            ClusterNodeProfiler.WithPrefix("/out_throttler"));
-        DefaultOutThrottler_ = GetOutThrottler("default");
+            OutThrottler_ = New<TFairThrottler>(
+                fairThrottlerConfig,
+                ClusterNodeLogger.WithTag("Direction: %v", "Out"),
+                ClusterNodeProfiler.WithPrefix("/out_throttler"));
+            DefaultOutThrottler_ = GetOutThrottler("default");
+        } else {
+            auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
+                return PatchRelativeNetworkThrottlerConfig(Config_->DataNode->Throttlers[kind]);
+            };
+
+            LegacyRawTotalInThrottler_ = CreateNamedReconfigurableThroughputThrottler(
+                getThrottlerConfig(EDataNodeThrottlerKind::TotalIn),
+                "TotalIn",
+                ClusterNodeLogger,
+                ClusterNodeProfiler.WithPrefix("/throttlers"));
+            LegacyTotalInThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalInThrottler_);
+
+            LegacyRawTotalOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
+                getThrottlerConfig(EDataNodeThrottlerKind::TotalOut),
+                "TotalOut",
+                ClusterNodeLogger,
+                ClusterNodeProfiler.WithPrefix("/throttlers"));
+            LegacyTotalOutThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalOutThrottler_);
+        }
 
         RawReadRpsOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             Config_->DataNode->ReadRpsOutThrottler,
@@ -1169,7 +1217,18 @@ private:
         StorageLightThreadPool_->Configure(
             newConfig->DataNode->StorageLightThreadCount.value_or(Config_->DataNode->StorageLightThreadCount));
 
-        ReconfigureThrottlers(newConfig);
+        if (Config_->EnableFairThrottler) {
+            ReconfigureThrottlers(newConfig);
+        } else {
+            auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
+                auto config = newConfig->DataNode->Throttlers[kind]
+                    ? newConfig->DataNode->Throttlers[kind]
+                    : Config_->DataNode->Throttlers[kind];
+                return PatchRelativeNetworkThrottlerConfig(std::move(config));
+            };
+            LegacyRawTotalInThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalIn));
+            LegacyRawTotalOutThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalOut));
+        }
 
         RawReadRpsOutThrottler_->Reconfigure(newConfig->DataNode->ReadRpsOutThrottler
                 ? newConfig->DataNode->ReadRpsOutThrottler

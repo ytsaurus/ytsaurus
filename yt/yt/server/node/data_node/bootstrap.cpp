@@ -51,6 +51,37 @@ static const auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const THashSet<EDataNodeThrottlerKind> DataNodeNetworkThrottlers = {
+    EDataNodeThrottlerKind::TotalIn,
+    EDataNodeThrottlerKind::TotalOut,
+    EDataNodeThrottlerKind::ReplicationIn,
+    EDataNodeThrottlerKind::ReplicationOut,
+    EDataNodeThrottlerKind::RepairIn,
+    EDataNodeThrottlerKind::RepairOut,
+    EDataNodeThrottlerKind::MergeIn,
+    EDataNodeThrottlerKind::MergeOut,
+    EDataNodeThrottlerKind::AutotomyIn,
+    EDataNodeThrottlerKind::AutotomyOut,
+    EDataNodeThrottlerKind::ArtifactCacheIn,
+    EDataNodeThrottlerKind::ArtifactCacheOut,
+    EDataNodeThrottlerKind::JobIn,
+    EDataNodeThrottlerKind::JobOut,
+    EDataNodeThrottlerKind::P2POut
+};
+
+// COMPAT(gritukan): Throttlers that were moved out of Data Node during node split.
+static const THashSet<EDataNodeThrottlerKind> DataNodeCompatThrottlers = {
+    // Cluster Node throttlers.
+    EDataNodeThrottlerKind::TotalIn,
+    EDataNodeThrottlerKind::TotalOut,
+    // Exec Node throttlers.
+    EDataNodeThrottlerKind::ArtifactCacheIn,
+    EDataNodeThrottlerKind::JobIn,
+    EDataNodeThrottlerKind::JobOut,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBootstrap
     : public IBootstrap
     , public TBootstrapBase
@@ -99,35 +130,94 @@ public:
 
         SessionManager_->Initialize();
 
-        for (auto kind : {
-            EDataNodeThrottlerKind::ReplicationIn,
-            EDataNodeThrottlerKind::RepairIn,
-            EDataNodeThrottlerKind::MergeIn,
-            EDataNodeThrottlerKind::AutotomyIn,
-            EDataNodeThrottlerKind::ArtifactCacheIn,
-            EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
-            EDataNodeThrottlerKind::TabletLoggingIn,
-            EDataNodeThrottlerKind::TabletSnapshotIn,
-            EDataNodeThrottlerKind::TabletStoreFlushIn,
-            EDataNodeThrottlerKind::JobIn,
-        }) {
-            Throttlers_[kind] = ClusterNodeBootstrap_->GetInThrottler(FormatEnum(kind));
-        }
+        if (GetConfig()->EnableFairThrottler) {
+            for (auto kind : {
+                EDataNodeThrottlerKind::ReplicationIn,
+                EDataNodeThrottlerKind::RepairIn,
+                EDataNodeThrottlerKind::MergeIn,
+                EDataNodeThrottlerKind::AutotomyIn,
+                EDataNodeThrottlerKind::ArtifactCacheIn,
+                EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
+                EDataNodeThrottlerKind::TabletLoggingIn,
+                EDataNodeThrottlerKind::TabletSnapshotIn,
+                EDataNodeThrottlerKind::TabletStoreFlushIn,
+                EDataNodeThrottlerKind::JobIn,
+            }) {
+                Throttlers_[kind] = ClusterNodeBootstrap_->GetInThrottler(FormatEnum(kind));
+            }
 
-        for (auto kind : {
-            EDataNodeThrottlerKind::ReplicationOut,
-            EDataNodeThrottlerKind::RepairOut,
-            EDataNodeThrottlerKind::MergeOut,
-            EDataNodeThrottlerKind::AutotomyOut,
-            EDataNodeThrottlerKind::ArtifactCacheOut,
-            EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
-            EDataNodeThrottlerKind::SkynetOut,
-            EDataNodeThrottlerKind::TabletPreloadOut,
-            EDataNodeThrottlerKind::TabletRecoveryOut,
-            EDataNodeThrottlerKind::TabletReplicationOut,
-            EDataNodeThrottlerKind::JobOut,
-        }) {
-            Throttlers_[kind] = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(kind));
+            for (auto kind : {
+                EDataNodeThrottlerKind::ReplicationOut,
+                EDataNodeThrottlerKind::RepairOut,
+                EDataNodeThrottlerKind::MergeOut,
+                EDataNodeThrottlerKind::AutotomyOut,
+                EDataNodeThrottlerKind::ArtifactCacheOut,
+                EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
+                EDataNodeThrottlerKind::SkynetOut,
+                EDataNodeThrottlerKind::TabletPreloadOut,
+                EDataNodeThrottlerKind::TabletRecoveryOut,
+                EDataNodeThrottlerKind::TabletReplicationOut,
+                EDataNodeThrottlerKind::JobOut,
+            }) {
+                Throttlers_[kind] = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(kind));
+            }
+        } else {
+            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+                if (DataNodeCompatThrottlers.contains(kind)) {
+                    continue;
+                }
+
+                const auto& initialThrottlerConfig = GetConfig()->DataNode->Throttlers[kind];
+                auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
+                    ? ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
+                    : initialThrottlerConfig;
+                LegacyRawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
+                    std::move(throttlerConfig),
+                    ToString(kind),
+                    DataNodeLogger,
+                    DataNodeProfiler.WithPrefix("/throttlers"));
+            }
+
+            static const THashSet<EDataNodeThrottlerKind> InCombinedDataNodeThrottlerKinds = {
+                EDataNodeThrottlerKind::ReplicationIn,
+                EDataNodeThrottlerKind::RepairIn,
+                EDataNodeThrottlerKind::MergeIn,
+                EDataNodeThrottlerKind::AutotomyIn,
+                EDataNodeThrottlerKind::ArtifactCacheIn,
+                EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
+                EDataNodeThrottlerKind::TabletLoggingIn,
+                EDataNodeThrottlerKind::TabletSnapshotIn,
+                EDataNodeThrottlerKind::TabletStoreFlushIn,
+                EDataNodeThrottlerKind::JobIn,
+            };
+            static const THashSet<EDataNodeThrottlerKind> OutCombinedDataNodeThrottlerKinds = {
+                EDataNodeThrottlerKind::ReplicationOut,
+                EDataNodeThrottlerKind::RepairOut,
+                EDataNodeThrottlerKind::MergeOut,
+                EDataNodeThrottlerKind::AutotomyOut,
+                EDataNodeThrottlerKind::ArtifactCacheOut,
+                EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
+                EDataNodeThrottlerKind::SkynetOut,
+                EDataNodeThrottlerKind::TabletPreloadOut,
+                EDataNodeThrottlerKind::TabletRecoveryOut,
+                EDataNodeThrottlerKind::TabletReplicationOut,
+                EDataNodeThrottlerKind::JobOut,
+            };
+
+            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+                if (DataNodeCompatThrottlers.contains(kind)) {
+                    continue;
+                }
+
+                auto throttler = IThroughputThrottlerPtr(LegacyRawThrottlers_[kind]);
+                if (InCombinedDataNodeThrottlerKinds.contains(kind)) {
+                    throttler = CreateCombinedThrottler({GetDefaultInThrottler(), throttler});
+                }
+                if (OutCombinedDataNodeThrottlerKinds.contains(kind)) {
+                    throttler = CreateCombinedThrottler({GetDefaultOutThrottler(), throttler});
+                }
+                Throttlers_[kind] = throttler;
+            }
         }
 
         // Should be created after throttlers.
@@ -337,6 +427,7 @@ private:
     TMediumDirectoryManagerPtr MediumDirectoryManager_;
     TMediumUpdaterPtr MediumUpdater_;
 
+    TEnumIndexedVector<EDataNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
     TEnumIndexedVector<EDataNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
     IJournalDispatcherPtr JournalDispatcher_;
@@ -361,6 +452,22 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
+        if (!GetConfig()->EnableFairThrottler) {
+            for (auto kind : TEnumTraits<NDataNode::EDataNodeThrottlerKind>::GetDomainValues()) {
+                if (DataNodeCompatThrottlers.contains(kind)) {
+                    continue;
+                }
+
+                const auto& initialThrottlerConfig = newConfig->DataNode->Throttlers[kind]
+                    ? newConfig->DataNode->Throttlers[kind]
+                    : GetConfig()->DataNode->Throttlers[kind];
+                auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
+                    ? ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
+                    : initialThrottlerConfig;
+                LegacyRawThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
+            }
+        }
+
         StorageLookupThreadPool_->Configure(
             newConfig->DataNode->StorageLookupThreadCount.value_or(GetConfig()->DataNode->StorageLookupThreadCount));
         MasterJobThreadPool_->Configure(newConfig->DataNode->MasterJobThreadCount);

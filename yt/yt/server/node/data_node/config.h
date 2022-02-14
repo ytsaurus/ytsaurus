@@ -607,6 +607,9 @@ public:
     //! Writer configuration used to autotomize chunks.
     NChunkClient::TReplicationWriterConfigPtr AutotomyWriter;
 
+    //! Configuration for various Data Node throttlers. Used when fair throttler is not enabled.
+    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
+
     //! Configuration for rps out throttler.
     NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
 
@@ -698,6 +701,7 @@ public:
     //! Number of threads in MasterJob thread pool (used for master jobs execution).
     int MasterJobThreadCount;
 
+    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
     NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr AnnounceChunkReplicaRpsOutThrottler;
 
