@@ -99,6 +99,7 @@ DEFINE_ENUM(EMasterReign,
     ((AutoCreateReplicationCard)                                    (1931))  // babenko
     ((RebalancerKillingMergeJobsFix)                                (1932))  // h0pless
     ((DoNotMergeDynamicTables)                                      (1933))  // gritukan
+    ((QueueList)                                                    (1934))  // achulkov2
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1216,9 +1216,12 @@ public:
         return node;
     }
 
-    TYPath GetNodePath(TCypressNode* trunkNode, TTransaction* transaction)
+    TYPath GetNodePath(TCypressNode* trunkNode, TTransaction* transaction, EPathRootType* pathRootType = nullptr)
     {
         auto fallbackToId = [&] {
+            if (pathRootType) {
+                *pathRootType = EPathRootType::Other;
+            }
             return FromObjectId(trunkNode->GetId());
         };
 
@@ -1260,9 +1263,15 @@ public:
 
         if (currentNode->GetTrunkNode() == RootNode_) {
             builder.AppendChar('/');
+            if (pathRootType) {
+                *pathRootType = EPathRootType::RootNode;
+            }
         } else if (currentNode->GetType() == EObjectType::PortalExit) {
             const auto* portalExit = currentNode->GetTrunkNode()->As<TPortalExitNode>();
             builder.AppendString(portalExit->GetPath());
+            if (pathRootType) {
+                *pathRootType = EPathRootType::PortalExit;
+            }
         } else {
             return fallbackToId();
         }
@@ -1282,9 +1291,9 @@ public:
         return builder.Flush();
     }
 
-    TYPath GetNodePath(const ICypressNodeProxy* nodeProxy)
+    TYPath GetNodePath(const ICypressNodeProxy* nodeProxy, EPathRootType* pathRootType = nullptr)
     {
-        return GetNodePath(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction());
+        return GetNodePath(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction(), pathRootType);
     }
 
     TCypressNode* ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
@@ -3912,14 +3921,14 @@ TCypressNode* TCypressManager::GetNodeOrThrow(TVersionedNodeId id)
     return Impl_->GetNodeOrThrow(id);
 }
 
-TYPath TCypressManager::GetNodePath(TCypressNode* trunkNode, TTransaction* transaction)
+TYPath TCypressManager::GetNodePath(TCypressNode* trunkNode, TTransaction* transaction, EPathRootType* pathRootType)
 {
-    return Impl_->GetNodePath(trunkNode, transaction);
+    return Impl_->GetNodePath(trunkNode, transaction, pathRootType);
 }
 
-TYPath TCypressManager::GetNodePath(const ICypressNodeProxy* nodeProxy)
+TYPath TCypressManager::GetNodePath(const ICypressNodeProxy* nodeProxy, EPathRootType* pathRootType)
 {
-    return Impl_->GetNodePath(nodeProxy);
+    return Impl_->GetNodePath(nodeProxy, pathRootType);
 }
 
 TCypressNode* TCypressManager::ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
