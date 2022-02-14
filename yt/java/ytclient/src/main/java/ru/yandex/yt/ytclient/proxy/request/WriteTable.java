@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 
@@ -22,7 +23,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     private YPath path;
     private final String stringPath;
+    @Nullable
     private final WireRowSerializer<T> serializer;
+    @Nullable private final Class<T> objectClazz;
 
     private YTreeNode config = null;
 
@@ -40,6 +43,7 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         this.path = other.path;
         this.stringPath = other.stringPath;
         this.serializer = other.serializer;
+        this.objectClazz = other.objectClazz;
         this.config = other.config;
         if (other.transactionalOptions != null) {
             this.transactionalOptions = new TransactionalOptions(other.transactionalOptions);
@@ -55,10 +59,18 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         this.path = path;
         this.stringPath = null;
         this.serializer = serializer;
+        this.objectClazz = null;
     }
 
     public WriteTable(YPath path, YTreeSerializer<T> serializer) {
         this(path, MappedRowSerializer.forClass(serializer));
+    }
+
+    public WriteTable(YPath path, Class<T> objectClazz) {
+        this.path = path;
+        this.stringPath = null;
+        this.serializer = null;
+        this.objectClazz = objectClazz;
     }
 
     /**
@@ -69,6 +81,7 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
         this.stringPath = path;
         this.path = null;
         this.serializer = serializer;
+        this.objectClazz = null;
     }
 
     /**
@@ -81,6 +94,10 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
 
     public WireRowSerializer<T> getSerializer() {
         return this.serializer;
+    }
+
+    public Class<T> getObjectClazz() {
+        return this.objectClazz;
     }
 
     public WriteTable<T> setWindowSize(long windowSize) {

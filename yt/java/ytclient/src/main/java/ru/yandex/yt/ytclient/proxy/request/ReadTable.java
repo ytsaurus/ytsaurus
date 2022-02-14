@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 import java.io.ByteArrayOutputStream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 
@@ -21,7 +22,9 @@ import ru.yandex.yt.ytclient.object.YTreeDeserializer;
 public class ReadTable<T> extends RequestBase<ReadTable<T>> {
     private final YPath path;
     private final String stringPath;
-    private final WireRowDeserializer<T> deserializer;
+    @Nullable private final WireRowDeserializer<T> deserializer;
+    @Nullable
+    private final Class<T> objectClazz;
 
     private boolean unordered = false;
     private boolean omitInaccessibleColumns = false;
@@ -34,12 +37,14 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
         this.path = path;
         this.stringPath = null;
         this.deserializer = deserializer;
+        this.objectClazz = null;
     }
 
     public ReadTable(YPath path, YTreeObjectSerializer<T> serializer) {
         this.path = path;
         this.stringPath = null;
         this.deserializer = MappedRowsetDeserializer.forClass(serializer);
+        this.objectClazz = null;
     }
 
     public ReadTable(YPath path, YTreeSerializer<T> serializer) {
@@ -50,6 +55,14 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
         } else {
             this.deserializer = new YTreeDeserializer<>(serializer);
         }
+        this.objectClazz = null;
+    }
+
+    public ReadTable(YPath path, Class<T> objectClazz) {
+        this.path = path;
+        this.stringPath = null;
+        this.deserializer = null;
+        this.objectClazz = objectClazz;
     }
 
     /**
@@ -60,6 +73,7 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
         this.stringPath = path;
         this.path = null;
         this.deserializer = deserializer;
+        this.objectClazz = null;
     }
 
     /**
@@ -70,6 +84,7 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
         this.stringPath = path;
         this.path = null;
         this.deserializer = MappedRowsetDeserializer.forClass(serializer);
+        this.objectClazz = null;
     }
 
     /**
@@ -84,10 +99,15 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
         } else {
             this.deserializer = new YTreeDeserializer<>(serializer);
         }
+        this.objectClazz = null;
     }
 
     public WireRowDeserializer<T> getDeserializer() {
         return this.deserializer;
+    }
+
+    public Class<T> getObjectClazz() {
+        return this.objectClazz;
     }
 
     public ReadTable<T> setTransactionalOptions(TransactionalOptions to) {
