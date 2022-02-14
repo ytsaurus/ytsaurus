@@ -559,7 +559,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         events = read_structured_log(controller_agent_log_file, to_barrier=controller_agent_barrier,
                                      row_filter=lambda e: "event_type" in e)
         aborted_job_events = {event["job_id"]: event for event in events if event["event_type"] == "job_aborted"}
-        assert len(aborted_job_events) == 2
+        # NB: scheduler can manage new scheduled job while CA is processing job abort.
+        # So number of aborted jobs can be equal to 3.
+        assert len(aborted_job_events) >= 2
         assert aborted_job_events[job_id]["reason"] == "user_request"
         assert aborted_job_events[other_job_id]["reason"] == "operation_failed"
         assert now - date_string_to_datetime(aborted_job_events[other_job_id]["finish_time"]) < datetime.timedelta(minutes=1)
