@@ -3,7 +3,7 @@ from .helpers import is_file_locked
 
 from yt.common import which, touch, update
 
-from yt.test_helpers import wait, yatest_common
+from yt.test_helpers import wait
 import yt.subprocess_wrapper as subprocess
 
 import yt.wrapper as yt
@@ -11,7 +11,6 @@ import yt.wrapper as yt
 import os
 import sys
 import logging
-import signal
 
 try:
     import yt_env_watcher
