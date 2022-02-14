@@ -62,7 +62,7 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
   def open(): Unit = {
     YtWrapper.createDynTableAndMount(path, schema)
     YtWrapper.createDynTableAndMount(metaPath, metaSchema)
-    updateInfo()
+    YtWrapper.runWithRetry(transaction => updateInfo(Some(transaction)))
   }
 
   override def write(b: Int): Unit = {
