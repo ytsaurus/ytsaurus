@@ -2662,6 +2662,8 @@ def update_controller_agent_config(path, value, wait_for_orchid=True):
             wait(lambda: get("{}/{}".format(orchid_config_path, path)) == value)
 
 
+# TODO(eshcherbin): Rename to update_scheduler_config_option,
+# and add a new update_scheduler_config helper for updating several options at once.
 def update_scheduler_config(path, value, wait_for_orchid=True):
     set("//sys/scheduler/config/" + path, value, recursive=True)
     orchid_path = "{}/{}".format("//sys/scheduler/orchid/scheduler/config", path)

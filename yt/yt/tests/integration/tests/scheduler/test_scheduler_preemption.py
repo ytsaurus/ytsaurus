@@ -645,6 +645,60 @@ class TestSchedulerPreemption(YTEnvSetup):
 ##################################################################
 
 
+class TestRacyPreemption(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "schedule_job_time_limit": 20000,
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestRacyPreemption, self).setup_method(method)
+        update_pool_tree_config("default", {
+            "preemption_satisfaction_threshold": 1.0,
+            "fair_share_starvation_tolerance": 1.0,
+            "max_unpreemptable_running_job_count": 0,
+            "fair_share_starvation_timeout": 0,
+            "preemptive_scheduling_backoff": 0,
+        })
+
+    def teardown_method(self, method):
+        # Reset not to slow down the teardown method.
+        update_scheduler_config("testing_options/finish_operation_transition_delay", 0)
+        super(TestRacyPreemption, self).teardown_method(method)
+
+    @authors("eshcherbin")
+    def test_race_between_preemption_and_user_abort(self):
+        # Delay between jobs abortion and operation unregistration.
+        update_scheduler_config("testing_options/finish_operation_transition_delay", 15000)
+        update_scheduler_config("testing_options/finish_operation_transition_delay_type", "async")
+
+        create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
+
+        blocking_op = run_sleeping_vanilla()
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/resource_usage/cpu", default=None) == 1.0)
+
+        op = run_sleeping_vanilla(spec={
+            "pool": "prod",
+            "testing": {
+                "scheduling_delay": 5000,
+                "scheduling_delay_type": "async",
+            },
+        })
+
+        time.sleep(2.0)
+        blocking_op.abort()
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 1.0)
+
+
+##################################################################
+
+
 class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -700,8 +754,10 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestResourceLimitsOverdraftPreemption, self).setup_method(method)
-        set("//sys/pool_trees/default/@config/job_graceful_interrupt_timeout", 10000)
-        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 600000)
+        update_pool_tree_config("default", {
+            "job_graceful_interrupt_timeout": 10000,
+            "job_interrupt_timeout": 600000,
+        })
 
     def teardown_method(self, method):
         remove("//sys/scheduler/config", force=True)
@@ -709,7 +765,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_scheduler_preempt_overdraft_resources(self):
-        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 1000)
+        update_pool_tree_config_option("default", "job_interrupt_timeout", 1000)
 
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) > 0

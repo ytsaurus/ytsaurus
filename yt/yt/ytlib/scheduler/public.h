@@ -62,7 +62,7 @@ DEFINE_ENUM(EJobFinalState,
     (Completed)
 );
 
-DEFINE_ENUM(ESchedulingDelayType,
+DEFINE_ENUM(EDelayType,
     (Sync)
     (Async)
 );

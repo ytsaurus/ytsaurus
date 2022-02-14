@@ -570,6 +570,15 @@ void TFairShareTreeJobScheduler::PreemptJobsAfterScheduling(
         const auto& jobInfo = preemptableJobs[currentJobIndex];
         const auto& [job, _, operationElement] = jobInfo;
 
+        if (!operationElement->IsJobKnown(job->GetId())) {
+            // Job may have been terminated concurrently with scheduling, e.g. operation aborted by user request. See: YT-16429.
+            YT_LOG_DEBUG("Job preemption skipped, since the job is already terminated (JobId: %v, OperationId: %v)",
+                job->GetId(),
+                job->GetOperationId());
+
+            continue;
+        }
+
         if (jobStartedUsingPreemption) {
             // TODO(eshcherbin): Rethink preemption reason format to allow more variable attributes easily.
             job->SetPreemptionReason(Format(
