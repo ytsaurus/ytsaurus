@@ -1,9 +1,10 @@
 package ru.yandex.spark.yt.wrapper.discovery
 
 import java.net.{InetSocketAddress, Socket}
-
 import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
+import ru.yandex.inside.yt.kosher.common.GUID
+import ru.yandex.spark.yt.wrapper.operation.OperationStatus
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -34,6 +35,8 @@ trait DiscoveryService {
   def waitAddress(timeout: Duration): Option[Address]
 
   def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean
+
+  def operationInfo: Option[OperationInfo]
 }
 
 object DiscoveryService {
@@ -81,3 +84,5 @@ object DiscoveryService {
     }
   }
 }
+
+case class OperationInfo(id: GUID, state: OperationStatus)
