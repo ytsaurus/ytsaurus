@@ -2,8 +2,11 @@ package ru.yandex.spark.yt.wrapper.discovery
 
 import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
+import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.operation.OperationStatus
 import ru.yandex.yt.ytclient.proxy.CompoundClient
+import ru.yandex.yt.ytclient.proxy.request.GetOperation
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -30,13 +33,23 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
 
   private def masterWrapperPath: String = s"$discoveryPath/master_wrapper"
 
+  override def operationInfo: Option[OperationInfo] = operation.flatMap(oid => {
+    val id = GUID.valueOf(oid)
+    val r = yt.getOperation(new GetOperation(id)).join()
+    if (r.getAttribute("state").isPresent) {
+      Try(OperationStatus.getByName(r.getAttribute("state").get().stringValue()))
+        .toOption
+        .map(s => OperationInfo(id, s))
+    } else None
+  })
+
   override def registerMaster(operationId: String,
                               address: Address,
                               clusterVersion: String,
                               masterWrapperEndpoint: HostAndPort,
                               clusterConf: SparkConfYsonable): Unit = {
     val clearDir = discoverAddress() match {
-      case Some(address) if DiscoveryService.isAlive(address.hostAndPort, 3) && operation.exists(_ != operationId) =>
+      case Some(address) if operation.exists(_ != operationId) && operationInfo.forall(!_.state.isFinished) =>
         throw new IllegalStateException(s"Spark instance with path $discoveryPath already exists")
       case Some(_) =>
         log.info(s"Spark instance with path $discoveryPath registered, but is not alive, rewriting id")
