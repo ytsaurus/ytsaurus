@@ -739,37 +739,44 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
 
         return yson.loads(rsp.content)["snapshot_id"]
 
-    def _wait_for_snapshot_state(self, building_snapshot=None, last_snapshot_id=None):
+    def _build_snapshot_and_check(self, set_read_only):
         master = self._get_master_address()
 
-        def predicate():
+        def _check_not_building_snapshot():
             monitoring = self._get_hydra_monitoring(master)
-            return (building_snapshot is None or monitoring.get("building_snapshot", None) == building_snapshot) and (
-                last_snapshot_id is None or monitoring.get("last_snapshot_id", None) == last_snapshot_id
-            )
+            return "building_snapshot" in monitoring and not monitoring["building_snapshot"]
+        wait(_check_not_building_snapshot)
 
-        wait(predicate)
+        snapshot_id = self._build_snapshot(set_read_only)
+
+        def _check_building_snapshot():
+            monitoring = self._get_hydra_monitoring(master)
+            return "building_snapshot" in monitoring and monitoring["building_snapshot"]
+        wait(_check_building_snapshot)
+
+        def _check_snapshot_built():
+            monitoring = self._get_hydra_monitoring(master)
+            return "building_snapshot" in monitoring and "last_snapshot_id" in monitoring and \
+                   not monitoring["building_snapshot"] and monitoring["last_snapshot_id"] == snapshot_id
+        wait(_check_snapshot_built)
+
+        if set_read_only:
+            def _check_read_only():
+                monitoring = self._get_hydra_monitoring(master)
+                return monitoring["read_only"]
+            wait(_check_read_only)
 
 
 class TestHttpProxyBuildSnapshotNoReadonly(TestHttpProxyBuildSnapshotBase):
-
     @authors("babenko")
     def test_no_read_only(self):
-        self._wait_for_snapshot_state(False, -1)
-        snapshot_id = self._build_snapshot(False)
-        self._wait_for_snapshot_state(True, -1)
-        self._wait_for_snapshot_state(False, snapshot_id)
+        self._build_snapshot_and_check(False)
 
 
 class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
     @authors("babenko")
     def test_read_only(self):
-        self._wait_for_snapshot_state(False, -1)
-        self._build_snapshot(True)
-        self._wait_for_snapshot_state(True, -1)
-        self._wait_for_snapshot_state(False)
-
-        wait(lambda: self._get_hydra_monitoring().get("read_only", None))
+        self._build_snapshot_and_check(True)
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
@@ -778,12 +785,7 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 
     @authors("alexkolodezny")
     def test_read_only_proxy_availability(self):
-        self._wait_for_snapshot_state(False, -1)
-        self._build_snapshot(True)
-        self._wait_for_snapshot_state(True, -1)
-        self._wait_for_snapshot_state(False)
-
-        wait(lambda: self._get_hydra_monitoring().get("read_only", None))
+        self._build_snapshot_and_check(True)
 
         time.sleep(2)
 
