@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import NYT.NChunkClient.NProto.DataStatistics;
@@ -38,6 +37,9 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TResponseHeader;
@@ -51,9 +53,12 @@ import ru.yandex.yt.rpcproxy.TRspReadTableMeta;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.rpcproxy.TWriteTableMeta;
+import ru.yandex.yt.ytclient.object.MappedRowSerializer;
+import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.proxy.internal.SlidingWindow;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
+import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
 import ru.yandex.yt.ytclient.proxy.request.ColumnFilter;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
@@ -760,7 +765,7 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
     final ScheduledExecutorService executor;
     final WriteTable<T> secondaryReq;
     final RpcOptions rpcOptions;
-    final TableRowsSerializer<T> rowsSerializer;
+    @Nullable TableRowsSerializer<T> rowsSerializer;
 
     final Queue<WriteTask<T>> writeTasks = new ConcurrentLinkedQueue<>();
     final Set<Abortable<?>> processing = new HashSet<>();
@@ -798,7 +803,10 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
         this.secondaryReq = new WriteTable<>(this.req);
         this.secondaryReq.setPath(this.secondaryReq.getYPath().append(true));
 
-        this.rowsSerializer = new TableRowsSerializer<>(this.req.getSerializer());
+        WireRowSerializer<T> reqSerializer = this.req.getSerializer();
+        if (reqSerializer != null) {
+            this.rowsSerializer = new TableRowsSerializer<>(reqSerializer);
+        }
 
         YPath path = this.req.getYPath();
         boolean append = path.getAppend().orElse(false);
@@ -826,7 +834,19 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
                             .thenCompose(unused -> transaction.getNode(
                                     new GetNode(path.justPath()).setAttributes(ColumnFilter.of("schema"))))
                             .thenApply(node -> new InitResult(
-                                    transaction, TableSchema.fromYTree(node.getAttributeOrThrow("schema"))));
+                                    transaction, TableSchema.fromYTree(node.getAttributeOrThrow("schema"))))
+                            .thenApply(result -> {
+                                if (this.rowsSerializer == null) {
+                                    Class<T> objectClazz = this.req.getObjectClazz();
+                                    if (objectClazz == null) {
+                                        throw new RuntimeException("No serializer and objectClazz in WriteTable");
+                                    }
+                                    this.rowsSerializer = new TableRowsSerializer<>(MappedRowSerializer.forClass(
+                                            YTreeObjectSerializerFactory.forClass(objectClazz)
+                                    ));
+                                }
+                                return result;
+                            });
                 });
 
         this.init.handle((initResult, ex) -> {
@@ -839,6 +859,9 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
 
     @Override
     public WireRowSerializer<T> getRowSerializer() {
+        if (rowsSerializer == null) {
+            throw new RuntimeException("No rowsSerializer in TableWriter");
+        }
         return rowsSerializer.getRowSerializer();
     }
 
@@ -1093,7 +1116,14 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
 @NonNullApi
 class TableWriterImpl<T> extends RawTableWriterImpl implements TableWriter<T>, RpcStreamConsumer {
     @Nullable private TableSchema schema;
-    @Nonnull final TableRowsSerializer<T> rowsSerializer;
+    @Nullable TableRowsSerializer<T> rowsSerializer = null;
+    // For creating rowsSerializer when table schema will be known.
+    @Nullable Class<T> objectClazz = null;
+
+    TableWriterImpl(long windowSize, long packetSize, Class<T> objectClazz) {
+        super(windowSize, packetSize);
+        this.objectClazz = objectClazz;
+    }
 
     TableWriterImpl(long windowSize, long packetSize, WireRowSerializer<T> serializer) {
         super(windowSize, packetSize);
@@ -1122,9 +1152,13 @@ class TableWriterImpl<T> extends RawTableWriterImpl implements TableWriter<T>, R
                     Compression.None
             );
             self.schema = ApiServiceUtil.deserializeTableSchema(metadata.getSchema());
-
             logger.debug("schema -> {}", schema.toYTree().toString());
 
+            if (self.rowsSerializer == null) {
+                Objects.requireNonNull(self.objectClazz);
+                self.rowsSerializer = new TableRowsSerializer<>(MappedRowSerializer.forClass(
+                        YTreeObjectSerializerFactory.forClass(self.objectClazz, self.schema)));
+            }
             return self;
         });
     }
@@ -1369,11 +1403,18 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
 class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements TableReader<T> {
     private static final Parser<TRspReadTableMeta> META_PARSER = TRspReadTableMeta.parser();
 
-    private final TableAttachmentReader<T> reader;
+    @Nullable private TableAttachmentReader<T> reader;
+    // Need for creating TableAttachmentReader later
+    @Nullable private final Class<T> objectClazz;
     private TRspReadTableMeta metadata = null;
+
+    TableReaderImpl(Class<T> objectClazz) {
+        this.objectClazz = objectClazz;
+    }
 
     TableReaderImpl(TableAttachmentReader<T> reader) {
         this.reader = reader;
+        this.objectClazz = null;
     }
 
     @Override
@@ -1421,6 +1462,17 @@ class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements Tabl
         TableReaderImpl<T> self = this;
         return readHead().thenApply((data) -> {
             self.metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
+            if (self.reader == null) {
+                Objects.requireNonNull(self.objectClazz);
+                YTreeSerializer<T> serializer = YTreeObjectSerializerFactory.forClass(
+                        self.objectClazz, ApiServiceUtil.deserializeTableSchema(self.metadata.getSchema()));
+                if (!(serializer instanceof YTreeObjectSerializer)) {
+                    throw new RuntimeException("Got not a YTreeObjectSerializer");
+                }
+                self.reader = new TableAttachmentWireProtocolReader<>(
+                        MappedRowsetDeserializer.forClass((YTreeObjectSerializer<T>) serializer));
+            }
+
             return self;
         });
     }

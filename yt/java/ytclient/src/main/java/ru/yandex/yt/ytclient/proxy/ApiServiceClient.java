@@ -219,12 +219,17 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<YTreeNode> getOperation(GetOperation req);
 
     <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
-                                                    TableAttachmentReader<T> reader);
+                                                    @Nullable TableAttachmentReader<T> reader);
+
     default CompletableFuture<TableReader<byte[]>> readTableDirect(ReadTableDirect req) {
         return readTable(req, TableAttachmentReader.BYPASS);
     }
 
     default <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
-        return readTable(req, new TableAttachmentWireProtocolReader<>(req.getDeserializer()));
+        if (req.getDeserializer() != null) {
+            return readTable(req, new TableAttachmentWireProtocolReader<>(req.getDeserializer()));
+        } else {
+            return readTable(req, null);
+        }
     }
 }

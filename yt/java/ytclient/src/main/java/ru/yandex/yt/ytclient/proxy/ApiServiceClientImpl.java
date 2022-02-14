@@ -728,16 +728,23 @@ public class ApiServiceClientImpl implements ApiServiceClient {
                 response -> response.body().getResult());
     }
 
+
     @Override
     public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
-                                                           TableAttachmentReader<T> reader) {
+                                                           @Nullable TableAttachmentReader<T> reader) {
         RpcClientRequestBuilder<TReqReadTable.Builder, TRspReadTable>
                 builder = ApiServiceMethodTable.READ_TABLE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
-        TableReaderImpl<T> tableReader = new TableReaderImpl<>(reader);
+        TableReaderImpl<T> tableReader;
+        if (reader != null) {
+            tableReader = new TableReaderImpl<>(reader);
+        } else {
+            Objects.requireNonNull(req.getObjectClazz());
+            tableReader = new TableReaderImpl<>(req.getObjectClazz());
+        }
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
                 control -> tableReader.waitMetadata());
@@ -757,10 +764,21 @@ public class ApiServiceClientImpl implements ApiServiceClient {
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
-        TableWriterImpl<T> tableWriter = new TableWriterImpl<>(
-                req.getWindowSize(),
-                req.getPacketSize(),
-                req.getSerializer());
+        TableWriterImpl<T> tableWriter;
+        if (req.getSerializer() != null) {
+            tableWriter = new TableWriterImpl<>(
+                    req.getWindowSize(),
+                    req.getPacketSize(),
+                    req.getSerializer());
+        } else if (req.getObjectClazz() != null) {
+            tableWriter = new TableWriterImpl<>(
+                    req.getWindowSize(),
+                    req.getPacketSize(),
+                    req.getObjectClazz()
+            );
+        } else {
+            throw new RuntimeException("No objectClazz and serializer in WriteTable");
+        }
 
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
         CompletableFuture<TableWriter<T>> result = streamControlFuture
