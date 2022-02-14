@@ -5,9 +5,10 @@ import io.netty.channel.DefaultEventLoopGroup
 import org.apache.commons.io.FileUtils
 import org.apache.spark.deploy.rest.{ApplicationState, DriverState, MasterClient, RestSubmissionClientWrapper}
 import org.apache.spark.launcher.InProcessLauncher
-import org.apache.spark.status.api.v1.ApplicationStatus
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.cypress.YPath
+import ru.yandex.spark.yt.wrapper.config.Utils.{parseRemoteConfig, remoteGlobalConfigPath, remoteVersionConfigPath}
+import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider}
 import ru.yandex.spark.yt.wrapper.discovery.CypressDiscoveryService
 
 import java.io.File
@@ -40,9 +41,20 @@ class SubmissionClient(proxy: String,
     submit(launcher, RetryConfig())
   }
 
+  private def addConf(launcher: InProcessLauncher, config: Map[String, String]): Unit = {
+    config.foldLeft(launcher) { case (res, (key, value)) => res.setConf(key, value) }
+  }
+
   def submit(launcher: InProcessLauncher,
              retryConfig: RetryConfig): Try[String] = {
+    val yt = YtClientProvider.ytClient(YtClientConfiguration.default(proxy, user, token))
+    val remoteGlobalConfig = parseRemoteConfig(remoteGlobalConfigPath, yt)
+    val remoteVersionConfig = parseRemoteConfig(remoteVersionConfigPath(cluster.get().version), yt)
+
     launcher.setDeployMode("cluster")
+
+    addConf(launcher, remoteGlobalConfig)
+    addConf(launcher, remoteVersionConfig)
 
     launcher.setConf("spark.master.rest.enabled", "true")
     launcher.setConf("spark.master.rest.failover", "false")
