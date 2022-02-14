@@ -22,6 +22,9 @@ from logging.handlers import WatchedFileHandler
 logger = logging.getLogger("YtLocal")
 
 
+LOCK_ITER_COUNT = 3
+
+
 def configure_logging(log_path):
     if set_log_level_from_config is not None:
         set_log_level_from_config(logger)
@@ -66,11 +69,17 @@ def main():
 
     if options.lock_file_path:
         lock_file_descriptor = open(options.lock_file_path, "w+")
-        try:
-            fcntl.lockf(lock_file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except IOError:
-            logger.error("YT watcher failed. Cannot take a file lock")
-            raise
+        # Lock attempts may fail since outer process may take lock for checks. 
+        for iter in range(LOCK_ITER_COUNT):
+            try:
+                fcntl.lockf(lock_file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except IOError:
+                logger.exception("YT watcher failed. Cannot take a file lock")
+                if iter + 1 == LOCK_ITER_COUNT:
+                    raise
+                else:
+                    time.sleep(0.042)
         logger.info("Lock acquired: %s", options.lock_file_path)
 
     logrotate_enabled = not options.disable_logrotate
