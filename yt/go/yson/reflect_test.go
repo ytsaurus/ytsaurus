@@ -1,8 +1,10 @@
 package yson
 
 import (
+	"encoding/json"
 	"testing"
 
+	"a.yandex-team.ru/library/go/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -212,4 +214,20 @@ func TestYPAPIMap(t *testing.T) {
 	require.Contains(t, decoded.Revisions, uint64(200))
 	require.Equal(t, &Progress{1, 1, map[int32]string{42: "hello"}}, decoded.Revisions[uint64(400)])
 	require.Equal(t, &Progress{2, 1, nil}, decoded.Revisions[uint64(200)])
+}
+
+type intPtr struct {
+	X *int
+}
+
+func TestUnmarshalNonNilPtr(t *testing.T) {
+	v := intPtr{X: ptr.Int(42)}
+
+	require.NoError(t, json.Unmarshal([]byte(`{"X": null}`), &v))
+	require.True(t, v.X == nil)
+
+	v = intPtr{X: ptr.Int(42)}
+
+	require.NoError(t, Unmarshal([]byte(`{X=#}`), &v))
+	require.True(t, v.X == nil)
 }

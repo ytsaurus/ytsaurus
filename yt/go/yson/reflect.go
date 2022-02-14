@@ -334,6 +334,7 @@ func decodeReflectPtr(r *Reader, v reflect.Value, opts *DecoderOptions) error {
 	}
 
 	if e == EventLiteral && r.Type() == TypeEntity {
+		v.Set(reflect.Zero(v.Type()))
 		return nil
 	}
 
