@@ -186,7 +186,7 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("scheduling_delay", &TThis::SchedulingDelay)
         .Default();
     registrar.Parameter("scheduling_delay_type", &TThis::SchedulingDelayType)
-        .Default(ESchedulingDelayType::Sync);
+        .Default(EDelayType::Sync);
     registrar.Parameter("delay_inside_revive", &TThis::DelayInsideRevive)
         .Default();
     registrar.Parameter("delay_inside_initialize", &TThis::DelayInsideInitialize)

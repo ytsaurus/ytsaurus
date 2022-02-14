@@ -4603,13 +4603,7 @@ TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
 
-    if (Spec_->TestingOperationOptions->SchedulingDelay) {
-        if (Spec_->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
-            TDelayedExecutor::WaitForDuration(*Spec_->TestingOperationOptions->SchedulingDelay);
-        } else {
-            Sleep(*Spec_->TestingOperationOptions->SchedulingDelay);
-        }
-    }
+    MaybeDelay(Spec_->TestingOperationOptions->SchedulingDelay, Spec_->TestingOperationOptions->SchedulingDelayType);
 
     if (State != EControllerState::Running) {
         YT_LOG_DEBUG("Stale schedule job attempt");

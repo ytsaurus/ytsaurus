@@ -2338,7 +2338,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
         auto& job = preemptedJob.Job;
         auto interruptTimeout = preemptedJob.InterruptTimeout;
         if (!FindOperationState(job->GetOperationId()) || job->GetUnregistered()) {
-            YT_LOG_DEBUG("Cannot preempt job since operation is no longer known (JobId: %v, OperationId: %v)",
+            YT_LOG_DEBUG("Cannot preempt job since operation is no longer known or the job is unregistered (JobId: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetOperationId());
             continue;

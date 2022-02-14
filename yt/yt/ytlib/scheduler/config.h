@@ -489,7 +489,7 @@ class TTestingOperationOptions
 {
 public:
     std::optional<TDuration> SchedulingDelay;
-    ESchedulingDelayType SchedulingDelayType;
+    EDelayType SchedulingDelayType;
 
     //! The following delays are used inside the operation controller.
 

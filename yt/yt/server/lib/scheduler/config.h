@@ -462,6 +462,7 @@ public:
 
     // Testing option that enables sleeping between intermediate and final states of operation.
     std::optional<TDuration> FinishOperationTransitionDelay;
+    EDelayType FinishOperationTransitionDelayType;
 
     REGISTER_YSON_STRUCT(TTestingOptions);
 

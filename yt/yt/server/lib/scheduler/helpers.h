@@ -27,4 +27,10 @@ void ValidateInfinibandClusterName(const TString& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Use for all testing delays.
+//! Used for testing purposes.
+void MaybeDelay(const std::optional<TDuration>& delay, EDelayType delayType = EDelayType::Async);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

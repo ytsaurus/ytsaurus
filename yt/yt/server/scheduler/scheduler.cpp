@@ -3512,9 +3512,9 @@ private:
 
                 ValidateOperationState(operation, EOperationState::Completing);
 
-                if (Config_->TestingOptions->FinishOperationTransitionDelay) {
-                    Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
-                }
+                MaybeDelay(
+                    Config_->TestingOptions->FinishOperationTransitionDelay,
+                    Config_->TestingOptions->FinishOperationTransitionDelayType);
             }
 
             YT_VERIFY(operation->GetState() == EOperationState::Completing);
@@ -3750,10 +3750,9 @@ private:
             }
         }
 
-
-        if (Config_->TestingOptions->FinishOperationTransitionDelay) {
-            Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
-        }
+        MaybeDelay(
+            Config_->TestingOptions->FinishOperationTransitionDelay,
+            Config_->TestingOptions->FinishOperationTransitionDelayType);
 
         auto operationProgress = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
             .AsyncVia(operation->GetCancelableControlInvoker())
