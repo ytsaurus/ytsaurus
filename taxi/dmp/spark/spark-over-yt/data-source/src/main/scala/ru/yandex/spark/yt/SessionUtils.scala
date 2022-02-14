@@ -5,6 +5,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.internal.SQLConf.FILES_MAX_PARTITION_BYTES
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import ru.yandex.spark.yt.wrapper.config.Utils.{parseRemoteConfig, remoteGlobalConfigPath, remoteVersionConfigPath}
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
@@ -22,14 +23,6 @@ object SessionUtils {
     "spark.yt.enablers" -> Seq("byop", "read.arrow", "profiling", "mtn")
       .map(s => s"spark.hadoop.yt.$s.enabled").mkString(",")
   )
-
-  private def parseRemoteConfig(path: String, yt: CompoundClient): Map[String, String] = {
-    import scala.collection.JavaConverters._
-    val remoteConfig = YtWrapper.readDocument(path)(yt).asMap().getOption("spark_conf")
-    remoteConfig.map { config =>
-      config.asMap().asScala.toMap.mapValues(_.stringValue())
-    }.getOrElse(Map.empty)
-  }
 
   implicit class RichSparkConf(conf: SparkConf) {
     def setEnabler(name: String, clusterConf: Map[String, String]): SparkConf = {
@@ -90,13 +83,5 @@ object SessionUtils {
     log.info(s"SPYT Cluster version: ${sparkConf.get("spark.yt.cluster.version")}")
     log.info(s"SPYT library version: ${sparkConf.get("spark.yt.version")}")
     spark
-  }
-
-  private def remoteGlobalConfigPath: String = "//home/spark/conf/global"
-
-  private def remoteVersionConfigPath(sparkClusterVersion: String): String = {
-    val snapshot = Set("SNAPSHOT", "beta", "dev")
-    val subDir = if (snapshot.exists(sparkClusterVersion.contains)) "snapshots" else "releases"
-    s"//home/spark/conf/$subDir/$sparkClusterVersion/spark-launch-conf"
   }
 }
