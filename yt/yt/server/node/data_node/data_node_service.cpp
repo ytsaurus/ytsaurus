@@ -44,6 +44,10 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 
+#include <yt/yt/client/rpc/helpers.h>
+
+#include <yt/yt/server/lib/rpc/per_workload_category_queue.h>
+
 #include <yt/yt/server/node/data_node/local_chunk_reader.h>
 #include <yt/yt/server/node/data_node/lookup_session.h>
 
@@ -169,51 +173,55 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000)
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000)
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateP2PBlocks)
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000));
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks)
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000)
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbeChunkSet)
             .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000));
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbeBlockSet)
             .SetCancelable(true)
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000));
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
             .SetCancelable(true)
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000));
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000)
+            .SetRequestQueueProvider(GetBlockSetQueue_.GetProvider()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
             .SetCancelable(true)
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000));
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000)
+            .SetRequestQueueProvider(GetBlockRangeQueue_.GetProvider()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkFragmentSet)
             .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
-            .SetQueueSizeLimit(100000)
-            .SetConcurrencyLimit(100000));
+            .SetQueueSizeLimit(100'000)
+            .SetConcurrencyLimit(100'000)
+            .SetRequestQueueProvider(GetChunkFragmentSetQueue_.GetProvider()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows)
             .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
             .SetCancelable(true)
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000));
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
             .SetCancelable(true)
-            .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000)
-            .SetHeavy(true));
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000)
+            .SetHeavy(true)
+            .SetRequestQueueProvider(GetChunkMetaQueue_.GetProvider()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSliceDataWeights)
             .SetCancelable(true)
             .SetHeavy(true));
@@ -236,6 +244,11 @@ private:
     const TDataNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
 
+    TPerWorkloadCategoryRequestQueue GetBlockSetQueue_;
+    TPerWorkloadCategoryRequestQueue GetBlockRangeQueue_;
+    TPerWorkloadCategoryRequestQueue GetChunkFragmentSetQueue_;
+    TPerWorkloadCategoryRequestQueue GetChunkMetaQueue_;
+
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
@@ -244,7 +257,7 @@ private:
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
         TSessionOptions options;
-        options.WorkloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
         options.SyncOnClose = request->sync_on_close();
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
@@ -627,7 +640,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeChunkSet)
     {
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
         auto chunkCount = request->chunk_ids_size();
         context->SetRequestInfo("ChunkCount: %v, Workload: %v",
@@ -693,7 +706,7 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
         context->SetRequestInfo("BlockIds: %v:%v, Workload: %v",
             chunkId,
@@ -756,7 +769,7 @@ private:
         bool populateCache = request->populate_cache();
         bool fetchFromCache = request->fetch_from_cache();
         bool fetchFromDisk = request->fetch_from_disk();
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto readSessionId = request->has_read_session_id()
             ? FromProto<TReadSessionId>(request->read_session_id())
             : TReadSessionId{};
@@ -922,7 +935,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         bool populateCache = request->populate_cache();
@@ -1049,7 +1062,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkFragmentSet)
     {
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto useDirectIO = request->use_direct_io();
 
         int totalFragmentCount = 0;
@@ -1281,7 +1294,7 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto populateCache = request->populate_cache();
         auto rejectIfThrottling = request->reject_if_throttling();
 
@@ -1443,7 +1456,7 @@ private:
         auto extensionTags = request->all_extension_tags()
             ? std::nullopt
             : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
         context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",
             chunkId,
@@ -1531,7 +1544,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSliceDataWeights)
     {
         auto requestCount = request->chunk_requests_size();
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
         context->SetRequestInfo("RequestCount: %v, Workload: %v",
             requestCount,
@@ -1606,7 +1619,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
     {
         auto requestCount = request->slice_requests_size();
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
         context->SetRequestInfo(
             "RequestCount: %v, Workload: %v",
@@ -1694,7 +1707,7 @@ private:
         auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
         auto requestCount = request->sample_requests_size();
         auto maxSampleSize = request->max_sample_size();
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
         context->SetRequestInfo("SamplingPolicy: %v, KeyColumns: %v, RequestCount: %v, Workload: %v",
             samplingPolicy,
@@ -1956,7 +1969,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetColumnarStatistics)
     {
-        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
         context->SetRequestInfo(
             "SubrequestCount: %v, Workload: %v",

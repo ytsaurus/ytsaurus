@@ -14,6 +14,8 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
+#include <yt/yt/client/rpc/helpers.h>
+
 #include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -628,9 +630,9 @@ private:
             // Request chunk meta.
             {
                 auto req = proxy.GetChunkMeta();
+                SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
                 ToProto(req->mutable_chunk_id(), partChunkId);
                 req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
-                ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
                 req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
                 futures.push_back(req->Invoke().Apply(
@@ -641,10 +643,10 @@ private:
             // Request header block.
             if (Overlayed_) {
                 auto req = proxy.GetBlockRange();
+                SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
                 ToProto(req->mutable_chunk_id(), partChunkId);
                 req->set_first_block_index(0);
                 req->set_block_count(1);
-                ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
 
                 futures.push_back(req->Invoke().Apply(
                     BIND(&TComputeQuorumInfoSession::OnGetHeaderBlockResponse, MakeStrong(this), replica)

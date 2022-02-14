@@ -16,17 +16,19 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/client/api/config.h>
-
-#include <yt/yt/client/node_tracker_client/node_directory.h>
-
-#include <yt/yt/client/chunk_client/chunk_replica.h>
-
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/yt/ytlib/journal_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+
+#include <yt/yt/client/rpc/helpers.h>
+
+#include <yt/yt/client/api/config.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -734,8 +736,8 @@ private:
         TDataNodeServiceProxy proxy(channel);
         auto req = proxy.StartChunk();
         req->SetTimeout(Config_->NodeRpcTimeout);
+        SetRequestWorkloadDescriptor(req, Config_->WorkloadDescriptor);
         ToProto(req->mutable_session_id(), SessionId_);
-        ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
         req->set_sync_on_close(Config_->SyncOnClose);
         req->set_enable_direct_io(Config_->EnableDirectIO);
         ToProto(req->mutable_placement_id(), Options_->PlacementId);

@@ -29,6 +29,11 @@ struct TStreamingFeedback;
 struct TServiceDescriptor;
 struct TMethodDescriptor;
 
+DECLARE_REFCOUNTED_CLASS(TRequestQueue)
+
+using TRequestQueueProvider = TCallback<TRequestQueue*(const NRpc::NProto::TRequestHeader&)>;
+using TInvokerProvider = TCallback<IInvokerPtr(const NRpc::NProto::TRequestHeader&)>;
+
 DECLARE_REFCOUNTED_CLASS(TClientRequest)
 DECLARE_REFCOUNTED_CLASS(TClientResponse)
 

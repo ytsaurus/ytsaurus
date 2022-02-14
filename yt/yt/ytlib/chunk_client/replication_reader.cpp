@@ -15,8 +15,6 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/client/api/config.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -26,11 +24,17 @@
 
 #include <yt/yt/ytlib/table_client/lookup_reader.h>
 
-#include <yt/yt/client/node_tracker_client/node_directory.h>
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/client/api/config.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/rpc/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -1327,9 +1331,9 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
 
         auto req = proxy.ProbeBlockSet();
+        SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         req->SetResponseHeavy(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
-        ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->SetAcknowledgementTimeout(std::nullopt);
 
@@ -1845,10 +1849,10 @@ private:
         auto req = proxy.GetBlockSet();
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+        SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
-        ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
         ToProto(req->mutable_read_session_id(), SessionOptions_.ReadSessionId);
 
         if (ReaderOptions_->EnableP2P && reader->LocalNodeId_) {
@@ -2237,10 +2241,10 @@ private:
         auto req = proxy.GetBlockRange();
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+        SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(BlockCount_);
-        ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
 
         NProfiling::TWallTimer dataWaitTimer;
         auto rspFuture = req->Invoke();
@@ -2480,6 +2484,7 @@ private:
         auto req = proxy.GetChunkMeta();
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+        SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
@@ -2489,7 +2494,6 @@ private:
         if (ExtensionTags_) {
             ToProto(req->mutable_extension_tags(), *ExtensionTags_);
         }
-        ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
         NProfiling::TWallTimer dataWaitTimer;
@@ -2890,11 +2894,11 @@ private:
         auto req = proxy.LookupRows();
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+        SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         ToProto(req->mutable_chunk_id(), ChunkId_);
-        ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
         ToProto(req->mutable_read_session_id(), ReadSessionId_);
         req->set_timestamp(Timestamp_);
-        req->set_compression_codec(static_cast<int>(CodecId_));
+        req->set_compression_codec(ToProto<int>(CodecId_));
         ToProto(req->mutable_column_filter(), ColumnFilter_);
         req->set_produce_all_versions(ProduceAllVersions_);
         req->set_override_timestamp(OverrideTimestamp_);

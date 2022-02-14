@@ -21,6 +21,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/client/rpc/helpers.h>
+
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
@@ -348,14 +350,14 @@ private:
     {
         auto throttlerType = CheckedEnumCast<EJobThrottlerType>(request->throttler_type());
         auto count = request->count();
-        auto descriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto jobId = FromProto<TJobId>(request->job_id());
 
         context->SetRequestInfo("ThrottlerType: %v, Count: %v, JobId: %v, WorkloadDescriptor: %v",
             throttlerType,
             count,
             jobId,
-            descriptor);
+            workloadDescriptor);
 
         const auto& throttler = GetJobThrottler(throttlerType);
         auto future = throttler->Throttle(count);

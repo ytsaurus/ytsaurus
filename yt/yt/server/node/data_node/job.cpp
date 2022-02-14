@@ -61,15 +61,6 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/yt/core/actions/cancelable_context.h>
-
-#include <yt/yt/core/concurrency/scheduler.h>
-
-#include <yt/yt/core/logging/log.h>
-
-#include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
@@ -85,7 +76,18 @@
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/client/rpc/helpers.h>
+
 #include <yt/yt/client/transaction_client/public.h>
+
+#include <yt/yt/core/actions/cancelable_context.h>
+
+#include <yt/yt/core/concurrency/scheduler.h>
+
+#include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/string.h>
 
 #include <util/generic/algorithm.h>
 
@@ -1759,10 +1761,10 @@ private:
             auto partChunkId = EncodeChunkId(chunkIdWithIndex);
 
             auto req = proxy.GetChunkMeta();
+            SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
             req->SetTimeout(GetDynamicConfig()->RpcTimeout);
             ToProto(req->mutable_chunk_id(), partChunkId);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
-            ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
             req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
             metaFutures.push_back(req->Invoke());

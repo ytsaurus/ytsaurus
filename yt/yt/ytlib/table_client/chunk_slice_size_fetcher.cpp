@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/rpc/helpers.h>
+
 #include <yt/yt/core/rpc/channel.h>
 
 namespace NYT::NTableClient {
@@ -56,11 +58,10 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.GetChunkSliceDataWeights();
+    SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserInteractive));
     req->SetRequestHeavy(true);
     req->SetResponseHeavy(true);
     req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-
-    ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserInteractive));
 
     for (int index : chunkIndexes) {
         const auto& chunk = Chunks_[index];

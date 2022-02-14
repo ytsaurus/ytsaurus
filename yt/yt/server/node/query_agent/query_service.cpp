@@ -432,10 +432,12 @@ private:
     const IEvaluatorPtr Evaluator_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
     const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
-
-    TRequestQueue InMemoryMultireadRequestQueue_{"in_memory"};
+    const TRequestQueuePtr InMemoryMultireadRequestQueue_ = CreateRequestQueue("in_memory");
 
     std::atomic<bool> RejectUponThrottlerOverdraft_;
+
+    NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/count");
+    NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/byte_size");
 
 
     IInvokerPtr GetExecuteInvoker(const NRpc::NProto::TRequestHeader& requestHeader)
@@ -463,11 +465,8 @@ private:
         auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
         return inMemoryMode == EInMemoryMode::None
             ? nullptr
-            : &InMemoryMultireadRequestQueue_;
+            : InMemoryMultireadRequestQueue_.Get();
     }
-
-    NProfiling::TCounter TabletErrorCountCounter = QueryAgentProfiler.Counter("/get_tablet_infos/errors/count");
-    NProfiling::TCounter TabletErrorSizeCounter = QueryAgentProfiler.Counter("/get_tablet_infos/errors/byte_size");
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
@@ -964,8 +963,8 @@ private:
                     if (auto error = tabletSnapshot->TabletRuntimeData->Errors[activity].Load(); !error.IsOK()) {
                         auto* protoError = protoTabletInfo->add_tablet_errors();
                         ToProto(protoError, error);
-                        TabletErrorCountCounter.Increment(1);
-                        TabletErrorSizeCounter.Increment(protoError->ByteSize());
+                        TabletErrorCountCounter_.Increment(1);
+                        TabletErrorSizeCounter_.Increment(protoError->ByteSize());
                     }
                 }
             }
@@ -987,8 +986,8 @@ private:
                     if (auto error = replicaSnapshot->RuntimeData->Error.Load(); !error.IsOK()) {
                         auto* protoError = protoReplicaInfo->mutable_replication_error();
                         ToProto(protoError, error);
-                        TabletErrorCountCounter.Increment(1);
-                        TabletErrorSizeCounter.Increment(protoError->ByteSize());
+                        TabletErrorCountCounter_.Increment(1);
+                        TabletErrorSizeCounter_.Increment(protoError->ByteSize());
                     }
                 }
             }

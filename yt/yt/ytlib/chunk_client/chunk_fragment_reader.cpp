@@ -18,6 +18,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/client/rpc/helpers.h>
+
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -384,7 +386,7 @@ protected:
 
         auto req = proxy.ProbeChunkSet();
         req->SetResponseHeavy(true);
-        ToProto(req->mutable_workload_descriptor(), Options_.WorkloadDescriptor);
+        SetRequestWorkloadDescriptor(req, Options_.WorkloadDescriptor);
         ToProto(req->mutable_chunk_ids(), probingInfo.ChunkIds);
         req->SetAcknowledgementTimeout(std::nullopt);
 
@@ -928,8 +930,8 @@ private:
             req->SetResponseHeavy(true);
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
             req->SetMultiplexingParallelism(Config_->GetChunkFragmentSetMultiplexingParallelism);
+            SetRequestWorkloadDescriptor(req, Options_.WorkloadDescriptor);
             ToProto(req->mutable_read_session_id(), Options_.ReadSessionId);
-            ToProto(req->mutable_workload_descriptor(), Options_.WorkloadDescriptor);
             req->set_use_direct_io(Config_->UseDirectIO);
 
             for (const auto& chunkFragmentSetInfos : requestInfo.ChunkFragmentSetInfos) {
