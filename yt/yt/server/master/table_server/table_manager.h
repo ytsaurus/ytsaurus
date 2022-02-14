@@ -96,6 +96,12 @@ public:
     void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation);
     TTableCollocation* GetTableCollocationOrThrow(TTableCollocationId id) const;
 
+    //! Queue management.
+    const THashSet<TTableNode*>& GetQueues() const;
+    void RegisterQueue(TTableNode* node);
+    void UnregisterQueue(TTableNode* node);
+    TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const;
+
 private:
     class TImpl;
     class TMasterTableSchemaTypeHandler;

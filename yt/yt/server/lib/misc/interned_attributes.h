@@ -325,6 +325,7 @@
     XX(ProfilingTag, profiling_tag) \
     XX(ProjectId, project_id) \
     XX(ProxyKind, proxy_kind) \
+    XX(QueueAgentObjectRevisions, queue_agent_object_revisions) \
     XX(QueueAgentStage, queue_agent_stage) \
     XX(QueueStatus, queue_status) \
     XX(QueuePartitions, queue_partitions) \

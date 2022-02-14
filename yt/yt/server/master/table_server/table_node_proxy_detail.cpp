@@ -1660,9 +1660,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.SchemaModification);
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
+    const auto& tableManager = Bootstrap_->GetTableManager();
     auto* table = LockThisImpl();
     auto dynamic = options.Dynamic.value_or(table->IsDynamic());
     auto schema = options.Schema ? options.Schema : table->GetSchema()->AsTableSchema();
+
+    bool isQueueObjectBefore = table->IsQueueObject();
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
@@ -1779,6 +1782,15 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     if (table->IsExternal()) {
         ExternalizeToMasters(context, {table->GetExternalCellTag()});
+    }
+
+    bool isQueueObjectAfter = table->IsQueueObject();
+    if (isQueueObjectAfter != isQueueObjectBefore) {
+        if (isQueueObjectAfter) {
+            tableManager->RegisterQueue(table);
+        } else {
+            tableManager->UnregisterQueue(table);
+        }
     }
 
     context->Reply();

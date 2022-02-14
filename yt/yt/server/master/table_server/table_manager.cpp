@@ -42,6 +42,7 @@ using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NConcurrency;
 using namespace NCypressClient;
+using namespace NCypressServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NHydra;
@@ -50,6 +51,7 @@ using namespace NTableClient;
 using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NYTree;
+using namespace NYson;
 
 using NCypressServer::TNodeId;
 
@@ -647,6 +649,84 @@ public:
         return collocation;
     }
 
+    const THashSet<TTableNode*>& GetQueues() const
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        return Queues_;
+    }
+
+    void RegisterQueue(TTableNode* node)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        if (!Queues_.insert(node).second) {
+            YT_LOG_ALERT_IF(
+                IsMutationLoggingEnabled(),
+                "Attempting to register a queue twice (Node: %v, Path: %Qv)",
+                node->GetId(),
+                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+        }
+    }
+
+    void UnregisterQueue(TTableNode* node)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        if (!Queues_.erase(node)) {
+            YT_LOG_ALERT_IF(
+                IsMutationLoggingEnabled(),
+                "Attempting to unregister an unknown queue (Node: %v, Path: %Qv)",
+                node->GetId(),
+                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+        }
+    }
+
+    TFuture<TYsonString> GetQueueAgentObjectRevisionsAsync() const
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+        THashMap<TString, TRevision> objectRevisions;
+        for (auto* node : GetQueues()) {
+            if (IsObjectAlive(node)) {
+                EPathRootType pathRootType;
+                auto path = cypressManager->GetNodePath(node, /*transaction*/ nullptr, /*pathRootType*/ &pathRootType);
+                // We are intentionally skipping trunk nodes which are hanging in the air.
+                if (pathRootType != EPathRootType::Other) {
+                    objectRevisions[path] = node->GetRevision();
+                }
+            }
+        }
+        if (multicellManager->IsPrimaryMaster() && multicellManager->GetRoleMasterCellCount(EMasterCellRole::CypressNodeHost) > 1) {
+            std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
+            for (auto cellTag : multicellManager->GetRoleMasterCells(EMasterCellRole::CypressNodeHost)) {
+                if (multicellManager->GetCellTag() != cellTag) {
+                    YT_LOG_DEBUG("Requesting queue agent objects from secondary cell (CellTag: %v)", cellTag);
+                    auto channel = multicellManager->GetMasterChannelOrThrow(
+                        cellTag,
+                        EPeerKind::Follower);
+                    TObjectServiceProxy proxy(channel);
+                    auto req = TYPathProxy::Get("//sys/@queue_agent_object_revisions");
+                    asyncResults.push_back(proxy.Execute(req));
+                }
+            }
+            return AllSucceeded(std::move(asyncResults)).Apply(BIND([objectRevisions] (const std::vector<TYPathProxy::TRspGetPtr>& responses) mutable {
+                for (const auto& rsp : responses) {
+                    auto queues = ConvertTo<THashMap<TString, TRevision>>(TYsonString{rsp->value()});
+                    objectRevisions.insert(queues.begin(), queues.end());
+                }
+                return ConvertToYsonString(objectRevisions);
+            }));
+        } else {
+            return MakeFuture(ConvertToYsonString(objectRevisions));
+        }
+    }
+
 private:
     struct TStatisticsUpdateRequest
     {
@@ -684,6 +764,12 @@ private:
     TRandomAccessQueue<TNodeId, TStatisticsUpdateRequest> StatisticsUpdateRequests_;
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
+
+    //! Contains native trunk nodes for which IsQueue() is true.
+    THashSet<TTableNode*> Queues_;
+
+    // COMPAT(achulkov2)
+    bool NeedToFillQueueSet_ = false;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -965,6 +1051,8 @@ private:
         EmptyMasterTableSchema_ = nullptr;
         TableCollocationMap_.Clear();
         StatisticsUpdateRequests_.Clear();
+        Queues_.clear();
+        NeedToFillQueueSet_ = false;
     }
 
     void SetZeroState() override
@@ -987,6 +1075,13 @@ private:
         MasterTableSchemaMap_.LoadValues(context);
         Load(context, StatisticsUpdateRequests_);
         TableCollocationMap_.LoadValues(context);
+
+        // COMPAT(achulkov2)
+        if (context.GetVersion() >= EMasterReign::QueueList) {
+            Load(context, Queues_);
+        }
+
+        NeedToFillQueueSet_ = context.GetVersion() < EMasterReign::QueueList;
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -1004,6 +1099,17 @@ private:
         //   - on old snapshots that don't contain schema map (or this automaton
         //     part altogether) this initialization is crucial.
         InitBuiltins();
+
+        if (NeedToFillQueueSet_) {
+            for (auto [nodeId, node]: Bootstrap_->GetCypressManager()->Nodes()) {
+                if (node->GetType() == EObjectType::Table) {
+                    auto* tableNode = node->As<TTableNode>();
+                    if (tableNode->IsQueueObject()) {
+                        RegisterQueue(tableNode);
+                    }
+                }
+            }
+        }
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -1017,6 +1123,7 @@ private:
         MasterTableSchemaMap_.SaveValues(context);
         Save(context, StatisticsUpdateRequests_);
         TableCollocationMap_.SaveValues(context);
+        Save(context, Queues_);
     }
 };
 
@@ -1179,6 +1286,26 @@ void TTableManager::RemoveTableFromCollocation(TTableNode* table, TTableCollocat
 TTableCollocation* TTableManager::GetTableCollocationOrThrow(TTableCollocationId id) const
 {
     return Impl_->GetTableCollocationOrThrow(id);
+}
+
+const THashSet<TTableNode*>& TTableManager::GetQueues() const
+{
+    return Impl_->GetQueues();
+}
+
+void TTableManager::RegisterQueue(TTableNode* node)
+{
+    Impl_->RegisterQueue(node);
+}
+
+void TTableManager::UnregisterQueue(TTableNode* node)
+{
+    Impl_->UnregisterQueue(node);
+}
+
+TFuture<NYson::TYsonString> TTableManager::GetQueueAgentObjectRevisionsAsync() const
+{
+    return Impl_->GetQueueAgentObjectRevisionsAsync();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTableManager, MasterTableSchema, TMasterTableSchema, *Impl_)

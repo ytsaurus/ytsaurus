@@ -17,6 +17,9 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
+#include <yt/yt/server/master/table_server/table_manager.h>
+#include <yt/yt/server/master/table_server/table_node.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 namespace NYT::NObjectServer {
@@ -26,6 +29,8 @@ using namespace NYTree;
 using namespace NCypressServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
+using namespace NCellMasterClient;
+using namespace NObjectClient;
 
 using NApi::NNative::TConnectionConfig;
 
@@ -64,6 +69,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ClusterConnection)
             .SetWritable(true)
             .SetCustom(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueAgentObjectRevisions)
+            .SetOpaque(true));
     }
 
     static void ValidateClusterName(const TString& clusterName)
@@ -193,6 +200,20 @@ private:
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    {
+        const auto& tableManager = Bootstrap_->GetTableManager();
+
+        switch (key) {
+            case EInternedAttributeKey::QueueAgentObjectRevisions:
+                return tableManager->GetQueueAgentObjectRevisionsAsync();
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
     }
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override

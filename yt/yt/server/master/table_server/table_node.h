@@ -186,6 +186,7 @@ public:
 
     bool IsDynamic() const;
     bool IsQueue() const;
+    bool IsQueueObject() const;
     bool IsEmpty() const;
     bool IsLogicallyEmpty() const;
     bool IsUniqueKeys() const;

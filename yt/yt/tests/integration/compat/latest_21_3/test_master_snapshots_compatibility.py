@@ -1,6 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import (
-    ls, exists, get, set, raises_yt_error, authors, print_debug, build_master_snapshots)
+    ls, exists, get, set, raises_yt_error, authors, print_debug, build_master_snapshots, create, start_transaction,
+    commit_transaction)
 
 from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -10,6 +11,7 @@ from yt.test_helpers import assert_items_equal
 import os
 import pytest
 import yatest.common
+import builtins
 
 ##################################################################
 
@@ -47,6 +49,23 @@ def check_chunk_locations():
         assert exists("//sys/chunk_locations/{}".format(location_uuid))
         assert get("//sys/chunk_locations/{}/@uuid".format(location_uuid)) == location_uuid
         assert get("//sys/chunk_locations/{}/@node_address".format(location_uuid)) == node_address
+
+
+def check_queue_list():
+    create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+    create("table", "//tmp/qq", attributes={"dynamic": False, "schema": [{"name": "data", "type": "string"}]})
+    create("table", "//tmp/qqq", attributes={"dynamic": True,
+                                             "schema": [{"name": "data", "type": "string", "sort_order": "ascending"},
+                                                        {"name": "kek", "type": "string"}]})
+    create("map_node", "//tmp/mn")
+    tx = start_transaction(timeout=30000)
+    create("table", "//tmp/qqqq", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]}, tx=tx)
+
+    yield
+
+    assert builtins.set(get("//sys/@queue_agent_object_revisions").keys()) == {"//tmp/q"}
+    commit_transaction(tx)
+    assert builtins.set(get("//sys/@queue_agent_object_revisions").keys()) == {"//tmp/q", "//tmp/qqqq"}
 
 
 class TestMasterSnapshotsCompatibility(YTEnvSetup):
@@ -91,7 +110,8 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
         CHECKER_LIST = [
             check_cluster_connection_simple,
             check_cluster_name_simple,
-            check_chunk_locations
+            check_chunk_locations,
+            check_queue_list
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

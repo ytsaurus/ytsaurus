@@ -49,6 +49,12 @@ struct TNodeFactoryOptions
     bool PessimisticQuotaCheck = true;
 };
 
+DEFINE_ENUM(EPathRootType,
+    (RootNode)
+    (PortalExit)
+    (Other)
+);
+
 class TCypressManager
     : public TRefCounted
 {
@@ -121,10 +127,12 @@ public:
 
     NYPath::TYPath GetNodePath(
         TCypressNode* trunkNode,
-        NTransactionServer::TTransaction* transaction);
+        NTransactionServer::TTransaction* transaction,
+        EPathRootType* pathRootType = nullptr);
 
     NYPath::TYPath GetNodePath(
-        const ICypressNodeProxy* nodeProxy);
+        const ICypressNodeProxy* nodeProxy,
+        EPathRootType* pathRootType = nullptr);
 
     TCypressNode* ResolvePathToTrunkNode(
         const NYPath::TYPath& path,

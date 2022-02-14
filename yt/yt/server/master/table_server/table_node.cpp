@@ -446,6 +446,11 @@ bool TTableNode::IsQueue() const
     return IsDynamic() && !IsSorted() && !IsReplicated();
 }
 
+bool TTableNode::IsQueueObject() const
+{
+    return IsNative() && IsTrunk() && IsQueue();
+}
+
 bool TTableNode::IsEmpty() const
 {
     return ComputeTotalStatistics().chunk_count() == 0;
@@ -708,6 +713,9 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
             YT_VERIFY(chunkList->GetKind() == EChunkListKind::Static);
         }
     }
+
+    // NB: Const-cast due to const-correctness rabbit-hole, which led to TTableNode* being stored in the set.
+    YT_VERIFY(bootstrap->GetTableManager()->GetQueues().contains(const_cast<TTableNode*>(this)) == IsQueueObject());
 }
 
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);

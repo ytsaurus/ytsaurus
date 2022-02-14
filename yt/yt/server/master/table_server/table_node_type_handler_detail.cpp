@@ -217,6 +217,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
             tabletManager->MakeTableDynamic(node);
 
+            if (node->IsQueueObject()) {
+                tableManager->RegisterQueue(node);
+            }
+
             if (node->IsNative()) {
                 if (optionalTabletCount) {
                     tabletManager->PrepareReshardTable(node, 0, 0, *optionalTabletCount, {}, true);
@@ -246,12 +250,17 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
 {
+    const auto& tableManager = this->Bootstrap_->GetTableManager();
+
+    if (table->IsQueueObject()) {
+        tableManager->UnregisterQueue(table);
+    }
+
     if (table->IsTrunk()) {
         const auto& tabletManager = this->Bootstrap_->GetTabletManager();
         tabletManager->DestroyTable(table);
     }
 
-    const auto& tableManager = this->Bootstrap_->GetTableManager();
     tableManager->ResetTableSchema(table);
 
     TBase::DoDestroy(table);
@@ -285,6 +294,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
     TImpl* branchedNode)
 {
     const auto& tableManager = this->Bootstrap_->GetTableManager();
+
+    bool isQueueObjectBefore = originatingNode->IsQueueObject();
+
     tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
     tableManager->ResetTableSchema(branchedNode);
 
@@ -295,6 +307,15 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
     originatingNode->SetProfilingTag(branchedNode->GetProfilingTag());
 
     TBase::DoMerge(originatingNode, branchedNode);
+
+    bool isQueueObjectAfter = originatingNode->IsQueueObject();
+    if (isQueueObjectAfter != isQueueObjectBefore) {
+        if (isQueueObjectAfter) {
+            tableManager->RegisterQueue(originatingNode);
+        } else {
+            tableManager->UnregisterQueue(originatingNode);
+        }
+    }
 }
 
 template <class TImpl>
@@ -334,6 +355,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
         clonedTrunkNode->InitializeCustomDynamicTableAttributes();
         clonedTrunkNode->GetCustomDynamicTableAttributes()->CopyFrom(
             trunkSourceNode->GetCustomDynamicTableAttributes());
+    }
+
+    if (clonedTrunkNode->IsQueueObject()) {
+        tableManager->RegisterQueue(clonedTrunkNode);
     }
 }
 
@@ -398,6 +423,11 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
     if (Load<bool>(*context)) {
         node->InitializeCustomDynamicTableAttributes();
         node->GetCustomDynamicTableAttributes()->EndCopy(context);
+    }
+
+    // TODO(achulkov2): Add corresponding test once copying dynamic tables is supported. Please ping me :)
+    if (node->IsQueueObject()) {
+        tableManager->RegisterQueue(node);
     }
 }
 
