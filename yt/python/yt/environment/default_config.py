@@ -532,6 +532,8 @@ b"""
     };
 
     use_new_heartbeats = %true;
+
+    enable_fair_throttler = %true;
 }
 """)
 

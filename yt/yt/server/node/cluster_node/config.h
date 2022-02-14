@@ -346,6 +346,8 @@ public:
     //! Is used to configure relative network throttler limits.
     i64 NetworkBandwidth;
 
+    bool EnableFairThrottler;
+
     //! Bucket configuration for in network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 
