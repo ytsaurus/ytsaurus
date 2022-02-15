@@ -77,10 +77,13 @@ DEFINE_REFCOUNTED_TYPE(TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationAlertsConfig
+class TAlertManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
+    // Period of analyzing for alerts.
+    TDuration Period;
+
     // Maximum allowed ratio of unused tmpfs size.
     double TmpfsAlertMaxUnusedSpaceRatio;
 
@@ -165,12 +168,12 @@ public:
     // if queues with average wait time above this threshold are found.
     TDuration QueueAverageWaitTimeThreshold;
 
-    REGISTER_YSON_STRUCT(TOperationAlertsConfig)
+    REGISTER_YSON_STRUCT(TAlertManagerConfig)
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationAlertsConfig)
+DEFINE_REFCOUNTED_TYPE(TAlertManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -752,8 +755,6 @@ public:
     TDuration AvailableExecNodesCheckPeriod;
     TDuration BannedExecNodesCheckPeriod;
 
-    TDuration OperationProgressAnalysisPeriod;
-
     TDuration OperationBuildProgressPeriod;
 
     TDuration CheckTentativeTreeEligibilityPeriod;
@@ -879,7 +880,7 @@ public:
     //! Total number of data slices in operation, summed up over all jobs.
     i64 MaxTotalSliceCount;
 
-    TOperationAlertsConfigPtr OperationAlerts;
+    TAlertManagerConfigPtr AlertManager;
 
     //! Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;

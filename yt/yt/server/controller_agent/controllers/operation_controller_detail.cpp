@@ -235,7 +235,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Acl(operation->GetAcl())
     , ControllerEpoch(operation->GetControllerEpoch())
     , CancelableContext(New<TCancelableContext>())
-    , DiagnosableInvokerPool(CreateFairShareInvokerPool(
+    , DiagnosableInvokerPool_(CreateFairShareInvokerPool(
         CreateCodicilGuardedInvoker(
             CreateMemoryTaggingInvoker(
                 CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()),
@@ -245,7 +245,7 @@ TOperationControllerBase::TOperationControllerBase(
                 OperationId,
                 AuthenticatedUser)),
         TEnumTraits<EOperationControllerQueue>::DomainSize))
-    , InvokerPool(DiagnosableInvokerPool)
+    , InvokerPool(DiagnosableInvokerPool_)
     , SuspendableInvokerPool(TransformInvokerPool(InvokerPool, CreateSuspendableInvoker))
     , CancelableInvokerPool(TransformInvokerPool(
         SuspendableInvokerPool,
@@ -282,10 +282,7 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::CheckAvailableExecNodes, MakeWeak(this)),
         Config->AvailableExecNodesCheckPeriod))
-    , AnalyzeOperationProgressExecutor(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
-        BIND(&TThis::AnalyzeOperationProgress, MakeWeak(this)),
-        Config->OperationProgressAnalysisPeriod))
+    , AlertManager_(CreateAlertManager(this))
     , MinNeededResourcesSanityCheckExecutor(New<TPeriodicExecutor>(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::CheckMinNeededResourcesSanity, MakeWeak(this)),
@@ -347,6 +344,31 @@ void TOperationControllerBase::BuildTestingState(TFluentAny fluent) const
         .BeginMap()
             .Item("commit_sleep_started").Value(CommitSleepStarted_)
         .EndMap();
+}
+
+const TProgressCounterPtr& TOperationControllerBase::GetTotalJobCounter() const
+{
+    return TotalJobCounter_;
+}
+
+const TScheduleJobStatisticsPtr& TOperationControllerBase::GetScheduleJobStatistics() const
+{
+    return ScheduleJobStatistics_;
+}
+
+const TAggregatedJobStatistics& TOperationControllerBase::GetAggregatedFinishedJobStatistics() const
+{
+    return AggregatedFinishedJobStatistics_;
+}
+
+const TAggregatedJobStatistics& TOperationControllerBase::GetAggregatedRunningJobStatistics() const
+{
+    return AggregatedRunningJobStatistics_;
+}
+
+std::unique_ptr<IHistogram> TOperationControllerBase::ComputeFinalPartitionSizeHistogram() const
+{
+    return nullptr;
 }
 
 // Resource management.
@@ -1114,7 +1136,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         ProgressBuildExecutor_->Start();
         ExecNodesCheckExecutor->Start();
         SuspiciousJobsYsonUpdater_->Start();
-        AnalyzeOperationProgressExecutor->Start();
+        AlertManager_->StartPeriodicActivity();
         MinNeededResourcesSanityCheckExecutor->Start();
         ExecNodesUpdateExecutor->Start();
         CheckTentativeTreeEligibilityExecutor_->Start();
@@ -1239,7 +1261,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     ProgressBuildExecutor_->Start();
     ExecNodesCheckExecutor->Start();
     SuspiciousJobsYsonUpdater_->Start();
-    AnalyzeOperationProgressExecutor->Start();
+    AlertManager_->StartPeriodicActivity();
     MinNeededResourcesSanityCheckExecutor->Start();
     ExecNodesUpdateExecutor->Start();
     CheckTentativeTreeEligibilityExecutor_->Start();
@@ -4009,567 +4031,6 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         observedExecNode.Address);
 }
 
-void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
-{
-    struct TMemoryInfo
-    {
-        std::vector<std::optional<i64>> MaxTmpfsUsage;
-        std::optional<i64> MaxMemoryUsage;
-        i64 MemoryReserve = 0;
-
-        TUserJobSpecPtr JobSpec;
-    };
-
-    THashMap<TTaskPtr, TMemoryInfo> memoryInfoPerTask;
-
-    for (const auto& task : Tasks) {
-        if (!task->IsSimpleTask()) {
-            continue;
-        }
-
-        const auto& userJobSpec = task->GetUserJobSpec();
-        if (!userJobSpec) {
-            continue;
-        }
-
-        auto memoryInfoIt = memoryInfoPerTask.find(task);
-        if (memoryInfoIt == memoryInfoPerTask.end()) {
-            memoryInfoIt = memoryInfoPerTask.emplace(task, TMemoryInfo()).first;
-        }
-
-        auto& memoryInfo = memoryInfoIt->second;
-
-        memoryInfo.JobSpec = userJobSpec;
-
-        // Some approximation to actual memory reserve in jobs of given task.
-        memoryInfo.MemoryReserve = userJobSpec->MemoryLimit *
-            task->GetUserJobMemoryDigest()->GetQuantile(Config->UserJobMemoryReserveQuantile);
-
-        for (const auto& jobState : { EJobState::Completed, EJobState::Failed }) {
-            auto summary = AggregatedFinishedJobStatistics_.FindSummaryByJobStateAndType(
-                "/user_job/max_memory",
-                jobState,
-                task->GetVertexDescriptor());
-            if (summary) {
-                if (!memoryInfo.MaxMemoryUsage) {
-                    memoryInfo.MaxMemoryUsage = 0;
-                }
-                memoryInfo.MaxMemoryUsage = std::max(*memoryInfo.MaxMemoryUsage, summary->GetMax());
-            }
-        }
-
-        auto maxUsedTmpfsSizes = task->GetMaximumUsedTmpfsSizes();
-
-        YT_VERIFY(userJobSpec->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
-
-        if (memoryInfo.MaxTmpfsUsage.empty()) {
-            memoryInfo.MaxTmpfsUsage.resize(maxUsedTmpfsSizes.size());
-        }
-
-        YT_VERIFY(memoryInfo.MaxTmpfsUsage.size() == maxUsedTmpfsSizes.size());
-
-        for (int index = 0; index < std::ssize(maxUsedTmpfsSizes); ++index) {
-            auto tmpfsSize = maxUsedTmpfsSizes[index];
-            if (tmpfsSize) {
-                if (!memoryInfo.MaxTmpfsUsage[index]) {
-                    memoryInfo.MaxTmpfsUsage[index] = 0;
-                }
-                memoryInfo.MaxTmpfsUsage[index] = std::max(*memoryInfo.MaxTmpfsUsage[index], *tmpfsSize);
-            }
-        }
-    }
-
-    std::vector<TError> tmpfsErrors;
-    std::vector<TError> memoryErrors;
-
-    double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
-
-    for (const auto& [task, memoryInfo] : memoryInfoPerTask) {
-        const auto& jobSpec = memoryInfo.JobSpec;
-        const auto& tmpfsVolumes = jobSpec->TmpfsVolumes;
-
-        bool skipTmpfsCheck = false;
-        if (memoryInfo.MaxMemoryUsage) {
-            i64 memoryUsage = *memoryInfo.MaxMemoryUsage;
-
-            for (int index = 0; index < std::ssize(tmpfsVolumes); ++index) {
-                auto maxTmpfsUsage = memoryInfo.MaxTmpfsUsage[index];
-                if (maxTmpfsUsage) {
-                    memoryUsage += *maxTmpfsUsage;
-                }
-            }
-
-            auto memoryUsageRatio = static_cast<double>(memoryUsage) / memoryInfo.MemoryReserve;
-
-            bool ratioViolated = memoryUsageRatio + Config->OperationAlerts->MemoryUsageAlertMaxUnusedRatio < 1.0;
-            bool sizeViolated = memoryUsage + Config->OperationAlerts->MemoryUsageAlertMaxUnusedSize < memoryInfo.MemoryReserve;
-
-            auto maxJobCount = Config->OperationAlerts->MemoryUsageAlertMaxJobCount;
-            bool maxJobCountViolated = maxJobCount && GetTotalJobCount() < *maxJobCount;
-            if (ratioViolated && sizeViolated && !maxJobCountViolated) {
-                memoryErrors.push_back(TError(
-                    "Jobs of type %Qlv use less than %.1f%% of requested memory",
-                    task->GetVertexDescriptor(),
-                    100.0 * (1.0 - Config->OperationAlerts->MemoryUsageAlertMaxUnusedRatio))
-                    << TErrorAttribute("memory_reserve", memoryInfo.MemoryReserve)
-                    << TErrorAttribute("memory_usage", memoryUsage));
-            }
-
-            if (memoryInfo.JobSpec->MemoryReserveFactor &&
-                *memoryInfo.JobSpec->MemoryReserveFactor >= 1 &&
-                memoryUsageRatio < 1.0 - Config->OperationAlerts->MemoryReserveFactorAlertMaxUnusedRatio) {
-                memoryErrors.push_back(TError(
-                    "Jobs of type %Qlv use less than %.1f%% of requested memory with memory reserve factor set to 1",
-                    task->GetVertexDescriptor(),
-                    100.0 * (1.0 - Config->OperationAlerts->MemoryReserveFactorAlertMaxUnusedRatio))
-                    << TErrorAttribute("memory_reserve", memoryInfo.MemoryReserve)
-                    << TErrorAttribute("memory_usage", memoryUsage));
-            }
-
-            if (memoryUsageRatio > Config->OperationAlerts->TmpfsAlertMemoryUsageMuteRatio) {
-                skipTmpfsCheck = true;
-            }
-        }
-
-        if (skipTmpfsCheck) {
-            continue;
-        }
-
-        for (int index = 0; index < std::ssize(tmpfsVolumes); ++index) {
-            auto maxTmpfsUsage = memoryInfo.MaxTmpfsUsage[index];
-            if (!maxTmpfsUsage) {
-                continue;
-            }
-
-            auto requestedTmpfsSize = tmpfsVolumes[index]->Size;
-            bool minUnusedSpaceThresholdOvercome = requestedTmpfsSize - *maxTmpfsUsage >
-                Config->OperationAlerts->TmpfsAlertMinUnusedSpaceThreshold;
-            bool minUnusedSpaceRatioViolated = *maxTmpfsUsage < minUnusedSpaceRatio * requestedTmpfsSize;
-
-            if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
-                auto error = TError(
-                    "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size in volume %Qv",
-                    task->GetVertexDescriptor(),
-                    minUnusedSpaceRatio * 100.0,
-                    tmpfsVolumes[index]->Path)
-                    << TErrorAttribute("max_used_tmpfs_size", *maxTmpfsUsage)
-                    << TErrorAttribute("tmpfs_size", requestedTmpfsSize);
-                tmpfsErrors.push_back(error);
-            }
-        }
-    }
-
-    {
-        TError error;
-        if (!tmpfsErrors.empty()) {
-            error = TError(
-                "Operation has jobs that use tmpfs inefficiently; "
-                "consider specifying tmpfs size closer to actual usage")
-                << tmpfsErrors;
-        }
-
-        SetOperationAlert(EOperationAlertType::UnusedTmpfsSpace, error);
-    }
-
-    {
-        TError error;
-        if (!memoryErrors.empty()) {
-            error = TError(
-                "Operation has jobs that use memory inefficiently; "
-                "consider specifying memory limit closer to actual usage")
-                << memoryErrors;
-        }
-
-        SetOperationAlert(EOperationAlertType::UnusedMemory, error);
-    }
-}
-
-void TOperationControllerBase::AnalyzeInputStatistics()
-{
-    TError error;
-    if (GetUnavailableInputChunkCount() > 0) {
-        error = TError(
-            "Some input chunks are not available; "
-            "the relevant parts of computation will be suspended");
-    }
-
-    SetOperationAlert(EOperationAlertType::LostInputChunks, error);
-}
-
-void TOperationControllerBase::AnalyzeIntermediateJobsStatistics()
-{
-    TError error;
-    if (GetTotalJobCounter()->GetLost() > 0) {
-        error = TError(
-            "Some intermediate outputs were lost and will be regenerated; "
-            "operation will take longer than usual");
-    }
-
-    SetOperationAlert(EOperationAlertType::LostIntermediateChunks, error);
-}
-
-void TOperationControllerBase::AnalyzePartitionHistogram()
-{ }
-
-void TOperationControllerBase::AnalyzeAbortedJobs()
-{
-    if (OperationType == EOperationType::Vanilla) {
-        return;
-    }
-
-    auto aggregateTimeForJobState = [&] (EJobState state) {
-        i64 sum = 0;
-        for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            sum += AggregatedFinishedJobStatistics_.GetSumByJobStateAndType(
-                "/time/total",
-                state,
-                FormatEnum(type));
-        }
-
-        return sum;
-    };
-
-    i64 completedJobsTime = aggregateTimeForJobState(EJobState::Completed);
-    i64 abortedJobsTime = aggregateTimeForJobState(EJobState::Aborted);
-    double abortedJobsTimeRatio = 1.0;
-    if (completedJobsTime > 0) {
-        abortedJobsTimeRatio = 1.0 * abortedJobsTime / completedJobsTime;
-    }
-
-    TError error;
-    if (abortedJobsTime > Config->OperationAlerts->AbortedJobsAlertMaxAbortedTime &&
-        abortedJobsTimeRatio > Config->OperationAlerts->AbortedJobsAlertMaxAbortedTimeRatio)
-    {
-        error = TError(
-            "Aborted jobs time ratio is too high, scheduling is likely to be inefficient; "
-            "consider increasing job count to make individual jobs smaller")
-                << TErrorAttribute("aborted_jobs_time_ratio", abortedJobsTimeRatio);
-    }
-
-    SetOperationAlert(EOperationAlertType::LongAbortedJobs, error);
-}
-
-void TOperationControllerBase::AnalyzeJobsIOUsage()
-{
-    std::vector<TError> innerErrors;
-
-    for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-        auto value = AggregatedFinishedJobStatistics_.GetSumByJobStateAndType(
-            "/user_job/woodpecker",
-            EJobState::Completed,
-            FormatEnum(jobType));
-
-        if (value > 0) {
-            innerErrors.emplace_back("Detected excessive disk IO in %Qlv jobs", jobType);
-        }
-    }
-
-    TError error;
-    if (!innerErrors.empty()) {
-        error = TError("Detected excessive disk IO in jobs; consider optimizing disk usage")
-            << innerErrors;
-    }
-
-    SetOperationAlert(EOperationAlertType::ExcessiveDiskUsage, error);
-}
-
-void TOperationControllerBase::AnalyzeJobsCpuUsage()
-{
-    {
-        auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
-            return jobSpec->CpuLimit;
-        };
-
-        auto needSetAlert = [&] (i64 totalExecutionTime, i64 jobCount, double ratio) {
-            TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
-            TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
-
-            return totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
-                   averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
-                   ratio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold;
-        };
-
-        const TString alertMessage =
-            "Average CPU usage of some of your job types is significantly lower than requested 'cpu_limit'. "
-            "Consider decreasing cpu_limit in spec of your operation";
-
-        AnalyzeProcessingUnitUsage(
-            Config->OperationAlerts->LowCpuUsageAlertStatistics,
-            Config->OperationAlerts->LowCpuUsageAlertJobStates,
-            getCpuLimit,
-            needSetAlert,
-            "cpu",
-            EOperationAlertType::LowCpuUsage,
-            alertMessage);
-    }
-
-    {
-        auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
-            return jobSpec->CpuLimit;
-        };
-
-        auto needSetAlert = [&] (i64 totalExecutionTime, i64 jobCount, double ratio) {
-            TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
-            return averageJobDuration > Config->OperationAlerts->HighCpuWaitAlertMinAverageJobTime &&
-                   ratio > Config->OperationAlerts->HighCpuWaitAlertThreshold;
-        };
-
-        const TString alertMessage =
-            "Average CPU wait time of some of your job types is significantly high (average CPU wait time ratio greater than %v%%). "
-            "Investigate your process.";
-
-        AnalyzeProcessingUnitUsage(
-            Config->OperationAlerts->HighCpuWaitAlertStatistics,
-            Config->OperationAlerts->HighCpuWaitAlertJobStates,
-            getCpuLimit,
-            needSetAlert,
-            "cpu",
-            EOperationAlertType::HighCpuWait,
-            alertMessage);
-    }
-}
-
-void TOperationControllerBase::AnalyzeJobsGpuUsage()
-{
-    if (TInstant::Now() - StartTime_ < Config->OperationAlerts->LowGpuUsageAlertMinDuration && !IsCompleted()) {
-        return;
-    }
-
-    auto getGpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
-        return jobSpec->GpuLimit;
-    };
-
-    {
-        auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
-            return ratio < Config->OperationAlerts->LowGpuUsageAlertGpuUsageThreshold;
-        };
-
-        static const TString alertMessage =
-            "Average gpu usage of some of your job types is significantly lower than requested 'gpu_limit'. "
-            "Consider optimizing your GPU utilization";
-
-        AnalyzeProcessingUnitUsage(
-            Config->OperationAlerts->LowGpuUsageAlertStatistics,
-            Config->OperationAlerts->LowGpuUsageAlertJobStates,
-            getGpuLimit,
-            needSetAlert,
-            "gpu",
-            EOperationAlertType::LowGpuUsage,
-            alertMessage);
-    }
-
-    {
-        auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
-            return ratio < Config->OperationAlerts->LowGpuUsageAlertGpuUtilizationPowerThreshold;
-        };
-
-        static const TString alertMessage = Format(
-            "Average GPU power usage is significantly lower than %v percents. "
-            "Consider optimizing your GPU process",
-            Config->OperationAlerts->LowGpuUsageAlertGpuUtilizationPowerThreshold * 100.0);
-
-        AnalyzeProcessingUnitUsage(
-            {"/user_job/gpu/utilization_power"},
-            Config->OperationAlerts->LowGpuUsageAlertJobStates,
-            getGpuLimit,
-            needSetAlert,
-            "gpu",
-            EOperationAlertType::LowGpuPower,
-            alertMessage);
-    }
-
-    {
-        auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
-            return ratio < Config->OperationAlerts->LowGpuUsageAlertGpuPowerThreshold;
-        };
-
-        static const TString alertMessage = Format(
-            "Average GPU power usage is significantly lower than %v Watts. "
-            "Consider optimizing your GPU process",
-            Config->OperationAlerts->LowGpuUsageAlertGpuPowerThreshold);
-
-        AnalyzeProcessingUnitUsage(
-            {"/user_job/gpu/power"},
-            Config->OperationAlerts->LowGpuUsageAlertJobStates,
-            getGpuLimit,
-            needSetAlert,
-            "gpu",
-            EOperationAlertType::LowGpuPower,
-            alertMessage);
-    }
-}
-
-void TOperationControllerBase::AnalyzeJobsDuration()
-{
-    if (OperationType == EOperationType::RemoteCopy || OperationType == EOperationType::Erase) {
-        return;
-    }
-
-    auto operationDuration = TInstant::Now() - StartTime_;
-
-    std::vector<TError> innerErrors;
-
-    for (auto jobType : GetSupportedJobTypesForJobsDurationAnalyzer()) {
-        auto completedJobsSummary = AggregatedFinishedJobStatistics_.FindSummaryByJobStateAndType(
-            "/time/total",
-            EJobState::Completed,
-            FormatEnum(jobType));
-
-        if (!completedJobsSummary) {
-            continue;
-        }
-
-        auto maxJobDuration = TDuration::MilliSeconds(completedJobsSummary->GetMax());
-        auto completedJobCount = completedJobsSummary->GetCount();
-        auto avgJobDuration = TDuration::MilliSeconds(completedJobsSummary->GetSum() / completedJobCount);
-
-        if (completedJobCount > Config->OperationAlerts->ShortJobsAlertMinJobCount &&
-            operationDuration > maxJobDuration * Config->OperationAlerts->ShortJobsAlertMinAllowedOperationDurationToMaxJobDurationRatio &&
-            avgJobDuration < Config->OperationAlerts->ShortJobsAlertMinJobDuration &&
-            GetDataWeightParameterNameForJob(jobType))
-        {
-            auto error = TError(
-                "Average duration of %Qlv jobs is less than %v seconds, try increasing %v in operation spec",
-                jobType,
-                Config->OperationAlerts->ShortJobsAlertMinJobDuration.Seconds(),
-                GetDataWeightParameterNameForJob(jobType))
-                    << TErrorAttribute("average_job_duration", avgJobDuration);
-
-            innerErrors.push_back(error);
-        }
-    }
-
-    TError error;
-    if (!innerErrors.empty()) {
-        error = TError(
-            "Operation has jobs with duration is less than %v seconds, "
-            "that leads to large overhead costs for scheduling",
-            Config->OperationAlerts->ShortJobsAlertMinJobDuration.Seconds())
-            << innerErrors;
-    }
-
-    SetOperationAlert(EOperationAlertType::ShortJobsDuration, error);
-}
-
-void TOperationControllerBase::AnalyzeOperationDuration()
-{
-    TError error;
-    const auto& jobCounter = GetTotalJobCounter();
-    for (const auto& task : Tasks) {
-        if (!task->GetUserJobSpec()) {
-            continue;
-        }
-        i64 completedAndRunning = jobCounter->GetCompletedTotal() + jobCounter->GetRunning();
-        if (completedAndRunning == 0) {
-            continue;
-        }
-        i64 pending = jobCounter->GetPending();
-        TDuration wallTime = GetInstant() - StartTime_;
-        TDuration estimatedDuration = (wallTime / completedAndRunning) * pending;
-
-        if (wallTime > Config->OperationAlerts->OperationTooLongAlertMinWallTime &&
-            estimatedDuration > Config->OperationAlerts->OperationTooLongAlertEstimateDurationThreshold)
-        {
-            error = TError(
-                "Estimated duration of this operation is about %v days; "
-                "consider breaking operation into smaller ones",
-                estimatedDuration.Days()) << TErrorAttribute("estimated_duration", estimatedDuration);
-            break;
-        }
-    }
-
-    SetOperationAlert(EOperationAlertType::OperationTooLong, error);
-}
-
-void TOperationControllerBase::AnalyzeScheduleJobStatistics()
-{
-    auto jobSpecThrottlerActivationCount = ScheduleJobStatistics_->Failed[EScheduleJobFailReason::JobSpecThrottling];
-    auto activationCountThreshold = Config->OperationAlerts->JobSpecThrottlingAlertActivationCountThreshold;
-
-    TError error;
-    if (jobSpecThrottlerActivationCount > activationCountThreshold) {
-        error = TError(
-            "Excessive job spec throttling is detected. Usage ratio of operation can be "
-            "significantly less than fair share ratio")
-             << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
-    }
-
-    SetOperationAlert(EOperationAlertType::ExcessiveJobSpecThrottling, error);
-}
-
-void TOperationControllerBase::AnalyzeControllerQueues()
-{
-    TControllerQueueStatistics currentControllerQueueStatistics;
-    THashMap<EOperationControllerQueue, TDuration> queueToAverageWaitTime;
-    for (auto queue : TEnumTraits<EOperationControllerQueue>::GetDomainValues()) {
-        auto statistics = DiagnosableInvokerPool->GetInvokerStatistics(queue);
-        const auto& lastStatistics = LastControllerQueueStatistics_[queue];
-
-        auto deltaEnqueuedActionCount = statistics.EnqueuedActionCount - lastStatistics.EnqueuedActionCount;
-        auto deltaDequeuedActionCount = statistics.DequeuedActionCount - lastStatistics.DequeuedActionCount;
-
-        YT_LOG_DEBUG(
-            "Operation controller queue statistics (ControllerQueue: %v, DeltaEnqueuedActionCount: %v, "
-            "DeltaDequeuedActionCount: %v, WaitingActionCount: %v, AverageWaitTime: %v)",
-            queue,
-            deltaEnqueuedActionCount,
-            deltaDequeuedActionCount,
-            statistics.WaitingActionCount,
-            statistics.AverageWaitTime);
-
-        if (statistics.AverageWaitTime > Config->OperationAlerts->QueueAverageWaitTimeThreshold) {
-            queueToAverageWaitTime.emplace(queue, statistics.AverageWaitTime);
-        }
-
-        currentControllerQueueStatistics[queue] = std::move(statistics);
-    }
-    std::swap(LastControllerQueueStatistics_, currentControllerQueueStatistics);
-
-    TError highQueueAverageWaitTimeError;
-    if (!queueToAverageWaitTime.empty()) {
-        highQueueAverageWaitTimeError = TError("Found action queues with high average wait time: %v",
-            MakeFormattableView(queueToAverageWaitTime, [] (auto* builder, const auto& pair) {
-                const auto& [queue, averageWaitTime] = pair;
-                builder->AppendFormat("%Qlv", queue);
-            }))
-            << TErrorAttribute("queues_with_high_average_wait_time", queueToAverageWaitTime);
-    }
-    SetOperationAlert(EOperationAlertType::HighQueueAverageWaitTime, highQueueAverageWaitTimeError);
-}
-
-void TOperationControllerBase::AnalyzeInvalidatedJobs()
-{
-    i64 invalidatedJobCount = 0;
-    for (const auto& task : Tasks) {
-        invalidatedJobCount += task->GetJobCounter()->GetInvalidated();
-    }
-
-    if (invalidatedJobCount > 0) {
-        auto invalidatedJobCountError = TError("Operation has invalidated jobs")
-            << TErrorAttribute("invalidated_job_count", invalidatedJobCount);
-        SetOperationAlert(EOperationAlertType::InvalidatedJobsFound, invalidatedJobCountError);
-    }
-}
-
-void TOperationControllerBase::AnalyzeOperationProgress()
-{
-    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
-
-    AnalyzeMemoryAndTmpfsUsage();
-    AnalyzeInputStatistics();
-    AnalyzeIntermediateJobsStatistics();
-    AnalyzePartitionHistogram();
-    AnalyzeAbortedJobs();
-    AnalyzeJobsIOUsage();
-    AnalyzeJobsCpuUsage();
-    AnalyzeJobsGpuUsage();
-    AnalyzeJobsDuration();
-    AnalyzeOperationDuration();
-    AnalyzeScheduleJobStatistics();
-    AnalyzeControllerQueues();
-    AnalyzeInvalidatedJobs();
-}
-
 void TOperationControllerBase::CheckMinNeededResourcesSanity()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
@@ -4974,7 +4435,7 @@ IDiagnosableInvokerPool::TInvokerStatistics TOperationControllerBase::GetInvoker
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return DiagnosableInvokerPool->GetInvokerStatistics(queue);
+    return DiagnosableInvokerPool_->GetInvokerStatistics(queue);
 }
 
 TFuture<void> TOperationControllerBase::Suspend()
@@ -5137,7 +4598,7 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
     // we need to synchronously check everything and set
     // appropriate alerts before flushing operation node.
     // Flush of newly calculated statistics is guaranteed by OnOperationFailed.
-    AnalyzeOperationProgress();
+    AlertManager_->Analyze();
 
     auto flushResult = WaitFor(Host->FlushOperationNode());
     if (checkFlushResult && !flushResult.IsOK()) {
@@ -9129,6 +8590,11 @@ EOperationType TOperationControllerBase::GetOperationType() const
     return OperationType;
 }
 
+TInstant TOperationControllerBase::GetStartTime() const
+{
+    return StartTime_;
+}
+
 const TString& TOperationControllerBase::GetAuthenticatedUser() const
 {
     return AuthenticatedUser;
@@ -9858,6 +9324,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     if (context.IsSave() && AutoMergeEnabled_.empty()) {
         AutoMergeEnabled_.resize(OutputTables_.size(), false);
     }
+
+    Persist(context, AlertManager_);
 }
 
 void TOperationControllerBase::ValidateRevivalAllowed() const
@@ -10010,6 +9478,11 @@ void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
 {
     task->FinishInput();
     task->RegisterInGraph(TDataFlowGraph::SourceDescriptor);
+}
+
+const std::vector<TTaskPtr>& TOperationControllerBase::GetTasks() const
+{
+    return Tasks;
 }
 
 void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, const TError& alert)
@@ -10208,74 +9681,6 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
         }
     }
     return layerPaths;
-}
-
-void TOperationControllerBase::AnalyzeProcessingUnitUsage(
-    const std::vector<TString>& usageStatistics,
-    const std::vector<EJobState>& jobStates,
-    const std::function<double(const TUserJobSpecPtr&)>& getLimit,
-    const std::function<bool(i64, i64, double)>& needSetAlert,
-    const TString& name,
-    EOperationAlertType alertType,
-    const TString& message)
-{
-    std::vector<TError> errors;
-    for (const auto& task : Tasks) {
-        const auto& userJobSpecPtr = task->GetUserJobSpec();
-        if (!userJobSpecPtr) {
-            continue;
-        }
-
-        auto taskName = task->GetVertexDescriptor();
-
-        i64 totalExecutionTime = 0;
-        i64 jobCount = 0;
-
-        double limit = getLimit(userJobSpecPtr);
-        if (limit == 0) {
-            continue;
-        }
-
-        for (const auto& jobState : jobStates) {
-            const auto& aggregatedStatistics = (jobState == EJobState::Running) ? AggregatedRunningJobStatistics_ : AggregatedFinishedJobStatistics_;
-            auto summary = aggregatedStatistics
-                .FindSummaryByJobStateAndType("/time/exec", jobState, taskName)
-                .value_or(NYT::TSummary());
-            totalExecutionTime += summary.GetSum();
-            jobCount += summary.GetCount();
-        }
-
-        if (jobCount == 0 || totalExecutionTime == 0) {
-            continue;
-        }
-
-        i64 usage = 0;
-        for (const auto& stat : usageStatistics) {
-            for (const auto& jobState : jobStates) {
-                const auto& aggregatedStatistics = (jobState == EJobState::Running) ? AggregatedRunningJobStatistics_ : AggregatedFinishedJobStatistics_;
-                usage += aggregatedStatistics.GetSumByJobStateAndType(stat, jobState, taskName);
-            }
-        }
-
-        TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
-        double ratio = static_cast<double>(usage) / (totalExecutionTime * limit);
-
-        if (needSetAlert(totalExecutionTime, jobCount, ratio))
-        {
-            auto error = TError("Jobs of task %Qlv use %.2f%% of requested %s limit", taskName, 100 * ratio, name)
-                << TErrorAttribute(Format("%s_time", name), usage)
-                << TErrorAttribute("exec_time", totalExecutionDuration)
-                << TErrorAttribute(Format("%s_limit", name), limit);
-            errors.push_back(error);
-        }
-    }
-
-    TError error;
-    if (!errors.empty()) {
-        error = TError(message) << errors;
-    }
-
-    SetOperationAlert(alertType, error);
 }
 
 void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
@@ -10502,11 +9907,6 @@ const NYson::TYsonString& TOperationControllerBase::TCachedYsonCallback::GetValu
         UpdateTime_ = now;
     }
     return Value_;
-}
-
-const TProgressCounterPtr& TOperationControllerBase::GetTotalJobCounter() const
-{
-    return TotalJobCounter_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

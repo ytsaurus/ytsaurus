@@ -26,8 +26,11 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default();
 }
 
-void TOperationAlertsConfig::Register(TRegistrar registrar)
+void TAlertManagerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("period", &TThis::Period)
+        .Default(TDuration::Seconds(10));
+
     registrar.Parameter("tmpfs_alert_max_unused_space_ratio", &TThis::TmpfsAlertMaxUnusedSpaceRatio)
         .InRange(0.0, 1.0)
         .Default(0.2);
@@ -592,9 +595,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("banned_exec_nodes_check_period", &TThis::BannedExecNodesCheckPeriod)
         .Default(TDuration::Minutes(5));
 
-    registrar.Parameter("operation_progress_analysis_period", &TThis::OperationProgressAnalysisPeriod)
-        .Default(TDuration::Seconds(10));
-
     registrar.Parameter("operation_build_progress_period", &TThis::OperationBuildProgressPeriod)
         .Default(TDuration::Seconds(3));
 
@@ -757,7 +757,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default((i64) 10 * 1000 * 1000)
         .GreaterThan(0);
 
-    registrar.Parameter("operation_alerts", &TThis::OperationAlerts)
+    registrar.Parameter("alert_manager", &TThis::AlertManager)
+        .Alias("operation_alerts")
         .DefaultNew();
 
     registrar.Parameter("controller_row_buffer_chunk_size", &TThis::ControllerRowBufferChunkSize)

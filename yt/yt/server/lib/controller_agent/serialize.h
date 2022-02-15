@@ -18,6 +18,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AddTotalJobStatistics)                (300802))
     ((NeededResourcesByPoolTree)            (300803))
     ((DiskResourcesInSanityCheck)           (300804))
+    ((AlertManager)                         (300805))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
