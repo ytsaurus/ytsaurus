@@ -138,13 +138,16 @@ public:
     void DetachFromChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd);
+        TChunkTree* const* childrenEnd,
+        EChunkDetachPolicy policy);
     void DetachFromChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children);
+        const std::vector<TChunkTree*>& children,
+        EChunkDetachPolicy policy);
     void DetachFromChunkList(
         TChunkList* chunkList,
-        TChunkTree* child);
+        TChunkTree* child,
+        EChunkDetachPolicy policy);
     void ReplaceChunkListChild(
         TChunkList* chunkList,
         int childIndex,

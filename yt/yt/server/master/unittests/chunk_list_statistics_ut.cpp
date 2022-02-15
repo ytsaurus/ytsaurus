@@ -175,7 +175,7 @@ TEST_F(TChunkListCumulativeStatisticsTest, OrderedTabletTrim)
     EXPECT_EQ(root->CumulativeStatistics()[0].RowCount, 1);
     EXPECT_EQ(root->CumulativeStatistics()[0].ChunkCount, 1);
 
-    DetachFromChunkList(root, {chunk1});
+    DetachFromChunkList(root, {chunk1}, EChunkDetachPolicy::OrderedTabletPrefix);
 
     auto* chunk3 = CreateChunk(3, 3, 3, 3);
     AttachToChunkList(root, {chunk3});
@@ -192,7 +192,7 @@ TEST_F(TChunkListCumulativeStatisticsTest, OrderedTabletPhysicalTrim)
 
     for (int i = 0; i < 17; ++i) {
         AttachToChunkList(root, {chunk});
-        DetachFromChunkList(root, {previousChunk});
+        DetachFromChunkList(root, {previousChunk}, EChunkDetachPolicy::OrderedTabletPrefix);
         previousChunk = chunk;
         chunk = CreateChunk(1, 1, 1, 1);
     }
@@ -277,7 +277,7 @@ TEST_F(TChunkListCumulativeStatisticsTest, SortedDynamicRootChanging)
             } else {
                 auto& children = tablet->Children();
                 auto* randomChild = children[gen() % children.size()];
-                DetachFromChunkList(tablet, {randomChild});
+                DetachFromChunkList(tablet, {randomChild}, EChunkDetachPolicy::SortedTablet);
             }
 
             CheckCumulativeStatistics(root);

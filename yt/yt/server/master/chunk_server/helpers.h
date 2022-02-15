@@ -55,7 +55,8 @@ void AttachToChunkList(
 void DetachFromChunkList(
     TChunkList* chunkList,
     TChunkTree* const* childrenBegin,
-    TChunkTree* const* childrenEnd);
+    TChunkTree* const* childrenEnd,
+    EChunkDetachPolicy policy);
 
 //! Set |childIndex|-th child of |chunkList| to |newChild|. It is up to caller
 //! to deal with statistics.

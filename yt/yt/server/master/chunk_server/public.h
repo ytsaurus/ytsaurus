@@ -225,6 +225,12 @@ DEFINE_ENUM(EChunkTreeBalancerMode,
     ((Permissive)       (1))
 );
 
+DEFINE_ENUM(EChunkDetachPolicy,
+    ((SortedTablet)        (0))
+    ((OrderedTabletPrefix) (1))
+    ((OrderedTabletSuffix) (2))
+);
+
 using TChunkRepairQueue = std::list<TChunkPtrWithIndexes> ;
 using TChunkRepairQueueIterator = TChunkRepairQueue::iterator;
 

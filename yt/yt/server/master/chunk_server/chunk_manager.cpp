@@ -1231,9 +1231,10 @@ public:
     void DetachFromChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd)
+        TChunkTree* const* childrenEnd,
+        EChunkDetachPolicy policy)
     {
-        NChunkServer::DetachFromChunkList(chunkList, childrenBegin, childrenEnd);
+        NChunkServer::DetachFromChunkList(chunkList, childrenBegin, childrenEnd, policy);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto it = childrenBegin; it != childrenEnd; ++it) {
@@ -1244,22 +1245,26 @@ public:
 
     void DetachFromChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children)
+        const std::vector<TChunkTree*>& children,
+        EChunkDetachPolicy policy)
     {
         DetachFromChunkList(
             chunkList,
             children.data(),
-            children.data() + children.size());
+            children.data() + children.size(),
+            policy);
     }
 
     void DetachFromChunkList(
         TChunkList* chunkList,
-        TChunkTree* child)
+        TChunkTree* child,
+        EChunkDetachPolicy policy)
     {
         DetachFromChunkList(
             chunkList,
             &child,
-            &child + 1);
+            &child + 1,
+            policy);
     }
 
     void ReplaceChunkListChild(
@@ -5005,23 +5010,26 @@ void TChunkManager::AttachToChunkList(
 void TChunkManager::DetachFromChunkList(
     TChunkList* chunkList,
     TChunkTree* const* childrenBegin,
-    TChunkTree* const* childrenEnd)
+    TChunkTree* const* childrenEnd,
+    EChunkDetachPolicy policy)
 {
-    Impl_->DetachFromChunkList(chunkList, childrenBegin, childrenEnd);
+    Impl_->DetachFromChunkList(chunkList, childrenBegin, childrenEnd, policy);
 }
 
 void TChunkManager::DetachFromChunkList(
     TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children)
+    const std::vector<TChunkTree*>& children,
+    EChunkDetachPolicy policy)
 {
-    Impl_->DetachFromChunkList(chunkList, children);
+    Impl_->DetachFromChunkList(chunkList, children, policy);
 }
 
 void TChunkManager::DetachFromChunkList(
     TChunkList* chunkList,
-    TChunkTree* child)
+    TChunkTree* child,
+    EChunkDetachPolicy policy)
 {
-    Impl_->DetachFromChunkList(chunkList, child);
+    Impl_->DetachFromChunkList(chunkList, child, policy);
 }
 
 void TChunkManager::ReplaceChunkListChild(

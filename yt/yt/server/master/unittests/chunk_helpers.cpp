@@ -177,12 +177,14 @@ void AttachToChunkList(
 
 void DetachFromChunkList(
     TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children)
+    const std::vector<TChunkTree*>& children,
+    EChunkDetachPolicy policy)
 {
     NChunkServer::DetachFromChunkList(
         chunkList,
         children.data(),
-        children.data() + children.size());
+        children.data() + children.size(),
+        policy);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

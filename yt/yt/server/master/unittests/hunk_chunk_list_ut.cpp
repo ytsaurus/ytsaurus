@@ -46,20 +46,22 @@ TEST_F(THunkChunkListTest, HunkRootChildTracking)
     });
     EXPECT_EQ(hunkRootChild, root->GetHunkRootChild());
 
-    DetachFromChunkList(root, {
-        child1
-    });
+    DetachFromChunkList(
+        root,
+        { child1 },
+        EChunkDetachPolicy::SortedTablet);
     EXPECT_EQ(hunkRootChild, root->GetHunkRootChild());
 
-    DetachFromChunkList(root, {
-        hunkRootChild
-    });
+    DetachFromChunkList(
+        root,
+        { hunkRootChild },
+        EChunkDetachPolicy::SortedTablet);
     EXPECT_EQ(nullptr, root->GetHunkRootChild());
 
-    DetachFromChunkList(root, {
-        child2,
-        child3
-    });
+    DetachFromChunkList(
+        root,
+        { child2, child3 },
+        EChunkDetachPolicy::SortedTablet);
     EXPECT_EQ(nullptr, root->GetHunkRootChild());
 }
 

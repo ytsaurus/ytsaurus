@@ -24,7 +24,8 @@ void AttachToChunkList(
 
 void DetachFromChunkList(
     TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children);
+    const std::vector<TChunkTree*>& children,
+    EChunkDetachPolicy policy);
 
 class TChunkGeneratorBase
     : public ::testing::Test
