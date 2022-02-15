@@ -349,7 +349,8 @@ public:
         return NTracing::TCurrentTraceContextGuard(TraceContext_);
     }
 
-    void UpdateTraceContext() {
+    void UpdateTraceContext()
+    {
         TraceContext_.Reset(NTracing::GetCurrentTraceContext());
     }
 

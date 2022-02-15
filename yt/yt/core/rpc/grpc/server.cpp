@@ -288,7 +288,7 @@ private:
         // TCompletionQueueTag overrides
         void Run(bool success, int cookie_) override
         {
-            const auto traceContextGuard = [&]() {
+            const auto traceContextGuard = [&] {
                 auto guard = Guard(TraceContextSpinLock_);
                 return TraceContextHandler_.GetTraceContextGuard();
             }();
