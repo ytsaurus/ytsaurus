@@ -63,9 +63,9 @@ def check_queue_list():
 
     yield
 
-    assert builtins.set(get("//sys/@queue_agent_object_revisions").keys()) == {"//tmp/q"}
+    assert builtins.set(get("//sys/@queue_agent_object_revisions")["queues"].keys()) == {"//tmp/q"}
     commit_transaction(tx)
-    assert builtins.set(get("//sys/@queue_agent_object_revisions").keys()) == {"//tmp/q", "//tmp/qqqq"}
+    assert builtins.set(get("//sys/@queue_agent_object_revisions")["queues"].keys()) == {"//tmp/q", "//tmp/qqqq"}
 
 
 class TestMasterSnapshotsCompatibility(YTEnvSetup):
