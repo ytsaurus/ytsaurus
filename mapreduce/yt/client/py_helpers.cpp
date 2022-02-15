@@ -60,13 +60,14 @@ TStructuredJobTableList NodeToStructuredTablePaths(const TNode& node, const TOpe
 
 TString GetIOInfo(
     const IStructuredJob& job,
+    const TCreateClientOptions& options,
     const TString& cluster,
     const TString& transactionId,
     const TString& inputPaths,
     const TString& outputPaths,
     const TString& neededColumns)
 {
-    auto client = NDetail::CreateClientImpl(cluster);
+    auto client = NDetail::CreateClientImpl(cluster, options);
     TOperationPreparer preparer(client, GetGuid(transactionId));
 
     auto structuredInputs = NodeToStructuredTablePaths(NodeFromYsonString(inputPaths), preparer);
