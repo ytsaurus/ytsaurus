@@ -88,6 +88,7 @@ private:
         TEnumIndexedVector<NTabletClient::ETabletBackupState, int> TabletCountByBackupState;
         NTabletClient::ETabletBackupState AggregatedTabletBackupState = NTabletClient::ETabletBackupState::None;
         NTransactionClient::TTimestamp BackupCheckpointTimestamp = NTransactionClient::NullTimestamp;
+        TError BackupError;
         TString QueueAgentStage = NQueueClient::ProductionStage;
 
         TDynamicTableAttributes();
@@ -144,6 +145,7 @@ public:
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByBackupState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, AggregatedTabletBackupState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupCheckpointTimestamp);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupError);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, QueueAgentStage);
     DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(DynamicTableAttributes, TabletStatistics);
 

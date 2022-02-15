@@ -289,7 +289,9 @@ void TClusterBackupSession::ValidateBackupStates(ETabletBackupState expectedStat
 {
     auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
         const auto& table = Tables_[tableIndex];
-        auto req = TObjectYPathProxy::Get(FromObjectId(table.DestinationTableId) + "/@tablet_backup_state");
+        auto req = TObjectYPathProxy::Get(FromObjectId(table.DestinationTableId) + "/@");
+        const static std::vector<TString> ExtraAttributeKeys{"tablet_backup_state", "backup_error"};
+        ToProto(req->mutable_attributes()->mutable_keys(), ExtraAttributeKeys);
         SetTransactionId(req, Transaction_->GetId());
         batchReq->AddRequest(req);
     };
@@ -298,13 +300,22 @@ void TClusterBackupSession::ValidateBackupStates(ETabletBackupState expectedStat
         const auto& table = Tables_[tableIndex];
         const auto& rspOrError = batchRsp->template GetResponse<TObjectYPathProxy::TRspGet>(subresponseIndex);
         const auto& rsp = rspOrError.ValueOrThrow();
-        auto result = ConvertTo<ETabletBackupState>(TYsonString(rsp->value()));
 
-        if (result != expectedState) {
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+        auto actualState = attributes->Get<ETabletBackupState>("tablet_backup_state");
+        auto optionalError = attributes->Find<TError>("backup_error");
+
+        if (actualState != expectedState) {
+            if (optionalError && !optionalError->IsOK()) {
+                THROW_ERROR *optionalError
+                    << TErrorAttribute("cluster_name", ClusterName_);
+
+            }
             THROW_ERROR_EXCEPTION("Destination table %Qv has invalid backup state: expected %Qlv, got %Qlv",
                 table.DestinationPath,
                 expectedState,
-                result)
+                actualState)
                 << TErrorAttribute("cluster_name", ClusterName_);
         }
     };

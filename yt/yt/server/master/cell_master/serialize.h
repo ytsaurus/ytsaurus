@@ -100,6 +100,7 @@ DEFINE_ENUM(EMasterReign,
     ((RebalancerKillingMergeJobsFix)                                (1932))  // h0pless
     ((DoNotMergeDynamicTables)                                      (1933))  // gritukan
     ((QueueList)                                                    (1934))  // achulkov2
+    ((BackupErrors)                                                 (1935))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

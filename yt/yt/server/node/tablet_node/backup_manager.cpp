@@ -277,8 +277,7 @@ private:
             ToProto(req.mutable_tablet_id(), tabletId);
             req.set_mount_revision(tablet->GetMountRevision());
             req.set_confirmed(false);
-            // QWFP
-            // req.mutable_error()->CopyFrom(rejectedInfo.error());
+            req.mutable_error()->CopyFrom(rejectedInfo.error());
             Slot_->PostMasterMessage(tabletId, req);
         }
     }
@@ -367,8 +366,10 @@ private:
                 ToProto(rejectedInfo->mutable_tablet_id(), tablet->GetId());
                 auto error = TError("Checkpoint timestamp is too late")
                     << TErrorAttribute("checkpoint_timestamp", tablet->GetBackupCheckpointTimestamp())
-                    << TErrorAttribute("current_timestamp", currentTimestamp);
-                ToProto(rejectedInfo->mutable_error(), error);
+                    << TErrorAttribute("current_timestamp", currentTimestamp)
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("cell_id", Slot_->GetCellId());
+                ToProto(rejectedInfo->mutable_error(), error.Sanitize());
             }
         }
 

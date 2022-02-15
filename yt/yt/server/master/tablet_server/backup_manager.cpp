@@ -67,6 +67,8 @@ public:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionAborted(
             BIND(&TBackupManager::OnTransactionAborted, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCommitted(
+            BIND(&TBackupManager::OnTransactionCommitted, MakeWeak(this)));
     }
 
     void SetBackupCheckpoint(
@@ -162,8 +164,8 @@ public:
                 continue;
             }
 
-            YT_LOG_DEBUG("Releasing backup checkpoint (TabletId: %v, BackupState: %v, "
-                "TransactionId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Releasing backup checkpoint (TabletId: %v, BackupState: %v, TransactionId: %v)",
                 tablet->GetId(),
                 tablet->GetBackupState(),
                 transaction->GetId());
@@ -179,8 +181,18 @@ public:
             }
 
             tablet->SetBackupState(ETabletBackupState::None);
+        }
+
+        if (!transaction->TablesWithBackupCheckpoints().contains(table)) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                "Attempted to remove unknown backup checkpoint table from "
+                "a transaction (TableId: %v, TransactionId: %v)",
+                table->GetId(),
+                transaction->GetId());
+        } else {
             EraseOrCrash(transaction->TablesWithBackupCheckpoints(), table);
         }
+
         UpdateAggregatedBackupState(table);
     }
 
@@ -201,8 +213,13 @@ public:
             rejectedCount);
 
         if (rejectedCount > 0) {
-            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BackupCheckpointRejected,
+            auto error = TError(
+                NTabletClient::EErrorCode::BackupCheckpointRejected,
                 "Backup checkpoint rejected");
+            if (!table->BackupError().IsOK()) {
+                error.MutableInnerErrors()->push_back(table->BackupError());
+            }
+            THROW_ERROR error;
         }
 
         response->set_pending_tablet_count(pendingCount);
@@ -211,11 +228,15 @@ public:
 
     TFuture<void> FinishBackup(TTableNode* table) override
     {
+        YT_VERIFY(!HasMutationContext());
+
         return FinishBackupTask<NProto::TReqFinishBackup>(table, "backup");
     }
 
     TFuture<void> FinishRestore(TTableNode* table) override
     {
+        YT_VERIFY(!HasMutationContext());
+
         return FinishBackupTask<NProto::TReqFinishRestore>(table, "restore");
     }
 
@@ -367,7 +388,10 @@ private:
                 YT_VERIFY(table == tablet->GetTable());
             } else {
                 table = tablet->GetTable();
-                YT_LOG_DEBUG("Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %v)",
+                    table->GetId(),
+                    transactionId,
                     table->GetBackupCheckpointTimestamp());
             }
 
@@ -447,10 +471,10 @@ private:
                     ETabletBackupState::RestoreStarted,
                     ETabletBackupState::None);
             } else {
-                // TODO(ifsmirnov): store error somewhere.
                 tablet->CheckedSetBackupState(
                     ETabletBackupState::RestoreStarted,
                     ETabletBackupState::RestoreFailed);
+                RegisterBackupError(table, error.Sanitize());
             }
         }
 
@@ -486,6 +510,7 @@ private:
                 "(TableId: %v, TabletId: %v)",
                 tablet->GetTable()->GetId(),
                 tablet->GetId());
+            RegisterBackupError(tablet->GetTable(), error);
             tablet->CheckedSetBackupState(
                 ETabletBackupState::CheckpointRequested,
                 ETabletBackupState::CheckpointRejected);
@@ -561,6 +586,10 @@ private:
 
     void OnTransactionAborted(TTransaction* transaction)
     {
+        if (transaction->TablesWithBackupCheckpoints().empty()) {
+            return;
+        }
+
         // NB: ReleaseBackupCheckpoint modifies transaction->TablesWithBackupCheckpoints.
         for (auto* table : GetValuesSortedByKey(transaction->TablesWithBackupCheckpoints())) {
             if (!IsObjectAlive(table)) {
@@ -573,6 +602,32 @@ private:
                 table->GetId(),
                 transaction->GetId());
             ReleaseBackupCheckpoint(table, transaction);
+            table->MutableBackupError() = {};
+        }
+    }
+
+    void OnTransactionCommitted(TTransaction* transaction)
+    {
+        if (transaction->TablesWithBackupCheckpoints().empty()) {
+            return;
+        }
+
+        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            "Table backup transaction was committed manually before cloning (TransactionId: %v)",
+            transaction->GetId());
+
+        for (auto* table : GetValuesSortedByKey(transaction->TablesWithBackupCheckpoints())) {
+            if (!IsObjectAlive(table)) {
+                continue;
+            }
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Releasing backup checkpoint on manual transaction commit (TableId: %v, "
+                "TransactionId: %v)",
+                table->GetId(),
+                transaction->GetId());
+            ReleaseBackupCheckpoint(table, transaction);
+            table->MutableBackupError() = {};
         }
     }
 
@@ -594,6 +649,17 @@ private:
                 ++table->MutableTabletCountByBackupState()[tablet->GetBackupState()];
             }
         }
+    }
+
+    void RegisterBackupError(TTableNode* table, const TError& error)
+    {
+        // Store at most one error per table.
+        if (!table->BackupError().IsOK()) {
+            return;
+        }
+
+        // Should be already sanitized.
+        table->MutableBackupError() = error;
     }
 };
 
