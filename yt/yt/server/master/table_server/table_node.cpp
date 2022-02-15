@@ -90,6 +90,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, TabletCountByBackupState);
     Save(context, AggregatedTabletBackupState);
     Save(context, BackupCheckpointTimestamp);
+    Save(context, BackupError);
     Save(context, QueueAgentStage);
 }
 
@@ -138,6 +139,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::MaxClipTimestampInChunkView) {
         Load(context, BackupCheckpointTimestamp);
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::BackupErrors) {
+        Load(context, BackupError);
     }
     // COMPAT(savrus)
     if (context.GetVersion() >= EMasterReign::ChaosDataTransfer &&
